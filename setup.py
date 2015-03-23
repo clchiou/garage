@@ -6,4 +6,9 @@ setup(
     description = 'My personal python modules',
     license = 'MIT',
     packages = find_packages(include=['garage', 'garage.*']),
+    install_requires = [
+        'lxml',
+        'requests',
+        'startup',
+    ],
 )
