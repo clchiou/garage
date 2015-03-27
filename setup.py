@@ -5,7 +5,7 @@ setup(
     name = 'garage',
     description = 'My personal python modules',
     license = 'MIT',
-    packages = find_packages(include=['garage', 'garage.*']),
+    packages = find_packages(),
     install_requires = [
         'lxml',
         'requests',
