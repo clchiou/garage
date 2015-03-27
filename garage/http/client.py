@@ -52,12 +52,14 @@ class HttpClient:
 
     @staticmethod
     def make():
+        LOG.info('create http client with: agent=%r, retry=%d',
+                 USER_AGENT, HTTP_RETRY)
         return HttpClient(
             headers={'User-Agent': USER_AGENT},
             http_retry=HTTP_RETRY,
         )
 
-    def __init__(self, *, headers=(), http_retry=0):
+    def __init__(self, *, headers, http_retry):
         self.session = requests.Session()
         self.session.headers.update(headers)
         self.parsers = {}
