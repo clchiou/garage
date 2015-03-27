@@ -1,6 +1,7 @@
 __all__ = [
     'ARGS',
     'ARGV',
+    'INIT',
     'PARSE',
     'PARSER',
 
@@ -12,8 +13,14 @@ import logging
 from startup import startup
 
 
+#
+# PARSER ---> PARSE --+--> ARGS ---> INIT
+#                     |
+#             ARGV ---+
+#
 ARGS = 'args'
 ARGV = 'argv'
+INIT = 'init'
 PARSE = 'parse'
 PARSER = 'parser'
 
@@ -55,3 +62,8 @@ def configure_logging(args: ARGS):
 @startup
 def set_jobs(args: ARGS):
     D['JOBS'] = args.jobs
+
+
+@startup
+def gate_init(_: ARGS) -> INIT:
+    pass
