@@ -31,6 +31,7 @@ USER_AGENT = (
 
 
 HTTP_RETRY = 0
+HTTP_RETRY_BASE_DELAY = 1
 
 
 @startup
@@ -39,12 +40,17 @@ def add_arguments(parser: PARSER) -> PARSE:
     group.add_argument(
         '--http-retry', type=int, default=HTTP_RETRY,
         help='set number of retries on http error (default %(default)s)')
+    group.add_argument(
+        '--http-retry-base-delay', type=int, default=HTTP_RETRY_BASE_DELAY,
+        help='set base delay between retries which grows exponentially '
+             '(default %(default)s seconds)')
 
 
 @startup
 def configure_http_retry(args: ARGS):
-    global HTTP_RETRY
+    global HTTP_RETRY, HTTP_RETRY_BASE_DELAY
     HTTP_RETRY = args.http_retry
+    HTTP_RETRY_BASE_DELAY = args.http_retry_base_delay
 
 
 class HttpClient:
@@ -57,13 +63,15 @@ class HttpClient:
         return HttpClient(
             headers={'User-Agent': USER_AGENT},
             http_retry=HTTP_RETRY,
+            http_retry_base_delay=HTTP_RETRY_BASE_DELAY,
         )
 
-    def __init__(self, *, headers, http_retry):
+    def __init__(self, *, headers, http_retry, http_retry_base_delay):
         self.session = requests.Session()
         self.session.headers.update(headers)
         self.parsers = {}
         self.http_retry = http_retry
+        self.http_retry_base_delay = http_retry_base_delay
         # XXX: Monkey patching for logging.
         self._session_send = self.session.send
         self.session.send = self._send
@@ -117,7 +125,7 @@ class HttpClient:
                 LOG.warning(
                     'uri=%s status_code=%d retry=%d',
                     uri, exc.response.status_code, retry)
-                time.sleep(2 ** retry)
+                time.sleep(self.http_retry_base_delay * 2 ** retry)
         return self._request(http_method, uri, kwargs)
 
     def _request(self, http_method, uri, kwargs):

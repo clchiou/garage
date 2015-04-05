@@ -56,7 +56,7 @@ def configure_logging(args: ARGS):
         level = logging.DEBUG
     logging.basicConfig(
         level=level,
-        format='%(asctime)s: %(levelname)s: %(name)s: %(message)s')
+        format='%(asctime)s %(levelname)s %(name)s: %(message)s')
 
 
 @startup
