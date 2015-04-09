@@ -132,6 +132,9 @@ def _get_one_of(http_client, uris):
     for uri in uris[:-1]:
         try:
             return http_client.get(uri)
-        except requests.exceptions.HTTPError as exc:
-            LOG.warning('uri=%s status_code=%d', uri, exc.response.status_code)
+        except requests.exceptions.RequestException as exc:
+            LOG.warning(
+                'HTTP %d for %s',
+                exc.response.status_code, uri,
+                exc_info=True)
     return http_client.get(uris[-1])
