@@ -9,6 +9,8 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+import requests.exceptions
+
 from startup import startup
 
 from garage import ARGS
@@ -96,12 +98,12 @@ def _download(
         output_dirpath,
         chunk_size):
     futures = {}
-    for uri, filename in uris_filenames:
+    for uris, filename in uris_filenames:
         output_path = output_dirpath / filename
         if output_path.exists():
             LOG.warning('skip %s', output_path)
             continue
-        futures[executor.submit(http_client.get, uri)] = output_path
+        futures[executor.submit(_get_one_of, http_client, uris)] = output_path
     for future in concurrent.futures.as_completed(futures):
         response = future.result()
         output_path = futures[future]
@@ -123,3 +125,13 @@ def _check(filenames, output_dirpath):
             filenames.remove(filepath.name)
     if filenames:
         raise DownloadError('miss file(s) %r' % filenames)
+
+
+def _get_one_of(http_client, uris):
+    assert uris
+    for uri in uris[:-1]:
+        try:
+            return http_client.get(uri)
+        except requests.exceptions.HTTPError as exc:
+            LOG.warning('uri=%s status_code=%d', uri, exc.response.status_code)
+    return http_client.get(uris[-1])
