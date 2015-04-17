@@ -123,8 +123,9 @@ class HttpClient:
                 return self._request(http_method, uri, kwargs)
             except requests.exceptions.RequestException as exc:
                 LOG.warning(
-                    'HTTP %d for %s (retry %d)',
-                    exc.response.status_code, uri, retry,
+                    'HTTP %s for %s (retry %d)',
+                    exc.response and exc.response.status_code,
+                    uri, retry,
                     exc_info=True)
                 time.sleep(self.http_retry_base_delay * 2 ** retry)
         return self._request(http_method, uri, kwargs)
