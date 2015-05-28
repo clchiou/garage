@@ -13,9 +13,9 @@ import requests
 
 from startup import startup
 
-from garage import ARGS
-from garage import PARSE
-from garage import PARSER
+from garage.app import ARGS
+from garage.app import PARSE
+from garage.app import PARSER
 from garage.http.error import HttpError
 
 

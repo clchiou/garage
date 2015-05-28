@@ -13,10 +13,10 @@ import requests.exceptions
 
 from startup import startup
 
-from garage import ARGS
-from garage import PARSE
-from garage import PARSER
-from garage import D
+from garage.app import ARGS
+from garage.app import PARSE
+from garage.app import PARSER
+from garage.app import D
 
 from garage.concurrent import prepare_crash
 from garage.http.client import HttpClient
