@@ -17,6 +17,7 @@ from garage.app import ARGS
 from garage.app import PARSE
 from garage.app import PARSER
 from garage.http.error import HttpError
+from garage.http.error import get_status_code
 
 
 LOG = logging.getLogger(__name__)
@@ -122,14 +123,9 @@ class HttpClient:
             try:
                 return self._request(http_method, uri, kwargs)
             except requests.exceptions.RequestException as exc:
-                if exc.response is not None:
-                    status_code = exc.response.status_code
-                else:
-                    status_code = -1
                 LOG.warning(
                     'HTTP %d for %s (retry %d)',
-                    status_code, uri, retry,
-                    exc_info=True)
+                    get_status_code(exc), uri, retry, exc_info=True)
                 time.sleep(self.http_retry_base_delay * 2 ** retry)
         return self._request(http_method, uri, kwargs)
 

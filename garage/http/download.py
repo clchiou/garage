@@ -17,10 +17,10 @@ from garage.app import ARGS
 from garage.app import PARSE
 from garage.app import PARSER
 from garage.app import D
-
 from garage.concurrent import prepare_crash
 from garage.http.client import HttpClient
 from garage.http.error import DownloadError
+from garage.http.error import get_status_code
 
 
 LOG = logging.getLogger(__name__)
@@ -133,9 +133,6 @@ def _get_one_of(http_client, uris):
         try:
             return http_client.get(uri)
         except requests.exceptions.RequestException as exc:
-            if exc.response is not None:
-                status_code = exc.response.status_code
-            else:
-                status_code = -1
-            LOG.warning('HTTP %d for %s', status_code, uri, exc_info=True)
+            LOG.warning(
+                'HTTP %d for %s', get_status_code(exc), uri, exc_info=True)
     return http_client.get(uris[-1])
