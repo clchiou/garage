@@ -27,8 +27,12 @@ PARSER = 'parser'
 
 # Global data
 D = {
+    'VERBOSE': 0,
     'JOBS': 1,
 }
+
+
+LOG_FORMAT = '%(asctime)s %(levelname)s %(name)s: %(message)s'
 
 
 def init():
@@ -36,7 +40,7 @@ def init():
     def add_arguments(parser: PARSER) -> PARSE:
         group = parser.add_argument_group(__name__)
         group.add_argument(
-            '-v', '--verbose', action='count', default=0,
+            '-v', '--verbose', action='count', default=D['VERBOSE'],
             help='verbose output')
         group.add_argument(
             '-j', '--jobs', type=int, default=D['JOBS'],
@@ -55,12 +59,11 @@ def init():
             level = logging.INFO
         else:
             level = logging.DEBUG
-        logging.basicConfig(
-            level=level,
-            format='%(asctime)s %(levelname)s %(name)s: %(message)s')
+        logging.basicConfig(level=level, format=LOG_FORMAT)
 
     @startup
-    def set_jobs(args: ARGS):
+    def set_globals(args: ARGS):
+        D['VERBOSE'] = args.verbose
         D['JOBS'] = args.jobs
 
     @startup
