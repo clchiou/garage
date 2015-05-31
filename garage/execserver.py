@@ -48,23 +48,21 @@ def interruptable_wait(event):
 
 
 def server(listener, server_vars):
+    LOG.info('server start')
     global_vars = {}
     while not server_vars.exit.is_set():
         conn = listener.accept()
         try:
-            LOG.info('accept %s', listener.last_accepted)
-            worker_vars = Namespace(
-                address=listener.last_accepted,
+            LOG.info('accept %r', listener.last_accepted)
+            worker = Worker(
+                maybe_closing(conn),
+                server_vars,
+                global_vars,
+                listener.last_accepted,
             )
             worker_thread = threading.Thread(
                 name='worker-%02d' % (1 + len(server_vars.workers)),
-                target=worker,
-                args=(
-                    maybe_closing(conn),
-                    server_vars,
-                    worker_vars,
-                    global_vars,
-                ),
+                target=worker.run,
             )
             server_vars.workers.append(worker_thread)
             worker_thread.daemon = True
@@ -76,126 +74,140 @@ def server(listener, server_vars):
     LOG.info('exit')
 
 
-def worker(conn_manager, server_vars, worker_vars, global_vars):
-    with conn_manager as conn:
-        _worker(conn, server_vars, worker_vars, global_vars)
+class Worker(object):
 
+    SUCCESS = {'success': True}
 
-SUCCESS = {'success': True}
-
-
-def _worker(conn, server_vars, worker_vars, global_vars):
-    # Say hello to the client!
-    conn.send({
-        'version_info': tuple(sys.version_info),
-    })
-    local_vars = {}
-    filename = format_address(worker_vars.address)
-    while not server_vars.exit.is_set():
-        try:
-            request = conn.recv()
-        except EOFError:
-            break
-        if 'command' not in request:
-            conn.send({
-                'success': False,
-                'reason': 'need "command"',
-            })
-            continue
-        command = request['command']
-        LOG.info('receive command %r', command)
-        if command == 'shutdown':
-            server_vars.exit.set()
-            conn.send(SUCCESS)
-            break
-        elif command == 'exit':
-            conn.send(SUCCESS)
-            break
-        elif command == 'set-wait':
-            if request.get('value', True):
-                server_vars.wait.set()
-            else:
-                server_vars.wait.clear()
-            conn.send(SUCCESS)
-        elif command == 'execute':
-            try:
-                _command_execute(
-                    request, conn, global_vars, local_vars, filename)
-            except Exception as exc:
-                conn.send({
-                    'success': False,
-                    'reason': 'uncaught exception',
-                    'exception': str(exc),
-                })
-                raise
-        elif command == 'get':
-            try:
-                _command_get(request, conn, global_vars, local_vars)
-            except Exception as exc:
-                conn.send({
-                    'success': False,
-                    'reason': 'uncaught exception',
-                    'exception': str(exc),
-                })
-                raise
+    def __init__(self, conn_manager, server_vars, global_vars, address):
+        self.conn_manager = conn_manager
+        self.server_vars = server_vars
+        self.global_vars = global_vars
+        self.exit = False
+        if isinstance(address, tuple):
+            self.filename = '%s:%s' % (address)
         else:
-            LOG.warning('unknown command %r', command)
+            self.filename = str(address)
+
+    def run(self):
+        LOG.info('worker start')
+        with self.conn_manager as conn:
+            conn.send({
+                'version_info': tuple(sys.version_info),
+            })
+            while not self.server_vars.exit.is_set() and not self.exit:
+                try:
+                    request = conn.recv()
+                except EOFError:
+                    break
+                if 'command' not in request:
+                    conn.send({
+                        'success': False,
+                        'reason': 'need "command"',
+                    })
+                    continue
+                command = request['command']
+                LOG.info('receive command %r', command)
+                handler = {
+                    'shutdown': self.do_shutdown,
+                    'exit': self.do_exit,
+                    'set-wait': self.do_set_wait,
+                    'get': self.do_get,
+                    'set': self.do_set,
+                    'execute': self.do_execute,
+                }.get(command)
+                if handler is None:
+                    LOG.warning('unknown command %r', command)
+                    conn.send({
+                        'success': False,
+                        'reason': 'unknown command',
+                        'command': command,
+                    })
+                else:
+                    try:
+                        handler(conn, request)
+                    except Exception as exc:
+                        conn.send({
+                            'success': False,
+                            'reason': 'uncaught exception',
+                            'exception': str(exc),
+                        })
+                        raise
+        LOG.info('exit')
+
+    def do_shutdown(self, conn, _):
+        self.server_vars.exit.set()
+        conn.send(Worker.SUCCESS)
+
+    def do_exit(self, conn, _):
+        self.exit = True
+        conn.send(Worker.SUCCESS)
+
+    def do_set_wait(self, conn, request):
+        if request.get('value', True):
+            self.server_vars.wait.set()
+        else:
+            self.server_vars.wait.clear()
+        conn.send(Worker.SUCCESS)
+
+    def do_get(self, conn, request):
+        if 'name' not in request:
             conn.send({
                 'success': False,
-                'reason': 'unknown command',
-                'command': command,
+                'reason': 'need "name" argument',
             })
-    LOG.info('exit')
-
-
-def _command_execute(request, conn, global_vars, local_vars, filename):
-    if 'source' not in request:
+            return
+        name = request['name']
+        if name not in self.global_vars:
+            conn.send({
+                'success': False,
+                'reason': 'undefined variable',
+                'name': name,
+            })
+            return
         conn.send({
-            'success': False,
-            'reason': 'need "source" argument',
+            'success': True,
+            'name': name,
+            'value': self.global_vars[name],
         })
-        return
-    source = request['source']
-    filename = request.get('filename', filename)
-    try:
-        code = compile(source, filename, 'exec')
-    except SyntaxError as exc:
-        LOG.exception('cannot compile for %s', filename)
-        conn.send({
-            'success': False,
-            'reason': 'cannot compile',
-            'filename': filename,
-            'exception': str(exc),
-        })
-        return
-    exec(code, global_vars, local_vars)
-    conn.send(SUCCESS)
 
+    def do_set(self, conn, request):
+        if 'name' not in request:
+            conn.send({
+                'success': False,
+                'reason': 'need "name" argument',
+            })
+            return
+        if 'value' not in request:
+            conn.send({
+                'success': False,
+                'reason': 'need "value" argument',
+            })
+            return
+        self.global_vars[request['name']] = request['value']
+        conn.send(Worker.SUCCESS)
 
-def _command_get(request, conn, global_vars, local_vars):
-    if 'variable' not in request:
-        conn.send({
-            'success': False,
-            'reason': 'need "variable" argument',
-        })
-        return
-    variable = request['variable']
-    if variable not in local_vars and variable not in global_vars:
-        conn.send({
-            'success': False,
-            'reason': 'undefined variable',
-            'variable': variable,
-        })
-        return
-    value = local_vars.get(variable) or global_vars.get(variable)
-    conn.send({'success': True, 'variable': variable, 'value': value})
-
-
-def format_address(address):
-    if isinstance(address, tuple):
-        return '%s:%s' % (address)
-    else:
-        return str(address)
+    def do_execute(self, conn, request):
+        if 'source' not in request:
+            conn.send({
+                'success': False,
+                'reason': 'need "source" argument',
+            })
+            return
+        source = request['source']
+        filename = request.get('filename', self.filename)
+        try:
+            code = compile(source, filename, 'exec')
+        except SyntaxError as exc:
+            LOG.exception('cannot compile for %s', filename)
+            conn.send({
+                'success': False,
+                'reason': 'cannot compile',
+                'filename': filename,
+                'exception': str(exc),
+            })
+            return
+        exec(code, self.global_vars)
+        conn.send(Worker.SUCCESS)
 
 
 def main(argv):
