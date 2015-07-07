@@ -13,10 +13,11 @@ import requests.exceptions
 
 from startup import startup
 
+import garage.app
 from garage.app import ARGS
 from garage.app import PARSE
 from garage.app import PARSER
-from garage.app import D
+from garage.collections import make_fixed_attrs
 from garage.concurrent import prepare_crash
 from garage.http.client import HttpClient
 from garage.http.error import DownloadError
@@ -27,21 +28,22 @@ LOG = logging.getLogger(__name__)
 LOG.addHandler(logging.NullHandler())
 
 
-CHUNK_SIZE = 1024
+D = make_fixed_attrs(
+    CHUNK_SIZE=1024,
+)
 
 
 @startup
 def add_arguments(parser: PARSER) -> PARSE:
     group = parser.add_argument_group(__name__)
     group.add_argument(
-        '--http-download-chunk-size', type=int, default=CHUNK_SIZE,
+        '--http-download-chunk-size', type=int, default=D.CHUNK_SIZE,
         help='set http download chunk size (default %(default)s bytes)')
 
 
 @startup
 def configure_chunk_size(args: ARGS):
-    global CHUNK_SIZE
-    CHUNK_SIZE = args.http_download_chunk_size
+    D.CHUNK_SIZE = args.http_download_chunk_size
 
 
 def download(
@@ -53,8 +55,8 @@ def download(
         chunk_size=None):
     output_dirpath = Path(output_dirpath)
     http_client = http_client or HttpClient.make()
-    max_workers = max_workers or D['JOBS']
-    chunk_size = chunk_size or CHUNK_SIZE
+    max_workers = max_workers or garage.app.D.JOBS
+    chunk_size = chunk_size or D.CHUNK_SIZE
     okay, tmp_dirpath = _prepare(output_dirpath)
     if not okay:
         return

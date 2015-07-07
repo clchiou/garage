@@ -3,16 +3,20 @@
 __all__ = [
     'ARGS',
     'ARGV',
-    'D',
     'INIT',
     'PARSE',
     'PARSER',
+
+    'D',
+
     'init',
 ]
 
 import logging
 
 from startup import startup
+
+from garage.collections import make_fixed_attrs
 
 
 #
@@ -26,13 +30,11 @@ INIT = 'init'
 PARSE = 'parse'
 PARSER = 'parser'
 
-# Global data
-VERBOSE = 'VERBOSE'
-JOBS = 'JOBS'
-D = {
-    VERBOSE: 0,
-    JOBS: 1,
-}
+
+D = make_fixed_attrs(
+    VERBOSE=0,
+    JOBS=1,
+)
 
 
 LOG_FORMAT = '%(asctime)s %(levelname)s %(name)s: %(message)s'
@@ -42,10 +44,10 @@ LOG_FORMAT = '%(asctime)s %(levelname)s %(name)s: %(message)s'
 def add_arguments(parser: PARSER) -> PARSE:
     group = parser.add_argument_group(__name__)
     group.add_argument(
-        '-v', '--verbose', action='count', default=D[VERBOSE],
+        '-v', '--verbose', action='count', default=D.VERBOSE,
         help='verbose output')
     group.add_argument(
-        '-j', '--jobs', type=int, default=D[JOBS],
+        '-j', '--jobs', type=int, default=D.JOBS,
         help='''set number of jobs to run in parallel
                 (default: %(default)s)''')
 
@@ -68,8 +70,8 @@ def configure_logging(args: ARGS):
 
 @startup
 def set_globals(args: ARGS):
-    D[VERBOSE] = args.verbose
-    D[JOBS] = args.jobs
+    D.VERBOSE = args.verbose
+    D.JOBS = args.jobs
 
 
 @startup

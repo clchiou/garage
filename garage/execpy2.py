@@ -15,8 +15,8 @@ import tempfile
 import time
 from multiprocessing.connection import Client
 
+import garage.app
 import garage.execserver
-from garage.app import D
 
 
 LOG = logging.getLogger(__name__)
@@ -57,8 +57,8 @@ def create_server_path():
 def start_server(python, address, authkey):
     script_path = garage.execserver.__file__
     args = [python, script_path, '--server-path', address]
-    if D['VERBOSE'] > 0:
-        args.append('-' + 'v' * D['VERBOSE'])
+    if garage.app.D.VERBOSE > 0:
+        args.append('-' + 'v' * garage.app.D.VERBOSE)
     server_proc = subprocess.Popen(args, env={'AUTHKEY': authkey})
     try:
         yield server_proc
