@@ -101,7 +101,8 @@ class ServerStub:
             'source': source,
             'filename': self.stub.address,
         })
-        return err
+        if err:
+            raise RpcError('cannot execute %r due to %s' % (source, err))
 
 
 class Vars:

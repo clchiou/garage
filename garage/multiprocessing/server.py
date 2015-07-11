@@ -214,7 +214,16 @@ class Worker(object):
                 'exception': str(exc),
             })
             return
-        exec(code, self.global_vars)
+        try:
+            exec(code, self.global_vars)
+        except Exception as exc:
+            LOG.exception('runtime error in exec %s', filename)
+            conn.send({
+                'error': 'runtime error',
+                'filename': filename,
+                'exception': str(exc),
+            })
+            return
         conn.send(self.OKAY)
 
 
