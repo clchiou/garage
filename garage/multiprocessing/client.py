@@ -1,4 +1,7 @@
 __all__ = [
+    'RpcConnectionError',
+    'RpcError',
+
     'Connector',
 ]
 
@@ -12,6 +15,14 @@ LOG = logging.getLogger(__name__)
 LOG.addHandler(logging.NullHandler())
 
 
+class RpcError(Exception):
+    pass
+
+
+class RpcConnectionError(RpcError):
+    pass
+
+
 class Connector:
 
     def __init__(self, address, protocol, authkey):
@@ -21,22 +32,26 @@ class Connector:
 
     @contextlib.contextmanager
     def connect(self):
-        with Client(self.address, authkey=self.authkey) as conn:
-            version_info = conn.recv()['version_info']
-            LOG.info('server version %s', version_info)
-            server = ServerStub(conn, self.address, self.protocol)
-            try:
-                yield server
-            finally:
-                err = server.close()
-                if err:
-                    LOG.error('cannot close stub due to %s', err)
+        try:
+            with Client(self.address, authkey=self.authkey) as conn:
+                version_info = conn.recv()['version_info']
+                LOG.info('server version %s', version_info)
+                server = ServerStub(conn, self.address, self.protocol)
+                try:
+                    yield server
+                finally:
+                    server.close()
+        except (FileNotFoundError, EOFError) as exc:
+            raise RpcConnectionError(
+                'cannot connect to %s' % self.address) from exc
 
     def shutdown(self):
-        with self.connect() as server:
-            err = server.shutdown()
-            if err:
-                LOG.error('cannot shutdown server due to %s', err)
+        # close/shutdown should never fail (i.e., no-throw).
+        try:
+            with self.connect() as server:
+                server.shutdown()
+        except RpcConnectionError:
+            LOG.warning('cannot shutdown server', exc_info=True)
 
 
 class ServerStub:
@@ -45,20 +60,37 @@ class ServerStub:
         self.stub = Stub(conn, address, protocol)
         self.server_vars = Vars(self.stub, 'server_')
         self.vars = Vars(self.stub)
+        # Don't call close/shutdown if it has been closed.  Although
+        # this doesn't make the program "more right", it keeps logs
+        # cleaner.
         self._closed = False
 
     def shutdown(self):
+        # close/shutdown should never fail (i.e., no-throw).
         if self._closed:
             return False
-        _, err = self.stub({'command': 'shutdown'})
+        try:
+            _, err = self.stub({'command': 'shutdown'})
+            if err:
+                LOG.error('cannot shutdown server due to %s', err)
+        except RpcError as exc:
+            LOG.warning('cannot send shutdown request', exc_info=True)
+            err = exc
         if not err:
             self._closed = True
         return err
 
     def close(self):
+        # close/shutdown should never fail (i.e., no-throw).
         if self._closed:
             return False
-        _, err = self.stub({'command': 'close'})
+        try:
+            _, err = self.stub({'command': 'close'})
+            if err:
+                LOG.error('cannot close stub due to %s', err)
+        except RpcError as exc:
+            LOG.warning('cannot send close request', exc_info=True)
+            err = exc
         if not err:
             self._closed = True
         return err
@@ -107,6 +139,9 @@ class Stub:
         self.protocol = protocol
 
     def __call__(self, request):
-        self.conn.send_bytes(pickle.dumps(request, protocol=self.protocol))
-        response = self.conn.recv()
+        try:
+            self.conn.send_bytes(pickle.dumps(request, protocol=self.protocol))
+            response = self.conn.recv()
+        except IOError as exc:
+            raise RpcError('cannot send request %r' % request) from exc
         return response, response.get('error')

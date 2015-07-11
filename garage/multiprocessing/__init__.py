@@ -1,4 +1,7 @@
 __all__ = [
+    'RpcConnectionError',
+    'RpcError',
+
     'python',
 ]
 
@@ -14,6 +17,8 @@ import time
 
 import garage.multiprocessing.server
 from garage.multiprocessing.client import Connector
+from garage.multiprocessing.client import RpcConnectionError
+from garage.multiprocessing.client import RpcError
 
 
 LOG = logging.getLogger(__name__)
@@ -42,6 +47,7 @@ def create_socket():
         LOG.info('socket path %s', socket_path)
         yield socket_path
     finally:
+        LOG.info('remove socket path %s', socket_path)
         shutil.rmtree(tempdir)
 
 
