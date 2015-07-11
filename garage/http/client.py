@@ -16,6 +16,7 @@ from startup import startup
 from garage.app import ARGS
 from garage.app import PARSE
 from garage.app import PARSER
+from garage.collections import make_fixed_attrs
 from garage.http.error import HttpError
 from garage.http.error import get_status_code
 
@@ -31,27 +32,28 @@ USER_AGENT = (
 )
 
 
-HTTP_RETRY = 0
-HTTP_RETRY_BASE_DELAY = 1
+D = make_fixed_attrs(
+    HTTP_RETRY=0,
+    HTTP_RETRY_BASE_DELAY=1,
+)
 
 
 @startup
 def add_arguments(parser: PARSER) -> PARSE:
     group = parser.add_argument_group(__name__)
     group.add_argument(
-        '--http-retry', type=int, default=HTTP_RETRY,
+        '--http-retry', type=int, default=D.HTTP_RETRY,
         help='set number of retries on http error (default %(default)s)')
     group.add_argument(
-        '--http-retry-base-delay', type=int, default=HTTP_RETRY_BASE_DELAY,
+        '--http-retry-base-delay', type=int, default=D.HTTP_RETRY_BASE_DELAY,
         help='set base delay between retries which grows exponentially '
              '(default %(default)s seconds)')
 
 
 @startup
 def configure_http_retry(args: ARGS):
-    global HTTP_RETRY, HTTP_RETRY_BASE_DELAY
-    HTTP_RETRY = args.http_retry
-    HTTP_RETRY_BASE_DELAY = args.http_retry_base_delay
+    D.HTTP_RETRY = args.http_retry
+    D.HTTP_RETRY_BASE_DELAY = args.http_retry_base_delay
 
 
 class HttpClient:
@@ -60,11 +62,11 @@ class HttpClient:
     @staticmethod
     def make():
         LOG.info('create http client with: agent=%r, retry=%d',
-                 USER_AGENT, HTTP_RETRY)
+                 USER_AGENT, D.HTTP_RETRY)
         return HttpClient(
             headers={'User-Agent': USER_AGENT},
-            http_retry=HTTP_RETRY,
-            http_retry_base_delay=HTTP_RETRY_BASE_DELAY,
+            http_retry=D.HTTP_RETRY,
+            http_retry_base_delay=D.HTTP_RETRY_BASE_DELAY,
         )
 
     def __init__(self, *, headers, http_retry, http_retry_base_delay):
