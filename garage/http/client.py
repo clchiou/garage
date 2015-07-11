@@ -94,9 +94,9 @@ class HttpClient:
         LOG.debug('HEAD: uri=%s', uri)
         return self._request_with_retry(self.session.head, uri, kwargs)
 
-    def form(self, uri, **kwargs):
+    def form(self, uri, encoding=None, **kwargs):
         """Post an HTML form interactively."""
-        tree = self.get(uri, **kwargs).dom()
+        tree = self.get(uri, **kwargs).dom(encoding=encoding)
         xpath_expr = yield
         forms = tree.xpath(xpath_expr)
         if len(forms) != 1:
@@ -109,9 +109,9 @@ class HttpClient:
             data[name] = form_data.get(name, form_input.get('value'))
         yield self.post(action_uri, data=data)
 
-    def dom(self, response):
+    def dom(self, response, encoding=None):
         """Return a DOM object of the contents."""
-        parser = self._get_parser(response.encoding)
+        parser = self._get_parser(encoding or response.encoding)
         return lxml.etree.fromstring(response.content, parser)
 
     def _get_parser(self, encoding):
