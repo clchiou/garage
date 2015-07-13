@@ -23,11 +23,12 @@ def memorize(method):
         method = method.fget
 
     def wrapper(self):
-        if 'value' not in wrapper.__dict__:
-            wrapper.value = method(self)
-        return wrapper.value
+        if self not in wrapper.values:
+            wrapper.values[self] = method(self)
+        return wrapper.values[self]
 
     wrapper.__doc__ = wrapped.__doc__
+    wrapper.values = {}
     return property(wrapper) if is_property else wrapper
 
 

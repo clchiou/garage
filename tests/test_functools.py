@@ -31,9 +31,9 @@ class TestIsOrdered(unittest.TestCase):
 
 class Foo:
 
-    def __init__(self):
-        self.counter1 = 1
-        self.counter2 = 2
+    def __init__(self, counter1, counter2):
+        self.counter1 = counter1
+        self.counter2 = counter2
 
     # 1. Decoration order is irrelevant.
     # 2. Only called once.
@@ -56,11 +56,16 @@ class Foo:
 class TestMemorize(unittest.TestCase):
 
     def test_memorize(self):
-        foo = Foo()
+        foo = Foo(1, 2)
         self.assertEqual(1, foo.prop1)
         self.assertEqual(1, foo.prop1)
         self.assertEqual(2, foo.prop2)
         self.assertEqual(2, foo.prop2)
+        foo2 = Foo(100, 200)
+        self.assertEqual(100, foo2.prop1)
+        self.assertEqual(100, foo2.prop1)
+        self.assertEqual(200, foo2.prop2)
+        self.assertEqual(200, foo2.prop2)
 
 
 class Bar:
