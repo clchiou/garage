@@ -102,17 +102,15 @@ class Worker(object):
 
     def serve_forever(self, conn):
         conn.send(self.VERSION_INFO)
-        try:
-            while not self.server_vars.exit.is_set():
-                self.process_request(conn)
-        except StopIteration:
-            pass
+        while not self.server_vars.exit.is_set():
+            if self.process_request(conn):
+                break
 
     def process_request(self, conn):
         try:
             request = conn.recv()
         except EOFError:
-            raise StopIteration
+            return True
 
         command = request.get('command')
         LOG.info('receive command %r', command)
@@ -136,7 +134,7 @@ class Worker(object):
             return
 
         try:
-            handler(conn, request)
+            return handler(conn, request)
         except Exception as exc:
             conn.send({'error': 'uncaught exception', 'exception': str(exc)})
             raise
@@ -147,7 +145,7 @@ class Worker(object):
 
     def do_close(self, conn, _):
         conn.send(self.OKAY)
-        raise StopIteration
+        return True
 
     def do_server_set(self, conn, request):
         name = request.get('name')
