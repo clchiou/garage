@@ -4,7 +4,10 @@ __all__ = [
     'nondata_property',
 ]
 
+import functools
 import operator
+
+import garage.preconds
 
 
 def is_ordered(lst, key=None, strict=False):
@@ -16,20 +19,21 @@ def is_ordered(lst, key=None, strict=False):
 
 
 def memorize(method):
-    """Wrap a property/method and memorize its return value."""
-    is_property = isinstance(method, property)
-    wrapped = method
-    if is_property:
-        method = method.fget
+    """Wrap a method and memorize its return value.
 
+       Note: method's name _must_ be the same as the property name.
+    """
+    garage.preconds.check_arg(not isinstance(method, property))
+    garage.preconds.check_arg(method.__name__ != '<lambda>')
+
+    @functools.wraps(method)
     def wrapper(self):
-        if self not in wrapper.values:
-            wrapper.values[self] = method(self)
-        return wrapper.values[self]
+        value = method(self)
+        # Override the wrapper before return.
+        self.__dict__[method.__name__] = value
+        return value
 
-    wrapper.__doc__ = wrapped.__doc__
-    wrapper.values = {}
-    return property(wrapper) if is_property else wrapper
+    return nondata_property(wrapper)
 
 
 class NondataProperty:

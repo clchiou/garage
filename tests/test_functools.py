@@ -35,17 +35,14 @@ class Foo:
         self.counter1 = counter1
         self.counter2 = counter2
 
-    # 1. Decoration order is irrelevant.
-    # 2. Only called once.
+    # Methods will be called only once.
 
     @memorize
-    @property
     def prop1(self):
         counter = self.counter1
         self.counter1 -= 1
         return counter
 
-    @property
     @memorize
     def prop2(self):
         counter = self.counter2
