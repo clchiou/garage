@@ -1,7 +1,32 @@
 import unittest
 
+from garage.functools import is_ordered
 from garage.functools import memorize
 from garage.functools import nondata_property
+
+
+class TestIsOrdered(unittest.TestCase):
+
+    def test_is_ordered(self):
+        self.assertTrue(is_ordered([]))
+        self.assertTrue(is_ordered([1]))
+        self.assertTrue(is_ordered([1, 1]))
+        self.assertTrue(is_ordered([1, 1, 1]))
+        self.assertTrue(is_ordered([1, 2]))
+        self.assertTrue(is_ordered([1, 2, 3]))
+
+        self.assertFalse(is_ordered([2, 1]))
+        self.assertFalse(is_ordered([1, 3, 2]))
+
+        self.assertTrue(is_ordered([], strict=True))
+        self.assertTrue(is_ordered([1], strict=True))
+        self.assertTrue(is_ordered([1, 2], strict=True))
+        self.assertTrue(is_ordered([1, 2, 3], strict=True))
+
+        self.assertFalse(is_ordered([1, 1], strict=True))
+        self.assertFalse(is_ordered([1, 1, 1], strict=True))
+        self.assertFalse(is_ordered([2, 1], strict=True))
+        self.assertFalse(is_ordered([1, 3, 2], strict=True))
 
 
 class Foo:

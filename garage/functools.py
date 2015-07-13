@@ -1,7 +1,18 @@
 __all__ = [
+    'is_ordered',
     'memorize',
     'nondata_property',
 ]
+
+import operator
+
+
+def is_ordered(lst, key=None, strict=False):
+    """True if input list is (strictly) ordered."""
+    if key is None:
+        key = lambda item: item
+    cmp = operator.lt if strict else operator.le
+    return all(cmp(key(x0), key(x1)) for x0, x1 in zip(lst, lst[1:]))
 
 
 def memorize(method):
