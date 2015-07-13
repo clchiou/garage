@@ -32,7 +32,7 @@ def memorize(method):
     return property(wrapper) if is_property else wrapper
 
 
-class nondata_property:
+class NondataProperty:
     """A non-data descriptor version of property.
 
        This is "non-data" means that instances may override it.
@@ -53,3 +53,7 @@ class nondata_property:
 
     def getter(self, fget):
         return type(self)(fget, self.__doc__)
+
+
+def nondata_property(fget=None, doc=None):
+    return NondataProperty(fget, doc)
