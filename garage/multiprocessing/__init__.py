@@ -59,7 +59,7 @@ def start_server(executable, address, authkey):
         args.append('-v')
     env = dict(os.environ)
     env['AUTHKEY'] = authkey
-    server_proc = subprocess.Popen(args, env=env)
+    server_proc = subprocess.Popen(args, start_new_session=True, env=env)
     try:
         wait_file_creation(address, timeout=3)
         yield server_proc
