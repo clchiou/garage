@@ -1,7 +1,20 @@
 import unittest
 
 from garage.multiprocessing import RpcConnectionError
+from garage.multiprocessing import RpcError
 from garage.multiprocessing import python
+
+
+DEF_FUNC_1 = '''
+def func_1(a, b, c):
+    return a + b + c
+'''
+
+
+DEF_FUNC_2 = '''
+def func_2(a, b, c):
+    raise RuntimeError
+'''
 
 
 class TestPython(unittest.TestCase):
@@ -14,9 +27,16 @@ class TestPython(unittest.TestCase):
             with connector.connect() as stub:
                 stub.vars.x = 1
                 stub.execute('y = x * 2')
+                stub.execute(DEF_FUNC_1)
+                stub.execute(DEF_FUNC_2)
             with connector.connect() as stub:
                 self.assertEqual(1, stub.vars.x)
                 self.assertEqual(2, stub.vars.y)
+                self.assertEqual(6, stub.funcs.func_1(1, b=2, c=3))
+                with self.assertRaises(RpcError):
+                    stub.funcs.func_1()
+                with self.assertRaises(RpcError):
+                    stub.funcs.func_2(1, b=2, c=3)
 
             with connector.connect() as stub:
                 del stub.vars.x

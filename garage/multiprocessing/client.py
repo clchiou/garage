@@ -6,6 +6,7 @@ __all__ = [
 ]
 
 import contextlib
+import functools
 import logging
 import pickle
 from multiprocessing.connection import Client
@@ -60,6 +61,7 @@ class ServerStub:
         self.stub = Stub(conn, address, protocol)
         self.server_vars = Vars(self.stub, 'server_')
         self.vars = Vars(self.stub)
+        self.funcs = Funcs(self.stub)
         # Don't call close/shutdown if it has been closed.  Although
         # this doesn't make the program "more right", it keeps logs
         # cleaner.
@@ -130,6 +132,23 @@ class Vars:
             {'command': self._prefix + 'del', 'name': name})
         if err:
             raise AttributeError('cannot delete %r due to %s' % (name, err))
+
+
+class Funcs:
+
+    def __init__(self, stub):
+        object.__setattr__(self, '_stub', stub)
+
+    def __getattr__(self, name):
+        return functools.partial(self._call_stub, name)
+
+    def _call_stub(self, name, *args, **kwargs):
+        response, err = self._stub(
+            {'command': 'call', 'name': name, 'args': args, 'kwargs': kwargs})
+        assert ('value' in response) != bool(err)
+        if err:
+            raise RpcError('cannot call %r due to %s' % (name, err))
+        return response.get('value')
 
 
 class Stub:

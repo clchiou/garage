@@ -128,6 +128,7 @@ class Worker(object):
             'set': self.do_set,
             'del': self.do_del,
             'execute': self.do_execute,
+            'call': self.do_call,
         }.get(command)
         if handler is None:
             LOG.warning('unknown command %r', command)
@@ -225,6 +226,30 @@ class Worker(object):
             })
             return
         conn.send(self.OKAY)
+
+    def do_call(self, conn, request):
+        name = request.get('name')
+        if not name:
+            conn.send(self.ERROR_REQUIRE_NAME)
+            return
+        if name not in self.global_vars:
+            conn.send({'error': 'undefined function', 'name': name})
+            return
+        func = self.global_vars[name]
+        args = request.get('args', ())
+        kwargs = request.get('kwargs', {})
+        try:
+            value = func(*args, **kwargs)
+        except Exception as exc:
+            LOG.exception(
+                'runtime error when calling %s(*%r, **%r)', name, args, kwargs)
+            conn.send({
+                'error': 'runtime error',
+                'name': name,
+                'exception': str(exc),
+            })
+            return
+        conn.send({'name': name, 'value': value})
 
 
 def closing(context_manager):
