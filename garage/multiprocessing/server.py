@@ -280,8 +280,10 @@ def main(argv):
 
     if args.verbose == 0:
         level = logging.WARNING
-    else:
+    elif args.verbose == 1:
         level = logging.INFO
+    else:
+        level = logging.DEBUG
     logging.basicConfig(level=level, format=LOG_FORMAT)
 
     if args.listen_net:
