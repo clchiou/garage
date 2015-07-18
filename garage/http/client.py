@@ -6,6 +6,7 @@ __all__ = [
 
 import functools
 import logging
+import threading
 import time
 
 import lxml.etree
@@ -33,6 +34,7 @@ USER_AGENT = (
 
 
 D = make_fixed_attrs(
+    HTTP_MAX_REQUESTS=4,
     HTTP_RETRY=0,
     HTTP_RETRY_BASE_DELAY=1,
 )
@@ -41,6 +43,9 @@ D = make_fixed_attrs(
 @startup
 def add_arguments(parser: PARSER) -> PARSE:
     group = parser.add_argument_group(__name__)
+    group.add_argument(
+        '--http-max-requests', type=int, default=D.HTTP_MAX_REQUESTS,
+        help='set max concurrent http requests (default %(default)s)')
     group.add_argument(
         '--http-retry', type=int, default=D.HTTP_RETRY,
         help='set number of retries on http error (default %(default)s)')
@@ -52,6 +57,7 @@ def add_arguments(parser: PARSER) -> PARSE:
 
 @startup
 def configure_http_retry(args: ARGS):
+    D.HTTP_MAX_REQUESTS = args.http_max_requests
     D.HTTP_RETRY = args.http_retry
     D.HTTP_RETRY_BASE_DELAY = args.http_retry_base_delay
 
@@ -61,18 +67,20 @@ class HttpClient:
 
     @staticmethod
     def make():
-        LOG.info('create http client with: agent=%r, retry=%d',
-                 USER_AGENT, D.HTTP_RETRY)
         return HttpClient(
             headers={'User-Agent': USER_AGENT},
+            http_max_requests=D.HTTP_MAX_REQUESTS,
             http_retry=D.HTTP_RETRY,
             http_retry_base_delay=D.HTTP_RETRY_BASE_DELAY,
         )
 
-    def __init__(self, *, headers, http_retry, http_retry_base_delay):
+    def __init__(self, *,
+                 headers,
+                 http_max_requests, http_retry, http_retry_base_delay):
         self.session = requests.Session()
         self.session.headers.update(headers)
         self.parsers = {}
+        self.max_requests = threading.BoundedSemaphore(value=http_max_requests)
         self.http_retry = http_retry
         self.http_retry_base_delay = http_retry_base_delay
         # XXX: Monkey patching for logging.
@@ -120,6 +128,10 @@ class HttpClient:
         return self.parsers[encoding]
 
     def _request_with_retry(self, http_method, uri, kwargs):
+        with self.max_requests:
+            return self._call_request_with_retry(http_method, uri, kwargs)
+
+    def _call_request_with_retry(self, http_method, uri, kwargs):
         """Send a HTTP request."""
         for retry in range(self.http_retry):
             try:
