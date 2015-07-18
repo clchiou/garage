@@ -1,13 +1,24 @@
 __all__ = [
-    'prepare_crash'
+    'crash_on',
+    'prepare_crash',
 ]
 
 import concurrent.futures.thread
+import contextlib
 import logging
 
 
 LOG = logging.getLogger(__name__)
 LOG.addHandler(logging.NullHandler())
+
+
+@contextlib.contextmanager
+def crash_on(executor, exc_class):
+    try:
+        yield executor
+    except exc_class:
+        prepare_crash(executor)
+        raise
 
 
 def prepare_crash(executor):
