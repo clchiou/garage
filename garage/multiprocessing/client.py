@@ -51,7 +51,7 @@ class Connector:
         try:
             with self.connect() as server:
                 server.shutdown()
-        except RpcConnectionError:
+        except (ConnectionResetError, RpcConnectionError):
             LOG.warning('cannot shutdown server', exc_info=True)
 
 
