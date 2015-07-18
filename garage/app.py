@@ -33,7 +33,6 @@ PARSER = 'parser'
 
 D = make_fixed_attrs(
     VERBOSE=0,
-    JOBS=1,
 )
 
 
@@ -46,10 +45,6 @@ def add_arguments(parser: PARSER) -> PARSE:
     group.add_argument(
         '-v', '--verbose', action='count', default=D.VERBOSE,
         help='verbose output')
-    group.add_argument(
-        '-j', '--jobs', type=int, default=D.JOBS,
-        help='''set number of jobs to run in parallel
-                (default: %(default)s)''')
 
 
 @startup
@@ -71,7 +66,6 @@ def configure_logging(args: ARGS):
 @startup
 def set_globals(args: ARGS):
     D.VERBOSE = args.verbose
-    D.JOBS = args.jobs
 
 
 @startup

@@ -6,20 +6,17 @@ __all__ = [
 
 import concurrent.futures
 import logging
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import requests.exceptions
 
 from startup import startup
 
-import garage.app
+import garage.concurrent
 from garage.app import ARGS
 from garage.app import PARSE
 from garage.app import PARSER
 from garage.collections import make_fixed_attrs
-from garage.concurrent import prepare_crash
-from garage.http.client import HttpClient
 from garage.http.error import DownloadError
 from garage.http.error import get_status_code
 
@@ -50,31 +47,21 @@ def download(
         *,
         uris_filenames,
         output_dirpath,
-        http_client=None,
-        max_workers=None,
+        executor,
+        http_client,
         chunk_size=None):
     output_dirpath = Path(output_dirpath)
-    http_client = http_client or HttpClient.make()
-    max_workers = max_workers or garage.app.D.JOBS
     chunk_size = chunk_size or D.CHUNK_SIZE
     okay, tmp_dirpath = _prepare(output_dirpath)
     if not okay:
         return
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        try:
-            _download(
-                executor,
-                http_client,
-                uris_filenames,
-                tmp_dirpath,
-                chunk_size,
-            )
-        except KeyboardInterrupt:
-            prepare_crash(executor)
-            raise
+    with garage.concurrent.crash_on(executor, KeyboardInterrupt):
+        _download(
+            executor, http_client, uris_filenames, tmp_dirpath, chunk_size
+        )
     _check((filename for _, filename in uris_filenames), tmp_dirpath)
     tmp_dirpath.rename(output_dirpath)
-    LOG.info('completed %s', output_dirpath)
+    LOG.info('complete %s', output_dirpath)
 
 
 def _prepare(output_dirpath):
