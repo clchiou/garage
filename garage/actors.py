@@ -29,7 +29,7 @@ class ActorError(Exception):
 def method(func):
     """Decorate a func as a method of an actor."""
     if not isinstance(func, types.FunctionType):
-        raise ActorError('%s is not a function' % func.__qualname__)
+        raise ActorError('%r is not a function' % func)
     func.is_actor_method = _MAGIC
     return func
 
@@ -42,7 +42,7 @@ class _ActorStubMeta(type):
             for stub_name, stub in _ActorStubMeta.make_stubs(actor).items():
                 if stub_name in namespace:
                     raise ActorError(
-                        'should not overwrite %s.%s' % (name, stub_name))
+                        'stub should not override %s.%s' % (name, stub_name))
                 namespace[stub_name] = stub
         cls = super().__new__(mcs, name, bases, namespace)
         if actor:
@@ -63,7 +63,7 @@ class _ActorStubMeta(type):
                     continue
                 if func.is_actor_method is not _MAGIC:
                     raise ActorError(
-                        'should not overwrite %s.is_actor_method',
+                        'function should not overwrite %s.is_actor_method',
                         func.__qualname__)
                 stubs[name] = _ActorStubMeta.make_stub(func)
         return stubs
@@ -76,9 +76,10 @@ class _ActorStubMeta(type):
         return stub
 
 
-def build(stub_cls, *, maxsize=0, args=None, kwargs=None):
+def build(stub_cls, *, name=None, maxsize=0, args=None, kwargs=None):
     return stub_cls(
         BUILD,
+        name=name,
         maxsize=maxsize,
         args=args or (),
         kwargs=kwargs or {},
@@ -106,32 +107,40 @@ class ActorStub(metaclass=_ActorStubMeta):
     #
 
     def __init__(self, *args, **kwargs):
+        cls = ActorStub.actors.get(type(self))
+        if not cls:
+            raise ActorError(
+                '%s is not a stub of an actor' % type(self).__qualname__)
         if args and args[0] is BUILD:
+            name = kwargs.get('name')
             maxsize = kwargs.get('maxsize', 0)
-            args = kwargs.get('args') or ()
-            kwargs = kwargs.get('kwargs') or {}
+            args = kwargs.get('args', ())
+            kwargs = kwargs.get('kwargs', {})
         else:
+            name = None
             maxsize = 0
             # Should I make a copy of args and kwargs?
             args = tuple(args)
             kwargs = dict(kwargs)
         self.__work_queue = queue.Queue(maxsize=maxsize)
-        self.__thread = threading.Thread(
+        self.__dead = threading.Event()
+        threading.Thread(
             target=_actor_message_loop,
-            args=(self.__work_queue,),
+            name=name,
+            args=(self.__work_queue, self.__dead),
             daemon=True,
-        )
-        self.__thread.start()
-        cls = ActorStub.actors.get(type(self))
-        if not cls:
-            raise ActorError(
-                '%s is not a stub of an actor' % type(self).__qualname__)
+        ).start()
         # Since we can't return a future here, we have to wait on the
         # result of actor's __init__() call for any exception that might
         # be raised inside it.
         ActorStub.send_message(self, cls, args, kwargs).result()
 
+    def is_dead(self):
+        return self.__dead.is_set()
+
     def send_message(self, func, args, kwargs):
+        if ActorStub.is_dead(self):
+            raise ActorError('actor is dead')
         future = Future()
         self.__work_queue.put(_Work(future, func, args, kwargs))
         return future
@@ -140,9 +149,15 @@ class ActorStub(metaclass=_ActorStubMeta):
 _Work = collections.namedtuple('_Work', 'future func args kwargs')
 
 
-def _actor_message_loop(work_queue):
+def _actor_message_loop(work_queue, dead):
     """The main message processing loop of an actor."""
+    try:
+        _actor_message_loop_impl(work_queue)
+    finally:
+        dead.set()
 
+
+def _actor_message_loop_impl(work_queue):
     # NOTE: `del work` as soon as possible (see issue 16284).
 
     # The first message must be the __init__() call.
