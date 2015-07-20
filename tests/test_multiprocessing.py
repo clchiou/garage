@@ -1,5 +1,7 @@
 import unittest
 
+import subprocess
+
 from garage.multiprocessing import RpcConnectionError
 from garage.multiprocessing import RpcError
 from garage.multiprocessing import python
@@ -20,7 +22,7 @@ def func_2(a, b, c):
 class TestPython(unittest.TestCase):
 
     def test_python(self):
-        with python() as connector:
+        with python(popen_kwargs={'stderr': subprocess.DEVNULL}) as connector:
             with connector.connect() as stub:
                 stub.server_vars.graceful_shutdown = True
 

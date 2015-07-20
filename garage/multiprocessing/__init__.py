@@ -26,13 +26,16 @@ LOG.addHandler(logging.NullHandler())
 
 
 @contextlib.contextmanager
-def python(executable='python2', protocol=2, authkey=None):
+def python(executable='python2', protocol=2, authkey=None, popen_kwargs=None):
     """Start a server and return a Connector object
        (default to python2).
     """
     authkey = authkey or str(random.randint(1, 1e8))
-    with create_socket() as addr, start_server(executable, addr, authkey):
-        connector = Connector(addr, protocol, authkey)
+    with contextlib.ExitStack() as stack:
+        address = stack.enter_context(create_socket())
+        stack.enter_context(
+            start_server(executable, address, authkey, popen_kwargs or {}))
+        connector = Connector(address, protocol, authkey)
         try:
             yield connector
         finally:
@@ -52,14 +55,15 @@ def create_socket():
 
 
 @contextlib.contextmanager
-def start_server(executable, address, authkey):
+def start_server(executable, address, authkey, popen_kwargs):
     script_path = garage.multiprocessing.server.__file__
     args = [executable, script_path, '--listen-sock', address]
     if LOG.isEnabledFor(logging.INFO):
         args.append('-v')
     env = dict(os.environ)
     env['AUTHKEY'] = authkey
-    server_proc = subprocess.Popen(args, start_new_session=True, env=env)
+    server_proc = subprocess.Popen(
+        args, start_new_session=True, env=env, **popen_kwargs)
     try:
         wait_file_creation(address, timeout=3)
         yield server_proc
