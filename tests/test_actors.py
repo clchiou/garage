@@ -28,6 +28,28 @@ class _PoliteBomb(_Greeter, _Bomb):
     pass
 
 
+class _A:
+
+    @actors.method
+    def do_something(self):
+        return 'A'
+
+
+class _B:
+
+    @actors.method
+    def do_something(self):
+        return 'B'
+
+
+class _C(_A, _B):
+    pass
+
+
+class _D(_B, _A):
+    pass
+
+
 class Greeter(actors.Stub, actor=_Greeter):
     pass
 
@@ -40,12 +62,17 @@ class PoliteBomb(actors.Stub, actor=_PoliteBomb):
     pass
 
 
+class C(actors.Stub, actor=_C):
+    pass
+
+
+class D(actors.Stub, actor=_D):
+    pass
+
+
 class TestActors(unittest.TestCase):
 
     def test_actors(self):
-        with self.assertRaisesRegex(actors.ActorError, r'is not a stub'):
-            actors.Stub()
-
         greeter = Greeter('John')
         self.assertEqual('Hello John', greeter.greet().result())
         self.assertEqual('Hello Paul', greeter.greet('Paul').result())
@@ -74,7 +101,14 @@ class TestActors(unittest.TestCase):
             future.result()
         self.assertTrue(bomb.is_dead())
 
+    def test_mro(self):
+        self.assertEqual('A', C().do_something().result())
+        self.assertEqual('B', D().do_something().result())
+
     def test_invalid_actors(self):
+        with self.assertRaisesRegex(actors.ActorError, r'is not a stub'):
+            actors.Stub()
+
         with self.assertRaisesRegex(actors.ActorError, r'not a function'):
             @actors.method
             @staticmethod
