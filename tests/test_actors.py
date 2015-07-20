@@ -28,15 +28,15 @@ class _PoliteBomb(_Greeter, _Bomb):
     pass
 
 
-class Greeter(actors.ActorStub, actor=_Greeter):
+class Greeter(actors.Stub, actor=_Greeter):
     pass
 
 
-class Bomb(actors.ActorStub, actor=_Bomb):
+class Bomb(actors.Stub, actor=_Bomb):
     pass
 
 
-class PoliteBomb(actors.ActorStub, actor=_PoliteBomb):
+class PoliteBomb(actors.Stub, actor=_PoliteBomb):
     pass
 
 
@@ -44,7 +44,7 @@ class TestActors(unittest.TestCase):
 
     def test_actors(self):
         with self.assertRaisesRegex(actors.ActorError, r'is not a stub'):
-            actors.ActorStub()
+            actors.Stub()
 
         greeter = Greeter('John')
         self.assertEqual('Hello John', greeter.greet().result())
@@ -88,7 +88,7 @@ class TestActors(unittest.TestCase):
                 pass
 
         with self.assertRaisesRegex(actors.ActorError, r'should not override'):
-            class Foo(actors.ActorStub, actor=_Greeter):
+            class Foo(actors.Stub, actor=_Greeter):
                 def greet(self):
                     pass
 

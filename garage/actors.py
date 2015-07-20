@@ -3,7 +3,7 @@
 __all__ = [
     'BUILD',
     'ActorError',
-    'ActorStub',
+    'Stub',
     'build',
     'method',
 ]
@@ -34,30 +34,30 @@ def method(func):
     return func
 
 
-class _ActorStubMeta(type):
-    """It generates a stub class when given an actor class."""
+class _StubMeta(type):
+    """Generates a stub class when given an actor class."""
 
     def __new__(mcs, name, bases, namespace, actor=None):
         if actor:
-            for stub_name, stub in _ActorStubMeta.make_stubs(actor).items():
-                if stub_name in namespace:
+            stub_methods = _StubMeta.make_stub_methods(actor)
+            for stub_method_name in stub_methods:
+                if stub_method_name in namespace:
                     raise ActorError(
-                        'stub should not override %s.%s' % (name, stub_name))
-                namespace[stub_name] = stub
+                        'stub method should not override %s.%s' %
+                        (name, stub_method_name))
+                namespace[stub_method_name] = stub_methods[stub_method_name]
         cls = super().__new__(mcs, name, bases, namespace)
         if actor:
-            ActorStub.actors[cls] = actor
+            Stub.actors[cls] = actor
         return cls
 
     def __init__(cls, name, bases, namespace, **_):
         super().__init__(name, bases, namespace)
 
     @staticmethod
-    def make_stubs(actor_class):
-        stubs = {}
-        # Reverse mro so that the derived class methods may override
-        # the base class methods.
-        for cls in reversed(actor_class.__mro__):
+    def make_stub_methods(actor_class):
+        stub_methods = {}
+        for cls in actor_class.__mro__:
             for name, func in vars(cls).items():
                 if not hasattr(func, 'is_actor_method'):
                     continue
@@ -65,15 +65,16 @@ class _ActorStubMeta(type):
                     raise ActorError(
                         'function should not overwrite %s.is_actor_method',
                         func.__qualname__)
-                stubs[name] = _ActorStubMeta.make_stub(func)
-        return stubs
+                if name not in stub_methods:
+                    stub_methods[name] = _StubMeta.make_stub_method(func)
+        return stub_methods
 
     @staticmethod
-    def make_stub(func):
+    def make_stub_method(func):
         @functools.wraps(func)
-        def stub(self, *args, **kwargs):
-            return ActorStub.send_message(self, func, args, kwargs)
-        return stub
+        def stub_method(self, *args, **kwargs):
+            return Stub.send_message(self, func, args, kwargs)
+        return stub_method
 
 
 def build(stub_cls, *, name=None, maxsize=0, args=None, kwargs=None):
@@ -86,7 +87,7 @@ def build(stub_cls, *, name=None, maxsize=0, args=None, kwargs=None):
     )
 
 
-class ActorStub(metaclass=_ActorStubMeta):
+class Stub(metaclass=_StubMeta):
     """The base class of all actor stub classes."""
 
     actors = {}
@@ -94,20 +95,20 @@ class ActorStub(metaclass=_ActorStubMeta):
     #
     # NOTE:
     #
-    # * _ActorStubMeta may generate stub methods for a subclass that
-    #   override ActorStub's methods.  Always use fully qualified name
-    #   when calling ActorStub's methods.
+    # * _StubMeta may generate stub methods for a subclass that
+    #   override Stub's methods.  Always use fully qualified name
+    #   when calling Stub's methods.
     #
-    # * Subclass field names might conflict ActorStub's.  Always use
+    # * Subclass field names might conflict Stub's.  Always use
     #   double leading underscore (and thus enable name mangling) on
-    #   ActorStub's fields.
+    #   Stub's fields.
     #
     # * We don't join threads.
     #   TODO: Make sure this won't result in memory leak.
     #
 
     def __init__(self, *args, **kwargs):
-        cls = ActorStub.actors.get(type(self))
+        cls = Stub.actors.get(type(self))
         if not cls:
             raise ActorError(
                 '%s is not a stub of an actor' % type(self).__qualname__)
@@ -133,13 +134,13 @@ class ActorStub(metaclass=_ActorStubMeta):
         # Since we can't return a future here, we have to wait on the
         # result of actor's __init__() call for any exception that might
         # be raised inside it.
-        ActorStub.send_message(self, cls, args, kwargs).result()
+        Stub.send_message(self, cls, args, kwargs).result()
 
     def is_dead(self):
         return self.__dead.is_set()
 
     def send_message(self, func, args, kwargs):
-        if ActorStub.is_dead(self):
+        if Stub.is_dead(self):
             raise ActorError('actor is dead')
         future = Future()
         self.__work_queue.put(_Work(future, func, args, kwargs))
