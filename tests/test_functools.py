@@ -1,6 +1,7 @@
 import unittest
 
 from garage.functools import is_ordered
+from garage.functools import unique
 from garage.functools import memorize
 from garage.functools import nondata_property
 
@@ -27,6 +28,21 @@ class TestIsOrdered(unittest.TestCase):
         self.assertFalse(is_ordered([1, 1, 1], strict=True))
         self.assertFalse(is_ordered([2, 1], strict=True))
         self.assertFalse(is_ordered([1, 3, 2], strict=True))
+
+
+class TestUnique(unittest.TestCase):
+
+    def test_unique(self):
+        self.assertListEqual([], unique([]))
+        self.assertListEqual([1], unique([1, 1, 1]))
+        self.assertListEqual([1, 3, 2, 4], unique([1, 1, 3, 2, 3, 2, 4, 1]))
+
+    def test_unique_by_key(self):
+        self.assertListEqual([], unique([], key=lambda _: None))
+        self.assertListEqual(
+            ['a1', 'b2'],
+            unique(['a1', 'b2', 'a2', 'b1'], key=lambda x: x[0]),
+        )
 
 
 class Foo:

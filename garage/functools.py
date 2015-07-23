@@ -2,8 +2,10 @@ __all__ = [
     'is_ordered',
     'memorize',
     'nondata_property',
+    'unique',
 ]
 
+import collections
 import functools
 import operator
 
@@ -16,6 +18,17 @@ def is_ordered(lst, key=None, strict=False):
         key = lambda item: item
     cmp = operator.lt if strict else operator.le
     return all(cmp(key(x0), key(x1)) for x0, x1 in zip(lst, lst[1:]))
+
+
+def unique(iterable, key=None):
+    """Return unique elements of an iterable."""
+    if key:
+        odict = collections.OrderedDict()
+        for element in iterable:
+            odict.setdefault(key(element), element)
+        return list(odict.values())
+    else:
+        return list(collections.OrderedDict.fromkeys(iterable))
 
 
 def memorize(method):
