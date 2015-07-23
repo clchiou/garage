@@ -2,6 +2,7 @@
 
 __all__ = [
     'HttpClient',
+    'form',
 ]
 
 import functools
@@ -62,6 +63,22 @@ def configure_http_retry(args: ARGS):
     D.HTTP_RETRY_BASE_DELAY = args.http_retry_base_delay
 
 
+def form(client, uri, encoding=None, **kwargs):
+    """Post an HTML form interactively."""
+    tree = client.get(uri, **kwargs).dom(encoding=encoding)
+    xpath_expr = yield
+    forms = tree.xpath(xpath_expr)
+    if len(forms) != 1:
+        raise HttpError('require one <form> but found %d' % len(forms))
+    action_uri = forms[0].get('action')
+    form_data = yield action_uri
+    data = {}
+    for form_input in forms[0].xpath('//input'):
+        name = form_input.get('name')
+        data[name] = form_data.get(name, form_input.get('value'))
+    yield client.post(action_uri, data=data)
+
+
 class HttpClient:
     """Wrapper of requests.Session object."""
 
@@ -102,21 +119,7 @@ class HttpClient:
         LOG.debug('HEAD: uri=%s', uri)
         return self._request_with_retry(self.session.head, uri, kwargs)
 
-    def form(self, uri, encoding=None, **kwargs):
-        """Post an HTML form interactively."""
-        tree = self.get(uri, **kwargs).dom(encoding=encoding)
-        xpath_expr = yield
-        forms = tree.xpath(xpath_expr)
-        if len(forms) != 1:
-            raise HttpError('require one <form> but found %d' % len(forms))
-        action_uri = forms[0].get('action')
-        form_data = yield action_uri
-        data = {}
-        for form_input in forms[0].xpath('//input'):
-            name = form_input.get('name')
-            data[name] = form_data.get(name, form_input.get('value'))
-        yield self.post(action_uri, data=data)
-
+    # NOTE: dom() is used in monkey patching only; don't call it!
     def dom(self, response, encoding=None):
         """Return a DOM object of the contents."""
         parser = self._get_parser(encoding or response.encoding)
