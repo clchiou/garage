@@ -72,7 +72,7 @@ class _StubMeta(type):
                 namespace[stub_method_name] = stub_methods[stub_method_name]
         cls = super().__new__(mcs, name, bases, namespace)
         if actor:
-            Stub.actors[cls] = actor
+            Stub.ACTORS[cls] = actor
         return cls
 
     def __init__(cls, name, bases, namespace, **_):
@@ -114,7 +114,8 @@ def build(stub_cls, *, name=None, maxsize=0, args=None, kwargs=None):
 class Stub(metaclass=_StubMeta):
     """The base class of all actor stub classes."""
 
-    actors = {}
+    # Map stub classes to their actor class.
+    ACTORS = {}
 
     #
     # NOTE:
@@ -133,7 +134,7 @@ class Stub(metaclass=_StubMeta):
     def __init__(self, *args, **kwargs):
         """Start the actor thread, and then block on actor object's
            __init__ and re-raise the exception if it fails."""
-        cls = Stub.actors.get(type(self))
+        cls = Stub.ACTORS.get(type(self))
         if not cls:
             raise ActorError(
                 '%s is not a stub of an actor' % type(self).__qualname__)
