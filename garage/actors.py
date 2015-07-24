@@ -1,4 +1,23 @@
-"""A minimum implementation of the actor model."""
+"""A minimum implementation of the actor model.
+
+An actor is basically a daemon thread processing messages from a queue,
+and a message is composed of a method and its arguments (you can think
+of it as a single-threaded executor).
+
+By default the queue size is infinite, but you may specify a finite
+queue size, which is useful in implementing back pressure.
+
+An actor's state is either alive or dead, and once it's dead, it will
+never become alive again (but even if it is alive at this moment, it
+does not guarantee that it will still be alive at the next moment).
+
+Since actors are executed by daemon threads, when the main program
+exits, all actor threads might not have chance to release resources,
+which typically are calling __exit__ in context managers.  So you should
+pay special attention to resources that must be release even when the
+main program is crashing (unlike ThreadPoolExecutor, which blocks the
+main program until all submitted jobs are done).
+"""
 
 __all__ = [
     'BUILD',
@@ -10,6 +29,7 @@ __all__ = [
 
 import collections
 import functools
+import logging
 import queue
 import threading
 import types
@@ -17,6 +37,10 @@ from concurrent.futures import Future
 
 
 BUILD = object()
+
+
+LOG = logging.getLogger(__name__)
+LOG.addHandler(logging.NullHandler())
 
 
 _MAGIC = object()
@@ -104,7 +128,6 @@ class Stub(metaclass=_StubMeta):
     #   Stub's fields.
     #
     # * We don't join threads.
-    #   TODO: Make sure this won't result in memory leak.
     #
 
     def __init__(self, *args, **kwargs):
@@ -137,9 +160,18 @@ class Stub(metaclass=_StubMeta):
         Stub.send_message(self, cls, args, kwargs).result()
 
     def is_dead(self):
+        """True if the actor thread has exited."""
         return self.__dead.is_set()
 
+    def wait(self, timeout=None):
+        """Wait until is_dead flag is set."""
+        return self.__dead.wait(timeout)
+
     def send_message(self, func, args, kwargs):
+        """Enqueue a message into actor's message queue."""
+        # Even if is_dead() returns False, there is no guarantee that
+        # the actor will process this message.  But there is no harm to
+        # check here.
         if Stub.is_dead(self):
             raise ActorError('actor is dead')
         future = Future()
@@ -154,6 +186,8 @@ def _actor_message_loop(work_queue, dead):
     """The main message processing loop of an actor."""
     try:
         _actor_message_loop_impl(work_queue)
+    except BaseException:
+        LOG.error('unexpected error inside actor thread', exc_info=True)
     finally:
         dead.set()
 
