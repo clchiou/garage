@@ -131,6 +131,8 @@ class Stub(metaclass=_StubMeta):
     #
 
     def __init__(self, *args, **kwargs):
+        """Start the actor thread, and then block on actor object's
+           __init__ and re-raise the exception if it fails."""
         cls = Stub.actors.get(type(self))
         if not cls:
             raise ActorError(
@@ -147,17 +149,39 @@ class Stub(metaclass=_StubMeta):
             args = tuple(args)
             kwargs = dict(kwargs)
         self.__work_queue = queue.Queue(maxsize=maxsize)
+        self.__kill_graceful = threading.Event()
+        self.__kill = threading.Event()
         self.__dead = threading.Event()
         threading.Thread(
             target=_actor_message_loop,
             name=name,
-            args=(self.__work_queue, self.__dead),
+            args=(self.__work_queue,
+                  self.__kill_graceful,
+                  self.__kill,
+                  self.__dead),
             daemon=True,
         ).start()
         # Since we can't return a future here, we have to wait on the
         # result of actor's __init__() call for any exception that might
         # be raised inside it.
         Stub.send_message(self, cls, args, kwargs).result()
+
+    def kill(self, graceful=True):
+        """Set the kill flag of the actor thread.
+
+           If graceful is True (the default), the actor will be dead
+           until it processes the remaining messages in the queue.
+           Otherwise it will be dead after it finishes processing the
+           current message.
+
+           Note that this method does not block even when the queue is
+           full (in other words, you can't implement kill on top of the
+           normal message sending without the possibility that caller
+           being blocked).
+        """
+        self.__kill_graceful.set()
+        if not graceful:
+            self.__kill.set()
 
     def is_dead(self):
         """True if the actor thread has exited."""
@@ -167,33 +191,46 @@ class Stub(metaclass=_StubMeta):
         """Wait until is_dead flag is set."""
         return self.__dead.wait(timeout)
 
-    def send_message(self, func, args, kwargs):
+    def send_message(self, func, args, kwargs, block=True, timeout=None):
         """Enqueue a message into actor's message queue."""
+        if self.__kill_graceful.is_set():
+            raise ActorError('actor is being killed')
         # Even if is_dead() returns False, there is no guarantee that
         # the actor will process this message.  But there is no harm to
         # check here.
         if Stub.is_dead(self):
             raise ActorError('actor is dead')
         future = Future()
-        self.__work_queue.put(_Work(future, func, args, kwargs))
+        self.__work_queue.put(
+            _Work(future, func, args, kwargs),
+            block=block,
+            timeout=timeout,
+        )
         return future
 
 
 _Work = collections.namedtuple('_Work', 'future func args kwargs')
 
 
-def _actor_message_loop(work_queue, dead):
+def _actor_message_loop(work_queue, kill_graceful, kill, dead):
     """The main message processing loop of an actor."""
     try:
-        _actor_message_loop_impl(work_queue)
+        _actor_message_loop_impl(work_queue, kill_graceful, kill)
     except BaseException:
         LOG.error('unexpected error inside actor thread', exc_info=True)
     finally:
         dead.set()
 
 
-def _actor_message_loop_impl(work_queue):
-    # NOTE: `del work` as soon as possible (see issue 16284).
+def _actor_message_loop_impl(work_queue, kill_graceful, kill):
+    """Dequeue and process messages one by one."""
+    #
+    # NOTE:
+    #
+    # * Call `del work` as soon as possible (see issue 16284).
+    #
+    # * Don't have to call task_done() since we don't join on the queue.
+    #
 
     # The first message must be the __init__() call.
     work = work_queue.get()
@@ -202,16 +239,21 @@ def _actor_message_loop_impl(work_queue):
         actor = work.func(*work.args, **work.kwargs)
     except BaseException as exc:
         work.future.set_exception(exc)
-        return  # Terminate the actor thread.
+        return
     else:
         work.future.set_result(actor)
-    work_queue.task_done()
     del work
 
-    while True:
-        work = work_queue.get()
+    while not (kill.is_set() or
+               kill_graceful.is_set() and work_queue.empty()):
+        # XXX: Do polling with timeout so that we may receive kill
+        # signals; is there a better solution?
+        try:
+            work = work_queue.get(timeout=0.1)
+        except queue.Empty:
+            continue
+
         if not work.future.set_running_or_notify_cancel():
-            work_queue.task_done()
             del work
             continue
 
@@ -219,8 +261,7 @@ def _actor_message_loop_impl(work_queue):
             result = work.func(actor, *work.args, **work.kwargs)
         except BaseException as exc:
             work.future.set_exception(exc)
-            return  # Terminate the actor thread.
+            return
         else:
             work.future.set_result(result)
-        work_queue.task_done()
         del work

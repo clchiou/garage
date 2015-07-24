@@ -101,6 +101,21 @@ class TestActors(unittest.TestCase):
             future.result()
         self.assertTrue(bomb.is_dead())
 
+    def test_kill(self):
+        for graceful in (True, False):
+            greeter = Greeter()
+            self.assertFalse(greeter.is_dead())
+            self.assertEqual('Hello world', greeter.greet().result())
+
+            greeter.kill(graceful=graceful)
+
+            with self.assertRaisesRegex(
+                    actors.ActorError, r'actor is being killed'):
+                greeter.greet()
+
+            greeter.wait(timeout=10)
+            self.assertTrue(greeter.is_dead())
+
     def test_mro(self):
         self.assertEqual('A', C().do_something().result())
         self.assertEqual('B', D().do_something().result())
