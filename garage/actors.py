@@ -171,7 +171,7 @@ class Stub(metaclass=_StubMeta):
         """Set the kill flag of the actor thread.
 
            If graceful is True (the default), the actor will be dead
-           until it processes the remaining messages in the queue.
+           after it processes the remaining messages in the queue.
            Otherwise it will be dead after it finishes processing the
            current message.
 
@@ -183,6 +183,14 @@ class Stub(metaclass=_StubMeta):
         self.__kill_graceful.set()
         if not graceful:
             self.__kill.set()
+        # Kick the actor thread out of blocking inside Queue.get().
+        # If the queue is full, we are sure that Queue.get() will return
+        # anyway; so we call put_nowait() and swallow the queue.Full
+        # exception here.
+        try:
+            self.__work_queue.put_nowait(None)
+        except queue.Full:
+            pass
 
     def is_dead(self):
         """True if the actor thread has exited."""
@@ -247,11 +255,13 @@ def _actor_message_loop_impl(work_queue, kill_graceful, kill):
 
     while not (kill.is_set() or
                kill_graceful.is_set() and work_queue.empty()):
-        # XXX: Do polling with timeout so that we may receive kill
-        # signals; is there a better solution?
-        try:
-            work = work_queue.get(timeout=0.1)
-        except queue.Empty:
+        work = work_queue.get()
+        # If work is None, it's a kick from the producer thread, not an
+        # actual message.  Since the actor thread is the only consumer
+        # of the queue, it doesn't have to pass down the "kick" (check
+        # out standard library's ThreadPoolExecutor for an example of
+        # passing down the kick).
+        if work is None:
             continue
 
         if not work.future.set_running_or_notify_cancel():
