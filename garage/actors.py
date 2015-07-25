@@ -243,14 +243,16 @@ def _actor_message_loop_impl(work_queue, kill_graceful, kill):
 
     # The first message must be the __init__() call.
     work = work_queue.get()
-    assert work.future.set_running_or_notify_cancel()
+    if not work.future.set_running_or_notify_cancel():
+        LOG.error('__init__ has been canceled')
+        return
+
     try:
         actor = work.func(*work.args, **work.kwargs)
     except BaseException as exc:
         work.future.set_exception(exc)
         return
-    else:
-        work.future.set_result(actor)
+    work.future.set_result(actor)
     del work
 
     while not (kill.is_set() or
@@ -273,6 +275,5 @@ def _actor_message_loop_impl(work_queue, kill_graceful, kill):
         except BaseException as exc:
             work.future.set_exception(exc)
             return
-        else:
-            work.future.set_result(result)
+        work.future.set_result(result)
         del work
