@@ -59,6 +59,12 @@ class WorkerPool:
         with self._lock:
             return len(self._pool)
 
+    def __iter__(self):
+        # Make a copy and then iterate on the copy.
+        with self._lock:
+            workers = list(self._pool)
+        return iter(workers)
+
     def hire(self):
         """Called by executor to acquire more workers."""
         with self._lock:

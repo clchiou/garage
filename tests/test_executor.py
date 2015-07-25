@@ -12,6 +12,7 @@ class TestExecutor(unittest.TestCase):
         # No jobs, no workers are hired.
         with garage.executor.Executor(pool, 1) as executor:
             self.assertEqual(0, len(pool))
+
         self.assertEqual(0, len(pool))
 
         with garage.executor.Executor(pool, 1) as executor:
@@ -20,9 +21,11 @@ class TestExecutor(unittest.TestCase):
             self.assertEqual(0, len(pool))
             self.assertEqual(6, f1.result())
             self.assertEqual(15, f2.result())
+
         self.assertEqual(1, len(pool))
 
-        for worker in pool._pool:
+        for worker in pool:
+            self.assertFalse(worker.is_busy())
             self.assertFalse(worker.is_dead())
 
 

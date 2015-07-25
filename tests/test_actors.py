@@ -1,5 +1,7 @@
 import unittest
 
+import threading
+
 from garage import actors
 
 
@@ -26,6 +28,14 @@ class _Bomb:
 
 class _PoliteBomb(_Greeter, _Bomb):
     pass
+
+
+class _Blocker:
+
+    @actors.method
+    def wait(self, barrier, event):
+        barrier.wait()
+        event.wait()
 
 
 class _A:
@@ -62,6 +72,10 @@ class PoliteBomb(actors.Stub, actor=_PoliteBomb):
     pass
 
 
+class Blocker(actors.Stub, actor=_Blocker):
+    pass
+
+
 class C(actors.Stub, actor=_C):
     pass
 
@@ -76,11 +90,13 @@ class TestActors(unittest.TestCase):
         greeter = Greeter('John')
         self.assertEqual('Hello John', greeter.greet().result())
         self.assertEqual('Hello Paul', greeter.greet('Paul').result())
+        self.assertFalse(greeter.is_busy())
         self.assertFalse(greeter.is_dead())
 
         greeter = Greeter()
         self.assertEqual('Hello world', greeter.greet().result())
         self.assertEqual('Hello Jean', greeter.greet('Jean').result())
+        self.assertFalse(greeter.is_busy())
         self.assertFalse(greeter.is_dead())
 
         greeter = actors.build(Greeter, maxsize=1, args=('Jean',))
@@ -90,6 +106,7 @@ class TestActors(unittest.TestCase):
         future = bomb.explode()
         with self.assertRaisesRegex(Explosion, r'Boom!'):
             future.result()
+        self.assertFalse(bomb.is_busy())
         self.assertTrue(bomb.is_dead())
         with self.assertRaisesRegex(actors.ActorError, r'actor is dead'):
             bomb.explode()
@@ -99,11 +116,28 @@ class TestActors(unittest.TestCase):
         future = bomb.explode()
         with self.assertRaisesRegex(Explosion, r'Boom!'):
             future.result()
+        self.assertFalse(bomb.is_busy())
         self.assertTrue(bomb.is_dead())
+
+    def test_busy(self):
+        blocker = Blocker()
+        self.assertFalse(blocker.is_busy())
+
+        barrier = threading.Barrier(2)
+        event = threading.Event()
+        future = blocker.wait(barrier, event)
+
+        barrier.wait()
+        self.assertTrue(blocker.is_busy())
+
+        event.set()
+        future.result()
+        self.assertFalse(blocker.is_busy())
 
     def test_kill(self):
         for graceful in (True, False):
             greeter = Greeter()
+            self.assertFalse(greeter.is_busy())
             self.assertFalse(greeter.is_dead())
             self.assertEqual('Hello world', greeter.greet().result())
 
@@ -114,6 +148,7 @@ class TestActors(unittest.TestCase):
                 greeter.greet()
 
             greeter.wait(timeout=10)
+            self.assertFalse(greeter.is_busy())
             self.assertTrue(greeter.is_dead())
 
     def test_mro(self):

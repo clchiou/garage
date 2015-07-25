@@ -150,16 +150,16 @@ class Stub(metaclass=_StubMeta):
             args = tuple(args)
             kwargs = dict(kwargs)
         self.__work_queue = queue.Queue(maxsize=maxsize)
-        self.__kill_graceful = threading.Event()
-        self.__kill = threading.Event()
-        self.__dead = threading.Event()
+        self.__events = _Events(
+            kill_graceful=threading.Event(),
+            kill=threading.Event(),
+            busy=threading.Event(),
+            dead=threading.Event(),
+        )
         threading.Thread(
             target=_actor_message_loop,
             name=name,
-            args=(self.__work_queue,
-                  self.__kill_graceful,
-                  self.__kill,
-                  self.__dead),
+            args=(self.__work_queue, self.__events),
             daemon=True,
         ).start()
         # Since we can't return a future here, we have to wait on the
@@ -180,9 +180,9 @@ class Stub(metaclass=_StubMeta):
            normal message sending without the possibility that caller
            being blocked).
         """
-        self.__kill_graceful.set()
+        self.__events.kill_graceful.set()
         if not graceful:
-            self.__kill.set()
+            self.__events.kill.set()
         # Kick the actor thread out of blocking inside Queue.get().
         # If the queue is full, we are sure that Queue.get() will return
         # anyway; so we call put_nowait() and swallow the queue.Full
@@ -192,17 +192,23 @@ class Stub(metaclass=_StubMeta):
         except queue.Full:
             pass
 
+    def is_busy(self):
+        """True if the actor thread is processing a message (probably
+           only useful for testing or debugging).
+        """
+        return self.__events.busy.is_set()
+
     def is_dead(self):
         """True if the actor thread has exited."""
-        return self.__dead.is_set()
+        return self.__events.dead.is_set()
 
     def wait(self, timeout=None):
         """Wait until is_dead flag is set."""
-        return self.__dead.wait(timeout)
+        return self.__events.dead.wait(timeout)
 
     def send_message(self, func, args, kwargs, block=True, timeout=None):
         """Enqueue a message into actor's message queue."""
-        if self.__kill_graceful.is_set():
+        if self.__events.kill_graceful.is_set():
             raise ActorError('actor is being killed')
         # Even if is_dead() returns False, there is no guarantee that
         # the actor will process this message.  But there is no harm to
@@ -218,20 +224,24 @@ class Stub(metaclass=_StubMeta):
         return future
 
 
+_Events = collections.namedtuple('_Events', 'kill_graceful kill busy dead')
+
+
 _Work = collections.namedtuple('_Work', 'future func args kwargs')
 
 
-def _actor_message_loop(work_queue, kill_graceful, kill, dead):
+def _actor_message_loop(work_queue, events):
     """The main message processing loop of an actor."""
     try:
-        _actor_message_loop_impl(work_queue, kill_graceful, kill)
+        _actor_message_loop_impl(work_queue, events)
     except BaseException:
         LOG.error('unexpected error inside actor thread', exc_info=True)
     finally:
-        dead.set()
+        events.busy.clear()
+        events.dead.set()
 
 
-def _actor_message_loop_impl(work_queue, kill_graceful, kill):
+def _actor_message_loop_impl(work_queue, events):
     """Dequeue and process messages one by one."""
     #
     # NOTE:
@@ -255,9 +265,11 @@ def _actor_message_loop_impl(work_queue, kill_graceful, kill):
     work.future.set_result(actor)
     del work
 
-    while not (kill.is_set() or
-               kill_graceful.is_set() and work_queue.empty()):
+    while not (events.kill.is_set() or
+               events.kill_graceful.is_set() and work_queue.empty()):
+        events.busy.clear()
         work = work_queue.get()
+        events.busy.set()
         # If work is None, it's a kick from the producer thread, not an
         # actual message.  Since the actor thread is the only consumer
         # of the queue, it doesn't have to pass down the "kick" (check
