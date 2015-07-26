@@ -8,10 +8,10 @@ __all__ = [
 import collections
 import concurrent.futures
 import logging
-import queue
 import threading
 
 
+import garage.queues
 from garage import actors
 
 
@@ -27,10 +27,13 @@ class _Worker:
     @actors.method
     def work_on(self, work_queue):
         while True:
-            work = work_queue.get()
-            if work is None:  # This is a "kick".
+            try:
+                work = work_queue.get()
+            except garage.queues.Closed:
+                return
+            if work is None:  # Nudge other workers.
                 work_queue.put(None)
-                break
+                return
 
             if not work.future.set_running_or_notify_cancel():
                 del work
@@ -54,6 +57,10 @@ class WorkerPool:
     def __init__(self):
         self._lock = threading.Lock()
         self._pool = collections.deque()
+
+    def __bool__(self):
+        with self._lock:
+            return bool(self._pool)
 
     def __len__(self):
         with self._lock:
@@ -90,7 +97,7 @@ class Executor(concurrent.futures.Executor):
         self._workers = []
         self._worker_waits = []
         # An unbounded queue will make things whole lot easier.
-        self._work_queue = queue.Queue()
+        self._work_queue = garage.queues.Queue()
         self._shutdown_lock = threading.Lock()
         self._shutdown = False
 
@@ -110,44 +117,35 @@ class Executor(concurrent.futures.Executor):
 
             return future
 
-    def shutdown(self, wait=True, graceful=True):
+    def shutdown(self, wait=True):
         """Shutdown the executor.
 
-           If wait is True, shutdown() will blocks until all worker
-           threads finish their jobs, but which jobs will be finished
-           depends on graceful.
-
-           If graceful is True, all the submitted jobs will be executed.
-           Otherwise, the work queue will be drained (the worker threads
-           will exit after they finish their current job at hand).
+           If wait is True, shutdown() will blocks until all the
+           remaining jobs are completed.  Otherwise, the work queue will
+           be drained (the worker threads will exit after they finish
+           their current job at hand).
 
            NOTE: If you call shutdown multiple times, only the first
            call will be effective.
         """
+        # shutdown() and submit() share a lock; so if submit() block on
+        # Queue.put(), shutdown() will not be able to acquire the lock,
+        # but since our work queue is infinite, this should not happen.
         with self._shutdown_lock:
             if self._shutdown:
                 return
             self._shutdown = True
 
-        if not wait or not graceful:
-            # Drain the work queue.
-            while True:
-                try:
-                    work = self._work_queue.get_nowait()
-                except queue.Empty:
-                    break
-                work.future.cancel()
-
-        # "Kick" to stop the workers.
-        self._work_queue.put(None)
-
         if wait:
+            self._work_queue.put(None)  # Nudge workers.
             concurrent.futures.wait(self._worker_waits)
             self._worker_pool.return_to_pool(self._workers)
         else:
-            # If we don't wait on them, we kill them.  Otherwise we
+            for future in self._work_queue.close():
+                future.cancel()
+            # If we don't wait on workers, we kill them.  Otherwise we
             # would return workers to the pool that are might still
-            # working on our jobs (which others may not hire and use
-            # immediately).
+            # working on their current jobs (they will be dead right
+            # after they finish their current jobs).
             for worker in self._workers:
                 worker.kill(graceful=False)

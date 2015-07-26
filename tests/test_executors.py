@@ -28,6 +28,21 @@ class TestExecutor(unittest.TestCase):
             self.assertFalse(worker.is_busy())
             self.assertFalse(worker.is_dead())
 
+    def test_shutdown(self):
+        pool = garage.executors.WorkerPool()
+        self.assertEqual(0, len(pool))
+
+        with garage.executors.Executor(pool, 1) as executor:
+            f1 = executor.submit(sum, (1, 2, 3))
+            f2 = executor.submit(sum, (4, 5, 6))
+            self.assertEqual(0, len(pool))
+            self.assertEqual(6, f1.result())
+            self.assertEqual(15, f2.result())
+            executor.shutdown(wait=False)
+
+        # shutdown(wait=False) does not return workers to the pool.
+        self.assertEqual(0, len(pool))
+
 
 if __name__ == '__main__':
     unittest.main()
