@@ -30,10 +30,11 @@ __all__ = [
 import collections
 import functools
 import logging
-import queue
 import threading
 import types
 from concurrent.futures import Future
+
+import garage.queues
 
 
 BUILD = object()
@@ -101,11 +102,11 @@ class _StubMeta(type):
         return stub_method
 
 
-def build(stub_cls, *, name=None, maxsize=0, args=None, kwargs=None):
+def build(stub_cls, *, name=None, capacity=0, args=None, kwargs=None):
     return stub_cls(
         BUILD,
         name=name,
-        maxsize=maxsize,
+        capacity=capacity,
         args=args or (),
         kwargs=kwargs or {},
     )
@@ -140,18 +141,17 @@ class Stub(metaclass=_StubMeta):
                 '%s is not a stub of an actor' % type(self).__qualname__)
         if args and args[0] is BUILD:
             name = kwargs.get('name')
-            maxsize = kwargs.get('maxsize', 0)
+            capacity = kwargs.get('capacity', 0)
             args = kwargs.get('args', ())
             kwargs = kwargs.get('kwargs', {})
         else:
             name = None
-            maxsize = 0
+            capacity = 0
             # Should I make a copy of args and kwargs?
             args = tuple(args)
             kwargs = dict(kwargs)
-        self.__work_queue = queue.Queue(maxsize=maxsize)
+        self.__work_queue = garage.queues.Queue(capacity=capacity)
         self.__events = _Events(
-            kill_graceful=threading.Event(),
             kill=threading.Event(),
             busy=threading.Event(),
             dead=threading.Event(),
@@ -180,17 +180,17 @@ class Stub(metaclass=_StubMeta):
            normal message sending without the possibility that caller
            being blocked).
         """
-        self.__events.kill_graceful.set()
-        if not graceful:
-            self.__events.kill.set()
-        # Kick the actor thread out of blocking inside Queue.get().
-        # If the queue is full, we are sure that Queue.get() will return
-        # anyway; so we call put_nowait() and swallow the queue.Full
-        # exception here.
-        try:
-            self.__work_queue.put_nowait(None)
-        except queue.Full:
-            pass
+        self.__events.kill.set()
+        if graceful:
+            # Nudge the actor thread if it's blocked inside get().
+            try:
+                self.__work_queue.put(None, block=False)
+            except garage.queues.Full:
+                pass
+        else:
+            # Close the work queue and cancel all futures.
+            for future in self.__work_queue.close():
+                future.cancel()
 
     def is_busy(self):
         """True if the actor thread is processing a message (probably
@@ -208,7 +208,7 @@ class Stub(metaclass=_StubMeta):
 
     def send_message(self, func, args, kwargs, block=True, timeout=None):
         """Enqueue a message into actor's message queue."""
-        if self.__events.kill_graceful.is_set():
+        if self.__events.kill.is_set():
             raise ActorError('actor is being killed')
         # Even if is_dead() returns False, there is no guarantee that
         # the actor will process this message.  But there is no harm to
@@ -224,7 +224,9 @@ class Stub(metaclass=_StubMeta):
         return future
 
 
-_Events = collections.namedtuple('_Events', 'kill_graceful kill busy dead')
+# The stub and the actor thread use these events to communicate with
+# each other without being blocked by the queue.
+_Events = collections.namedtuple('_Events', 'kill busy dead')
 
 
 _Work = collections.namedtuple('_Work', 'future func args kwargs')
@@ -265,18 +267,15 @@ def _actor_message_loop_impl(work_queue, events):
     work.future.set_result(actor)
     del work
 
-    while not (events.kill.is_set() or
-               events.kill_graceful.is_set() and work_queue.empty()):
+    while not (events.kill.is_set() and not work_queue):
         events.busy.clear()
-        work = work_queue.get()
-        events.busy.set()
-        # If work is None, it's a kick from the producer thread, not an
-        # actual message.  Since the actor thread is the only consumer
-        # of the queue, it doesn't have to pass down the "kick" (check
-        # out standard library's ThreadPoolExecutor for an example of
-        # passing down the kick).
+        try:
+            work = work_queue.get()
+        except garage.queues.Closed:
+            break
         if work is None:
             continue
+        events.busy.set()
 
         if not work.future.set_running_or_notify_cancel():
             del work

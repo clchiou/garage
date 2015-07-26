@@ -99,7 +99,7 @@ class TestActors(unittest.TestCase):
         self.assertFalse(greeter.is_busy())
         self.assertFalse(greeter.is_dead())
 
-        greeter = actors.build(Greeter, maxsize=1, args=('Jean',))
+        greeter = actors.build(Greeter, capacity=1, args=('Jean',))
         self.assertEqual('Hello Jean', greeter.greet().result())
 
         bomb = Bomb()
@@ -147,7 +147,7 @@ class TestActors(unittest.TestCase):
                     actors.ActorError, r'actor is being killed'):
                 greeter.greet()
 
-            greeter.wait(timeout=10)
+            greeter.wait(timeout=1)
             self.assertFalse(greeter.is_busy())
             self.assertTrue(greeter.is_dead())
 
