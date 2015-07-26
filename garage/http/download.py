@@ -12,7 +12,6 @@ import requests.exceptions
 
 from startup import startup
 
-import garage.concurrent
 from garage.app import ARGS
 from garage.app import PARSE
 from garage.app import PARSER
@@ -55,10 +54,7 @@ def download(
     okay, tmp_dirpath = _prepare(output_dirpath)
     if not okay:
         return
-    with garage.concurrent.crash_on(executor, KeyboardInterrupt):
-        _download(
-            executor, http_client, uris_filenames, tmp_dirpath, chunk_size
-        )
+    _download(executor, http_client, uris_filenames, tmp_dirpath, chunk_size)
     _check((filename for _, filename in uris_filenames), tmp_dirpath)
     tmp_dirpath.rename(output_dirpath)
     LOG.info('complete %s', output_dirpath)
