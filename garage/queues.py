@@ -84,28 +84,21 @@ class _QueueBase:
         with self._not_full:
             if self._closed:
                 raise Closed
-
             if self._capacity > 0:
-                if not block:
-                    if len(self._queue) >= self._capacity:
+                waiter = _make_waiter(block, timeout)
+                waiter.send(self._not_full)
+                keep_waiting = True
+                while True:
+                    if self._closed:
+                        raise Closed
+                    if len(self._queue) < self._capacity:
+                        break
+                    if not keep_waiting:
                         raise Full
-                elif timeout is None:
-                    while len(self._queue) >= self._capacity:
-                        self._not_full.wait()
-                        if self._closed:
-                            raise Closed
-                elif timeout < 0:
-                    raise ValueError('timeout must be non-negative')
-                else:
-                    endtime = time.monotonic() + timeout
-                    while len(self._queue) >= self._capacity:
-                        remaining = endtime - time.monotonic()
-                        if remaining <= 0.0:
-                            raise Full
-                        self._not_full.wait(remaining)
-                        if self._closed:
-                            raise Closed
-
+                    try:
+                        next(waiter)
+                    except StopIteration:
+                        keep_waiting = False
             self._put(item)
             self._not_empty.notify()
 
@@ -115,32 +108,66 @@ class _QueueBase:
            the queue is being closed.
         """
         with self._not_empty:
-            if self._closed:
-                raise Closed
-
-            if not block:
-                if not self._queue:
+            waiter = _make_waiter(block, timeout)
+            waiter.send(self._not_empty)
+            keep_waiting = True
+            while True:
+                if self._closed:
+                    raise Closed
+                if self._queue:
+                    break
+                if not keep_waiting:
                     raise Empty
-            elif timeout is None:
-                while not self._queue:
-                    self._not_empty.wait()
-                    if self._closed:
-                        raise Closed
-            elif timeout < 0:
-                raise ValueError('timeout must be non-negative')
-            else:
-                endtime = time.monotonic() + timeout
-                while not self._queue:
-                    remaining = endtime - time.monotonic()
-                    if remaining <= 0.0:
-                        raise Empty
-                    self._not_empty.wait(remaining)
-                    if self._closed:
-                        raise Closed
-
+                try:
+                    next(waiter)
+                except StopIteration:
+                    keep_waiting = False
             item = self._get()
             self._not_full.notify()
             return item
+
+
+def _make_waiter(block, timeout):
+    """Return a generator that calls Condition.wait.
+
+       You first call waiter.send(cond) to give it a condition variable
+       to wait for, and then every time you call next(waiter), it will
+       either call Condition.wait or raise StopIteration.
+    """
+    if not block:
+        waiter = _non_blocking()
+    elif timeout is None:
+        waiter = _blocking()
+    else:
+        if timeout < 0:
+            raise ValueError('timeout must be non-negative')
+        waiter = _blocking_timeout(timeout)
+    next(waiter)
+    return waiter
+
+
+def _non_blocking():
+    _ = yield
+    yield
+
+
+def _blocking():
+    cond = yield
+    while True:
+        yield
+        cond.wait()
+
+
+def _blocking_timeout(timeout):
+    cond = yield
+    end_time = time.monotonic() + timeout
+    while True:
+        remaining = end_time - time.monotonic()
+        if remaining <= 0.0:
+            yield
+            break
+        yield
+        cond.wait(remaining)
 
 
 class Queue(_QueueBase):
