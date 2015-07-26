@@ -33,7 +33,7 @@ def run_server(listener):
     server_thread.start()
     wait_forever(server_vars.exit)
     if server_vars.wait.is_set():
-        LOG.info('wait workers')
+        LOG.debug('wait workers')
         for worker_thread in server_vars.workers:
             worker_thread.join()
         # We don't join on the server thread because unfortunately it
@@ -53,7 +53,7 @@ def server(listener, server_vars):
     while not server_vars.exit.is_set():
         conn = listener.accept()
         try:
-            LOG.info('accept %r', listener.last_accepted)
+            LOG.debug('accept %r', listener.last_accepted)
             worker = Worker(
                 closing(conn),
                 server_vars,
@@ -95,10 +95,10 @@ class Worker(object):
             self.filename = str(address)
 
     def run(self):
-        LOG.info('start worker')
+        LOG.debug('start worker')
         with self.conn_manager as conn:
             self.serve_forever(conn)
-        LOG.info('exit')
+        LOG.debug('exit')
 
     def serve_forever(self, conn):
         conn.send(self.VERSION_INFO)
@@ -113,7 +113,7 @@ class Worker(object):
             return True
 
         command = request.get('command')
-        LOG.info('receive command %r', command)
+        LOG.debug('receive command %r', command)
         if not command:
             conn.send(self.ERROR_REQUIRE_COMMAND)
             return

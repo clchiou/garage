@@ -36,7 +36,7 @@ class Connector:
         try:
             with Client(self.address, authkey=self.authkey) as conn:
                 version_info = conn.recv()['version_info']
-                LOG.info('server version %s', version_info)
+                LOG.debug('server version %s', version_info)
                 server = ServerStub(conn, self.address, self.protocol)
                 try:
                     yield server
