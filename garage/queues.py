@@ -60,7 +60,7 @@ class _QueueBase:
         with self._lock:
             return self._closed
 
-    def close(self):
+    def close(self, graceful=True):
         """Close the queue and return the items (if you need to release
            them).
 
@@ -70,7 +70,10 @@ class _QueueBase:
         with self._lock:
             if self._closed:
                 return []
-            items, self._queue = list(self._queue), ()
+            if graceful:
+                items = []
+            else:  # Drain the queue.
+                items, self._queue = list(self._queue), ()
             self._closed = True
             self._not_empty.notify_all()
             self._not_full.notify_all()
@@ -105,17 +108,17 @@ class _QueueBase:
     def get(self, block=True, timeout=None):
         """Same as standard library's get() of queue module except that
            it will raise Closed in all blocked consumer threads after
-           the queue is being closed.
+           the queue is empty and is being closed.
         """
         with self._not_empty:
             waiter = _make_waiter(block, timeout)
             waiter.send(self._not_empty)
             keep_waiting = True
             while True:
-                if self._closed:
-                    raise Closed
                 if self._queue:
                     break
+                if self._closed:
+                    raise Closed
                 if not keep_waiting:
                     raise Empty
                 try:

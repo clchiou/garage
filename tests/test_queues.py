@@ -49,7 +49,35 @@ class TestQueues(unittest.TestCase):
         queue.put(2)
         queue.put(3)
 
-        self.assertListEqual([1, 2, 3], queue.close())
+        self.assertListEqual([], queue.close())
+        self.assertTrue(queue.is_closed())
+
+        self.assertListEqual([], queue.close())
+
+        self.assertEqual(1, queue.get())
+        self.assertEqual(2, queue.get())
+        self.assertEqual(3, queue.get())
+        with self.assertRaises(garage.queues.Closed):
+            queue.get()
+
+        with self.assertRaises(garage.queues.Closed):
+            queue.put(4)
+
+        queue = garage.queues.Queue()
+        self.assertFalse(queue.is_closed())
+        self.assertListEqual([], queue.close())
+        with self.assertRaises(garage.queues.Closed):
+            queue.get()
+
+    def test_close_not_graceful(self):
+        queue = garage.queues.Queue()
+        self.assertFalse(queue.is_closed())
+
+        queue.put(1)
+        queue.put(2)
+        queue.put(3)
+
+        self.assertListEqual([1, 2, 3], queue.close(graceful=False))
         self.assertTrue(queue.is_closed())
 
         self.assertListEqual([], queue.close())

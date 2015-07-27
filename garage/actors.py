@@ -181,16 +181,8 @@ class Stub(metaclass=_StubMeta):
            being blocked).
         """
         self.__events.kill.set()
-        if graceful:
-            # Nudge the actor thread if it's blocked inside get().
-            try:
-                self.__work_queue.put(None, block=False)
-            except garage.queues.Full:
-                pass
-        else:
-            # Close the work queue and cancel all futures.
-            for future in self.__work_queue.close():
-                future.cancel()
+        for future in self.__work_queue.close(graceful=graceful):
+            future.cancel()
 
     def is_busy(self):
         """True if the actor thread is processing a message (probably
@@ -273,8 +265,6 @@ def _actor_message_loop_impl(work_queue, events):
             work = work_queue.get()
         except garage.queues.Closed:
             break
-        if work is None:
-            continue
         events.busy.set()
 
         if not work.future.set_running_or_notify_cancel():

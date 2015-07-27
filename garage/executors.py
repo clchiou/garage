@@ -31,9 +31,6 @@ class _Worker:
                 work = work_queue.get()
             except garage.queues.Closed:
                 return
-            if work is None:  # Nudge other workers.
-                work_queue.put(None)
-                return
 
             if not work.future.set_running_or_notify_cancel():
                 del work
@@ -135,14 +132,12 @@ class Executor(concurrent.futures.Executor):
             if self._shutdown:
                 return
             self._shutdown = True
-
+        for future in self._work_queue.close(graceful=wait):
+            future.cancel()
         if wait:
-            self._work_queue.put(None)  # Nudge workers.
             concurrent.futures.wait(self._worker_waits)
             self._worker_pool.return_to_pool(self._workers)
         else:
-            for future in self._work_queue.close():
-                future.cancel()
             # If we don't wait on workers, we kill them.  Otherwise we
             # would return workers to the pool that are might still
             # working on their current jobs (they will be dead right
