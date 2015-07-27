@@ -132,8 +132,8 @@ class Executor(concurrent.futures.Executor):
             if self._shutdown:
                 return
             self._shutdown = True
-        for future in self._work_queue.close(graceful=wait):
-            future.cancel()
+        for work in self._work_queue.close(graceful=wait):
+            work.future.cancel()
         if wait:
             concurrent.futures.wait(self._worker_waits)
             self._worker_pool.return_to_pool(self._workers)

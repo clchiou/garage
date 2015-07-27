@@ -34,7 +34,8 @@ class _Blocker:
 
     @actors.method
     def wait(self, barrier, event):
-        barrier.wait()
+        if barrier:
+            barrier.wait()
         event.wait()
 
 
@@ -150,6 +151,14 @@ class TestActors(unittest.TestCase):
             greeter.wait(timeout=1)
             self.assertFalse(greeter.is_busy())
             self.assertTrue(greeter.is_dead())
+
+        blocker = Blocker()
+        event = threading.Event()
+        blocker.wait(None, event)
+        blocker.wait(None, event)
+        blocker.kill(graceful=False)
+        self.assertFalse(blocker.is_dead())
+        self.assertFalse(blocker._Stub__work_queue)
 
     def test_mro(self):
         self.assertEqual('A', C().do_something().result())

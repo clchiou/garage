@@ -1,5 +1,7 @@
 import unittest
 
+import threading
+
 import garage.executors
 
 
@@ -42,6 +44,12 @@ class TestExecutor(unittest.TestCase):
 
         # shutdown(wait=False) does not return workers to the pool.
         self.assertEqual(0, len(pool))
+
+        event = threading.Event()
+        with garage.executors.Executor(pool, 1) as executor:
+            executor.submit(event.wait)
+            executor.shutdown(wait=False)
+            self.assertFalse(executor._work_queue)
 
 
 if __name__ == '__main__':

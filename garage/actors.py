@@ -181,8 +181,8 @@ class Stub(metaclass=_StubMeta):
            being blocked).
         """
         self.__events.kill.set()
-        for future in self.__work_queue.close(graceful=graceful):
-            future.cancel()
+        for work in self.__work_queue.close(graceful=graceful):
+            work.future.cancel()
 
     def is_busy(self):
         """True if the actor thread is processing a message (probably
