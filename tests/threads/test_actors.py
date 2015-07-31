@@ -2,7 +2,7 @@ import unittest
 
 import threading
 
-from garage import actors
+from garage.threads import actors
 
 
 class _Greeter:

@@ -11,8 +11,8 @@ import logging
 import threading
 
 
-import garage.queues
-from garage import actors
+from garage.threads import actors
+from garage.threads import queues
 
 
 LOG = logging.getLogger(__name__)
@@ -29,7 +29,7 @@ class _Worker:
         while True:
             try:
                 work = work_queue.get()
-            except garage.queues.Closed:
+            except queues.Closed:
                 return
 
             if not work.future.set_running_or_notify_cancel():
@@ -94,7 +94,7 @@ class Executor(concurrent.futures.Executor):
         self._workers = []
         self._worker_waits = []
         # An unbounded queue will make things whole lot easier.
-        self._work_queue = garage.queues.Queue()
+        self._work_queue = queues.Queue()
         self._shutdown_lock = threading.Lock()
         self._shutdown = False
 

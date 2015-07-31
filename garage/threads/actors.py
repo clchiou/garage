@@ -34,7 +34,7 @@ import threading
 import types
 from concurrent.futures import Future
 
-import garage.queues
+from garage.threads import queues
 
 
 BUILD = object()
@@ -150,7 +150,7 @@ class Stub(metaclass=_StubMeta):
             # Should I make a copy of args and kwargs?
             args = tuple(args)
             kwargs = dict(kwargs)
-        self.__work_queue = garage.queues.Queue(capacity=capacity)
+        self.__work_queue = queues.Queue(capacity=capacity)
         self.__events = _Events(
             kill=threading.Event(),
             busy=threading.Event(),
@@ -263,7 +263,7 @@ def _actor_message_loop_impl(work_queue, events):
         events.busy.clear()
         try:
             work = work_queue.get()
-        except garage.queues.Closed:
+        except queues.Closed:
             break
         events.busy.set()
 

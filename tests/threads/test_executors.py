@@ -2,22 +2,22 @@ import unittest
 
 import threading
 
-import garage.executors
+from garage.threads import executors
 
 
 class TestExecutor(unittest.TestCase):
 
     def test_executor(self):
-        pool = garage.executors.WorkerPool()
+        pool = executors.WorkerPool()
         self.assertEqual(0, len(pool))
 
         # No jobs, no workers are hired.
-        with garage.executors.Executor(pool, 1) as executor:
+        with executors.Executor(pool, 1) as executor:
             self.assertEqual(0, len(pool))
 
         self.assertEqual(0, len(pool))
 
-        with garage.executors.Executor(pool, 1) as executor:
+        with executors.Executor(pool, 1) as executor:
             f1 = executor.submit(sum, (1, 2, 3))
             f2 = executor.submit(sum, (4, 5, 6))
             self.assertEqual(0, len(pool))
@@ -31,10 +31,10 @@ class TestExecutor(unittest.TestCase):
             self.assertFalse(worker.is_dead())
 
     def test_shutdown(self):
-        pool = garage.executors.WorkerPool()
+        pool = executors.WorkerPool()
         self.assertEqual(0, len(pool))
 
-        with garage.executors.Executor(pool, 1) as executor:
+        with executors.Executor(pool, 1) as executor:
             f1 = executor.submit(sum, (1, 2, 3))
             f2 = executor.submit(sum, (4, 5, 6))
             self.assertEqual(0, len(pool))
@@ -46,7 +46,7 @@ class TestExecutor(unittest.TestCase):
         self.assertEqual(0, len(pool))
 
         event = threading.Event()
-        with garage.executors.Executor(pool, 1) as executor:
+        with executors.Executor(pool, 1) as executor:
             executor.submit(event.wait)
             executor.shutdown(wait=False)
             self.assertFalse(executor._work_queue)
