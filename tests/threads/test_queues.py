@@ -14,11 +14,13 @@ class TestQueues(unittest.TestCase):
                 (queues.Queue, [1, 2, 3], [1, 2, 3]),
                 (queues.PriorityQueue, [1, 3, 2], [1, 2, 3]),
                 (queues.LifoQueue, [1, 2, 3], [3, 2, 1])]:
-            queue = queue_class()
-            for data in test_input:
-                queue.put(data)
-            for data in test_output:
-                self.assertEqual(data, queue.get())
+            for queue in (
+                    queue_class(),
+                    queues.ForwardingQueue(queue_class())):
+                for data in test_input:
+                    queue.put(data)
+                for data in test_output:
+                    self.assertEqual(data, queue.get())
 
     def test_nonblocking(self):
         queue = queues.Queue(capacity=1)

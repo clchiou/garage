@@ -10,6 +10,7 @@ __all__ = [
     'Queue',
     'PriorityQueue',
     'LifoQueue',
+    'ForwardingQueue',
 ]
 
 import collections
@@ -210,3 +211,43 @@ class LifoQueue(_QueueBase):
 
     def _get(self):
         return self._queue.pop()
+
+
+class ForwardingQueue:
+    """Wrap around a queue and replace its internal lock with a RLock.
+
+       All calls are forwarded to the queue.  You may sub-class this
+       class instead of a queue class to alter the its behavior.
+    """
+
+    def __init__(self, queue):
+        self.queue = queue
+        # Replace Lock with RLock for easier sub-classing.
+        self.queue._lock = threading.RLock()
+        self.queue._not_empty = threading.Condition(self.queue._lock)
+        self.queue._not_full = threading.Condition(self.queue._lock)
+
+    @property
+    def lock(self):
+        return self.queue._lock
+
+    def __bool__(self):
+        return bool(self.queue)
+
+    def __len__(self):
+        return len(self.queue)
+
+    def is_full(self):
+        return self.queue.is_full()
+
+    def is_closed(self):
+        return self.queue.is_closed()
+
+    def close(self, graceful=True):
+        return self.queue.close(graceful=graceful)
+
+    def put(self, item, block=True, timeout=None):
+        self.queue.put(item, block=block, timeout=timeout)
+
+    def get(self, block=True, timeout=None):
+        return self.queue.get(block=block, timeout=timeout)
