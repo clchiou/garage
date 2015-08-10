@@ -47,38 +47,27 @@ class TestUnique(unittest.TestCase):
 
 class Foo:
 
-    def __init__(self, counter1, counter2):
-        self.counter1 = counter1
-        self.counter2 = counter2
+    def __init__(self, counter):
+        self.counter = counter
 
     # Methods will be called only once.
 
     @memorize
-    def prop1(self):
-        counter = self.counter1
-        self.counter1 -= 1
-        return counter
-
-    @memorize
-    def prop2(self):
-        counter = self.counter2
-        self.counter2 -= 1
+    def prop(self):
+        counter = self.counter
+        self.counter -= 1
         return counter
 
 
 class TestMemorize(unittest.TestCase):
 
     def test_memorize(self):
-        foo = Foo(1, 2)
-        self.assertEqual(1, foo.prop1)
-        self.assertEqual(1, foo.prop1)
-        self.assertEqual(2, foo.prop2)
-        self.assertEqual(2, foo.prop2)
-        foo2 = Foo(100, 200)
-        self.assertEqual(100, foo2.prop1)
-        self.assertEqual(100, foo2.prop1)
-        self.assertEqual(200, foo2.prop2)
-        self.assertEqual(200, foo2.prop2)
+        foo = Foo(100)
+        self.assertIsNone(foo.__dict__.get('prop'))
+        self.assertEqual(100, foo.prop)
+        self.assertEqual(100, foo.prop)
+        self.assertEqual(100, foo.__dict__['prop'])
+        self.assertEqual(99, foo.counter)
 
 
 class Bar:

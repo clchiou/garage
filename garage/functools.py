@@ -32,7 +32,8 @@ def unique(iterable, key=None):
 
 
 def memorize(method):
-    """Wrap a method and memorize its return value.
+    """Wrap a method in NondataProperty and then override (i.e.,
+       memorize) it with the result.
 
        Note: method's name _must_ be the same as the property name.
     """
