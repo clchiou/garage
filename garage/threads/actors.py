@@ -29,7 +29,6 @@ __all__ = [
 
 import collections
 import functools
-import logging
 import threading
 import types
 from concurrent.futures import Future
@@ -38,10 +37,6 @@ from garage.threads import queues
 
 
 BUILD = object()
-
-
-LOG = logging.getLogger(__name__)
-LOG.addHandler(logging.NullHandler())
 
 
 _MAGIC = object()
@@ -151,13 +146,11 @@ class Stub(metaclass=_StubMeta):
             args = tuple(args)
             kwargs = dict(kwargs)
         self.__work_queue = queues.Queue(capacity=capacity)
-        self.__events = _Events(
-            dead=threading.Event(),
-        )
+        self.__future = Future()
         threading.Thread(
             target=_actor_message_loop,
             name=name,
-            args=(self.__work_queue, self.__events),
+            args=(self.__work_queue, self.__future),
             daemon=True,
         ).start()
         # Since we can't return a future here, we have to wait on the
@@ -181,22 +174,22 @@ class Stub(metaclass=_StubMeta):
         for work in self.__work_queue.close(graceful=graceful):
             work.future.cancel()
 
-    def is_dead(self):
-        """True if the actor thread has exited."""
-        return self.__events.dead.is_set()
+    def get_future(self):
+        """Return the future object that represents actor's liveness.
 
-    def wait(self, timeout=None):
-        """Wait until is_dead flag is set."""
-        return self.__events.dead.wait(timeout)
+           Note: Cancelling this future object is not going to kill this
+           actor.  You should call kill() instead.
+        """
+        return self.__future
 
     def send_message(self, func, args, kwargs, block=True, timeout=None):
         """Enqueue a message into actor's message queue."""
         if self.__work_queue.is_closed():
             raise ActorError('actor is being killed')
-        # Even if is_dead() returns False, there is no guarantee that
+        # Even if done() returns False, there is no guarantee that
         # the actor will process this message.  But there is no harm to
         # check here.
-        if Stub.is_dead(self):
+        if self.__future.done():
             raise ActorError('actor is dead')
         future = Future()
         self.__work_queue.put(
@@ -207,25 +200,20 @@ class Stub(metaclass=_StubMeta):
         return future
 
 
-# The stub and the actor thread use these events to communicate with
-# each other without being blocked by the queue.
-_Events = collections.namedtuple('_Events', 'dead')
-
-
 _Work = collections.namedtuple('_Work', 'future func args kwargs')
 
 
-def _actor_message_loop(work_queue, events):
+def _actor_message_loop(work_queue, future):
     """The main message processing loop of an actor."""
     try:
-        _actor_message_loop_impl(work_queue)
-    except BaseException:
-        LOG.error('unexpected error inside actor thread', exc_info=True)
-    finally:
-        events.dead.set()
+        _actor_message_loop_impl(work_queue, future)
+    except BaseException as exc:
+        future.set_exception(exc)
+    else:
+        future.set_result(None)
 
 
-def _actor_message_loop_impl(work_queue):
+def _actor_message_loop_impl(work_queue, future):
     """Dequeue and process messages one by one."""
     #
     # NOTE:
@@ -235,18 +223,21 @@ def _actor_message_loop_impl(work_queue):
     # * Don't have to call task_done() since we don't join on the queue.
     #
 
+    if not future.set_running_or_notify_cancel():
+        raise ActorError('future of this actor has been canceled')
+
     # The first message must be the __init__() call.
     work = work_queue.get()
     if not work.future.set_running_or_notify_cancel():
-        LOG.error('__init__ has been canceled')
-        return
+        raise ActorError('__init__ has been canceled')
 
     try:
         actor = work.func(*work.args, **work.kwargs)
     except BaseException as exc:
         work.future.set_exception(exc)
-        return
-    work.future.set_result(actor)
+        raise
+    else:
+        work.future.set_result(actor)
     del work
 
     while True:
@@ -263,6 +254,7 @@ def _actor_message_loop_impl(work_queue):
             result = work.func(actor, *work.args, **work.kwargs)
         except BaseException as exc:
             work.future.set_exception(exc)
-            return
-        work.future.set_result(result)
+            raise
+        else:
+            work.future.set_result(result)
         del work

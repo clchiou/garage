@@ -80,8 +80,8 @@ class WorkerPool:
         """Called by executor to return workers to the pool."""
         with self._lock:
             for worker in workers:
-                if worker.is_dead():
-                    LOG.warn('worker is dead: %r', worker)
+                if worker.get_future().done():
+                    LOG.warning('worker is dead: %r', worker)
                 else:
                     self._pool.append(worker)
 
