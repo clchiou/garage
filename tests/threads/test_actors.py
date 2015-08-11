@@ -144,9 +144,10 @@ class TestActors(unittest.TestCase):
             self.assertTrue(greeter.get_future().done())
 
         blocker = Blocker()
+        barrier = threading.Barrier(2)
         event = threading.Event()
-        blocker.wait(None, event)
-        blocker.wait(None, event)
+        blocker.wait(barrier, event)
+        barrier.wait()
         blocker.kill(graceful=False)
         self.assertFalse(blocker.get_future().done())
         self.assertFalse(blocker._Stub__work_queue)
