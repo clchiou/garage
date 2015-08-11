@@ -220,8 +220,6 @@ def _actor_message_loop_impl(work_queue, future):
     #
     # * Call `del work` as soon as possible (see issue 16284).
     #
-    # * Don't have to call task_done() since we don't join on the queue.
-    #
 
     if not future.set_running_or_notify_cancel():
         raise ActorError('future of this actor has been canceled')
