@@ -158,6 +158,8 @@ class Stub(metaclass=_StubMeta):
         # result of actor's __init__() call for any exception that might
         # be raised inside it.
         Stub.send_message(self, cls, args, kwargs).result()
+        # If this stub is not referenced, kill the actor gracefully.
+        weakref.finalize(self, self.__work_queue.close)
 
     def kill(self, graceful=True):
         """Set the kill flag of the actor thread.

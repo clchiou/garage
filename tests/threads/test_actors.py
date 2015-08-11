@@ -132,6 +132,12 @@ class TestActors(unittest.TestCase):
         future_ref = weakref.ref(Greeter().get_future())
         self.assertIsNone(future_ref())
 
+    def test_finalize(self):
+        greeter = Greeter()
+        future = greeter.get_future()
+        del greeter
+        self.assertIsNone(future.result(timeout=0.1))
+
     def test_busy(self):
         blocker = Blocker()
 
