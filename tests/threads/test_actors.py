@@ -1,6 +1,7 @@
 import unittest
 
 import threading
+import weakref
 
 from garage.threads import actors
 
@@ -37,6 +38,10 @@ class _Blocker:
         if barrier:
             barrier.wait()
         event.wait()
+
+    @actors.method
+    def side_effect(self, event):
+        event.set()
 
 
 class _A:
@@ -115,6 +120,17 @@ class TestActors(unittest.TestCase):
         with self.assertRaisesRegex(Explosion, r'Boom!'):
             future.result()
         self.assertTrue(bomb.get_future().done())
+
+    def test_weakref_1(self):
+        blocker = Blocker()
+        event = threading.Event()
+        future_ref = weakref.ref(blocker.side_effect(event))
+        self.assertIsNone(future_ref())
+        self.assertTrue(event.wait(timeout=0.1))
+
+    def test_weakref_2(self):
+        future_ref = weakref.ref(Greeter().get_future())
+        self.assertIsNone(future_ref())
 
     def test_busy(self):
         blocker = Blocker()

@@ -31,6 +31,7 @@ import collections
 import functools
 import threading
 import types
+import weakref
 from concurrent.futures import Future
 
 from garage.threads import queues
@@ -150,7 +151,7 @@ class Stub(metaclass=_StubMeta):
         threading.Thread(
             target=_actor_message_loop,
             name=name,
-            args=(self.__work_queue, self.__future),
+            args=(self.__work_queue, weakref.ref(self.__future)),
             daemon=True,
         ).start()
         # Since we can't return a future here, we have to wait on the
@@ -172,7 +173,7 @@ class Stub(metaclass=_StubMeta):
            being blocked).
         """
         for work in self.__work_queue.close(graceful=graceful):
-            work.future.cancel()
+            _deref(work.future_ref).cancel()
 
     def get_future(self):
         """Return the future object that represents actor's liveness.
@@ -193,27 +194,51 @@ class Stub(metaclass=_StubMeta):
             raise ActorError('actor is dead')
         future = Future()
         self.__work_queue.put(
-            _Work(future, func, args, kwargs),
+            _Work(weakref.ref(future), func, args, kwargs),
             block=block,
             timeout=timeout,
         )
         return future
 
 
-_Work = collections.namedtuple('_Work', 'future func args kwargs')
+_Work = collections.namedtuple('_Work', 'future_ref func args kwargs')
 
 
-def _actor_message_loop(work_queue, future):
+class _FakeFuture:
+
+    def cancel(self):
+        return True
+
+    def set_running_or_notify_cancel(self):
+        return True
+
+    def set_result(self, _):
+        pass
+
+    def set_exception(self, _):
+        pass
+
+
+_FAKE_FUTURE = _FakeFuture()
+
+
+def _deref(ref):
+    """Dereference a weak reference of future."""
+    obj = ref()
+    return obj if obj is not None else _FAKE_FUTURE
+
+
+def _actor_message_loop(work_queue, future_ref):
     """The main message processing loop of an actor."""
     try:
-        _actor_message_loop_impl(work_queue, future)
+        _actor_message_loop_impl(work_queue, future_ref)
     except BaseException as exc:
-        future.set_exception(exc)
+        _deref(future_ref).set_exception(exc)
     else:
-        future.set_result(None)
+        _deref(future_ref).set_result(None)
 
 
-def _actor_message_loop_impl(work_queue, future):
+def _actor_message_loop_impl(work_queue, future_ref):
     """Dequeue and process messages one by one."""
     #
     # NOTE:
@@ -221,21 +246,21 @@ def _actor_message_loop_impl(work_queue, future):
     # * Call `del work` as soon as possible (see issue 16284).
     #
 
-    if not future.set_running_or_notify_cancel():
+    if not _deref(future_ref).set_running_or_notify_cancel():
         raise ActorError('future of this actor has been canceled')
 
     # The first message must be the __init__() call.
     work = work_queue.get()
-    if not work.future.set_running_or_notify_cancel():
+    if not _deref(work.future_ref).set_running_or_notify_cancel():
         raise ActorError('__init__ has been canceled')
 
     try:
         actor = work.func(*work.args, **work.kwargs)
     except BaseException as exc:
-        work.future.set_exception(exc)
+        _deref(work.future_ref).set_exception(exc)
         raise
     else:
-        work.future.set_result(actor)
+        _deref(work.future_ref).set_result(actor)
     del work
 
     while True:
@@ -244,15 +269,15 @@ def _actor_message_loop_impl(work_queue, future):
         except queues.Closed:
             break
 
-        if not work.future.set_running_or_notify_cancel():
+        if not _deref(work.future_ref).set_running_or_notify_cancel():
             del work
             continue
 
         try:
             result = work.func(actor, *work.args, **work.kwargs)
         except BaseException as exc:
-            work.future.set_exception(exc)
+            _deref(work.future_ref).set_exception(exc)
             raise
         else:
-            work.future.set_result(result)
+            _deref(work.future_ref).set_result(result)
         del work
