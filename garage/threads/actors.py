@@ -152,7 +152,6 @@ class Stub(metaclass=_StubMeta):
             kwargs = dict(kwargs)
         self.__work_queue = queues.Queue(capacity=capacity)
         self.__events = _Events(
-            kill=threading.Event(),
             dead=threading.Event(),
         )
         threading.Thread(
@@ -179,7 +178,6 @@ class Stub(metaclass=_StubMeta):
            normal message sending without the possibility that caller
            being blocked).
         """
-        self.__events.kill.set()
         for work in self.__work_queue.close(graceful=graceful):
             work.future.cancel()
 
@@ -193,7 +191,7 @@ class Stub(metaclass=_StubMeta):
 
     def send_message(self, func, args, kwargs, block=True, timeout=None):
         """Enqueue a message into actor's message queue."""
-        if self.__events.kill.is_set():
+        if self.__work_queue.is_closed():
             raise ActorError('actor is being killed')
         # Even if is_dead() returns False, there is no guarantee that
         # the actor will process this message.  But there is no harm to
@@ -211,7 +209,7 @@ class Stub(metaclass=_StubMeta):
 
 # The stub and the actor thread use these events to communicate with
 # each other without being blocked by the queue.
-_Events = collections.namedtuple('_Events', 'kill dead')
+_Events = collections.namedtuple('_Events', 'dead')
 
 
 _Work = collections.namedtuple('_Work', 'future func args kwargs')
@@ -220,14 +218,14 @@ _Work = collections.namedtuple('_Work', 'future func args kwargs')
 def _actor_message_loop(work_queue, events):
     """The main message processing loop of an actor."""
     try:
-        _actor_message_loop_impl(work_queue, events)
+        _actor_message_loop_impl(work_queue)
     except BaseException:
         LOG.error('unexpected error inside actor thread', exc_info=True)
     finally:
         events.dead.set()
 
 
-def _actor_message_loop_impl(work_queue, events):
+def _actor_message_loop_impl(work_queue):
     """Dequeue and process messages one by one."""
     #
     # NOTE:
@@ -251,7 +249,7 @@ def _actor_message_loop_impl(work_queue, events):
     work.future.set_result(actor)
     del work
 
-    while not (events.kill.is_set() and not work_queue):
+    while True:
         try:
             work = work_queue.get()
         except queues.Closed:
