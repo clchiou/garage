@@ -27,7 +27,6 @@ class TestExecutor(unittest.TestCase):
         self.assertEqual(1, len(pool))
 
         for worker in pool:
-            self.assertFalse(worker.is_busy())
             self.assertFalse(worker.is_dead())
 
     def test_shutdown(self):

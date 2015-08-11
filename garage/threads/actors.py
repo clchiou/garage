@@ -153,7 +153,6 @@ class Stub(metaclass=_StubMeta):
         self.__work_queue = queues.Queue(capacity=capacity)
         self.__events = _Events(
             kill=threading.Event(),
-            busy=threading.Event(),
             dead=threading.Event(),
         )
         threading.Thread(
@@ -184,12 +183,6 @@ class Stub(metaclass=_StubMeta):
         for work in self.__work_queue.close(graceful=graceful):
             work.future.cancel()
 
-    def is_busy(self):
-        """True if the actor thread is processing a message (probably
-           only useful for testing or debugging).
-        """
-        return self.__events.busy.is_set()
-
     def is_dead(self):
         """True if the actor thread has exited."""
         return self.__events.dead.is_set()
@@ -218,7 +211,7 @@ class Stub(metaclass=_StubMeta):
 
 # The stub and the actor thread use these events to communicate with
 # each other without being blocked by the queue.
-_Events = collections.namedtuple('_Events', 'kill busy dead')
+_Events = collections.namedtuple('_Events', 'kill dead')
 
 
 _Work = collections.namedtuple('_Work', 'future func args kwargs')
@@ -231,7 +224,6 @@ def _actor_message_loop(work_queue, events):
     except BaseException:
         LOG.error('unexpected error inside actor thread', exc_info=True)
     finally:
-        events.busy.clear()
         events.dead.set()
 
 
@@ -260,12 +252,10 @@ def _actor_message_loop_impl(work_queue, events):
     del work
 
     while not (events.kill.is_set() and not work_queue):
-        events.busy.clear()
         try:
             work = work_queue.get()
         except queues.Closed:
             break
-        events.busy.set()
 
         if not work.future.set_running_or_notify_cancel():
             del work
