@@ -43,6 +43,10 @@ class _Blocker:
     def side_effect(self, event):
         event.set()
 
+    @actors.method
+    def exit(self):
+        raise actors.Exit
+
 
 class _A:
 
@@ -149,6 +153,24 @@ class TestActors(unittest.TestCase):
 
         event.set()
         future.result()
+
+    def test_exit(self):
+        blocker = Blocker()
+        event = threading.Event()
+        blocker.wait(None, event)
+
+        # Enque in order.
+        exit_fut = blocker.exit()
+        side_effect_fut = blocker.side_effect(threading.Event())
+
+        # Unblock it.
+        event.set()
+
+        self.assertFalse(blocker.get_future().done())
+        with self.assertRaises(actors.Exit):
+            exit_fut.result()
+        self.assertTrue(blocker.get_future().done())
+        self.assertTrue(side_effect_fut.cancelled())
 
     def test_kill(self):
         for graceful in (True, False):

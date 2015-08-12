@@ -22,6 +22,7 @@ main program until all submitted jobs are done).
 __all__ = [
     'BUILD',
     'ActorError',
+    'Exit',
     'Stub',
     'build',
     'method',
@@ -44,6 +45,12 @@ _MAGIC = object()
 
 
 class ActorError(Exception):
+    """A generic error of actors."""
+    pass
+
+
+class Exit(Exception):
+    """Raise this when an actor would like to to self-terminate."""
     pass
 
 
@@ -234,9 +241,14 @@ def _actor_message_loop(work_queue, future_ref):
     """The main message processing loop of an actor."""
     try:
         _actor_message_loop_impl(work_queue, future_ref)
+    except Exit:
+        for work in work_queue.close(graceful=False):
+            _deref(work.future_ref).cancel()
+        _deref(future_ref).set_result(None)
     except BaseException as exc:
         _deref(future_ref).set_exception(exc)
     else:
+        assert work_queue.is_closed()
         _deref(future_ref).set_result(None)
 
 
