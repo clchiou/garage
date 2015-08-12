@@ -30,12 +30,17 @@ __all__ = [
 
 import collections
 import functools
+import logging
 import threading
 import types
 import weakref
 from concurrent.futures import Future
 
 from garage.threads import queues
+
+
+LOG = logging.getLogger(__name__)
+LOG.addHandler(logging.NullHandler())
 
 
 BUILD = object()
@@ -241,6 +246,7 @@ def _deref(ref):
 
 def _actor_message_loop(work_queue, future_ref):
     """The main message processing loop of an actor."""
+    LOG.debug('start')
     try:
         _actor_message_loop_impl(work_queue, future_ref)
     except Exit:
@@ -252,6 +258,7 @@ def _actor_message_loop(work_queue, future_ref):
     else:
         assert work_queue.is_closed()
         _deref(future_ref).set_result(None)
+    LOG.debug('exit')
 
 
 def _actor_message_loop_impl(work_queue, future_ref):
@@ -279,6 +286,7 @@ def _actor_message_loop_impl(work_queue, future_ref):
         _deref(work.future_ref).set_result(actor)
     del work
 
+    LOG.debug('start message loop')
     while True:
         try:
             work = work_queue.get()
