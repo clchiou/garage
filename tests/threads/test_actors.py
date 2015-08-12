@@ -125,6 +125,10 @@ class TestActors(unittest.TestCase):
             future.result()
         self.assertTrue(bomb.get_future().done())
 
+    def test_name(self):
+        greeter = actors.build(Greeter, name='greeter-01')
+        self.assertEqual('greeter-01', greeter.name)
+
     def test_weakref_1(self):
         blocker = Blocker()
         event = threading.Event()

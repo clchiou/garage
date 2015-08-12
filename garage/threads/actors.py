@@ -155,12 +155,14 @@ class Stub(metaclass=_StubMeta):
             kwargs = dict(kwargs)
         self.__work_queue = queues.Queue(capacity=capacity)
         self.__future = Future()
-        threading.Thread(
+        thread = threading.Thread(
             target=_actor_message_loop,
             name=name,
             args=(self.__work_queue, weakref.ref(self.__future)),
             daemon=True,
-        ).start()
+        )
+        self.name = thread.name  # Useful in logging.
+        thread.start()
         # Since we can't return a future here, we have to wait on the
         # result of actor's __init__() call for any exception that might
         # be raised inside it.
