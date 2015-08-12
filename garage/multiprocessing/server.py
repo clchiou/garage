@@ -98,7 +98,8 @@ class Worker(object):
         LOG.debug('start worker')
         with self.conn_manager as conn:
             self.serve_forever(conn)
-        LOG.debug('exit')
+        # XXX LOG could be None during interpreter shutdown?
+        #LOG.debug('exit')
 
     def serve_forever(self, conn):
         conn.send(self.VERSION_INFO)
