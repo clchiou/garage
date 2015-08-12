@@ -74,6 +74,19 @@ class Greeter(actors.Stub, actor=_Greeter):
     pass
 
 
+class GreeterWithInject(actors.Stub, actor=_Greeter):
+
+    extra_args = ()
+    extra_kwargs = {}
+
+    def __init__(self, *args, **kwargs):
+        args, kwargs = actors.inject(
+            args, kwargs,
+            GreeterWithInject.extra_args, GreeterWithInject.extra_kwargs,
+        )
+        super().__init__(*args, **kwargs)
+
+
 class Bomb(actors.Stub, actor=_Bomb):
     pass
 
@@ -124,6 +137,21 @@ class TestActors(unittest.TestCase):
         with self.assertRaisesRegex(Explosion, r'Boom!'):
             future.result()
         self.assertTrue(bomb.get_future().done())
+
+    def test_inject(self):
+        GreeterWithInject.extra_args = ('John',)
+        GreeterWithInject.extra_kwargs = {}
+        greeter = GreeterWithInject()
+        self.assertEqual('Hello John', greeter.greet().result())
+        greeter = actors.build(GreeterWithInject)
+        self.assertEqual('Hello John', greeter.greet().result())
+
+        GreeterWithInject.extra_args = ()
+        GreeterWithInject.extra_kwargs = {'name': 'John'}
+        greeter = GreeterWithInject()
+        self.assertEqual('Hello John', greeter.greet().result())
+        greeter = actors.build(GreeterWithInject)
+        self.assertEqual('Hello John', greeter.greet().result())
 
     def test_name(self):
         greeter = actors.build(Greeter, name='greeter-01')

@@ -24,8 +24,9 @@ __all__ = [
     'ActorError',
     'Exit',
     'Stub',
-    'build',
     'method',
+    'build',
+    'inject',
 ]
 
 import collections
@@ -111,6 +112,7 @@ class _StubMeta(type):
 
 
 def build(stub_cls, *, name=None, capacity=0, args=None, kwargs=None):
+    """Build a stub/actor pair with finer configurations."""
     return stub_cls(
         BUILD,
         name=name,
@@ -118,6 +120,31 @@ def build(stub_cls, *, name=None, capacity=0, args=None, kwargs=None):
         args=args or (),
         kwargs=kwargs or {},
     )
+
+
+def inject(args, kwargs, extra_args=None, extra_kwargs=None):
+    """Inject additional args/kwargs into the args/kwargs that will be
+       sent to the actor.
+
+       In order to support build(), Stub.__init__ method's signature is
+       slightly more complex than you might expect.  If you would like
+       to override Stub.__init__, use this function to inject additional
+       args/kwargs that you would like to send to the actor's __init__.
+
+       You may use this to pass the stub object to the actor, but bear
+       in mind that this might cause unnecessary object retention.
+    """
+    if args and args[0] is BUILD:
+        if extra_args:
+            kwargs['args'] += extra_args
+        if extra_kwargs:
+            kwargs['kwargs'].update(extra_kwargs)
+    else:
+        if extra_args:
+            args += extra_args
+        if extra_kwargs:
+            kwargs.update(extra_kwargs)
+    return args, kwargs
 
 
 class Stub(metaclass=_StubMeta):
