@@ -39,9 +39,9 @@ class Client(ClientMixin):
     def __init__(self, *,
                  rate_limit=None,
                  retry_policy=None,
-                 _session_cls=requests.Session,
+                 _session=None,
                  _sleep=time.sleep):
-        self._session = _session_cls()
+        self._session = _session or requests.Session()
         self._rate_limit = rate_limit or policies.Unlimited()
         self._retry_policy = retry_policy or policies.NoRetry()
         self._sleep = _sleep

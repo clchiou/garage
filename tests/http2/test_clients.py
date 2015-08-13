@@ -3,6 +3,7 @@ import unittest
 import requests
 
 from garage.http2 import clients
+from garage.http2 import policies
 
 
 class TestClient(unittest.TestCase):
@@ -18,7 +19,7 @@ class TestClient(unittest.TestCase):
             ('GET', 'uri_4'): (404, ''),
         }
         client = clients.Client(
-            _session_cls=lambda: MockSession(req_to_rep),
+            _session=MockSession(req_to_rep),
             _sleep=fake_sleep,
         )
 
@@ -36,18 +37,72 @@ class TestClient(unittest.TestCase):
         with self.assertRaisesRegex(requests.HTTPError, 'http error'):
             client.get('uri_4')
 
+    def test_no_retry(self):
+        session = MockSession({('GET', 'uri_1'): (400, 'error!')})
+        client = clients.Client(
+            retry_policy=policies.NoRetry(),
+            _session=session,
+            _sleep=fake_sleep,
+        )
+        with self.assertRaisesRegex(requests.HTTPError, 'http error'):
+            client.get('uri_1')
+        self.assertEqual(1, len(session._logs))
+        for req in session._logs:
+            self.assertTrue(isinstance(req, requests.Request))
+            self.assertEqual('GET', req.method)
+            self.assertEqual('uri_1', req.url)
+
+    def test_retry(self):
+        N = 16
+        session = MockSession({
+            ('GET', 'uri_1'): (400, 'error!'),
+            ('GET', 'uri_2'): [
+                (400, 'error!'),
+                (400, 'error!'),
+                (400, 'error!'),
+                (200, 'success'),
+            ],
+        })
+        client = clients.Client(
+            retry_policy=policies.BinaryExponentialBackoff(N),
+            _session=session,
+            _sleep=fake_sleep,
+        )
+
+        session._logs.clear()
+        with self.assertRaisesRegex(requests.HTTPError, 'http error'):
+            client.get('uri_1')
+        self.assertEqual(1 + N, len(session._logs))
+        for req in session._logs:
+            self.assertTrue(isinstance(req, requests.Request))
+            self.assertEqual('GET', req.method)
+            self.assertEqual('uri_1', req.url)
+
+        session._logs.clear()
+        self.assertEqual('success', client.get('uri_2').content)
+        self.assertEqual(4, len(session._logs))
+        for req in session._logs:
+            self.assertTrue(isinstance(req, requests.Request))
+            self.assertEqual('GET', req.method)
+            self.assertEqual('uri_2', req.url)
+
 
 class MockSession:
 
     def __init__(self, req_to_rep):
         self._req_to_rep = req_to_rep
+        self._logs = []
 
     def send(self, request):
         assert isinstance(request, requests.Request)
+        self._logs.append(request)
         rep = self._req_to_rep[(request.method, request.url)]
         if isinstance(rep, Exception):
             raise rep
-        return MockResponse(*rep)
+        elif isinstance(rep, list):
+            return MockResponse(*rep.pop(0))
+        else:
+            return MockResponse(*rep)
 
 
 class MockResponse:
