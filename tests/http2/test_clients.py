@@ -37,6 +37,20 @@ class TestClient(unittest.TestCase):
         with self.assertRaisesRegex(requests.HTTPError, 'http error'):
             client.get('uri_4')
 
+    def test_rate_limit(self):
+        session = MockSession({
+            ('GET', 'uri_1'): [(200, 'tick'), (200, 'tock')],
+        })
+        client = clients.Client(
+            rate_limit=TimedBomb(2),
+            _session=session,
+            _sleep=fake_sleep,
+        )
+        self.assertEqual('tick', client.get('uri_1').content)
+        self.assertEqual('tock', client.get('uri_1').content)
+        with self.assertRaisesRegex(Exception, 'Boom!'):
+            client.get('uri_1')
+
     def test_no_retry(self):
         session = MockSession({('GET', 'uri_1'): (400, 'error!')})
         client = clients.Client(
@@ -85,6 +99,20 @@ class TestClient(unittest.TestCase):
             self.assertTrue(isinstance(req, requests.Request))
             self.assertEqual('GET', req.method)
             self.assertEqual('uri_2', req.url)
+
+
+class TimedBomb:
+
+    def __init__(self, count):
+        self.count = count
+
+    def __enter__(self):
+        self.count -= 1
+        if self.count < 0:
+            raise Exception('Boom!')
+
+    def __exit__(self, *_):
+        pass
 
 
 class MockSession:
