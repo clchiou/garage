@@ -128,7 +128,8 @@ class TestActors(unittest.TestCase):
         with self.assertRaisesRegex(Explosion, r'Boom!'):
             future.result()
         self.assertTrue(bomb.get_future().done())
-        with self.assertRaisesRegex(actors.ActorError, r'actor is dead'):
+        with self.assertRaisesRegex(
+                actors.ActorError, r'actor has been killed'):
             bomb.explode()
 
         bomb = PoliteBomb('Bob')
@@ -213,7 +214,7 @@ class TestActors(unittest.TestCase):
             greeter.kill(graceful=graceful)
 
             with self.assertRaisesRegex(
-                    actors.ActorError, r'actor is being killed'):
+                    actors.ActorError, r'actor has been killed'):
                 greeter.greet()
 
             greeter.get_future().result(timeout=1)

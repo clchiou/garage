@@ -228,20 +228,16 @@ class Stub(metaclass=_StubMeta):
 
     def send_message(self, func, args, kwargs, block=True, timeout=None):
         """Enqueue a message into actor's message queue."""
-        if self.__work_queue.is_closed():
-            raise ActorError('actor is being killed')
-        # Even if done() returns False, there is no guarantee that
-        # the actor will process this message.  But there is no harm to
-        # check here.
-        if self.__future.done():
-            raise ActorError('actor is dead')
-        future = Future()
-        self.__work_queue.put(
-            _Work(weakref.ref(future), func, args, kwargs),
-            block=block,
-            timeout=timeout,
-        )
-        return future
+        try:
+            future = Future()
+            self.__work_queue.put(
+                _Work(weakref.ref(future), func, args, kwargs),
+                block=block,
+                timeout=timeout,
+            )
+            return future
+        except queues.Closed:
+            raise ActorError('actor has been killed')
 
 
 _Work = collections.namedtuple('_Work', 'future_ref func args kwargs')
@@ -281,6 +277,8 @@ def _actor_message_loop(work_queue, future_ref):
             _deref(work.future_ref).cancel()
         _deref(future_ref).set_result(None)
     except BaseException as exc:
+        for work in work_queue.close(graceful=False):
+            _deref(work.future_ref).cancel()
         _deref(future_ref).set_exception(exc)
     else:
         assert work_queue.is_closed()
