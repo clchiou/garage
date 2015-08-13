@@ -11,6 +11,10 @@ class TestClient(unittest.TestCase):
         req_to_rep = {
             ('GET', 'uri_1'): 'hello world',
             ('GET', 'uri_2'): Exception('error_2'),
+            ('GET', 'uri_3'): 'GET uri_3',
+            ('HEAD', 'uri_3'): 'HEAD uri_3',
+            ('POST', 'uri_3'): 'POST uri_3',
+            ('PUT', 'uri_3'): 'PUT uri_3',
         }
         client = clients.Client(
             _session_cls=lambda: MockSession(req_to_rep),
@@ -22,6 +26,11 @@ class TestClient(unittest.TestCase):
 
         with self.assertRaisesRegex(Exception, 'error_2'):
             client.send(clients.Request('GET', 'uri_2'))
+
+        self.assertEqual('GET uri_3', client.get('uri_3')._response)
+        self.assertEqual('HEAD uri_3', client.head('uri_3')._response)
+        self.assertEqual('POST uri_3', client.post('uri_3')._response)
+        self.assertEqual('PUT uri_3', client.put('uri_3')._response)
 
 
 class MockSession:

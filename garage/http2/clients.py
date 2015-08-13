@@ -20,7 +20,21 @@ LOG = logging.getLogger(__name__)
 LOG.addHandler(logging.NullHandler())
 
 
-class Client:
+def _make_method(method):
+    def http_method(self, uri, **kwargs):
+        return self.send(Request(method, uri, **kwargs))
+    return http_method
+
+
+class ClientMixin:
+
+    get = _make_method('GET')
+    head = _make_method('HEAD')
+    post = _make_method('POST')
+    put = _make_method('PUT')
+
+
+class Client(ClientMixin):
 
     def __init__(self, *,
                  rate_limit=None,
