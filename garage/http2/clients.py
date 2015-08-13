@@ -123,12 +123,13 @@ class ForwardingClient(ClientMixin):
 class Request:
     """A thin wrapper of requests.Request."""
 
-    def __init__(self, method, uri):
+    def __init__(self, method, uri, **kwargs):
         self.method = method
         self.uri = uri
+        self.kwargs = kwargs
 
     def make_request(self):
-        return requests.Request(self.method, self.uri)
+        return requests.Request(self.method, self.uri, **self.kwargs)
 
 
 class Response:
