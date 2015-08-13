@@ -227,7 +227,7 @@ class TestActors(unittest.TestCase):
         barrier.wait()
         blocker.kill(graceful=False)
         self.assertFalse(blocker.get_future().done())
-        self.assertFalse(blocker._Stub__work_queue)
+        self.assertFalse(blocker._Stub__msg_queue)
 
     def test_mro(self):
         self.assertEqual('A', C().do_something().result())
