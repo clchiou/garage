@@ -17,6 +17,26 @@ which typically are calling __exit__ in context managers.  So you should
 pay special attention to resources that must be release even when the
 main program is crashing (unlike ThreadPoolExecutor, which blocks the
 main program until all submitted jobs are done).
+
+An actor and the world communicate with each other through a queue and a
+future object.
+
+Queue: (world -> actor)
+
+  * The world sends messages to the actor through the queue, obviously.
+
+  * The world, or sometimes the actor itself, signals a kill of the
+    actor by closing the queue (but the actor won't die immediately).
+
+Future object: (actor -> world)
+
+  * When the actor is about to die, it completes the future object.
+    And thus the world may know when an actor was died by observing the
+    future object.
+
+  * Note that, an actor could be dead without the world killing it (when
+    an message raises an uncaught exception, for example).
+
 """
 
 __all__ = [
@@ -164,7 +184,7 @@ class Stub(metaclass=_StubMeta):
     #   double leading underscore (and thus enable name mangling) on
     #   Stub's fields.
     #
-    # * We don't join threads.
+    # * We don't join threads; instead, wait on the future object.
     #
 
     def __init__(self, *args, **kwargs):
@@ -288,11 +308,7 @@ def _actor_message_loop(work_queue, future_ref):
 
 def _actor_message_loop_impl(work_queue, future_ref):
     """Dequeue and process messages one by one."""
-    #
-    # NOTE:
-    #
-    # * Call `del work` as soon as possible (see issue 16284).
-    #
+    # Note: Call `del work` as soon as possible (see issue 16284).
 
     if not _deref(future_ref).set_running_or_notify_cancel():
         raise ActorError('future of this actor has been canceled')
