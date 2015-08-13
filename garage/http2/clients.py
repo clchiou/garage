@@ -82,7 +82,7 @@ class Client:
 class Request:
     """A thin wrapper of requests.Request."""
 
-    def __init__(self, *, method, uri):
+    def __init__(self, method, uri):
         self.method = method
         self.uri = uri
 
