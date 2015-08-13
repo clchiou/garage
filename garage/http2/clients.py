@@ -4,6 +4,7 @@ such as retry policy, rate limit, and more logging.
 
 __all__ = [
     'Client',
+    'ForwardingClient',
     'Request',
     'Response',
 ]
@@ -92,6 +93,31 @@ class Client(ClientMixin):
             LOG.warning('Generic error when %s %s',
                         request.method, request.uri, exc_info=True)
             raise
+
+
+class ForwardingClient(ClientMixin):
+    """A client that forwards requests to the underlying client."""
+
+    def __init__(self, client):
+        self.client = client
+
+    @property
+    def headers(self):
+        return self.client.headers
+
+    def send(self, request):
+        request = self.on_request(request)
+        response = self.client.send(request)
+        response = self.on_response(request, response)
+        return response
+
+    def on_request(self, request):
+        """Hook for modifying request."""
+        return request
+
+    def on_response(self, _, response):
+        """Hook for modifying response."""
+        return response
 
 
 class Request:
