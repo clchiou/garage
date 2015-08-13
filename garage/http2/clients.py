@@ -77,8 +77,9 @@ class Client(ClientMixin):
                 if LOG.isEnabledFor(logging.DEBUG):
                     for name, value in rrep.headers.items():
                         LOG.debug('>>> %s: %s', name, value)
+                rrep.raise_for_status()
                 return Response(rrep)
-        except requests.exceptions.RequestException as exc:
+        except requests.RequestException as exc:
             if exc.response is not None:
                 status_code = exc.response.status_code
             else:
@@ -108,4 +109,7 @@ class Response:
     """A thin wrapper of requests.Response."""
 
     def __init__(self, response):
-        self._response = response
+        object.__setattr__(self, '_response', response)
+
+    def __getattr__(self, name):
+        return getattr(self._response, name)
