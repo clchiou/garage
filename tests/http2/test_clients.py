@@ -5,7 +5,7 @@ import requests
 from garage.http2 import clients
 from garage.http2 import policies
 
-from .mocks import *
+from tests.http2.mocks import *
 
 
 class TestClient(unittest.TestCase):
