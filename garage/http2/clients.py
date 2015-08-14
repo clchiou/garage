@@ -33,7 +33,7 @@ def _make_method(method):
     return http_method
 
 
-class ClientMixin:
+class _ClientMixin:
 
     get = _make_method('GET')
     head = _make_method('HEAD')
@@ -41,7 +41,7 @@ class ClientMixin:
     put = _make_method('PUT')
 
 
-class Client(ClientMixin):
+class Client(_ClientMixin):
 
     def __init__(self, *,
                  rate_limit=None,
@@ -58,7 +58,8 @@ class Client(ClientMixin):
         return self._session.headers
 
     def send(self, request):
-        rreq = request.make_request()
+        LOG.debug('%s %s', request.method, request.uri)
+        rreq = request._make_request()
         retry = self._retry_policy()
         retry_count = 0
         while True:
@@ -101,7 +102,7 @@ class Client(ClientMixin):
             raise
 
 
-class ForwardingClient(ClientMixin):
+class ForwardingClient(_ClientMixin):
     """A client that forwards requests to the underlying client."""
 
     def __init__(self, client):
@@ -134,7 +135,7 @@ class Request:
         self.uri = uri
         self.kwargs = kwargs
 
-    def make_request(self):
+    def _make_request(self):
         return requests.Request(self.method, self.uri, **self.kwargs)
 
 
