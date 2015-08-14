@@ -36,7 +36,7 @@ class TestClient(unittest.TestCase):
         self.assertEqual('POST uri_3', client.post('http://uri_3').content)
         self.assertEqual('PUT uri_3', client.put('http://uri_3').content)
 
-        with self.assertRaisesRegex(requests.HTTPError, 'http error'):
+        with self.assertRaises(clients.HttpError):
             client.get('http://uri_4')
 
     def test_rate_limit(self):
@@ -60,7 +60,7 @@ class TestClient(unittest.TestCase):
             _session=session,
             _sleep=fake_sleep,
         )
-        with self.assertRaisesRegex(requests.HTTPError, 'http error'):
+        with self.assertRaises(clients.HttpError):
             client.get('http://uri_1')
         self.assertEqual(1, len(session._logs))
         for req in session._logs:
@@ -86,7 +86,7 @@ class TestClient(unittest.TestCase):
         )
 
         session._logs.clear()
-        with self.assertRaisesRegex(requests.HTTPError, 'http error'):
+        with self.assertRaises(clients.HttpError):
             client.get('http://uri_1')
         self.assertEqual(1 + N, len(session._logs))
         for req in session._logs:

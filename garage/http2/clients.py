@@ -3,6 +3,7 @@ such as retry policy, rate limit, and more logging.
 """
 
 __all__ = [
+    'HttpError',
     'Client',
     'ForwardingClient',
     'Request',
@@ -25,6 +26,10 @@ from garage.http2 import policies
 
 LOG = logging.getLogger(__name__)
 LOG.addHandler(logging.NullHandler())
+
+
+class HttpError(Exception):
+    pass
 
 
 def _make_method(method):
@@ -95,7 +100,7 @@ class Client(_ClientMixin):
             LOG.warning('HTTP error with status code %s when %s %s',
                         status_code, request.method, request.uri,
                         exc_info=True)
-            raise
+            raise HttpError('%s %s' % (request.method, request.uri)) from exc
         except BaseException:
             LOG.warning('Generic error when %s %s',
                         request.method, request.uri, exc_info=True)
