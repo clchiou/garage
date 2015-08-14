@@ -9,10 +9,16 @@ __all__ = [
     'Response',
 ]
 
+import functools
 import time
 import logging
 
 import requests
+
+try:
+    import lxml.etree
+except ImportError:
+    pass
 
 from garage.http2 import policies
 
@@ -140,3 +146,16 @@ class Response:
 
     def __getattr__(self, name):
         return getattr(self._response, name)
+
+    def dom(self, encoding=None):
+        try:
+            fromstring = lxml.etree.fromstring
+        except NameError as exc:
+            raise RuntimeError('lxml.etree is not installed') from exc
+        parser = _get_parser(encoding or self.encoding)
+        return fromstring(self.content, parser)
+
+
+@functools.lru_cache(maxsize=8)
+def _get_parser(encoding):
+    return lxml.etree.HTMLParser(encoding=encoding)
