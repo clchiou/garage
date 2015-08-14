@@ -81,7 +81,7 @@ class Client(_ClientMixin):
                 if LOG.isEnabledFor(logging.DEBUG):
                     for name, value in rreq.headers.items():
                         LOG.debug('<<< %s: %s', name, value)
-                rrep = self._session.send(rreq)
+                rrep = self._session.send(rreq.prepare())
                 if LOG.isEnabledFor(logging.DEBUG):
                     for name, value in rrep.headers.items():
                         LOG.debug('>>> %s: %s', name, value)

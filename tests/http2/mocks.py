@@ -15,7 +15,7 @@ class MockSession:
         self._logs = []
 
     def send(self, request):
-        assert isinstance(request, requests.Request)
+        assert isinstance(request, requests.PreparedRequest)
         self._logs.append(request)
         rep = self._req_to_rep[(request.method, request.url)]
         if isinstance(rep, Exception):
