@@ -5,6 +5,8 @@ import requests
 from garage.http2 import clients
 from garage.http2 import policies
 
+from .mocks import *
+
 
 class TestClient(unittest.TestCase):
 
@@ -113,39 +115,6 @@ class TimedBomb:
 
     def __exit__(self, *_):
         pass
-
-
-class MockSession:
-
-    def __init__(self, req_to_rep):
-        self._req_to_rep = req_to_rep
-        self._logs = []
-
-    def send(self, request):
-        assert isinstance(request, requests.Request)
-        self._logs.append(request)
-        rep = self._req_to_rep[(request.method, request.url)]
-        if isinstance(rep, Exception):
-            raise rep
-        elif isinstance(rep, list):
-            return MockResponse(*rep.pop(0))
-        else:
-            return MockResponse(*rep)
-
-
-class MockResponse:
-
-    def __init__(self, status_code, content):
-        self.status_code = status_code
-        self.content = content
-
-    def raise_for_status(self):
-        if 400 <= self.status_code < 600:
-            raise requests.HTTPError('http error', response=self)
-
-
-def fake_sleep(seconds):
-    pass
 
 
 if __name__ == '__main__':
