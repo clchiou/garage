@@ -43,7 +43,7 @@ class DownloadTest(unittest.TestCase):
         print('root_dirpath', self.root_dirpath, file=sys.stderr)
 
     def test_download(self):
-        filepath_to_requests = {
+        relpath_to_requests = {
             pathlib.Path('file1'): [
                 'http://localhost:8000/file1-not',
                 'http://localhost:8000/file1-still-not',
@@ -62,7 +62,7 @@ class DownloadTest(unittest.TestCase):
                 client=clients.Client(),
                 executor=self.executor,
                 output_dirpath=(self.root_dirpath / 'test'),
-                filepath_to_requests=filepath_to_requests,
+                relpath_to_requests=relpath_to_requests,
             )
 
             self.assertTrue(self.root_dirpath.is_dir())
@@ -77,7 +77,7 @@ class DownloadTest(unittest.TestCase):
 
     def test_downloader(self):
         """Test each step that download() takes."""
-        filepath_to_requests = {
+        relpath_to_requests = {
             pathlib.Path('file1'): ['http://localhost:8000/file1'],
             pathlib.Path('file2'): ['http://localhost:8000/file2'],
         }
@@ -91,7 +91,7 @@ class DownloadTest(unittest.TestCase):
                 client=client,
                 executor=self.executor,
                 output_dirpath=output_dirpath,
-                filepath_to_requests=filepath_to_requests,
+                relpath_to_requests=relpath_to_requests,
                 chunk_size=10240)
 
             ### Test _Downloader.prepare()

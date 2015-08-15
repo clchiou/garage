@@ -30,14 +30,27 @@ def download(
         client,
         executor,
         output_dirpath,
-        filepath_to_requests,
+        relpath_to_requests,
         chunk_size=_CHUNK_SIZE):
-    """Store documents from URIs into a directory."""
+    """Download documents from URIs.
+
+       relpath_to_requests is a dict-like object that maps relative path
+       to a sequence of Request objects or URIs.  download() will try
+       the Request objects one by one, and write the result of the first
+       successful request to the relative path.  (All paths are relative
+       to output_dirpath.)
+
+       While download() is in progress, it writes results to files or
+       directories ending with '.part' suffix.  This may help you
+       distinguish download-in-progress files from completed ones, and
+       this also makes retrying download() safe and efficient in the
+       sense that a finished file will not be requested again.
+    """
     _Downloader(
         client,
         executor,
         output_dirpath,
-        filepath_to_requests,
+        relpath_to_requests,
         chunk_size,
     ).run()
 
@@ -48,13 +61,13 @@ class _Downloader:
                  client,
                  executor,
                  output_dirpath,
-                 filepath_to_requests,
+                 relpath_to_requests,
                  chunk_size):
         self.client = client
         self.executor = executor
         self.output_dirpath = pathlib.Path(output_dirpath)
-        self.filepath_to_requests = filepath_to_requests
-        self.tmp_dirpath = self.output_dirpath.with_name(
+        self.relpath_to_requests = relpath_to_requests
+        self.parts_dirpath = self.output_dirpath.with_name(
             self.output_dirpath.name + '.part')
         self.chunk_size = chunk_size
 
@@ -62,9 +75,9 @@ class _Downloader:
         proceed = self.prepare()
         if not proceed:
             return
-        self.download(self.tmp_dirpath)
-        self.check(self.tmp_dirpath)
-        self.tmp_dirpath.rename(self.output_dirpath)
+        self.download(self.parts_dirpath)
+        self.check(self.parts_dirpath)
+        self.parts_dirpath.rename(self.output_dirpath)
         LOG.info('complete %s', self.output_dirpath)
 
     def prepare(self):
@@ -73,39 +86,49 @@ class _Downloader:
             return False
         if self.output_dirpath.exists():
             raise DownloadError('not a directory %s' % self.output_dirpath)
-        if not self.tmp_dirpath.is_dir():
-            if self.tmp_dirpath.exists():
-                raise DownloadError('not a directory %s' % self.tmp_dirpath)
-            self.tmp_dirpath.mkdir(parents=True)
+        if not self.parts_dirpath.is_dir():
+            if self.parts_dirpath.exists():
+                raise DownloadError('not a directory %s' % self.parts_dirpath)
+            self.parts_dirpath.mkdir(parents=True)
         else:
-            LOG.warning('resume download from %s', self.tmp_dirpath)
+            LOG.warning('resume download from %s', self.parts_dirpath)
         return True
 
     def download(self, write_to_dir):
-        dl_futures = []
-        for filepath, reqs in self.filepath_to_requests.items():
-            output_path = write_to_dir / filepath
-            if output_path.exists():
-                LOG.warning('skip file %s', output_path)
-                continue
-            dl_futures.append(self.executor.submit(
-                self.download_to_file, reqs, output_path))
+        dl_futures = [
+            self.executor.submit(
+                self.download_to_file, write_to_dir, relpath, reqs
+            )
+            for relpath, reqs in self.relpath_to_requests.items()
+        ]
         for dl_future in futures.as_completed(dl_futures):
             dl_future.result()
 
-    def download_to_file(self, reqs, output_path):
-        response = self.try_requests(reqs)
-        with contextlib.closing(response):
-            tmp_output_path = output_path.with_name(output_path.name + '.part')
+    def download_to_file(self, write_to_dir, relpath, reqs):
+        output_path = write_to_dir / relpath
+        if output_path.exists():
+            LOG.warning('skip file %s', output_path)
+            return
+
+        part_relpath = relpath.with_name(relpath.name + '.part')
+        if part_relpath in self.relpath_to_requests:
+            raise DownloadError(
+                'cannot let part-file overwrite file %s' % part_relpath)
+
+        part_path = write_to_dir / part_relpath
+
+        with contextlib.closing(self.try_requests(reqs)) as response:
             try:
-                tmp_output_path.parent.mkdir(parents=True)
+                part_path.parent.mkdir(parents=True)
             except FileExistsError:
-                if not tmp_output_path.parent.is_dir():
+                if not part_path.parent.is_dir():
                     raise
-            with tmp_output_path.open('wb') as output:
+            if part_path.exists():
+                LOG.warning('overwrite part-file %s', part_path)
+            with part_path.open('wb') as output:
                 for chunk in response.iter_content(self.chunk_size):
                     output.write(chunk)
-            tmp_output_path.rename(output_path)
+            part_path.rename(output_path)
         LOG.info('download to %s', output_path)
 
     def try_requests(self, reqs):
@@ -122,21 +145,21 @@ class _Downloader:
         return self.client.send(req, stream=True)
 
     def check(self, write_to_dir):
-        target_filepaths = set(
-            write_to_dir / filepath for filepath in self.filepath_to_requests
+        output_paths = set(
+            write_to_dir / relpath for relpath in self.relpath_to_requests
         )
-        for filepath in write_to_dir.glob('**/*'):
-            if filepath.is_dir():
+        for path in write_to_dir.glob('**/*'):
+            if path.is_dir():
                 pass
-            elif filepath not in target_filepaths:
-                LOG.warning('remove extra file %s', filepath)
-                filepath.unlink()
+            elif path not in output_paths:
+                LOG.warning('remove extra file %s', path)
+                path.unlink()
             else:
-                target_filepaths.remove(filepath)
-        if target_filepaths:
+                output_paths.remove(path)
+        if output_paths:
             raise DownloadError(
                 'could not download these files:\n  %s' %
-                '\n  '.join(map(str, sorted(target_filepaths))))
+                '\n  '.join(map(str, sorted(output_paths))))
 
 
 def form(client, uri, *,
