@@ -5,7 +5,7 @@ import threading
 from garage.threads import executors
 
 
-class TestExecutor(unittest.TestCase):
+class ExecutorTest(unittest.TestCase):
 
     def test_executor(self):
         pool = executors.WorkerPool()

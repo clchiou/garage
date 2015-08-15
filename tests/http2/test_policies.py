@@ -3,7 +3,7 @@ import unittest
 from garage.http2 import policies
 
 
-class TestRetryPolicy(unittest.TestCase):
+class RetryPolicyTest(unittest.TestCase):
 
     def test_no_retry(self):
         no_retry = policies.NoRetry()()

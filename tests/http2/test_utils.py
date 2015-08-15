@@ -19,7 +19,7 @@ from garage.http2 import utils
 from tests.http2.mocks import *
 
 
-class TestDownload(unittest.TestCase):
+class DownloadTest(unittest.TestCase):
 
     def setUp(self):
         # XXX: Work around TIME_WAIT state of connected sockets.
@@ -76,7 +76,7 @@ class TestDownload(unittest.TestCase):
                 raise
 
 
-class TestForm(unittest.TestCase):
+class FormTest(unittest.TestCase):
 
     def test_form(self):
         req_to_rep = {

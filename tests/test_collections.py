@@ -4,7 +4,7 @@ from garage.collections import DictAsAttrs
 from garage.collections import FixedKeysDict
 
 
-class TestDictAsAttrs(unittest.TestCase):
+class DictAsAttrsTest(unittest.TestCase):
 
     def test_dict_as_attrs(self):
         attrs = DictAsAttrs({'y': 1})
@@ -18,7 +18,7 @@ class TestDictAsAttrs(unittest.TestCase):
         self.assertListEqual(['x', 'z'], dir(attrs))
 
 
-class TestFixedKeysDict(unittest.TestCase):
+class FixedKeysDictTest(unittest.TestCase):
 
     def test_fixed_keys_dict(self):
         data = FixedKeysDict(a=1, b=2)

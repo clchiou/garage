@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 from garage.threads import queues
 
 
-class TestQueues(unittest.TestCase):
+class QueuesTest(unittest.TestCase):
 
     def test_queue(self):
         for queue_class, test_input, test_output in [

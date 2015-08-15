@@ -19,7 +19,7 @@ def func_2(a, b, c):
 '''
 
 
-class TestPython(unittest.TestCase):
+class PythonTest(unittest.TestCase):
 
     def test_python(self):
         with python(popen_kwargs={'stderr': subprocess.DEVNULL}) as connector:

@@ -8,7 +8,7 @@ from garage.http2 import policies
 from tests.http2.mocks import *
 
 
-class TestClient(unittest.TestCase):
+class ClientTest(unittest.TestCase):
 
     def test_client(self):
         req_to_rep = {

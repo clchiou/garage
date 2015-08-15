@@ -5,7 +5,7 @@ from garage.preconds import IllegalArgumentException
 from garage.preconds import IllegalStateException
 
 
-class TestPreconds(unittest.TestCase):
+class PrecondsTest(unittest.TestCase):
 
     def test_preconds(self):
         for exc, check in (

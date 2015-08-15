@@ -7,7 +7,7 @@ from garage.interval import IntegerInterval
 from garage.interval import parse
 
 
-class TestExtremeValue(unittest.TestCase):
+class ExtremeValueTest(unittest.TestCase):
 
     def test_extreme_value(self):
         self.assertLess(NEG_INF, POS_INF)
@@ -19,14 +19,14 @@ class TestExtremeValue(unittest.TestCase):
         self.assertLess(+1, POS_INF)
 
 
-class TestBoundType(unittest.TestCase):
+class BoundTypeTest(unittest.TestCase):
 
     def test_bound_type(self):
         self.assertIs(BoundType.OPEN, ~BoundType.CLOSED)
         self.assertIs(BoundType.CLOSED, ~BoundType.OPEN)
 
 
-class TestInterval(unittest.TestCase):
+class IntervalTest(unittest.TestCase):
 
     def test_empty_interval(self):
         for interval in (
@@ -96,7 +96,7 @@ class TestInterval(unittest.TestCase):
         self.assertNotIn(7, interval)
 
 
-class TestParse(unittest.TestCase):
+class ParseTest(unittest.TestCase):
 
     def test_unit_interval(self):
         interval = parse('3')

@@ -107,7 +107,7 @@ class D(actors.Stub, actor=_D):
     pass
 
 
-class TestActors(unittest.TestCase):
+class ActorsTest(unittest.TestCase):
 
     def test_actors(self):
         greeter = Greeter('John')

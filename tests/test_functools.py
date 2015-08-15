@@ -6,7 +6,7 @@ from garage.functools import memorize
 from garage.functools import nondata_property
 
 
-class TestIsOrdered(unittest.TestCase):
+class IsOrderedTest(unittest.TestCase):
 
     def test_is_ordered(self):
         self.assertTrue(is_ordered([]))
@@ -30,7 +30,7 @@ class TestIsOrdered(unittest.TestCase):
         self.assertFalse(is_ordered([1, 3, 2], strict=True))
 
 
-class TestUnique(unittest.TestCase):
+class UniqueTest(unittest.TestCase):
 
     def test_unique(self):
         self.assertListEqual([], unique([]))
@@ -59,7 +59,7 @@ class Foo:
         return counter
 
 
-class TestMemorize(unittest.TestCase):
+class MemorizeTest(unittest.TestCase):
 
     def test_memorize(self):
         foo = Foo(100)
@@ -80,7 +80,7 @@ class Bar:
     prop2 = nondata_property()
 
 
-class TestNondataProperty(unittest.TestCase):
+class NondataPropertyTest(unittest.TestCase):
 
     def test_nondata_property(self):
         # This should not raise.
