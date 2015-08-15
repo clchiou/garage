@@ -15,6 +15,7 @@ import time
 import logging
 
 import requests
+import requests.cookies
 
 try:
     import lxml.etree
@@ -115,6 +116,11 @@ class Client(_ClientMixin):
     def headers(self):
         return self._session.headers
 
+    def update_cookiejar(self, cookie_dict):
+        requests.cookies.cookiejar_from_dict(
+            cookie_dict, self._session.cookies
+        )
+
     def send(self, request, **kwargs):
         LOG.debug('%s %s', request.method, request.uri)
         _check_kwargs(kwargs, _SEND_ARG_NAMES)
@@ -165,6 +171,9 @@ class ForwardingClient(_ClientMixin):
     @property
     def headers(self):
         return self.client.headers
+
+    def update_cookiejar(self, cookie_dict):
+        self.client.update_cookiejar(cookie_dict)
 
     def send(self, request, **kwargs):
         request = self.on_request(request)
