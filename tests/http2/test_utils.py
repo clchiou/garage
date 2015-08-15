@@ -43,23 +43,17 @@ class DownloadTest(unittest.TestCase):
         print('root_dirpath', self.root_dirpath, file=sys.stderr)
 
     def test_download(self):
-        requests_to_filename = [
-            (
-                [
-                    'http://localhost:8000/file1-not',
-                    'http://localhost:8000/file1-still-not',
-                    'http://localhost:8000/file1',
-                    'http://localhost:8000/file1-also-not',
-                ],
-                'file1',
-            ),
-            (
-                [
-                    'http://localhost:8000/file2',
-                ],
-                'file2-alias',
-            ),
-        ]
+        filepath_to_requests = {
+            pathlib.Path('file1'): [
+                'http://localhost:8000/file1-not',
+                'http://localhost:8000/file1-still-not',
+                'http://localhost:8000/file1',
+                'http://localhost:8000/file1-also-not',
+            ],
+            pathlib.Path('path/to/file2-alias'): [
+                'http://localhost:8000/file2',
+            ],
+        }
 
         with contextlib.ExitStack() as stack:
             self.prepare(stack)
@@ -67,8 +61,8 @@ class DownloadTest(unittest.TestCase):
             utils.download(
                 client=clients.Client(),
                 executor=self.executor,
-                requests_to_filename=requests_to_filename,
                 output_dirpath=(self.root_dirpath / 'test'),
+                filepath_to_requests=filepath_to_requests,
             )
 
             self.assertTrue(self.root_dirpath.is_dir())
@@ -78,15 +72,15 @@ class DownloadTest(unittest.TestCase):
             )
             self.assertFileEqual(
                 self.data_dirpath / 'file2',
-                self.root_dirpath / 'test' / 'file2-alias',
+                self.root_dirpath / 'test' / 'path/to/file2-alias',
             )
 
     def test_downloader(self):
         """Test each step that download() takes."""
-        requests_to_filename = [
-            (['http://localhost:8000/file1'], 'file1'),
-            (['http://localhost:8000/file2'], 'file2'),
-        ]
+        filepath_to_requests = {
+            pathlib.Path('file1'): ['http://localhost:8000/file1'],
+            pathlib.Path('file2'): ['http://localhost:8000/file2'],
+        }
         with contextlib.ExitStack() as stack:
             self.prepare(stack)
             client = clients.Client()
@@ -96,8 +90,8 @@ class DownloadTest(unittest.TestCase):
             dler = utils._Downloader(
                 client=client,
                 executor=self.executor,
-                requests_to_filename=requests_to_filename,
                 output_dirpath=output_dirpath,
+                filepath_to_requests=filepath_to_requests,
                 chunk_size=10240)
 
             ### Test _Downloader.prepare()

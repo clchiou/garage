@@ -29,15 +29,15 @@ def download(
         *,
         client,
         executor,
-        requests_to_filename,
         output_dirpath,
+        filepath_to_requests,
         chunk_size=_CHUNK_SIZE):
     """Store documents from URIs into a directory."""
     _Downloader(
         client,
         executor,
-        requests_to_filename,
         output_dirpath,
+        filepath_to_requests,
         chunk_size,
     ).run()
 
@@ -47,13 +47,13 @@ class _Downloader:
     def __init__(self,
                  client,
                  executor,
-                 requests_to_filename,
                  output_dirpath,
+                 filepath_to_requests,
                  chunk_size):
         self.client = client
         self.executor = executor
-        self.requests_to_filename = requests_to_filename
         self.output_dirpath = pathlib.Path(output_dirpath)
+        self.filepath_to_requests = filepath_to_requests
         self.tmp_dirpath = self.output_dirpath.with_name(
             self.output_dirpath.name + '.part')
         self.chunk_size = chunk_size
@@ -83,8 +83,8 @@ class _Downloader:
 
     def download(self, write_to_dir):
         dl_futures = []
-        for reqs, filename in self.requests_to_filename:
-            output_path = write_to_dir / filename
+        for filepath, reqs in self.filepath_to_requests.items():
+            output_path = write_to_dir / filepath
             if output_path.exists():
                 LOG.warning('skip file %s', output_path)
                 continue
@@ -97,6 +97,11 @@ class _Downloader:
         response = self.try_requests(reqs)
         with contextlib.closing(response):
             tmp_output_path = output_path.with_name(output_path.name + '.part')
+            try:
+                tmp_output_path.parent.mkdir(parents=True)
+            except FileExistsError:
+                if not tmp_output_path.parent.is_dir():
+                    raise
             with tmp_output_path.open('wb') as output:
                 for chunk in response.iter_content(self.chunk_size):
                     output.write(chunk)
@@ -117,17 +122,21 @@ class _Downloader:
         return self.client.send(req, stream=True)
 
     def check(self, write_to_dir):
-        filenames = set(filename for _, filename in self.requests_to_filename)
-        for filepath in write_to_dir.iterdir():
-            if filepath.name not in filenames:
+        target_filepaths = set(
+            write_to_dir / filepath for filepath in self.filepath_to_requests
+        )
+        for filepath in write_to_dir.glob('**/*'):
+            if filepath.is_dir():
+                pass
+            elif filepath not in target_filepaths:
                 LOG.warning('remove extra file %s', filepath)
                 filepath.unlink()
             else:
-                filenames.remove(filepath.name)
-        if filenames:
+                target_filepaths.remove(filepath)
+        if target_filepaths:
             raise DownloadError(
                 'could not download these files:\n  %s' %
-                '\n  '.join(sorted(filenames)))
+                '\n  '.join(map(str, sorted(target_filepaths))))
 
 
 def form(client, uri, *,
