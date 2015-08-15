@@ -15,7 +15,7 @@ from multiprocessing.connection import Listener
 
 LOG = logging.getLogger(__name__)
 LOG.addHandler(logging.NullHandler())
-LOG_FORMAT = '%(asctime)s %(levelname)s %(name)s %(threadName)s: %(message)s'
+LOG_FORMAT = '%(asctime)s %(threadName)s %(levelname)s %(name)s: %(message)s'
 
 
 def run_server(listener):

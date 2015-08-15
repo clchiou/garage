@@ -40,7 +40,7 @@ _CONFIGS = FixedNamespace(
 )
 
 
-_LOG_FORMAT = '%(asctime)s %(levelname)s %(name)s: %(message)s'
+_LOG_FORMAT = '%(asctime)s %(threadName)s %(levelname)s %(name)s: %(message)s'
 
 
 _HTTP_USER_AGENT = (
@@ -96,13 +96,13 @@ def add_arguments(parser: PARSER, features: _FEATURES) -> PARSE:
             '--http-max-requests',
             type=int, default=_CONFIGS.HTTP_MAX_REQUESTS,
             help="""set max concurrent http requests or 0 for unlimited
-                    (default %(default)s)
+                    (default to %(default)s)
                  """)
         group.add_argument(
             '--http-retry',
             type=int, default=_CONFIGS.HTTP_RETRY,
             help="""set number of http retries or 0 for no retries
-                    (default %(default)s)
+                    (default to %(default)s)
                  """)
 
 
