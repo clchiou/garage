@@ -1,18 +1,20 @@
 """Executors with a shared worker pool."""
 
 __all__ = [
-    'Executor',
     'WorkerPool',
+    'Executor',
 ]
 
 import collections
-import concurrent.futures
 import logging
 import threading
+from concurrent import futures
+from concurrent.futures import Future
 
 
 from garage.threads import actors
 from garage.threads import queues
+from garage.threads import utils
 
 
 LOG = logging.getLogger(__name__)
@@ -51,6 +53,8 @@ class Worker(actors.Stub, actor=_Worker):
 
 class WorkerPool:
 
+    _serial = utils.AtomicInt(1)
+
     def __init__(self):
         self._lock = threading.Lock()
         self._pool = collections.deque()
@@ -69,11 +73,16 @@ class WorkerPool:
             workers = list(self._pool)
         return iter(workers)
 
+    def make_executor(self, max_workers):
+        return Executor(self, max_workers)
+
     def hire(self):
         """Called by executor to acquire more workers."""
         with self._lock:
             if not self._pool:
-                return Worker()
+                name = ('%s.worker-%02d' %
+                        (__name__, self._serial.get_and_add(1)))
+                return actors.build(Worker, name=name)
             return self._pool.popleft()
 
     def return_to_pool(self, workers):
@@ -86,7 +95,7 @@ class WorkerPool:
                     self._pool.append(worker)
 
 
-class Executor(concurrent.futures.Executor):
+class Executor(futures.Executor):
 
     def __init__(self, worker_pool, max_workers):
         self._max_workers = max_workers
@@ -103,7 +112,7 @@ class Executor(concurrent.futures.Executor):
             if self._shutdown:
                 raise RuntimeError('executor has been shut down')
 
-            future = concurrent.futures.Future()
+            future = Future()
             self._work_queue.put(Work(future, func, args, kwargs))
 
             # Hire more workers if we are still under budget.
@@ -135,7 +144,7 @@ class Executor(concurrent.futures.Executor):
         for work in self._work_queue.close(graceful=wait):
             work.future.cancel()
         if wait:
-            concurrent.futures.wait(self._worker_waits)
+            futures.wait(self._worker_waits)
             self._worker_pool.return_to_pool(self._workers)
         else:
             # If we don't wait on workers, we kill them.  Otherwise we
