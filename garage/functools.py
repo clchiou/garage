@@ -9,7 +9,7 @@ import collections
 import functools
 import operator
 
-import garage.preconds
+from garage import preconds
 
 
 def is_ordered(lst, key=None, strict=False):
@@ -37,8 +37,8 @@ def memorize(method):
 
        Note: method's name _must_ be the same as the property name.
     """
-    garage.preconds.check_arg(not isinstance(method, property))
-    garage.preconds.check_arg(method.__name__ != '<lambda>')
+    preconds.check_argument(not isinstance(method, property))
+    preconds.check_argument(method.__name__ != '<lambda>')
 
     @functools.wraps(method)
     def wrapper(self):

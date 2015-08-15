@@ -1,5 +1,5 @@
 __all__ = [
-    'check_arg',
+    'check_argument',
     'check_state',
 ]
 
@@ -12,7 +12,7 @@ class IllegalStateException(Exception):
     pass
 
 
-def check_arg(cond, message=None, *message_args):
+def check_argument(cond, message=None, *message_args):
     _check(cond, IllegalArgumentException, message, message_args)
 
 
