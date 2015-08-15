@@ -39,7 +39,7 @@ class DictAsAttrs:
             raise AttributeError(name) from exc
 
     def __dir__(self):
-        return self.__data.keys()
+        yield from sorted(self.__data.keys())
 
 
 class FixedKeysDict(MutableMapping):
@@ -73,3 +73,15 @@ class FixedNamespace(DictAsAttrs):
 
     def __init__(self, **kwargs):
         super().__init__(FixedKeysDict(**kwargs))
+
+    def __str__(self):
+        fields = ', '.join(
+            '%s=%r' % (name, getattr(self, name)) for name in dir(self)
+        )
+        return '%s(%s)' % (self.__class__.__name__, fields)
+
+    def __repr__(self):
+        fields = ', '.join(
+            '%s=%r' % (name, getattr(self, name)) for name in dir(self)
+        )
+        return '%s(%s)' % (self.__class__.__name__, fields)
