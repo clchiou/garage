@@ -13,10 +13,10 @@ import tempfile
 import threading
 from concurrent import futures
 
-from garage.http2 import clients
-from garage.http2 import utils
+from garage.http import clients
+from garage.http import utils
 
-from tests.http2.mocks import *
+from tests.http.mocks import *
 
 
 class DownloadTest(unittest.TestCase):

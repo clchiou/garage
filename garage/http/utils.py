@@ -11,7 +11,7 @@ import logging
 import pathlib
 from concurrent import futures
 
-from garage.http2 import clients
+from garage.http import clients
 
 
 LOG = logging.getLogger(__name__)

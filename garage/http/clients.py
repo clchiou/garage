@@ -21,7 +21,7 @@ try:
 except ImportError:
     pass
 
-from garage.http2 import policies
+from garage.http import policies
 
 
 LOG = logging.getLogger(__name__)

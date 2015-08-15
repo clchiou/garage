@@ -2,10 +2,10 @@ import unittest
 
 import requests
 
-from garage.http2 import clients
-from garage.http2 import policies
+from garage.http import clients
+from garage.http import policies
 
-from tests.http2.mocks import *
+from tests.http.mocks import *
 
 
 class ClientTest(unittest.TestCase):

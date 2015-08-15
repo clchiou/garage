@@ -1,6 +1,6 @@
 import unittest
 
-from garage.http2 import policies
+from garage.http import policies
 
 
 class RetryPolicyTest(unittest.TestCase):
