@@ -44,13 +44,13 @@ class DownloadTest(unittest.TestCase):
 
     def test_download(self):
         relpath_to_requests = {
-            pathlib.Path('file1'): [
+            'file1': [
                 'http://localhost:8000/file1-not',
                 'http://localhost:8000/file1-still-not',
                 'http://localhost:8000/file1',
                 'http://localhost:8000/file1-also-not',
             ],
-            pathlib.Path('path/to/file2-alias'): [
+            'path/to/file2-alias': [
                 'http://localhost:8000/file2',
             ],
         }
@@ -92,8 +92,8 @@ class DownloadTest(unittest.TestCase):
     def test_downloader(self):
         """Test each step that download() takes."""
         relpath_to_requests = {
-            pathlib.Path('file1'): ['http://localhost:8000/file1'],
-            pathlib.Path('file2'): ['http://localhost:8000/file2'],
+            'file1': ['http://localhost:8000/file1'],
+            'file2': ['http://localhost:8000/file2'],
         }
         with contextlib.ExitStack() as stack:
             self.prepare(stack)

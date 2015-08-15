@@ -72,7 +72,10 @@ class _Downloader:
         self.client = client
         self.executor = executor
         self.output_dirpath = pathlib.Path(output_dirpath)
-        self.relpath_to_requests = relpath_to_requests
+        self.relpath_to_requests = {
+            pathlib.Path(relpath): reqs
+            for relpath, reqs in relpath_to_requests.items()
+        }
         self.parts_dirpath = self.output_dirpath.with_name(
             self.output_dirpath.name + '.part')
         self.strict = strict
