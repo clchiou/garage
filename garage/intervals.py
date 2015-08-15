@@ -1,10 +1,8 @@
 __all__ = [
     'POS_INF',
     'NEG_INF',
-
     'BoundType',
     'IntegerInterval',
-
     'parse',
 ]
 
@@ -40,6 +38,11 @@ class IntervalMixin:
 
     def __xor__(self, other):
         return (self & ~other) | (~self & other)
+
+    def filter(self, iterable, key=None):
+        if key is None:
+            key = lambda item: item
+        return filter(lambda item: key(item) in self, iterable)
 
 
 class IntegerInterval(IntervalMixin):

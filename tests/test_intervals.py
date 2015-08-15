@@ -95,6 +95,17 @@ class IntervalTest(unittest.TestCase):
         self.assertIn(6, interval)
         self.assertNotIn(7, interval)
 
+    def test_filter(self):
+        interval = parse('3-5')
+        self.assertListEqual([3, 4, 5], list(interval.filter(range(10))))
+        interval = parse('3-5,8-')
+        self.assertListEqual([3, 4, 5, 8, 9], list(interval.filter(range(10))))
+        interval = parse('-2')
+        self.assertListEqual(
+            ['a', 'ab'],
+            list(interval.filter(['a', 'ab', 'abc', 'abcd'], key=len)),
+        )
+
 
 class ParseTest(unittest.TestCase):
 
