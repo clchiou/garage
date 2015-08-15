@@ -1,10 +1,10 @@
 import unittest
 
-from garage.interval import POS_INF
-from garage.interval import NEG_INF
-from garage.interval import BoundType
-from garage.interval import IntegerInterval
-from garage.interval import parse
+from garage.intervals import POS_INF
+from garage.intervals import NEG_INF
+from garage.intervals import BoundType
+from garage.intervals import IntegerInterval
+from garage.intervals import parse
 
 
 class ExtremeValueTest(unittest.TestCase):
