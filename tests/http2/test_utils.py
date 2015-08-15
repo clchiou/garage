@@ -21,6 +21,10 @@ from tests.http2.mocks import *
 
 class DownloadTest(unittest.TestCase):
 
+    data_dirpath = pathlib.Path(__file__).with_name('data')
+    if not data_dirpath.is_absolute():
+        data_dirpath = pathlib.Path.cwd() / data_dirpath
+
     def setUp(self):
         # XXX: Work around TIME_WAIT state of connected sockets.
         socketserver.TCPServer.allow_reuse_address = True
@@ -28,52 +32,140 @@ class DownloadTest(unittest.TestCase):
     def tearDown(self):
         socketserver.TCPServer.allow_reuse_address = False
 
-    def test_download_basic(self):
+    def prepare(self, stack):
+        stack.enter_context(_suppress_stderr())
+        stack.enter_context(_chdir(self.data_dirpath))
+        stack.enter_context(_start_server())
+        self.executor = stack.enter_context(futures.ThreadPoolExecutor(1))
+        self.root_dirpath = pathlib.Path(
+            stack.enter_context(tempfile.TemporaryDirectory()))
+        print('data_dirpath', self.data_dirpath, file=sys.stderr)
+        print('root_dirpath', self.root_dirpath, file=sys.stderr)
+
+    def test_download(self):
         requests_to_filename = [
             (
                 [
                     'http://localhost:8000/file1-not',
+                    'http://localhost:8000/file1-still-not',
                     'http://localhost:8000/file1',
+                    'http://localhost:8000/file1-also-not',
                 ],
                 'file1',
             ),
+            (
+                [
+                    'http://localhost:8000/file2',
+                ],
+                'file2-alias',
+            ),
         ]
 
-        data_dirpath = pathlib.Path(__file__).with_name('data')
-        if not data_dirpath.is_absolute():
-            data_dirpath = pathlib.Path.cwd() / data_dirpath
-
         with contextlib.ExitStack() as stack:
-            stderr, target = stack.enter_context(
-                _redirect_stderr(io.StringIO()))
-            try:
-                stack.enter_context(_chdir(str(data_dirpath)))
-                stack.enter_context(_start_server())
-                root_dirpath = pathlib.Path(stack.enter_context(
-                    tempfile.TemporaryDirectory()))
+            self.prepare(stack)
 
-                print('data_dirpath', data_dirpath, file=sys.stderr)
-                print('root_dirpath', root_dirpath, file=sys.stderr)
+            utils.download(
+                client=clients.Client(),
+                executor=self.executor,
+                requests_to_filename=requests_to_filename,
+                output_dirpath=(self.root_dirpath / 'test'),
+            )
 
-                with futures.ThreadPoolExecutor(1) as executor:
-                    utils.download(
-                        client=clients.Client(),
-                        executor=executor,
-                        requests_to_filename=requests_to_filename,
-                        output_dirpath=(root_dirpath / 'test'),
-                    )
+            self.assertTrue(self.root_dirpath.is_dir())
+            self.assertFileEqual(
+                self.data_dirpath / 'file1',
+                self.root_dirpath / 'test' / 'file1',
+            )
+            self.assertFileEqual(
+                self.data_dirpath / 'file2',
+                self.root_dirpath / 'test' / 'file2-alias',
+            )
 
-                self.assertTrue(root_dirpath.is_dir())
-                file1_path = root_dirpath / 'test' / 'file1'
-                self.assertTrue(file1_path.is_file())
-                self.assertTrue(filecmp.cmp(
-                    str(data_dirpath / 'file1'),
-                    str(file1_path),
-                    shallow=False,
-                ))
-            except BaseException:
-                print(target.getvalue(), file=stderr)
-                raise
+    def test_downloader(self):
+        """Test each step that download() takes."""
+        requests_to_filename = [
+            (['http://localhost:8000/file1'], 'file1'),
+            (['http://localhost:8000/file2'], 'file2'),
+        ]
+        with contextlib.ExitStack() as stack:
+            self.prepare(stack)
+            client = clients.Client()
+
+            output_dirpath = self.root_dirpath / 'test'
+
+            dler = utils._Downloader(
+                client=client,
+                executor=self.executor,
+                requests_to_filename=requests_to_filename,
+                output_dirpath=output_dirpath,
+                chunk_size=10240)
+
+            ### Test _Downloader.prepare()
+
+            # prepare() skips existing dir.
+            output_dirpath.mkdir(parents=True)
+            self.assertFalse(dler.prepare())
+            output_dirpath.rmdir()
+
+            # prepare() errs on non-dir.
+            output_dirpath.touch()
+            with self.assertRaises(utils.DownloadError):
+                dler.prepare()
+            output_dirpath.unlink()
+
+            # prepare() errs on non-dir.
+            tmp_dirpath = output_dirpath.with_name(
+                output_dirpath.name + '.part')
+            tmp_dirpath.touch()
+            with self.assertRaises(utils.DownloadError):
+                dler.prepare()
+            tmp_dirpath.unlink()
+
+            self.assertTrue(dler.prepare())
+
+            ### Test _Downloader.download()
+
+            # download() skips existing file.
+            file1_path = tmp_dirpath / 'file1'
+            file1_path.touch()
+            dler.download(tmp_dirpath)
+
+            with file1_path.open() as file1:
+                self.assertEqual('', file1.read())
+            self.assertFileNotEqual(
+                self.data_dirpath / 'file1',
+                tmp_dirpath / 'file1',
+            )
+            self.assertFileEqual(
+                self.data_dirpath / 'file2',
+                tmp_dirpath / 'file2',
+            )
+
+            ### Test _Downloader.check()
+
+            # check() removes extra files.
+            file3_path = tmp_dirpath / 'file3'
+            file3_path.touch()
+            dler.check(tmp_dirpath)
+            self.assertFalse(file3_path.exists())
+
+            # check() errs on missing files.
+            file1_path.unlink()
+            with self.assertRaises(utils.DownloadError):
+                dler.check(tmp_dirpath)
+
+    def assertFileEqual(self, expect, actual):
+        self.assertTrue(self.compare_file(expect, actual))
+
+    def assertFileNotEqual(self, expect, actual):
+        self.assertFalse(self.compare_file(expect, actual))
+
+    def compare_file(self, expect, actual):
+        expect = pathlib.Path(expect)
+        actual = pathlib.Path(actual)
+        self.assertTrue(expect.is_file())
+        self.assertTrue(actual.is_file())
+        return filecmp.cmp(str(expect), str(actual), shallow=False)
 
 
 class FormTest(unittest.TestCase):
@@ -118,7 +210,7 @@ class FormTest(unittest.TestCase):
 @contextlib.contextmanager
 def _chdir(path):
     cwd = os.getcwd()
-    os.chdir(path)
+    os.chdir(str(path))
     try:
         yield path
     finally:
@@ -126,11 +218,15 @@ def _chdir(path):
 
 
 @contextlib.contextmanager
-def _redirect_stderr(target):
+def _suppress_stderr():
+    target = io.StringIO()
     stderr = sys.stderr
     sys.stderr = target
     try:
         yield stderr, target
+    except BaseException:
+        print(target.getvalue(), file=stderr)
+        raise
     finally:
         sys.stderr = stderr
 

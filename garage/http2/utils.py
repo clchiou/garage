@@ -81,10 +81,10 @@ class _Downloader:
             LOG.warning('resume download from %s', self.tmp_dirpath)
         return True
 
-    def download(self, output_dirpath):
+    def download(self, write_to_dir):
         dl_futures = []
         for reqs, filename in self.requests_to_filename:
-            output_path = output_dirpath / filename
+            output_path = write_to_dir / filename
             if output_path.exists():
                 LOG.warning('skip file %s', output_path)
                 continue
@@ -116,9 +116,9 @@ class _Downloader:
             req = clients.Request('GET', req)
         return self.client.send(req, stream=True)
 
-    def check(self, output_dirpath):
+    def check(self, write_to_dir):
         filenames = set(filename for _, filename in self.requests_to_filename)
-        for filepath in output_dirpath.iterdir():
+        for filepath in write_to_dir.iterdir():
             if filepath.name not in filenames:
                 LOG.warning('remove extra file %s', filepath)
                 filepath.unlink()
