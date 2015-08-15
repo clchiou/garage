@@ -1,27 +1,49 @@
 import unittest
 
+from garage.collections import FixedNamespace
 from garage.collections import DictAsAttrs
 from garage.collections import FixedKeysDict
 
 
-class DictAsAttrsTest(unittest.TestCase):
+class CollectionsTest(unittest.TestCase):
+
+    def test_fixed_namespace(self):
+        ns = FixedNamespace(x=1, y=2)
+
+        self.assertEqual(1, ns.x)
+        self.assertEqual(2, ns.y)
+
+        ns.x = 3
+        self.assertEqual(3, ns.x)
+
+        with self.assertRaises(AttributeError):
+            ns.z
+        with self.assertRaises(AttributeError):
+            ns.z = 3
+
+        with self.assertRaises(AttributeError):
+            del ns.x
+        with self.assertRaises(AttributeError):
+            del ns.z
 
     def test_dict_as_attrs(self):
         attrs = DictAsAttrs({'y': 1})
+
         self.assertEqual(1, attrs.y)
         self.assertFalse(hasattr(attrs, 'x'))
+
         attrs.x = 2
         self.assertEqual(2, attrs.x)
+
         del attrs.y
         self.assertFalse(hasattr(attrs, 'y'))
+
         attrs.z = 3
         self.assertListEqual(['x', 'z'], dir(attrs))
 
-
-class FixedKeysDictTest(unittest.TestCase):
-
     def test_fixed_keys_dict(self):
         data = FixedKeysDict(a=1, b=2)
+
         self.assertEqual(1, data['a'])
         self.assertEqual(2, data['b'])
         self.assertNotIn('c', data)
@@ -29,8 +51,11 @@ class FixedKeysDictTest(unittest.TestCase):
         data['a'] = 3
         self.assertEqual(3, data['a'])
 
-        self.assertRaises(KeyError, data.update, [('c', 3)])
-        self.assertRaises(NotImplementedError, data.pop, 'a')
+        with self.assertRaises(KeyError):
+            data['c'] = 3
+
+        with self.assertRaises(KeyError):
+            del data['a']
 
 
 if __name__ == '__main__':

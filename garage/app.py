@@ -16,7 +16,7 @@ import logging
 
 from startup import startup
 
-from garage.collections import make_fixed_attrs
+from garage.collections import FixedNamespace
 
 
 #
@@ -31,7 +31,7 @@ PARSE = 'parse'
 PARSER = 'parser'
 
 
-D = make_fixed_attrs(
+D = FixedNamespace(
     VERBOSE=0,
 )
 

@@ -1,47 +1,45 @@
 __all__ = [
+    'FixedNamespace',
     'DictAsAttrs',
     'FixedKeysDict',
-    'make_fixed_attrs',
 ]
 
 from collections import MutableMapping
-
-
-def make_fixed_attrs(**kwargs):
-    """Make a fixed set of attributes."""
-    return DictAsAttrs(FixedKeysDict(kwargs))
 
 
 class DictAsAttrs:
     """Wrap a dict and access its elements through attributes."""
 
     def __init__(self, data):
-        assert '_data' not in data
-        object.__setattr__(self, '_data', data)
+        assert '_DictAsAttrs__data' not in data
+        object.__setattr__(self, '_DictAsAttrs__data', data)
 
     def __str__(self):
-        return '%s(%r)' % (self.__class__.__name__, self._data)
+        return '%s(%r)' % (self.__class__.__name__, self.__data)
 
     def __repr__(self):
-        return '%s(%r)' % (self.__class__.__name__, self._data)
+        return '%s(%r)' % (self.__class__.__name__, self.__data)
 
     def __getattr__(self, name):
         try:
-            return self._data[name]
-        except KeyError:
-            raise AttributeError(name)
+            return self.__data[name]
+        except KeyError as exc:
+            raise AttributeError(name) from exc
 
     def __setattr__(self, name, value):
-        self._data[name] = value
+        try:
+            self.__data[name] = value
+        except KeyError as exc:
+            raise AttributeError(name) from exc
 
     def __delattr__(self, name):
         try:
-            del self._data[name]
-        except KeyError:
-            raise AttributeError(name)
+            del self.__data[name]
+        except KeyError as exc:
+            raise AttributeError(name) from exc
 
     def __dir__(self):
-        return self._data.keys()
+        return self.__data.keys()
 
 
 class FixedKeysDict(MutableMapping):
@@ -68,4 +66,10 @@ class FixedKeysDict(MutableMapping):
         self._data[key] = value
 
     def __delitem__(self, key):
-        raise NotImplementedError
+        raise KeyError(key)
+
+
+class FixedNamespace(DictAsAttrs):
+
+    def __init__(self, **kwargs):
+        super().__init__(FixedKeysDict(**kwargs))
