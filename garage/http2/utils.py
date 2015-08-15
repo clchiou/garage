@@ -31,6 +31,7 @@ def download(
         executor,
         output_dirpath,
         relpath_to_requests,
+        strict=True,
         chunk_size=_CHUNK_SIZE):
     """Download documents from URIs.
 
@@ -45,12 +46,16 @@ def download(
        distinguish download-in-progress files from completed ones, and
        this also makes retrying download() safe and efficient in the
        sense that a finished file will not be requested again.
+
+       If strict is true (the default), download() will remove any file
+       under output_dirpath that is not in relpath_to_requests.
     """
     _Downloader(
         client,
         executor,
         output_dirpath,
         relpath_to_requests,
+        strict,
         chunk_size,
     ).run()
 
@@ -62,6 +67,7 @@ class _Downloader:
                  executor,
                  output_dirpath,
                  relpath_to_requests,
+                 strict,
                  chunk_size):
         self.client = client
         self.executor = executor
@@ -69,6 +75,7 @@ class _Downloader:
         self.relpath_to_requests = relpath_to_requests
         self.parts_dirpath = self.output_dirpath.with_name(
             self.output_dirpath.name + '.part')
+        self.strict = strict
         self.chunk_size = chunk_size
 
     def run(self):
@@ -148,18 +155,30 @@ class _Downloader:
         output_paths = set(
             write_to_dir / relpath for relpath in self.relpath_to_requests
         )
-        for path in write_to_dir.glob('**/*'):
+        for path in sorted(write_to_dir.glob('**/*'), reverse=True):
             if path.is_dir():
-                pass
+                if self.strict and _is_empty_dir(path):
+                    LOG.warning('remove empty directory %s', path)
+                    path.rmdir()
             elif path not in output_paths:
-                LOG.warning('remove extra file %s', path)
-                path.unlink()
+                if self.strict:
+                    LOG.warning('remove extra file %s', path)
+                    path.unlink()
             else:
                 output_paths.remove(path)
         if output_paths:
             raise DownloadError(
                 'could not download these files:\n  %s' %
                 '\n  '.join(map(str, sorted(output_paths))))
+
+
+def _is_empty_dir(path):
+    try:
+        next(path.iterdir())
+    except StopIteration:
+        return True
+    else:
+        return False
 
 
 def form(client, uri, *,

@@ -74,6 +74,20 @@ class DownloadTest(unittest.TestCase):
                 self.data_dirpath / 'file2',
                 self.root_dirpath / 'test' / 'path/to/file2-alias',
             )
+            paths = [
+                str(path.relative_to(self.root_dirpath))
+                for path in sorted(self.root_dirpath.glob('**/*'))
+            ]
+            self.assertListEqual(
+                [
+                    'test',
+                    'test/file1',
+                    'test/path',
+                    'test/path/to',
+                    'test/path/to/file2-alias',
+                ],
+                paths,
+            )
 
     def test_downloader(self):
         """Test each step that download() takes."""
@@ -92,6 +106,7 @@ class DownloadTest(unittest.TestCase):
                 executor=self.executor,
                 output_dirpath=output_dirpath,
                 relpath_to_requests=relpath_to_requests,
+                strict=True,
                 chunk_size=10240)
 
             ### Test _Downloader.prepare()
@@ -137,11 +152,30 @@ class DownloadTest(unittest.TestCase):
 
             ### Test _Downloader.check()
 
-            # check() removes extra files.
-            file3_path = tmp_dirpath / 'file3'
+            file3_path = tmp_dirpath / 'path/to/file3'
+            file3_path.parent.mkdir(parents=True)
             file3_path.touch()
+
+            dler.strict = False
+            dler.check(tmp_dirpath)
+            self.assertTrue(file3_path.exists())
+            self.assertTrue(file3_path.parent.exists())
+            self.assertTrue(file3_path.parent.parent.exists())
+
+            # check() removes extra files when strict is True.
+            dler.strict = True
             dler.check(tmp_dirpath)
             self.assertFalse(file3_path.exists())
+            self.assertFalse(file3_path.parent.exists())
+            self.assertFalse(file3_path.parent.parent.exists())
+
+            paths = [
+                str(path.relative_to(self.root_dirpath))
+                for path in sorted(self.root_dirpath.glob('**/*'))
+            ]
+            self.assertListEqual(
+                ['test.part', 'test.part/file1', 'test.part/file2'], paths
+            )
 
             # check() errs on missing files.
             file1_path.unlink()
