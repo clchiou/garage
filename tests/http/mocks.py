@@ -14,6 +14,18 @@ class MockSession:
         self._req_to_rep = req_to_rep
         self._logs = []
 
+    def head(self, url, **kwargs):
+        return self.send(requests.Request('HEAD', url, **kwargs).prepare())
+
+    def get(self, url, **kwargs):
+        return self.send(requests.Request('GET', url, **kwargs).prepare())
+
+    def post(self, url, **kwargs):
+        return self.send(requests.Request('POST', url, **kwargs).prepare())
+
+    def put(self, url, **kwargs):
+        return self.send(requests.Request('PUT', url, **kwargs).prepare())
+
     def send(self, request):
         assert isinstance(request, requests.PreparedRequest)
         self._logs.append(request)

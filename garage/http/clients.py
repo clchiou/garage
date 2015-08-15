@@ -75,7 +75,30 @@ class _ClientMixin:
     put = _make_method('PUT')
 
 
+def _patch_session(session):
+    """Patch requests.Session.send for better logging."""
+    def _send(request, **kwargs):
+        if LOG.isEnabledFor(logging.DEBUG):
+            for name, value in request.headers.items():
+                LOG.debug('<<< %s: %s', name, value)
+            LOG.debug('send_kwargs %r', kwargs)
+        response = send(request, **kwargs)
+        if LOG.isEnabledFor(logging.DEBUG):
+            for name, value in response.headers.items():
+                LOG.debug('>>> %s: %s', name, value)
+        return response
+    send = session.send
+    session.send = _send
+
+
 class Client(_ClientMixin):
+
+    #
+    # NOTE:
+    #   Session.{get,...} does a _LOT_ of extra work than just bare
+    #   Session.send.  Your life would be much easier if you stay above
+    #   Session.{get,...} instead of Session.send.
+    #
 
     def __init__(self, *,
                  rate_limit=None,
@@ -86,6 +109,7 @@ class Client(_ClientMixin):
         self._rate_limit = rate_limit or policies.Unlimited()
         self._retry_policy = retry_policy or policies.NoRetry()
         self._sleep = _sleep
+        _patch_session(self._session)
 
     @property
     def headers(self):
@@ -94,12 +118,13 @@ class Client(_ClientMixin):
     def send(self, request, **kwargs):
         LOG.debug('%s %s', request.method, request.uri)
         _check_kwargs(kwargs, _SEND_ARG_NAMES)
-        rreq = request._make_request()
+        method = getattr(self._session, request.method.lower())
+        kwargs.update(request.kwargs)
         retry = self._retry_policy()
         retry_count = 0
         while True:
             try:
-                return self._send(request, rreq, kwargs, retry_count)
+                return self._send(method, request, kwargs, retry_count)
             except BaseException:
                 backoff = next(retry, None)
                 if backoff is None:
@@ -107,21 +132,15 @@ class Client(_ClientMixin):
             self._sleep(backoff)
             retry_count += 1
 
-    def _send(self, request, rreq, kwargs, retry_count):
+    def _send(self, method, request, kwargs, retry_count):
         try:
             with self._rate_limit:
                 if retry_count:
                     LOG.warning('Retry %d times of %s %s',
                                 retry_count, request.method, request.uri)
-                if LOG.isEnabledFor(logging.DEBUG):
-                    for name, value in rreq.headers.items():
-                        LOG.debug('<<< %s: %s', name, value)
-                rrep = self._session.send(rreq.prepare(), **kwargs)
-                if LOG.isEnabledFor(logging.DEBUG):
-                    for name, value in rrep.headers.items():
-                        LOG.debug('>>> %s: %s', name, value)
-                rrep.raise_for_status()
-                return Response(rrep)
+                response = method(request.uri, **kwargs)
+                response.raise_for_status()
+                return Response(response)
         except requests.RequestException as exc:
             if exc.response is not None:
                 status_code = exc.response.status_code
@@ -150,8 +169,7 @@ class ForwardingClient(_ClientMixin):
     def send(self, request, **kwargs):
         request = self.on_request(request)
         response = self.client.send(request, **kwargs)
-        response = self.on_response(request, response)
-        return response
+        return self.on_response(request, response)
 
     def on_request(self, request):
         """Hook for modifying request."""
@@ -171,8 +189,9 @@ class Request:
         self.uri = uri
         self.kwargs = kwargs
 
-    def _make_request(self):
-        return requests.Request(self.method, self.uri, **self.kwargs)
+    @property
+    def headers(self):
+        return self.kwargs.setdefault('headers', {})
 
 
 class Response:
