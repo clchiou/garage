@@ -3,6 +3,7 @@ __all__ = [
     'AtomicSet',
     'TaskQueue',
     'Priority',
+    'generate_names',
 ]
 
 import functools
@@ -164,3 +165,10 @@ Priority.LOWEST.priority = Priority.LOWEST
 
 Priority.HIGHEST = Priority(None)
 Priority.HIGHEST.priority = Priority.HIGHEST
+
+
+def generate_names(name_format='{name}-{serial:02d}', **kwargs):
+    """Useful for generate names of an actor with a serial number."""
+    serial = kwargs.pop('serial', None) or AtomicInt(1)
+    while True:
+        yield name_format.format(serial=serial.get_and_add(1), **kwargs)

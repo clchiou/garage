@@ -80,6 +80,20 @@ class UtilsTest(unittest.TestCase):
             else:
                 self.assertNotEqual(hash(left), hash(right))
 
+    def test_generate_names(self):
+        names = utils.generate_names(name='hello')
+        self.assertEqual('hello-01', next(names))
+        self.assertEqual('hello-02', next(names))
+        self.assertEqual('hello-03', next(names))
+
+        names = utils.generate_names(
+            name_format='{string}-{serial}',
+            string='hello',
+            serial=utils.AtomicInt(0))
+        self.assertEqual('hello-0', next(names))
+        self.assertEqual('hello-1', next(names))
+        self.assertEqual('hello-2', next(names))
+
 
 if __name__ == '__main__':
     unittest.main()

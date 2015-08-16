@@ -53,7 +53,7 @@ class Worker(actors.Stub, actor=_Worker):
 
 class WorkerPool:
 
-    _serial = utils.AtomicInt(1)
+    worker_names = utils.generate_names(name='%s#worker' % __name__)
 
     def __init__(self):
         self._lock = threading.Lock()
@@ -80,9 +80,7 @@ class WorkerPool:
         """Called by executor to acquire more workers."""
         with self._lock:
             if not self._pool:
-                name = ('%s.worker-%02d' %
-                        (__name__, self._serial.get_and_add(1)))
-                return actors.build(Worker, name=name)
+                return actors.build(Worker, name=next(self.worker_names))
             return self._pool.popleft()
 
     def return_to_pool(self, workers):
