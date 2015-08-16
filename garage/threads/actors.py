@@ -346,3 +346,59 @@ def _actor_message_loop_impl(msg_queue, future_ref):
         else:
             _deref(msg.future_ref).set_result(result)
         del msg
+
+
+#
+# Observe that stubs return a Future object of method result (let's call
+# this the result Future object).  An interesting idea is that, if a
+# method returns a Future object X, instead of put it inside the result
+# Future object R, thus a future of future, we could add R's callback to
+# X.  So when X is done, R's callback will be called, and so R will be
+# done, too.  For example,
+#
+#    class _Alice:
+#        @actors.method
+#        def compute(self):
+#            # Forward long computation to another actor Bob.
+#            return self.other_stub.do_long_computation()
+#
+#    class _Bob:
+#        @actors.method
+#        def do_long_computation(self):
+#            time.sleep(60)  # Simulate a long computation.
+#            return 42
+#
+# So under this idea, we will write
+#
+#    stub.compute().result() == 42
+#
+# rather than
+#
+#    stub.compute().result().result() == 42
+#
+# Essentially, this makes Bob invisible from an outside observer.
+#
+#
+# This idea, let's call it "future chaining" for now, while sounds
+# interesting, has a few issues that I haven't sorted out yet; so I
+# will leave the notes here for future reference.
+#
+# First, the current mental model is that an actor will process messages
+# one by one sequentially.  Nevertheless, under the future chaining, we
+# will have Alice returned immediately from compute() while Bob is still
+# processing do_long_computation().  Then Alice will start processing
+# the next message.  From an outside observer, it is as if the first and
+# the second message were being processed concurrently instead of
+# sequentially (and the second message could be done before the first
+# one, which makes things even more confusing).
+#
+# Second, since all the callbacks are called by the innermost actor
+# thread (Bob), while it is easy to propagate the result (42) to all the
+# chained Future objects, it is difficulty to propagate and re-raise
+# exceptions to all the outer actor threads to kill them properly.
+# Imagine while Bob is processing do_long_computation(), it raises an
+# exception.  Now not only Bob but also Alice should be dead because
+# under the future chaining, Bob is invisible from an outside observer,
+# and the observer could only observe that Alice's compute() has raised
+# an exception, deducing that Alice should be dead after that.
+#
