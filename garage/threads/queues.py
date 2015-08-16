@@ -1,7 +1,4 @@
-"""Closable and thread-safe queues.
-
-These queues are modeled after standard library's queue module.
-"""
+"""Closable and thread-safe queues."""
 
 __all__ = [
     'Closed',
@@ -23,7 +20,6 @@ from queue import Full
 
 class Closed(Exception):
     """Exception raised by put() and get() when the queue is closed."""
-    pass
 
 
 class _QueueBase:
