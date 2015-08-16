@@ -2,8 +2,10 @@ __all__ = [
     'AtomicInt',
     'AtomicSet',
     'TaskQueue',
+    'Priority',
 ]
 
+import functools
 import threading
 from concurrent import futures
 
@@ -77,3 +79,88 @@ class TaskQueue(queues.ForwardingQueue):
         with self.lock:
             self.future.set_result(None)
             return super().close(graceful)
+
+
+@functools.total_ordering
+class Priority:
+    """A wrapper class of the underlying priority object that implements
+       comparison with lowest/highest priority sentinels.
+
+       The underlying priority object has to support __lt__ and __eq__
+       at very least.
+
+       This class might be handy when you are using a priority queue.
+    """
+
+    def __init__(self, priority):
+        self.priority = priority
+
+    def __str__(self):
+        if self is Priority.LOWEST:
+            return 'Priority.LOWEST'
+        elif self is Priority.HIGHEST:
+            return 'Priority.HIGHEST'
+        else:
+            return 'Priority(%r)' % (self.priority,)
+
+    __repr__ = __str__
+
+    def __lt__(self, other):
+        decision = {
+            (True, True): False,
+            (True, False): True,
+            (False, True): False,
+            (False, False): None,
+        }[(self.priority is Priority.LOWEST,
+           other.priority is Priority.LOWEST)]
+        if decision is not None:
+            return decision
+
+        decision = {
+            (True, True): False,
+            (True, False): False,
+            (False, True): True,
+            (False, False): None,
+        }[(self.priority is Priority.HIGHEST,
+           other.priority is Priority.HIGHEST)]
+        if decision is not None:
+            return decision
+
+        return self.priority < other.priority
+
+    def __eq__(self, other):
+        decision = {
+            (True, True): True,
+            (True, False): False,
+            (False, True): False,
+            (False, False): None,
+        }[(self.priority is Priority.LOWEST,
+           other.priority is Priority.LOWEST)]
+        if decision is not None:
+            return decision
+
+        decision = {
+            (True, True): True,
+            (True, False): False,
+            (False, True): False,
+            (False, False): None,
+        }[(self.priority is Priority.HIGHEST,
+           other.priority is Priority.HIGHEST)]
+        if decision is not None:
+            return decision
+
+        return self.priority == other.priority
+
+    def __hash__(self):
+        if self is Priority.LOWEST or self is Priority.HIGHEST:
+            return id(self)
+        else:
+            return hash(self.priority)
+
+
+Priority.LOWEST = Priority(None)
+Priority.LOWEST.priority = Priority.LOWEST
+
+
+Priority.HIGHEST = Priority(None)
+Priority.HIGHEST.priority = Priority.HIGHEST

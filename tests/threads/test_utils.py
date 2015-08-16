@@ -54,6 +54,32 @@ class UtilsTest(unittest.TestCase):
         self.assertTrue(task_queue.is_closed())
         self.assertTrue(task_queue.future.done())
 
+    def test_priority(self):
+        eq = self.assertEqual
+        lt = self.assertLess
+        gt = self.assertGreater
+        test_data = [
+            (eq, utils.Priority.LOWEST, utils.Priority.LOWEST),
+            (lt, utils.Priority.LOWEST, utils.Priority('x')),
+            (lt, utils.Priority.LOWEST, utils.Priority.HIGHEST),
+
+            (eq, utils.Priority('x'), utils.Priority('x')),
+            (lt, utils.Priority('x'), utils.Priority('y')),
+            (gt, utils.Priority('x'), utils.Priority('w')),
+            (gt, utils.Priority('x'), utils.Priority.LOWEST),
+            (lt, utils.Priority('x'), utils.Priority.HIGHEST),
+
+            (eq, utils.Priority.HIGHEST, utils.Priority.HIGHEST),
+            (gt, utils.Priority.HIGHEST, utils.Priority('x')),
+            (gt, utils.Priority.HIGHEST, utils.Priority.LOWEST),
+        ]
+        for assertion, left, right in test_data:
+            assertion(left, right)
+            if assertion is eq:
+                self.assertEqual(hash(left), hash(right))
+            else:
+                self.assertNotEqual(hash(left), hash(right))
+
 
 if __name__ == '__main__':
     unittest.main()
