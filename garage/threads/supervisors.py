@@ -1,5 +1,5 @@
 __all__ = [
-    'Supervisor',
+    'start_supervisor',
 ]
 
 import logging
@@ -11,6 +11,20 @@ from garage.threads import utils
 
 LOG = logging.getLogger(__name__)
 LOG.addHandler(logging.NullHandler())
+
+
+def start_supervisor(num_actors, make_actor):
+    stub = actors.build(Supervisor,
+                        name=next(start_supervisor.names),
+                        args=(num_actors, make_actor))
+    # Make sure that a supervisor does not accept any new messages, and
+    # dies immediately after start() returns.
+    stub.start()
+    stub.kill()
+    return stub
+
+
+start_supervisor.names = utils.generate_names(name='%s#supervisor' % __name__)
 
 
 class _Supervisor:
@@ -54,15 +68,3 @@ class Supervisor(actors.Stub, actor=_Supervisor):
     """A supervisor will always keep num_actors long-running actors
        alive at any time; however, if half of actors died, it dies, too.
     """
-
-    names = utils.generate_names(name='%s#supervisor' % __name__)
-
-    @classmethod
-    def make(cls, num_actors, make_actor):
-        stub = actors.build(
-            cls, name=next(cls.names), args=(num_actors, make_actor))
-        # Make sure that a supervisor does not accept any new messages,
-        # and dies immediately after start() returns.
-        stub.start()
-        stub.kill()
-        return stub

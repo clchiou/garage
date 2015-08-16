@@ -56,8 +56,7 @@ class SupervisorsTest(unittest.TestCase):
         for stub in stubs:
             stub.start()
 
-        supervisor = supervisors.Supervisor(num_actors, list(stubs).pop)
-        start_future = supervisor.start()
+        supervisor = supervisors.start_supervisor(num_actors, list(stubs).pop)
 
         # Let LongRunning actors exit one by one...
         alive_stubs = {stub.get_future(): stub for stub in stubs}
@@ -71,8 +70,7 @@ class SupervisorsTest(unittest.TestCase):
             self.assertTrue(done_fut.done())
             alive_stubs.pop(done_fut)
 
-        with self.assertRaises(actors.Exit):
-            start_future.result()
+        self.assertIsNone(supervisor.get_future().result())
         self.assertTrue(supervisor.get_future().done())
 
     def test_supervisor_without_stub(self):

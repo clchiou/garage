@@ -1,5 +1,5 @@
 __all__ = [
-    'Tasklet',
+    'start_tasklet',
 ]
 
 import logging
@@ -11,6 +11,20 @@ from garage.threads import utils
 
 LOG = logging.getLogger(__name__)
 LOG.addHandler(logging.NullHandler())
+
+
+def start_tasklet(task_queue):
+    stub = actors.build(Tasklet,
+                        name=next(start_tasklet.names),
+                        args=(task_queue,))
+    # Make sure that a tasklet does not accept any new messages, and
+    # dies immediately after start() returns.
+    stub.start()
+    stub.kill()
+    return stub
+
+
+start_tasklet.names = utils.generate_names(name='%s#tasklet' % __name__)
 
 
 class _Tasklet:
@@ -44,14 +58,3 @@ class Tasklet(actors.Stub, actor=_Tasklet):
 
        A task is any callable object.
     """
-
-    names = utils.generate_names(name='%s#tasklet' % __name__)
-
-    @classmethod
-    def make(cls, task_queue):
-        stub = actors.build(cls, name=next(cls.names), args=(task_queue,))
-        # Make sure that a tasklet does not accept any new messages, and
-        # dies immediately after start() returns.
-        stub.start()
-        stub.kill()
-        return stub
