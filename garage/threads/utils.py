@@ -19,6 +19,12 @@ class AtomicInt:
         self._lock = threading.Lock()
         self._value = value
 
+    def get_and_set(self, new_value):
+        with self._lock:
+            value = self._value
+            self._value = new_value
+            return value
+
     def get_and_add(self, add_to):
         with self._lock:
             value = self._value

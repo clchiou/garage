@@ -15,6 +15,10 @@ class UtilsTest(unittest.TestCase):
         self.assertEqual(6, i.get_and_add(4))
         self.assertEqual(10, i.get_and_add(0))
 
+        self.assertEqual(10, i.get_and_set(-1))
+        self.assertEqual(-1, i.get_and_set(2))
+        self.assertEqual(2, i.get_and_set(0))
+
     def test_atomic_set(self):
         s = utils.AtomicSet()
         self.assertFalse('x' in s)
