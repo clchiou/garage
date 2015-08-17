@@ -17,6 +17,11 @@ class _LongRunning:
         self.semaphore.acquire()
         raise actors.Exit
 
+    @actors.method
+    def boom(self):
+        self.semaphore.acquire()
+        raise Exception
+
 
 class LongRunning(actors.Stub, actor=_LongRunning):
     pass
@@ -59,19 +64,44 @@ class SupervisorsTest(unittest.TestCase):
         supervisor = supervisors.start_supervisor(num_actors, list(stubs).pop)
 
         # Let LongRunning actors exit one by one...
-        alive_stubs = {stub.get_future(): stub for stub in stubs}
-        while alive_stubs:
-            semaphore.release()
-            done_futs = futures.wait(
-                alive_stubs, return_when=futures.FIRST_COMPLETED,
-            ).done
-            self.assertTrue(1, len(done_futs))
-            done_fut = done_futs.pop()
-            self.assertTrue(done_fut.done())
-            alive_stubs.pop(done_fut)
+        self.release_one_by_one(stubs, semaphore)
 
         self.assertIsNone(supervisor.get_future().result())
         self.assertTrue(supervisor.get_future().done())
+
+    def test_supervisor_on_error(self):
+        num_actors = 4
+        num_created = num_actors + num_actors // 2 + 1
+
+        semaphore = threading.Semaphore(value=0)
+        stubs = [LongRunning(semaphore) for _ in range(num_created)]
+        for i, stub in enumerate(stubs):
+            if i <= num_actors // 2:
+                stub.boom()
+            else:
+                stub.start()
+
+        supervisor = supervisors.start_supervisor(
+            num_actors, list(reversed(stubs)).pop)
+
+        # Let LongRunning actors raise one by one...
+        self.release_one_by_one(stubs, semaphore)
+
+        with self.assertRaisesRegex(RuntimeError, 'actors have crashed'):
+            supervisor.get_future().result()
+        self.assertTrue(supervisor.get_future().done())
+
+    def release_one_by_one(self, stubs, semaphore):
+        alive_stubs = {stub.get_future(): stub for stub in stubs}
+        while alive_stubs:
+            semaphore.release()
+            done_futures = futures.wait(
+                alive_stubs, return_when=futures.FIRST_COMPLETED,
+            ).done
+            self.assertTrue(1, len(done_futures))
+            done_future = done_futures.pop()
+            self.assertTrue(done_future.done())
+            alive_stubs.pop(done_future)
 
     def test_supervisor_without_stub(self):
         supervisor = supervisors._Supervisor(0, None)
