@@ -14,6 +14,9 @@ class TestParser(spiders.Parser):
     def __init__(self):
         self.logs = []
 
+    def is_outside(self, uri, from_document=None):
+        return not uri.startswith('http://localhost:8000')
+
     def parse(self, req, rep):
         self.logs.append(req)
         doc = spiders.Document()
@@ -23,12 +26,6 @@ class TestParser(spiders.Parser):
             for link in rep.dom().xpath('//a')
         ]
         return doc
-
-
-class TestWeb(spiders.Web):
-
-    def is_outside(self, uri, from_document=None):
-        return not uri.startswith('http://localhost:8000')
 
 
 class SpidersTest(unittest.TestCase):
@@ -54,7 +51,7 @@ class SpidersTest(unittest.TestCase):
                 tests.http.server.start_server())
 
             parser = TestParser()
-            spider = spiders.Spider(parser=parser, web=TestWeb())
+            spider = spiders.Spider(parser=parser)
             spider.crawl('http://localhost:8000/')
             spider.future.result()
 

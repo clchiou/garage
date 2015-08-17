@@ -3,7 +3,6 @@
 __all__ = [
     'Spider',
     'Parser',
-    'Web',
     'Document',
 ]
 
@@ -22,37 +21,30 @@ LOG = logging.getLogger(__name__)
 LOG.addHandler(logging.NullHandler())
 
 
-### Data model of the web spiders.
-
-
 class Parser:
     """Application-specific business logics."""
 
-    def parse(self, req, rep):
+    def is_outside(self, uri):
+        """True if the URI (from some document) is outside the boundary
+           of this web.
+        """
+        return False  # A boundary-less web.
+
+    def parse(self, request, response):
         """Parse response and return a document object."""
         raise NotImplementedError
 
-    def on_request_error(self, req, error):
+    def on_request_error(self, request, error):
         """Called on HTTP request error.
 
            Return True for re-raising the exception.
         """
         return True
 
-    def on_estimate(self, estimate, doc):
+    def on_estimate(self, estimate, document):
         """Feedback on how accurate the estimate was given the resulting
            document (this is optional).
         """
-
-
-class Web:
-    """A web is a collection of inter-connected documents."""
-
-    def is_outside(self, uri, from_document=None):
-        """True if the URI (from some document) is outside the boundary
-           of this web.
-        """
-        return False  # A boundary-less web.
 
 
 class Document:
@@ -69,18 +61,13 @@ class Document:
     """)
 
 
-### The spider class.
-
-
 class Spider:
 
     def __init__(self, *,
                  parser,
-                 web,
                  num_spiders=1,
                  client=None):
         self.parser = parser
-        self.web = web
         self.client = client or clients.Client()
         self.task_queue = utils.TaskQueue(queues.PriorityQueue())
         self.uris = utils.AtomicSet()
@@ -90,44 +77,45 @@ class Spider:
             functools.partial(tasklets.start_tasklet, self.task_queue),
         ).get_future()
 
-    def crawl(self, req, estimate=None):
+    def crawl(self, request, estimate=None):
         """Enqueue a request for later processing."""
-        if isinstance(req, str):
-            req = clients.Request(method='GET', uri=req)
+        if isinstance(request, str):
+            request = clients.Request(method='GET', uri=request)
 
-        if self.web.is_outside(req.uri):
-            LOG.debug('exclude URI to the outside: %s', req.uri)
+        if self.parser.is_outside(request.uri):
+            LOG.debug('exclude URI to the outside: %s', request.uri)
             return
 
-        if self.uris.check_and_add(req.uri):
-            LOG.debug('exclude crawled URI: %s', req.uri)
+        if self.uris.check_and_add(request.uri):
+            LOG.debug('exclude crawled URI: %s', request.uri)
             return
 
         try:
-            LOG.debug('enqueue: %s %s', req.method, req.uri)
-            self.task_queue.put(_Task(estimate, req, self.handle))
+            LOG.debug('enqueue %r', request)
+            self.task_queue.put(_Task(estimate, request, self.handle))
         except queues.Closed:
-            LOG.error('task_queue is closed when adding %s', req.uri)
+            LOG.error('task_queue is closed when adding %s', request.uri)
 
-    def handle(self, req, estimate):
-        LOG.info('request %s %s', req.method, req.uri)
+    def handle(self, request, estimate):
+        LOG.info('request %s %s', request.method, request.uri)
         try:
-            rep = self.client.send(req)
+            response = self.client.send(request)
         except clients.HttpError as exc:
-            LOG.exception('cannot request %s %s', req.method, req.uri)
-            if self.parser.on_request_error(req, exc):
+            LOG.exception('cannot request %s %s', request.method, request.uri)
+            if self.parser.on_request_error(request, exc):
                 raise
             return
 
-        doc = self.parser.parse(req, rep)
-        if self.identities.check_and_add(doc.identity):
-            LOG.debug('exclude URIs from crawled doc: %s', doc.identity)
+        document = self.parser.parse(request, response)
+        if self.identities.check_and_add(document.identity):
+            LOG.debug('exclude URIs from crawled document: %s',
+                      document.identity)
             return
 
-        for req, estimate in doc.links:
-            self.crawl(req, estimate)
+        for req_from_doc, estimate in document.links:
+            self.crawl(req_from_doc, estimate)
 
-        self.parser.on_estimate(estimate, doc)
+        self.parser.on_estimate(estimate, document)
 
 
 class _Task(utils.Priority):
