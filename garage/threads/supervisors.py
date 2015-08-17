@@ -5,6 +5,7 @@ __all__ = [
 import logging
 from concurrent import futures
 
+from garage import preconds
 from garage.threads import actors
 from garage.threads import utils
 
@@ -31,6 +32,7 @@ class _Supervisor:
     # TODO: Implement more re-start/exit strategy.
 
     def __init__(self, num_actors, start_new_actor):
+        preconds.check_argument(num_actors > 0)
         self.num_actors = num_actors
         self.num_actors_died = 0
         self.start_new_actor = start_new_actor
@@ -40,8 +42,9 @@ class _Supervisor:
         LOG.info('start')
 
         actor_futures = {}
+        threshold = max(1, self.num_actors // 2)
         num_actors_crashed = 0
-        while self.num_actors_died < self.num_actors // 2:
+        while self.num_actors_died < threshold:
 
             for _ in range(self.num_actors - len(actor_futures)):
                 stub = self.start_new_actor()
@@ -63,10 +66,9 @@ class _Supervisor:
                                 stub.name, exc_info=True)
                     num_actors_crashed += 1
 
-        if (num_actors_crashed > 0 and
-                num_actors_crashed >= self.num_actors // 2):
-            raise RuntimeError('actors have crashed: %d/%d' %
-                               (num_actors_crashed, self.num_actors))
+        if num_actors_crashed >= threshold:
+            raise RuntimeError('actors have crashed: %d >= %d' %
+                               (num_actors_crashed, threshold))
         LOG.info('exit')
         raise actors.Exit
 

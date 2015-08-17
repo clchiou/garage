@@ -37,16 +37,7 @@ def make_dead_actor(event):
 class SupervisorsTest(unittest.TestCase):
 
     def test_supervisor(self):
-        supervisor = supervisors.Supervisor(0, None)
-        with self.assertRaises(actors.Exit):
-            supervisor.start().result()
-        self.assertTrue(supervisor.get_future().done())
-
-        supervisor = supervisors.Supervisor(1, [].pop)
-        with self.assertRaises(actors.Exit):
-            supervisor.start().result()
-        self.assertTrue(supervisor.get_future().done())
-
+        self.run_supervisor_test(1, 1)
         for num_actors in range(2, 10):
             self.run_supervisor_test(
                 num_actors,
@@ -104,15 +95,7 @@ class SupervisorsTest(unittest.TestCase):
             alive_stubs.pop(done_future)
 
     def test_supervisor_without_stub(self):
-        supervisor = supervisors._Supervisor(0, None)
-        with self.assertRaises(actors.Exit):
-            supervisor.start()
-
-        supervisor = supervisors._Supervisor(1, [].pop)
-        with self.assertRaises(actors.Exit):
-            supervisor.start()
-
-        for num_actors in range(2, 10):
+        for num_actors in range(1, 10):
             stubs = [make_dead_actor(None) for _ in range(num_actors)]
             supervisor = supervisors._Supervisor(num_actors, stubs.pop)
             with self.assertRaises(actors.Exit):
