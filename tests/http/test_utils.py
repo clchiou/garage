@@ -2,21 +2,17 @@ import unittest
 
 import contextlib
 import filecmp
-import http.server
-import io
-import os
 import pathlib
-import socket
 import socketserver
 import sys
 import tempfile
-import threading
 from concurrent import futures
 
 from garage.http import clients
 from garage.http import utils
 
 from tests.http.mocks import *
+from tests.http.server import *
 
 
 class DownloadTest(unittest.TestCase):
@@ -33,9 +29,9 @@ class DownloadTest(unittest.TestCase):
         socketserver.TCPServer.allow_reuse_address = False
 
     def prepare(self, stack):
-        stack.enter_context(_suppress_stderr())
-        stack.enter_context(_chdir(self.data_dirpath))
-        stack.enter_context(_start_server())
+        stack.enter_context(suppress_stderr())
+        stack.enter_context(change_dir(self.data_dirpath))
+        stack.enter_context(start_server())
         self.executor = stack.enter_context(futures.ThreadPoolExecutor(1))
         self.root_dirpath = pathlib.Path(
             stack.enter_context(tempfile.TemporaryDirectory()))
@@ -233,45 +229,6 @@ class FormTest(unittest.TestCase):
         self.assertEqual('http://uri_3/', session._logs[1].url)
         self.assertListEqual(
             ['k1=v1', 'k2=v2'], sorted(session._logs[1].body.split('&')))
-
-
-@contextlib.contextmanager
-def _chdir(path):
-    cwd = os.getcwd()
-    os.chdir(str(path))
-    try:
-        yield path
-    finally:
-        os.chdir(cwd)
-
-
-@contextlib.contextmanager
-def _suppress_stderr():
-    target = io.StringIO()
-    stderr = sys.stderr
-    sys.stderr = target
-    try:
-        yield stderr, target
-    except BaseException:
-        print(target.getvalue(), file=stderr)
-        raise
-    finally:
-        sys.stderr = stderr
-
-
-@contextlib.contextmanager
-def _start_server():
-    httpd = socketserver.TCPServer(
-        ('127.0.0.1', 8000), http.server.SimpleHTTPRequestHandler,
-    )
-    thread = threading.Thread(name='httpd', target=httpd.serve_forever)
-    thread.start()
-    try:
-        yield httpd
-    finally:
-        httpd.shutdown()
-        httpd.server_close()
-        thread.join()
 
 
 if __name__ == '__main__':
