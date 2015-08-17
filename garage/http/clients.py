@@ -198,6 +198,12 @@ class Request:
         self.uri = uri
         self.kwargs = kwargs
 
+    def __str__(self):
+        return ('Request(%r, %r, **%r)' %
+                (self.method, self.uri, self.kwargs))
+
+    __repr__ = __str__
+
     @property
     def headers(self):
         return self.kwargs.setdefault('headers', {})
