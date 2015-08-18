@@ -9,6 +9,7 @@ import logging
 from startup import startup
 
 from garage import startups
+from garage.functools import run_once
 
 
 LOG_FORMAT = '%(asctime)s %(threadName)s %(levelname)s %(name)s: %(message)s'
@@ -31,6 +32,7 @@ def configure(args: startups.ARGS) -> startups.CONFIGURED:
     logging.basicConfig(level=level, format=LOG_FORMAT)
 
 
+@run_once
 def init():
     startup(add_arguments)
     startup(configure)

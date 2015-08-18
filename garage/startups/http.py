@@ -9,6 +9,7 @@ from startup import startup
 
 from garage import startups
 from garage.collections import FixedNamespace
+from garage.functools import run_once
 from garage.http import clients
 from garage.http import policies
 
@@ -77,6 +78,7 @@ def configure(args: startups.ARGS, configs: CONFIGS) -> startups.CONFIGURED:
     configs.http_retry = args.http_retry
 
 
+@run_once
 def init():
     startup.set(CONFIGS, make_client.configs)
     startup(add_arguments)

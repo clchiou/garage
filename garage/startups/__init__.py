@@ -18,6 +18,8 @@ __all__ = [
 
 from startup import startup
 
+from garage.functools import run_once
+
 
 ARGS = 'args'
 ARGV = 'argv'
@@ -30,5 +32,6 @@ def parse_argv(parser: PARSER, argv: ARGV, _: PARSE) -> ARGS:
     return parser.parse_args(argv[1:])
 
 
+@run_once
 def init():
     startup(parse_argv)
