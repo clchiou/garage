@@ -30,33 +30,25 @@ class UtilsTest(unittest.TestCase):
     def test_task_queue(self):
         task_queue = utils.TaskQueue(queues.Queue())
         self.assertFalse(task_queue.is_closed())
-        self.assertFalse(task_queue.future.cancelled())
-        self.assertFalse(task_queue.future.done())
 
         task_queue.put(1)
         self.assertFalse(task_queue.is_closed())
-        self.assertFalse(task_queue.future.done())
 
         task_queue.put(2)
         self.assertFalse(task_queue.is_closed())
-        self.assertFalse(task_queue.future.done())
 
         self.assertEqual(1, task_queue.get())
         self.assertFalse(task_queue.is_closed())
-        self.assertFalse(task_queue.future.done())
 
         task_queue.notify_task_processed()
         self.assertFalse(task_queue.is_closed())
-        self.assertFalse(task_queue.future.done())
 
         self.assertEqual(2, task_queue.get())
         self.assertFalse(task_queue.is_closed())
-        self.assertFalse(task_queue.future.done())
 
         # This will trigger auto-close.
         task_queue.notify_task_processed()
         self.assertTrue(task_queue.is_closed())
-        self.assertTrue(task_queue.future.done())
 
     def test_priority(self):
         eq = self.assertEqual

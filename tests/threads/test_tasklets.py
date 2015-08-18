@@ -21,12 +21,11 @@ class TaskletsTest(unittest.TestCase):
         for _ in range(expected_counter_value):
             task_queue.put(lambda: counter.get_and_add(1))
 
-        task_queue.future.result()
-
-        self.assertEqual(expected_counter_value, counter.get_and_set(0))
         for stub in tasklet_stubs:
             self.assertIsNone(stub.get_future().result())
             self.assertTrue(stub.get_future().done())
+
+        self.assertEqual(expected_counter_value, counter.get_and_set(0))
 
 
 if __name__ == '__main__':

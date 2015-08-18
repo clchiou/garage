@@ -8,7 +8,6 @@ __all__ = [
 
 import functools
 import threading
-from concurrent import futures
 
 from garage.threads import queues
 
@@ -67,25 +66,14 @@ class TaskQueue(queues.ForwardingQueue):
        itself automatically (and thus it is one-time use only).
 
        You may use this auto-close feature to wait for the completion of
-       all tasks.  To make this even easier, a Future object is set for
-       this purpose.
+       all tasks.
     """
-
-    def __init__(self, queue):
-        super().__init__(queue)
-        self.future = futures.Future()
-        self.future.set_running_or_notify_cancel()
 
     def notify_task_processed(self):
         """Notify the queue that a task has been processed."""
         with self.lock:
             if not self:
                 self.close()
-
-    def close(self, graceful=True):
-        with self.lock:
-            self.future.set_result(None)
-            return super().close(graceful)
 
 
 @functools.total_ordering
