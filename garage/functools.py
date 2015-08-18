@@ -1,4 +1,5 @@
 __all__ = [
+    'run_once',
     'is_ordered',
     'memorize',
     'nondata_property',
@@ -10,6 +11,17 @@ import functools
 import operator
 
 from garage import preconds
+
+
+def run_once(func):
+    """The decorated function will be run only once."""
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        if not wrapper.has_run:
+            wrapper.has_run = True
+            return func(*args, **kwargs)
+    wrapper.has_run = False
+    return wrapper
 
 
 def is_ordered(lst, key=None, strict=False):
