@@ -25,9 +25,7 @@ class Parser:
     """Application-specific business logics."""
 
     def is_outside(self, uri):
-        """True if the URI (from some document) is outside the boundary
-           of this web.
-        """
+        """True if the URI is outside the boundary of this spider."""
         return False  # A boundary-less web.
 
     def parse(self, request, response):
@@ -42,13 +40,12 @@ class Parser:
         return True
 
     def on_estimate(self, estimate, document):
-        """Feedback on how accurate the estimate was given the resulting
-           document (this is optional).
+        """You may use this callback to get a feedback of how accurate
+           the estimate was.
         """
 
 
 class Document:
-    """A document of a web."""
 
     identity = nondata_property(doc="""
     The unique identity of this document (multiple URIs may point to the
@@ -67,47 +64,52 @@ class Spider:
                  parser,
                  num_spiders=1,
                  client=None):
-        self.parser = parser
-        self.client = client or clients.Client()
-        self.task_queue = utils.TaskQueue(queues.PriorityQueue())
-        self.uris = utils.AtomicSet()
-        self.identities = utils.AtomicSet()
-        self.future = supervisors.start_supervisor(
+        self._parser = parser
+        self._client = client or clients.Client()
+        self._task_queue = utils.TaskQueue(queues.PriorityQueue())
+        # XXX: Use a cache for these two sets?
+        self._uris = utils.AtomicSet()
+        self._identities = utils.AtomicSet()
+
+        supervisor = supervisors.start_supervisor(
             num_spiders,
-            functools.partial(tasklets.start_tasklet, self.task_queue),
-        ).get_future()
+            functools.partial(tasklets.start_tasklet, self._task_queue),
+        )
+        # Use this future to wait for completion of the crawling.
+        self.future = supervisor.get_future()
 
     def crawl(self, request, estimate=None):
         """Enqueue a request for later processing."""
         if isinstance(request, str):
             request = clients.Request(method='GET', uri=request)
 
-        if self.parser.is_outside(request.uri):
+        if self._parser.is_outside(request.uri):
             LOG.debug('exclude URI to the outside: %s', request.uri)
             return
 
-        if self.uris.check_and_add(request.uri):
+        if self._uris.check_and_add(request.uri):
             LOG.debug('exclude crawled URI: %s', request.uri)
             return
 
         try:
             LOG.debug('enqueue %r', request)
-            self.task_queue.put(_Task(estimate, request, self.handle))
+            self._task_queue.put(_Task(self, request, estimate))
         except queues.Closed:
             LOG.error('task_queue is closed when adding %s', request.uri)
 
-    def handle(self, request, estimate):
+    # Called from task.
+    def _process(self, request, estimate):
         LOG.info('request %s %s', request.method, request.uri)
         try:
-            response = self.client.send(request)
+            response = self._client.send(request)
         except clients.HttpError as exc:
             LOG.exception('cannot request %s %s', request.method, request.uri)
-            if self.parser.on_request_error(request, exc):
+            if self._parser.on_request_error(request, exc):
                 raise
             return
 
-        document = self.parser.parse(request, response)
-        if self.identities.check_and_add(document.identity):
+        document = self._parser.parse(request, response)
+        if self._identities.check_and_add(document.identity):
             LOG.debug('exclude URIs from crawled document: %s',
                       document.identity)
             return
@@ -115,25 +117,25 @@ class Spider:
         for req_from_doc, estimate in document.links:
             self.crawl(req_from_doc, estimate)
 
-        self.parser.on_estimate(estimate, document)
+        self._parser.on_estimate(estimate, document)
 
 
 class _Task(utils.Priority):
 
-    def __init__(self, estimate, request, handle):
+    def __init__(self, spider, request, estimate):
         if estimate is None:
             priority = utils.Priority.LOWEST
         else:
             priority = estimate
         super().__init__(priority)
-        self.estimate = estimate
+        self.spider = spider
         self.request = request
-        self.handle = handle
+        self.estimate = estimate
 
     def __str__(self):
-        return '_Task(%r, %r, %r)' % (self.estimate, self.request, self.handle)
+        return '_Task(%r, %r, %r)' % (self.spider, self.estimate, self.request)
 
     __repr__ = __str__
 
     def __call__(self):
-        self.handle(self.request, self.estimate)
+        self.spider._process(self.request, self.estimate)
