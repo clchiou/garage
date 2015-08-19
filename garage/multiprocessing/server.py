@@ -13,7 +13,7 @@ from argparse import Namespace
 from multiprocessing.connection import Listener
 
 
-LOG = logging.getLogger(__name__)
+LOG = logging.getLogger('multiprocessing.server')
 LOG.addHandler(logging.NullHandler())
 LOG_FORMAT = '%(asctime)s %(threadName)s %(levelname)s %(name)s: %(message)s'
 
@@ -25,7 +25,7 @@ def run_server(listener):
         workers=[],
     )
     server_thread = threading.Thread(
-        name='server',
+        name='multiprocessing.server#server',
         target=server,
         args=(listener, server_vars),
     )
@@ -61,7 +61,8 @@ def server(listener, server_vars):
                 listener.last_accepted,
             )
             worker_thread = threading.Thread(
-                name='worker-%02d' % (1 + len(server_vars.workers)),
+                name=('multiprocessing.server#worker-%02d' %
+                      (1 + len(server_vars.workers))),
                 target=worker.run,
             )
             server_vars.workers.append(worker_thread)
@@ -299,7 +300,7 @@ def main(argv):
     if sys.version_info.major > 2:
         authkey = bytes(authkey, encoding='ascii')
 
-    threading.current_thread().name = 'main'
+    threading.current_thread().name = 'multiprocessing.server#main'
     with closing(Listener(address, authkey=authkey)) as listener:
         run_server(listener)
 

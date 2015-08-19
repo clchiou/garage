@@ -58,7 +58,9 @@ def create_socket():
 def start_server(executable, address, authkey, popen_kwargs):
     script_path = garage.multiprocessing.server.__file__
     args = [executable, script_path, '--listen-sock', address]
-    if LOG.isEnabledFor(logging.INFO):
+    if LOG.isEnabledFor(logging.DEBUG):
+        args.append('-vv')
+    elif LOG.isEnabledFor(logging.INFO):
         args.append('-v')
     env = dict(os.environ)
     env['AUTHKEY'] = authkey

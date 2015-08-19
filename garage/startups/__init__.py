@@ -17,6 +17,7 @@ __all__ = [
 ]
 
 import logging
+import threading
 
 from startup import startup
 
@@ -48,6 +49,7 @@ def configure(args: ARGS):
     else:
         level = logging.DEBUG
     logging.basicConfig(level=level, format=LOG_FORMAT)
+    threading.current_thread().name = garage.__name__ + '#main'
 
 
 def parse_argv(parser: PARSER, argv: ARGV, _: PARSE) -> ARGS:
