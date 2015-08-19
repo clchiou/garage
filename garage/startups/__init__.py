@@ -13,6 +13,7 @@ __all__ = [
     'PARSE',
     'PARSER',
     'init',
+    'init_logging',
 ]
 
 import logging
@@ -56,3 +57,10 @@ def parse_argv(parser: PARSER, argv: ARGV, _: PARSE) -> ARGS:
 @run_once
 def init():
     startup(parse_argv)
+
+
+@run_once
+def init_logging():
+    init()
+    startup(add_arguments)
+    startup(configure)
