@@ -6,9 +6,11 @@ __all__ = [
     'generate_names',
 ]
 
+import collections
 import functools
 import threading
 
+from garage import preconds
 from garage.threads import queues
 
 
@@ -78,17 +80,18 @@ class TaskQueue(queues.ForwardingQueue):
 
 @functools.total_ordering
 class Priority:
-    """A wrapper class of the underlying priority object that implements
-       comparison with lowest/highest priority sentinels.
+    """A wrapper class that supports lowest/highest priority sentinels,
+       which should be handy when used with Python's heap.
 
-       The underlying priority object has to support __lt__ and __eq__
-       at very least.
+       This is an immutable value class.
 
-       This class might be handy when you are using a priority queue.
+       NOTE: Python's heap[0] is the smallest item; so we will have the
+       highest priority be the smallest.
     """
 
     def __init__(self, priority):
-        self.priority = priority
+        preconds.check_argument(isinstance(priority, collections.Hashable))
+        self._priority = priority
 
     def __str__(self):
         if self is Priority.LOWEST:
@@ -96,69 +99,42 @@ class Priority:
         elif self is Priority.HIGHEST:
             return 'Priority.HIGHEST'
         else:
-            return 'Priority(%r)' % (self.priority,)
+            return 'Priority(%r)' % (self._priority,)
 
     __repr__ = __str__
 
+    def __hash__(self):
+        return hash(self._priority)
+
+    def __eq__(self, other):
+        return self._priority == other._priority
+
     def __lt__(self, other):
-        decision = {
-            (True, True): False,
-            (True, False): True,
-            (False, True): False,
-            (False, False): None,
-        }[(self.priority is Priority.LOWEST,
-           other.priority is Priority.LOWEST)]
-        if decision is not None:
-            return decision
+        # NOTE: Smaller = higher priority!
 
         decision = {
             (True, True): False,
             (True, False): False,
             (False, True): True,
             (False, False): None,
-        }[(self.priority is Priority.HIGHEST,
-           other.priority is Priority.HIGHEST)]
-        if decision is not None:
-            return decision
-
-        return self.priority < other.priority
-
-    def __eq__(self, other):
-        decision = {
-            (True, True): True,
-            (True, False): False,
-            (False, True): False,
-            (False, False): None,
-        }[(self.priority is Priority.LOWEST,
-           other.priority is Priority.LOWEST)]
+        }[self is Priority.LOWEST, other is Priority.LOWEST]
         if decision is not None:
             return decision
 
         decision = {
-            (True, True): True,
-            (True, False): False,
+            (True, True): False,
+            (True, False): True,
             (False, True): False,
             (False, False): None,
-        }[(self.priority is Priority.HIGHEST,
-           other.priority is Priority.HIGHEST)]
+        }[self is Priority.HIGHEST, other is Priority.HIGHEST]
         if decision is not None:
             return decision
 
-        return self.priority == other.priority
-
-    def __hash__(self):
-        if self is Priority.LOWEST or self is Priority.HIGHEST:
-            return id(self)
-        else:
-            return hash(self.priority)
+        return self._priority < other._priority
 
 
-Priority.LOWEST = Priority(None)
-Priority.LOWEST.priority = Priority.LOWEST
-
-
-Priority.HIGHEST = Priority(None)
-Priority.HIGHEST.priority = Priority.HIGHEST
+Priority.LOWEST = Priority(object())
+Priority.HIGHEST = Priority(object())
 
 
 def generate_names(name_format='{name}-{serial:02d}', **kwargs):

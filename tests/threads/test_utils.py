@@ -1,5 +1,9 @@
 import unittest
 
+import heapq
+import random
+
+from garage import preconds
 from garage.threads import queues
 from garage.threads import utils
 
@@ -51,23 +55,26 @@ class UtilsTest(unittest.TestCase):
         self.assertTrue(task_queue.is_closed())
 
     def test_priority(self):
+        with self.assertRaises(preconds.IllegalArgumentException):
+            utils.Priority([])  # Non-hashable!
+
         eq = self.assertEqual
         lt = self.assertLess
         gt = self.assertGreater
         test_data = [
             (eq, utils.Priority.LOWEST, utils.Priority.LOWEST),
-            (lt, utils.Priority.LOWEST, utils.Priority('x')),
-            (lt, utils.Priority.LOWEST, utils.Priority.HIGHEST),
+            (gt, utils.Priority.LOWEST, utils.Priority('x')),
+            (gt, utils.Priority.LOWEST, utils.Priority.HIGHEST),
 
             (eq, utils.Priority('x'), utils.Priority('x')),
             (lt, utils.Priority('x'), utils.Priority('y')),
             (gt, utils.Priority('x'), utils.Priority('w')),
-            (gt, utils.Priority('x'), utils.Priority.LOWEST),
-            (lt, utils.Priority('x'), utils.Priority.HIGHEST),
+            (lt, utils.Priority('x'), utils.Priority.LOWEST),
+            (gt, utils.Priority('x'), utils.Priority.HIGHEST),
 
             (eq, utils.Priority.HIGHEST, utils.Priority.HIGHEST),
-            (gt, utils.Priority.HIGHEST, utils.Priority('x')),
-            (gt, utils.Priority.HIGHEST, utils.Priority.LOWEST),
+            (lt, utils.Priority.HIGHEST, utils.Priority('x')),
+            (lt, utils.Priority.HIGHEST, utils.Priority.LOWEST),
         ]
         for assertion, left, right in test_data:
             assertion(left, right)
@@ -75,6 +82,47 @@ class UtilsTest(unittest.TestCase):
                 self.assertEqual(hash(left), hash(right))
             else:
                 self.assertNotEqual(hash(left), hash(right))
+
+    def test_priority_with_heap(self):
+
+        def heapsort(iterable):
+            heap = []
+            for value in iterable:
+                heapq.heappush(heap, value)
+            return [heapq.heappop(heap) for _ in range(len(heap))]
+
+        random.seed(4)
+
+        for expect in (
+                [],
+                [utils.Priority(0)],
+                [utils.Priority.HIGHEST],
+                [utils.Priority.LOWEST],
+
+                [utils.Priority(0), utils.Priority(0)],
+                [utils.Priority(0), utils.Priority(1)],
+                [utils.Priority(0), utils.Priority.LOWEST],
+                [utils.Priority.HIGHEST, utils.Priority(0)],
+                [utils.Priority.HIGHEST, utils.Priority.LOWEST],
+
+                [utils.Priority(0), utils.Priority(0), utils.Priority(0)],
+                [utils.Priority(0), utils.Priority(1), utils.Priority(2)],
+                [utils.Priority(0), utils.Priority(1), utils.Priority.LOWEST],
+                [utils.Priority.HIGHEST, utils.Priority(0), utils.Priority(1)],
+                [
+                    utils.Priority.HIGHEST,
+                    utils.Priority(0),
+                    utils.Priority.LOWEST,
+                ],
+                ):
+
+            actual = list(expect)
+            random.shuffle(actual)
+            actual = heapsort(actual)
+            self.assertListEqual(expect, actual)
+
+            actual = heapsort((reversed(expect)))
+            self.assertListEqual(expect, actual)
 
     def test_generate_names(self):
         names = utils.generate_names(name='hello')
