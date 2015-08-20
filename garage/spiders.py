@@ -93,12 +93,12 @@ class Spider:
 
         try:
             LOG.debug('enqueue %r', request)
-            self._task_queue.put(_Task(self, request, estimate))
+            self._task_queue.put(Task(self, request, estimate))
         except queues.Closed:
             LOG.error('task_queue is closed when adding %s', request.uri)
 
-    # Called from task.
-    def _process(self, request, estimate):
+    # Called by Task.
+    def process(self, request, estimate):
         LOG.info('request %s %s', request.method, request.uri)
         try:
             response = self._client.send(request)
@@ -120,22 +120,19 @@ class Spider:
         self._parser.on_estimate(estimate, document)
 
 
-class _Task(utils.Priority):
+class Task:
 
     def __init__(self, spider, request, estimate):
         if estimate is None:
-            priority = utils.Priority.LOWEST
+            self.priority = utils.Priority.LOWEST
         else:
-            priority = estimate
-        super().__init__(priority)
+            self.priority = utils.Priority(estimate)
         self.spider = spider
         self.request = request
         self.estimate = estimate
 
-    def __str__(self):
-        return '_Task(%r, %r, %r)' % (self.spider, self.estimate, self.request)
-
-    __repr__ = __str__
+    def __lt__(self, other):
+        return self.priority < other.priority
 
     def __call__(self):
-        self.spider._process(self.request, self.estimate)
+        self.spider.process(self.request, self.estimate)

@@ -5,6 +5,7 @@ import pathlib
 import socketserver
 
 from garage import spiders
+from garage.threads import queues
 
 import tests.http.server
 
@@ -65,6 +66,39 @@ class SpidersTest(unittest.TestCase):
                 },
                 uris,
             )
+
+
+class TaskTest(unittest.TestCase):
+
+    def test_task(self):
+        t_lp = spiders.Task(None, None, None)
+        t_0 = spiders.Task(None, None, 0)
+        t_1 = spiders.Task(None, None, 1)
+
+        self.assertLess(t_0, t_lp)
+        self.assertLess(t_1, t_lp)
+        self.assertLess(t_0, t_1)
+        self.assertGreater(t_lp, t_0)
+        self.assertGreater(t_lp, t_1)
+        self.assertGreater(t_1, t_0)
+
+        pqueue = queues.PriorityQueue()
+        pqueue.put(t_lp)
+        pqueue.put(t_1)
+        pqueue.put(t_0)
+        self.assertEqual(t_0, pqueue.get())
+        self.assertEqual(t_1, pqueue.get())
+        self.assertEqual(t_lp, pqueue.get())
+
+        self.assertNotEqual(
+            spiders.Task(None, None, None),
+            spiders.Task(None, None, None),
+        )
+
+        self.assertNotEqual(
+            spiders.Task(None, None, 0),
+            spiders.Task(None, None, 0),
+        )
 
 
 if __name__ == '__main__':
