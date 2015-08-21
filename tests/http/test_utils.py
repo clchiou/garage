@@ -14,6 +14,13 @@ from garage.http import utils
 from tests.http.mocks import *
 from tests.http.server import *
 
+try:
+    import lxml.etree
+except ImportError:
+    skip_dom_parsing = True
+else:
+    skip_dom_parsing = False
+
 
 class DownloadTest(unittest.TestCase):
 
@@ -194,6 +201,7 @@ class DownloadTest(unittest.TestCase):
 
 class FormTest(unittest.TestCase):
 
+    @unittest.skipIf(skip_dom_parsing, 'lxml.etree is not installed')
     def test_form(self):
         req_to_rep = {
             ('GET', 'http://uri_1/'): (

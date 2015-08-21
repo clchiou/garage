@@ -184,13 +184,14 @@ def _is_empty_dir(path):
         return False
 
 
-def form(client, uri, *,
-         form_xpath='//form',
-         form_data=None,
+def form(client, request, *,
          encoding=None,
-         kwargs=None):
+         form_xpath='//form',
+         form_data=None):
     """POST to an HTML form."""
-    response = client.get(uri, **(kwargs or {}))
+    if isinstance(request, str):
+        request = clients.Request('GET', request)
+    response = client.send(request)
     dom_tree = response.dom(encoding=encoding)
     forms = dom_tree.xpath(form_xpath)
     if len(forms) != 1:
