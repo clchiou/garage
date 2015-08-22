@@ -116,7 +116,12 @@ class Client(_ClientMixin):
     def headers(self):
         return self._session.headers
 
-    def update_cookiejar(self, cookie_dict):
+    @property
+    def cookies(self):
+        return self._session.cookies
+
+    def update_cookies(self, cookie_dict):
+        """Update cookies with a dict-like object."""
         requests.cookies.cookiejar_from_dict(
             cookie_dict, self._session.cookies
         )
@@ -172,8 +177,8 @@ class ForwardingClient(_ClientMixin):
     def headers(self):
         return self.client.headers
 
-    def update_cookiejar(self, cookie_dict):
-        self.client.update_cookiejar(cookie_dict)
+    def update_cookies(self, cookie_dict):
+        self.client.update_cookies(cookie_dict)
 
     def send(self, request, **kwargs):
         request = self.on_request(request)
