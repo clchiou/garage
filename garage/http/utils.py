@@ -15,7 +15,6 @@ from garage.http import clients
 
 
 LOG = logging.getLogger(__name__)
-LOG.addHandler(logging.NullHandler())
 
 
 _CHUNK_SIZE = 10 * 1024

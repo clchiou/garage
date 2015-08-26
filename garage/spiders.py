@@ -18,7 +18,6 @@ from garage.threads import utils
 
 
 LOG = logging.getLogger(__name__)
-LOG.addHandler(logging.NullHandler())
 
 
 class Parser:

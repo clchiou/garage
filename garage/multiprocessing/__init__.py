@@ -22,7 +22,6 @@ from garage.multiprocessing.client import RpcError
 
 
 LOG = logging.getLogger(__name__)
-LOG.addHandler(logging.NullHandler())
 
 
 @contextlib.contextmanager

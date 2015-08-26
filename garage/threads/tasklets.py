@@ -10,7 +10,6 @@ from garage.threads import utils
 
 
 LOG = logging.getLogger(__name__)
-LOG.addHandler(logging.NullHandler())
 
 
 def start_tasklet(task_queue):

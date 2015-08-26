@@ -26,7 +26,6 @@ from garage.http import policies
 
 
 LOG = logging.getLogger(__name__)
-LOG.addHandler(logging.NullHandler())
 
 
 _REQUEST_ARG_NAMES = frozenset(

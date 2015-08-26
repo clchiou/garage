@@ -61,7 +61,6 @@ from garage.threads import queues
 
 
 LOG = logging.getLogger(__name__)
-LOG.addHandler(logging.NullHandler())
 
 
 BUILD = object()

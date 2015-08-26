@@ -11,7 +11,6 @@ from garage.threads import utils
 
 
 LOG = logging.getLogger(__name__)
-LOG.addHandler(logging.NullHandler())
 
 
 def start_supervisor(num_actors, start_new_actor):

@@ -13,7 +13,6 @@ from multiprocessing.connection import Client
 
 
 LOG = logging.getLogger(__name__)
-LOG.addHandler(logging.NullHandler())
 
 
 class RpcError(Exception):
