@@ -19,8 +19,9 @@ import requests.cookies
 
 try:
     import lxml.etree
+    from lxml.etree import fromstring
 except ImportError:
-    pass
+    fromstring = None
 
 from garage.http import policies
 
@@ -223,10 +224,8 @@ class Response:
         return getattr(self._response, name)
 
     def dom(self, encoding=None):
-        try:
-            fromstring = lxml.etree.fromstring
-        except NameError as exc:
-            raise RuntimeError('lxml.etree is not installed') from exc
+        if fromstring is None:
+            raise RuntimeError('lxml.etree is not installed')
         parser = _get_parser(encoding or self.encoding)
         return fromstring(self.content, parser)
 

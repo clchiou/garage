@@ -9,6 +9,13 @@ from garage.threads import queues
 
 import tests.http.server
 
+try:
+    import lxml.etree
+except ImportError:
+    skip_dom_parsing = True
+else:
+    skip_dom_parsing = False
+
 
 class TestParser(spiders.Parser):
 
@@ -42,6 +49,7 @@ class SpidersTest(unittest.TestCase):
     def tearDown(self):
         socketserver.TCPServer.allow_reuse_address = False
 
+    @unittest.skipIf(skip_dom_parsing, 'lxml.etree is not installed')
     def test_spider(self):
         with contextlib.ExitStack() as stack:
             stack.enter_context(
