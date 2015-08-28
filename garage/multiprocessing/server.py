@@ -9,7 +9,6 @@ import os
 import os.path
 import sys
 import threading
-from argparse import Namespace
 from multiprocessing.connection import Listener
 
 
@@ -19,25 +18,15 @@ LOG_FORMAT = '%(asctime)s %(threadName)s %(levelname)s %(name)s: %(message)s'
 
 
 def run_server(listener):
-    server_vars = Namespace(
-        wait=threading.Event(),
-        exit=threading.Event(),
-        workers=[],
-    )
+    exit_flag = threading.Event()
     server_thread = threading.Thread(
         name='multiprocessing.server#server',
         target=server,
-        args=(listener, server_vars),
+        args=(listener, exit_flag),
     )
     server_thread.daemon = True
     server_thread.start()
-    wait_forever(server_vars.exit)
-    if server_vars.wait.is_set():
-        LOG.debug('wait workers')
-        for worker_thread in server_vars.workers:
-            worker_thread.join()
-        # We don't join on the server thread because unfortunately it
-        # will most likely be blocked on listener.accept().
+    wait_forever(exit_flag)
     LOG.info('exit')
 
 
@@ -47,25 +36,25 @@ def wait_forever(event):
         event.wait(3600)
 
 
-def server(listener, server_vars):
+def server(listener, exit_flag):
     LOG.info('start server')
+    num_workers = 0
     global_vars = {}
-    while not server_vars.exit.is_set():
+    while not exit_flag.is_set():
         conn = listener.accept()
         try:
             LOG.debug('accept %r', listener.last_accepted)
             worker = Worker(
                 closing(conn),
-                server_vars,
+                exit_flag,
                 global_vars,
                 listener.last_accepted,
             )
+            num_workers += 1
             worker_thread = threading.Thread(
-                name=('multiprocessing.server#worker-%02d' %
-                      (1 + len(server_vars.workers))),
+                name='multiprocessing.server#worker-%02d' % num_workers,
                 target=worker.run,
             )
-            server_vars.workers.append(worker_thread)
             worker_thread.daemon = True
             worker_thread.start()
             conn = None  # conn is transfered to the worker.
@@ -86,9 +75,9 @@ class Worker(object):
     ERROR_REQUIRE_VALUE = {'error': 'require value argument'}
     ERROR_REQUIRE_SOURCE = {'error': 'require source argument'}
 
-    def __init__(self, conn_manager, server_vars, global_vars, address):
+    def __init__(self, conn_manager, exit_flag, global_vars, address):
         self.conn_manager = conn_manager
-        self.server_vars = server_vars
+        self.exit_flag = exit_flag
         self.global_vars = global_vars
         if isinstance(address, tuple):
             self.filename = '%s:%s' % (address)
@@ -104,7 +93,7 @@ class Worker(object):
 
     def serve_forever(self, conn):
         conn.send(self.VERSION_INFO)
-        while not self.server_vars.exit.is_set():
+        while not self.exit_flag.is_set():
             if self.process_request(conn):
                 break
 
@@ -123,7 +112,6 @@ class Worker(object):
         handler = {
             'shutdown': self.do_shutdown,
             'close': self.do_close,
-            'server_set': self.do_server_set,
             'get': self.do_get,
             'set': self.do_set,
             'del': self.do_del,
@@ -142,30 +130,12 @@ class Worker(object):
             raise
 
     def do_shutdown(self, conn, _):
-        self.server_vars.exit.set()
+        self.exit_flag.set()
         conn.send(self.OKAY)
 
     def do_close(self, conn, _):
         conn.send(self.OKAY)
         return True
-
-    def do_server_set(self, conn, request):
-        name = request.get('name')
-        if not name:
-            conn.send(self.ERROR_REQUIRE_NAME)
-            return
-        if 'value' not in request:
-            conn.send(self.ERROR_REQUIRE_VALUE)
-            return
-        if name == 'graceful_shutdown':
-            if request['value']:
-                self.server_vars.wait.set()
-            else:
-                self.server_vars.wait.clear()
-        else:
-            conn.send({'error': 'unknown variable name', name: name})
-            return
-        conn.send(self.OKAY)
 
     def do_get(self, conn, request):
         name = request.get('name')

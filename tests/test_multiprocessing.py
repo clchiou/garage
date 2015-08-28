@@ -24,9 +24,6 @@ class PythonTest(unittest.TestCase):
     def test_python(self):
         with python(popen_kwargs={'stderr': subprocess.DEVNULL}) as connector:
             with connector.connect() as stub:
-                stub.server_vars.graceful_shutdown = True
-
-            with connector.connect() as stub:
                 stub.vars.x = 1
                 stub.execute('y = x * 2')
                 stub.execute(DEF_FUNC_1)
