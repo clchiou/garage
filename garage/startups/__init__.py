@@ -30,14 +30,16 @@ ARGV = 'argv'
 PARSE = 'parse'
 PARSER = 'parser'
 
+VERBOSE = __name__ + '#verbose'
+
 
 LOG_FORMAT = '%(asctime)s %(threadName)s %(levelname)s %(name)s: %(message)s'
 
 
-def add_arguments(parser: PARSER) -> PARSE:
+def add_arguments(parser: PARSER, verbose: VERBOSE) -> PARSE:
     group = parser.add_argument_group(garage.__name__)
     group.add_argument(
-        '-v', '--verbose', action='count', default=0,
+        '-v', '--verbose', action='count', default=verbose,
         help='verbose output')
 
 
@@ -62,7 +64,8 @@ def init():
 
 
 @run_once
-def init_logging():
+def init_logging(verbose=0):
     init()
+    startup.set(VERBOSE, verbose)
     startup(add_arguments)
     startup(configure)
