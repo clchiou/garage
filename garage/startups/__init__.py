@@ -10,6 +10,7 @@ The basic startup dependency graph is:
 __all__ = [
     'ARGS',
     'ARGV',
+    'EXIT_STACK',
     'PARSE',
     'PARSER',
     'init',
@@ -22,6 +23,7 @@ from garage.functools import run_once
 
 ARGS = 'args'
 ARGV = 'argv'
+EXIT_STACK = 'EXIT_STACK'
 PARSE = 'parse'
 PARSER = 'parser'
 

@@ -14,6 +14,7 @@ from garage.functools import run_once
 from garage.http import clients
 from garage.http import policies
 
+import garage.startups
 from garage.startups import ARGS, PARSE, PARSER
 
 
@@ -79,5 +80,6 @@ def make_client(
 
 @run_once
 def init():
+    garage.startups.init()
     startup(add_arguments)
     startup(configure)
