@@ -37,12 +37,8 @@ def make_dead_actor(event):
 class SupervisorsTest(unittest.TestCase):
 
     def test_supervisor(self):
-        self.run_supervisor_test(1, 1)
-        for num_actors in range(2, 10):
-            self.run_supervisor_test(
-                num_actors,
-                num_actors + num_actors // 2 - 1,
-            )
+        for num_actors in range(1, 10):
+            self.run_supervisor_test(num_actors, num_actors)
 
     def run_supervisor_test(self, num_actors, num_created):
         self.subTest(num_actors=num_actors, num_created=num_created)
@@ -52,13 +48,17 @@ class SupervisorsTest(unittest.TestCase):
         for stub in stubs:
             stub.start()
 
-        supervisor = supervisors.start_supervisor(num_actors, list(stubs).pop)
+        stubs_copy = list(stubs)
+        supervisor = supervisors.start_supervisor(num_actors, stubs_copy.pop)
 
         # Let LongRunning actors exit one by one...
         self.release_one_by_one(stubs, semaphore)
 
         self.assertIsNone(supervisor.get_future().result())
         self.assertTrue(supervisor.get_future().done())
+
+        # Exhaust all actors...
+        self.assertListEqual([], stubs_copy)
 
     def test_supervisor_on_error(self):
         num_actors = 4

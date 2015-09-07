@@ -33,7 +33,6 @@ class _Supervisor:
     def __init__(self, num_actors, start_new_actor):
         preconds.check_argument(num_actors > 0)
         self.num_actors = num_actors
-        self.num_actors_died = 0
         self.start_new_actor = start_new_actor
 
     @actors.method
@@ -41,21 +40,23 @@ class _Supervisor:
         LOG.info('start')
 
         actor_futures = {}
+        target = self.num_actors
         threshold = max(1, self.num_actors // 2)
         num_actors_crashed = 0
-        while self.num_actors_died < threshold:
+        while target > 0 and num_actors_crashed < threshold:
 
-            for _ in range(self.num_actors - len(actor_futures)):
-                stub = self.start_new_actor()
-                actor_futures[stub.get_future()] = stub
-                LOG.info('supervise actor %s', stub.name)
+            if target > len(actor_futures):
+                # Start actors to meet the target.
+                for _ in range(target - len(actor_futures)):
+                    stub = self.start_new_actor()
+                    actor_futures[stub.get_future()] = stub
+                    LOG.info('supervise actor %s', stub.name)
 
             done_actor_futures = futures.wait(
                 actor_futures,
                 return_when=futures.FIRST_COMPLETED,
             ).done
 
-            self.num_actors_died += len(done_actor_futures)
             for done_actor_future in done_actor_futures:
                 stub = actor_futures.pop(done_actor_future)
                 try:
@@ -64,6 +65,9 @@ class _Supervisor:
                     LOG.warning('actor has crashed: %s',
                                 stub.name, exc_info=True)
                     num_actors_crashed += 1
+                else:
+                    LOG.debug('actor exited normally: %s', stub.name)
+                    target -= 1
 
         if num_actors_crashed >= threshold:
             raise RuntimeError('actors have crashed: %d >= %d' %
