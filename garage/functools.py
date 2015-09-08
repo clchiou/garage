@@ -1,9 +1,10 @@
 __all__ = [
     'run_once',
     'is_ordered',
+    'unique',
+    'group',
     'memorize',
     'nondata_property',
-    'unique',
 ]
 
 import collections
@@ -41,6 +42,16 @@ def unique(iterable, key=None):
         return list(odict.values())
     else:
         return list(collections.OrderedDict.fromkeys(iterable))
+
+
+def group(iterable, key=None):
+    """Group elements by key, preserving orders."""
+    if key is None:
+        key = lambda element: element
+    odict = collections.OrderedDict()
+    for element in iterable:
+        odict.setdefault(key(element), []).append(element)
+    return list(odict.values())
 
 
 def memorize(method):

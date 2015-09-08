@@ -3,6 +3,7 @@ import unittest
 from garage.functools import run_once
 from garage.functools import is_ordered
 from garage.functools import unique
+from garage.functools import group
 from garage.functools import memorize
 from garage.functools import nondata_property
 
@@ -51,6 +52,11 @@ class FunctoolsTest(unittest.TestCase):
             ['a1', 'b2'],
             unique(['a1', 'b2', 'a2', 'b1'], key=lambda x: x[0]),
         )
+
+    def test_group(self):
+        self.assertListEqual([[3], [1], [2]], group([3, 1, 2]))
+        self.assertListEqual(
+            [[3, 3, 3], [1], [2, 2]], group([3, 1, 2, 3, 2, 3]))
 
 
 class Foo:
