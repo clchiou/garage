@@ -2,8 +2,11 @@ __all__ = [
     'FixedNamespace',
     'DictAsAttrs',
     'FixedKeysDict',
+    'ImmutableSortedDict',
 ]
 
+from collections import OrderedDict
+from collections import Mapping
 from collections import MutableMapping
 
 
@@ -85,3 +88,18 @@ class FixedNamespace(DictAsAttrs):
             '%s=%r' % (name, getattr(self, name)) for name in dir(self)
         )
         return '%s(%s)' % (self.__class__.__name__, fields)
+
+
+class ImmutableSortedDict(Mapping):
+
+    def __init__(self, **kwargs):
+        self._data = OrderedDict((key, kwargs[key]) for key in sorted(kwargs))
+
+    def __getitem__(self, key):
+        return self._data[key]
+
+    def __len__(self):
+        return len(self._data)
+
+    def __iter__(self):
+        return iter(self._data)

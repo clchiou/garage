@@ -3,6 +3,7 @@ import unittest
 from garage.collections import FixedNamespace
 from garage.collections import DictAsAttrs
 from garage.collections import FixedKeysDict
+from garage.collections import ImmutableSortedDict
 
 
 class CollectionsTest(unittest.TestCase):
@@ -55,6 +56,15 @@ class CollectionsTest(unittest.TestCase):
             data['c'] = 3
 
         with self.assertRaises(KeyError):
+            del data['a']
+
+    def test_immutable_sorted_dict(self):
+        data = ImmutableSortedDict(b=2, a=1, c=3)
+        self.assertListEqual(list('abc'), list(data.keys()))
+        self.assertListEqual([1, 2, 3], list(data.values()))
+        with self.assertRaises(TypeError):
+            data['c'] = 3
+        with self.assertRaises(TypeError):
             del data['a']
 
 
