@@ -1,21 +1,51 @@
 import unittest
 
+import datetime
 import json
 
 from garage.collections import ImmutableSortedDict
+from garage.json import encode_datetime
 from garage.json import encode_mapping
+from garage.json import join_encoders
 
 
 class JsonTest(unittest.TestCase):
 
-    def test_okay(self):
+    def test_encoders(self):
+        dt = datetime.datetime(2000, 1, 2, 3, 4, 5, 6)
+        dt_json = '"2000-01-02T03:04:05.000006"'
+
+        mapping = ImmutableSortedDict(c=3, a=1, b=2)
+        mapping_json = '{"a": 1, "b": 2, "c": 3}'
+
         with self.assertRaises(TypeError):
-            json.dumps(ImmutableSortedDict(c=3, a=1, b=2))
+            json.dumps(dt)
+
+        with self.assertRaises(TypeError):
+            json.dumps(mapping)
 
         self.assertEqual(
-            '''{"a": 1, "b": 2, "c": 3}''',
-            json.dumps(ImmutableSortedDict(c=3, a=1, b=2),
-                       default=encode_mapping),
+            dt_json,
+            json.dumps(dt, default=encode_datetime),
+        )
+
+        self.assertEqual(
+            dt_json,
+            json.dumps(
+                dt, default=join_encoders(encode_mapping, encode_datetime)
+            ),
+        )
+
+        self.assertEqual(
+            mapping_json,
+            json.dumps(mapping, default=encode_mapping),
+        )
+
+        self.assertEqual(
+            mapping_json,
+            json.dumps(
+                mapping, default=join_encoders(encode_datetime, encode_mapping)
+            ),
         )
 
 
