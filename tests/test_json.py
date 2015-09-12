@@ -7,13 +7,14 @@ from garage.collections import ImmutableSortedDict
 from garage.json import encode_datetime
 from garage.json import encode_mapping
 from garage.json import join_encoders
+from garage.timezones import TimeZone
 
 
 class JsonTest(unittest.TestCase):
 
     def test_encoders(self):
-        dt = datetime.datetime(2000, 1, 2, 3, 4, 5, 6)
-        dt_json = '"2000-01-02T03:04:05.000006"'
+        dt = datetime.datetime(2000, 1, 2, 3, 4, 5, 6, TimeZone.UTC)
+        dt_json = '"2000-01-02T03:04:05.000006+00:00"'
 
         mapping = ImmutableSortedDict(c=3, a=1, b=2)
         mapping_json = '{"a": 1, "b": 2, "c": 3}'
