@@ -7,6 +7,7 @@ setup(
     license = 'MIT',
     packages = find_packages(),
     install_requires = [
+        'PyYAML',
         'lxml',
         'requests',
         'startup',
