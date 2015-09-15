@@ -10,7 +10,6 @@ class TimeZoneTest(unittest.TestCase):
     def test_time_zone(self):
         utc = datetime.datetime(2000, 1, 2, 3, 4, 0, 0, TimeZone.UTC)
         cst = utc.astimezone(TimeZone.CST)
-        print('xxx', utc, cst)
         self.assertEqual(2000, cst.year)
         self.assertEqual(1, cst.month)
         self.assertEqual(2, cst.day)
