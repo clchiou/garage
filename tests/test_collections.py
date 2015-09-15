@@ -1,6 +1,6 @@
 import unittest
 
-from garage.collections import FixedNamespace
+from garage.collections import Namespace
 from garage.collections import DictAsAttrs
 from garage.collections import FixedKeysDict
 from garage.collections import ImmutableSortedDict
@@ -9,7 +9,7 @@ from garage.collections import ImmutableSortedDict
 class CollectionsTest(unittest.TestCase):
 
     def test_fixed_namespace(self):
-        ns = FixedNamespace(x=1, y=2)
+        ns = Namespace(x=1, y=2)
 
         self.assertEqual(1, ns.x)
         self.assertEqual(2, ns.y)

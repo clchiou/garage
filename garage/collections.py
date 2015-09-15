@@ -1,5 +1,5 @@
 __all__ = [
-    'FixedNamespace',
+    'Namespace',
     'DictAsAttrs',
     'FixedKeysDict',
     'ImmutableSortedDict',
@@ -72,7 +72,7 @@ class FixedKeysDict(MutableMapping):
         raise KeyError(key)
 
 
-class FixedNamespace(DictAsAttrs):
+class Namespace(DictAsAttrs):
 
     def __init__(self, **kwargs):
         super().__init__(FixedKeysDict(**kwargs))

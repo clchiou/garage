@@ -34,7 +34,7 @@ __all__ = [
 
 from startup import Startup, startup
 
-from garage.collections import FixedNamespace
+from garage.collections import Namespace
 
 
 # These are used in the first stage startup.
@@ -69,7 +69,7 @@ class LazyStartup:
         if self._vars is None:
             # XXX: Although variables might overwrite each other, at
             # least we have a predictive order of that...
-            self._vars = FixedNamespace(**{
+            self._vars = Namespace(**{
                 name[name.rfind(':')+1:]: self.variables[name]
                 for name in sorted(self.variables)
             })
