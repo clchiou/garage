@@ -10,11 +10,10 @@ from startup import startup
 from garage.functools import run_once
 
 import garage
-import garage.startups
 from garage.startups import ARGS, PARSE, PARSER
 
 
-VERBOSE = __name__ + '#verbose'
+VERBOSE = __name__ + ':verbose'
 
 
 LOG_FORMAT = '%(asctime)s %(threadName)s %(levelname)s %(name)s: %(message)s'
@@ -40,8 +39,6 @@ def configure(args: ARGS):
 
 @run_once
 def init(verbose=0):
-    garage.startups.init()
-
     # XXX: Hack for manipulating startup order.
     add_arguments.__module__ = garage.__name__
     configure.__module__ = garage.__name__

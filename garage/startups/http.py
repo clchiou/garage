@@ -1,11 +1,9 @@
 """Initialize garage.http."""
 
 __all__ = [
-    'MAKE_CLIENT',
+    'CLIENT',
     'init',
 ]
-
-import functools
 
 from startup import startup
 
@@ -14,11 +12,11 @@ from garage.functools import run_once
 from garage.http import clients
 from garage.http import policies
 
-import garage.startups
 from garage.startups import ARGS, PARSE, PARSER
+from garage.startups import components
 
 
-MAKE_CLIENT = __name__ + '#make_client'
+CLIENT = __name__ + ':client'
 
 
 HTTP_USER_AGENT = (
@@ -45,27 +43,14 @@ def add_arguments(parser: PARSER) -> PARSE:
              """)
 
 
-def configure(args: ARGS) -> MAKE_CLIENT:
-    return functools.partial(
-        make_client,
-        args.http_user_agent,
-        args.http_max_requests,
-        args.http_retry,
-    )
-
-
-def make_client(
-        http_user_agent,
-        http_max_requests,
-        http_retry):
-
-    if http_max_requests > 0:
-        rate_limit = policies.MaxConcurrentRequests(http_max_requests)
+def make_client(args: ARGS) -> CLIENT:
+    if args.http_max_requests > 0:
+        rate_limit = policies.MaxConcurrentRequests(args.http_max_requests)
     else:
         rate_limit = policies.Unlimited()
 
-    if http_retry > 0:
-        retry_policy = policies.BinaryExponentialBackoff(http_retry)
+    if args.http_retry > 0:
+        retry_policy = policies.BinaryExponentialBackoff(args.http_retry)
     else:
         retry_policy = policies.NoRetry()
 
@@ -73,13 +58,11 @@ def make_client(
         rate_limit=rate_limit,
         retry_policy=retry_policy,
     )
-    client.headers['User-Agent'] = http_user_agent
-
+    client.headers['User-Agent'] = args.http_user_agent
     return client
 
 
 @run_once
 def init():
-    garage.startups.init()
     startup(add_arguments)
-    startup(configure)
+    components.startup(make_client)
