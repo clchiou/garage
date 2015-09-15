@@ -67,9 +67,11 @@ class LazyStartup:
     @property
     def vars(self):
         if self._vars is None:
+            # XXX: Although variables might overwrite each other, at
+            # least we have a predictive order of that...
             self._vars = FixedNamespace(**{
-                name[name.rfind(':')+1:]: value
-                for name, value in self.variables.items()
+                name[name.rfind(':')+1:]: self.variables[name]
+                for name in sorted(self.variables)
             })
         return self._vars
 

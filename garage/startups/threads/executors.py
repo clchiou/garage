@@ -25,7 +25,7 @@ MAX_WORKERS = 8
 def add_arguments(parser: PARSER) -> PARSE:
     group = parser.add_argument_group(executors.__name__)
     group.add_argument(
-        '--executor-workers', default=MAX_WORKERS,
+        '--executor-workers', default=MAX_WORKERS, type=int,
         help="""set number of workers per executor
                 (default to %(default)s)
              """)
