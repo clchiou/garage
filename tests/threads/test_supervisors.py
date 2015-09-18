@@ -38,11 +38,10 @@ class SupervisorsTest(unittest.TestCase):
 
     def test_supervisor(self):
         for num_actors in range(1, 10):
-            self.run_supervisor_test(num_actors, num_actors)
+            with self.subTest(num_actors=num_actors):
+                self.run_supervisor_test(num_actors, num_actors)
 
     def run_supervisor_test(self, num_actors, num_created):
-        self.subTest(num_actors=num_actors, num_created=num_created)
-
         semaphore = threading.Semaphore(value=0)
         stubs = [LongRunning(semaphore) for _ in range(num_created)]
         for stub in stubs:
