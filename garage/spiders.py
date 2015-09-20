@@ -38,6 +38,13 @@ class Parser:
         """
         return True
 
+    def on_parse_error(self, request, response, error):
+        """Called on error during parse().
+
+           Return True for re-raising the exception.
+        """
+        return True
+
     def on_document(self, document):
         """Further processing of the document."""
 
@@ -110,7 +117,13 @@ class Spider:
                 raise
             return
 
-        document = self._parser.parse(request, response)
+        try:
+            document = self._parser.parse(request, response)
+        except Exception as exc:
+            LOG.exception('cannot parse %s %s', request.method, request.uri)
+            if self._parser.on_parse_error(request, response, exc):
+                raise
+            return
 
         if document is None:
             LOG.debug('cannot parse %s %s', request.method, request.uri)
