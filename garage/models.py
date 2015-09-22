@@ -9,6 +9,8 @@ from collections import OrderedDict
 from collections import namedtuple
 from functools import partialmethod
 
+from garage.collections import DictAsAttrs
+
 
 class Field:
 
@@ -17,8 +19,9 @@ class Field:
             raise TypeError('field cannot start with underscore: %r' % name)
         self.name = name
         self.attrs = OrderedDict((key, attrs[key]) for key in sorted(attrs))
+        self.a = DictAsAttrs(self.attrs)
 
-    def getattr(self, obj):
+    def get_attr_as_pair(self, obj):
         return (self.name, getattr(obj, self.name))
 
 
@@ -38,14 +41,16 @@ class Model:
     def __init__(self, name, *fields, **attrs):
         self.name = name
         self.attrs = OrderedDict((key, attrs[key]) for key in sorted(attrs))
-        self._fields = OrderedDict((field.name, field) for field in fields)
+        self.fields = OrderedDict((field.name, field) for field in fields)
+        self.a = DictAsAttrs(self.attrs)
+        self.f = DictAsAttrs(self.fields)
 
     def __iter__(self):
-        return iter(self._fields.values())
+        return iter(self.fields.values())
 
     def field(self, name, **attrs):
         field = Field(name, **attrs)
-        self._fields[field.name] = field
+        self.fields[field.name] = field
         return self
 
     def make_namedtuple(self, name=None):
@@ -82,4 +87,5 @@ class Model:
         }
         namespace['__init__'] = __init__
         namespace['__call__'] = __call__
+
         return namespace
