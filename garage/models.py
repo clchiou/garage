@@ -3,6 +3,7 @@
 __all__ = [
     'Model',
     'Field',
+    'Ref',
 ]
 
 from collections import OrderedDict
@@ -10,19 +11,6 @@ from collections import namedtuple
 from functools import partialmethod
 
 from garage.collections import DictAsAttrs
-
-
-class Field:
-
-    def __init__(self, name, **attrs):
-        if name.startswith('_'):
-            raise TypeError('field cannot start with underscore: %r' % name)
-        self.name = name
-        self.attrs = OrderedDict((key, attrs[key]) for key in sorted(attrs))
-        self.a = DictAsAttrs(self.attrs)
-
-    def get_attr_as_pair(self, obj):
-        return (self.name, getattr(obj, self.name))
 
 
 class Model:
@@ -89,3 +77,34 @@ class Model:
         namespace['__call__'] = __call__
 
         return namespace
+
+
+class Field:
+
+    def __init__(self, name, **attrs):
+        if name.startswith('_'):
+            raise TypeError('field cannot start with underscore: %r' % name)
+        self.name = name
+        self.attrs = OrderedDict((key, attrs[key]) for key in sorted(attrs))
+        self.a = DictAsAttrs(self.attrs)
+
+    def get_attr_as_pair(self, obj):
+        return (self.name, getattr(obj, self.name))
+
+
+class Ref:
+
+    def __init__(self, name):
+        self.name = name
+
+    def deref(self, context):
+        names = self.name.split('.')
+        try:
+            value = context[names[0]]
+        except KeyError:
+            raise AttributeError(
+                'cannot find variable %r (part of %r) in context %r' %
+                (names[0], self.name, context))
+        for name in names[1:]:
+            value = getattr(value, name)
+        return value
