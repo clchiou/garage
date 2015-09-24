@@ -28,20 +28,39 @@ class ModelsTest(unittest.TestCase):
         p = Point(1, 2)
         q = Point(3, p)
 
-        ref = models.Ref('p')
-        self.assertEqual(p, ref.deref({'p': p}))
+        refs = models.Refs()
 
-        ref = models.Ref('p.x')
-        self.assertEqual(1, ref.deref({'p': p}))
+        ref = refs.ref('p')
+        refs.context = {'p': p}
+        self.assertEqual(p, ref.deref())
 
-        ref = models.Ref('q.y.y')
-        self.assertEqual(2, ref.deref({'q': q}))
+        ref = refs.ref('p.x')
+        refs.context = {'p': p}
+        self.assertEqual(1, ref.deref())
 
+        ref = refs.ref('q.y.y')
+        refs.context = {'q': q}
+        self.assertEqual(2, ref.deref())
+
+        refs.context = {}
         with self.assertRaises(AttributeError):
-            ref.deref({})
+            ref.deref()
 
+        refs.context = {'p': p}
         with self.assertRaises(AttributeError):
-            models.Ref('p.z').deref({'p': p})
+            refs.ref('p.z').deref()
+
+    def test_deref(self):
+        refs = models.Refs()
+        model = models.Model(
+            'model',
+            models.Field('field', ref=refs.ref('x')),
+            ref=refs.ref('y'),
+        )
+        refs.context['x'] = 1
+        refs.context['y'] = 2
+        self.assertEqual(1, model.f.field.a.ref)
+        self.assertEqual(2, model.a.ref)
 
 
 if __name__ == '__main__':

@@ -3,11 +3,10 @@
 __all__ = [
     'Model',
     'Field',
-    'Ref',
+    'Refs',
 ]
 
-from collections import OrderedDict
-from collections import namedtuple
+from collections import OrderedDict, UserDict, namedtuple
 from functools import partialmethod
 
 from garage.collections import DictAsAttrs
@@ -28,7 +27,8 @@ class Model:
 
     def __init__(self, name, *fields, **attrs):
         self.name = name
-        self.attrs = OrderedDict((key, attrs[key]) for key in sorted(attrs))
+        self.attrs = DerefDict(
+            OrderedDict((key, attrs[key]) for key in sorted(attrs)))
         self.fields = OrderedDict((field.name, field) for field in fields)
         self.a = DictAsAttrs(self.attrs)
         self.f = DictAsAttrs(self.fields)
@@ -85,26 +85,49 @@ class Field:
         if name.startswith('_'):
             raise TypeError('field cannot start with underscore: %r' % name)
         self.name = name
-        self.attrs = OrderedDict((key, attrs[key]) for key in sorted(attrs))
+        self.attrs = DerefDict(
+            OrderedDict((key, attrs[key]) for key in sorted(attrs)))
         self.a = DictAsAttrs(self.attrs)
 
     def get_attr_as_pair(self, obj):
         return (self.name, getattr(obj, self.name))
 
 
-class Ref:
+class DerefDict(UserDict):
 
-    def __init__(self, name):
-        self.name = name
+    def __init__(self, data):
+        super().__init__()
+        self.data = data
 
-    def deref(self, context):
-        names = self.name.split('.')
-        try:
-            value = context[names[0]]
-        except KeyError:
-            raise AttributeError(
-                'cannot find variable %r (part of %r) in context %r' %
-                (names[0], self.name, context))
-        for name in names[1:]:
-            value = getattr(value, name)
+    def __getitem__(self, key):
+        value = super().__getitem__(key)
+        if isinstance(value, Refs.Ref):
+            value = value.deref()
         return value
+
+
+class Refs:
+
+    class Ref:
+
+        def __init__(self, refs, name):
+            self.refs = refs
+            self.name = name
+
+        def deref(self):
+            names = self.name.split('.')
+            try:
+                value = self.refs.context[names[0]]
+            except KeyError:
+                raise AttributeError(
+                    'cannot find variable %r (part of %r) in context %r' %
+                    (names[0], self.name, self.refs.context))
+            for name in names[1:]:
+                value = getattr(value, name)
+            return value
+
+    def __init__(self):
+        self.context = {}
+
+    def ref(self, name):
+        return Refs.Ref(self, name)
