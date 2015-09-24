@@ -6,7 +6,7 @@ __all__ = [
     'Refs',
 ]
 
-from collections import OrderedDict, UserDict, namedtuple
+from collections import ChainMap, OrderedDict, UserDict, namedtuple
 from functools import partialmethod
 
 from garage.collections import DictAsAttrs
@@ -127,7 +127,18 @@ class Refs:
             return value
 
     def __init__(self):
-        self.context = {}
+        self._context = ChainMap()
+
+    @property
+    def context(self):
+        return self._context
+
+    def __enter__(self):
+        self._context.maps.insert(0, {})
+        return self._context
+
+    def __exit__(self, *_):
+        self._context.maps.pop(0)
 
     def ref(self, name):
         return Refs.Ref(self, name)

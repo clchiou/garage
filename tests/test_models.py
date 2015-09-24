@@ -31,24 +31,27 @@ class ModelsTest(unittest.TestCase):
         refs = models.Refs()
 
         ref = refs.ref('p')
-        refs.context = {'p': p}
-        self.assertEqual(p, ref.deref())
+        with refs as context:
+            context['p'] = p
+            self.assertEqual(p, ref.deref())
 
         ref = refs.ref('p.x')
-        refs.context = {'p': p}
-        self.assertEqual(1, ref.deref())
+        with refs as context:
+            context['p'] = p
+            self.assertEqual(1, ref.deref())
 
         ref = refs.ref('q.y.y')
-        refs.context = {'q': q}
-        self.assertEqual(2, ref.deref())
+        with refs as context:
+            context['q'] = q
+            self.assertEqual(2, ref.deref())
 
-        refs.context = {}
         with self.assertRaises(AttributeError):
             ref.deref()
 
-        refs.context = {'p': p}
-        with self.assertRaises(AttributeError):
-            refs.ref('p.z').deref()
+        with refs as context:
+            context['p'] = p
+            with self.assertRaises(AttributeError):
+                refs.ref('p.z').deref()
 
     def test_deref(self):
         refs = models.Refs()
