@@ -89,9 +89,6 @@ class Field:
             OrderedDict((key, attrs[key]) for key in sorted(attrs)))
         self.a = DictAsAttrs(self.attrs)
 
-    def get_attr_as_pair(self, obj):
-        return (self.name, getattr(obj, self.name))
-
 
 class DerefDict(UserDict):
 
