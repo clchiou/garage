@@ -31,10 +31,6 @@ def add_arguments(parser: PARSER) -> PARSE:
              """)
 
 
-def make_worker_pool() -> WORKER_POOL:
-    return executors.WorkerPool()
-
-
 def make_make_executor(worker_pool: WORKER_POOL, args: ARGS) -> MAKE_EXECUTOR:
     return functools.partial(worker_pool.make_executor, args.executor_workers)
 
@@ -42,5 +38,6 @@ def make_make_executor(worker_pool: WORKER_POOL, args: ARGS) -> MAKE_EXECUTOR:
 @run_once
 def init():
     startup(add_arguments)
-    components.startup(make_worker_pool)
+    components.startup.add_func(
+        executors.WorkerPool, annotations={'return': WORKER_POOL})
     components.startup(make_make_executor)
