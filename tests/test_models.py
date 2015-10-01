@@ -42,7 +42,7 @@ class ModelsTest(unittest.TestCase):
             with self.assertRaises(AttributeError):
                 refs.ref('p.z').deref()
 
-    def test_deref(self):
+    def test_auto_deref(self):
         refs = models.Refs()
         model = models.Model(
             'model',

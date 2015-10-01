@@ -28,7 +28,7 @@ class Model:
         if name.startswith('_'):
             raise TypeError('model cannot start with underscore: %r' % name)
         self.name = name
-        self.attrs = DerefDict(
+        self.attrs = AutoDerefDictProxy(
             OrderedDict((key, attrs[key]) for key in sorted(attrs)))
         self.fields = OrderedDict((field.name, field) for field in fields)
         self.a = DictAsAttrs(self.attrs)
@@ -49,12 +49,12 @@ class Field:
         if name.startswith('_'):
             raise TypeError('field cannot start with underscore: %r' % name)
         self.name = name
-        self.attrs = DerefDict(
+        self.attrs = AutoDerefDictProxy(
             OrderedDict((key, attrs[key]) for key in sorted(attrs)))
         self.a = DictAsAttrs(self.attrs)
 
 
-class DerefDict(UserDict):
+class AutoDerefDictProxy(UserDict):
 
     def __init__(self, data):
         super().__init__()
