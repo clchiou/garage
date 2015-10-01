@@ -11,24 +11,16 @@ POINT_MODEL = models.Model(
 )
 
 
-class ModelsTest(unittest.TestCase):
+class BaseTest(unittest.TestCase):
 
-    def test_dict_builder(self):
-        PointBuilder = base.make_dict_builder(POINT_MODEL, name='PointBuilder')
+    def test_as_dict(self):
+        Point = base.make_namedtuple(POINT_MODEL, name='Point')
 
-        p0 = PointBuilder().x(1).y(2)()
-        self.assertDictEqual({'x': 1, 'y': 2}, p0)
+        as_dict = base.make_as_dict(POINT_MODEL, cls=dict)
+        self.assertDictEqual({'x': 1, 'y': 2}, as_dict(Point(1, 2)))
 
-        p1 = PointBuilder().x(3).y(4)()
-        self.assertDictEqual({'x': 3, 'y': 4}, p1)
-
-        p2 = PointBuilder(p0).x(5)()
-        self.assertDictEqual({'x': 5, 'y': 2}, p2)
-
-        with self.assertRaises(KeyError):
-            PointBuilder().x(1)()
-
-        self.assertIs(POINT_MODEL, PointBuilder._model)
+        as_dict = base.make_as_dict([POINT_MODEL.f.x])
+        self.assertDictEqual({'x': 1}, as_dict(Point(1, 2)))
 
     def test_namedtuple(self):
         Point = base.make_namedtuple(POINT_MODEL, name='Point')
