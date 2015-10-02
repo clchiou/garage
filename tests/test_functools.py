@@ -4,6 +4,7 @@ from garage.functools import run_once
 from garage.functools import is_ordered
 from garage.functools import unique
 from garage.functools import group
+from garage.functools import with_defaults
 from garage.functools import memorize
 from garage.functools import nondata_property
 
@@ -57,6 +58,16 @@ class FunctoolsTest(unittest.TestCase):
         self.assertListEqual([[3], [1], [2]], group([3, 1, 2]))
         self.assertListEqual(
             [[3, 3, 3], [1], [2, 2]], group([3, 1, 2, 3, 2, 3]))
+
+    def test_with_defaults(self):
+
+        def func(*args, **kwargs):
+            return args, kwargs
+
+        func2 = with_defaults(func, {'x': 1, 'y': 2})
+        args, kwargs = func2('a', 'b', 'c', z=3)
+        self.assertTupleEqual(('a', 'b', 'c'), args)
+        self.assertDictEqual(dict(x=1, y=2, z=3), kwargs)
 
 
 class Foo:

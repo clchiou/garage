@@ -3,6 +3,7 @@ __all__ = [
     'is_ordered',
     'unique',
     'group',
+    'with_defaults',
     'memorize',
     'nondata_property',
 ]
@@ -52,6 +53,18 @@ def group(iterable, key=None):
     for element in iterable:
         odict.setdefault(key(element), []).append(element)
     return list(odict.values())
+
+
+def with_defaults(func, defaults):
+    """Wrap a function with default kwargs."""
+
+    @functools.wraps(func)
+    def call_with_defaults(*args, **kwargs):
+        kwargs_plus_defaults = defaults.copy()
+        kwargs_plus_defaults.update(kwargs)
+        return func(*args, **kwargs_plus_defaults)
+
+    return call_with_defaults
 
 
 def memorize(method):
