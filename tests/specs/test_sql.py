@@ -21,7 +21,7 @@ class SqlTest(unittest.TestCase):
             .field('f0', sql=sql.column_spec(
                 type=String, extra_attrs={'unique': True}))
             .field('f1', sql=sql.column_spec(
-                is_primary_key=True, is_natural_key=True, type=Integer))
+                is_primary_key=True, type=Integer))
         )
 
         m1 = (

@@ -36,7 +36,6 @@ table_spec = with_defaults(
 COLUMN_SPEC_MODEL = (
     models.Model('COLUMN_SPEC_MODEL')
     .field('is_primary_key', doc="""Indicate this column is a primary key.""")
-    .field('is_natural_key', doc="""Indicate this column is a natural key.""")
     .field('foreign_key_spec', doc="""Specify foreign key relationship.""")
     .field('type', doc="""SQL storage type.""")
     .field('extra_attrs', doc="""Additional column attributes.""")
@@ -47,7 +46,6 @@ column_spec = with_defaults(
     base.make_namedtuple(COLUMN_SPEC_MODEL, name='ColumnSpec'),
     {
         'is_primary_key': False,
-        'is_natural_key': False,
         'foreign_key_spec': None,
         'type': None,
         'extra_attrs': {},
