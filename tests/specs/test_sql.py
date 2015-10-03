@@ -1,16 +1,23 @@
 import unittest
 
+from contextlib import closing
+
 from sqlalchemy import (
+    MetaData,
     Column,
     ForeignKey,
     Integer,
     String,
+    create_engine,
+    select,
 )
 
 from garage import models
+from garage.specs import base
 from garage.specs import sql
 
 import garage.specs.sql.tables  # as sql.tables
+import garage.specs.sql.utils # as sql.utils
 
 
 class SqlTest(unittest.TestCase):
@@ -75,6 +82,37 @@ class SqlTest(unittest.TestCase):
             self.assertEqual(name, columns[i].name)
             self.assertTrue(isinstance(columns[i].type, type_cls))
             self.assertTrue(columns[i].primary_key)
+
+    def test_insert(self):
+        model = (
+            models.Model('model', sql=sql.table_spec(name='table'))
+            .field('f0', sql=sql.column_spec(
+                type=String, extra_attrs={'unique': True}))
+            .field('f1', sql=sql.column_spec(
+                type=Integer))
+        )
+
+        Obj = base.make_namedtuple(model, 'Obj')
+
+        metadata = MetaData()
+        table = sql.tables.make_table(model, metadata)
+        engine = create_engine('sqlite://')
+        metadata.create_all(engine)
+
+        insert = sql.utils.make_insert(model)
+
+        with closing(engine.connect()) as conn:
+
+            # table.f0 is unique and 'x' is duplicated...
+            insert(table, conn, [(Obj('x', 1), None)])
+            insert(table, conn, [(Obj('x', 1), None)])
+            insert(table, conn, [(Obj('x', 2), None)])
+            insert(table, conn, [(Obj('y', 0), {'f1': 1})])
+
+            query = select([table.c.f0, table.c.f1])
+            with closing(conn.execute(query)) as result:
+                objs = {Obj(*item) for item in result}
+            self.assertSetEqual({Obj('x', 1), Obj('y', 1)}, objs)
 
 
 if __name__ == '__main__':
