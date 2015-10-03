@@ -18,6 +18,7 @@ TABLE_SPEC_MODEL = (
     models.Model('TABLE_SPEC_MODEL')
     .field('name', doc="""SQL table name.""")
     .field('short_name', doc="""Shorter name for junction tables.""")
+    .field('column_attrs', doc="""Default column attributes""")
     .field('extra_columns', doc="""More SQL columns""")
 )
 
@@ -26,6 +27,7 @@ table_spec = with_defaults(
     base.make_namedtuple(TABLE_SPEC_MODEL, 'TableSpec'),
     {
         'short_name': None,
+        'column_attrs': {},
         'extra_columns': (),
     },
 )

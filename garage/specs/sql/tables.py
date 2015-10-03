@@ -29,6 +29,7 @@ def make_table(model, metadata, *, spec_attr=sql.SPEC_ATTR_NAME):
 
 
 def iter_columns(model, *, spec_attr=sql.SPEC_ATTR_NAME):
+    table_spec = model.attrs[spec_attr]
     for field in model:
         column_spec = field.attrs.get(spec_attr)
         if column_spec is None:
@@ -42,7 +43,8 @@ def iter_columns(model, *, spec_attr=sql.SPEC_ATTR_NAME):
                 field.name, column_spec.foreign_key_spec, spec_attr)
         else:
             preconds.check_state(column_spec.type is not None)
-            attrs = column_spec.extra_attrs.copy()
+            attrs = table_spec.column_attrs.copy()
+            attrs.update(column_spec.extra_attrs)
             if column_spec.is_primary_key:
                 attrs['primary_key'] = True
             yield Column(field.name, column_spec.type, **attrs)
