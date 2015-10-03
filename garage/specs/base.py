@@ -3,11 +3,11 @@ __all__ = [
     'make_namedtuple',
 ]
 
-from collections import OrderedDict, namedtuple
+from collections import namedtuple
 from functools import partial
 
 
-def make_as_dict(fields, cls=OrderedDict):
+def make_as_dict(fields, cls=dict):
     return partial(as_dict, cls=cls, names=tuple(f.name for f in fields))
 
 
