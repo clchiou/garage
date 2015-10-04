@@ -92,7 +92,7 @@ class SqlTest(unittest.TestCase):
                 type=Integer))
         )
 
-        Obj = base.make_namedtuple(model, 'Obj')
+        Obj = base.make_as_namespace(model)
 
         metadata = MetaData()
         table = sql.tables.make_table(model, metadata)
@@ -111,8 +111,9 @@ class SqlTest(unittest.TestCase):
 
             query = select([table.c.f0, table.c.f1])
             with closing(conn.execute(query)) as result:
-                objs = {Obj(*item) for item in result}
-            self.assertSetEqual({Obj('x', 1), Obj('y', 1)}, objs)
+                objs = [tuple(item) for item in result]
+            self.assertEqual(2, len(objs))
+            self.assertSetEqual({('x', 1), ('y', 1)}, set(objs))
 
 
 if __name__ == '__main__':

@@ -24,7 +24,7 @@ TABLE_SPEC_MODEL = (
 
 
 table_spec = with_defaults(
-    base.make_namedtuple(TABLE_SPEC_MODEL, 'TableSpec'),
+    base.make_as_namespace(TABLE_SPEC_MODEL),
     {
         'short_name': None,
         'column_attrs': {},
@@ -43,7 +43,7 @@ COLUMN_SPEC_MODEL = (
 
 
 column_spec = with_defaults(
-    base.make_namedtuple(COLUMN_SPEC_MODEL, name='ColumnSpec'),
+    base.make_as_namespace(COLUMN_SPEC_MODEL),
     {
         'is_primary_key': False,
         'foreign_key_spec': None,
@@ -61,7 +61,7 @@ FOREIGN_KEY_SPEC_MODEL = (
 
 
 foreign_key_spec = with_defaults(
-    base.make_namedtuple(FOREIGN_KEY_SPEC_MODEL, name='ForeignKeySpec'),
+    base.make_as_namespace(FOREIGN_KEY_SPEC_MODEL),
     {
         'field_name': None,
     },

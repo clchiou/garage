@@ -4,6 +4,7 @@ __all__ = [
     'Model',
     'Field',
     'Refs',
+    'AutoDerefDictProxy',
 ]
 
 from collections import ChainMap, OrderedDict, UserDict
