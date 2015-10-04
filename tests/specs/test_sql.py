@@ -13,7 +13,6 @@ from sqlalchemy import (
 )
 
 from garage import models
-from garage.specs import base
 from garage.specs import sql
 
 import garage.specs.sql.tables  # as sql.tables
@@ -92,7 +91,7 @@ class SqlTest(unittest.TestCase):
                 type=Integer))
         )
 
-        Obj = base.make_as_namespace(model)
+        Obj = models.make_as_namespace(model)
 
         metadata = MetaData()
         table = sql.tables.make_table(model, metadata)

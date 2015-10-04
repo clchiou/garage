@@ -4,7 +4,7 @@ __all__ = [
     'make_insert',
 ]
 
-from garage.specs import base
+from garage import models
 from garage.specs import sql
 
 
@@ -15,7 +15,7 @@ def make_insert(model, *, spec_attr=sql.SPEC_ATTR_NAME):
         column_spec = field.attrs.get(spec_attr)
         return column_spec and not column_spec.foreign_key_spec
 
-    as_dict = base.make_as_dict(filter(is_mapped_to_column, model))
+    as_dict = models.make_as_dict(filter(is_mapped_to_column, model))
 
     def combine(data, more_data):
         if more_data:
