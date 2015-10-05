@@ -98,6 +98,7 @@ class SqlTest(unittest.TestCase):
         engine = create_engine('sqlite://')
         metadata.create_all(engine)
 
+        select_by = sql.utils.make_select_by(table.c.f0, table.c.f1)
         insert = sql.utils.make_insert(model)
 
         with closing(engine.connect()) as conn:
@@ -113,6 +114,11 @@ class SqlTest(unittest.TestCase):
                 objs = [tuple(item) for item in result]
             self.assertEqual(2, len(objs))
             self.assertSetEqual({('x', 1), ('y', 1)}, set(objs))
+
+            for row in select_by(conn, ['x']):
+                self.assertEqual(('x', 1), tuple(row))
+            for row in select_by(conn, ['y']):
+                self.assertEqual(('y', 1), tuple(row))
 
 
 if __name__ == '__main__':
