@@ -22,8 +22,12 @@ def make_insert(model, *, spec_attr=sql.SPEC_ATTR_NAME):
             data.update(more_data)
         return data
 
-    def insert(table, conn, objs_extras):
+    def insert_objs_extras(conn, table, objs_extras):
         values = [combine(as_dict(obj), extra) for obj, extra in objs_extras]
-        conn.execute(table.insert().prefix_with('OR IGNORE'), values)
+        insert(conn, table, values)
 
-    return insert
+    return insert_objs_extras
+
+
+def insert(conn, table, values):
+    conn.execute(table.insert().prefix_with('OR IGNORE'), values)

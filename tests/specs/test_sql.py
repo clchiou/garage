@@ -103,10 +103,10 @@ class SqlTest(unittest.TestCase):
         with closing(engine.connect()) as conn:
 
             # table.f0 is unique and 'x' is duplicated...
-            insert(table, conn, [(Obj('x', 1), None)])
-            insert(table, conn, [(Obj('x', 1), None)])
-            insert(table, conn, [(Obj('x', 2), None)])
-            insert(table, conn, [(Obj('y', 0), {'f1': 1})])
+            insert(conn, table, [(Obj('x', 1), None)])
+            insert(conn, table, [(Obj('x', 1), None)])
+            insert(conn, table, [(Obj('x', 2), None)])
+            insert(conn, table, [(Obj('y', 0), {'f1': 1})])
 
             query = select([table.c.f0, table.c.f1])
             with closing(conn.execute(query)) as result:
