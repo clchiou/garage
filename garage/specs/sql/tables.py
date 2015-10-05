@@ -89,15 +89,10 @@ def _make_foreign_key_column(column_name, foreign_key_spec, spec_attr):
 
 
 def _get_foreign_key_pair(foreign_key_spec, spec_attr):
-    if foreign_key_spec.field_name:
-        foreign_column_spec = (
-            foreign_key_spec
-            .model
-            .fields[foreign_key_spec.field_name]
-            .attrs[spec_attr]
-        )
+    if foreign_key_spec.field:
+        foreign_column_spec = foreign_key_spec.field.attrs[spec_attr]
         preconds.check_state(foreign_column_spec.type is not None)
-        return foreign_key_spec.field_name, foreign_column_spec.type
+        return foreign_key_spec.field.name, foreign_column_spec.type
     # If foreign field is not specified, use primary key (in this case
     # you should have only one primary key so that it is unambiguous).
     primary_key_pairs = list(

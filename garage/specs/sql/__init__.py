@@ -55,13 +55,13 @@ column_spec = with_defaults(
 FOREIGN_KEY_SPEC_MODEL = (
     models.Model('FOREIGN_KEY_SPEC_MODEL')
     .field('model', doc="""Refer to this foreign model.""")
-    .field('field_name', doc="""Refer to this column of the foreign model.""")
+    .field('field', doc="""Refer to this column of the foreign model.""")
 )
 
 
 foreign_key_spec = with_defaults(
     models.make_as_namespace(FOREIGN_KEY_SPEC_MODEL),
     {
-        'field_name': None,
+        'field': None,
     },
 )
