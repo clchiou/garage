@@ -1,15 +1,15 @@
 """A simple web spider implementation."""
 
 __all__ = [
+    'DOCUMENT_MODEL',
     'Spider',
     'Parser',
-    'Document',
 ]
 
 import functools
 import logging
 
-from garage.functools import nondata_property
+from garage import models
 from garage.http import clients
 from garage.threads import queues
 from garage.threads import supervisors
@@ -18,6 +18,21 @@ from garage.threads import utils
 
 
 LOG = logging.getLogger(__name__)
+
+
+DOCUMENT_MODEL = (
+    models.Model('DOCUMENT_MODEL')
+
+    .field('identity', doc="""
+    The unique identity of this document (multiple URIs may point to the
+    same document).
+    """)
+
+    .field('links', doc="""
+    Return HTTP requests and an estimate numbers of further links from
+    that document (estimates could be None).
+    """)
+)
 
 
 class Parser:
@@ -52,19 +67,6 @@ class Parser:
         """You may use this callback to get a feedback of how accurate
            the estimate was.
         """
-
-
-class Document:
-
-    identity = nondata_property(doc="""
-    The unique identity of this document (multiple URIs may point to the
-    same document).
-    """)
-
-    links = nondata_property(doc="""
-    Return HTTP requests and an estimate numbers of further links from
-    that document (estimates could be None).
-    """)
 
 
 class Spider:

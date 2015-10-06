@@ -4,6 +4,7 @@ import contextlib
 import pathlib
 import socketserver
 
+from garage import models
 from garage import spiders
 from garage.threads import queues
 
@@ -17,6 +18,9 @@ else:
     skip_dom_parsing = False
 
 
+Document = models.as_namedtuple(spiders.DOCUMENT_MODEL, 'Document')
+
+
 class TestParser(spiders.Parser):
 
     def __init__(self):
@@ -27,13 +31,10 @@ class TestParser(spiders.Parser):
 
     def parse(self, req, rep):
         self.logs.append(req)
-        doc = spiders.Document()
-        doc.identity = req.uri
-        doc.links = [
+        return Document(identity=req.uri, links=[
             ('http://localhost:8000/%s' % link.get('href'), None)
             for link in rep.dom().xpath('//a')
-        ]
-        return doc
+        ])
 
 
 class SpidersTest(unittest.TestCase):
