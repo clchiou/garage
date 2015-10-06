@@ -54,26 +54,26 @@ class LazyStartup:
 
     def __init__(self):
         self.startup = Startup()
-        self._variables = None
         self._vars = None
-
-    @property
-    def variables(self):
-        if self._variables is None:
-            self._variables = self.startup.call()
-            del self.startup
-        return self._variables
+        self._v = None
 
     @property
     def vars(self):
         if self._vars is None:
+            self._vars = self.startup.call()
+            del self.startup
+        return self._vars
+
+    @property
+    def v(self):
+        if self._v is None:
             # XXX: Although variables might overwrite each other, at
             # least we have a predictive order of that...
-            self._vars = Namespace(**{
-                name[name.rfind(':')+1:]: self.variables[name]
-                for name in sorted(self.variables)
+            self._v = Namespace(**{
+                name[name.rfind(':')+1:]: self.vars[name]
+                for name in sorted(self.vars)
             })
-        return self._vars
+        return self._v
 
 
 components = LazyStartup()
