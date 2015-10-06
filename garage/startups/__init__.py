@@ -50,7 +50,7 @@ PARSER = 'parser'
 EXIT_STACK = 'exit_stack'
 
 
-class LazyStartup:
+class Components:
 
     def __init__(self):
         self.startup = Startup()
@@ -76,7 +76,7 @@ class LazyStartup:
         return self._v
 
 
-components = LazyStartup()
+components = Components()
 
 
 def parse_argv(parser: PARSER, argv: ARGV, _: PARSE) -> ARGS:
