@@ -2,11 +2,10 @@ __all__ = [
     'Namespace',
     'DictAsAttrs',
     'FixedKeysDict',
-    'ImmutableSortedDict',
+    'make_sorted_ordered_dict',
 ]
 
 from collections import OrderedDict
-from collections import Mapping
 from collections import MutableMapping
 
 
@@ -90,16 +89,5 @@ class Namespace(DictAsAttrs):
         return '%s(%s)' % (self.__class__.__name__, fields)
 
 
-class ImmutableSortedDict(Mapping):
-
-    def __init__(self, **kwargs):
-        self._data = OrderedDict((key, kwargs[key]) for key in sorted(kwargs))
-
-    def __getitem__(self, key):
-        return self._data[key]
-
-    def __len__(self):
-        return len(self._data)
-
-    def __iter__(self):
-        return iter(self._data)
+def make_sorted_ordered_dict(**kwargs):
+    return OrderedDict((key, kwargs[key]) for key in sorted(kwargs))

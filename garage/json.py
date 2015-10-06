@@ -27,8 +27,11 @@ def encode_datetime(obj, datetime_format=None):
 def encode_mapping(obj):
     if not isinstance(obj, Mapping):
         raise _type_error(obj)
-    # Preserve ordering in the Mapping object.
-    return OrderedDict(obj.items())
+    if isinstance(obj, OrderedDict):
+        return obj
+    else:
+        # Preserve ordering in the Mapping object.
+        return OrderedDict(obj.items())
 
 
 def join_encoders(*encoders):

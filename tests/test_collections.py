@@ -3,7 +3,7 @@ import unittest
 from garage.collections import Namespace
 from garage.collections import DictAsAttrs
 from garage.collections import FixedKeysDict
-from garage.collections import ImmutableSortedDict
+from garage.collections import make_sorted_ordered_dict
 
 
 class CollectionsTest(unittest.TestCase):
@@ -58,14 +58,10 @@ class CollectionsTest(unittest.TestCase):
         with self.assertRaises(KeyError):
             del data['a']
 
-    def test_immutable_sorted_dict(self):
-        data = ImmutableSortedDict(b=2, a=1, c=3)
+    def test_sorted_ordered_dict(self):
+        data = make_sorted_ordered_dict(b=2, a=1, c=3)
         self.assertListEqual(list('abc'), list(data.keys()))
         self.assertListEqual([1, 2, 3], list(data.values()))
-        with self.assertRaises(TypeError):
-            data['c'] = 3
-        with self.assertRaises(TypeError):
-            del data['a']
 
 
 if __name__ == '__main__':

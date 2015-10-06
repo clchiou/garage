@@ -5,7 +5,7 @@ import datetime
 
 import yaml
 
-from garage.collections import ImmutableSortedDict
+from garage.collections import make_sorted_ordered_dict
 from garage.timezones import TimeZone
 from garage.yaml import represent_datetime
 from garage.yaml import represent_mapping
@@ -24,21 +24,17 @@ class YamlTest(unittest.TestCase):
             self.yaml_multi_representers
 
     def test_no_representers(self):
-        mapping = ImmutableSortedDict(c=3, a=1, b=2)
+        mapping = make_sorted_ordered_dict(c=3, a=1, b=2)
         with self.assertRaises(yaml.representer.RepresenterError):
             yaml.safe_dump(mapping)
 
     def test_representers(self):
+        # Because OrderedDict is not strictly a dict.
         yaml.SafeDumper.add_representer(
-            ImmutableSortedDict, represent_mapping)
+            collections.OrderedDict, represent_mapping)
         yaml.SafeDumper.add_representer(
             datetime.datetime, represent_datetime)
         self.call_safe_dump_datetime()
-        self.call_safe_dump_mapping()
-
-    def test_multi_representers(self):
-        yaml.SafeDumper.add_multi_representer(
-            collections.Mapping, represent_mapping)
         self.call_safe_dump_mapping()
 
     def call_safe_dump_datetime(self):
@@ -47,7 +43,7 @@ class YamlTest(unittest.TestCase):
         self.assertEqual(dt_yaml, yaml.safe_dump(dt))
 
     def call_safe_dump_mapping(self):
-        mapping = ImmutableSortedDict(c=3, a=1, b=2)
+        mapping = make_sorted_ordered_dict(c=3, a=1, b=2)
         mapping_yaml_flow = '{a: 1, b: 2, c: 3}\n'
         mapping_yaml = 'a: 1\nb: 2\nc: 3\n'
         self.assertEqual(

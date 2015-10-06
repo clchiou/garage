@@ -3,7 +3,7 @@ import unittest
 import datetime
 import json
 
-from garage.collections import ImmutableSortedDict
+from garage.collections import make_sorted_ordered_dict
 from garage.json import encode_datetime
 from garage.json import encode_mapping
 from garage.json import join_encoders
@@ -16,14 +16,11 @@ class JsonTest(unittest.TestCase):
         dt = datetime.datetime(2000, 1, 2, 3, 4, 5, 6, TimeZone.UTC)
         dt_json = '"2000-01-02T03:04:05.000006+00:00"'
 
-        mapping = ImmutableSortedDict(c=3, a=1, b=2)
+        mapping = make_sorted_ordered_dict(c=3, a=1, b=2)
         mapping_json = '{"a": 1, "b": 2, "c": 3}'
 
         with self.assertRaises(TypeError):
             json.dumps(dt)
-
-        with self.assertRaises(TypeError):
-            json.dumps(mapping)
 
         self.assertEqual(
             dt_json,
