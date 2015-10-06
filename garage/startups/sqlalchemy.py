@@ -6,6 +6,8 @@ __all__ = [
     'init',
 ]
 
+import logging
+
 from sqlalchemy import MetaData
 
 from startup import startup
@@ -14,6 +16,7 @@ import garage.sqlalchemy
 from garage.functools import run_once
 from garage.sqlalchemy import sqlite
 
+import garage.startups.logging
 from garage.startups import ARGS, PARSE, PARSER
 from garage.startups import components
 
@@ -35,7 +38,8 @@ def check_db_uri(parser: PARSER, args: ARGS):
 
 
 def make_engine(args: ARGS) -> ENGINE:
-    return sqlite.create_engine(args.db_uri)
+    echo = logging.getLogger().isEnabledFor(garage.startups.logging.TRACE)
+    return sqlite.create_engine(args.db_uri, echo=echo)
 
 
 @run_once

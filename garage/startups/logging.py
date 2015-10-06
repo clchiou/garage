@@ -16,6 +16,9 @@ from garage.startups import ARGS, PARSE, PARSER
 VERBOSE = __name__ + ':verbose'
 
 
+TRACE = logging.DEBUG - 1
+
+
 LOG_FORMAT = '%(asctime)s %(threadName)s %(levelname)s %(name)s: %(message)s'
 
 
@@ -27,12 +30,15 @@ def add_arguments(parser: PARSER, verbose: VERBOSE) -> PARSE:
 
 
 def configure(args: ARGS):
+    logging.addLevelName(TRACE, 'TRACE')
     if args.verbose == 0:
         level = logging.WARNING
     elif args.verbose == 1:
         level = logging.INFO
-    else:
+    elif args.verbose == 2:
         level = logging.DEBUG
+    else:
+        level = TRACE
     logging.basicConfig(level=level, format=LOG_FORMAT)
     threading.current_thread().name = garage.__name__ + '#main'
 
