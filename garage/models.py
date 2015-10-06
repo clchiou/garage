@@ -4,11 +4,12 @@ __all__ = [
     'Model',
     'Field',
     'Refs',
+    'as_namedtuple',
     'make_as_dict',
     'make_as_namespace',
 ]
 
-from collections import ChainMap, OrderedDict, UserDict
+from collections import ChainMap, OrderedDict, UserDict, namedtuple
 from functools import partial
 from itertools import chain
 
@@ -108,6 +109,11 @@ class Refs:
 
     def ref(self, name):
         return Refs.Ref(self, name)
+
+
+def as_namedtuple(model_or_fields, name=None):
+    return namedtuple(
+        name or model_or_fields.name, [f.name for f in model_or_fields])
 
 
 def make_as_dict(fields, cls=dict):
