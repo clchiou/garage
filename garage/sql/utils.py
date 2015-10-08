@@ -17,8 +17,8 @@ from datetime import datetime
 
 from sqlalchemy import select, tuple_
 
+from garage import asserts
 from garage import models
-from garage import preconds
 from garage.sql.specs import SPEC_ATTR_NAME
 
 
@@ -74,7 +74,7 @@ _TYPES = frozenset((int, float, str, datetime))
 
 def serialize(value):
     typ = type(value)
-    preconds.check_argument(typ in _TYPES)
+    asserts.precond(typ in _TYPES)
     return json.dumps([
         {
             int: 'i',
@@ -93,8 +93,7 @@ def serialize(value):
 
 def deserialize(value):
     pair = json.loads(value)
-    preconds.check_argument(
-        len(pair) == 2 and pair[0] in ('i', 'f', 's', 'dt'))
+    asserts.precond(len(pair) == 2 and pair[0] in ('i', 'f', 's', 'dt'))
     return {
         'i': int,
         'f': float,

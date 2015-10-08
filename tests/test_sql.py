@@ -15,7 +15,6 @@ from sqlalchemy import (
 
 from garage import models
 from garage import sql
-from garage.preconds import IllegalArgumentException
 from garage.timezones import TimeZone
 
 import garage.sql.specs  # as sql.specs
@@ -138,7 +137,7 @@ class SqlUtilsTest(unittest.TestCase):
             self.assertEqual(
                 data, sql.utils.deserialize(sql.utils.serialize(data)))
 
-        with self.assertRaises(IllegalArgumentException):
+        with self.assertRaises(AssertionError):
             sql.utils.serialize([])
 
     def test_as_type(self):

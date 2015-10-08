@@ -10,7 +10,7 @@ import collections
 import functools
 import threading
 
-from garage import preconds
+from garage import asserts
 from garage.threads import queues
 
 
@@ -90,7 +90,7 @@ class Priority:
     """
 
     def __init__(self, priority):
-        preconds.check_argument(isinstance(priority, collections.Hashable))
+        asserts.precond(isinstance(priority, collections.Hashable))
         self._priority = priority
 
     def __str__(self):

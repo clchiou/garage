@@ -12,7 +12,7 @@ import collections
 import functools
 import operator
 
-from garage import preconds
+from garage import asserts
 
 
 def run_once(func):
@@ -73,8 +73,8 @@ def memorize(method):
 
        Note: method's name _must_ be the same as the property name.
     """
-    preconds.check_argument(not isinstance(method, property))
-    preconds.check_argument(method.__name__ != '<lambda>')
+    asserts.precond(not isinstance(method, property))
+    asserts.precond(method.__name__ != '<lambda>')
 
     @functools.wraps(method)
     def wrapper(self):

@@ -3,7 +3,6 @@ import unittest
 import heapq
 import random
 
-from garage import preconds
 from garage.threads import queues
 from garage.threads import utils
 
@@ -55,7 +54,7 @@ class UtilsTest(unittest.TestCase):
         self.assertTrue(task_queue.is_closed())
 
     def test_priority(self):
-        with self.assertRaises(preconds.IllegalArgumentException):
+        with self.assertRaises(AssertionError):
             utils.Priority([])  # Non-hashable!
 
         eq = self.assertEqual

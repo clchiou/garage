@@ -5,7 +5,7 @@ __all__ = [
 import logging
 from concurrent import futures
 
-from garage import preconds
+from garage import asserts
 from garage.threads import actors
 from garage.threads import utils
 
@@ -31,7 +31,7 @@ class _Supervisor:
     # TODO: Implement more re-start/exit strategy.
 
     def __init__(self, num_actors, start_new_actor):
-        preconds.check_argument(num_actors > 0)
+        asserts.precond(num_actors > 0)
         self.num_actors = num_actors
         self.start_new_actor = start_new_actor
 

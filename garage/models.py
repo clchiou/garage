@@ -13,7 +13,7 @@ from collections import ChainMap, OrderedDict, UserDict, namedtuple
 from functools import partial
 from itertools import chain
 
-from garage import preconds
+from garage import asserts
 from garage.collections import DictAsAttrs
 
 
@@ -133,5 +133,5 @@ def as_namespace(names, *args, **kwargs):
         zip(names, args),
         ((name, kwargs[name]) for name in names if name in kwargs),
     ))
-    preconds.check_argument(len(names) == len(data))
+    asserts.postcond(len(names) == len(data))
     return DictAsAttrs(AutoDerefDictProxy(data))
