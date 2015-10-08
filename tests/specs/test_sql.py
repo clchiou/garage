@@ -1,6 +1,7 @@
 import unittest
 
 from contextlib import closing
+from datetime import datetime
 
 from sqlalchemy import (
     MetaData,
@@ -13,7 +14,9 @@ from sqlalchemy import (
 )
 
 from garage import models
+from garage.preconds import IllegalArgumentException
 from garage.specs import sql
+from garage.timezones import TimeZone
 
 import garage.specs.sql.tables  # as sql.tables
 import garage.specs.sql.utils # as sql.utils
@@ -119,6 +122,62 @@ class SqlTest(unittest.TestCase):
                 self.assertEqual(('x', 1), tuple(row))
             for row in select_by(conn, ['y']):
                 self.assertEqual(('y', 1), tuple(row))
+
+
+class SqlUtilsTest(unittest.TestCase):
+
+    def test_serialize(self):
+        dt0 = datetime(2000, 1, 2, 3, 4, 5, 0)
+        dt1 = datetime(2000, 1, 2, 3, 4, 5, 6)
+        utc0 = datetime(2000, 1, 2, 3, 4, 5, 0, TimeZone.UTC)
+        utc1 = datetime(2000, 1, 2, 3, 4, 5, 6, TimeZone.UTC)
+        cst = utc0.astimezone(TimeZone.CST)
+
+        for data in (101, 'a string', dt0, dt1, utc0, utc1, cst):
+            self.assertEqual(
+                data, sql.utils.deserialize(sql.utils.serialize(data)))
+
+        with self.assertRaises(IllegalArgumentException):
+            sql.utils.serialize([])
+
+    def test_as_type(self):
+        dt = datetime(2000, 1, 2, 3, 4, 5, 0)
+        utc = datetime(2000, 1, 2, 3, 4, 5, 0, TimeZone.UTC)
+        testcases = (
+            (
+                sql.utils.as_int,
+                (
+                    (101, 101),
+                    (101.0, None),
+                    ('101', None),
+                    (dt, None),
+                    (utc, None),
+                ),
+            ),
+            (
+                sql.utils.as_float,
+                (
+                    (101, None),
+                    (101.0, 101.0),
+                    ('101', None),
+                    (utc, 946782245.0),
+                ),
+            ),
+            (
+                sql.utils.as_str,
+                (
+                    (101, None),
+                    (101.0, None),
+                    ('101', '101'),
+                    (dt, '2000-01-02T03:04:05.000000'),
+                    (utc, '2000-01-02T03:04:05.000000+0000'),
+                ),
+            ),
+        )
+        for as_type, testdata in testcases:
+            with self.subTest(type=as_type.__name__):
+                for data, expect in testdata:
+                    self.assertEqual(expect, as_type(data))
 
 
 if __name__ == '__main__':
