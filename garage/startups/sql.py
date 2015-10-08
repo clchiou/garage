@@ -12,9 +12,10 @@ from sqlalchemy import MetaData
 
 from startup import startup
 
-import garage.sqlalchemy
+from garage import sql
 from garage.functools import run_once
-from garage.sqlalchemy import sqlite
+
+import garage.sql.sqlite # as sql.sqlite
 
 import garage.startups.logging
 from garage.startups import ARGS, PARSE, PARSER
@@ -26,7 +27,7 @@ METADATA = __name__ + ':metadata'
 
 
 def add_arguments(parser: PARSER) -> PARSE:
-    group = parser.add_argument_group(garage.sqlalchemy.__name__)
+    group = parser.add_argument_group(sql.__name__)
     group.add_argument(
         '--db-uri', required=True,
         help="""set database engine URI""")
@@ -39,7 +40,7 @@ def check_db_uri(parser: PARSER, args: ARGS):
 
 def make_engine(args: ARGS) -> ENGINE:
     echo = logging.getLogger().isEnabledFor(garage.startups.logging.TRACE)
-    return sqlite.create_engine(args.db_uri, echo=echo)
+    return sql.sqlite.create_engine(args.db_uri, echo=echo)
 
 
 @run_once

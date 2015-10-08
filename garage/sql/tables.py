@@ -16,19 +16,19 @@ from sqlalchemy import (
 )
 
 from garage import preconds
-from garage.specs import sql
+from garage.sql.specs import SPEC_ATTR_NAME
 
 
 LOG = logging.getLogger(__name__)
 
 
-def make_table(model, metadata, *, spec_attr=sql.SPEC_ATTR_NAME):
+def make_table(model, metadata, *, spec_attr=SPEC_ATTR_NAME):
     columns = list(iter_columns(model, spec_attr=spec_attr))
     preconds.check_state(columns)
     return Table(model.attrs[spec_attr].name, metadata, *columns)
 
 
-def iter_columns(model, *, spec_attr=sql.SPEC_ATTR_NAME):
+def iter_columns(model, *, spec_attr=SPEC_ATTR_NAME):
     table_spec = model.attrs[spec_attr]
     for field in model:
         column_spec = field.attrs.get(spec_attr)
@@ -53,13 +53,13 @@ def iter_columns(model, *, spec_attr=sql.SPEC_ATTR_NAME):
 
 
 def make_junction_table(
-        models, table_name, metadata, *, spec_attr=sql.SPEC_ATTR_NAME):
+        models, table_name, metadata, *, spec_attr=SPEC_ATTR_NAME):
     columns = list(iter_junction_columns(models, spec_attr=spec_attr))
     preconds.check_state(columns)
     return Table(table_name, metadata, *columns)
 
 
-def iter_junction_columns(models, *, spec_attr=sql.SPEC_ATTR_NAME):
+def iter_junction_columns(models, *, spec_attr=SPEC_ATTR_NAME):
     for model in models:
         table_spec = model.attrs[spec_attr]
         model_name = table_spec.short_name or table_spec.name

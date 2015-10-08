@@ -14,29 +14,30 @@ from sqlalchemy import (
 )
 
 from garage import models
+from garage import sql
 from garage.preconds import IllegalArgumentException
-from garage.specs import sql
 from garage.timezones import TimeZone
 
-import garage.specs.sql.tables  # as sql.tables
-import garage.specs.sql.utils # as sql.utils
+import garage.sql.specs  # as sql.specs
+import garage.sql.tables  # as sql.tables
+import garage.sql.utils # as sql.utils
 
 
 class SqlTest(unittest.TestCase):
 
     def test_iter_columns(self):
         m0 = (
-            models.Model('m0', sql=sql.table_spec(name='t0'))
-            .field('f0', sql=sql.column_spec(
+            models.Model('m0', sql=sql.specs.table_spec(name='t0'))
+            .field('f0', sql=sql.specs.column_spec(
                 type=String, extra_attrs={'unique': True}))
-            .field('f1', sql=sql.column_spec(
+            .field('f1', sql=sql.specs.column_spec(
                 is_primary_key=True, type=Integer))
         )
 
         m1 = (
-            models.Model('m1', sql=sql.table_spec(name='t1'))
-            .field('f0', sql=sql.column_spec(
-                foreign_key_spec=sql.foreign_key_spec(model=m0)))
+            models.Model('m1', sql=sql.specs.table_spec(name='t1'))
+            .field('f0', sql=sql.specs.column_spec(
+                foreign_key_spec=sql.specs.foreign_key_spec(model=m0)))
             .field('f1')
         )
 
@@ -58,13 +59,13 @@ class SqlTest(unittest.TestCase):
 
         def make_model(name):
             return (
-                models.Model(name, sql=sql.table_spec(
+                models.Model(name, sql=sql.specs.table_spec(
                     name=name,
                     extra_columns=[
                         Column('f1', Integer, primary_key=True),
                     ],
                 ))
-                .field('f0', sql=sql.column_spec(
+                .field('f0', sql=sql.specs.column_spec(
                     is_primary_key=True, type=Integer))
             )
 
@@ -87,10 +88,10 @@ class SqlTest(unittest.TestCase):
 
     def test_insert(self):
         model = (
-            models.Model('model', sql=sql.table_spec(name='table'))
-            .field('f0', sql=sql.column_spec(
+            models.Model('model', sql=sql.specs.table_spec(name='table'))
+            .field('f0', sql=sql.specs.column_spec(
                 type=String, extra_attrs={'unique': True}))
-            .field('f1', sql=sql.column_spec(
+            .field('f1', sql=sql.specs.column_spec(
                 type=Integer))
         )
 

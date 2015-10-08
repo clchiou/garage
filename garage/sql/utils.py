@@ -19,7 +19,7 @@ from sqlalchemy import select, tuple_
 
 from garage import models
 from garage import preconds
-from garage.specs import sql
+from garage.sql.specs import SPEC_ATTR_NAME
 
 
 LOG = logging.getLogger(__name__)
@@ -44,7 +44,7 @@ def make_select_by(key_column, *value_columns):
     return select_by
 
 
-def make_insert(model, *, spec_attr=sql.SPEC_ATTR_NAME):
+def make_insert(model, *, spec_attr=SPEC_ATTR_NAME):
 
     def is_mapped_to_column(field):
         # Foreign keys are handled separately and thus excluded.
