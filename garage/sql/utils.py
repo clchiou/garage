@@ -15,7 +15,7 @@ import logging
 from contextlib import closing
 from datetime import datetime
 
-from sqlalchemy import select, tuple_
+from sqlalchemy import select
 
 from garage import asserts
 from garage import models
@@ -37,8 +37,7 @@ def make_select_by(key_column, *value_columns):
     columns.insert(0, key_column)
 
     def select_by(conn, keys):
-        key_tuples = [(key,) for key in keys]
-        query = select(columns).where(tuple_(key_column).in_(key_tuples))
+        query = select(columns).where(key_column.in_(keys))
         with closing(conn.execute(query)) as rows:
             yield from rows
 
