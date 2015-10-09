@@ -1,12 +1,28 @@
 __all__ = [
+    'LoadingDict',
     'Namespace',
     'DictAsAttrs',
     'FixedKeysDict',
     'make_sorted_ordered_dict',
 ]
 
-from collections import OrderedDict
-from collections import MutableMapping
+from collections import (
+    OrderedDict,
+    MutableMapping,
+    UserDict,
+)
+
+
+class LoadingDict(UserDict):
+
+    def __init__(self, load, data=None):
+        super().__init__(dict=data)
+        self.load = load
+
+    def __missing__(self, key):
+        value = self.load(key)
+        self[key] = value
+        return value
 
 
 class DictAsAttrs:

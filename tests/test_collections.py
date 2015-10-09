@@ -1,12 +1,23 @@
 import unittest
 
-from garage.collections import Namespace
-from garage.collections import DictAsAttrs
-from garage.collections import FixedKeysDict
-from garage.collections import make_sorted_ordered_dict
+from garage.collections import (
+    LoadingDict,
+    Namespace,
+    DictAsAttrs,
+    FixedKeysDict,
+    make_sorted_ordered_dict,
+)
 
 
 class CollectionsTest(unittest.TestCase):
+
+    def test_loading_dict(self):
+        ldict = LoadingDict(lambda key: key)
+        self.assertDictEqual({}, ldict.data)
+        self.assertEqual('k1', ldict['k1'])
+        ldict['k2'] = 'value'
+        self.assertEqual('value', ldict['k2'])
+        self.assertDictEqual({'k1': 'k1', 'k2': 'value'}, ldict.data)
 
     def test_fixed_namespace(self):
         ns = Namespace(x=1, y=2)
