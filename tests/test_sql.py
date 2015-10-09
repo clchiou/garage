@@ -1,5 +1,6 @@
 import unittest
 
+from collections import OrderedDict
 from contextlib import closing
 from datetime import datetime
 
@@ -137,8 +138,55 @@ class SqlUtilsTest(unittest.TestCase):
             self.assertEqual(
                 data, sql.utils.deserialize(sql.utils.serialize(data)))
 
-        with self.assertRaises(AssertionError):
-            sql.utils.serialize([])
+        self.assertEqual(
+            (),
+            sql.utils.deserialize(sql.utils.serialize([])),
+        )
+        self.assertEqual(
+            (1,),
+            sql.utils.deserialize(sql.utils.serialize([1])),
+        )
+        self.assertEqual(
+            (1, 'hello'),
+            sql.utils.deserialize(sql.utils.serialize([1, 'hello'])),
+        )
+        self.assertEqual(
+            (1, 'hello', dt0),
+            sql.utils.deserialize(sql.utils.serialize([1, 'hello', dt0])),
+        )
+
+        self.assertEqual(
+            frozenset(),
+            sql.utils.deserialize(sql.utils.serialize(set())),
+        )
+        self.assertEqual(
+            frozenset((1,)),
+            sql.utils.deserialize(sql.utils.serialize({1})),
+        )
+        self.assertEqual(
+            frozenset((1, 'hello')),
+            sql.utils.deserialize(sql.utils.serialize({1, 'hello'})),
+        )
+        self.assertEqual(
+            frozenset((1, 'hello', dt0)),
+            sql.utils.deserialize(sql.utils.serialize({1, 'hello', dt0})),
+        )
+
+        self.assertEqual(
+            OrderedDict(),
+            sql.utils.deserialize(sql.utils.serialize({})),
+        )
+        self.assertEqual(
+            OrderedDict([(1, 'hello')]),
+            sql.utils.deserialize(sql.utils.serialize({1: 'hello'})),
+        )
+        self.assertDictEqual(
+            {1: 'hello', dt0: dt1},
+            dict(sql.utils.deserialize(sql.utils.serialize({
+                1: 'hello',
+                dt0: dt1,
+            }))),
+        )
 
     def test_as_type(self):
         dt = datetime(2000, 1, 2, 3, 4, 5, 0)

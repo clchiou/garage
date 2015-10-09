@@ -12,6 +12,12 @@ __all__ = [
 
 import json
 import logging
+from collections import (
+    Mapping,
+    OrderedDict,
+    Sequence,
+    Set,
+)
 from contextlib import closing
 from datetime import datetime
 
@@ -65,13 +71,35 @@ def insert(conn, table, values):
     conn.execute(table.insert().prefix_with('OR IGNORE'), values)
 
 
-_TYPES = frozenset((int, float, str, datetime))
+_ELEMENT_TYPES = frozenset((int, float, str, datetime))
 
 
-def serialize(value):
+def serialize(obj):
+    if isinstance(obj, Sequence) and not isinstance(obj, str):
+        data = ['L']
+        for element in obj:
+            data.extend(_serialize(element))
+        return json.dumps(data)
+    elif isinstance(obj, Set):
+        data = ['S']
+        for element in obj:
+            data.extend(_serialize(element))
+        return json.dumps(data)
+    elif isinstance(obj, Mapping):
+        data = ['M']
+        for key, value in obj.items():
+            data.extend(_serialize(key))
+            data.extend(_serialize(value))
+        return json.dumps(data)
+    else:
+        return json.dumps(_serialize(obj))
+
+
+def _serialize(value):
     typ = type(value)
-    asserts.precond(typ in _TYPES)
-    return json.dumps([
+    asserts.precond(
+        typ in _ELEMENT_TYPES, 'cannot serialize %r of type %r', value, typ)
+    return [
         {
             int: 'i',
             float: 'f',
@@ -84,18 +112,43 @@ def serialize(value):
             str: str,
             datetime: lambda dt: dt.strftime(DATETIME_FORMAT),
         }[typ](value),
-    ])
+    ]
 
 
-def deserialize(value):
-    pair = json.loads(value)
-    asserts.precond(len(pair) == 2 and pair[0] in ('i', 'f', 's', 'dt'))
+def deserialize(json_str):
+    packed_obj = json.loads(json_str)
+    asserts.precond(packed_obj)
+    if packed_obj[0] == 'L':
+        return tuple(
+            _deserialize(packed_obj[i:i+2])
+            for i in range(1, len(packed_obj), 2)
+        )
+    elif packed_obj[0] == 'S':
+        return frozenset(
+            _deserialize(packed_obj[i:i+2])
+            for i in range(1, len(packed_obj), 2)
+        )
+    elif packed_obj[0] == 'M':
+        return OrderedDict(
+            (
+                _deserialize(packed_obj[i:i+2]),
+                _deserialize(packed_obj[i+2:i+4]),
+            )
+            for i in range(1, len(packed_obj), 4)
+        )
+    else:
+        asserts.precond(len(packed_obj) == 2)
+        return _deserialize(packed_obj)
+
+
+def _deserialize(packed_value):
+    asserts.precond(packed_value[0] in ('i', 'f', 's', 'dt'))
     return {
         'i': int,
         'f': float,
         's': str,
         'dt': _parse_datetime,
-    }[pair[0]](pair[1])
+    }[packed_value[0]](packed_value[1])
 
 
 def _parse_datetime(dt_str):
