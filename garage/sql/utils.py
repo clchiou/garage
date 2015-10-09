@@ -20,6 +20,7 @@ from sqlalchemy import select, tuple_
 from garage import asserts
 from garage import models
 from garage.sql.specs import SPEC_ATTR_NAME
+from garage.sql.tables import is_not_foreign
 
 
 LOG = logging.getLogger(__name__)
@@ -46,12 +47,8 @@ def make_select_by(key_column, *value_columns):
 
 def make_insert(model, *, spec_attr=SPEC_ATTR_NAME):
 
-    def is_mapped_to_column(field):
-        # Foreign keys are handled separately and thus excluded.
-        column_spec = field.attrs.get(spec_attr)
-        return column_spec and not column_spec.foreign_key_spec
-
-    as_dict = models.make_as_dict(filter(is_mapped_to_column, model))
+    as_dict = models.make_as_dict(
+        field for field in model if is_not_foreign(field, spec_attr=spec_attr))
 
     def combine(data, more_data):
         if more_data:

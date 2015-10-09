@@ -1,6 +1,7 @@
 """Automate SQL table creation."""
 
 __all__ = [
+    'is_not_foreign',
     'make_table',
     'make_junction_table',
     'iter_columns',
@@ -20,6 +21,12 @@ from garage.sql.specs import SPEC_ATTR_NAME
 
 
 LOG = logging.getLogger(__name__)
+
+
+def is_not_foreign(field, *, spec_attr=SPEC_ATTR_NAME):
+    """True if field maps to a column that is not a foreign key."""
+    column_spec = field.attrs.get(spec_attr)
+    return column_spec and not column_spec.foreign_key_spec
 
 
 def make_table(model, metadata, *, spec_attr=SPEC_ATTR_NAME):
