@@ -122,6 +122,35 @@ class NondataPropertyTest(unittest.TestCase):
         bar.prop2 = 'hello'
         self.assertEqual('hello', bar.prop2)
 
+    def test_nondata_property_override(self):
+        class Base:
+            @nondata_property
+            def prop(self):
+                raise AssertionError
+
+        class Ext1(Base):
+            prop = 1
+
+        class Ext2(Base):
+            def __init__(self):
+                self.prop = 1
+
+        class Ext3(Base):
+            @nondata_property
+            def prop(self):
+                return 1
+
+        class Ext4(Base):
+            @property
+            def prop(self):
+                return 1
+
+        for cls in (Ext1, Ext2, Ext3, Ext4):
+            self.assertEqual(1, cls().prop)
+
+        with self.assertRaises(AssertionError):
+            Base().prop
+
 
 if __name__ == '__main__':
     unittest.main()
