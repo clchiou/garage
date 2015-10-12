@@ -1,51 +1,40 @@
 """Initialize sqlalchemy."""
 
 __all__ = [
-    'ENGINE',
-    'METADATA',
-    'init',
+    'SqlComponent',
 ]
 
 import logging
 
 from sqlalchemy import MetaData
 
-from startup import startup
-
+from garage import components
 from garage import sql
-from garage.functools import run_once
 
 import garage.sql.sqlite # as sql.sqlite
 
-import garage.startups.logging
-from garage.startups import ARGS, PARSE, PARSER
-from garage.startups import components
+from garage.startups.logging import LoggingComponent
 
 
-ENGINE = __name__ + ':engine'
-METADATA = __name__ + ':metadata'
+class SqlComponent(components.Component):
 
+    require = components.ARGS
 
-def add_arguments(parser: PARSER) -> PARSE:
-    group = parser.add_argument_group(sql.__name__)
-    group.add_argument(
-        '--db-uri', required=True,
-        help="""set database engine URI""")
+    provide = components.make_provide(__name__, 'engine', 'metadata')
 
+    def add_arguments(self, parser):
+        group = parser.add_argument_group(sql.__name__)
+        group.add_argument(
+            '--db-uri', required=True,
+            help="""set database engine URI""")
 
-def check_db_uri(parser: PARSER, args: ARGS):
-    if not args.db_uri.startswith('sqlite'):
-        parser.error('only support sqlite in "--db-uri" at the moment')
+    def check_arguments(self, parser, args):
+        if not args.db_uri.startswith('sqlite'):
+            parser.error('only support sqlite in "--db-uri" at the moment')
 
-
-def make_engine(args: ARGS) -> ENGINE:
-    echo = logging.getLogger().isEnabledFor(garage.startups.logging.TRACE)
-    return sql.sqlite.create_engine(args.db_uri, echo=echo)
-
-
-@run_once
-def init():
-    startup(add_arguments)
-    startup(check_db_uri)
-    components.startup(make_engine)
-    components.startup.with_annotations({'return': METADATA})(MetaData)
+    def make(self, require):
+        echo = logging.getLogger().isEnabledFor(LoggingComponent.TRACE)
+        return (
+            sql.sqlite.create_engine(require.args.db_uri, echo=echo),
+            MetaData(),
+        )
