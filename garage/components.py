@@ -27,6 +27,7 @@ __all__ = [
     'make_full_name',
 
     'bind',
+    'vars_as_namespace',
     'main',
     'parse_argv',
 ]
@@ -61,23 +62,22 @@ PARSE = make_full_name(__name__, 'parse')
 PARSER = make_full_name(__name__, 'parser')
 
 
-def make_require(module_name, *maybe_full_names):
+def _make_full_names(module_name, maybe_full_names):
     if not maybe_full_names:
         return ()
     names = [_get_name(name) for name in maybe_full_names]
-    return namedtuple('require', names)(*(
+    return namedtuple('full_names', names)(*(
         name if _is_full_name(name) else make_full_name(module_name, name)
         for name in maybe_full_names
     ))
 
 
-def make_provide(module_name, *names):
-    if not names:
-        return ()
-    asserts.precond(not any(map(_is_full_name, names)))
-    return namedtuple('provide', names)(*(
-        make_full_name(module_name, name) for name in names
-    ))
+def make_require(module_name, *maybe_full_names):
+    return _make_full_names(module_name, maybe_full_names)
+
+
+def make_provide(module_name, *maybe_full_names):
+    return _make_full_names(module_name, maybe_full_names)
 
 
 class Component:
@@ -141,12 +141,21 @@ def _is_method_overridden(obj, base_cls, method_name):
     return func is not base_func
 
 
+def vars_as_namespace(varz):
+    return DictAsAttrs({
+        _get_name(full_name): value for full_name, value in varz.items()
+    })
+
+
 def parse_argv(parser: PARSER, argv: ARGV, _: PARSE) -> ARGS:
     return parser.parse_args(argv[1:])
 
 
-def main(argv, startup=startup_):
+def main(argv, startup=startup_, component_startup=None):
     startup.set(ARGV, argv)
     startup(parse_argv)
     varz = startup.call()
+    if component_startup:
+        for name, value in varz.items():
+            component_startup.set(name, value)
     return varz[MAIN](varz[ARGS])

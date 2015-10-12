@@ -19,24 +19,18 @@ class ComponentsTest(unittest.TestCase):
         self.assertEqual('hello', _get_name('a.b.c.d:hello'))
 
     def test_make_require(self):
-        self.assertTupleEqual((), make_require('a.b.c'))
+        for make_full_names in (make_require, make_provide):
+            with self.subTest(make_full_names=make_full_names):
+                self.do_test_make_full_names(make_full_names)
 
-        full_names = make_require('a.b.c', 'x', 'y', 'd.e.f:z')
+    def do_test_make_full_names(self, make_full_names):
+        self.assertTupleEqual((), make_full_names('a.b.c'))
+
+        full_names = make_full_names('a.b.c', 'x', 'y', 'd.e.f:z')
         self.assertTupleEqual(('a.b.c:x', 'a.b.c:y', 'd.e.f:z'), full_names)
         self.assertEqual('a.b.c:x', full_names.x)
         self.assertEqual('a.b.c:y', full_names.y)
         self.assertEqual('d.e.f:z', full_names.z)
-
-    def test_make_provide(self):
-        self.assertTupleEqual((), make_provide('a.b.c'))
-
-        full_names = make_provide('a.b.c', 'x', 'y')
-        self.assertTupleEqual(('a.b.c:x', 'a.b.c:y'), full_names)
-        self.assertEqual('a.b.c:x', full_names.x)
-        self.assertEqual('a.b.c:y', full_names.y)
-
-        with self.assertRaises(AssertionError):
-            full_names = make_provide('a.b.c', 'x', 'y', 'd.e.f:z')
 
     def test_is_method_overridden(self):
         class Base:
