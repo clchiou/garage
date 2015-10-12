@@ -15,14 +15,14 @@ class SpiderComponent(components.Component):
 
     NUM_SPIDERS = 8
 
-    require = components.make_require(
+    require = components.make_fqname_tuple(
         __name__,
         components.ARGS,
         HttpComponent.provide.client,
         'spider_parser',
     )
 
-    provide = components.make_provide(__name__, 'spider')
+    provide = components.make_fqname_tuple(__name__, 'spider')
 
     def add_arguments(self, parser):
         group = parser.add_argument_group(garage.spiders.__name__)

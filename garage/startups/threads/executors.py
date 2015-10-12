@@ -14,7 +14,8 @@ class ExecutorComponent(components.Component):
 
     require = components.ARGS
 
-    provide = components.make_provide(__name__, 'worker_pool', 'make_executor')
+    provide = components.make_fqname_tuple(
+        __name__, 'worker_pool', 'make_executor')
 
     def add_arguments(self, parser):
         group = parser.add_argument_group(executors.__name__)

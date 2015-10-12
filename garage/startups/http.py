@@ -20,7 +20,7 @@ class HttpComponent(components.Component):
 
     require = components.ARGS
 
-    provide = components.make_provide(__name__, 'client')
+    provide = components.make_fqname_tuple(__name__, 'client')
 
     def add_arguments(self, parser):
         group = parser.add_argument_group(garage.http.__name__)

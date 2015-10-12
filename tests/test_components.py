@@ -5,8 +5,7 @@ from startup import Startup
 from garage.components import (
     Component,
     bind,
-    make_require,
-    make_provide,
+    make_fqname_tuple,
     _get_name,
     _is_method_overridden,
 )
@@ -18,19 +17,13 @@ class ComponentsTest(unittest.TestCase):
         self.assertEqual('hello', _get_name('hello'))
         self.assertEqual('hello', _get_name('a.b.c.d:hello'))
 
-    def test_make_require(self):
-        for make_full_names in (make_require, make_provide):
-            with self.subTest(make_full_names=make_full_names):
-                self.do_test_make_full_names(make_full_names)
-
-    def do_test_make_full_names(self, make_full_names):
-        self.assertTupleEqual((), make_full_names('a.b.c'))
-
-        full_names = make_full_names('a.b.c', 'x', 'y', 'd.e.f:z')
-        self.assertTupleEqual(('a.b.c:x', 'a.b.c:y', 'd.e.f:z'), full_names)
-        self.assertEqual('a.b.c:x', full_names.x)
-        self.assertEqual('a.b.c:y', full_names.y)
-        self.assertEqual('d.e.f:z', full_names.z)
+    def test_make_fqname_tuple(self):
+        self.assertTupleEqual((), make_fqname_tuple('a.b.c'))
+        fqnames = make_fqname_tuple('a.b.c', 'x', 'y', 'd.e.f:z')
+        self.assertTupleEqual(('a.b.c:x', 'a.b.c:y', 'd.e.f:z'), fqnames)
+        self.assertEqual('a.b.c:x', fqnames.x)
+        self.assertEqual('a.b.c:y', fqnames.y)
+        self.assertEqual('d.e.f:z', fqnames.z)
 
     def test_is_method_overridden(self):
         class Base:

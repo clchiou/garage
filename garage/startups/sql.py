@@ -20,7 +20,7 @@ class SqlComponent(components.Component):
 
     require = components.ARGS
 
-    provide = components.make_provide(__name__, 'engine', 'metadata')
+    provide = components.make_fqname_tuple(__name__, 'engine', 'metadata')
 
     def add_arguments(self, parser):
         group = parser.add_argument_group(sql.__name__)

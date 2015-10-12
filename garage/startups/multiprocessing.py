@@ -10,7 +10,7 @@ class Python2Component(components.Component):
 
     require = (components.ARGS, components.EXIT_STACK)
 
-    provide = components.make_provide(__name__, 'python2')
+    provide = components.make_fqname_tuple(__name__, 'python2')
 
     def add_arguments(self, parser):
         group = parser.add_argument_group(multiprocessing.__name__)
