@@ -3,9 +3,9 @@ import unittest
 from garage import asserts
 
 
-class PrecondsTest(unittest.TestCase):
+class AssertsTest(unittest.TestCase):
 
-    def test_preconds(self):
+    def test_asserts(self):
         for exc, check in (
                 (AssertionError, asserts.precond),
                 (AssertionError, asserts.postcond)):
