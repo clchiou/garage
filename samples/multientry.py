@@ -36,7 +36,7 @@ def main(argv):
         for comp in comps:
             components.bind(
                 comp,
-                component_startup=component_startup,
+                next_startup=component_startup,
                 parser_=parser_,
             )
 

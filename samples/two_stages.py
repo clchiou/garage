@@ -26,7 +26,7 @@ def main(argv):
         Python2Component(),
     )
     for comp in comps:
-        components.bind(comp, component_startup=component_startup)
+        components.bind(comp, next_startup=component_startup)
 
     def real_main(args):
         with ExitStack() as exit_stack:

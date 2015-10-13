@@ -10,9 +10,6 @@ resolve MAIN and ARGS.  Its dependency graph is:
 
   MAIN
 
-The second startup is component_startup.  You may use the second stage
-startup to initialize "heavy" objects such as database connection.
-
 NOTE: 'fqname' stands for 'fully-qualified name'.
 """
 
@@ -86,8 +83,8 @@ class Component:
         asserts.fail()
 
 
-def bind(component, startup=startup_, component_startup=None, parser_=PARSER):
-    component_startup = component_startup or startup
+def bind(component, startup=startup_, next_startup=None, parser_=PARSER):
+    next_startup = next_startup or startup
 
     if _is_method_overridden(component, Component, 'add_arguments'):
         @functools.wraps(component.add_arguments)
@@ -119,7 +116,7 @@ def bind(component, startup=startup_, component_startup=None, parser_=PARSER):
         @functools.wraps(component.make)
         def make(**require):
             return component.make(DictAsAttrs(require))
-        component_startup.add_func(make, annotations)
+        next_startup.add_func(make, annotations)
 
 
 def _is_method_overridden(obj, base_cls, method_name):
@@ -141,11 +138,8 @@ def parse_argv(parser: PARSER, argv: ARGV, _: PARSE) -> ARGS:
     return parser.parse_args(argv[1:])
 
 
-def main(argv, startup=startup_, component_startup=None):
+def main(argv, startup=startup_):
     startup.set(ARGV, argv)
     startup(parse_argv)
     varz = startup.call()
-    if component_startup:
-        for name, value in varz.items():
-            component_startup.set(name, value)
     return varz[MAIN](varz[ARGS])
