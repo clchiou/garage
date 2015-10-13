@@ -25,15 +25,20 @@ LOG = logging.getLogger(__name__)
 
 
 @contextlib.contextmanager
-def python(executable='python2', protocol=2, authkey=None, popen_kwargs=None):
+def python(
+        executable='python2',
+        protocol=2,
+        authkey=None,
+        max_workers=8,
+        popen_kwargs=None):
     """Start a server and return a Connector object
        (default to python2).
     """
     authkey = authkey or str(random.randint(1, 1e8))
     with contextlib.ExitStack() as stack:
         address = stack.enter_context(create_socket())
-        stack.enter_context(
-            start_server(executable, address, authkey, popen_kwargs or {}))
+        stack.enter_context(start_server(
+            executable, address, authkey, max_workers, popen_kwargs or {}))
         connector = Connector(address, protocol, authkey)
         try:
             yield connector
@@ -54,9 +59,13 @@ def create_socket():
 
 
 @contextlib.contextmanager
-def start_server(executable, address, authkey, popen_kwargs):
+def start_server(executable, address, authkey, max_workers, popen_kwargs):
     script_path = garage.multiprocessing.server.__file__
-    args = [executable, script_path, '--listen-sock', address]
+    args = [
+        executable, script_path,
+        '--listen-sock', address,
+        '--max-workers', str(max_workers),
+    ]
     if LOG.isEnabledFor(logging.DEBUG):
         args.append('-vv')
     elif LOG.isEnabledFor(logging.INFO):

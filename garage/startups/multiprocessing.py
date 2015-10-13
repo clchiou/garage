@@ -17,7 +17,15 @@ class Python2Component(components.Component):
         group.add_argument(
             '--python2', default='python2',
             help="""set path or command name of python2 executable""")
+        group.add_argument(
+            '--python2-max-workers', type=int, default=8,
+            help="""set max concurrent python2 worker threads
+                    (default to %(default)s)
+                 """)
 
     def make(self, require):
         args, exit_stack = require.args, require.exit_stack
-        return exit_stack.enter_context(multiprocessing.python(args.python2))
+        return exit_stack.enter_context(multiprocessing.python(
+            executable=args.python2,
+            max_workers=args.python2_max_workers,
+        ))

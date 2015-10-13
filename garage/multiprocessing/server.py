@@ -11,18 +11,26 @@ import sys
 import threading
 from multiprocessing.connection import Listener
 
+try:
+    import backport
+except ImportError:
+    from . import backport
+
 
 LOG = logging.getLogger('multiprocessing.server')
 LOG.addHandler(logging.NullHandler())
 LOG_FORMAT = '%(asctime)s %(threadName)s %(levelname)s %(name)s: %(message)s'
 
 
-def run_server(listener):
+TIMEOUT = 5.0
+
+
+def run_server(listener, semaphore):
     exit_flag = threading.Event()
     server_thread = threading.Thread(
         name='multiprocessing.server#server',
         target=server,
-        args=(listener, exit_flag),
+        args=(listener, semaphore, exit_flag),
     )
     server_thread.daemon = True
     server_thread.start()
@@ -36,28 +44,32 @@ def wait_forever(event):
         event.wait(3600)
 
 
-def server(listener, exit_flag):
+def server(listener, semaphore, exit_flag):
     LOG.info('start server')
-    num_workers = 0
+    worker_serial = 0
     global_vars = {}
     while not exit_flag.is_set():
         conn = listener.accept()
         try:
+            semaphore.acquire(TIMEOUT)
             LOG.debug('accept %r', listener.last_accepted)
             worker = Worker(
                 closing(conn),
+                semaphore,
                 exit_flag,
                 global_vars,
                 listener.last_accepted,
             )
-            num_workers += 1
+            worker_serial += 1
             worker_thread = threading.Thread(
-                name='multiprocessing.server#worker-%02d' % num_workers,
+                name='multiprocessing.server#worker-%02d' % worker_serial,
                 target=worker.run,
             )
             worker_thread.daemon = True
             worker_thread.start()
             conn = None  # conn is transfered to the worker.
+        except backport.Timeout:
+            LOG.error('exceed concurrent workers limit')
         finally:
             # Close conn only when it is not transfered to the worker.
             if conn is not None:
@@ -75,8 +87,10 @@ class Worker(object):
     ERROR_REQUIRE_VALUE = {'error': 'require value argument'}
     ERROR_REQUIRE_SOURCE = {'error': 'require source argument'}
 
-    def __init__(self, conn_manager, exit_flag, global_vars, address):
+    def __init__(
+            self, conn_manager, semaphore, exit_flag, global_vars, address):
         self.conn_manager = conn_manager
+        self.semaphore = semaphore
         self.exit_flag = exit_flag
         self.global_vars = global_vars
         if isinstance(address, tuple):
@@ -86,10 +100,12 @@ class Worker(object):
 
     def run(self):
         LOG.debug('start worker')
-        with self.conn_manager as conn:
-            self.serve_forever(conn)
-        # XXX LOG could be None during interpreter shutdown?
-        #LOG.debug('exit')
+        try:
+            with self.conn_manager as conn:
+                self.serve_forever(conn)
+        finally:
+            self.semaphore.release()
+        LOG.debug('exit')
 
     def serve_forever(self, conn):
         conn.send(self.VERSION_INFO)
@@ -248,6 +264,9 @@ def main(argv):
         '--authkey-var', metavar='VAR', default='AUTHKEY',
         help="""read authkey from this environment variable
                 (default %(default)s)""")
+    parser.add_argument(
+        '--max-workers', type=int, default=8,
+        help="""set max concurrent workers""")
     args = parser.parse_args(argv[1:])
 
     if args.verbose == 0:
@@ -270,9 +289,14 @@ def main(argv):
     if sys.version_info.major > 2:
         authkey = bytes(authkey, encoding='ascii')
 
+    if args.max_workers <= 0:
+        semaphore = backport.UnlimitedSemaphore()
+    else:
+        semaphore = backport.BoundedSemaphore(args.max_workers)
+
     threading.current_thread().name = 'multiprocessing.server#main'
     with closing(Listener(address, authkey=authkey)) as listener:
-        run_server(listener)
+        run_server(listener, semaphore)
 
     return 0
 
