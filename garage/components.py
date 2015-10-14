@@ -21,6 +21,7 @@ __all__ = [
     'PARSER',
     'Component',
     'bind',
+    'find_closure',
     'fqname',
     'main',
     'make_fqname_tuple',
@@ -28,6 +29,8 @@ __all__ = [
 ]
 
 import functools
+import importlib
+import logging
 import types
 from collections import namedtuple
 
@@ -35,6 +38,10 @@ from startup import startup as startup_
 
 from garage import asserts
 from garage.collections import DictAsAttrs
+from garage.functools import unique
+
+
+LOG = logging.getLogger(__name__)
 
 
 def fqname(module_name, name):
@@ -43,6 +50,10 @@ def fqname(module_name, name):
 
 def _is_fqname(name):
     return ':' in name
+
+
+def _get_module_name(fqname_):
+    return fqname_[:fqname_.index(':')]
 
 
 def _get_name(maybe_fqname):
@@ -55,6 +66,8 @@ EXIT_STACK = fqname(__name__, 'exit_stack')
 MAIN = fqname(__name__, 'main')
 PARSE = fqname(__name__, 'parse')
 PARSER = fqname(__name__, 'parser')
+
+_SYMBOLS = (ARGS, ARGV, EXIT_STACK, MAIN, PARSE, PARSER)
 
 
 def make_fqname_tuple(module_name, *maybe_fqnames):
@@ -126,6 +139,68 @@ def _is_method_overridden(obj, base_cls, method_name):
     method = getattr(obj, method_name)
     func = method.__func__ if isinstance(method, types.MethodType) else method
     return func is not base_func
+
+
+def find_closure(*comps, ignore=(), ignore_more=_SYMBOLS):
+    """Find (and make) dependent components recursively by convention."""
+    comps = list(comps)
+    comp_classes = {type(comp) for comp in comps}
+
+    ignore = set(ignore)
+    ignore.update(ignore_more)
+
+    def _update(target, source):
+        if source is None:
+            pass
+        elif isinstance(source, str):
+            target.add(source)
+        else:
+            target.update(source)
+
+    provide_set = set()
+    for comp in comps:
+        _update(provide_set, comp.provide)
+
+    require_set = set()
+    for comp in comps:
+        _update(require_set, comp.require)
+    require_set.difference_update(ignore)
+    require_set.difference_update(provide_set)
+
+    while require_set:
+        iter_modules = map(
+            importlib.import_module,
+            # Sort it so that the lookup order is deterministic.
+            unique(map(_get_module_name, sorted(require_set)))
+        )
+        original = set(require_set)
+        for module in iter_modules:
+            for comp_class in vars(module).values():
+                if not isinstance(comp_class, type):
+                    continue
+                if not issubclass(comp_class, Component):
+                    continue
+                if comp_class in comp_classes:
+                    continue
+                if comp_class.provide is None:
+                    continue
+                if require_set.isdisjoint(comp_class.provide):
+                    continue
+                comps.append(comp_class())
+                comp_classes.add(comp_class)
+                _update(provide_set, comp_class.provide)
+                _update(require_set, comp_class.require)
+                require_set.difference_update(ignore)
+                require_set.difference_update(provide_set)
+        if require_set == original:
+            raise ValueError(
+                'cannot make find components providing %r' % require_set)
+
+    if LOG.isEnabledFor(logging.DEBUG):
+        for comp in comps:
+            LOG.debug('use component %r', comp)
+
+    return comps
 
 
 def vars_as_namespace(varz):
