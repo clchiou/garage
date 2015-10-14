@@ -1,6 +1,7 @@
 __all__ = [
     'AtomicInt',
     'AtomicSet',
+    'ExclusiveAccessor',
     'TaskQueue',
     'Priority',
     'generate_names',
@@ -49,6 +50,20 @@ class AtomicSet:
             if not has_item:
                 self._items.add(item)
             return has_item
+
+
+class ExclusiveAccessor:
+
+    def __init__(self, resource, lock=None):
+        self._resource = resource
+        self._lock = lock or threading.RLock()
+
+    def __enter__(self):
+        self._lock.acquire()
+        return self._resource
+
+    def __exit__(self, *_):
+        self._lock.release()
 
 
 class TaskQueue(queues.ForwardingQueue):
