@@ -3,6 +3,7 @@ __all__ = [
 ]
 
 import logging
+import os
 import threading
 
 import garage
@@ -30,7 +31,6 @@ class LoggingComponent(components.Component):
 
     def make(self, require):
         args = require.args
-        logging.addLevelName(self.TRACE, 'TRACE')
         if args.verbose == 0:
             level = logging.WARNING
         elif args.verbose == 1:
@@ -39,9 +39,19 @@ class LoggingComponent(components.Component):
             level = logging.DEBUG
         else:
             level = self.TRACE
-        logging.basicConfig(level=level, format=self.LOG_FORMAT)
+        self.configure(level)
+
+    @classmethod
+    def configure(cls, level):
+        logging.addLevelName(cls.TRACE, 'TRACE')
+        logging.basicConfig(level=level, format=cls.LOG_FORMAT)
         threading.current_thread().name = garage.__name__ + '#main'
 
     # Hack for manipulating startup order.
     add_arguments.__module__ = garage.__name__
     make.__module__ = garage.__name__
+
+
+if os.environ.get('DEBUG') not in (None, '', '0'):
+    LoggingComponent.configure(logging.DEBUG)
+    logging.getLogger(__name__).debug('start at DEBUG level')
