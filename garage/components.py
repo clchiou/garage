@@ -176,15 +176,11 @@ def find_closure(*comps, ignore=(), ignore_more=_SYMBOLS):
         original = set(require_set)
         for module in iter_modules:
             for comp_class in vars(module).values():
-                if not isinstance(comp_class, type):
-                    continue
-                if not issubclass(comp_class, Component):
-                    continue
-                if comp_class in comp_classes:
-                    continue
-                if comp_class.provide is None:
-                    continue
-                if require_set.isdisjoint(comp_class.provide):
+                if (not isinstance(comp_class, type) or
+                        not issubclass(comp_class, Component) or
+                        comp_class in comp_classes or
+                        comp_class.provide is None or
+                        require_set.isdisjoint(comp_class.provide)):
                     continue
                 comps.append(comp_class())
                 comp_classes.add(comp_class)
