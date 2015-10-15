@@ -19,6 +19,7 @@ TABLE_SPEC_MODEL = (
     .field('short_name', doc="""Shorter name for junction tables.""")
     .field('column_attrs', doc="""Default column attributes""")
     .field('extra_columns', doc="""More SQL columns""")
+    .field('constraints', doc="""SQL constraints.""")
 )
 
 
@@ -28,6 +29,7 @@ table_spec = with_defaults(
         'short_name': None,
         'column_attrs': {},
         'extra_columns': (),
+        'constraints': (),
     },
 )
 

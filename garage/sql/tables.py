@@ -32,6 +32,7 @@ def is_not_foreign(field, *, spec_attr=SPEC_ATTR_NAME):
 def make_table(model, metadata, *, spec_attr=SPEC_ATTR_NAME):
     columns = list(iter_columns(model, spec_attr=spec_attr))
     asserts.postcond(columns)
+    columns.extend(model.attrs[spec_attr].constraints)
     return Table(model.attrs[spec_attr].name, metadata, *columns)
 
 
