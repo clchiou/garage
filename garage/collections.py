@@ -1,8 +1,9 @@
 __all__ = [
-    'LoadingDict',
-    'Namespace',
     'DictAsAttrs',
     'FixedKeysDict',
+    'LoadingDict',
+    'Namespace',
+    'Trie',
     'make_sorted_ordered_dict',
 ]
 
@@ -11,6 +12,10 @@ from collections import (
     MutableMapping,
     UserDict,
 )
+
+
+def make_sorted_ordered_dict(**kwargs):
+    return OrderedDict((key, kwargs[key]) for key in sorted(kwargs))
 
 
 class LoadingDict(UserDict):
@@ -105,5 +110,74 @@ class Namespace(DictAsAttrs):
         return '%s(%s)' % (self.__class__.__name__, fields)
 
 
-def make_sorted_ordered_dict(**kwargs):
-    return OrderedDict((key, kwargs[key]) for key in sorted(kwargs))
+class Trie:
+
+    EMPTY = object()
+
+    class Node:
+
+        def __init__(self, parent, value):
+            self.parent = parent
+            self.children = {}
+            self.value = value
+
+        def get(self, key, exact, default):
+            node = self._get_node(key, exact)
+            if node is None or (exact and node.value is Trie.EMPTY):
+                return default
+            while node and node.value is Trie.EMPTY:
+                node = node.parent
+            return node.value if node else default
+
+        def _get_node(self, key, exact):
+            node = self
+            for element in key:
+                child = node.children.get(element)
+                if child is None:
+                    return None if exact else node
+                node = child
+            return node
+
+        def get_values(self, key):
+            node = self
+            for i, element in enumerate(key):
+                if node.value is not Trie.EMPTY:
+                    yield key[:i], node.value
+                child = node.children.get(element)
+                if child is None:
+                    break
+                node = child
+            else:
+                if node.value is not Trie.EMPTY:
+                    yield key, node.value
+
+        def upsert(self, key, value):
+            node = self
+            for i, element in enumerate(key):
+                child = node.children.get(element)
+                if child is None:
+                    for new_element in key[i:]:
+                        new_child = Trie.Node(node, Trie.EMPTY)
+                        node.children[new_element] = new_child
+                        node = new_child
+                    break
+                node = child
+            node.value = value
+
+    def __init__(self):
+        self._root = Trie.Node(None, Trie.EMPTY)
+
+    def get(self, key, default=None, *, exact=True):
+        return self._root.get(key, exact, default)
+
+    def get_values(self, key):
+        return self._root.get_values(key)
+
+    def __getitem__(self, key):
+        value = self.get(key, Trie.EMPTY)
+        if value is Trie.EMPTY:
+            raise KeyError(key)
+        return value
+
+    def __setitem__(self, key, value):
+        self._root.upsert(key, value)
