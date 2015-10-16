@@ -168,6 +168,16 @@ class CollectionsTest(unittest.TestCase):
         self.assertListEqual([('abc', 'test')], list(trie.get_values('abc')))
         self.assertListEqual([('abc', 'test')], list(trie.get_values('abcx')))
 
+    def test_trie_values(self):
+        trie = Trie()
+        trie[''] = 0
+        trie['a'] = 1
+        trie['ab'] = 2
+        trie['abc'] = 3
+        trie['b'] = 4
+        trie['bc'] = 5
+        self.assertListEqual([0, 1, 2, 3, 4, 5], list(trie.values()))
+
     def assertTrieNodeEqual(self, expact, node):
         value, children = expact
         self.assertEqual(value, node.value)

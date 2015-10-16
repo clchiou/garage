@@ -151,6 +151,13 @@ class Trie:
                 if node.value is not Trie.EMPTY:
                     yield key, node.value
 
+        def values(self):
+            if self.value is not Trie.EMPTY:
+                yield self.value
+            children = sorted(self.children.items(), key=lambda kv: kv[0])
+            for _, child in children:
+                yield from child.values()
+
         def upsert(self, key, value):
             node = self
             for i, element in enumerate(key):
@@ -178,6 +185,9 @@ class Trie:
         if value is Trie.EMPTY:
             raise KeyError(key)
         return value
+
+    def values(self):
+        return self._root.values()
 
     def __setitem__(self, key, value):
         self._root.upsert(key, value)
