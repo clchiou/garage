@@ -3,6 +3,7 @@
 __all__ = [
     'config',
     'counter',
+    'rater',
     'timer',
 ]
 
@@ -110,11 +111,11 @@ class Metry:
         LOG.debug('metry %r is configured with enabled=%s',
                   self.name, self._enabled)
 
-    def measure(self, name, data):
+    def measure(self, name, measurement):
         asserts.precond(self._configured)
         if self._enabled and self._reporters:
             for reporter in self._reporters:
-                reporter(self.name, name, data)
+                reporter(self.name, name, measurement)
 
 
 def make_measure(metry_tree, make, *args):
@@ -131,4 +132,5 @@ METRY_TREE = MetryTree()
 
 config = METRY_TREE.config
 counter = functools.partial(make_measure, METRY_TREE, measures.make_counter)
+rater = functools.partial(make_measure, METRY_TREE, measures.make_rater)
 timer = functools.partial(make_measure, METRY_TREE, measures.make_timer)
