@@ -1,7 +1,9 @@
 """Measure your application."""
 
 __all__ = [
-    'config',
+    'enable',
+    'initialize',
+
     'counter',
     'rater',
     'timer',
@@ -20,13 +22,13 @@ from . import measures
 LOG = logging.getLogger(__name__)
 
 
-ROOT_METRY_NAME = ''
+ROOT_METRY_NAME = None
 
 
 class MetryTree:
 
     def __init__(self):
-        self._configured = False
+        self._initialized = False
         self._trie = Trie()
 
     @staticmethod
@@ -38,16 +40,16 @@ class MetryTree:
         try:
             metry = self._trie[key]
         except KeyError:
-            if self._configured:
+            if self._initialized:
                 raise
             metry = self._trie[key] = Metry(self, name)
         return metry
 
-    def config(self):
-        asserts.precond(not self._configured)
+    def initialize(self):
+        asserts.precond(not self._initialized)
         for metry in self._trie.values():
-            metry.config()
-        self._configured = True
+            metry.initialize()
+        self._initialized = True
 
     def get_parents(self, metry):
         key = self._get_key(metry.name)
@@ -61,7 +63,7 @@ class Metry:
         LOG.debug('create metry %r', name)
         self.name = name
         self._metry_tree = metry_tree
-        self._configured = False
+        self._initialized = False
         self._enabled = None
         self._reporters = None
         self._measures_lock = threading.Lock()
@@ -71,7 +73,7 @@ class Metry:
     def enabled(self):
         if self._enabled is not None:
             return self._enabled
-        asserts.precond(not self._configured)
+        asserts.precond(not self._initialized)
         for metry in self._metry_tree.get_parents(self):
             if metry._enabled is not None:
                 return metry._enabled
@@ -79,7 +81,7 @@ class Metry:
 
     @enabled.setter
     def enabled(self, enabled):
-        asserts.precond(not self._configured)
+        asserts.precond(not self._initialized)
         self._enabled = enabled
 
     def get_or_add_measure(self, name, make):
@@ -90,13 +92,13 @@ class Metry:
             return measure
 
     def add_reporter(self, reporter):
-        asserts.precond(not self._configured)
+        asserts.precond(not self._initialized)
         if self._reporters is None:
             self._reporters = []
         self._reporters.append(reporter)
 
-    def config(self):
-        asserts.precond(not self._configured)
+    def initialize(self):
+        asserts.precond(not self._initialized)
         for metry in self._metry_tree.get_parents(self):
             if self._enabled is None and metry._enabled is not None:
                 self._enabled = metry._enabled
@@ -106,13 +108,13 @@ class Metry:
                 break
         if self._enabled is None:
             self._enabled = False
-        self._configured = True
+        self._initialized = True
         del self._metry_tree
         LOG.debug('metry %r is configured with enabled=%s',
                   self.name, self._enabled)
 
     def measure(self, name, measurement):
-        asserts.precond(self._configured)
+        asserts.precond(self._initialized)
         if self._enabled and self._reporters:
             for reporter in self._reporters:
                 reporter(self.name, name, measurement)
@@ -130,7 +132,13 @@ def make_measure(metry_tree, make, *args):
 METRY_TREE = MetryTree()
 
 
-config = METRY_TREE.config
+def enable(metry_name=ROOT_METRY_NAME, enabled=True):
+    METRY_TREE.get_metry(metry_name).enabled = enabled
+
+
+initialize = METRY_TREE.initialize
+
+
 counter = functools.partial(make_measure, METRY_TREE, measures.make_counter)
 rater = functools.partial(make_measure, METRY_TREE, measures.make_rater)
 timer = functools.partial(make_measure, METRY_TREE, measures.make_timer)

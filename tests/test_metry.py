@@ -12,21 +12,21 @@ class MetryTest(unittest.TestCase):
         metry_abc = tree.get_metry('a.b.c')
         metry_abd = tree.get_metry('a.b.d')
         metry_abde = tree.get_metry('a.b.d.e')
-        metry_root = tree.get_metry('')
+        metry_root = tree.get_metry()
 
         self.assertIs(metry_abc, tree.get_metry('a.b.c'))
         self.assertIs(metry_abd, tree.get_metry('a.b.d'))
         self.assertIs(metry_abde, tree.get_metry('a.b.d.e'))
-        self.assertIs(metry_root, tree.get_metry(''))
+        self.assertIs(metry_root, tree.get_metry())
 
         metry_root.enabled = True
         metry_abd.enabled = False
-        tree.config()
+        tree.initialize()
 
         self.assertIs(metry_abc, tree.get_metry('a.b.c'))
         self.assertIs(metry_abd, tree.get_metry('a.b.d'))
         self.assertIs(metry_abde, tree.get_metry('a.b.d.e'))
-        self.assertIs(metry_root, tree.get_metry(''))
+        self.assertIs(metry_root, tree.get_metry())
 
         self.assertTrue(metry_abc.enabled)
         self.assertFalse(metry_abd.enabled)
@@ -57,13 +57,13 @@ class MetryTest(unittest.TestCase):
         root.enabled = True
         root.add_reporter(report)
 
-        tree.config()
+        tree.initialize()
 
         m0()
         m1(10)
         self.assertListEqual(
             [
-                ('', 'c0', (Any(float), 1, None)),
+                (None, 'c0', (Any(float), 1, None)),
                 ('a.b.c', 'c1', (Any(float), 10, None)),
             ],
             measurements,
@@ -79,7 +79,7 @@ class MetryTest(unittest.TestCase):
         root = tree.get_metry()
         root.enabled = True
         root.add_reporter(report)
-        tree.config()
+        tree.initialize()
 
         with timer.time() as cxt:
             cxt.stop()
