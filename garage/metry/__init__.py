@@ -3,6 +3,7 @@
 __all__ = [
     'config',
     'counter',
+    'timer',
 ]
 
 import functools
@@ -130,3 +131,4 @@ METRY_TREE = MetryTree()
 
 config = METRY_TREE.config
 counter = functools.partial(make_measure, METRY_TREE, measures.make_counter)
+timer = functools.partial(make_measure, METRY_TREE, measures.make_timer)

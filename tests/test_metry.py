@@ -69,6 +69,47 @@ class MetryTest(unittest.TestCase):
             measurements,
         )
 
+    def test_timer(self):
+        measurements = []
+        def report(metry_name, measure_name, data):
+            measurements.append((metry_name, measure_name, data))
+
+        tree = metry.MetryTree()
+        timer = metry.make_measure(tree, metry.measures.make_timer, 'x', 't0')
+        root = tree.get_metry()
+        root.enabled = True
+        root.add_reporter(report)
+        tree.config()
+
+        with timer.time() as cxt:
+            cxt.stop()
+            cxt.stop()
+        self.assertListEqual(
+            [
+                ('x', 't0', (Any(float), Any(float))),
+            ],
+            measurements,
+        )
+
+        class MyError(Exception):
+            pass
+        @timer
+        def foo():
+            raise MyError
+        try:
+            foo()
+        except MyError:
+            pass
+        else:
+            self.fail()
+        self.assertListEqual(
+            [
+                ('x', 't0', (Any(float), Any(float))),
+                ('x', 't0', (Any(float), Any(float))),
+            ],
+            measurements,
+        )
+
 
 if __name__ == '__main__':
     unittest.main()
