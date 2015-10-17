@@ -1,6 +1,9 @@
 import unittest
 
+import logging
+
 from garage import metry
+from garage.metry.reporters.logging import LogReporter
 
 from .utils import Any
 
@@ -109,6 +112,15 @@ class MetryTest(unittest.TestCase):
             ],
             measurements,
         )
+
+    def test_log_reporter(self):
+        tree = metry.MetryTree()
+        rater = metry.make_measure(tree, metry.measures.make_rater, 'r0')
+        tree.get_metry().add_reporter(LogReporter(logging.getLogger()))
+        tree.get_metry().enabled = True
+        tree.initialize()
+        with rater(1):
+            pass
 
 
 if __name__ == '__main__':
