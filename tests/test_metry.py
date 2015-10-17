@@ -63,8 +63,8 @@ class MetryTest(unittest.TestCase):
         m1(10)
         self.assertListEqual(
             [
-                ('', 'c0', (Any(float), 1)),
-                ('a.b.c', 'c1', (Any(float), 10)),
+                ('', 'c0', (Any(float), 1, None)),
+                ('a.b.c', 'c1', (Any(float), 10, None)),
             ],
             measurements,
         )
@@ -86,7 +86,7 @@ class MetryTest(unittest.TestCase):
             cxt.stop()
         self.assertListEqual(
             [
-                ('x', 't0', (Any(float), Any(float))),
+                ('x', 't0', (Any(float), None, Any(float))),
             ],
             measurements,
         )
@@ -104,8 +104,8 @@ class MetryTest(unittest.TestCase):
             self.fail()
         self.assertListEqual(
             [
-                ('x', 't0', (Any(float), Any(float))),
-                ('x', 't0', (Any(float), Any(float))),
+                ('x', 't0', (Any(float), None, Any(float))),
+                ('x', 't0', (Any(float), None, Any(float))),
             ],
             measurements,
         )

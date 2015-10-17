@@ -1,4 +1,5 @@
 __all__ = [
+    'Measurement',
     'make_counter',
     'make_timer',
 ]
@@ -8,22 +9,19 @@ import functools
 import time
 
 
+Measurement = collections.namedtuple('Measurement', 'when value duration')
+
+
 def make_counter(metry, name):
     return functools.partial(count, metry.measure, name)
-
-
-Count = collections.namedtuple('Count', 'time value')
-
-
-def count(measure, name, value=1):
-    measure(name, Count(time.time(), value))
 
 
 def make_timer(metry, name):
     return Timer(metry.measure, name)
 
 
-Time = collections.namedtuple('Time', 'start elapsed')
+def count(measure, name, value=1):
+    measure(name, Measurement(time.time(), value, None))
 
 
 class Timer:
@@ -50,7 +48,8 @@ class Timer:
             if self._start is None:
                 return
             elapsed = time.perf_counter() - self._start
-            self.timer.measure(self.timer.name, Time(self._time, elapsed))
+            measurement = Measurement(self._time, None, elapsed)
+            self.timer.measure(self.timer.name, measurement)
             self._time = None
             self._start = None
 
