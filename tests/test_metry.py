@@ -2,6 +2,8 @@ import unittest
 
 from garage import metry
 
+from .utils import Any
+
 
 class MetryTest(unittest.TestCase):
 
@@ -38,6 +40,34 @@ class MetryTest(unittest.TestCase):
 
         with self.assertRaises(KeyError):
             tree.get_metry('x')
+
+    def test_counter(self):
+        measurements = []
+        def report(metry_name, measure_name, data):
+            measurements.append((metry_name, measure_name, data))
+
+        tree = metry.MetryTree()
+
+        m0 = metry.make_measure(
+            tree, metry.measures.make_counter, 'c0')
+        m1 = metry.make_measure(
+            tree, metry.measures.make_counter, 'a.b.c', 'c1')
+
+        root = tree.get_metry()
+        root.enabled = True
+        root.add_reporter(report)
+
+        tree.config()
+
+        m0()
+        m1(10)
+        self.assertListEqual(
+            [
+                ('', 'c0', (Any(float), 1)),
+                ('a.b.c', 'c1', (Any(float), 10)),
+            ],
+            measurements,
+        )
 
 
 if __name__ == '__main__':
