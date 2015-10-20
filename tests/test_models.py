@@ -1,6 +1,6 @@
 import unittest
 
-from argparse import Namespace
+from types import SimpleNamespace
 
 from garage import models
 
@@ -25,19 +25,19 @@ class ModelsTest(unittest.TestCase):
 
         ref = refs.ref('p')
         with refs as context:
-            context['p'] = p = Namespace()
+            context['p'] = p = SimpleNamespace()
             self.assertEqual(p, ref.deref())
 
         ref = refs.ref('p.x')
         with refs as context:
-            context['p'] = p = Namespace()
+            context['p'] = p = SimpleNamespace()
             p.x = 1
             self.assertEqual(1, ref.deref())
 
         ref = refs.ref('q.y.y')
         with refs as context:
-            context['q'] = q = Namespace()
-            q.y = Namespace()
+            context['q'] = q = SimpleNamespace()
+            q.y = SimpleNamespace()
             q.y.y = 2
             self.assertEqual(2, ref.deref())
 
@@ -45,7 +45,7 @@ class ModelsTest(unittest.TestCase):
             ref.deref()
 
         with refs as context:
-            context['p'] = Namespace()
+            context['p'] = SimpleNamespace()
             with self.assertRaises(AttributeError):
                 refs.ref('p.z').deref()
 
