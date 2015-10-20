@@ -14,7 +14,7 @@ class CollectionsTest(unittest.TestCase):
         self.assertDictEqual({'k1': 'k1', 'k2': 'value'}, ldict.data)
 
     def test_dict_as_attrs(self):
-        attrs = DictAsAttrs({'y': 1})
+        attrs = DictViewNamespace({'y': 1})
 
         self.assertEqual(1, attrs.y)
         self.assertFalse(hasattr(attrs, 'x'))

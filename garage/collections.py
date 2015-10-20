@@ -1,5 +1,5 @@
 __all__ = [
-    'DictAsAttrs',
+    'DictViewNamespace',
     'LoadingDict',
     'Trie',
 ]
@@ -19,12 +19,12 @@ class LoadingDict(UserDict):
         return value
 
 
-class DictAsAttrs:
-    """Wrap a dict and access its elements through attributes."""
+class DictViewNamespace:
+    """Access dict through a namespace."""
 
     def __init__(self, data):
-        assert '_DictAsAttrs__data' not in data
-        object.__setattr__(self, '_DictAsAttrs__data', data)
+        assert '_DictViewNamespace__data' not in data
+        object.__setattr__(self, '_DictViewNamespace__data', data)
 
     def __str__(self):
         return '%s(%r)' % (self.__class__.__name__, self.__data)
