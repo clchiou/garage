@@ -50,8 +50,8 @@ class DictViewNamespace:
         except KeyError as exc:
             raise AttributeError(name) from exc
 
-    def __dir__(self):
-        yield from sorted(self.__data.keys())
+    def __iter__(self):
+        return iter(self.__data.keys())
 
 
 class Trie:

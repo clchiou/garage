@@ -26,7 +26,7 @@ class CollectionsTest(unittest.TestCase):
         self.assertFalse(hasattr(attrs, 'y'))
 
         attrs.z = 3
-        self.assertListEqual(['x', 'z'], dir(attrs))
+        self.assertListEqual(['x', 'z'], list(sorted((attrs))))
 
     def test_trie(self):
         trie = Trie()
