@@ -48,6 +48,10 @@ class Model:
         self.fields[field.name] = field
         return self
 
+    def copy(self):
+        fields = (f.copy() for f in self.fields.values())
+        return Model(self.name, *fields, **self.attrs.data)
+
 
 class Field:
 
@@ -58,6 +62,9 @@ class Field:
         self.attrs = AutoDerefDictProxy(
             OrderedDict((key, attrs[key]) for key in sorted(attrs)))
         self.a = DictViewNamespace(self.attrs)
+
+    def copy(self):
+        return Field(self.name, **self.attrs.data)
 
 
 class AutoDerefDictProxy(UserDict):
