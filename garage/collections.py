@@ -1,21 +1,10 @@
 __all__ = [
     'DictAsAttrs',
-    'FixedKeysDict',
     'LoadingDict',
-    'Namespace',
     'Trie',
-    'make_sorted_ordered_dict',
 ]
 
-from collections import (
-    OrderedDict,
-    MutableMapping,
-    UserDict,
-)
-
-
-def make_sorted_ordered_dict(**kwargs):
-    return OrderedDict((key, kwargs[key]) for key in sorted(kwargs))
+from collections import UserDict
 
 
 class LoadingDict(UserDict):
@@ -63,51 +52,6 @@ class DictAsAttrs:
 
     def __dir__(self):
         yield from sorted(self.__data.keys())
-
-
-class FixedKeysDict(MutableMapping):
-    """A dict with a fixed set of keys."""
-
-    def __init__(self, *args, **kwargs):
-        self._data = dict(*args, **kwargs)
-
-    def __contains__(self, key):
-        return key in self._data
-
-    def __len__(self):
-        return len(self._data)
-
-    def __iter__(self):
-        return iter(self._data)
-
-    def __getitem__(self, key):
-        return self._data[key]
-
-    def __setitem__(self, key, value):
-        if key not in self._data:
-            raise KeyError(key)
-        self._data[key] = value
-
-    def __delitem__(self, key):
-        raise KeyError(key)
-
-
-class Namespace(DictAsAttrs):
-
-    def __init__(self, **kwargs):
-        super().__init__(FixedKeysDict(**kwargs))
-
-    def __str__(self):
-        fields = ', '.join(
-            '%s=%r' % (name, getattr(self, name)) for name in dir(self)
-        )
-        return '%s(%s)' % (self.__class__.__name__, fields)
-
-    def __repr__(self):
-        fields = ', '.join(
-            '%s=%r' % (name, getattr(self, name)) for name in dir(self)
-        )
-        return '%s(%s)' % (self.__class__.__name__, fields)
 
 
 class Trie:

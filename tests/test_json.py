@@ -3,11 +3,12 @@ import unittest
 import datetime
 import json
 
-from garage.collections import make_sorted_ordered_dict
 from garage.json import encode_datetime
 from garage.json import encode_mapping
 from garage.json import join_encoders
 from garage.timezones import TimeZone
+
+from .utils import make_sorted_ordered_dict
 
 
 class JsonTest(unittest.TestCase):

@@ -5,10 +5,11 @@ import datetime
 
 import yaml
 
-from garage.collections import make_sorted_ordered_dict
 from garage.timezones import TimeZone
 from garage.yaml import represent_datetime
 from garage.yaml import represent_mapping
+
+from .utils import make_sorted_ordered_dict
 
 
 class YamlTest(unittest.TestCase):
