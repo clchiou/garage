@@ -156,8 +156,7 @@ def _parse_datetime(dt_str):
         try:
             return datetime.strptime(dt_str, dt_format)
         except ValueError:
-            LOG.debug(
-                'cannot parse %r using %r', dt_str, dt_format, exc_info=True)
+            pass
     raise ValueError('cannot parse %r using ISO-8601 format', dt_str)
 
 
