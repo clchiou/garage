@@ -1,6 +1,7 @@
 """Measure your application."""
 
 __all__ = [
+    'add_reporter',
     'enable',
     'initialize',
 
@@ -114,10 +115,12 @@ class Metry:
                   self.name, self._enabled)
 
     def measure(self, name, measurement):
-        asserts.precond(self._initialized)
         if self._enabled and self._reporters:
             for reporter in self._reporters:
                 reporter(self.name, name, measurement)
+
+
+METRY_TREE = MetryTree()
 
 
 def make_measure(metry_tree, make, *args):
@@ -129,10 +132,17 @@ def make_measure(metry_tree, make, *args):
     return metry.get_or_add_measure(measure_name, make)
 
 
-METRY_TREE = MetryTree()
+def add_reporter(*args):
+    try:
+        metry_name, reporter = args
+    except ValueError:
+        metry_name, reporter = ROOT_METRY_NAME, args[0]
+    LOG.debug('add reporter to metry %r', metry_name)
+    METRY_TREE.get_metry(metry_name).add_reporter(reporter)
 
 
 def enable(metry_name=ROOT_METRY_NAME, enabled=True):
+    LOG.debug('set enabled of metry %r to %r', metry_name, enabled)
     METRY_TREE.get_metry(metry_name).enabled = enabled
 
 
