@@ -29,9 +29,9 @@ class SqlTest(unittest.TestCase):
         m0 = (
             models.Model('m0', sql=sql.specs.table_spec(name='t0'))
             .field('f0', sql=sql.specs.column_spec(
-                type=String, extra_attrs={'unique': True}))
+                type=str, extra_attrs={'unique': True}))
             .field('f1', sql=sql.specs.column_spec(
-                is_primary_key=True, type=Integer))
+                is_primary_key=True, type=int))
         )
 
         m1 = (
@@ -62,7 +62,13 @@ class SqlTest(unittest.TestCase):
                 models.Model(name, sql=sql.specs.table_spec(
                     name=name,
                     extra_columns=[
-                        Column('f1', Integer, primary_key=True),
+                        (
+                            'f1',
+                            sql.specs.column_spec(
+                                is_primary_key=True,
+                                type=int,
+                            ),
+                        ),
                     ],
                 ))
                 .field('f0', sql=sql.specs.column_spec(

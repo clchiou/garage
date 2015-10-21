@@ -1,9 +1,13 @@
 """Specify and automate some SQL operations."""
 
+# NOTE: Keep that when this module is imported alone, sqlalchemy is not
+# imported (thus sql/__init__.py should also not import sqlalchemy).
+
 __all__ = [
     'table_spec',
     'column_spec',
     'foreign_key_spec',
+    'unique_constraint_spec',
 ]
 
 from garage import models
@@ -66,4 +70,17 @@ foreign_key_spec = with_defaults(
     {
         'field': None,
     },
+)
+
+
+UNIQUE_CONSTRAINT_SPEC_MODEL = (
+    models.Model('UNIQUE_CONSTRAINT_SPEC_MODEL')
+    .field('constraint')
+    .field('field_names', doc="""Fields that together should be unique.""")
+)
+
+
+unique_constraint_spec = with_defaults(
+    models.make_as_namespace(UNIQUE_CONSTRAINT_SPEC_MODEL),
+    {'constraint': 'unique'},
 )
