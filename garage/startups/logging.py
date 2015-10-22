@@ -45,7 +45,7 @@ class LoggingComponent(components.Component):
     def configure(cls, level):
         logging.addLevelName(cls.TRACE, 'TRACE')
         logging.basicConfig(level=level, format=cls.LOG_FORMAT)
-        threading.current_thread().name = garage.__name__ + '#main'
+        threading.current_thread().name = 'main'
 
     # Hack for manipulating startup order.
     add_arguments.__module__ = garage.__name__

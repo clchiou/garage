@@ -52,7 +52,7 @@ class Worker(actors.Stub, actor=_Worker):
 
 class WorkerPool:
 
-    worker_names = utils.generate_names(name='%s#worker' % __name__)
+    worker_names = utils.generate_names(name='executor')
 
     def __init__(self):
         self._lock = threading.Lock()

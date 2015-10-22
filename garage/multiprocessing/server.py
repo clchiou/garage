@@ -28,7 +28,7 @@ TIMEOUT = 5.0
 def run_server(listener, semaphore):
     exit_flag = threading.Event()
     server_thread = threading.Thread(
-        name='multiprocessing.server#server',
+        name='multiprocessing',
         target=server,
         args=(listener, semaphore, exit_flag),
     )
@@ -62,7 +62,7 @@ def server(listener, semaphore, exit_flag):
             )
             worker_serial += 1
             worker_thread = threading.Thread(
-                name='multiprocessing.server#worker-%02d' % worker_serial,
+                name='multiprocessing-%02d' % worker_serial,
                 target=worker.run,
             )
             worker_thread.daemon = True

@@ -24,7 +24,7 @@ def start_supervisor(num_actors, start_new_actor):
     return stub
 
 
-start_supervisor.names = utils.generate_names(name='%s#supervisor' % __name__)
+start_supervisor.names = utils.generate_names(name='supervisor')
 
 
 class _Supervisor:

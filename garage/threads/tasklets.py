@@ -23,7 +23,7 @@ def start_tasklet(task_queue):
     return stub
 
 
-start_tasklet.names = utils.generate_names(name='%s#tasklet' % __name__)
+start_tasklet.names = utils.generate_names(name='tasklet')
 
 
 class _Tasklet:
