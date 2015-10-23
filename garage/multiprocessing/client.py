@@ -58,7 +58,6 @@ class ServerStub:
 
     def __init__(self, conn, address, protocol):
         self.stub = Stub(conn, address, protocol)
-        self.server_vars = Vars(self.stub, 'server_')
         self.vars = Vars(self.stub)
         self.funcs = Funcs(self.stub)
         # Don't call close/shutdown if it has been closed.  Although
@@ -108,27 +107,23 @@ class ServerStub:
 
 class Vars:
 
-    def __init__(self, stub, prefix=''):
+    def __init__(self, stub):
         object.__setattr__(self, '_stub', stub)
-        object.__setattr__(self, '_prefix', prefix)
 
     def __getattr__(self, name):
-        response, err = self._stub(
-            {'command': self._prefix + 'get', 'name': name})
+        response, err = self._stub({'command': 'get', 'name': name})
         assert ('value' in response) != bool(err)
         if err:
             raise AttributeError('cannot get %r due to %s' % (name, err))
         return response.get('value')
 
     def __setattr__(self, name, value):
-        _, err = self._stub(
-            {'command': self._prefix + 'set', 'name': name, 'value': value})
+        _, err = self._stub({'command': 'set', 'name': name, 'value': value})
         if err:
             raise AttributeError('cannot set %r due to %s' % (name, err))
 
     def __delattr__(self, name):
-        _, err = self._stub(
-            {'command': self._prefix + 'del', 'name': name})
+        _, err = self._stub({'command': 'del', 'name': name})
         if err:
             raise AttributeError('cannot delete %r due to %s' % (name, err))
 
