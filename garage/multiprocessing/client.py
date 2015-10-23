@@ -136,7 +136,7 @@ class Vars:
 class Funcs:
 
     def __init__(self, stub):
-        object.__setattr__(self, '_stub', stub)
+        self._stub = stub
 
     def __getattr__(self, name):
         return functools.partial(self._call_stub, name)

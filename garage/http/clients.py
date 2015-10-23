@@ -218,7 +218,7 @@ class Response:
     """A thin wrapper of requests.Response."""
 
     def __init__(self, response):
-        object.__setattr__(self, '_response', response)
+        self._response = response
 
     def __getattr__(self, name):
         return getattr(self._response, name)
