@@ -109,7 +109,7 @@ class SqlTest(unittest.TestCase):
         metadata.create_all(engine)
 
         select_by = sql.utils.make_select_by(table.c.f0, table.c.f1)
-        insert = sql.utils.make_insert(model)
+        insert = sql.utils.make_insert_or_ignore(model)
 
         with closing(engine.connect()) as conn:
 

@@ -2,7 +2,8 @@
 
 __all__ = [
     'make_select_by',
-    'make_insert',
+    'make_insert_or_ignore',
+    'insert_or_ignore',
     'serialize',
     'deserialize',
     'as_int',
@@ -50,7 +51,7 @@ def make_select_by(key_column, *value_columns):
     return select_by
 
 
-def make_insert(model, *, spec_attr=SPEC_ATTR_NAME):
+def make_insert_or_ignore(model, *, spec_attr=SPEC_ATTR_NAME):
 
     as_dict = models.make_as_dict(
         field for field in model if is_not_foreign(field, spec_attr=spec_attr))
@@ -62,12 +63,12 @@ def make_insert(model, *, spec_attr=SPEC_ATTR_NAME):
 
     def insert_objs_extras(conn, table, objs_extras):
         values = [combine(as_dict(obj), extra) for obj, extra in objs_extras]
-        insert(conn, table, values)
+        insert_or_ignore(conn, table, values)
 
     return insert_objs_extras
 
 
-def insert(conn, table, values):
+def insert_or_ignore(conn, table, values):
     conn.execute(table.insert().prefix_with('OR IGNORE'), values)
 
 
