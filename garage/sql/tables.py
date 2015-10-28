@@ -13,6 +13,7 @@ import logging
 from sqlalchemy import (
     Table,
     Column,
+    Boolean,
     Float,
     Integer,
     String,
@@ -142,6 +143,7 @@ def _iter_primary_key_pairs(model, spec_attr):
 
 def _convert_type(type_):
     return {
+        bool: Boolean,
         float: Float,
         int: Integer,
         str: String,
