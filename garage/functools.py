@@ -3,6 +3,7 @@ __all__ = [
     'is_ordered',
     'unique',
     'group',
+    'collect',
     'with_defaults',
     'memorize',
     'nondata_property',
@@ -47,12 +48,19 @@ def unique(iterable, key=None):
 
 def group(iterable, key=None):
     """Group elements by key, preserving orders."""
+    return list(collect(iterable, key=key).values())
+
+
+def collect(iterable, key=None, value=None):
+    """Group and collect elements by key, preserving orders."""
     if key is None:
         key = lambda element: element
+    if value is None:
+        value = lambda element: element
     odict = collections.OrderedDict()
     for element in iterable:
-        odict.setdefault(key(element), []).append(element)
-    return list(odict.values())
+        odict.setdefault(key(element), []).append(value(element))
+    return odict
 
 
 def with_defaults(func, defaults):
