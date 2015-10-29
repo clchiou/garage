@@ -4,6 +4,8 @@ __all__ = [
     'make_select_by',
     'make_insert_or_ignore',
     'insert_or_ignore',
+    'format_datetime',
+    'parse_datetime',
     'serialize',
     'deserialize',
     'as_int',
@@ -72,6 +74,19 @@ def insert_or_ignore(conn, table, values):
     conn.execute(table.insert().prefix_with('OR IGNORE'), values)
 
 
+def format_datetime(dt_obj):
+    return dt_obj.strftime(DATETIME_FORMAT)
+
+
+def parse_datetime(dt_str):
+    for dt_format in (DATETIME_FORMAT, DATETIME_FORMAT_WO_TIMEZONE):
+        try:
+            return datetime.strptime(dt_str, dt_format)
+        except ValueError:
+            pass
+    raise ValueError('cannot parse %r using ISO-8601 format', dt_str)
+
+
 _ELEMENT_TYPES = frozenset((int, float, str, datetime))
 
 
@@ -111,7 +126,7 @@ def _serialize(value):
             int: str,
             float: str,
             str: str,
-            datetime: lambda dt: dt.strftime(DATETIME_FORMAT),
+            datetime: format_datetime,
         }[typ](value),
     ]
 
@@ -148,17 +163,8 @@ def _deserialize(packed_value):
         'i': int,
         'f': float,
         's': str,
-        'dt': _parse_datetime,
+        'dt': parse_datetime,
     }[packed_value[0]](packed_value[1])
-
-
-def _parse_datetime(dt_str):
-    for dt_format in (DATETIME_FORMAT, DATETIME_FORMAT_WO_TIMEZONE):
-        try:
-            return datetime.strptime(dt_str, dt_format)
-        except ValueError:
-            pass
-    raise ValueError('cannot parse %r using ISO-8601 format', dt_str)
 
 
 def as_int(value):
