@@ -1,6 +1,7 @@
 """Helpers for CRUD operations."""
 
 __all__ = [
+    'make_find',
     'make_select_by',
     'make_insert_or_ignore',
     'insert_or_ignore',
@@ -38,6 +39,16 @@ LOG = logging.getLogger(__name__)
 # ISO 8601 date and time format (with time zone designator).
 DATETIME_FORMAT = '%Y-%m-%dT%H:%M:%S.%f%z'
 DATETIME_FORMAT_WO_TIMEZONE = '%Y-%m-%dT%H:%M:%S.%f'
+
+
+def make_find(key_column, select_, execute):
+    def find(key):
+        objects = execute(select_().where(key_column == key))
+        if len(objects) != 1:
+            raise KeyError('find %d object(s) for key %r' %
+                           (len(objects), key))
+        return objects[0]
+    return find
 
 
 def make_select_by(key_column, *value_columns):
