@@ -4,6 +4,7 @@ from garage.functools import run_once
 from garage.functools import is_ordered
 from garage.functools import unique
 from garage.functools import group
+from garage.functools import collect
 from garage.functools import collect_pairs
 from garage.functools import with_defaults
 from garage.functools import memorize
@@ -59,6 +60,16 @@ class FunctoolsTest(unittest.TestCase):
         self.assertListEqual([[3], [1], [2]], group([3, 1, 2]))
         self.assertListEqual(
             [[3, 3, 3], [1], [2, 2]], group([3, 1, 2, 3, 2, 3]))
+
+    def test_collect(self):
+        self.assertListEqual(
+            [(3, [3]), (1, [1]), (2, [2])],
+            list(collect([3, 1, 2]).items()),
+        )
+        self.assertListEqual(
+            [(3, [3, 3, 3]), (1, [1]), (2, [2, 2])],
+            list(collect([3, 1, 2, 3, 2, 3]).items()),
+        )
 
     def test_collect_pairs(self):
         self.assertListEqual(
