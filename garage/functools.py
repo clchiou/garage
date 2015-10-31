@@ -4,6 +4,7 @@ __all__ = [
     'unique',
     'group',
     'collect',
+    'collect_pairs',
     'with_defaults',
     'memorize',
     'nondata_property',
@@ -61,6 +62,11 @@ def collect(iterable, key=None, value=None):
     for element in iterable:
         odict.setdefault(key(element), []).append(value(element))
     return odict
+
+
+def collect_pairs(iterable):
+    return collect(
+        iterable, key=lambda pair: pair[0], value=lambda pair: pair[1])
 
 
 def with_defaults(func, defaults):
