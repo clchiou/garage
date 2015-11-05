@@ -14,7 +14,7 @@ from functools import partial
 from itertools import chain
 
 from garage import asserts
-from garage.collections import DictViewNamespace
+from garage.collections import DictViewAttrs
 
 
 class Model:
@@ -37,8 +37,8 @@ class Model:
         self.attrs = AutoDerefDictProxy(
             OrderedDict((key, attrs[key]) for key in sorted(attrs)))
         self.fields = OrderedDict((field.name, field) for field in fields)
-        self.a = DictViewNamespace(self.attrs)
-        self.f = DictViewNamespace(self.fields)
+        self.a = DictViewAttrs(self.attrs)
+        self.f = DictViewAttrs(self.fields)
 
     def __iter__(self):
         return iter(self.fields.values())
@@ -61,7 +61,7 @@ class Field:
         self.name = name
         self.attrs = AutoDerefDictProxy(
             OrderedDict((key, attrs[key]) for key in sorted(attrs)))
-        self.a = DictViewNamespace(self.attrs)
+        self.a = DictViewAttrs(self.attrs)
 
     def copy(self):
         return Field(self.name, **self.attrs.data)
@@ -141,4 +141,4 @@ def as_namespace(names, *args, **kwargs):
         ((name, kwargs[name]) for name in names if name in kwargs),
     ))
     asserts.postcond(len(names) == len(data))
-    return DictViewNamespace(AutoDerefDictProxy(data))
+    return DictViewAttrs(AutoDerefDictProxy(data))

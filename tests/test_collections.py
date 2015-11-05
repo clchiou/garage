@@ -14,7 +14,7 @@ class CollectionsTest(unittest.TestCase):
         self.assertDictEqual({'k1': 'k1', 'k2': 'value'}, ldict.data)
 
     def test_dict_as_attrs(self):
-        attrs = DictViewNamespace({'y': 1})
+        attrs = DictViewAttrs({'y': 1})
 
         self.assertEqual(1, attrs.y)
         self.assertFalse(hasattr(attrs, 'x'))
@@ -146,6 +146,63 @@ class CollectionsTest(unittest.TestCase):
             child = node.children[element]
             self.assertIs(node, child.parent)
             self.assertTrieNodeEqual(children[element], child)
+
+
+class CollectionsHelperTest(unittest.TestCase):
+
+    def test_is_ordered(self):
+        self.assertTrue(is_ordered([]))
+        self.assertTrue(is_ordered([1]))
+        self.assertTrue(is_ordered([1, 1]))
+        self.assertTrue(is_ordered([1, 1, 1]))
+        self.assertTrue(is_ordered([1, 2]))
+        self.assertTrue(is_ordered([1, 2, 3]))
+
+        self.assertFalse(is_ordered([2, 1]))
+        self.assertFalse(is_ordered([1, 3, 2]))
+
+        self.assertTrue(is_ordered([], strict=True))
+        self.assertTrue(is_ordered([1], strict=True))
+        self.assertTrue(is_ordered([1, 2], strict=True))
+        self.assertTrue(is_ordered([1, 2, 3], strict=True))
+
+        self.assertFalse(is_ordered([1, 1], strict=True))
+        self.assertFalse(is_ordered([1, 1, 1], strict=True))
+        self.assertFalse(is_ordered([2, 1], strict=True))
+        self.assertFalse(is_ordered([1, 3, 2], strict=True))
+
+    def test_unique(self):
+        self.assertListEqual([], unique([]))
+        self.assertListEqual([1], unique([1, 1, 1]))
+        self.assertListEqual([1, 3, 2, 4], unique([1, 1, 3, 2, 3, 2, 4, 1]))
+
+    def test_unique_by_key(self):
+        self.assertListEqual([], unique([], key=lambda _: None))
+        self.assertListEqual(
+            ['a1', 'b2'],
+            unique(['a1', 'b2', 'a2', 'b1'], key=lambda x: x[0]),
+        )
+
+    def test_group(self):
+        self.assertListEqual([[3], [1], [2]], group([3, 1, 2]))
+        self.assertListEqual(
+            [[3, 3, 3], [1], [2, 2]], group([3, 1, 2, 3, 2, 3]))
+
+    def test_collect(self):
+        self.assertListEqual(
+            [(3, [3]), (1, [1]), (2, [2])],
+            list(collect([3, 1, 2]).items()),
+        )
+        self.assertListEqual(
+            [(3, [3, 3, 3]), (1, [1]), (2, [2, 2])],
+            list(collect([3, 1, 2, 3, 2, 3]).items()),
+        )
+
+    def test_collect_pairs(self):
+        self.assertListEqual(
+            [('a', ['a', 'b', 'c']), ('b', ['d'])],
+            list(collect_pairs(['aa', 'bd', 'ab', 'ac']).items()),
+        )
 
 
 if __name__ == '__main__':

@@ -37,8 +37,7 @@ from collections import namedtuple
 from startup import startup as startup_
 
 from garage import asserts
-from garage.collections import DictViewNamespace
-from garage.functools import unique
+from garage.collections import DictViewAttrs, unique
 
 
 LOG = logging.getLogger(__name__)
@@ -128,7 +127,7 @@ def bind(component, startup=startup_, next_startup=None, parser_=PARSER):
 
         @functools.wraps(component.make)
         def make(**require):
-            return component.make(DictViewNamespace(require))
+            return component.make(DictViewAttrs(require))
         next_startup.add_func(make, annotations)
 
 
@@ -200,7 +199,7 @@ def find_closure(*comps, ignore=(), ignore_more=_SYMBOLS):
 
 
 def vars_as_namespace(varz):
-    return DictViewNamespace({
+    return DictViewAttrs({
         _get_name(fqname): value for fqname, value in varz.items()
     })
 

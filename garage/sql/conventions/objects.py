@@ -2,7 +2,7 @@ __all__ = [
     'Items',
 ]
 
-from garage.functools import nondata_property
+from garage.classes import nondata_property
 from garage.sql.utils import insert_or_ignore, make_select_by
 
 

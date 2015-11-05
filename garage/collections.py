@@ -1,10 +1,60 @@
+"""Collections of objects and collection helper functions."""
+
 __all__ = [
-    'DictViewNamespace',
+    'DictViewAttrs',
     'LoadingDict',
     'Trie',
+    'collect',
+    'collect_pairs',
+    'group',
+    'is_ordered',
+    'unique',
 ]
 
-from collections import UserDict
+import operator
+from collections import OrderedDict, UserDict
+
+
+def is_ordered(lst, key=None, strict=False):
+    """True if input list is (strictly) ordered."""
+    if key is None:
+        key = lambda item: item
+    cmp = operator.lt if strict else operator.le
+    return all(cmp(key(x0), key(x1)) for x0, x1 in zip(lst, lst[1:]))
+
+
+def unique(iterable, key=None):
+    """Return unique elements of an iterable."""
+    if key:
+        odict = OrderedDict()
+        for element in iterable:
+            odict.setdefault(key(element), element)
+        return list(odict.values())
+    else:
+        return list(OrderedDict.fromkeys(iterable))
+
+
+def collect(iterable, key=None, value=None):
+    """Collect elements by key, preserving order."""
+    if key is None:
+        key = lambda element: element
+    if value is None:
+        value = lambda element: element
+    odict = OrderedDict()
+    for element in iterable:
+        odict.setdefault(key(element), []).append(value(element))
+    return odict
+
+
+def collect_pairs(iterable):
+    """Collect pairs, preserving order."""
+    return collect(
+        iterable, key=lambda pair: pair[0], value=lambda pair: pair[1])
+
+
+def group(iterable, key=None):
+    """Group elements by key, preserving order."""
+    return list(collect(iterable, key=key).values())
 
 
 class LoadingDict(UserDict):
@@ -19,12 +69,12 @@ class LoadingDict(UserDict):
         return value
 
 
-class DictViewNamespace:
+class DictViewAttrs:
     """Access dict through a namespace."""
 
     def __init__(self, data):
-        assert '_DictViewNamespace__data' not in data
-        object.__setattr__(self, '_DictViewNamespace__data', data)
+        assert '_DictViewAttrs__data' not in data
+        object.__setattr__(self, '_DictViewAttrs__data', data)
 
     def __str__(self):
         return '%s(%r)' % (self.__class__.__name__, self.__data)

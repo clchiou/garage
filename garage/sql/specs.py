@@ -11,7 +11,7 @@ __all__ = [
 ]
 
 from garage import models
-from garage.functools import with_defaults
+from garage.functionals import with_defaults
 
 
 SPEC_ATTR_NAME = 'sql'
