@@ -17,7 +17,9 @@
   block:
 
     - name: archive libyaml
-      include: tasks/archive-libraries.yml patterns=libyaml*.so*
+      include: tasks/copy.yml
+               path=/usr/lib/x86_64-linux-gnu patterns=libyaml*.so*
+               dest={{ build_out }}
 
     - name: archive pyyaml
       include: roles/cpython/tasks/archive-site-packages.yml

@@ -69,8 +69,10 @@
       become: yes
 
     - name: archive cpython runtime libraries
-      include: tasks/archive-libraries.yml
+      include: tasks/copy.yml
       args:
+        path: /usr/lib/x86_64-linux-gnu
+        dest: "{{ build_out }}"
         patterns:
           - libgdbm.so*
           - libgdbm_compat.so*

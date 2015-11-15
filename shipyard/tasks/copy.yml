@@ -1,0 +1,16 @@
+---
+
+# Copy files while preserving path structures.
+# args:
+#   - path
+#   - patterns
+#   - dest
+
+- name: list targets
+  find: path={{ path }} patterns={{ patterns }}
+  register: synchronize_targets
+
+- name: copy targets
+  synchronize: src={{ item }} dest={{ dest }} rsync_opts=--relative
+  with_items: "{{ synchronize_targets.files|map(attribute='path')|sort }}"
+  become: yes
