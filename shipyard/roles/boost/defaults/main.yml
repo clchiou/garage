@@ -4,24 +4,24 @@
 boost_prefix: /usr/local
 
 # Root directory of Boost builds.
-boost_build_root: "{{ build_src }}/boost"
+boost_root: "{{ build_src }}/boost"
 
-# NOTE: `boost_build_src`, `boost_tarball`, `boost_tarball_checksum`,
-# and `boost_tarball_url` depend on each other, and they should be
-# updated together.
+# NOTE: `boost_src`, `boost_tarball`, `boost_tarball_checksum`, and
+# `boost_tarball_url` depend on each other, and they should be updated
+# together.
 #
 # URI of Boost tarball.
 boost_tarball_url:
   http://sourceforge.net/projects/boost/files/boost/1.59.0/boost_1_59_0.tar.bz2/download
 # Path to Boost tarball.
-boost_tarball: "{{ boost_build_root }}/boost_1_59_0.tar.bz2"
+boost_tarball: "{{ boost_root }}/boost_1_59_0.tar.bz2"
 # SHA-256 of the tarball.
 boost_tarball_checksum: sha256:727a932322d94287b62abb1bd2d41723eec4356a7728909e38adb65ca25241ca
 # `boost_tarball` will extracted to here.
-boost_build_src: "{{ boost_build_root }}/boost_1_59_0"
+boost_src: "{{ boost_root }}/boost_1_59_0"
 
 # Directory of (temporary) build artifacts.
-boost_build_dir: "{{ boost_build_src }}-build"
+boost_build_dir: "{{ boost_src }}-build"
 
 # Build flags passed to `./bootstrap.sh`
 boost_configs: ""

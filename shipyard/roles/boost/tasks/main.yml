@@ -10,7 +10,7 @@
     - name: create build directories
       file: path={{ item }} state=directory
       with_items:
-        - "{{ boost_build_root }}"
+        - "{{ boost_root }}"
         - "{{ boost_build_dir }}"
 
     - name: download source tarball
@@ -20,24 +20,34 @@
     # NOTE: Too bad `unarchive` module cannot handle Boost's tarball :(
     - name: unarchive source tarball
       command: tar xjf {{ boost_tarball }}
-               chdir={{ boost_build_root }}
-               creates={{ boost_build_src }}
+               chdir={{ boost_root }}
+               creates={{ boost_src }}
 
     - name: configure
       command: ./bootstrap.sh --prefix={{ boost_prefix }} {{ boost_configs }}
-               chdir={{ boost_build_src }}
-               creates={{ boost_build_src }}/project-config.jam
+               chdir={{ boost_src }}
+               creates={{ boost_src }}/project-config.jam
 
-    # Unfortunately b2 cannot separate build and install step :(
-    - name: build and install
+    - name: build
+      command: ./b2 --build-dir={{ boost_build_dir }}
+                    --stagedir={{ boost_build_dir }}/stage
+                    variant=release
+                    link=shared
+                    threading=multi
+                    runtime-link=shared
+                    stage
+               chdir={{ boost_src }}
+               creates={{ boost_build_dir }}/boost
+
+    - name: install
       command: ./b2 --build-dir={{ boost_build_dir }}
                     variant=release
                     link=shared
                     threading=multi
                     runtime-link=shared
                     install
-               chdir={{ boost_build_src }}
-               creates={{ boost_build_dir }}/boost
+               chdir={{ boost_src }}
+               creates={{ boost_prefix }}/include/boost
       become: yes
 
 - tags: [archive, boost]
