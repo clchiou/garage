@@ -10,3 +10,6 @@
     # aren't too many or the dependency graph is easy to sort.
     - cpython
     - pyyaml
+    - role: boost
+      boost_configs: --with-libraries=python,thread,system
+                     --with-python={{ cpython_python }}
