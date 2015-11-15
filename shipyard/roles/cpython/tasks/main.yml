@@ -76,7 +76,7 @@
       become: yes
 
     - name: archive cpython runtime libraries
-      include: archive-libraries.yml
+      include: tasks/archive-libraries.yml
       args:
         patterns:
           - libgdbm.so*

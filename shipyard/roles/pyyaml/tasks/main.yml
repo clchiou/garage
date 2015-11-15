@@ -17,7 +17,7 @@
   block:
 
     - name: archive libyaml
-      include: roles/cpython/tasks/archive-libraries.yml patterns=libyaml*.so*
+      include: tasks/archive-libraries.yml patterns=libyaml*.so*
 
     - name: archive pyyaml
       include: roles/cpython/tasks/archive-site-packages.yml
