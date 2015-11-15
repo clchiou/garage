@@ -35,7 +35,7 @@
         purge: yes
 
     - name: configure
-      command: ./configure --prefix {{ cpython_prefix }}
+      command: ./configure --prefix {{ cpython_prefix }} {{ cpython_configs }}
       args:
         chdir: "{{ cpython_build_src }}"
         creates: "{{ cpython_build_src }}/Makefile"
@@ -51,6 +51,14 @@
       args:
         chdir: "{{ cpython_build_src }}"
         creates: "{{ cpython_python }}"
+      become: yes
+
+    - name: link header directory
+      file:
+        path: "{{ cpython_include }}"
+        src: "python{{ cpython_major }}.{{ cpython_minor }}{{ cpython_abi_flags }}"
+        state: link
+      when: cpython_abi_flags != ""
       become: yes
 
 - tags: [archive, cpython]
