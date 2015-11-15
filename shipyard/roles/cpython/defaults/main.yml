@@ -9,14 +9,14 @@ cpython_repo: https://hg.python.org/cpython
 # The version of cpython that we are building.
 cpython_version: v3.5.0
 
+# NOTE: The following variables all depend on `cpython_version`.  If you
+# choose another version, you will also need to update them.
+
 # Location of Python interpreter.
-#
-# NOTE: If you change `cpython_version` to Python 2, don't forget to
-# update the suffix here!
 cpython_python: "{{ cpython_prefix }}/bin/python3"
 
 # Location of pip.
-#
-# NOTE: If you change `cpython_version` to Python 2, don't forget to
-# update the suffix here!
 cpython_pip: "{{ cpython_prefix }}/bin/pip3"
+
+# Location of Python packages.
+cpython_site_packages: "{{ cpython_prefix }}/lib/python3.5/site-packages"

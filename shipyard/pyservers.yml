@@ -3,4 +3,10 @@
 # Build systems for running Python servers.
 - hosts: pyservers
   roles:
+    # NOTE: We don't specify dependencies in roles/x/meta because this
+    # will cause roles being executed more than once; although role
+    # executions are idempotent, they still take time.  Instead, we sort
+    # out dependencies here.  This should work when the number of roles
+    # aren't too many or the dependency graph is easy to sort.
     - cpython
+    - pyyaml

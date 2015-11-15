@@ -1,0 +1,16 @@
+---
+
+- name: find libraries
+  find:
+    paths: /usr/lib/x86_64-linux-gnu
+    patterns: "{{ patterns }}"
+  register: cpython_libraries
+
+- name: archive libraries
+  synchronize:
+    src: "{{ item }}"
+    dest: "{{ build_out }}"
+    rsync_opts:
+      - "--relative"
+  with_items: "{{ cpython_libraries.files|map(attribute='path')|sort }}"
+  become: yes

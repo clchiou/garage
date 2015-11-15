@@ -1,0 +1,23 @@
+---
+
+- tags: [build, pyyaml]
+  block:
+
+    - name: install libyaml
+      apt: name=libyaml-dev
+      become: yes
+
+    - name: install pyyaml
+      command: "{{ cpython_pip }} install PyYAML"
+      args:
+        creates: "{{ cpython_site_packages }}/PyYAML-*"
+      become: yes
+
+- tags: [archive, pyyaml]
+  block:
+
+    - name: archive libyaml
+      include: roles/cpython/tasks/archive-libraries.yml patterns=libyaml*.so*
+
+    - name: archive pyyaml
+      include: roles/cpython/tasks/archive-site-packages.yml

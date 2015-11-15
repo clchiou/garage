@@ -56,17 +56,7 @@
 - tags: [archive, cpython]
   block:
 
-    - name: find optional runtime libraries
-      find:
-        paths: /usr/lib/x86_64-linux-gnu
-        patterns:
-          - libgdbm.so*
-          - libgdbm_compat.so*
-          - libpanelw.so*
-          - libsqlite3.so*
-      register: cpython_libs
-
-    - name: archive runtime libraries
+    - name: archive core runtime libraries
       synchronize:
         src: "{{ item }}"
         dest: "{{ build_out }}"
@@ -77,14 +67,14 @@
         - /lib64
       become: yes
 
-    - name: archive optional runtime libraries
-      synchronize:
-        src: "{{ item }}"
-        dest: "{{ build_out }}"
-        rsync_opts:
-          - "--relative"
-      with_items: "{{ cpython_libs.files|map(attribute='path')|sort }}"
-      become: yes
+    - name: archive cpython runtime libraries
+      include: archive-libraries.yml
+      args:
+        patterns:
+          - libgdbm.so*
+          - libgdbm_compat.so*
+          - libpanelw.so*
+          - libsqlite3.so*
 
     - name: archive cpython
       synchronize:
