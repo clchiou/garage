@@ -1,5 +1,8 @@
 ---
 
+# Directory into which we install cpython.
+cpython_prefix: /opt/cpython-{{ cpython_version }}
+
 # We check out cpython.hg into here.
 cpython_build_src: "{{ build_src }}/cpython"
 
