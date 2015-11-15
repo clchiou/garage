@@ -1,6 +1,6 @@
 ---
 
-# Directory into which we install Boost.
+# Directory to install Boost into.
 boost_prefix: /usr/local
 
 # Root directory of Boost builds.

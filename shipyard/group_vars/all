@@ -1,6 +1,6 @@
 ---
 
-# Directory into which you check out source code repos.
+# Directory for checking out source code repos.
 build_src: /home/plumber/build
 
 # Working directory for building images (later you archive from here).

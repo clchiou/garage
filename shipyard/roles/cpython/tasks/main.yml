@@ -58,11 +58,7 @@
   block:
 
     - name: archive core runtime libraries
-      synchronize:
-        src: "{{ item }}"
-        dest: "{{ build_out }}"
-        rsync_opts:
-          - "--relative"
+      synchronize: src={{ item }} dest={{ build_out }} rsync_opts=--relative
       with_items:
         - /lib/x86_64-linux-gnu
         - /lib64
@@ -79,24 +75,26 @@
           - libpanelw.so*
           - libsqlite3.so*
 
-    - name: archive cpython
+    - name: archive cpython modules
       synchronize:
-        src: "{{ item }}"
+        src: "{{ cpython_lib }}"
         dest: "{{ build_out }}"
         rsync_opts:
           - "--relative"
           # Exclude idlelib, lib2to3, tkinter, and turtledemo.
-          - "--exclude '{{ cpython_prefix }}/lib/python*/idlelib'"
-          - "--exclude '{{ cpython_prefix }}/lib/python*/lib2to3'"
-          - "--exclude '{{ cpython_prefix }}/lib/python*/tkinter'"
-          - "--exclude '{{ cpython_prefix }}/lib/python*/turtledemo'"
+          - "--exclude '{{ cpython_lib }}/idlelib'"
+          - "--exclude '{{ cpython_lib }}/lib2to3'"
+          - "--exclude '{{ cpython_lib }}/tkinter'"
+          - "--exclude '{{ cpython_lib }}/turtledemo'"
           # Exclude tests.
-          - "--exclude '{{ cpython_prefix }}/lib/python*/ctypes/test'"
-          - "--exclude '{{ cpython_prefix }}/lib/python*/distutils/tests'"
-          - "--exclude '{{ cpython_prefix }}/lib/python*/sqlite3/test'"
-          - "--exclude '{{ cpython_prefix }}/lib/python*/test'"
-          - "--exclude '{{ cpython_prefix }}/lib/python*/unittest/test'"
-      with_items:
-        - "{{ cpython_prefix }}/bin"
-        - "{{ cpython_prefix }}/lib"
+          - "--exclude '{{ cpython_lib }}/ctypes/test'"
+          - "--exclude '{{ cpython_lib }}/distutils/tests'"
+          - "--exclude '{{ cpython_lib }}/sqlite3/test'"
+          - "--exclude '{{ cpython_lib }}/test'"
+          - "--exclude '{{ cpython_lib }}/unittest/test'"
       become: yes
+
+    - name: archive cpython binaries
+      include: tasks/copy.yml
+               path={{ cpython_prefix }}/bin patterns=python{{ cpython_major }}*
+               dest={{ build_out }}

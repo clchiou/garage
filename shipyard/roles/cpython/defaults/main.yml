@@ -1,18 +1,18 @@
 ---
 
-# Directory into which we install cpython.
-cpython_prefix: /opt/cpython-{{ cpython_version }}
+# Directory to install cpython into.
+cpython_prefix: /usr/local
 
-# We check out cpython.hg into here.
+# Directory to check out cpython source repo into.
 cpython_build_src: "{{ build_src }}/cpython"
 
-# Location of cpython.hg.
+# Location of cpython source repo.
 cpython_repo: https://hg.python.org/cpython
 
 # NOTE: `cpython_major` and `cpython_minor` depend on `cpython_version`.
 # If you update one, please update the other two.
 #
-# The source repo revision that we are building.
+# The source repo revision that we are building (usually a tag).
 cpython_version: v3.5.0
 # The major and minor version of Python.
 cpython_major: 3
@@ -26,10 +26,10 @@ cpython_configs: ""
 # See PEP 3149 for details.
 cpython_abi_flags: m
 
-# Location of Python interpreter.
+# Path to Python interpreter.
 cpython_python: "{{ cpython_prefix }}/bin/python{{ cpython_major }}"
 
-# Location of pip.
+# Path to pip.
 cpython_pip: "{{ cpython_prefix }}/bin/pip{{ cpython_major }}"
 
 # ${PREFIX}/include/pythonX.Y
@@ -40,5 +40,5 @@ cpython_include:
 cpython_lib:
   "{{ cpython_prefix }}/lib/python{{ cpython_major }}.{{ cpython_minor }}"
 
-# Location of Python packages.
+# Path to Python site packages.
 cpython_site_packages: "{{ cpython_lib }}/site-packages"
