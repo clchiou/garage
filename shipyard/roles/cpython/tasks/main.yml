@@ -11,7 +11,6 @@
       apt: name={{ item }}
       with_items:
         - build-essential
-        - libc6-dev
         # Compression...
         - libbz2-dev
         - liblzma-dev
@@ -28,36 +27,30 @@
       become: yes
 
     - name: check out source repo
-      hg:
-        dest: "{{ cpython_build_src }}"
-        repo: "{{ cpython_repo }}"
-        version: "{{ cpython_version }}"
-        purge: yes
+      hg: repo={{ cpython_repo }} version={{ cpython_version }}
+          dest={{ cpython_build_src }}
+          purge=yes
 
     - name: configure
       command: ./configure --prefix {{ cpython_prefix }} {{ cpython_configs }}
-      args:
-        chdir: "{{ cpython_build_src }}"
-        creates: "{{ cpython_build_src }}/Makefile"
+               chdir={{ cpython_build_src }}
+               creates={{ cpython_build_src }}/Makefile
 
     - name: build
       command: make
-      args:
-        chdir: "{{ cpython_build_src }}"
-        creates: "{{ cpython_build_src }}/python"
+               chdir={{ cpython_build_src }}
+               creates={{ cpython_build_src }}/python
 
     - name: install
       command: make install
-      args:
-        chdir: "{{ cpython_build_src }}"
-        creates: "{{ cpython_python }}"
+               chdir={{ cpython_build_src }}
+               creates={{ cpython_python }}
       become: yes
 
     - name: link header directory
-      file:
-        path: "{{ cpython_include }}"
-        src: "python{{ cpython_major }}.{{ cpython_minor }}{{ cpython_abi_flags }}"
-        state: link
+      file: path={{ cpython_include }}
+            src=python{{ cpython_major }}.{{ cpython_minor }}{{ cpython_abi_flags }}
+            state=link
       when: cpython_abi_flags != ""
       become: yes
 
