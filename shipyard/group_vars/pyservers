@@ -1,0 +1,4 @@
+---
+
+# Directory into which we install cpython.
+cpython_prefix: /opt/cpython-{{ cpython_version }}

@@ -1,0 +1,22 @@
+---
+
+# We check out cpython.hg into here.
+cpython_build_src: "{{ build_src }}/cpython"
+
+# Location of cpython.hg.
+cpython_repo: https://hg.python.org/cpython
+
+# The version of cpython that we are building.
+cpython_version: v3.5.0
+
+# Location of Python interpreter.
+#
+# NOTE: If you change `cpython_version` to Python 2, don't forget to
+# update the suffix here!
+cpython_python: "{{ cpython_prefix }}/bin/python3"
+
+# Location of pip.
+#
+# NOTE: If you change `cpython_version` to Python 2, don't forget to
+# update the suffix here!
+cpython_pip: "{{ cpython_prefix }}/bin/pip3"

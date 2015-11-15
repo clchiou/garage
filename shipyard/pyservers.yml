@@ -1,0 +1,6 @@
+---
+
+# Build systems for running Python servers.
+- hosts: pyservers
+  roles:
+    - cpython

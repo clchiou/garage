@@ -1,0 +1,109 @@
+---
+
+- tags: [build, cpython]
+  block:
+
+    - name: install mercurial
+      apt: name=mercurial
+      become: yes
+
+    - name: install build dependencies
+      apt: name={{ item }}
+      with_items:
+        - build-essential
+        - libc6-dev
+        # Compression...
+        - libbz2-dev
+        - liblzma-dev
+        - zlib1g-dev
+        # Console...
+        - libncursesw5-dev
+        - libreadline-dev
+        # Database...
+        - libdb-dev
+        - libgdbm-dev
+        - libsqlite3-dev
+        # Network...
+        - libssl-dev
+      become: yes
+
+    - name: check out source repo
+      hg:
+        dest: "{{ cpython_build_src }}"
+        repo: "{{ cpython_repo }}"
+        version: "{{ cpython_version }}"
+        purge: yes
+
+    - name: configure
+      command: ./configure --prefix {{ cpython_prefix }}
+      args:
+        chdir: "{{ cpython_build_src }}"
+        creates: "{{ cpython_build_src }}/Makefile"
+
+    - name: build
+      command: make
+      args:
+        chdir: "{{ cpython_build_src }}"
+        creates: "{{ cpython_build_src }}/python"
+
+    - name: install
+      command: make install
+      args:
+        chdir: "{{ cpython_build_src }}"
+        creates: "{{ cpython_python }}"
+      become: yes
+
+- tags: [archive, cpython]
+  block:
+
+    - name: find optional runtime libraries
+      find:
+        paths: /usr/lib/x86_64-linux-gnu
+        patterns:
+          - libgdbm.so*
+          - libgdbm_compat.so*
+          - libpanelw.so*
+          - libsqlite3.so*
+      register: cpython_libs
+
+    - name: archive runtime libraries
+      synchronize:
+        src: "{{ item }}"
+        dest: "{{ build_out }}"
+        rsync_opts:
+          - "--relative"
+      with_items:
+        - /lib/x86_64-linux-gnu
+        - /lib64
+      become: yes
+
+    - name: archive optional runtime libraries
+      synchronize:
+        src: "{{ item }}"
+        dest: "{{ build_out }}"
+        rsync_opts:
+          - "--relative"
+      with_items: "{{ cpython_libs.files|map(attribute='path')|sort }}"
+      become: yes
+
+    - name: archive cpython
+      synchronize:
+        src: "{{ item }}"
+        dest: "{{ build_out }}"
+        rsync_opts:
+          - "--relative"
+          # Exclude idlelib, lib2to3, tkinter, and turtledemo.
+          - "--exclude '{{ cpython_prefix }}/lib/python*/idlelib'"
+          - "--exclude '{{ cpython_prefix }}/lib/python*/lib2to3'"
+          - "--exclude '{{ cpython_prefix }}/lib/python*/tkinter'"
+          - "--exclude '{{ cpython_prefix }}/lib/python*/turtledemo'"
+          # Exclude tests.
+          - "--exclude '{{ cpython_prefix }}/lib/python*/ctypes/test'"
+          - "--exclude '{{ cpython_prefix }}/lib/python*/distutils/tests'"
+          - "--exclude '{{ cpython_prefix }}/lib/python*/sqlite3/test'"
+          - "--exclude '{{ cpython_prefix }}/lib/python*/test'"
+          - "--exclude '{{ cpython_prefix }}/lib/python*/unittest/test'"
+      with_items:
+        - "{{ cpython_prefix }}/bin"
+        - "{{ cpython_prefix }}/lib"
+      become: yes
