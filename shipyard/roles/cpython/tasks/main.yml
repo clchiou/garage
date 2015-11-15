@@ -58,11 +58,7 @@
   block:
 
     - name: archive core runtime libraries
-      synchronize: src={{ item }} dest={{ build_out }} rsync_opts=--relative
-      with_items:
-        - /lib/x86_64-linux-gnu
-        - /lib64
-      become: yes
+      include: tasks/copy-core-libs.yml
 
     - name: archive cpython runtime libraries
       include: tasks/copy.yml
