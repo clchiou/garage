@@ -4,7 +4,7 @@
 cpython_prefix: /usr/local
 
 # Directory to check out cpython source repo into.
-cpython_build_src: "{{ build_src }}/cpython"
+cpython_src: "{{ build_src }}/cpython"
 
 # Location of cpython source repo.
 cpython_repo: https://hg.python.org/cpython

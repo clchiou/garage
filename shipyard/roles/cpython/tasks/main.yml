@@ -28,22 +28,22 @@
 
     - name: check out source repo
       hg: repo={{ cpython_repo }} version={{ cpython_version }}
-          dest={{ cpython_build_src }}
+          dest={{ cpython_src }}
           purge=yes
 
     - name: configure
       command: ./configure --prefix {{ cpython_prefix }} {{ cpython_configs }}
-               chdir={{ cpython_build_src }}
-               creates={{ cpython_build_src }}/Makefile
+               chdir={{ cpython_src }}
+               creates={{ cpython_src }}/Makefile
 
     - name: build
       command: make
-               chdir={{ cpython_build_src }}
-               creates={{ cpython_build_src }}/python
+               chdir={{ cpython_src }}
+               creates={{ cpython_src }}/python
 
     - name: install
       command: make install
-               chdir={{ cpython_build_src }}
+               chdir={{ cpython_src }}
                creates={{ cpython_python }}
       become: yes
 
