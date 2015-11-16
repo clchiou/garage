@@ -1,0 +1,7 @@
+---
+
+# Path to pyv8 source repo.
+pyv8_repo: "../third-party/pyv8"
+
+# Directory to copy pyv8 source repo into.
+pyv8_src: "{{ build_src }}/pyv8"
