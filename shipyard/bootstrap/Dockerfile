@@ -35,5 +35,4 @@ RUN apt-get update \
 
 USER plumber
 WORKDIR /home/plumber
-ENTRYPOINT ["/bin/bash"]
-CMD ["-i"]
+CMD ["/bin/bash"]
