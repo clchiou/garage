@@ -10,6 +10,12 @@ Usage: $(basename ${1}) [-h] [-n NAME] [-f FLAGS] IMAGE [ARG...]
 
 Pass FLAGS to \`docker run\` to start a container from IMAGE with NAME,
 and then pass ARG to the container.
+
+After you are done with the builder, you may run:
+
+  docker commit --change 'CMD ["/bin/bash"]' "\${NAME}" [TAG]
+
+to tag it.
 EOF
 }
 
