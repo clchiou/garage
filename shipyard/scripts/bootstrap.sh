@@ -21,7 +21,7 @@ main() {
 
   local TAG="${1}"
 
-  local BOOTSTRAP="$(fullpath_from_scripts ../bootstrap)"
+  local BOOTSTRAP="$(realpath_from_scripts ../bootstrap)"
   echo "BOOTSTRAP=${BOOTSTRAP}"
 
   ask
