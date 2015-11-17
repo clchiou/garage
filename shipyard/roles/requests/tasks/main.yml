@@ -1,0 +1,16 @@
+---
+
+- tags: [build, requests]
+  block:
+
+    - name: install requests
+      command: "{{ cpython_pip }} install requests"
+      args:
+        creates: "{{ cpython_site_packages }}/requests-*"
+      become: yes
+
+- tags: [archive, requests]
+  block:
+
+    - name: archive requests
+      include: roles/cpython/tasks/archive-site-packages.yml

@@ -18,7 +18,13 @@
                      --with-python={{ cpython_python }}
 
     # Depend: cpython
+    - lxml
+
+    # Depend: cpython
     - pyyaml
+
+    # Depend: cpython
+    - requests
 
     # Depend: boost, cpython
     - pyv8
