@@ -26,5 +26,8 @@
     # Depend: cpython
     - requests
 
+    # Depend: cpython
+    - startup
+
     # Depend: boost, cpython
     - pyv8

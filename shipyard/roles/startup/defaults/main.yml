@@ -1,0 +1,10 @@
+---
+
+# Path to startup source repo.
+#
+# NOTE: You must mount this directory here (or somewhere and then set
+# this variable accordingly).
+startup_repo: "/home/plumber/startup"
+
+# Directory to copy startup source repo into.
+startup_src: "{{ build_src }}/startup"

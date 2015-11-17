@@ -1,0 +1,34 @@
+---
+
+- tags: [build, startup]
+  block:
+
+    - name: sanity check source repo
+      # It doesn't really "create" anything, but we could skip the check
+      # if the target is already there.
+      command: test -d {{ startup_repo }}/.git
+               creates={{ startup_repo }}/.git
+
+    - name: copy source repo
+      # NOTE: Watch the trailing slash (rsync trivia).
+      synchronize: src={{ startup_repo }}/ dest={{ startup_src }}
+                   rsync_opts='--exclude .git'
+
+    - name: build
+      command: "{{ cpython_python }} setup.py build"
+      args:
+        chdir: "{{ startup_src }}"
+        creates: "{{ startup_src }}/build"
+
+    - name: install
+      command: "{{ cpython_python }} setup.py install"
+      args:
+        chdir: "{{ startup_src }}"
+        creates: "{{ cpython_site_packages }}/startup-*"
+      become: yes
+
+- tags: [archive, startup]
+  block:
+
+    - name: archive
+      include: roles/cpython/tasks/archive-site-packages.yml

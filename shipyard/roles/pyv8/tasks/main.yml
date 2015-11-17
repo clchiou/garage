@@ -15,6 +15,7 @@
     - name: copy source repo
       # NOTE: Watch the trailing slash (rsync trivia).
       synchronize: src={{ pyv8_repo }}/ dest={{ pyv8_src }}
+                   rsync_opts='--exclude .svn'
 
     # NOTE: `setup_linux_py3k.py` is locally patched version of
     # `setup.py` for building pyv8 in Python 3.
@@ -35,5 +36,5 @@
 - tags: [archive, pyv8]
   block:
 
-    - name: archive pyv8
+    - name: archive
       include: roles/cpython/tasks/archive-site-packages.yml
