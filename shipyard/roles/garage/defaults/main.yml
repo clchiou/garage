@@ -1,0 +1,10 @@
+---
+
+# Path to garage source repo.
+#
+# NOTE: You must mount this directory here (or somewhere and then set
+# this variable accordingly).
+garage_repo: "/home/plumber/garage"
+
+# Directory to copy garage source repo into.
+garage_src: "{{ build_src }}/garage"

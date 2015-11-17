@@ -1,33 +1,33 @@
 ---
 
-- tags: [build, startup]
+- tags: [build, garage]
   block:
 
     - name: sanity check source repo
       # It doesn't really "create" anything, but we could skip the check
       # if the target is already there.
-      command: test -d {{ startup_repo }}/.git
-               creates={{ startup_repo }}/.git
+      command: test -d {{ garage_repo }}/.git
+               creates={{ garage_repo }}/.git
 
     - name: copy source repo
       # NOTE: Watch the trailing slash (rsync trivia).
-      synchronize: src={{ startup_repo }}/ dest={{ startup_src }}
+      synchronize: src={{ garage_repo }}/ dest={{ garage_src }}
                    rsync_opts='--exclude=.git --exclude=*.egg-info'
 
     - name: build
       command: "{{ cpython_python }} setup.py build"
       args:
-        chdir: "{{ startup_src }}"
-        creates: "{{ startup_src }}/build"
+        chdir: "{{ garage_src }}"
+        creates: "{{ garage_src }}/build"
 
     - name: install
       command: "{{ cpython_python }} setup.py install"
       args:
-        chdir: "{{ startup_src }}"
-        creates: "{{ cpython_site_packages }}/startup-*"
+        chdir: "{{ garage_src }}"
+        creates: "{{ cpython_site_packages }}/garage-*"
       become: yes
 
-- tags: [archive, startup]
+- tags: [archive, garage]
   block:
 
     - name: archive

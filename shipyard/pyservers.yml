@@ -31,3 +31,7 @@
 
     # Depend: boost, cpython
     - pyv8
+
+    # Depend: cpython
+    # Optional: lxml, pyyaml, pyv8, requests, startup
+    - garage
