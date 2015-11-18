@@ -1,0 +1,17 @@
+---
+
+- tags: [build, sqlalchemy]
+  block:
+
+    - name: install
+      command: "{{ cpython_pip }} install SQLAlchemy"
+      args:
+        creates: "{{ cpython_site_packages }}/SQLAlchemy-*"
+      become: yes
+
+- tags: [archive, sqlalchemy]
+  block:
+
+    - name: archive
+      include: \
+        {{ shipyard }}/tasks/python/archive.yml package_name=SQLAlchemy

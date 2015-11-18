@@ -26,11 +26,14 @@ dependencies:
   - requests
 
   # Depend: cpython
+  - sqlalchemy
+
+  # Depend: cpython
   - startup
 
   # Depend: boost, cpython
   - pyv8
 
   # Depend: cpython
-  # Optional: lxml, pyyaml, pyv8, requests, startup
+  # Optional: lxml, pyyaml, pyv8, requests, sqlalchemy, startup
   - garage

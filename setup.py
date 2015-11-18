@@ -10,5 +10,6 @@ setup(
         'components': ['startup'],
         'formatters': ['PyYAML'],
         'http': ['lxml', 'requests'],
+        'sql': ['SQLAlchemy'],
     },
 )
