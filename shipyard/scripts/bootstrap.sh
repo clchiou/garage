@@ -6,7 +6,7 @@ source "$(dirname "${0}")/common.sh"
 
 usage() {
   cat <<EOF
-Usage: $(basename ${1}) TAG
+Usage: $(basename "${1}") TAG
 
 Make and tag a base builder Docker image.  You may later run this base
 builder image to build your final output.

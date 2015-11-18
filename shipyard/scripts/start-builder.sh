@@ -6,7 +6,7 @@ source "$(dirname "${0}")/common.sh"
 
 usage() {
   cat <<EOF
-Usage: $(basename ${1}) [-h] [-n NAME] [-m MOUNT] [-f FLAGS] IMAGE [ARG...]
+Usage: $(basename "${1}") [-h] [-n NAME] [-m MOUNT] [-f FLAGS] IMAGE [ARG...]
 
 A thin wrapper of \`docker run\` where:
 
@@ -55,8 +55,8 @@ main() {
   echo "REPO_ROOT: ${REPO_ROOT}"
 
   local VOLUME=()
-  local mount_point
-  for mount_point in "${MOUNT[@]}"; do
+  local mount_point=""
+  for mount_point in "${MOUNT[@]:+${MOUNT[@]}}"; do
     mount_point="$(realpath "${mount_point}")"
     VOLUME+=("--volume")
     VOLUME+=("${mount_point}:/home/plumber/$(basename "${mount_point}"):ro")
@@ -68,7 +68,8 @@ main() {
   docker run \
     ${FLAGS} \
     ${NAME:+--name} ${NAME} \
-    --volume "${REPO_ROOT}:/home/plumber/garage:ro" "${VOLUME[@]}" \
+    --volume "${REPO_ROOT}:/home/plumber/garage:ro" \
+    "${VOLUME[@]:+${VOLUME[@]}}" \
     "${IMAGE}" "${@}"
 }
 
