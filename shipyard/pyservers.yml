@@ -1,37 +1,6 @@
 ---
 
-# Build systems for running Python servers.
+# Python server builder.
 - hosts: pyservers
-
-  # NOTE: We don't specify dependencies in roles/x/meta because this
-  # will cause roles being executed more than once; although role
-  # executions are idempotent, they still take time.  Instead, we sort
-  # out dependencies here.  This should work when the number of roles
-  # aren't too many or the dependency graph is easy to sort.
   roles:
-
-    - cpython
-
-    # Depend: cpython
-    - role: boost
-      boost_configs: --with-libraries=python,thread,system
-                     --with-python={{ cpython_python }}
-
-    # Depend: cpython
-    - lxml
-
-    # Depend: cpython
-    - pyyaml
-
-    # Depend: cpython
-    - requests
-
-    # Depend: cpython
-    - startup
-
-    # Depend: boost, cpython
-    - pyv8
-
-    # Depend: cpython
-    # Optional: lxml, pyyaml, pyv8, requests, startup
-    - garage
+    - pyserver
