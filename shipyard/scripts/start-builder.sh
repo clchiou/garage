@@ -6,10 +6,13 @@ source "$(dirname "${0}")/common.sh"
 
 usage() {
   cat <<EOF
-Usage: $(basename ${1}) [-h] [-n NAME] [-f FLAGS] IMAGE [ARG...]
+Usage: $(basename ${1}) [-h] [-n NAME] [-m MOUNT] [-f FLAGS] IMAGE [ARG...]
 
-Pass FLAGS to \`docker run\` to start a container from IMAGE with NAME,
-and then pass ARG to the container.
+A thin wrapper of \`docker run\` where:
+
+  * MOUNT are paths to data volumes.
+  * FLAGS are options for docker.
+  * ARG are arguments of the container.
 
 After you are done with the builder, you may run:
 
@@ -21,12 +24,14 @@ EOF
 
 main() {
   local NAME=""
+  local MOUNT=()
   local FLAGS=""
   local opt=""
-  while getopts ":hn:f:" opt; do
+  while getopts ":hn:m:f:" opt; do
     case "${opt}" in
       h) usage "${0}"; exit ;;
       n) NAME="${OPTARG}" ;;
+      m) MOUNT+=("${OPTARG}") ;;
       f) FLAGS="${OPTARG}" ;;
       :) error "-${OPTARG} needs an argument" ;;
       *) error "Could not parse -${OPTARG}" ;;
@@ -34,6 +39,7 @@ main() {
   done
   shift $((OPTIND - 1))
   [[ -n "${NAME}" ]] && echo "NAME: ${NAME}"
+  [[ "${#MOUNT[@]}" > 0 ]] && echo "MOUNT: ${MOUNT[@]}"
   [[ -n "${FLAGS}" ]] && echo "FLAGS: ${FLAGS}"
 
   local IMAGE="${1:-}"
@@ -48,13 +54,21 @@ main() {
   local REPO_ROOT="$(repo_root)"
   echo "REPO_ROOT: ${REPO_ROOT}"
 
+  local VOLUME=()
+  local mount_point
+  for mount_point in "${MOUNT[@]}"; do
+    mount_point="$(realpath "${mount_point}")"
+    VOLUME+=("--volume")
+    VOLUME+=("${mount_point}:/home/plumber/$(basename "${mount_point}"):ro")
+  done
+
   ask
 
   set -o xtrace
   docker run \
     ${FLAGS} \
     ${NAME:+--name} ${NAME} \
-    --volume "${REPO_ROOT}:/home/plumber/garage:ro" \
+    --volume "${REPO_ROOT}:/home/plumber/garage:ro" "${VOLUME[@]}" \
     "${IMAGE}" "${@}"
 }
 
