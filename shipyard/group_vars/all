@@ -1,5 +1,8 @@
 ---
 
+# Path to the this shipyard.
+shipyard: "{{ playbook_dir }}"
+
 # Directory for checking out source code repos.
 build_src: "{{ lookup('env', 'HOME') }}/build"
 

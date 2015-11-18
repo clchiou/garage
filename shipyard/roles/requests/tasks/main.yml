@@ -13,4 +13,4 @@
   block:
 
     - name: archive
-      include: tasks/python/archive.yml package_name=requests
+      include: "{{ shipyard }}/tasks/python/archive.yml package_name=requests"

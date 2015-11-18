@@ -54,14 +54,16 @@
   block:
 
     - name: archive core runtime libraries
-      include: tasks/copy-core-libs.yml
+      include: "{{ shipyard }}/tasks/copy-core-libs.yml"
 
     - name: archive c++ runtime libraries
-      include: tasks/copy.yml
-               path=/usr/lib/x86_64-linux-gnu patterns=libstdc++.so*
-               dest={{ build_out }}
+      include: >
+        {{ shipyard }}/tasks/copy.yml
+        path=/usr/lib/x86_64-linux-gnu patterns=libstdc++.so*
+        dest={{ build_out }}
 
     - name: archive boost runtime libraries
-      include: tasks/copy.yml
-               path={{ boost_prefix }}/lib patterns=libboost*
-               dest={{ build_out }}
+      include: >
+        {{ shipyard }}/tasks/copy.yml
+        path={{ boost_prefix }}/lib patterns=libboost*
+        dest={{ build_out }}

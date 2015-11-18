@@ -17,9 +17,10 @@
   block:
 
     - name: archive libyaml
-      include: tasks/copy.yml
-               path=/usr/lib/x86_64-linux-gnu patterns=libyaml*.so*
-               dest={{ build_out }}
+      include: >
+        {{ shipyard }}/tasks/copy.yml
+        path=/usr/lib/x86_64-linux-gnu patterns=libyaml*.so*
+        dest={{ build_out }}
 
     - name: archive pyyaml
-      include: tasks/python/archive.yml package_name=PyYAML
+      include: "{{ shipyard }}/tasks/python/archive.yml package_name=PyYAML"

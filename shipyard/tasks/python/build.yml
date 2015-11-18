@@ -9,7 +9,7 @@
 #   - package_setup [Default: "setup.py"]
 
 - name: include default variable values
-  include_vars: tasks/python/defaults.yml
+  include_vars: "{{ shipyard }}/tasks/python/defaults.yml"
 
 - name: sanity check source repo
   file: path={{ package_repo }}/{{ _package_setup }}

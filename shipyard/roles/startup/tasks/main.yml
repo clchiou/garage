@@ -2,9 +2,10 @@
 
 - name: install from source repo
   tags: [build, startup]
-  include: tasks/python/build.yml
-           package_name=startup package_repo={{ startup_repo }}
+  include: >
+    {{ shipyard }}/tasks/python/build.yml
+    package_name=startup package_repo={{ startup_repo }}
 
 - name: archive
   tags: [archive, startup]
-  include: tasks/python/archive.yml package_name=startup
+  include: "{{ shipyard }}/tasks/python/archive.yml package_name=startup"

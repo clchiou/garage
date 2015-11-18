@@ -16,12 +16,13 @@
     # `setup.py` for building pyv8 in Python 3.
 
     - name: install from source repo
-      include: tasks/python/build.yml
-               package_name=PyV8
-               package_repo={{ pyv8_repo }}
-               package_build={{ pyv8_build }}
-               package_setup={{ pyv8_setup }}
+      include: >
+        {{ shipyard }}/tasks/python/build.yml
+        package_name=PyV8
+        package_repo={{ pyv8_repo }}
+        package_build={{ pyv8_build }}
+        package_setup={{ pyv8_setup }}
 
 - name: archive
   tags: [archive, pyv8]
-  include: tasks/python/archive.yml package_name=PyV8
+  include: "{{ shipyard }}/tasks/python/archive.yml package_name=PyV8"

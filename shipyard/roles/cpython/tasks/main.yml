@@ -58,10 +58,10 @@
   block:
 
     - name: archive core runtime libraries
-      include: tasks/copy-core-libs.yml
+      include: "{{ shipyard }}/tasks/copy-core-libs.yml"
 
     - name: archive cpython runtime libraries
-      include: tasks/copy.yml
+      include: "{{ shipyard }}/tasks/copy.yml"
       args:
         path: /usr/lib/x86_64-linux-gnu
         dest: "{{ build_out }}"
@@ -91,6 +91,7 @@
       become: yes
 
     - name: archive cpython binaries
-      include: tasks/copy.yml
-               path={{ cpython_prefix }}/bin patterns=python{{ cpython_major }}*
-               dest={{ build_out }}
+      include: >
+        {{ shipyard }}/tasks/copy.yml
+        path={{ cpython_prefix }}/bin patterns=python{{ cpython_major }}*
+        dest={{ build_out }}

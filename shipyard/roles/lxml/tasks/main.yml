@@ -20,7 +20,7 @@
   block:
 
     - name: archive runtime libraries
-      include: tasks/copy.yml
+      include: "{{ shipyard }}/tasks/copy.yml"
       args:
         path: /usr/lib/x86_64-linux-gnu
         dest: "{{ build_out }}"
@@ -33,4 +33,4 @@
           - libxslt.so*
 
     - name: archive lxml
-      include: tasks/python/archive.yml package_name=lxml
+      include: "{{ shipyard }}/tasks/python/archive.yml package_name=lxml"

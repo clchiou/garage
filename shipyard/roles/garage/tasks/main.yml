@@ -2,9 +2,10 @@
 
 - name: install from source repo
   tags: [build, garage]
-  include: tasks/python/build.yml
-           package_name=garage package_repo={{ garage_repo }}
+  include: >
+    {{ shipyard }}/tasks/python/build.yml
+    package_name=garage package_repo={{ garage_repo }}
 
 - name: archive
   tags: [archive, garage]
-  include: tasks/python/archive.yml package_name=garage
+  include: "{{ shipyard }}/tasks/python/archive.yml package_name=garage"
