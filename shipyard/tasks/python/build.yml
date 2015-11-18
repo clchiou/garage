@@ -27,6 +27,10 @@
       - "--exclude 'build'"
       - "--exclude 'dist'"
 
+- name: run unit tests
+  command: >
+    {{ cpython_python }} -m unittest chdir={{ _package_build }}
+
 - name: build
   command: "{{ cpython_python }} {{ _package_setup }} build"
   args:
