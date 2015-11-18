@@ -23,4 +23,13 @@
         dest={{ build_out }}
 
     - name: archive pyyaml
-      include: "{{ shipyard }}/tasks/python/archive.yml package_name=PyYAML"
+      synchronize: src={{ cpython_site_packages }}
+                   dest={{ build_out }}
+      args:
+        rsync_opts:
+          - "--relative"
+          - "--include 'PyYAML*'"
+          - "--include '_yaml*'"
+          - "--include 'yaml'"
+          - "--exclude '{{ cpython_site_packages }}/*'"
+      become: yes

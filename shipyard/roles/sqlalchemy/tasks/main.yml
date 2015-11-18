@@ -13,5 +13,12 @@
   block:
 
     - name: archive
-      include: \
-        {{ shipyard }}/tasks/python/archive.yml package_name=SQLAlchemy
+      synchronize: src={{ cpython_site_packages }}
+                   dest={{ build_out }}
+      args:
+        rsync_opts:
+          - "--relative"
+          - "--include 'SQLAlchemy*'"
+          - "--include 'sqlalchemy'"
+          - "--exclude '{{ cpython_site_packages }}/*'"
+      become: yes
