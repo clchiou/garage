@@ -33,4 +33,4 @@
           - libxslt.so*
 
     - name: archive lxml
-      include: roles/cpython/tasks/archive-site-packages.yml
+      include: tasks/python/archive.yml package_name=lxml

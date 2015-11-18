@@ -1,0 +1,16 @@
+---
+
+# Archive installed Python package.
+#
+# Args:
+#   - package_name
+
+- name: archive python package
+  synchronize: src={{ cpython_site_packages }}
+               dest={{ build_out }}
+  args:
+    rsync_opts:
+      - "--relative"
+      - "--include '{{ package_name }}*'"
+      - "--exclude '{{ cpython_site_packages }}/*'"
+  become: yes

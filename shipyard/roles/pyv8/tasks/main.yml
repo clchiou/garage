@@ -12,29 +12,16 @@
       apt: name=subversion
       become: yes
 
-    - name: copy source repo
-      # NOTE: Watch the trailing slash (rsync trivia).
-      synchronize: src={{ pyv8_repo }}/ dest={{ pyv8_src }}
-                   rsync_opts='--exclude .svn'
-
     # NOTE: `setup_linux_py3k.py` is locally patched version of
     # `setup.py` for building pyv8 in Python 3.
 
-    - name: build
-      command: "{{ cpython_python }} setup_linux_py3k.py build"
-      args:
-        chdir: "{{ pyv8_src }}"
-        creates: "{{ pyv8_src }}/build"
+    - name: install from source repo
+      include: tasks/python/build.yml
+               package_name=PyV8
+               package_repo={{ pyv8_repo }}
+               package_build={{ pyv8_build }}
+               package_setup={{ pyv8_setup }}
 
-    - name: install
-      command: "{{ cpython_python }} setup_linux_py3k.py install"
-      args:
-        chdir: "{{ pyv8_src }}"
-        creates: "{{ cpython_site_packages }}/PyV8-*"
-      become: yes
-
-- tags: [archive, pyv8]
-  block:
-
-    - name: archive
-      include: roles/cpython/tasks/archive-site-packages.yml
+- name: archive
+  tags: [archive, pyv8]
+  include: tasks/python/archive.yml package_name=PyV8

@@ -1,34 +1,10 @@
 ---
 
-- tags: [build, garage]
-  block:
+- name: install from source repo
+  tags: [build, garage]
+  include: tasks/python/build.yml
+           package_name=garage package_repo={{ garage_repo }}
 
-    - name: sanity check source repo
-      # It doesn't really "create" anything, but we could skip the check
-      # if the target is already there.
-      command: test -d {{ garage_repo }}/.git
-               creates={{ garage_repo }}/.git
-
-    - name: copy source repo
-      # NOTE: Watch the trailing slash (rsync trivia).
-      synchronize: src={{ garage_repo }}/ dest={{ garage_src }}
-                   rsync_opts='--exclude=.git --exclude=*.egg-info'
-
-    - name: build
-      command: "{{ cpython_python }} setup.py build"
-      args:
-        chdir: "{{ garage_src }}"
-        creates: "{{ garage_src }}/build"
-
-    - name: install
-      command: "{{ cpython_python }} setup.py install"
-      args:
-        chdir: "{{ garage_src }}"
-        creates: "{{ cpython_site_packages }}/garage-*"
-      become: yes
-
-- tags: [archive, garage]
-  block:
-
-    - name: archive
-      include: roles/cpython/tasks/archive-site-packages.yml
+- name: archive
+  tags: [archive, garage]
+  include: tasks/python/archive.yml package_name=garage

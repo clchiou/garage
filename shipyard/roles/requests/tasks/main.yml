@@ -13,4 +13,4 @@
   block:
 
     - name: archive
-      include: roles/cpython/tasks/archive-site-packages.yml
+      include: tasks/python/archive.yml package_name=requests

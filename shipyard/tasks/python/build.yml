@@ -1,0 +1,41 @@
+---
+
+# Build pure Python package from local source repo.
+#
+# Args:
+#   - package_name
+#   - package_repo
+#   - package_build [Default: "{{ build_src }}/{{ package_name }}"]
+#   - package_setup [Default: "setup.py"]
+
+- name: include default variable values
+  include_vars: tasks/python/defaults.yml
+
+- name: sanity check source repo
+  file: path={{ package_repo }}/{{ _package_setup }}
+
+- name: copy source repo
+  # NOTE: Watch the trailing slash on src (rsync trivia).
+  synchronize: src={{ package_repo }}/ dest={{ _package_build }}
+  args:
+    rsync_opts:
+      - "--exclude '*.egg-info'"
+      - "--exclude '*.pyc'"
+      - "--exclude '.git'"
+      - "--exclude '.svn'"
+      - "--exclude '__pycache__'"
+      - "--exclude 'build'"
+      - "--exclude 'dist'"
+
+- name: build
+  command: "{{ cpython_python }} {{ _package_setup }} build"
+  args:
+    chdir: "{{ _package_build }}"
+    creates: "{{ _package_build }}/build"
+
+- name: install
+  command: "{{ cpython_python }} {{ _package_setup }} install"
+  args:
+    chdir: "{{ _package_build }}"
+    creates: "{{ cpython_site_packages }}/{{ package_name }}*"
+  become: yes

@@ -1,7 +1,8 @@
 ---
 
 # Copy files while preserving path structures.
-# args:
+#
+# Args:
 #   - path
 #   - patterns
 #   - dest

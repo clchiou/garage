@@ -22,4 +22,4 @@
                dest={{ build_out }}
 
     - name: archive pyyaml
-      include: roles/cpython/tasks/archive-site-packages.yml
+      include: tasks/python/archive.yml package_name=PyYAML

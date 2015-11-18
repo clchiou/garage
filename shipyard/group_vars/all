@@ -1,7 +1,7 @@
 ---
 
 # Directory for checking out source code repos.
-build_src: /home/plumber/build
+build_src: "{{ lookup('env', 'HOME') }}/build"
 
 # Working directory for building images (later you archive from here).
-build_out: /home/plumber/rootfs
+build_out: "{{ lookup('env', 'HOME') }}/rootfs"
