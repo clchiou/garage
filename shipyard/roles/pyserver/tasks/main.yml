@@ -1,0 +1,5 @@
+---
+
+- name: archive python pth files
+  tags: [archive, pyserver]
+  include: "{{ shipyard }}/tasks/python/archive-pth-files.yml"

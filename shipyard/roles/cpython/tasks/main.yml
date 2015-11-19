@@ -88,6 +88,8 @@
           - "--exclude '{{ cpython_lib }}/sqlite3/test'"
           - "--exclude '{{ cpython_lib }}/test'"
           - "--exclude '{{ cpython_lib }}/unittest/test'"
+          # Exclude site-packages (you will have to cherry-pick them).
+          - "--exclude '{{ cpython_site_packages }}'"
       become: yes
 
     - name: archive cpython binaries
