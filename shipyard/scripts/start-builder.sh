@@ -6,7 +6,7 @@ source "$(dirname "${0}")/common.sh"
 
 usage() {
   cat <<EOF
-Usage: $(basename "${1}") [-h] [-n NAME] [-m MOUNT] [-f FLAGS] IMAGE [ARG...]
+Usage: $(basename "${1}") [-h] [-y] [-n NAME] [-m MOUNT] [-f FLAGS] IMAGE [ARG...]
 
 A thin wrapper of \`docker run\` where:
 
@@ -23,13 +23,15 @@ EOF
 }
 
 main() {
+  local YES=0
   local NAME=""
   local MOUNT=()
   local FLAGS=""
   local opt=""
-  while getopts ":hn:m:f:" opt; do
+  while getopts ":hyn:m:f:" opt; do
     case "${opt}" in
       h) usage "${0}"; exit ;;
+      y) YES=1 ;;
       n) NAME="${OPTARG}" ;;
       m) MOUNT+=("${OPTARG}") ;;
       f) FLAGS="${OPTARG}" ;;
@@ -62,7 +64,7 @@ main() {
     VOLUME+=("${mount_point}:/home/plumber/$(basename "${mount_point}"):ro")
   done
 
-  ask
+  [[ "${YES}" = 0 ]] && ask
 
   set -o xtrace
   docker run \
