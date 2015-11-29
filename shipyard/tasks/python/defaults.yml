@@ -1,5 +1,0 @@
----
-
-_package_build: "{{ package_build|default(build_src + '/' + package_name) }}"
-
-_package_setup: "{{ package_setup|default('setup.py') }}"

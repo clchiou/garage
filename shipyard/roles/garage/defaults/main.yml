@@ -1,7 +1,0 @@
----
-
-# Path to garage source repo.
-#
-# NOTE: You must mount this directory here (or somewhere and then set
-# this variable accordingly).
-garage_repo: "{{ lookup('env', 'HOME') }}/garage"

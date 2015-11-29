@@ -1,7 +1,0 @@
----
-
-# Path to startup source repo.
-#
-# NOTE: You must mount this directory here (or somewhere and then set
-# this variable accordingly).
-startup_repo: "{{ lookup('env', 'HOME') }}/startup"
