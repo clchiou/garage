@@ -21,7 +21,7 @@ CFLAGS := \
 	-fPIC
 
 DIRS := $(V8CABI_OUT) $(V8CABI_OUT)/samples
-SRCS := hello_world.c
+SRCS := hello_world.c global.c
 LIBS := -licui18n -licuuc -lv8 -lv8_libbase -lv8_libplatform -lv8_cabi
 OBJS := $(patsubst %.c,$(V8CABI_OUT)/samples/%.o,$(SRCS))
 BINS := $(patsubst %.c,$(V8CABI_OUT)/samples/%,$(SRCS))

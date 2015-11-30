@@ -12,26 +12,31 @@ struct handle_scope {
 	v8::HandleScope handle_scope_;
 };
 
+// Whitelist of conversions between V8 type and its wrapper.
 #define MAKE_CAST(S, T) \
 	static inline T *cast(S *ptr) { return reinterpret_cast<T*>(ptr); } \
 	static inline S *cast(T *ptr) { return reinterpret_cast<S*>(ptr); }
+// V8 objects.
 MAKE_CAST(struct context, v8::Local<v8::Context>)
 MAKE_CAST(struct isolate, v8::Isolate)
 MAKE_CAST(struct isolate_create_params, v8::Isolate::CreateParams)
 MAKE_CAST(struct platform, v8::Platform)
+// JavaScript values.
+MAKE_CAST(struct array, v8::Local<v8::Array>)
+MAKE_CAST(struct object, v8::Local<v8::Object>)
 MAKE_CAST(struct script, v8::Local<v8::Script>)
 MAKE_CAST(struct string, v8::Local<v8::String>)
 MAKE_CAST(struct utf8_value, v8::String::Utf8Value)
 MAKE_CAST(struct value, v8::Local<v8::Value>)
 #undef MAKE_CAST
 
-template<class T>
+template <class T>
 static inline v8::Local<T> *to_heap(v8::Local<T> v)
 {
 	return new v8::Local<T>(v);
 }
 
-template<class T>
+template <class T>
 static inline v8::Local<T> *unwrap(v8::MaybeLocal<T> v)
 {
 	if (v.IsEmpty()) {
@@ -51,6 +56,11 @@ struct context *v8_context_new(struct isolate *isolate)
 void v8_context_enter(struct context *context)
 {
 	(*cast(context))->Enter();
+}
+
+struct object *v8_context_global(struct context *context)
+{
+	return cast(to_heap((*cast(context))->Global()));
 }
 
 void v8_context_exit(struct context *context)
@@ -187,6 +197,86 @@ void v8_platform_delete(struct platform *platform)
 	delete cast(platform);
 }
 
+// JavaScript values.
+
+// v8::Array
+
+uint32_t v8_array_length(struct array *array)
+{
+	return (*cast(array))->Length();
+}
+
+struct value *v8_array_get(
+		struct array *array, struct context *context, uint32_t index)
+{
+	return cast(unwrap((*cast(array))->Get(*cast(context), index)));
+}
+
+void v8_array_delete(struct array *array)
+{
+	delete cast(array);
+}
+
+// v8::Object
+
+static inline BOOL unwrap(v8::Maybe<bool> maybe, BOOL *out)
+{
+	if (maybe.IsNothing()) {
+		return false;
+	}
+	*out = maybe.FromJust();
+	return true;
+}
+
+struct array *v8_object_get_property_names(
+		struct object *object, struct context *context)
+{
+	return cast(unwrap((*cast(object))->GetPropertyNames(*cast(context))));
+}
+
+BOOL v8_object_has(
+		struct object *object,
+		struct context *context,
+		struct value *key,
+		BOOL *has)
+{
+	return unwrap((*cast(object))->Has(*cast(context), *cast(key)), has);
+}
+
+struct value *v8_object_get(
+		struct object *object,
+		struct context *context,
+		struct value *key)
+{
+	return cast(unwrap((*cast(object))->Get(*cast(context), *cast(key))));
+}
+
+BOOL v8_object_set(
+		struct object *object,
+		struct context *context,
+		struct value *key,
+		struct value *value,
+		BOOL *set)
+{
+	v8::Maybe<bool> maybe =
+		(*cast(object))->Set(*cast(context), *cast(key), *cast(value));
+	return unwrap(maybe, set);
+}
+
+BOOL v8_object_del(
+		struct object *object,
+		struct context *context,
+		struct value *key,
+		BOOL *del)
+{
+	return unwrap((*cast(object))->Has(*cast(context), *cast(key)), del);
+}
+
+void v8_object_delete(struct object *object)
+{
+	delete cast(object);
+}
+
 // v8::Script
 
 struct script *v8_script_compile(
@@ -244,6 +334,14 @@ void v8_utf8_value_delete(struct utf8_value *utf8_value)
 }
 
 // v8::Value
+
+#define MAKE_IS_TYPE(S, T) \
+	BOOL v8_value_is_##S(struct value *value) \
+	{ return (*cast(value))->Is##T(); }
+MAKE_IS_TYPE(array, Array)
+MAKE_IS_TYPE(object, Object)
+MAKE_IS_TYPE(string, String)
+#undef MAKE_IS_TYPE
 
 void v8_value_delete(struct value *value)
 {
