@@ -4,7 +4,7 @@
 
 #include "v8_cabi.h"
 
-#define USAGE "Usage: %s /path/to/native/blob /and/snapshot/blob\n"
+#define USAGE "Usage: %s /path/to/natives/blob /and/snapshot/blob\n"
 
 struct value *eval(
 		struct isolate *isolate,

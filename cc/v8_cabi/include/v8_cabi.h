@@ -109,13 +109,13 @@ void v8_object_delete(struct object *object);
 
 struct script *v8_script_compile(
 		struct context *context, struct string *source);
+struct value *v8_script_run(struct script *script, struct context *context);
 void v8_script_delete(struct script *script);
 
 // v8::String
 
 struct string *v8_string_new_from_utf8(
 	struct isolate *isolate, const char *data);
-struct value *v8_script_run(struct script *script, struct context *context);
 void v8_string_delete(struct string *string);
 
 // v8::String::Utf8Value

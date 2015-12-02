@@ -20,6 +20,7 @@ CXXFLAGS ?= \
 	-Werror \
 	-O3 \
 	-L$(V8_OUT)/$(V8_ARCH).$(V8_MODE)/lib.target \
+	-L$(V8_OUT)/$(V8_ARCH).$(V8_MODE)/obj.target/tools/gyp \
 	-fPIC \
 	-fno-exceptions \
 	-fno-rtti
@@ -44,7 +45,17 @@ clean:
 ### Build rules.
 
 $(V8_CABI_OUT)/$(SONAME): $(OBJS) | $(DIRS)
-	$(CXX) $(CXXFLAGS) -shared -Wl,-soname,$(SONAME) -o $@ $< -lc -lv8
+	$(CXX) $(CXXFLAGS) -shared -Wl,-soname,$(SONAME) -o $@ \
+		-Wl,--start-group \
+		$< \
+		-lc \
+		-licui18n \
+		-licuuc \
+		-lv8 \
+		-lv8_libbase \
+		-lv8_libplatform \
+		-Wl,--end-group \
+		-ldl -lrt
 
 include $(DEPS)
 

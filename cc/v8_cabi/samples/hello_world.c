@@ -3,7 +3,7 @@
 
 #include "v8_cabi.h"
 
-#define USAGE "Usage: %s /path/to/native/blob /and/snapshot/blob\n"
+#define USAGE "Usage: %s /path/to/natives/blob /and/snapshot/blob\n"
 
 #define SOURCE "'Hello' + ', World!'"
 
@@ -26,7 +26,7 @@ int main(int argc, char *argv[])
 		v8_isolate_create_params_new();
 	struct isolate *isolate = v8_isolate_new(create_params);
 
-	fprintf(stderr, "Enter isolaten\n");
+	fprintf(stderr, "Enter isolate\n");
 	v8_isolate_enter(isolate);
 
 	fprintf(stderr, "Create a stack-allocated handle scope\n");
