@@ -50,7 +50,7 @@ int main(int argc, char *argv[])
 		source, value_to_cstr(value, buffer, sizeof(buffer)));
 	v8_value_delete(value);
 
-	snprintf(source, sizeof(source), "y = \"egg\";");
+	snprintf(source, sizeof(source), "y = 42;");
 	value = eval(isolate, context, source);
 	fprintf(stdout, "> %s\n%s\n",
 		source, value_to_cstr(value, buffer, sizeof(buffer)));
@@ -75,6 +75,14 @@ int main(int argc, char *argv[])
 		const char *type;
 		if (v8_value_is_string(value)) {
 			type = "type string";
+                } else if (v8_value_is_number(value)) {
+                    if (v8_value_is_int32(value)) {
+                            type = "type int32";
+                    } else if (v8_value_is_uint32(value)) {
+                            type = "type uint32";
+                    } else {
+                            type = "type number";
+                    }
 		} else {
 			type = "something else";
 		}

@@ -8,6 +8,7 @@ from ctypes import (
     cdll,
     c_char_p,
     c_void_p,
+    c_double,
     c_int,
     c_ubyte,
     c_uint,
@@ -52,9 +53,16 @@ FUNC_DECLS = (
     ('v8_platform_delete', [c_void_p], None),
     # JavaScript values.
     # v8::Array
+    ('v8_array_cast_from', [c_void_p], c_void_p),
     ('v8_array_length', [c_void_p], c_uint),
     ('v8_array_get', [c_void_p, c_void_p, c_uint], c_void_p),
     ('v8_array_delete', [c_void_p], None),
+    # v8::Map
+    ('v8_map_cast_from', [c_void_p], c_void_p),
+    ('v8_map_as_array', [c_void_p], c_void_p),
+    ('v8_map_delete', [c_void_p], None),
+    # v8::Number
+    ('v8_number_cast_from', [c_void_p], c_double),
     # v8::Object
     ('v8_object_get_property_names', [c_void_p, c_void_p], c_void_p),
     ('v8_object_has', [c_void_p, c_void_p, c_void_p, POINTER(BOOL)], BOOL),
@@ -77,8 +85,12 @@ FUNC_DECLS = (
     ('v8_utf8_value_delete', [c_void_p], None),
     # v8::Value
     ('v8_value_is_array', [c_void_p], BOOL),
+    ('v8_value_is_map', [c_void_p], BOOL),
     ('v8_value_is_object', [c_void_p], BOOL),
     ('v8_value_is_string', [c_void_p], BOOL),
+    ('v8_value_is_number', [c_void_p], BOOL),
+    ('v8_value_is_int32', [c_void_p], BOOL),
+    ('v8_value_is_uint32', [c_void_p], BOOL),
     ('v8_value_delete', [c_void_p], None),
 )
 

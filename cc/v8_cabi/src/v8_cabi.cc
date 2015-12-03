@@ -1,3 +1,4 @@
+#include <cassert>
 #include <cstdlib>
 #include <cstring>
 
@@ -23,6 +24,7 @@ MAKE_CAST(struct isolate_create_params, v8::Isolate::CreateParams)
 MAKE_CAST(struct platform, v8::Platform)
 // JavaScript values.
 MAKE_CAST(struct array, v8::Local<v8::Array>)
+MAKE_CAST(struct map, v8::Local<v8::Map>)
 MAKE_CAST(struct object, v8::Local<v8::Object>)
 MAKE_CAST(struct script, v8::Local<v8::Script>)
 MAKE_CAST(struct string, v8::Local<v8::String>)
@@ -201,6 +203,12 @@ void v8_platform_delete(struct platform *platform)
 
 // v8::Array
 
+struct array *v8_array_cast_from(struct value *value)
+{
+	assert(v8_value_is_array(value));
+	return cast(to_heap(v8::Local<v8::Array>::Cast(*cast(value))));
+}
+
 uint32_t v8_array_length(struct array *array)
 {
 	return (*cast(array))->Length();
@@ -215,6 +223,32 @@ struct value *v8_array_get(
 void v8_array_delete(struct array *array)
 {
 	delete cast(array);
+}
+
+// v8::Map
+
+struct map *v8_map_cast_from(struct value *value)
+{
+	assert(v8_value_is_map(value));
+	return cast(to_heap(v8::Local<v8::Map>::Cast(*cast(value))));
+}
+
+struct array *v8_map_as_array(struct map *map)
+{
+	return cast(to_heap((*cast(map))->AsArray()));
+}
+
+void v8_map_delete(struct map *map)
+{
+	delete cast(map);
+}
+
+// v8::Number
+
+double v8_number_cast_from(struct value *value)
+{
+	assert(v8_value_is_number(value));
+	return v8::Local<v8::Number>::Cast(*cast(value))->Value();
 }
 
 // v8::Object
@@ -339,8 +373,12 @@ void v8_utf8_value_delete(struct utf8_value *utf8_value)
 	BOOL v8_value_is_##S(struct value *value) \
 	{ return (*cast(value))->Is##T(); }
 MAKE_IS_TYPE(array, Array)
+MAKE_IS_TYPE(map, Map)
 MAKE_IS_TYPE(object, Object)
 MAKE_IS_TYPE(string, String)
+MAKE_IS_TYPE(number, Number)
+MAKE_IS_TYPE(int32, Int32)
+MAKE_IS_TYPE(uint32, Uint32)
 #undef MAKE_IS_TYPE
 
 void v8_value_delete(struct value *value)

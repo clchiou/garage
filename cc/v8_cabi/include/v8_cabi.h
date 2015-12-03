@@ -23,6 +23,7 @@ struct platform;
 
 // JavaScript values.
 struct array;
+struct map;
 struct object;
 struct script;
 struct string;
@@ -74,10 +75,21 @@ void v8_platform_delete(struct platform *platform);
 
 // v8::Array
 
+struct array *v8_array_cast_from(struct value *value);
 uint32_t v8_array_length(struct array *array);
 struct value *v8_array_get(
 		struct array *array, struct context *context, uint32_t index);
 void v8_array_delete(struct array *array);
+
+// v8::Map
+
+struct map *v8_map_cast_from(struct value *value);
+struct array *v8_map_as_array(struct map *map);
+void v8_map_delete(struct map *map);
+
+// v8::Number
+
+double v8_number_cast_from(struct value *value);
 
 // v8::Object
 
@@ -127,8 +139,14 @@ void v8_utf8_value_delete(struct utf8_value *utf8_value);
 // v8::Value
 
 BOOL v8_value_is_array(struct value *value);
+BOOL v8_value_is_map(struct value *value);
 BOOL v8_value_is_object(struct value *value);
 BOOL v8_value_is_string(struct value *value);
+
+BOOL v8_value_is_number(struct value *value);
+BOOL v8_value_is_int32(struct value *value);
+BOOL v8_value_is_uint32(struct value *value);
+
 void v8_value_delete(struct value *value);
 
 #ifdef __cplusplus

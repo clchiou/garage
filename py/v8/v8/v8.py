@@ -115,7 +115,7 @@ class Context(ObjectBase):
                 scoped(Object(C.v8_context_global(not_null(self.context)))),
             )
             return OrderedDict(
-                (from_js(name), from_js(scoped(varz[name])))
+                (from_js(name, self), from_js(scoped(varz[name]), self))
                 for name in map(scoped, varz)
             )
 

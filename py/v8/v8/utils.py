@@ -7,11 +7,35 @@ __all__ = [
 from garage import asserts
 
 
-def from_js(value):
-    if value.is_string():
-        return str(value)
+class JsObject:
+    """A JavaScript object that cannot be translated into a Python object."""
+
+    def __init__(self, value):
+        self.js_repr = str(value)
+
+    def __str__(self):
+        return 'JsObject([%s])' % self.js_repr
+
+    def __repr__(self):
+        return 'JsObject([%s])' % self.js_repr
+
+
+def from_js(value, context):
+    if value.is_array():
+        array = value.as_array(context)
+        try:
+            return [from_js(element, context) for element in array]
+        finally:
+            array.close()
+    elif value.is_string():
+        return value.as_str()
+    elif value.is_number():
+        if value.is_int32() or value.is_uint32():
+            return value.as_int()
+        else:
+            return value.as_float()
     else:
-        asserts.fail('cannot translate for this JavaScript type')
+        return JsObject(value)
 
 
 def make_scoped(exit_stack):

@@ -47,6 +47,22 @@ class Array(ObjectBase):
         ))
 
 
+class Map(ObjectBase):
+
+    _spec = ObjectBase.Spec(
+        name='map',
+        extra=['context'],
+        ctor=lambda map, context: (map, context),
+        dtor=C.v8_map_delete,
+    )
+
+    map = None
+    context = None
+
+    def as_array(self):
+        return Array(C.v8_map_as_array(not_null(self.map)), self.context)
+
+
 class Object(ObjectBase):
 
     _spec = ObjectBase.Spec(
@@ -142,8 +158,46 @@ class Value(ObjectBase):
 
     value = None
 
+    def is_array(self):
+        return bool(C.v8_value_is_array(not_null(self.value)))
+
+    def is_map(self):
+        return bool(C.v8_value_is_map(not_null(self.value)))
+
     def is_string(self):
         return bool(C.v8_value_is_string(not_null(self.value)))
+
+    def is_number(self):
+        return bool(C.v8_value_is_number(not_null(self.value)))
+
+    def is_int32(self):
+        return bool(C.v8_value_is_int32(not_null(self.value)))
+
+    def is_uint32(self):
+        return bool(C.v8_value_is_uint32(not_null(self.value)))
+
+    def as_array(self, context):
+        asserts.precond(self.is_array())
+        return Array(C.v8_array_cast_from(not_null(self.value)), context)
+
+    def as_map(self, context):
+        asserts.precond(self.is_map())
+        return Map(C.v8_map_cast_from(not_null(self.value)), context)
+
+    def as_str(self):
+        asserts.precond(self.is_string())
+        return str(self)
+
+    def as_float(self):
+        asserts.precond(self.is_number())
+        return self._as_number()
+
+    def as_int(self):
+        asserts.precond(self.is_int32() or self.is_uint32())
+        return int(self._as_number())
+
+    def _as_number(self):
+        return C.v8_number_cast_from(not_null(self.value))
 
     def __str__(self):
         utf8_value = not_null(C.v8_utf8_value_new(not_null(self.value)))
