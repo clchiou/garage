@@ -1,26 +1,16 @@
+"""Low-level interface to V8."""
+
 __all__ = [
     'V8',
 ]
 
 import logging
 import os.path
-from collections import OrderedDict
-from contextlib import ExitStack
 
 from garage import asserts
 
 from .base import C, ObjectBase
-from .utils import (
-    from_js,
-    make_scoped,
-    not_null,
-)
-from .values import (
-    Object,
-    ObjectDictProxy,
-    Script,
-    String,
-)
+from .utils import not_null
 
 
 LOG = logging.getLogger(__name__)
@@ -76,48 +66,21 @@ class Isolate(ObjectBase):
     isolate = None
 
     def context(self):
-        return Context(self)
+        return Context(not_null(self.isolate))
 
     def handle_scope(self):
         return HandleScope(not_null(self.isolate))
-
-    def string(self, string):
-        return String(not_null(self.isolate), string.encode('utf-8'))
 
 
 class Context(ObjectBase):
 
     _spec = ObjectBase.Spec(
         name='context',
-        extra=['isolate'],
-        ctor=(lambda isolate:
-              (C.v8_context_new(not_null(isolate.isolate)), isolate)),
+        ctor=C.v8_context_new,
         dtor=C.v8_context_delete,
         enter=C.v8_context_enter,
         exit=C.v8_context_exit,
     )
-
-    context = None
-    isolate = None
-
-    def execute(self, source):
-        with ExitStack() as stack:
-            scoped = make_scoped(stack)
-            source = scoped(self.isolate.string(source))
-            script = scoped(Script.compile(self, source))
-            scoped(script.run(self))
-
-    def vars(self):
-        with ExitStack() as stack:
-            scoped = make_scoped(stack)
-            varz = ObjectDictProxy(
-                self,
-                scoped(Object(C.v8_context_global(not_null(self.context)))),
-            )
-            return OrderedDict(
-                (from_js(name, self), from_js(scoped(varz[name]), self))
-                for name in map(scoped, varz)
-            )
 
 
 class HandleScope(ObjectBase):
