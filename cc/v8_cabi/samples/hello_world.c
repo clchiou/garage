@@ -39,7 +39,7 @@ int main(int argc, char *argv[])
 	v8_context_enter(context);
 
 	fprintf(stderr, "Create JavaScript source code string\n");
-	struct string *source = v8_string_new_from_utf8(isolate, SOURCE);
+	struct string *source = v8_string_from_cstr(isolate, SOURCE);
 	assert(source);
 
 	fprintf(stderr, "Compile the source code\n");

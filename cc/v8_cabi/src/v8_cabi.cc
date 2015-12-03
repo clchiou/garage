@@ -203,7 +203,7 @@ void v8_platform_delete(struct platform *platform)
 
 // v8::Array
 
-struct array *v8_array_cast_from(struct value *value)
+struct array *v8_array_from_value(struct value *value)
 {
 	assert(v8_value_is_array(value));
 	return cast(to_heap(v8::Local<v8::Array>::Cast(*cast(value))));
@@ -227,7 +227,7 @@ void v8_array_delete(struct array *array)
 
 // v8::Map
 
-struct map *v8_map_cast_from(struct value *value)
+struct map *v8_map_from_value(struct value *value)
 {
 	assert(v8_value_is_map(value));
 	return cast(to_heap(v8::Local<v8::Map>::Cast(*cast(value))));
@@ -245,13 +245,19 @@ void v8_map_delete(struct map *map)
 
 // v8::Number
 
-double v8_number_cast_from(struct value *value)
+double v8_number_from_value(struct value *value)
 {
 	assert(v8_value_is_number(value));
 	return v8::Local<v8::Number>::Cast(*cast(value))->Value();
 }
 
 // v8::Object
+
+struct object *v8_object_from_value(struct value *value)
+{
+	assert(v8_value_is_object(value));
+	return cast(to_heap(v8::Local<v8::Object>::Cast(*cast(value))));
+}
 
 static inline BOOL unwrap(v8::Maybe<bool> maybe, BOOL *out)
 {
@@ -333,8 +339,7 @@ void v8_script_delete(struct script *script)
 
 // v8::String
 
-struct string *v8_string_new_from_utf8(
-		struct isolate *isolate, const char *data)
+struct string *v8_string_from_cstr(struct isolate *isolate, const char *data)
 {
 	return cast(unwrap(v8::String::NewFromUtf8(
 		cast(isolate), data, v8::NewStringType::kNormal)));
@@ -369,13 +374,37 @@ void v8_utf8_value_delete(struct utf8_value *utf8_value)
 
 // v8::Value
 
+struct value *v8_value_from_string(struct string *string)
+{
+    return cast(to_heap(v8::Local<v8::Value>::Cast(*cast(string))));
+}
+
 #define MAKE_IS_TYPE(S, T) \
 	BOOL v8_value_is_##S(struct value *value) \
 	{ return (*cast(value))->Is##T(); }
-MAKE_IS_TYPE(array, Array)
-MAKE_IS_TYPE(map, Map)
+
+MAKE_IS_TYPE(undefined, Undefined)
+MAKE_IS_TYPE(null, Null)
+MAKE_IS_TYPE(true, True)
+MAKE_IS_TYPE(false, False)
+
 MAKE_IS_TYPE(object, Object)
+MAKE_IS_TYPE(array, Array)
+MAKE_IS_TYPE(array_buffer, ArrayBuffer)
+MAKE_IS_TYPE(array_buffer_view, ArrayBufferView)
+MAKE_IS_TYPE(shared_array_buffer, SharedArrayBuffer)
+MAKE_IS_TYPE(date, Date)
+MAKE_IS_TYPE(function, Function)
+MAKE_IS_TYPE(map, Map)
+MAKE_IS_TYPE(promise, Promise)
+MAKE_IS_TYPE(regexp, RegExp)
+MAKE_IS_TYPE(set, Set)
 MAKE_IS_TYPE(string, String)
+MAKE_IS_TYPE(boolean_object, BooleanObject)
+MAKE_IS_TYPE(number_object, NumberObject)
+MAKE_IS_TYPE(string_object, StringObject)
+MAKE_IS_TYPE(symbol_object, SymbolObject)
+
 MAKE_IS_TYPE(number, Number)
 MAKE_IS_TYPE(int32, Int32)
 MAKE_IS_TYPE(uint32, Uint32)

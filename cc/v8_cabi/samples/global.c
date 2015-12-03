@@ -122,8 +122,7 @@ struct value *eval(
 		struct context *context,
 		const char *source_string)
 {
-	struct string *source =
-		v8_string_new_from_utf8(isolate, source_string);
+	struct string *source = v8_string_from_cstr(isolate, source_string);
 	assert(source);
 
 	struct script *script = v8_script_compile(context, source);
