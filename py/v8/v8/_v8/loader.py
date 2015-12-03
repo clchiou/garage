@@ -53,17 +53,18 @@ FUNC_DECLS = (
     ('v8_platform_delete', [c_void_p], None),
     # JavaScript values.
     # v8::Array
-    ('v8_array_cast_from', [c_void_p], c_void_p),
+    ('v8_array_from_value', [c_void_p], c_void_p),
     ('v8_array_length', [c_void_p], c_uint),
     ('v8_array_get', [c_void_p, c_void_p, c_uint], c_void_p),
     ('v8_array_delete', [c_void_p], None),
     # v8::Map
-    ('v8_map_cast_from', [c_void_p], c_void_p),
+    ('v8_map_from_value', [c_void_p], c_void_p),
     ('v8_map_as_array', [c_void_p], c_void_p),
     ('v8_map_delete', [c_void_p], None),
     # v8::Number
-    ('v8_number_cast_from', [c_void_p], c_double),
+    ('v8_number_from_value', [c_void_p], c_double),
     # v8::Object
+    ('v8_object_from_value', [c_void_p], c_void_p),
     ('v8_object_get_property_names', [c_void_p, c_void_p], c_void_p),
     ('v8_object_has', [c_void_p, c_void_p, c_void_p, POINTER(BOOL)], BOOL),
     ('v8_object_get', [c_void_p, c_void_p, c_void_p], c_void_p),
@@ -77,20 +78,41 @@ FUNC_DECLS = (
     ('v8_script_run', [c_void_p, c_void_p], c_void_p),
     ('v8_script_delete', [c_void_p], None),
     # v8::String
-    ('v8_string_new_from_utf8', [c_void_p, c_char_p], c_void_p),
+    ('v8_string_from_cstr', [c_void_p, c_char_p], c_void_p),
     ('v8_string_delete', [c_void_p], None),
     # v8::String::Utf8Value
     ('v8_utf8_value_new', [c_void_p], c_void_p),
     ('v8_utf8_value_cstr', [c_void_p], c_char_p),
     ('v8_utf8_value_delete', [c_void_p], None),
     # v8::Value
-    ('v8_value_is_array', [c_void_p], BOOL),
-    ('v8_value_is_map', [c_void_p], BOOL),
+    ('v8_value_from_string', [c_void_p], c_void_p),
+
+    ('v8_value_is_undefined', [c_void_p], BOOL),
+    ('v8_value_is_null', [c_void_p], BOOL),
+    ('v8_value_is_true', [c_void_p], BOOL),
+    ('v8_value_is_false', [c_void_p], BOOL),
+
     ('v8_value_is_object', [c_void_p], BOOL),
+    ('v8_value_is_array', [c_void_p], BOOL),
+    ('v8_value_is_array_buffer', [c_void_p], BOOL),
+    ('v8_value_is_array_buffer_view', [c_void_p], BOOL),
+    ('v8_value_is_shared_array_buffer', [c_void_p], BOOL),
+    ('v8_value_is_date', [c_void_p], BOOL),
+    ('v8_value_is_function', [c_void_p], BOOL),
+    ('v8_value_is_map', [c_void_p], BOOL),
+    ('v8_value_is_promise', [c_void_p], BOOL),
+    ('v8_value_is_regexp', [c_void_p], BOOL),
+    ('v8_value_is_set', [c_void_p], BOOL),
     ('v8_value_is_string', [c_void_p], BOOL),
+    ('v8_value_is_boolean_object', [c_void_p], BOOL),
+    ('v8_value_is_number_object', [c_void_p], BOOL),
+    ('v8_value_is_string_object', [c_void_p], BOOL),
+    ('v8_value_is_symbol_object', [c_void_p], BOOL),
+
     ('v8_value_is_number', [c_void_p], BOOL),
     ('v8_value_is_int32', [c_void_p], BOOL),
     ('v8_value_is_uint32', [c_void_p], BOOL),
+
     ('v8_value_delete', [c_void_p], None),
 )
 

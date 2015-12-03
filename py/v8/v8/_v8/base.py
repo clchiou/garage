@@ -81,3 +81,6 @@ class ObjectBaseMeta(type):
 class ObjectBase(metaclass=ObjectBaseMeta):
 
     Spec = Spec
+
+    def close(self):
+        raise AssertionError('%s.close() is undefined' % self.__class__)

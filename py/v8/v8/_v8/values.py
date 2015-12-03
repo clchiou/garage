@@ -6,9 +6,12 @@ __all__ = [
     'Value',
 ]
 
+import ctypes
+
 from garage import asserts
 
 from .base import C, ObjectBase
+from .loader import BOOL
 from .utils import not_null
 
 
@@ -28,7 +31,7 @@ class Array(ObjectBase):
     def from_value(cls, value, context):
         asserts.precond(value.is_array())
         return cls(
-            C.v8_array_cast_from(not_null(value.value)),
+            C.v8_array_from_value(not_null(value.value)),
             context=context,
         )
 
@@ -67,7 +70,7 @@ class Map(ObjectBase):
     def from_value(cls, value, context):
         asserts.precond(value.is_map())
         return cls(
-            C.v8_map_cast_from(not_null(value.value)),
+            C.v8_map_from_value(not_null(value.value)),
             context=context,
         )
 
@@ -84,7 +87,49 @@ class Object(ObjectBase):
         name='object',
         ctor=lambda object: object,
         dtor=C.v8_object_delete,
+        fields=['context'],
     )
+
+    object = None
+    context = None
+
+    @classmethod
+    def from_value(cls, value, context):
+        asserts.precond(value.is_object())
+        return cls(
+            C.v8_object_from_value(not_null(value.value)),
+            context=context,
+        )
+
+    def get_property_names(self):
+        return Array(
+            C.v8_object_get_property_names(
+                not_null(self.object),
+                not_null(self.context.context),
+            ),
+            context=self.context,
+        )
+
+    def has_prop(self, name):
+        has = BOOL(0)
+        asserts.postcond(C.v8_object_has(
+            not_null(self.object),
+            not_null(self.context.context),
+            not_null(name.value),
+            ctypes.byref(has),
+        ))
+        return has.value != 0
+
+    def get_prop(self, name):
+        value = Value(C.v8_object_get(
+            not_null(self.object),
+            not_null(self.context.context),
+            not_null(name.value),
+        ))
+        if value.is_undefined():
+            value.close()
+            raise AttributeError
+        return value
 
 
 class Script(ObjectBase):
@@ -120,13 +165,56 @@ class String(ObjectBase):
 
     _spec = ObjectBase.Spec(
         name='string',
-        ctor=C.v8_string_new_from_utf8,
+        ctor=C.v8_string_from_cstr,
         dtor=C.v8_string_delete,
     )
 
     @classmethod
     def from_str(cls, str_, isolate):
         return cls(isolate.isolate, str_.encode('utf-8'))
+
+
+def add_predicates(namespace):
+
+    def make_predicate(name):
+        c_predicate = getattr(C, 'v8_value_is_%s' % name)
+        def predicate(self):
+            return bool(c_predicate(not_null(self.value)))
+        return predicate
+
+    names = (
+        'undefined',
+        'null',
+        'true',
+        'false',
+
+        'object',
+        'array',
+        'array_buffer',
+        'array_buffer_view',
+        'shared_array_buffer',
+        'date',
+        'function',
+        'map',
+        'promise',
+        'regexp',
+        'set',
+        'string',
+        'boolean_object',
+        'number_object',
+        'string_object',
+        'symbol_object',
+
+        'number',
+        'int32',
+        'uint32',
+    )
+
+    for name in names:
+        predicate_name = 'is_%s' % name
+        predicate = make_predicate(name)
+        predicate.__name__ = predicate_name
+        namespace[predicate_name] = predicate
 
 
 class Value(ObjectBase):
@@ -139,23 +227,14 @@ class Value(ObjectBase):
 
     value = None
 
-    def is_array(self):
-        return bool(C.v8_value_is_array(not_null(self.value)))
+    @classmethod
+    def from_string(cls, string):
+        return cls(C.v8_value_from_string(not_null(string.string)))
 
-    def is_map(self):
-        return bool(C.v8_value_is_map(not_null(self.value)))
+    add_predicates(locals())
 
-    def is_string(self):
-        return bool(C.v8_value_is_string(not_null(self.value)))
-
-    def is_number(self):
-        return bool(C.v8_value_is_number(not_null(self.value)))
-
-    def is_int32(self):
-        return bool(C.v8_value_is_int32(not_null(self.value)))
-
-    def is_uint32(self):
-        return bool(C.v8_value_is_uint32(not_null(self.value)))
+    def as_object(self, context):
+        return Object.from_value(self, context)
 
     def as_array(self, context):
         return Array.from_value(self, context)
@@ -179,7 +258,7 @@ class Value(ObjectBase):
         return self._as_str()
 
     def _as_number(self):
-        return C.v8_number_cast_from(not_null(self.value))
+        return C.v8_number_from_value(not_null(self.value))
 
     def _as_str(self):
         utf8_value = not_null(C.v8_utf8_value_new(not_null(self.value)))

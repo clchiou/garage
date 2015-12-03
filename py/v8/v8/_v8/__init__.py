@@ -11,6 +11,7 @@ from garage import asserts
 
 from .base import C, ObjectBase
 from .utils import not_null
+from .values import Object
 
 
 LOG = logging.getLogger(__name__)
@@ -81,6 +82,14 @@ class Context(ObjectBase):
         enter=C.v8_context_enter,
         exit=C.v8_context_exit,
     )
+
+    context = None
+
+    def vars(self):
+        return Object(
+            C.v8_context_global(not_null(self.context)),
+            context=self,
+        )
 
 
 class HandleScope(ObjectBase):
