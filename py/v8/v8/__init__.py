@@ -78,8 +78,8 @@ class Context(Mapping):
         scoped = make_scoped(self._exit_stack)
         self.handle_scope = scoped(self.isolate.isolate.handle_scope())
         self.context = scoped(self.isolate.isolate.context())
-        self.vars = scoped(self.context.vars())
         self._exit_stack.enter_context(self.context)
+        self.vars = scoped(self.context.vars())
         return self
 
     def __exit__(self, *exc_details):
@@ -90,11 +90,21 @@ class Context(Mapping):
         del self._exit_stack
 
     def execute(self, source):
+        self._execute(source).close()
+
+    def evaluate(self, source):
+        value = self._execute(source)
+        try:
+            return translate(value, self.context)
+        finally:
+            value.close()
+
+    def _execute(self, source):
         with ExitStack() as stack:
             scoped = make_scoped(stack)
             source = scoped(String.from_str(source, self.isolate.isolate))
             script = scoped(Script.compile(self.context, source))
-            return translate(scoped(script.run()), self.context)
+            return script.run()
 
     def __contains__(self, name):
         with ExitStack() as stack:
@@ -115,9 +125,11 @@ class Context(Mapping):
             return translate(value, self.context)
 
     def __len__(self):
-        with ExitStack() as stack:
-            scoped = make_scoped(stack)
-            return len(scoped(self.vars.get_property_names()))
+        names = self.vars.get_property_names()
+        try:
+            return len(names)
+        finally:
+            names.close()
 
     def __iter__(self):
         with ExitStack() as stack:
