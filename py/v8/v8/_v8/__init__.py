@@ -66,10 +66,10 @@ class Isolate(ObjectBase):
     isolate = None
 
     def context(self):
-        return Context(not_null(self.isolate))
+        return Context(self.isolate)
 
     def handle_scope(self):
-        return HandleScope(not_null(self.isolate))
+        return HandleScope(self.isolate)
 
 
 class Context(ObjectBase):

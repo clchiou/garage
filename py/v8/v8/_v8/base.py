@@ -19,20 +19,46 @@ C = DictViewAttrs(loader.load())
 
 class Spec:
 
-    def __init__(
-            self, *,
-            name,
-            ctor, dtor,
-            enter=None, exit=None,
-            extra=None,
-            level=logging.DEBUG):
+    def __init__(self, *, name, ctor, dtor, enter=None, exit=None, fields=(),
+                 level=logging.DEBUG):
         self.name = name
         self.ctor = ctor
         self.dtor = dtor
         self.enter = enter
         self.exit = exit
-        self.extra = extra
+        self.fields = fields
         self.level = level
+
+    def make_init(self):
+        name, ctor, level = self.name, self.ctor, self.level
+        fields = self.fields
+        def __init__(self, *args, **kwargs):
+            LOG.log(level, 'new %s', name)
+            self.__dict__[name] = not_null(ctor(*map(not_null, args)))
+            self.__dict__.update((fname, kwargs[fname]) for fname in fields)
+        return __init__
+
+    def make_close(self):
+        name, dtor, level = self.name, self.dtor, self.level
+        def close(self):
+            LOG.log(level, 'delete %s', name)
+            dtor(not_null(self.__dict__.pop(name)))
+        return close
+
+    def make_enter(self):
+        name, enter, level = self.name, self.enter, self.level
+        def __enter__(self):
+            LOG.log(level, 'enter %s', name)
+            enter(not_null(self.__dict__[name]))
+            return self
+        return __enter__
+
+    def make_exit(self):
+        name, exit_, level = self.name, self.exit, self.level
+        def __exit__(self, *_):
+            LOG.log(level, 'exit %s', name)
+            exit_(not_null(self.__dict__[name]))
+        return __exit__
 
 
 class ObjectBaseMeta(type):
@@ -41,64 +67,17 @@ class ObjectBaseMeta(type):
         for spec in namespace.values():
             if isinstance(spec, Spec):
                 LOG.debug('add wrapper methods to %s', name)
-                ObjectBaseMeta.add_methods(spec, namespace)
+                namespace['__init__'] = spec.make_init()
+                namespace['close'] = spec.make_close()
+                if spec.enter is not None:
+                    namespace['__enter__'] = spec.make_enter()
+                if spec.exit is not None:
+                    namespace['__exit__'] = spec.make_exit()
                 break
         cls = super().__new__(mcs, name, bases, namespace)
         return cls
-
-    @staticmethod
-    def add_methods(spec, namespace):
-        namespace['__init__'] = ObjectBaseMeta.make_init(spec)
-        namespace['close'] = ObjectBaseMeta.make_close(spec)
-        if spec.enter is not None:
-            namespace['__enter__'] = ObjectBaseMeta.make_enter(spec)
-        if spec.exit is not None:
-            namespace['__exit__'] = ObjectBaseMeta.make_exit(spec)
-
-    @staticmethod
-    def make_init(spec):
-        if spec.extra:
-            names = [spec.name] + spec.extra
-            def __init__(self, *args):
-                LOG.log(spec.level, 'new %s', spec.name)
-                self.__dict__.update(zip(
-                    names,
-                    map(not_null, spec.ctor(*args)),
-                ))
-        else:
-            def __init__(self, *args):
-                LOG.log(spec.level, 'new %s', spec.name)
-                self.__dict__[spec.name] = not_null(spec.ctor(*args))
-        return __init__
-
-    @staticmethod
-    def make_close(spec):
-        def close(self):
-            LOG.log(spec.level, 'delete %s', spec.name)
-            spec.dtor(self.__dict__.pop(spec.name))
-        return close
-
-    @staticmethod
-    def make_enter(spec):
-        def __enter__(self):
-            LOG.log(spec.level, 'enter %s', spec.name)
-            obj = self.__dict__[spec.name]
-            spec.enter(obj)
-            return obj
-        return __enter__
-
-    @staticmethod
-    def make_exit(spec):
-        def __exit__(self, *_):
-            LOG.log(spec.level, 'exit %s', spec.name)
-            spec.exit(self.__dict__[spec.name])
-        return __exit__
 
 
 class ObjectBase(metaclass=ObjectBaseMeta):
 
     Spec = Spec
-
-    def close(self):
-        raise AssertionError(
-            '%s.close() is undefined' % self.__class__.__name__)

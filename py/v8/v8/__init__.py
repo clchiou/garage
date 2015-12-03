@@ -81,15 +81,13 @@ class Context:
         del self._exit_stack
 
     def execute(self, source):
-        isolate = not_null(self.isolate.isolate.isolate)
-        context = not_null(self.context)
         with ExitStack() as stack:
             def scoped(var):
                 stack.callback(var.close)
                 return var
-            source = scoped(String(isolate, source.encode('utf-8')))
-            script = scoped(Script.compile(context, source))
-            return translate(scoped(script.run(context)), context)
+            source = scoped(String.from_str(source, self.isolate.isolate))
+            script = scoped(Script.compile(self.context, source))
+            return translate(scoped(script.run()), self.context)
 
 
 class JsObject:

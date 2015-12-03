@@ -1,18 +1,14 @@
 __all__ = [
     'Array',
     'Object',
-    'ObjectDictProxy',
     'Script',
     'String',
     'Value',
 ]
 
-import ctypes
-
 from garage import asserts
 
 from .base import C, ObjectBase
-from .loader import BOOL
 from .utils import not_null
 
 
@@ -20,13 +16,21 @@ class Array(ObjectBase):
 
     _spec = ObjectBase.Spec(
         name='array',
-        extra=['context'],
-        ctor=lambda array, context: (array, context),
+        ctor=lambda array: array,
         dtor=C.v8_array_delete,
+        fields=['context'],
     )
 
     array = None
     context = None
+
+    @classmethod
+    def from_value(cls, value, context):
+        asserts.precond(value.is_array())
+        return cls(
+            C.v8_array_cast_from(not_null(value.value)),
+            context=context,
+        )
 
     def __len__(self):
         return C.v8_array_length(not_null(self.array))
@@ -51,16 +55,27 @@ class Map(ObjectBase):
 
     _spec = ObjectBase.Spec(
         name='map',
-        extra=['context'],
-        ctor=lambda map, context: (map, context),
+        ctor=lambda map: map,
         dtor=C.v8_map_delete,
+        fields=['context'],
     )
 
     map = None
     context = None
 
+    @classmethod
+    def from_value(cls, value, context):
+        asserts.precond(value.is_map())
+        return cls(
+            C.v8_map_cast_from(not_null(value.value)),
+            context=context,
+        )
+
     def as_array(self):
-        return Array(C.v8_map_as_array(not_null(self.map)), self.context)
+        return Array(
+            C.v8_map_as_array(not_null(self.map)),
+            context=self.context,
+        )
 
 
 class Object(ObjectBase):
@@ -72,70 +87,32 @@ class Object(ObjectBase):
     )
 
 
-class ObjectDictProxy:
-
-    def __init__(self, context, object):
-        self.context = context
-        self.object = object
-
-    def __contains__(self, key):
-        asserts.precond(isinstance(key, Value))
-        has = BOOL(0)
-        asserts.postcond(C.v8_object_has(
-            not_null(self.object.object),
-            not_null(self.context.context),
-            not_null(key.value),
-            ctypes.byref(has),
-        ))
-        return has.value != 0
-
-    def __iter__(self):
-        names = Array(
-            C.v8_object_get_property_names(
-                not_null(self.object.object),
-                not_null(self.context.context),
-            ),
-            self.context,
-        )
-        try:
-            yield from names
-        finally:
-            names.close()
-
-    def __getitem__(self, key):
-        asserts.precond(isinstance(key, Value))
-        value = C.v8_object_get(
-            not_null(self.object.object),
-            not_null(self.context.context),
-            not_null(key.value),
-        )
-        if value is None:
-            raise KeyError(key)
-        return Value(value)
-
-
 class Script(ObjectBase):
 
     _spec = ObjectBase.Spec(
         name='script',
         ctor=lambda script: script,
         dtor=C.v8_script_delete,
+        fields=['context'],
     )
 
     script = None
+    context = None
 
     @classmethod
     def compile(cls, context, source):
-        asserts.precond(isinstance(source, String))
-        return cls(C.v8_script_compile(
-            not_null(context.context),
-            not_null(source.string),
-        ))
+        return cls(
+            C.v8_script_compile(
+                not_null(context.context),
+                not_null(source.string),
+            ),
+            context=context,
+        )
 
-    def run(self, context):
+    def run(self):
         return Value(C.v8_script_run(
             not_null(self.script),
-            not_null(context.context),
+            not_null(self.context.context),
         ))
 
 
@@ -146,6 +123,10 @@ class String(ObjectBase):
         ctor=C.v8_string_new_from_utf8,
         dtor=C.v8_string_delete,
     )
+
+    @classmethod
+    def from_str(cls, str_, isolate):
+        return cls(isolate.isolate, str_.encode('utf-8'))
 
 
 class Value(ObjectBase):
@@ -177,16 +158,14 @@ class Value(ObjectBase):
         return bool(C.v8_value_is_uint32(not_null(self.value)))
 
     def as_array(self, context):
-        asserts.precond(self.is_array())
-        return Array(C.v8_array_cast_from(not_null(self.value)), context)
+        return Array.from_value(self, context)
 
     def as_map(self, context):
-        asserts.precond(self.is_map())
-        return Map(C.v8_map_cast_from(not_null(self.value)), context)
+        return Map.from_value(self, context)
 
     def as_str(self):
         asserts.precond(self.is_string())
-        return str(self)
+        return self._as_str()
 
     def as_float(self):
         asserts.precond(self.is_number())
@@ -196,10 +175,13 @@ class Value(ObjectBase):
         asserts.precond(self.is_int32() or self.is_uint32())
         return int(self._as_number())
 
+    def __str__(self):
+        return self._as_str()
+
     def _as_number(self):
         return C.v8_number_cast_from(not_null(self.value))
 
-    def __str__(self):
+    def _as_str(self):
         utf8_value = not_null(C.v8_utf8_value_new(not_null(self.value)))
         try:
             return not_null(C.v8_utf8_value_cstr(utf8_value)).decode('utf-8')
