@@ -21,7 +21,7 @@ logging.getLogger(__name__).addHandler(logging.NullHandler())
 
 class V8:
 
-    def __init__(self, natives_blob_path, snapshot_blob_path):
+    def __init__(self, natives_blob_path=None, snapshot_blob_path=None):
         self.natives_blob_path = natives_blob_path
         self.snapshot_blob_path = snapshot_blob_path
         self.v8 = None

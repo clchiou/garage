@@ -19,7 +19,12 @@ LOG = logging.getLogger(__name__)
 
 class V8:
 
-    def __init__(self, natives_blob_path, snapshot_blob_path):
+    def __init__(self, natives_blob_path=None, snapshot_blob_path=None):
+        here = os.path.dirname(__file__)
+        natives_blob_path = (
+            natives_blob_path or os.path.join(here, 'data/natives_blob.bin'))
+        snapshot_blob_path = (
+            snapshot_blob_path or os.path.join(here, 'data/snapshot_blob.bin'))
         asserts.precond(os.path.exists(natives_blob_path))
         asserts.precond(os.path.exists(snapshot_blob_path))
         LOG.info('initialize V8')
