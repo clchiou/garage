@@ -14,6 +14,9 @@ class ContextTest(unittest.TestCase):
                     'hello world', context.evaluate('"hello " + "world"'))
                 self.assertEqual(
                     [[[1, 2, 3]]], context.evaluate('[[[1, 2, 3]]]'))
+                # bytes also work.
+                self.assertEqual(
+                    'hello world', context.evaluate(b'"hello world"'))
 
             with isolate.context() as context:
                 context.execute('''

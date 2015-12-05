@@ -171,7 +171,12 @@ class String(ObjectBase):
 
     @classmethod
     def from_str(cls, str_, isolate):
-        return cls(isolate.isolate, str_.encode('utf-8'))
+        if isinstance(str_, str):
+            bytes_ = str_.encode('utf-8')
+        else:
+            asserts.precond(isinstance(str_, bytes))
+            bytes_ = str_
+        return cls(isolate.isolate, bytes_)
 
 
 def add_predicates(namespace):
