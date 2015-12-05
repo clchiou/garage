@@ -5,6 +5,7 @@ __all__ = [
     'TaskQueue',
     'Priority',
     'generate_names',
+    'make_get_thread_local',
 ]
 
 import collections
@@ -157,3 +158,12 @@ def generate_names(name_format='{name}-{serial:02d}', **kwargs):
     serial = kwargs.pop('serial', None) or AtomicInt(1)
     while True:
         yield name_format.format(serial=serial.get_and_add(1), **kwargs)
+
+
+def make_get_thread_local(make):
+    local = threading.local()
+    def get_thread_local():
+        if not hasattr(local, 'obj'):
+            local.obj = make()
+        return local.obj
+    return get_thread_local
