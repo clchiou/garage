@@ -86,6 +86,7 @@ class Context(ObjectBase):
         dtor=C.v8_context_delete,
         enter=C.v8_context_enter,
         exit=C.v8_context_exit,
+        level=logging.INFO,
     )
 
     context = None
@@ -103,4 +104,5 @@ class HandleScope(ObjectBase):
         name='handle_scope',
         ctor=C.v8_handle_scope_new,
         dtor=C.v8_handle_scope_delete,
+        level=logging.INFO,
     )
