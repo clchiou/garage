@@ -57,7 +57,8 @@ import types
 import weakref
 from concurrent.futures import Future
 
-from garage.threads import queues
+from . import queues
+from . import utils
 
 
 LOG = logging.getLogger(__name__)
@@ -130,14 +131,16 @@ class _StubMeta(type):
         return stub_method
 
 
-def build(stub_cls, *, name=None, capacity=0, args=None, kwargs=None):
+def build(stub_cls, *,
+          name=None, set_pthread_name=False,
+          capacity=0,
+          args=None, kwargs=None):
     """Build a stub/actor pair with finer configurations."""
     return stub_cls(
         BUILD,
-        name=name,
+        name=name, set_pthread_name=set_pthread_name,
         capacity=capacity,
-        args=args or (),
-        kwargs=kwargs or {},
+        args=args or (), kwargs=kwargs or {},
     )
 
 
@@ -195,15 +198,14 @@ class Stub(metaclass=_StubMeta):
                 '%s is not a stub of an actor' % type(self).__qualname__)
         if args and args[0] is BUILD:
             name = kwargs.get('name')
+            set_pthread_name = kwargs.get('set_pthread_name')
             capacity = kwargs.get('capacity', 0)
             args = kwargs.get('args', ())
             kwargs = kwargs.get('kwargs', {})
         else:
             name = None
+            set_pthread_name = False
             capacity = 0
-            # Should I make a copy of args and kwargs?
-            args = tuple(args)
-            kwargs = dict(kwargs)
         self.__msg_queue = queues.Queue(capacity=capacity)
         self.__future = Future()
         thread = threading.Thread(
@@ -220,6 +222,8 @@ class Stub(metaclass=_StubMeta):
         Stub.send_message(self, cls, args, kwargs).result()
         # If this stub is not referenced, kill the actor gracefully.
         weakref.finalize(self, self.__msg_queue.close)
+        if set_pthread_name:
+            utils.set_pthread_name(thread, name)
 
     def kill(self, graceful=True):
         """Set the kill flag of the actor thread.

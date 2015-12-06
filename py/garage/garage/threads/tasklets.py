@@ -15,6 +15,7 @@ LOG = logging.getLogger(__name__)
 def start_tasklet(task_queue):
     stub = actors.build(Tasklet,
                         name=next(start_tasklet.names),
+                        set_pthread_name=True,
                         args=(task_queue,))
     # Make sure that a tasklet does not accept any new messages, and
     # dies immediately after start() returns.

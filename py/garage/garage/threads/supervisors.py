@@ -16,6 +16,7 @@ LOG = logging.getLogger(__name__)
 def start_supervisor(num_actors, start_new_actor):
     stub = actors.build(Supervisor,
                         name=next(start_supervisor.names),
+                        set_pthread_name=True,
                         args=(num_actors, start_new_actor))
     # Make sure that a supervisor does not accept any new messages, and
     # dies immediately after start() returns.

@@ -79,7 +79,9 @@ class WorkerPool:
         """Called by executor to acquire more workers."""
         with self._lock:
             if not self._pool:
-                return actors.build(Worker, name=next(self.worker_names))
+                return actors.build(Worker,
+                                    name=next(self.worker_names),
+                                    set_pthread_name=True)
             return self._pool.popleft()
 
     def return_to_pool(self, workers):
