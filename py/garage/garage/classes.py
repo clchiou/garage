@@ -17,12 +17,10 @@ class LazyAttrs:
 
     def __init__(self, compute_attrs):
         self.__compute_attrs = compute_attrs
-        self.__attrs = {}
 
     def __getattr__(self, name):
-        if name not in self.__attrs:
-            self.__compute_attrs(name, self.__attrs)
-        return self.__attrs[name]
+        self.__compute_attrs(name, self.__dict__)
+        return self.__dict__[name]
 
 
 class NondataProperty:
