@@ -121,27 +121,26 @@ cdef extern from 'include/v8.h' namespace 'v8':
 
     Local[_Context] Context_New 'v8::Context::New'(_Isolate* isolate)
 
-
-cdef extern from 'handle_scope.cpp' namespace 'v8_python':
-
-    cdef cppclass HandleScope:
-
-        HandleScope(_Isolate* isolate)
+    cdef cppclass Platform
 
 
-cdef class Isolate:
+# Hack for static methods of v8::V8.
+cdef extern from 'include/v8.h' namespace 'v8::V8':
 
-    cdef _Isolate* isolate
+    cdef bool Initialize()
+
+    cdef bool InitializeICU(const char* icu_data_file)
+
+    cdef void InitializeExternalStartupData(
+        const char* natives_blob, const char* snapshot_blob)
+
+    cdef void InitializePlatform(Platform* platform)
+
+    cdef bool Dispose()
+
+    cdef void ShutdownPlatform()
 
 
-cdef class ContextBase:
+cdef extern from 'include/libplatform/libplatform.h' namespace 'v8::platform':
 
-    cdef _Isolate* isolate
-
-    cdef HandleScope* handle_scope
-
-    cdef Local[_Context] context
-
-    cdef Local[Object] global_vars
-
-    cdef Local[String] _encode_string(self, string)
+    Platform* CreateDefaultPlatform(int thread_pool_size)

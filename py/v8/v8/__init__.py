@@ -1,4 +1,4 @@
-'''Python extension for V8 JavaScript engine.'''
+"""Python extension for V8 JavaScript engine."""
 
 import logging
 

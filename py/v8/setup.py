@@ -50,42 +50,33 @@ if _Extension is Extension:
     raise RuntimeError('_Extension is %r' % Extension)
 
 
-_ext_modules = cythonize(
-    [
-        _Extension(
-            'v8.%s' % module,
-            language='c++',
-            sources=['v8/%s.pyx' % module] + extra_sources,
-            include_dirs=[V8],
-            library_dirs=[
-                os.path.join(V8_OUT, 'lib.target'),
-                os.path.join(V8_OUT, 'obj.target/tools/gyp'),
-            ],
-            libraries=[
-                'icui18n',
-                'icuuc',
-                'v8',
-                'v8_libbase',
-                'v8_libplatform',
-            ],
-            extra_compile_args=[
-                '-std=c++11',
-                '-fno-exceptions',
-                '-fno-rtti',
-            ],
-        ) for module, extra_sources in (
-            ('translate', []),
-            (
-                'v8',
-                [
-                    'v8/array_buffer_allocator.cpp',
-                    'v8/handle_scope.cpp',
-                    'v8/object_helper.cpp',
-                ]
-            ),
-        )
-    ]
-)
+_ext_modules = cythonize(_Extension(
+    'v8.v8',
+    language='c++',
+    sources=[
+        'v8/v8.pyx',
+        'v8/array_buffer_allocator.cpp',
+        'v8/handle_scope.cpp',
+        'v8/object_helper.cpp',
+    ],
+    include_dirs=[V8],
+    library_dirs=[
+        os.path.join(V8_OUT, 'lib.target'),
+        os.path.join(V8_OUT, 'obj.target/tools/gyp'),
+    ],
+    libraries=[
+        'icui18n',
+        'icuuc',
+        'v8',
+        'v8_libbase',
+        'v8_libplatform',
+    ],
+    extra_compile_args=[
+        '-std=c++11',
+        '-fno-exceptions',
+        '-fno-rtti',
+    ],
+))
 
 
 ext_modules = []
