@@ -1,3 +1,6 @@
+#ifndef V8_PYTHON_HANDLE_SCOPE_H_
+#define V8_PYTHON_HANDLE_SCOPE_H_
+
 #include "include/v8.h"
 
 namespace v8_python {
@@ -10,3 +13,5 @@ namespace v8_python {
     v8::HandleScope handle_scope_;
   };
 }
+
+#endif  // V8_PYTHON_HANDLE_SCOPE_H_

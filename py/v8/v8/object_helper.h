@@ -1,3 +1,6 @@
+#ifndef V8_PYTHON_OBJECT_HELPER_H_
+#define V8_PYTHON_OBJECT_HELPER_H_
+
 #include "include/v8.h"
 
 // Unfortunately, in generated code, Cython declares variables
@@ -19,3 +22,5 @@ namespace v8_python {
     }
   }
 }
+
+#endif  // V8_PYTHON_OBJECT_HELPER_H_

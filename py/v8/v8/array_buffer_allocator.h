@@ -1,3 +1,6 @@
+#ifndef V8_PYTHON_ARRAY_BUFFER_ALLOCATOR_H_
+#define V8_PYTHON_ARRAY_BUFFER_ALLOCATOR_H_
+
 #include <cstdlib>
 #include <cstring>
 
@@ -25,3 +28,5 @@ namespace v8_python {
     }
   };
 }
+
+#endif  // V8_PYTHON_ARRAY_BUFFER_ALLOCATOR_H_
