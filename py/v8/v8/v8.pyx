@@ -79,7 +79,7 @@ cdef class V8:
 ### Isolate ###
 
 
-cdef extern from 'array_buffer_allocator.cpp' \
+cdef extern from 'array_buffer_allocator.h' \
         namespace 'v8_python::ArrayBufferAllocator':
     cdef ArrayBuffer.Allocator* GetStatic()
 
@@ -123,16 +123,16 @@ cdef class Isolate:
 ### Context ###
 
 
-cdef extern from 'handle_scope.cpp' namespace 'v8_python':
+cdef extern from 'handle_scope.h' namespace 'v8_python':
 
     cdef cppclass HandleScope:
 
         HandleScope(_Isolate* isolate)
 
 
-cdef extern from 'object_helper.cpp' namespace 'v8_python':
+cdef extern from 'object_helper.h' namespace 'v8_python':
 
-    cdef bool ObjectHelper_Has 'v8_python::ObjectHelper::Has'(
+    cdef bool ObjectHas (
         Local[_Context] context,
         Local[Object] object_,
         Local[String] name,
@@ -207,7 +207,7 @@ cdef class ContextBase:
         assert self.handle_scope is not NULL
         cdef Local[String] name_object = self._encode_string(name)
         cdef bool has
-        cdef bool okay = ObjectHelper_Has(
+        cdef bool okay = ObjectHas(
             self.context, self.global_vars, name_object, &has)
         if not okay:
             raise RuntimeError(

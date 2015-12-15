@@ -53,12 +53,7 @@ if _Extension is Extension:
 _ext_modules = cythonize(_Extension(
     'v8.v8',
     language='c++',
-    sources=[
-        'v8/v8.pyx',
-        'v8/array_buffer_allocator.cpp',
-        'v8/handle_scope.cpp',
-        'v8/object_helper.cpp',
-    ],
+    sources=['v8/v8.pyx'],
     include_dirs=[V8],
     library_dirs=[
         os.path.join(V8_OUT, 'lib.target'),
