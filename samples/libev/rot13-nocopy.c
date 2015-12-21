@@ -10,7 +10,6 @@
 void rot13_handler(struct bus *bus, bus_channel channel, void *user_data, void *data)
 {
 	struct session *session = data;
-	debug("[%d] data received", session->fd);
 
 	struct ro_view recv_view;
 	session_recv_buffer_view(session, &recv_view);
@@ -18,8 +17,9 @@ void rot13_handler(struct bus *bus, bus_channel channel, void *user_data, void *
 	struct rw_view send_view;
 	session_send_buffer_view(session, &send_view);
 
+	debug("[%d] rot13 recv_buffer=%zu send_buffer=%zu bytes", session->fd, recv_view.size, send_view.size);
+
 	size_t size = min(recv_view.size, send_view.size);
-	debug("[%d] process %zu bytes", session->fd, size);
 	for (size_t i = 0; i < size; i++) {
 		uint8_t c = recv_view.data[i];
 		if (islower(c))

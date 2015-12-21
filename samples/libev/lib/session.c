@@ -26,9 +26,9 @@
 
 enum {
 	RECV_BUFFER_SIZE = 4096,
-	RECV_BUFFER_HIGH_WATERMARK = RECV_BUFFER_SIZE,  // No buffering at recv-side.
+	RECV_BUFFER_HIGH_WATERMARK = 3072,
 	SEND_BUFFER_SIZE = 4096,
-	SEND_BUFFER_LOW_WATERMARK = 0,  // No buffering at send-side.
+	SEND_BUFFER_LOW_WATERMARK = 1024,
 };
 
 
@@ -124,8 +124,10 @@ static void _recv(struct ev_loop *loop, struct ev_io *watcher, int revents)
 			return;
 		}
 
-		if (nread != -1)
+		if (nread != -1) {
+			session_debug("recv %zd bytes", nread);
 			continue;
+		}
 
 		if (errno == EAGAIN || errno == EWOULDBLOCK)
 			break;
@@ -161,8 +163,10 @@ static void _send(struct ev_loop *loop, struct ev_io *watcher, int revents)
 		while ((nwrite = buffer_outgoing_net(&session->send_buffer, watcher->fd)) == -1 && errno == EINTR)
 			;
 
-		if (nwrite != -1)
+		if (nwrite != -1) {
+			session_debug("send %zd bytes", nwrite);
 			continue;
+		}
 
 		if (errno == EAGAIN || errno == EWOULDBLOCK)
 			break;
