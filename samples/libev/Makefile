@@ -13,7 +13,7 @@ endif
 
 LDFLAGS := -lev
 
-PROGS := rot13
+PROGS := rot13-copy rot13-nocopy
 
 SRCS := $(wildcard lib/*.c)
 OBJS := $(SRCS:.c=.o)
@@ -27,7 +27,7 @@ clean:
 
 .PHONY: all clean
 
-$(PROGS) : % : %.o $(OBJS)
+$(PROGS) : % : %.o rot13.o $(OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 %.o: %.c

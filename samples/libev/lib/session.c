@@ -36,6 +36,10 @@ static void _recv(struct ev_loop *loop, struct ev_io *watcher, int revents);
 static void _send(struct ev_loop *loop, struct ev_io *watcher, int revents);
 
 
+static void _check_recv_buffer_watermark(struct session *session);
+static void _check_send_buffer_watermark(struct session *session);
+
+
 bool session_init(struct session *session, int socket_fd, struct bus *bus, struct ev_loop *loop)
 {
 	debug("[%d] init session", socket_fd);
@@ -88,32 +92,18 @@ void session_del(struct session *session)
 
 ssize_t session_recv(struct session *session, void *buffer, size_t count)
 {
+	expect(session && buffer);
 	ssize_t nread = buffer_outgoing_mem(&session->recv_buffer, buffer, count);
-
-	if (buffer_used_space(&session->recv_buffer) <= RECV_BUFFER_HIGH_WATERMARK) {
-		// Check ev_is_active() so that logs are less cluttered.
-		if (!ev_is_active(&session->recv_watcher)) {
-			session_debug("re-enable receiving data");
-		}
-		ev_io_start(session->loop, &session->recv_watcher);
-	}
-
+	_check_recv_buffer_watermark(session);
 	return nread;
 }
 
 
 ssize_t session_send(struct session *session, const void *buffer, size_t count)
 {
+	expect(session && buffer);
 	ssize_t nwrite = buffer_incoming_mem(&session->send_buffer, buffer, count);
-
-	if (buffer_used_space(&session->send_buffer) > SEND_BUFFER_LOW_WATERMARK) {
-		// Check ev_is_active() so that logs are less cluttered.
-		if (!ev_is_active(&session->send_watcher)) {
-			session_debug("start flushing out send_buffer");
-		}
-		ev_io_start(session->loop, &session->send_watcher);
-	}
-
+	_check_send_buffer_watermark(session);
 	return nwrite;
 }
 
@@ -191,5 +181,59 @@ static void _send(struct ev_loop *loop, struct ev_io *watcher, int revents)
 	if (buffer_is_empty(&session->send_buffer)) {
 		session_debug("send_buffer is empty");
 		ev_io_stop(session->loop, &session->send_watcher);
+	}
+}
+
+
+void session_recv_buffer_view(struct session *session, struct ro_view *view)
+{
+	expect(session && view);
+	buffer_outgoing_view(&session->recv_buffer, view);
+}
+
+
+void session_recv_buffer_consumed(struct session *session, size_t size)
+{
+	expect(session);
+	buffer_outgoing_consumed(&session->recv_buffer, size);
+	_check_recv_buffer_watermark(session);
+}
+
+
+void session_send_buffer_view(struct session *session, struct rw_view *view)
+{
+	expect(session && view);
+	buffer_incoming_view(&session->send_buffer, view);
+}
+
+
+void session_send_buffer_provided(struct session *session, size_t size)
+{
+	expect(session);
+	buffer_incoming_provided(&session->send_buffer, size);
+	_check_send_buffer_watermark(session);
+}
+
+
+static void _check_recv_buffer_watermark(struct session *session)
+{
+	if (buffer_used_space(&session->recv_buffer) <= RECV_BUFFER_HIGH_WATERMARK) {
+		// Check ev_is_active() so that logs are less cluttered.
+		if (!ev_is_active(&session->recv_watcher)) {
+			session_debug("re-enable receiving data");
+		}
+		ev_io_start(session->loop, &session->recv_watcher);
+	}
+}
+
+
+static void _check_send_buffer_watermark(struct session *session)
+{
+	if (buffer_used_space(&session->send_buffer) > SEND_BUFFER_LOW_WATERMARK) {
+		// Check ev_is_active() so that logs are less cluttered.
+		if (!ev_is_active(&session->send_watcher)) {
+			session_debug("start flushing out send_buffer");
+		}
+		ev_io_start(session->loop, &session->send_watcher);
 	}
 }

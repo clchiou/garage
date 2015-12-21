@@ -67,4 +67,12 @@
 	  (size_t)(!(sizeof(a) % sizeof(*(a)))))
 
 
+#define min(a, b)			\
+({					\
+	const typeof(a) __a = (a);	\
+	const typeof(b) __b = (b);	\
+	__a < __b ? __a : __b;		\
+})
+
+
 #endif

@@ -6,6 +6,7 @@
 #include "base.h"
 #include "buffer.h"
 #include "bus.h"
+#include "view.h"
 
 struct session;
 
@@ -25,7 +26,12 @@ bool session_init(struct session *session, int socket_fd, struct bus *bus, struc
 void session_del(struct session *session);
 
 ssize_t session_recv(struct session *session, void *buffer, size_t count);
-
 ssize_t session_send(struct session *session, const void *buffer, size_t count);
+
+void session_recv_buffer_view(struct session *session, struct ro_view *view);
+void session_recv_buffer_consumed(struct session *session, size_t size);
+
+void session_send_buffer_view(struct session *session, struct rw_view *view);
+void session_send_buffer_provided(struct session *session, size_t size);
 
 #endif

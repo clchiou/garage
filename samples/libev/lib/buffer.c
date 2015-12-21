@@ -51,16 +51,13 @@ bool buffer_is_empty(struct buffer *buffer)
 
 static size_t buffer_incoming(struct buffer *buffer, generic_read generic_read, void *source)
 {
-	expect(buffer && buffer->incoming <= buffer->size);
-
-	size_t available = buffer->size - buffer->incoming;
-	if (available == 0)
+	struct rw_view view;
+	buffer_incoming_view(buffer, &view);
+	if (view.size == 0)
 		return 0;
-
-	ssize_t nread = generic_read(source, buffer->buffer + buffer->incoming, available);
+	ssize_t nread = generic_read(source, view.data, view.size);
 	if (nread != -1)
-		buffer->incoming += nread;
-
+		buffer_incoming_provided(buffer, nread);
 	return nread;
 }
 
@@ -97,20 +94,13 @@ ssize_t buffer_incoming_mem(struct buffer *buffer, const void *buf, size_t count
 
 static ssize_t buffer_outgoing(struct buffer *buffer, generic_write generic_write, void *source)
 {
-	expect(buffer && buffer->outgoing <= buffer->incoming);
-
-	size_t available = buffer->incoming - buffer->outgoing;
-	if (available == 0) {
-		buffer->outgoing = buffer->incoming = 0;
+	struct ro_view view;
+	buffer_outgoing_view(buffer, &view);
+	if (view.size == 0)
 		return 0;
-	}
-
-	ssize_t nwrite = generic_write(source, buffer->buffer + buffer->outgoing, available);
+	ssize_t nwrite = generic_write(source, view.data, view.size);
 	if (nwrite != -1)
-		buffer->outgoing += nwrite;
-	if (buffer->outgoing == buffer->incoming)
-		buffer->outgoing = buffer->incoming = 0;
-
+		buffer_outgoing_consumed(buffer, nwrite);
 	return nwrite;
 }
 
@@ -142,4 +132,40 @@ ssize_t buffer_outgoing_mem(struct buffer *buffer, void *buf, size_t count)
 		return nwrite;
 	}
 	return buffer_outgoing(buffer, _write, &args);
+}
+
+
+void buffer_incoming_view(struct buffer *buffer, struct rw_view *view)
+{
+	expect(buffer && buffer->incoming <= buffer->size && view);
+	view->data = buffer->buffer + buffer->incoming;
+	view->size = buffer->size - buffer->incoming;
+}
+
+
+void buffer_incoming_provided(struct buffer *buffer, size_t provided)
+{
+	expect(buffer && buffer->incoming <= buffer->size &&
+	       provided <= buffer->size - buffer->incoming);
+	buffer->incoming += provided;
+}
+
+
+void buffer_outgoing_view(struct buffer *buffer, struct ro_view *view)
+{
+	expect(buffer && buffer->outgoing <= buffer->incoming && view);
+	if (buffer->outgoing == buffer->incoming)
+		buffer->outgoing = buffer->incoming = 0;
+	view->data = buffer->buffer + buffer->outgoing;
+	view->size = buffer->incoming - buffer->outgoing;
+}
+
+
+void buffer_outgoing_consumed(struct buffer *buffer, size_t consumed)
+{
+	expect(buffer && buffer->outgoing <= buffer->incoming &&
+	       consumed <= buffer->incoming - buffer->outgoing);
+	buffer->outgoing += consumed;
+	if (buffer->outgoing == buffer->incoming)
+		buffer->outgoing = buffer->incoming = 0;
 }

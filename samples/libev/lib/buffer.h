@@ -3,6 +3,8 @@
 
 #include <stdbool.h>
 
+#include "view.h"
+
 struct buffer {
 	void *buffer;
 	size_t incoming;
@@ -23,5 +25,11 @@ ssize_t buffer_incoming_mem(struct buffer *buffer, const void *buf, size_t count
 
 ssize_t buffer_outgoing_net(struct buffer *buffer, int fd);
 ssize_t buffer_outgoing_mem(struct buffer *buffer, void *buf, size_t count);
+
+void buffer_incoming_view(struct buffer *buffer, struct rw_view *view);
+void buffer_incoming_provided(struct buffer *buffer, size_t provided);
+
+void buffer_outgoing_view(struct buffer *buffer, struct ro_view *view);
+void buffer_outgoing_consumed(struct buffer *buffer, size_t consumed);
 
 #endif
