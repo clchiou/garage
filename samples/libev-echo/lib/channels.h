@@ -1,0 +1,9 @@
+#ifndef CHANNELS_H_
+#define CHANNELS_H_
+
+enum {
+	CHANNEL_SESSION_DELETED = 1,
+	CHANNEL_DATA_RECEIVED = 2,
+};
+
+#endif
