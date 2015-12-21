@@ -17,6 +17,7 @@ struct session {
 	struct ev_io send_watcher;
 	struct buffer recv_buffer;
 	struct buffer send_buffer;
+	char *remote_address;
 };
 
 bool session_init(struct session *session, int socket_fd, struct bus *bus, struct ev_loop *loop);

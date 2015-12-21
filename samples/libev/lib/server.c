@@ -31,12 +31,13 @@ static void _deleted(struct bus *bus, bus_channel channel, void *user_data, void
 
 bool server_init(struct server *server, const char *port, struct bus *bus, struct ev_loop *loop)
 {
-	info("init server on port %s", port);
+	debug("init server on port %s", port);
 
 	memset(server, 0, sizeof(struct server));
 
 	int fd;
-	if (!prepare_server(port, &fd)) {
+	char address[64];
+	if (!prepare_server(port, &fd, address, sizeof(address))) {
 		return false;
 	}
 
@@ -48,6 +49,8 @@ bool server_init(struct server *server, const char *port, struct bus *bus, struc
 
 	ev_io_init(&server->watcher, _accept, fd, EV_READ);
 	ev_io_start(loop, &server->watcher);
+
+	info("listen on %s", address);
 
 	return true;
 }
@@ -89,13 +92,7 @@ static void _accept(struct ev_loop *loop, struct ev_io *watcher, int revents)
 
 		handle->server = server;
 
-		struct sockaddr addr;
-		socklen_t addr_len = sizeof(addr);
-		if (check(getpeername(fd, &addr, &addr_len)) == -1) {
-			info("accept ?.?.?.?:? (socket=%d)", fd);
-		} else {
-			info("accept %s", stringify_address(&addr, addr_len));
-		}
+		info("accept %s", handle->session.remote_address);
 	}
 }
 

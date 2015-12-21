@@ -4,8 +4,12 @@ CFLAGS := -std=gnu11 \
 	-Wall \
 	-Wextra \
 	-Werror \
-	-Wno-unused-parameter \
-	-g
+	-Wno-unused-parameter
+ifdef DEBUG
+CFLAGS += -g
+else
+CFLAGS += -DNDEBUG
+endif
 
 LDFLAGS := -lev
 

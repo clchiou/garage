@@ -43,14 +43,12 @@ static bool init_socket(struct addrinfo *info, int *socket_fd)
 		return false;
 	}
 
-	info("listen on %s", stringify_address(info->ai_addr, info->ai_addrlen));
-
 	*socket_fd = fd;
 	return true;
 }
 
 
-bool prepare_server(const char *port, int *socket_fd)
+bool prepare_server(const char *port, int *socket_fd, char *address_info, size_t size)
 {
 	struct addrinfo hints = {0};
 	hints.ai_family = AF_INET;
@@ -76,6 +74,9 @@ bool prepare_server(const char *port, int *socket_fd)
 	}
 
 	okay = init_socket(info, socket_fd);
+
+	strncpy(address_info, stringify_address2(info->ai_addr, info->ai_addrlen), size);
+	address_info[size - 1] = '\0';
 
 exit:
 	free(info);
@@ -105,8 +106,19 @@ bool set_fd_nonblock(int fd)
 }
 
 
-char *_stringify_address(const struct sockaddr *addr, socklen_t addr_len,
-		char *buffer, size_t buffer_size)
+char *_stringify_address(int sockfd, char *buffer, size_t buffer_size)
+{
+	struct sockaddr addr;
+	socklen_t addr_len = sizeof(addr);
+	if (check(getpeername(sockfd, &addr, &addr_len)) == -1) {
+		return "?.?.?.?:?";
+	} else {
+		return _stringify_address2(&addr, addr_len, buffer, buffer_size);
+	}
+}
+
+
+char *_stringify_address2(const struct sockaddr *addr, socklen_t addr_len, char *buffer, size_t buffer_size)
 {
 	char host[NI_MAXHOST];
 	char port[NI_MAXSERV];

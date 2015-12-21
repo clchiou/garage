@@ -69,10 +69,7 @@ ssize_t buffer_incoming_net(struct buffer *buffer, int fd)
 {
 	ssize_t _read(void *source, void *buffer, size_t count)
 	{
-		ssize_t nread = read(*(int *)source, buffer, count);
-		if (nread == -1 && errno != EAGAIN && errno != EWOULDBLOCK)
-			error("read(): %s", strerror(errno));
-		return nread;
+		return read(*(int *)source, buffer, count);
 	}
 	return buffer_incoming(buffer, _read, &fd);
 }
@@ -122,10 +119,7 @@ ssize_t buffer_outgoing_net(struct buffer *buffer, int fd)
 {
 	ssize_t _write(void *source, const void *buffer, size_t count)
 	{
-		ssize_t nwrite = send(*(int *)source, buffer, count, MSG_NOSIGNAL);
-		if (nwrite == -1 && errno != EAGAIN && errno != EWOULDBLOCK)
-			error("write(): %s", strerror(errno));
-		return nwrite;
+		return send(*(int *)source, buffer, count, MSG_NOSIGNAL);
 	}
 	return buffer_outgoing(buffer, _write, &fd);
 }

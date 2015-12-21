@@ -14,7 +14,7 @@
 
 static void _sigint(struct ev_loop *loop, struct ev_io *watcher, int revents)
 {
-	info("sigint!");
+	info("SIGINT");
 	ev_unloop(loop, EVUNLOOP_ALL);
 }
 
@@ -75,9 +75,9 @@ int main(int argc, char *argv[])
 	ev_signal_start(loop, &sigint_watcher);
 	ev_unref(loop);
 
-	info("enter event loop");
+	debug("enter event loop");
 	ev_run(loop, 0);
-	info("exit event loop");
+	debug("exit event loop");
 
 	// Probably no need to release resource at this point...
 

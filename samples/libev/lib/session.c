@@ -10,6 +10,7 @@
 #include "buffer.h"
 #include "bus.h"
 #include "channels.h"
+#include "helpers.h"
 #include "session.h"
 
 
@@ -37,7 +38,7 @@ static void _send(struct ev_loop *loop, struct ev_io *watcher, int revents);
 
 bool session_init(struct session *session, int socket_fd, struct bus *bus, struct ev_loop *loop)
 {
-	info("[%d] init session", socket_fd);
+	debug("[%d] init session", socket_fd);
 
 	memset(session, 0, sizeof(*session));
 
@@ -54,13 +55,15 @@ bool session_init(struct session *session, int socket_fd, struct bus *bus, struc
 
 	ev_io_start(session->loop, &session->recv_watcher);
 
+	session->remote_address = expect(strdup(stringify_address(session->fd)));
+
 	return true;
 }
 
 
 void session_del(struct session *session)
 {
-	session_info("delete session");
+	session_info("close connection %s", session->remote_address);
 
 	ev_io_stop(session->loop, &session->recv_watcher);
 	ev_io_stop(session->loop, &session->send_watcher);
@@ -69,6 +72,8 @@ void session_del(struct session *session)
 	buffer_free(&session->send_buffer);
 
 	close(session->fd);
+
+	free(session->remote_address);
 
 	bool predicate(struct bus *bus, struct bus_message *message, void *predicate_data)
 	{
@@ -118,27 +123,37 @@ static void _recv(struct ev_loop *loop, struct ev_io *watcher, int revents)
 	struct session *session = container_of(watcher, struct session, recv_watcher);
 	session_debug("_recv()");
 
-	while (1) {
+	while (!buffer_is_full(&session->recv_buffer)) {
 		ssize_t nread;
 		while ((nread = buffer_incoming_net(&session->recv_buffer, watcher->fd)) == -1 && errno == EINTR)
 			;
-		if (nread == -1) {
-			if (errno != EAGAIN && errno != EWOULDBLOCK) {
-				session_error("read(): %s", strerror(errno));
-				session_del(session);
-				return;
-			}
-			break;
-		}
-		if (buffer_is_full(&session->recv_buffer)) {
-			session_debug("stop receiving data");
-			ev_io_stop(session->loop, &session->recv_watcher);
-			break;
-		}
+
 		if (nread == 0) {
+			session_debug("close connection");
 			session_del(session);
 			return;
 		}
+
+		if (nread != -1)
+			continue;
+
+		if (errno == EAGAIN || errno == EWOULDBLOCK)
+			break;
+
+		if (errno == ECONNRESET) {
+			session_debug("connection reset by peer");
+			session_del(session);
+			return;
+		}
+
+		session_error("buffer_incoming_net(): %s", strerror(errno));
+		session_del(session);
+		return;
+	}
+
+	if (buffer_is_full(&session->recv_buffer)) {
+		session_debug("stop receiving data");
+		ev_io_stop(session->loop, &session->recv_watcher);
 	}
 
 	if (!bus_broadcast(session->bus, CHANNEL_DATA_RECEIVED, session))
@@ -151,22 +166,30 @@ static void _send(struct ev_loop *loop, struct ev_io *watcher, int revents)
 	struct session *session = container_of(watcher, struct session, send_watcher);
 	session_debug("_send()");
 
-	while (1) {
+	while (!buffer_is_empty(&session->send_buffer)) {
 		ssize_t nwrite;
 		while ((nwrite = buffer_outgoing_net(&session->send_buffer, watcher->fd)) == -1 && errno == EINTR)
 			;
-		if (nwrite == -1) {
-			if (errno != EAGAIN && errno != EWOULDBLOCK) {
-				session_error("write(): %s", strerror(errno));
-				session_del(session);
-				return;
-			}
+
+		if (nwrite != -1)
+			continue;
+
+		if (errno == EAGAIN || errno == EWOULDBLOCK)
 			break;
+
+		if (errno == ECONNRESET || errno == EPIPE) {
+			session_debug("connection reset by peer");
+			session_del(session);
+			return;
 		}
-		if (buffer_is_empty(&session->send_buffer)) {
-			session_debug("send_buffer empty");
-			ev_io_stop(session->loop, &session->send_watcher);
-			break;
-		}
+
+		session_error("buffer_outgoing_net(): %s", strerror(errno));
+		session_del(session);
+		return;
+	}
+
+	if (buffer_is_empty(&session->send_buffer)) {
+		session_debug("send_buffer is empty");
+		ev_io_stop(session->loop, &session->send_watcher);
 	}
 }
