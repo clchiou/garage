@@ -54,6 +54,9 @@ bool session_init(struct session *session, int socket_fd, struct bus *bus, struc
 	ev_io_init(&session->recv_watcher, _recv, session->fd, EV_READ);
 	ev_io_init(&session->send_watcher, _send, session->fd, EV_WRITE);
 
+	// Make send's priority higher than recv's.
+	ev_set_priority(&session->send_watcher, ev_priority(&session->recv_watcher) + 1);
+
 	buffer_alloc(&session->recv_buffer, RECV_BUFFER_SIZE);
 	buffer_alloc(&session->send_buffer, SEND_BUFFER_SIZE);
 

@@ -28,6 +28,9 @@ bool bus_init(struct bus *bus, struct ev_loop *loop)
 	ev_io_init(&bus->watcher, _on_message, bus->fds[0], EV_READ);
 	ev_io_start(loop, &bus->watcher);
 
+	// Internal events should have highest priority.
+	ev_set_priority(&bus->watcher, EV_MAXPRI);
+
 	bus->loop = loop;
 
 	return true;
