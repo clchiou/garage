@@ -19,6 +19,7 @@ struct session {
 	struct buffer recv_buffer;
 	struct buffer send_buffer;
 	char *remote_address;
+	void *user_data;
 };
 
 bool session_init(struct session *session, int socket_fd, struct bus *bus, struct ev_loop *loop);
@@ -33,5 +34,7 @@ void session_recv_buffer_consumed(struct session *session, size_t size);
 
 void session_send_buffer_view(struct session *session, struct rw_view *view);
 void session_send_buffer_provided(struct session *session, size_t size);
+
+void session_flush_send_buffer(struct session *session);
 
 #endif

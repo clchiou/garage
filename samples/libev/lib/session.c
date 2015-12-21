@@ -64,6 +64,9 @@ bool session_init(struct session *session, int socket_fd, struct bus *bus, struc
 
 	session->remote_address = expect(strdup(stringify_address(session->fd)));
 
+	if (!bus_broadcast(session->bus, CHANNEL_SESSION_INITIALIZED, session))
+		abort();
+
 	return true;
 }
 
@@ -88,7 +91,7 @@ void session_del(struct session *session)
 	}
 	bus_cancel_messages(session->bus, predicate, session);
 
-	if (!bus_anycast(session->bus, CHANNEL_SESSION_DELETED, session))
+	if (!bus_broadcast(session->bus, CHANNEL_SESSION_DELETED, session))
 		abort();
 }
 
@@ -237,10 +240,16 @@ static void _check_recv_buffer_watermark(struct session *session)
 static void _check_send_buffer_watermark(struct session *session)
 {
 	if (buffer_used_space(&session->send_buffer) > SEND_BUFFER_LOW_WATERMARK) {
-		// Check ev_is_active() so that logs are less cluttered.
-		if (!ev_is_active(&session->send_watcher)) {
-			session_debug("start flushing out send_buffer");
-		}
-		ev_io_start(session->loop, &session->send_watcher);
+		session_flush_send_buffer(session);
 	}
+}
+
+
+void session_flush_send_buffer(struct session *session)
+{
+	// Check ev_is_active() so that logs are less cluttered.
+	if (!ev_is_active(&session->send_watcher)) {
+		session_debug("start flushing out send_buffer");
+	}
+	ev_io_start(session->loop, &session->send_watcher);
 }

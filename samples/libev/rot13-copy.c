@@ -31,4 +31,8 @@ void rot13_handler(struct bus *bus, bus_channel channel, void *user_data, void *
 			break;
 		}
 	}
+
+	debug("[%d] reset idle timer", session->fd);
+	struct ev_timer *timer = session->user_data;
+	ev_timer_again(session->loop, timer);
 }
