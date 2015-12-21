@@ -4,7 +4,8 @@ CFLAGS := -std=gnu11 \
 	-Wall \
 	-Wextra \
 	-Werror \
-	-Wno-unused-parameter
+	-Wno-unused-parameter \
+	-g
 
 LDFLAGS := -lev
 

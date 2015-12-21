@@ -8,27 +8,6 @@
 #include "helpers.h"
 
 
-enum message_type {
-	MESSAGE_BROADCAST = 1,
-	MESSAGE_ANYCAST = 2,
-};
-
-
-struct bus_recipient {
-	bus_on_message on_message;
-	void *user_data;
-	struct deque deque;
-};
-
-
-struct bus_message {
-	bus_channel channel;
-	enum message_type type;
-	void *data;
-	struct deque deque;
-};
-
-
 static void _on_message(struct ev_loop *loop, struct ev_io *watcher, int revents);
 
 
@@ -78,6 +57,21 @@ bool bus_unregister(struct bus *bus, bus_channel channel, struct bus_recipient *
 	deque_deque(&bus->recipients[channel], &recipient->deque);
 
 	return true;
+}
+
+
+void bus_cancel_messages(struct bus *bus, bus_message_predicate predicate, void *predicate_data)
+{
+	debug("cancel messages");
+
+	for (struct deque *deque = bus->messages, *next; deque; deque = next) {
+		next = deque->next;
+		struct bus_message *message = container_of(deque, struct bus_message, deque);
+		if (predicate(bus, message, predicate_data)) {
+			deque_deque(&bus->messages, deque);
+			free(message);
+		}
+	}
 }
 
 

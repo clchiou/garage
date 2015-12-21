@@ -1,6 +1,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/socket.h>
+#include <sys/types.h>
 
 #include "base.h"
 #include "buffer.h"
@@ -63,7 +65,7 @@ static size_t buffer_incoming(struct buffer *buffer, generic_read generic_read, 
 }
 
 
-ssize_t buffer_incoming_io(struct buffer *buffer, int fd)
+ssize_t buffer_incoming_net(struct buffer *buffer, int fd)
 {
 	ssize_t _read(void *source, void *buffer, size_t count)
 	{
@@ -116,11 +118,11 @@ static ssize_t buffer_outgoing(struct buffer *buffer, generic_write generic_writ
 }
 
 
-ssize_t buffer_outgoing_io(struct buffer *buffer, int fd)
+ssize_t buffer_outgoing_net(struct buffer *buffer, int fd)
 {
 	ssize_t _write(void *source, const void *buffer, size_t count)
 	{
-		ssize_t nwrite = write(*(int *)source, buffer, count);
+		ssize_t nwrite = send(*(int *)source, buffer, count, MSG_NOSIGNAL);
 		if (nwrite == -1 && errno != EAGAIN && errno != EWOULDBLOCK)
 			error("write(): %s", strerror(errno));
 		return nwrite;

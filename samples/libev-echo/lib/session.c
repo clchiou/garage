@@ -70,6 +70,12 @@ void session_del(struct session *session)
 
 	close(session->fd);
 
+	bool predicate(struct bus *bus, struct bus_message *message, void *predicate_data)
+	{
+		return message->channel == CHANNEL_DATA_RECEIVED && message->data == predicate_data;
+	}
+	bus_cancel_messages(session->bus, predicate, session);
+
 	if (!bus_anycast(session->bus, CHANNEL_SESSION_DELETED, session))
 		abort();
 }
@@ -114,7 +120,7 @@ static void _recv(struct ev_loop *loop, struct ev_io *watcher, int revents)
 
 	while (1) {
 		ssize_t nread;
-		while ((nread = buffer_incoming_io(&session->recv_buffer, watcher->fd)) == -1 && errno == EINTR)
+		while ((nread = buffer_incoming_net(&session->recv_buffer, watcher->fd)) == -1 && errno == EINTR)
 			;
 		if (nread == -1) {
 			if (errno != EAGAIN && errno != EWOULDBLOCK) {
@@ -147,7 +153,7 @@ static void _send(struct ev_loop *loop, struct ev_io *watcher, int revents)
 
 	while (1) {
 		ssize_t nwrite;
-		while ((nwrite = buffer_outgoing_io(&session->send_buffer, watcher->fd)) == -1 && errno == EINTR)
+		while ((nwrite = buffer_outgoing_net(&session->send_buffer, watcher->fd)) == -1 && errno == EINTR)
 			;
 		if (nwrite == -1) {
 			if (errno != EAGAIN && errno != EWOULDBLOCK) {
