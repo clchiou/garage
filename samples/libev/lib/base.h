@@ -9,7 +9,7 @@
 
 #define log(level, format, ...)				\
 	fprintf(stderr, #level " %s:%d " format "\n",	\
-		__FILE__, __LINE__, ## __VA_ARGS__)
+	        __FILE__, __LINE__, ## __VA_ARGS__)
 
 #ifdef NDEBUG
 #define debug(...)
@@ -32,7 +32,7 @@
 	__v;					\
 })
 
-#define _check_1(expr)					\
+#define _check_1(expr)						\
 ({								\
 	typeof(expr) __r = (expr);				\
 	if (__r == -1) {					\
@@ -64,7 +64,14 @@
 
 #define ARRAY_SIZE(a)						\
 	((sizeof(a) / sizeof(*(a))) /				\
-	  (size_t)(!(sizeof(a) % sizeof(*(a)))))
+	 (size_t)(!(sizeof(a) % sizeof(*(a)))))
+
+
+#define zalloc(size)					\
+({							\
+	size_t __size = (size);				\
+	memset(expect(malloc(__size)), 0, __size);	\
+})
 
 
 #define min(a, b)			\

@@ -39,8 +39,7 @@ bool bus_init(struct bus *bus, struct ev_loop *loop)
 
 struct bus_recipient *bus_register(struct bus *bus, bus_channel channel, bus_on_message on_message, void *user_data)
 {
-	struct bus_recipient *recipient = expect(malloc(sizeof(struct bus_recipient)));
-	memset(recipient, 0, sizeof(struct bus_recipient));
+	struct bus_recipient *recipient = zalloc(sizeof(struct bus_recipient));
 
 	debug("register bus recipient %p to channel %d", recipient, channel);
 
@@ -80,8 +79,7 @@ void bus_cancel_messages(struct bus *bus, bus_message_predicate predicate, void 
 
 static bool bus_enque_message(struct bus *bus, bus_channel channel, enum message_type type, void *data)
 {
-	struct bus_message *message = expect(malloc(sizeof(struct bus_message)));
-	memset(message, 0, sizeof(struct bus_message));
+	struct bus_message *message = zalloc(sizeof(struct bus_message));
 
 	message->channel = channel;
 	message->type = type;
