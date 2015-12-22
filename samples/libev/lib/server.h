@@ -6,12 +6,12 @@
 #include <ev.h>
 
 #include "lib/bus.h"
-#include "lib/deque.h"
+#include "lib/list.h"
 
 struct server {
 	struct ev_io watcher;
 	struct bus *bus;
-	struct deque *session_handles;
+	struct list *sessions;
 };
 
 bool server_init(struct server *server, const char *port, struct bus *bus, struct ev_loop *loop);

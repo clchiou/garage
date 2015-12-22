@@ -6,7 +6,7 @@
 
 #include <ev.h>
 
-#include "lib/deque.h"
+#include "lib/list.h"
 
 struct bus;
 
@@ -30,22 +30,22 @@ enum message_type {
 struct bus {
 	int fds[2];
 	struct ev_loop *loop;
-	struct deque *recipients[MAX_CHANNELS];
-	struct deque *messages;
+	struct list *recipients[MAX_CHANNELS];
+	struct list *messages;
 	struct ev_io watcher;
 };
 
 struct bus_recipient {
 	bus_on_message on_message;
 	void *user_data;
-	struct deque deque;
+	struct list list;
 };
 
 struct bus_message {
 	bus_channel channel;
 	enum message_type type;
 	void *data;
-	struct deque deque;
+	struct list list;
 };
 
 bool bus_init(struct bus *bus, struct ev_loop *loop);

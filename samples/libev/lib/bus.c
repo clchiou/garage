@@ -4,8 +4,8 @@
 
 #include "lib/base.h"
 #include "lib/bus.h"
-#include "lib/deque.h"
 #include "lib/helpers.h"
+#include "lib/list.h"
 
 
 static void _on_message(struct ev_loop *loop, struct ev_io *watcher, int revents);
@@ -46,7 +46,7 @@ struct bus_recipient *bus_register(struct bus *bus, bus_channel channel, bus_on_
 	recipient->on_message = on_message;
 	recipient->user_data = user_data;
 
-	deque_enque(&bus->recipients[channel], &recipient->deque);
+	list_insert(&bus->recipients[channel], &recipient->list);
 
 	return recipient;
 }
@@ -56,7 +56,7 @@ bool bus_unregister(struct bus *bus, bus_channel channel, struct bus_recipient *
 {
 	debug("unregister bus recipient %p from channel %d", recipient, channel);
 
-	deque_deque(&bus->recipients[channel], &recipient->deque);
+	list_remove(&bus->recipients[channel], &recipient->list);
 
 	return true;
 }
@@ -66,18 +66,18 @@ void bus_cancel_messages(struct bus *bus, bus_message_predicate predicate, void 
 {
 	debug("cancel messages");
 
-	for (struct deque *deque = bus->messages, *next; deque; deque = next) {
-		next = deque->next;
-		struct bus_message *message = container_of(deque, struct bus_message, deque);
+	for (struct list *list = bus->messages, *next; list; list = next) {
+		next = list->next;
+		struct bus_message *message = container_of(list, struct bus_message, list);
 		if (predicate(bus, message, predicate_data)) {
-			deque_deque(&bus->messages, deque);
+			list_remove(&bus->messages, list);
 			free(message);
 		}
 	}
 }
 
 
-static bool bus_enque_message(struct bus *bus, bus_channel channel, enum message_type type, void *data)
+static bool bus_enqueue_message(struct bus *bus, bus_channel channel, enum message_type type, void *data)
 {
 	struct bus_message *message = zalloc(sizeof(struct bus_message));
 
@@ -85,7 +85,7 @@ static bool bus_enque_message(struct bus *bus, bus_channel channel, enum message
 	message->type = type;
 	message->data = data;
 
-	deque_enque(&bus->messages, &message->deque);
+	list_insert(&bus->messages, &message->list);
 
 	uint8_t v = 1;
 	ssize_t nwrite;
@@ -93,7 +93,7 @@ static bool bus_enque_message(struct bus *bus, bus_channel channel, enum message
 		;
 	if (nwrite == -1 && errno != EAGAIN && errno != EWOULDBLOCK) {
 		error("write(): %s", strerror(errno));
-		deque_deque(&bus->messages, &message->deque);
+		list_remove(&bus->messages, &message->list);
 		free(message);
 		return false;
 	}
@@ -104,13 +104,13 @@ static bool bus_enque_message(struct bus *bus, bus_channel channel, enum message
 
 bool bus_broadcast(struct bus *bus, bus_channel channel, void *data)
 {
-	return bus_enque_message(bus, channel, MESSAGE_BROADCAST, data);
+	return bus_enqueue_message(bus, channel, MESSAGE_BROADCAST, data);
 }
 
 
 bool bus_anycast(struct bus *bus, bus_channel channel, void *data)
 {
-	return bus_enque_message(bus, channel, MESSAGE_ANYCAST, data);
+	return bus_enqueue_message(bus, channel, MESSAGE_ANYCAST, data);
 }
 
 
@@ -118,8 +118,8 @@ static void _do_broadcast(struct bus *bus, bus_channel channel, void *data)
 {
 	debug("broadcast on channel %d", channel);
 
-	for (struct deque *deque = bus->recipients[channel]; deque; deque = deque->next) {
-		struct bus_recipient *recipient = container_of(deque, struct bus_recipient, deque);
+	for (struct list *list = bus->recipients[channel]; list; list = list->next) {
+		struct bus_recipient *recipient = container_of(list, struct bus_recipient, list);
 		recipient->on_message(bus, channel, recipient->user_data, data);
 	}
 }
@@ -129,9 +129,9 @@ static void _do_anycast(struct bus *bus, bus_channel channel, void *data)
 {
 	debug("anycast on channel %d", channel);
 
-	struct deque *deque = bus->recipients[channel];
-	if (deque) {
-		struct bus_recipient *recipient = container_of(deque, struct bus_recipient, deque);
+	struct list *list = bus->recipients[channel];
+	if (list) {
+		struct bus_recipient *recipient = container_of(list, struct bus_recipient, list);
 		recipient->on_message(bus, channel, recipient->user_data, data);
 	}
 }
@@ -150,8 +150,8 @@ static void _on_message(struct ev_loop *loop, struct ev_io *watcher, int revents
 		abort();
 	}
 
-	for (struct deque *deque = bus->messages, *next; deque; deque = next) {
-		struct bus_message *message = container_of(deque, struct bus_message, deque);
+	for (struct list *list = bus->messages, *next; list; list = next) {
+		struct bus_message *message = container_of(list, struct bus_message, list);
 		switch (message->type) {
 		case MESSAGE_BROADCAST:
 			_do_broadcast(bus, message->channel, message->data);
@@ -163,7 +163,7 @@ static void _on_message(struct ev_loop *loop, struct ev_io *watcher, int revents
 			error("unknown message type: %d", message->type);
 			abort();
 		}
-		next = deque->next;
+		next = list->next;
 		free(message);
 	}
 

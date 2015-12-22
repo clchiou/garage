@@ -12,13 +12,14 @@
 #include "lib/bus.h"
 #include "lib/channels.h"
 #include "lib/helpers.h"
+#include "lib/list.h"
 #include "lib/server.h"
 #include "lib/session.h"
 
 
 struct session_handle {
 	struct session session;
-	struct deque deque;
+	struct list list;
 	struct server *server;
 };
 
@@ -87,8 +88,8 @@ static void _accept(struct ev_loop *loop, struct ev_io *watcher, int revents)
 			continue;
 		}
 
-		memset(&handle->deque, 0, sizeof(struct deque));
-		deque_enque(&server->session_handles, &handle->deque);
+		memset(&handle->list, 0, sizeof(struct list));
+		list_insert(&server->sessions, &handle->list);
 
 		handle->server = server;
 
@@ -103,6 +104,6 @@ static void _deleted(struct bus *bus, bus_channel channel, void *user_data, void
 	debug("remove session %d from server", session->fd);
 	struct session_handle *handle = container_of(session, struct session_handle, session);
 	struct server *server = handle->server;
-	deque_deque(&server->session_handles, &handle->deque);
+	list_remove(&server->sessions, &handle->list);
 	free(handle);
 }
