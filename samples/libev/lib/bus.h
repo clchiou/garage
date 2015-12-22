@@ -6,7 +6,7 @@
 
 #include <ev.h>
 
-#include "deque.h"
+#include "lib/deque.h"
 
 struct bus;
 

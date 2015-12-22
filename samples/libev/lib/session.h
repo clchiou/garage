@@ -3,10 +3,10 @@
 
 #include <ev.h>
 
-#include "base.h"
-#include "buffer.h"
-#include "bus.h"
-#include "view.h"
+#include "lib/base.h"
+#include "lib/buffer.h"
+#include "lib/bus.h"
+#include "lib/view.h"
 
 struct session;
 

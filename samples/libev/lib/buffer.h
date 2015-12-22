@@ -3,7 +3,7 @@
 
 #include <stdbool.h>
 
-#include "view.h"
+#include "lib/view.h"
 
 struct buffer {
 	void *buffer;

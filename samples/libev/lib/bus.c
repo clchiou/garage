@@ -2,10 +2,10 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "base.h"
-#include "bus.h"
-#include "deque.h"
-#include "helpers.h"
+#include "lib/base.h"
+#include "lib/bus.h"
+#include "lib/deque.h"
+#include "lib/helpers.h"
 
 
 static void _on_message(struct ev_loop *loop, struct ev_io *watcher, int revents);

@@ -4,8 +4,8 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 
-#include "base.h"
-#include "buffer.h"
+#include "lib/base.h"
+#include "lib/buffer.h"
 
 
 typedef ssize_t (*generic_read)(void *source, void *buffer, size_t count);

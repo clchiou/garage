@@ -6,12 +6,12 @@
 
 #include <ev.h>
 
-#include "base.h"
-#include "buffer.h"
-#include "bus.h"
-#include "channels.h"
-#include "helpers.h"
-#include "session.h"
+#include "lib/base.h"
+#include "lib/buffer.h"
+#include "lib/bus.h"
+#include "lib/channels.h"
+#include "lib/helpers.h"
+#include "lib/session.h"
 
 
 #define session_debug(format, ...) \

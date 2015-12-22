@@ -6,8 +6,8 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 
-#include "base.h"
-#include "helpers.h"
+#include "lib/base.h"
+#include "lib/helpers.h"
 
 
 enum {

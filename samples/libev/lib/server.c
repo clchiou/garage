@@ -8,12 +8,12 @@
 
 #include <ev.h>
 
-#include "base.h"
-#include "bus.h"
-#include "channels.h"
-#include "helpers.h"
-#include "server.h"
-#include "session.h"
+#include "lib/base.h"
+#include "lib/bus.h"
+#include "lib/channels.h"
+#include "lib/helpers.h"
+#include "lib/server.h"
+#include "lib/session.h"
 
 
 struct session_handle {

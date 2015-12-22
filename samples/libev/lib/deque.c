@@ -1,5 +1,5 @@
-#include "base.h"
-#include "deque.h"
+#include "lib/base.h"
+#include "lib/deque.h"
 
 
 void deque_enque(struct deque **head, struct deque *self)

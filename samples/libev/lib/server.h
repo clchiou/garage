@@ -5,8 +5,8 @@
 
 #include <ev.h>
 
-#include "bus.h"
-#include "deque.h"
+#include "lib/bus.h"
+#include "lib/deque.h"
 
 struct server {
 	struct ev_io watcher;
