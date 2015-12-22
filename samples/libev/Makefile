@@ -4,31 +4,36 @@ CFLAGS := -std=gnu11 \
 	-Wall \
 	-Wextra \
 	-Werror \
-	-Wno-unused-parameter
+	-Wno-unused-parameter \
+	-I.
 ifdef DEBUG
 CFLAGS += -g
 else
 CFLAGS += -DNDEBUG
 endif
 
-LDFLAGS := -lev
+LIBS := -lev
 
-PROGS := rot13-copy rot13-nocopy
+ROT13 := rot13-copy rot13-nocopy
+ROT13_SRCS := $(wildcard rot13/*.c)
+ROT13_OBJS := $(ROT13_SRCS:.c=.o)
 
-SRCS := $(wildcard lib/*.c)
-OBJS := $(SRCS:.c=.o)
-DEPS := $(SRCS:.c=.d)
+LIB_SRCS := $(wildcard lib/*.c)
+LIB_OBJS := $(LIB_SRCS:.c=.o)
+
+OBJS := $(ROT13_OBJS) $(LIB_OBJS)
+DEPS := $(ROT13_SRCS:.c=.d) $(LIB_SRCS:.c=.d)
 
 
-all: $(PROGS)
+all: $(ROT13)
 
 clean:
-	rm -f $(PROGS) *.o *.d $(OBJS) $(DEPS)
+	rm -f $(ROT13) $(OBJS) $(DEPS)
 
 .PHONY: all clean
 
-$(PROGS) : % : %.o rot13.o $(OBJS)
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+$(ROT13): %: rot13/%.o rot13/rot13.o $(LIB_OBJS)
+	$(CC) $(CFLAGS) -o $@ $^ $(LIBS)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -MT $@ -MMD -MP -MF $*.d -c -o $@ $<
