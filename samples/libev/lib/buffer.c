@@ -51,8 +51,7 @@ bool buffer_is_empty(struct buffer *buffer)
 
 static size_t buffer_incoming(struct buffer *buffer, generic_read generic_read, void *source)
 {
-	struct rw_view view;
-	buffer_incoming_view(buffer, &view);
+	struct rw_view view = buffer_incoming_view(buffer);
 	if (view.size == 0)
 		return 0;
 	ssize_t nread = generic_read(source, view.data, view.size);
@@ -94,8 +93,7 @@ ssize_t buffer_incoming_mem(struct buffer *buffer, const void *buf, size_t count
 
 static ssize_t buffer_outgoing(struct buffer *buffer, generic_write generic_write, void *source)
 {
-	struct ro_view view;
-	buffer_outgoing_view(buffer, &view);
+	struct ro_view view = buffer_outgoing_view(buffer);
 	if (view.size == 0)
 		return 0;
 	ssize_t nwrite = generic_write(source, view.data, view.size);
@@ -135,11 +133,13 @@ ssize_t buffer_outgoing_mem(struct buffer *buffer, void *buf, size_t count)
 }
 
 
-void buffer_incoming_view(struct buffer *buffer, struct rw_view *view)
+struct rw_view buffer_incoming_view(struct buffer *buffer)
 {
-	expect(buffer && buffer->incoming <= buffer->size && view);
-	view->data = buffer->buffer + buffer->incoming;
-	view->size = buffer->size - buffer->incoming;
+	expect(buffer && buffer->incoming <= buffer->size);
+	struct rw_view view;
+	view.data = buffer->buffer + buffer->incoming;
+	view.size = buffer->size - buffer->incoming;
+	return view;
 }
 
 
@@ -151,13 +151,15 @@ void buffer_incoming_provided(struct buffer *buffer, size_t provided)
 }
 
 
-void buffer_outgoing_view(struct buffer *buffer, struct ro_view *view)
+struct ro_view buffer_outgoing_view(struct buffer *buffer)
 {
-	expect(buffer && buffer->outgoing <= buffer->incoming && view);
+	expect(buffer && buffer->outgoing <= buffer->incoming);
 	if (buffer->outgoing == buffer->incoming)
 		buffer->outgoing = buffer->incoming = 0;
-	view->data = buffer->buffer + buffer->outgoing;
-	view->size = buffer->incoming - buffer->outgoing;
+	struct ro_view view;
+	view.data = buffer->buffer + buffer->outgoing;
+	view.size = buffer->incoming - buffer->outgoing;
+	return view;
 }
 
 

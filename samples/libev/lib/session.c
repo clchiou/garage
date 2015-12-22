@@ -195,32 +195,28 @@ static void _send(struct ev_loop *loop, struct ev_io *watcher, int revents)
 }
 
 
-void session_recv_buffer_view(struct session *session, struct ro_view *view)
+struct ro_view session_recv_buffer_view(struct session *session)
 {
-	expect(session && view);
-	buffer_outgoing_view(&session->recv_buffer, view);
+	return buffer_outgoing_view(&expect(session)->recv_buffer);
 }
 
 
 void session_recv_buffer_consumed(struct session *session, size_t size)
 {
-	expect(session);
-	buffer_outgoing_consumed(&session->recv_buffer, size);
+	buffer_outgoing_consumed(&expect(session)->recv_buffer, size);
 	_check_recv_buffer_watermark(session);
 }
 
 
-void session_send_buffer_view(struct session *session, struct rw_view *view)
+struct rw_view session_send_buffer_view(struct session *session)
 {
-	expect(session && view);
-	buffer_incoming_view(&session->send_buffer, view);
+	return buffer_incoming_view(&expect(session)->send_buffer);
 }
 
 
 void session_send_buffer_provided(struct session *session, size_t size)
 {
-	expect(session);
-	buffer_incoming_provided(&session->send_buffer, size);
+	buffer_incoming_provided(&expect(session)->send_buffer, size);
 	_check_send_buffer_watermark(session);
 }
 

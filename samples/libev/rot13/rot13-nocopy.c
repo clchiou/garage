@@ -11,11 +11,8 @@ void rot13_handler(struct bus *bus, bus_channel channel, void *user_data, void *
 {
 	struct session *session = data;
 
-	struct ro_view recv_view;
-	session_recv_buffer_view(session, &recv_view);
-
-	struct rw_view send_view;
-	session_send_buffer_view(session, &send_view);
+	struct ro_view recv_view = session_recv_buffer_view(session);
+	struct rw_view send_view = session_send_buffer_view(session);
 
 	debug("[%d] rot13 recv_buffer=%zu send_buffer=%zu bytes", session->fd, recv_view.size, send_view.size);
 

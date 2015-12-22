@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <stdlib.h>
 #include <signal.h>
 
 #include <ev.h>

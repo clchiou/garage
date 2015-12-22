@@ -13,4 +13,6 @@ struct rw_view {
 	size_t size;
 };
 
+#define view_is_null(view) ((view).data == NULL)
+
 #endif
