@@ -11,29 +11,43 @@ CFLAGS += -g
 else
 CFLAGS += -DNDEBUG
 endif
+ifdef INCLUDE_DIRS
+CFLAGS += $(INCLUDE_DIRS)
+endif
 
-LIBS := -lev
+ifdef LIBRARY_DIRS
+LDFLAGS += $(LIBRARY_DIRS)
+else
+LDFLAGS :=
+endif
 
-ROT13 := rot13-copy rot13-nocopy
+HTTP2D := http2d/http2d
+HTTP2D_SRCS := $(wildcard http2d/*.c)
+HTTP2D_OBJS := $(HTTP2D_SRCS:.c=.o)
+
+ROT13 := rot13/rot13-copy rot13/rot13-nocopy
 ROT13_SRCS := $(wildcard rot13/*.c)
 ROT13_OBJS := $(ROT13_SRCS:.c=.o)
 
 LIB_SRCS := $(wildcard lib/*.c)
 LIB_OBJS := $(LIB_SRCS:.c=.o)
 
-OBJS := $(ROT13_OBJS) $(LIB_OBJS)
-DEPS := $(ROT13_SRCS:.c=.d) $(LIB_SRCS:.c=.d)
+OBJS := $(HTTP2D_OBJS) $(ROT13_OBJS) $(LIB_OBJS)
+DEPS := $(OBJS:.o=.d)
 
 
-all: $(ROT13)
+all: $(HTTP2D) $(ROT13)
 
 clean:
-	rm -f $(ROT13) $(OBJS) $(DEPS)
+	rm -f $(HTTP2D) $(ROT13) $(OBJS) $(DEPS)
 
 .PHONY: all clean
 
-$(ROT13): %: rot13/%.o rot13/rot13.o $(LIB_OBJS)
-	$(CC) $(CFLAGS) -o $@ $^ $(LIBS)
+$(HTTP2D): $(HTTP2D_OBJS) $(LIB_OBJS)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^ -lev -lnghttp2
+
+$(ROT13): %: %.o rot13/rot13.o $(LIB_OBJS)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^ -lev
 
 %.o: %.c
 	$(CC) $(CFLAGS) -MT $@ -MMD -MP -MF $*.d -c -o $@ $<
