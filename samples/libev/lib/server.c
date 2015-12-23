@@ -88,8 +88,7 @@ static void _accept(struct ev_loop *loop, struct ev_io *watcher, int revents)
 			continue;
 		}
 
-		memset(&handle->list, 0, sizeof(struct list));
-		list_insert(&server->sessions, &handle->list);
+		list_insert(&server->sessions, memset(&handle->list, 0, sizeof(struct list)));
 
 		handle->server = server;
 
