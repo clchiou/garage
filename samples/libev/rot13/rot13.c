@@ -46,7 +46,7 @@ static void _session_initialized(struct bus *bus, int channel, void *user_data, 
 }
 
 
-static void _session_deleted(struct bus *bus, int channel, void *user_data, void *data)
+static void _session_deleting(struct bus *bus, int channel, void *user_data, void *data)
 {
 	struct session *session = data;
 	debug("[%d] delete user session", session->fd);
@@ -80,7 +80,7 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	if (!bus_register(&bus, CHANNEL_SESSION_DELETING, _session_deleted, NULL)) {
+	if (!bus_register(&bus, CHANNEL_SESSION_DELETING, _session_deleting, NULL)) {
 		return 1;
 	}
 
