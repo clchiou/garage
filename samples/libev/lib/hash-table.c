@@ -6,11 +6,43 @@
 #include "view.h"
 
 
-void hash_table_init(struct hash_table *table, hash_func hash_func, size_t size)
+bool hash_table_init(struct hash_table *table, hash_func hash_func, size_t size)
 {
 	table->hash_func = hash_func;
 	table->size = size;
-	memset(table->table, 0, size * sizeof(struct list *));
+	memset(table->table, 0, table->size * sizeof(struct list *));
+	return true;
+}
+
+
+void hash_table_clear(struct hash_table *table)
+{
+	for (size_t i = 0; i < table->size; i++) {
+		for (struct list *list = table->table[i], *next; list; list = next) {
+			next = list->next;
+			free(container_of(list, struct hash_table_entry, list));
+		}
+	}
+	memset(table->table, 0, table->size * sizeof(struct list *));
+}
+
+
+bool hash_table_next(struct hash_table *table, struct hash_table_iterator *iterator)
+{
+	struct list *list = NULL;
+	if (iterator->entry)
+		list = iterator->entry->list.next;
+	if (!list) {
+		while (iterator->index < table->size && !table->table[iterator->index])
+			iterator->index++;
+		if (iterator->index < table->size)
+			list = table->table[iterator->index];
+	}
+	if (list) {
+		iterator->entry = container_of(list, struct hash_table_entry, list);
+		return true;
+	} else
+		return false;
 }
 
 
@@ -38,13 +70,10 @@ bool hash_table_has(struct hash_table *table, struct ro_view key)
 }
 
 
-struct rw_view hash_table_get(struct hash_table *table, struct ro_view key)
+void *hash_table_get(struct hash_table *table, struct ro_view key)
 {
-	struct list **head = _hash(table, key);
-	struct list *list = _find(*head, key);
-	if (!list)
-		return (struct rw_view){0};
-	return container_of(list, struct hash_table_entry, list)->value;
+	struct list *list = _find(*_hash(table, key), key);
+	return list ? container_of(list, struct hash_table_entry, list)->value : NULL;
 }
 
 
