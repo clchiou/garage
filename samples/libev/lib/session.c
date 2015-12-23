@@ -62,7 +62,9 @@ bool session_init(struct session *session, int socket_fd, struct bus *bus, struc
 
 	ev_io_start(session->loop, &session->recv_watcher);
 
-	session->remote_address = expect(strdup(stringify_address(session->fd)));
+	size_t len = ARRAY_SIZE(session->remote_address);
+	strncpy(session->remote_address, stringify_address(session->fd), len);
+	session->remote_address[len - 1] = '\0';
 
 	if (!bus_broadcast_now(session->bus, CHANNEL_SESSION_INITIALIZED, session))
 		abort();
@@ -85,8 +87,6 @@ void session_del(struct session *session)
 	buffer_free(&session->send_buffer);
 
 	close(session->fd);
-
-	free(session->remote_address);
 
 	bool predicate(struct bus *bus, struct bus_message *message, void *predicate_data)
 	{

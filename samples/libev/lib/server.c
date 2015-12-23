@@ -18,9 +18,9 @@
 
 
 struct session_handle {
-	struct session session;
-	struct list list;
 	struct server *server;
+	struct list list;
+	struct session session;
 };
 
 
@@ -81,7 +81,9 @@ static void _accept(struct ev_loop *loop, struct ev_io *watcher, int revents)
 			continue;
 		}
 
-		struct session_handle *handle = expect(malloc(sizeof(struct session_handle)));
+		struct session_handle *handle = expect(malloc(
+				sizeof(struct session_handle) +
+				server->user_session_size));
 		if (!session_init(&handle->session, fd, server->bus, loop)) {
 			free(handle);
 			close(fd);

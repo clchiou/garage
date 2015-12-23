@@ -30,6 +30,6 @@ void rot13_handler(struct bus *bus, int channel, void *user_data, void *data)
 	session_send_buffer_provided(session, size);
 
 	debug("[%d] reset idle timer", session->fd);
-	struct ev_timer *timer = session->user_data;
+	struct ev_timer *timer = (struct ev_timer *)session->user_session;
 	ev_timer_again(session->loop, timer);
 }

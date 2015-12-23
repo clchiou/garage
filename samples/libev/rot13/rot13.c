@@ -22,7 +22,7 @@ static void _sigint(struct ev_loop *loop, struct ev_io *watcher, int revents)
 
 static void _timer_callback(struct ev_loop *loop, struct ev_timer *timer, int revents)
 {
-	struct session *session = timer->data;
+	struct session *session = container_of((void *)timer, struct session, user_session);
 	debug("[%d] idle timeout", session->fd);
 
 	ev_timer_stop(loop, timer);
@@ -36,13 +36,10 @@ static void _session_initialized(struct bus *bus, int channel, void *user_data, 
 	struct session *session = data;
 	debug("[%d] init user session", session->fd);
 
-	struct ev_timer *timer = expect(malloc(sizeof(struct ev_timer)));
 	// XXX: At the moment timeout is set for 50 ms, but what's a
 	// sensible value?
+	struct ev_timer *timer = (struct ev_timer *)session->user_session;
 	ev_timer_init(timer, _timer_callback, 0.0, 0.05);
-	timer->data = session;
-
-	session->user_data = timer;
 }
 
 
@@ -51,10 +48,8 @@ static void _session_deleting(struct bus *bus, int channel, void *user_data, voi
 	struct session *session = data;
 	debug("[%d] delete user session", session->fd);
 
-	struct ev_timer *timer = session->user_data;
+	struct ev_timer *timer = (struct ev_timer *)session->user_session;
 	ev_timer_stop(session->loop, timer);
-
-	free(timer);
 }
 
 
@@ -88,6 +83,7 @@ int main(int argc, char *argv[])
 	if (!server_init(&server, argv[1], &bus, loop)) {
 		return 1;
 	}
+	server.user_session_size = sizeof(struct ev_timer);
 
 	struct ev_signal sigint_watcher;
 	ev_signal_init(&sigint_watcher, _sigint, SIGINT);

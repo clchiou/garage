@@ -12,6 +12,7 @@ struct server {
 	struct ev_io watcher;
 	struct bus *bus;
 	struct list *sessions;
+	size_t user_session_size;
 };
 
 bool server_init(struct server *server, const char *port, struct bus *bus, struct ev_loop *loop);

@@ -1,6 +1,8 @@
 #ifndef LIB_SESSION_H_
 #define LIB_SESSION_H_
 
+#include <stdint.h>
+
 #include <ev.h>
 
 #include "lib/base.h"
@@ -18,8 +20,8 @@ struct session {
 	struct ev_io send_watcher;
 	struct buffer recv_buffer;
 	struct buffer send_buffer;
-	char *remote_address;
-	void *user_data;
+	char remote_address[32];
+	uint8_t user_session[];
 };
 
 bool session_init(struct session *session, int socket_fd, struct bus *bus, struct ev_loop *loop);
