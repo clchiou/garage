@@ -1,5 +1,5 @@
-#ifndef LIST_H_
-#define LIST_H_
+#ifndef LIB_LIST_H_
+#define LIB_LIST_H_
 
 struct list {
 	struct list *prev, *next;

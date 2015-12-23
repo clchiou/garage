@@ -1,5 +1,5 @@
-#ifndef CHANNELS_H_
-#define CHANNELS_H_
+#ifndef LIB_CHANNELS_H_
+#define LIB_CHANNELS_H_
 
 enum {
 	CHANNEL_RESERVED		= 0,

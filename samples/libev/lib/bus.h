@@ -1,5 +1,5 @@
-#ifndef BUS_H_
-#define BUS_H_
+#ifndef LIB_BUS_H_
+#define LIB_BUS_H_
 
 #include <stdbool.h>
 

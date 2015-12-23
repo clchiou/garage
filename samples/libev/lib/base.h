@@ -1,5 +1,5 @@
-#ifndef BASE_H_
-#define BASE_H_
+#ifndef LIB_BASE_H_
+#define LIB_BASE_H_
 
 #include <errno.h>
 #include <stddef.h>

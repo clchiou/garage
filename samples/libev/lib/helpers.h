@@ -1,5 +1,5 @@
-#ifndef HELPERS_H_
-#define HELPERS_H_
+#ifndef LIB_HELPERS_H_
+#define LIB_HELPERS_H_
 
 #include <netdb.h>
 #include <stdbool.h>

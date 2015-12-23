@@ -1,5 +1,5 @@
-#ifndef VIEW_H_
-#define VIEW_H_
+#ifndef LIB_VIEW_H_
+#define LIB_VIEW_H_
 
 #include <stddef.h>
 #include <stdint.h>

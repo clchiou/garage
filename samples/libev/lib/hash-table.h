@@ -1,5 +1,5 @@
-#ifndef HASH_TABLE_
-#define HASH_TABLE_
+#ifndef LIB_HASH_TABLE_
+#define LIB_HASH_TABLE_
 
 #include <stdbool.h>
 #include <stdint.h>

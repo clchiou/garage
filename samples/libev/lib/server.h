@@ -1,5 +1,5 @@
-#ifndef SERVER_H_
-#define SERVER_H_
+#ifndef LIB_SERVER_H_
+#define LIB_SERVER_H_
 
 #include <stdbool.h>
 

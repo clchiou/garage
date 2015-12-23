@@ -1,5 +1,5 @@
-#ifndef SESSION_H_
-#define SESSION_H_
+#ifndef LIB_SESSION_H_
+#define LIB_SESSION_H_
 
 #include <ev.h>
 
