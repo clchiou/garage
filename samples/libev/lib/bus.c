@@ -150,7 +150,10 @@ static void _on_message(struct ev_loop *loop, struct ev_io *watcher, int revents
 		abort();
 	}
 
-	for (struct list *list = bus->messages, *next; list; list = next) {
+	// Traverse the message list this way so that it's safe for
+	// recipient to enqueue/dequeue message on the fly.
+	for (struct list *list; (list = bus->messages) != NULL;) {
+		list_remove(&bus->messages, list);
 		struct bus_message *message = container_of(list, struct bus_message, list);
 		switch (message->type) {
 		case MESSAGE_BROADCAST:
@@ -163,9 +166,6 @@ static void _on_message(struct ev_loop *loop, struct ev_io *watcher, int revents
 			error("unknown message type: %d", message->type);
 			abort();
 		}
-		next = list->next;
 		free(message);
 	}
-
-	bus->messages = NULL;
 }
