@@ -33,8 +33,9 @@ bool hash_table_next(struct hash_table *table, struct hash_table_iterator *itera
 	if (iterator->entry)
 		list = iterator->entry->list.next;
 	if (!list) {
-		while (iterator->index < table->size && !table->table[iterator->index])
+		do {
 			iterator->index++;
+		} while (iterator->index < table->size && !table->table[iterator->index]);
 		if (iterator->index < table->size)
 			list = table->table[iterator->index];
 	}
