@@ -124,9 +124,15 @@ bool bus_broadcast_now(struct bus *bus, int channel, void *data)
 {
 	expect(0 <= channel && channel < MAX_CHANNELS);
 	debug("broadcast on channel %d", channel);
-	for (struct list *list = bus->recipients[channel]; list; list = list->next) {
+	struct list *list = bus->recipients[channel];
+	if (!list) {
+		error("no recipient on channel %d", channel);
+		return false;
+	}
+	while (list) {
 		struct bus_recipient *recipient = container_of(list, struct bus_recipient, list);
 		recipient->on_message(bus, channel, recipient->user_data, data);
+		list = list->next;
 	}
 	return true;
 }
@@ -140,8 +146,11 @@ bool bus_anycast_now(struct bus *bus, int channel, void *data)
 	if (list) {
 		struct bus_recipient *recipient = container_of(list, struct bus_recipient, list);
 		recipient->on_message(bus, channel, recipient->user_data, data);
+		return true;
+	} else {
+		error("no recipient on channel %d", channel);
+		return false;
 	}
-	return true;
 }
 
 
