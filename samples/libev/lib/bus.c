@@ -37,8 +37,10 @@ bool bus_init(struct bus *bus, struct ev_loop *loop)
 }
 
 
-struct bus_recipient *bus_register(struct bus *bus, bus_channel channel, bus_on_message on_message, void *user_data)
+struct bus_recipient *bus_register(struct bus *bus, int channel, bus_on_message on_message, void *user_data)
 {
+	expect(0 <= channel && channel < MAX_CHANNELS);
+
 	struct bus_recipient *recipient = zalloc(sizeof(struct bus_recipient));
 
 	debug("register bus recipient %p to channel %d", recipient, channel);
@@ -52,8 +54,10 @@ struct bus_recipient *bus_register(struct bus *bus, bus_channel channel, bus_on_
 }
 
 
-bool bus_unregister(struct bus *bus, bus_channel channel, struct bus_recipient *recipient)
+bool bus_unregister(struct bus *bus, int channel, struct bus_recipient *recipient)
 {
+	expect(0 <= channel && channel < MAX_CHANNELS);
+
 	debug("unregister bus recipient %p from channel %d", recipient, channel);
 
 	list_remove(&bus->recipients[channel], &recipient->list);
@@ -77,8 +81,10 @@ void bus_cancel_messages(struct bus *bus, bus_message_predicate predicate, void 
 }
 
 
-static bool bus_enqueue_message(struct bus *bus, bus_channel channel, enum message_type type, void *data)
+static bool bus_enqueue_message(struct bus *bus, int channel, enum message_type type, void *data)
 {
+	expect(0 <= channel && channel < MAX_CHANNELS);
+
 	struct bus_message *message = zalloc(sizeof(struct bus_message));
 
 	message->channel = channel;
@@ -102,22 +108,22 @@ static bool bus_enqueue_message(struct bus *bus, bus_channel channel, enum messa
 }
 
 
-bool bus_broadcast(struct bus *bus, bus_channel channel, void *data)
+bool bus_broadcast(struct bus *bus, int channel, void *data)
 {
 	return bus_enqueue_message(bus, channel, MESSAGE_BROADCAST, data);
 }
 
 
-bool bus_anycast(struct bus *bus, bus_channel channel, void *data)
+bool bus_anycast(struct bus *bus, int channel, void *data)
 {
 	return bus_enqueue_message(bus, channel, MESSAGE_ANYCAST, data);
 }
 
 
-static void _do_broadcast(struct bus *bus, bus_channel channel, void *data)
+static void _do_broadcast(struct bus *bus, int channel, void *data)
 {
+	expect(0 <= channel && channel < MAX_CHANNELS);
 	debug("broadcast on channel %d", channel);
-
 	for (struct list *list = bus->recipients[channel]; list; list = list->next) {
 		struct bus_recipient *recipient = container_of(list, struct bus_recipient, list);
 		recipient->on_message(bus, channel, recipient->user_data, data);
@@ -125,10 +131,10 @@ static void _do_broadcast(struct bus *bus, bus_channel channel, void *data)
 }
 
 
-static void _do_anycast(struct bus *bus, bus_channel channel, void *data)
+static void _do_anycast(struct bus *bus, int channel, void *data)
 {
+	expect(0 <= channel && channel < MAX_CHANNELS);
 	debug("anycast on channel %d", channel);
-
 	struct list *list = bus->recipients[channel];
 	if (list) {
 		struct bus_recipient *recipient = container_of(list, struct bus_recipient, list);

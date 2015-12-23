@@ -27,7 +27,7 @@ struct session_handle {
 static void _accept(struct ev_loop *loop, struct ev_io *watcher, int revents);
 
 
-static void _deleted(struct bus *bus, bus_channel channel, void *user_data, void *data);
+static void _deleted(struct bus *bus, int channel, void *user_data, void *data);
 
 
 bool server_init(struct server *server, const char *port, struct bus *bus, struct ev_loop *loop)
@@ -97,7 +97,7 @@ static void _accept(struct ev_loop *loop, struct ev_io *watcher, int revents)
 }
 
 
-static void _deleted(struct bus *bus, bus_channel channel, void *user_data, void *data)
+static void _deleted(struct bus *bus, int channel, void *user_data, void *data)
 {
 	struct session *session = data;
 	debug("remove session %d from server", session->fd);

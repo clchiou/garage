@@ -10,7 +10,7 @@
 #include "lib/session.h"
 
 
-void rot13_handler(struct bus *bus, bus_channel channel, void *user_data, void *data);
+void rot13_handler(struct bus *bus, int channel, void *user_data, void *data);
 
 
 static void _sigint(struct ev_loop *loop, struct ev_io *watcher, int revents)
@@ -31,7 +31,7 @@ static void _timer_callback(struct ev_loop *loop, struct ev_timer *timer, int re
 }
 
 
-static void _session_initialized(struct bus *bus, bus_channel channel, void *user_data, void *data)
+static void _session_initialized(struct bus *bus, int channel, void *user_data, void *data)
 {
 	struct session *session = data;
 	debug("[%d] init user session", session->fd);
@@ -46,7 +46,7 @@ static void _session_initialized(struct bus *bus, bus_channel channel, void *use
 }
 
 
-static void _session_deleted(struct bus *bus, bus_channel channel, void *user_data, void *data)
+static void _session_deleted(struct bus *bus, int channel, void *user_data, void *data)
 {
 	struct session *session = data;
 	debug("[%d] delete user session", session->fd);
@@ -85,7 +85,7 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	// Hack for making sure _session_deleted is called after
+	// Hack for making sure _session_deleted is called before
 	// server's bus message callback :(
 	if (!bus_register(&bus, CHANNEL_SESSION_DELETED, _session_deleted, NULL)) {
 		return 1;

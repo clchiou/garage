@@ -7,7 +7,7 @@
 #include "lib/view.h"
 
 
-void rot13_handler(struct bus *bus, bus_channel channel, void *user_data, void *data)
+void rot13_handler(struct bus *bus, int channel, void *user_data, void *data)
 {
 	struct session *session = data;
 
