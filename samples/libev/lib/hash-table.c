@@ -88,8 +88,10 @@ bool hash_table_put(struct hash_table *table,
 	struct hash_table_entry *entry;
 	if (replace) {
 		entry = container_of(list, struct hash_table_entry, list);
-		old_entry->key = entry->key;
-		old_entry->value = entry->value;
+		if (old_entry) {
+			old_entry->key = entry->key;
+			old_entry->value = entry->value;
+		}
 	} else {
 		entry = expect(malloc(sizeof(struct hash_table_entry)));
 		list_insert(head, memset(&entry->list, 0, sizeof(struct list)));
@@ -109,8 +111,10 @@ bool hash_table_pop(struct hash_table *table,
 	if (!list)
 		return false;
 	struct hash_table_entry *entry = container_of(list, struct hash_table_entry, list);
-	old_entry->key = entry->key;
-	old_entry->value = entry->value;
+	if (old_entry) {
+		old_entry->key = entry->key;
+		old_entry->value = entry->value;
+	}
 	list_remove(head, list);
 	free(entry);
 	return true;
