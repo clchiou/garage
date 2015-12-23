@@ -76,18 +76,16 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	if (!bus_register(&bus, CHANNEL_DATA_RECEIVED, rot13_handler, NULL)) {
+	if (!bus_register(&bus, CHANNEL_SESSION_DATA_RECEIVED, rot13_handler, NULL)) {
+		return 1;
+	}
+
+	if (!bus_register(&bus, CHANNEL_SESSION_DELETING, _session_deleted, NULL)) {
 		return 1;
 	}
 
 	struct server server;
 	if (!server_init(&server, argv[1], &bus, loop)) {
-		return 1;
-	}
-
-	// Hack for making sure _session_deleted is called before
-	// server's bus message callback :(
-	if (!bus_register(&bus, CHANNEL_SESSION_DELETED, _session_deleted, NULL)) {
 		return 1;
 	}
 

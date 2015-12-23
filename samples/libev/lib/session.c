@@ -64,7 +64,7 @@ bool session_init(struct session *session, int socket_fd, struct bus *bus, struc
 
 	session->remote_address = expect(strdup(stringify_address(session->fd)));
 
-	if (!bus_broadcast(session->bus, CHANNEL_SESSION_INITIALIZED, session))
+	if (!bus_broadcast_now(session->bus, CHANNEL_SESSION_INITIALIZED, session))
 		abort();
 
 	return true;
@@ -74,6 +74,9 @@ bool session_init(struct session *session, int socket_fd, struct bus *bus, struc
 void session_del(struct session *session)
 {
 	session_info("close connection %s", session->remote_address);
+
+	if (!bus_broadcast_now(session->bus, CHANNEL_SESSION_DELETING, session))
+		abort();
 
 	ev_io_stop(session->loop, &session->recv_watcher);
 	ev_io_stop(session->loop, &session->send_watcher);
@@ -87,11 +90,11 @@ void session_del(struct session *session)
 
 	bool predicate(struct bus *bus, struct bus_message *message, void *predicate_data)
 	{
-		return message->channel == CHANNEL_DATA_RECEIVED && message->data == predicate_data;
+		return message->channel == CHANNEL_SESSION_DATA_RECEIVED && message->data == predicate_data;
 	}
 	bus_cancel_messages(session->bus, predicate, session);
 
-	if (!bus_broadcast(session->bus, CHANNEL_SESSION_DELETED, session))
+	if (!bus_broadcast_now(session->bus, CHANNEL_SESSION_DELETED, session))
 		abort();
 }
 
@@ -154,7 +157,7 @@ static void _recv(struct ev_loop *loop, struct ev_io *watcher, int revents)
 		ev_io_stop(session->loop, &session->recv_watcher);
 	}
 
-	if (!bus_broadcast(session->bus, CHANNEL_DATA_RECEIVED, session))
+	if (!bus_broadcast(session->bus, CHANNEL_SESSION_DATA_RECEIVED, session))
 		abort();
 }
 

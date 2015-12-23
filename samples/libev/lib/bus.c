@@ -120,7 +120,7 @@ bool bus_anycast(struct bus *bus, int channel, void *data)
 }
 
 
-static void _do_broadcast(struct bus *bus, int channel, void *data)
+bool bus_broadcast_now(struct bus *bus, int channel, void *data)
 {
 	expect(0 <= channel && channel < MAX_CHANNELS);
 	debug("broadcast on channel %d", channel);
@@ -128,10 +128,11 @@ static void _do_broadcast(struct bus *bus, int channel, void *data)
 		struct bus_recipient *recipient = container_of(list, struct bus_recipient, list);
 		recipient->on_message(bus, channel, recipient->user_data, data);
 	}
+	return true;
 }
 
 
-static void _do_anycast(struct bus *bus, int channel, void *data)
+bool bus_anycast_now(struct bus *bus, int channel, void *data)
 {
 	expect(0 <= channel && channel < MAX_CHANNELS);
 	debug("anycast on channel %d", channel);
@@ -140,6 +141,7 @@ static void _do_anycast(struct bus *bus, int channel, void *data)
 		struct bus_recipient *recipient = container_of(list, struct bus_recipient, list);
 		recipient->on_message(bus, channel, recipient->user_data, data);
 	}
+	return true;
 }
 
 
@@ -163,10 +165,10 @@ static void _on_message(struct ev_loop *loop, struct ev_io *watcher, int revents
 		struct bus_message *message = container_of(list, struct bus_message, list);
 		switch (message->type) {
 		case MESSAGE_BROADCAST:
-			_do_broadcast(bus, message->channel, message->data);
+			expect(bus_broadcast_now(bus, message->channel, message->data));
 			break;
 		case MESSAGE_ANYCAST:
-			_do_anycast(bus, message->channel, message->data);
+			expect(bus_anycast_now(bus, message->channel, message->data));
 			break;
 		default:
 			error("unknown message type: %d", message->type);

@@ -54,7 +54,9 @@ bool bus_unregister(struct bus *bus, int channel, struct bus_recipient *recipien
 void bus_cancel_messages(struct bus *bus, bus_message_predicate predicate, void *predicate_data);
 
 bool bus_broadcast(struct bus *bus, int channel, void *data);
+bool bus_broadcast_now(struct bus *bus, int channel, void *data);
 
 bool bus_anycast(struct bus *bus, int channel, void *data);
+bool bus_anycast_now(struct bus *bus, int channel, void *data);
 
 #endif
