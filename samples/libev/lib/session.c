@@ -1,6 +1,5 @@
 #include <stdbool.h>
 #include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -66,8 +65,7 @@ bool session_init(struct session *session, int socket_fd, struct bus *bus, struc
 	strncpy(session->remote_address, stringify_address(session->fd), len);
 	session->remote_address[len - 1] = '\0';
 
-	if (!bus_broadcast_now(session->bus, CHANNEL_SESSION_INITIALIZED, session))
-		abort();
+	expect(bus_broadcast_now(session->bus, CHANNEL_SESSION_INITIALIZED, session));
 
 	return true;
 }
@@ -77,8 +75,7 @@ void session_del(struct session *session)
 {
 	session_info("close connection %s", session->remote_address);
 
-	if (!bus_broadcast_now(session->bus, CHANNEL_SESSION_DELETING, session))
-		abort();
+	expect(bus_broadcast_now(session->bus, CHANNEL_SESSION_DELETING, session));
 
 	ev_io_stop(session->loop, &session->recv_watcher);
 	ev_io_stop(session->loop, &session->send_watcher);
@@ -94,8 +91,7 @@ void session_del(struct session *session)
 	}
 	bus_cancel_messages(session->bus, predicate, session);
 
-	if (!bus_broadcast_now(session->bus, CHANNEL_SESSION_DELETED, session))
-		abort();
+	expect(bus_broadcast_now(session->bus, CHANNEL_SESSION_DELETED, session));
 }
 
 
@@ -157,8 +153,7 @@ static void _recv(struct ev_loop *loop, struct ev_io *watcher, int revents)
 		ev_io_stop(session->loop, &session->recv_watcher);
 	}
 
-	if (!bus_broadcast(session->bus, CHANNEL_SESSION_DATA_RECEIVED, session))
-		abort();
+	expect(bus_broadcast(session->bus, CHANNEL_SESSION_DATA_RECEIVED, session));
 }
 
 
@@ -194,6 +189,7 @@ static void _send(struct ev_loop *loop, struct ev_io *watcher, int revents)
 	if (buffer_is_empty(&session->send_buffer)) {
 		session_debug("send_buffer is empty");
 		ev_io_stop(session->loop, &session->send_watcher);
+		expect(bus_broadcast(session->bus, CHANNEL_SESSION_SEND_BUFFER_EMPTY, session));
 	}
 }
 
