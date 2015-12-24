@@ -5,7 +5,6 @@
 
 #include "lib/base.h"
 #include "lib/bus.h"
-#include "lib/session.h"
 
 #include "http2d/channels.h"
 #include "http2d/handler.h"
@@ -31,22 +30,17 @@ static void _prepare_response(struct bus *bus, int channel, void *user_data, voi
 		},
 	};
 
-	nghttp2_data_provider provider;
-	memset(&provider, 0, sizeof(nghttp2_data_provider));
 
 	if (check(nghttp2_submit_response(
 				session->nghttp2_session,
 				stream->id,
 				response, ARRAY_SIZE(response),
-				&provider),
+				NULL),
 			nghttp2_strerror) != 0) {
 		http_session_shutdown(session, NGHTTP2_INTERNAL_ERROR);
 	}
 
 	http_session_check_want_write(session);
-
-	struct session *base_session = container_of((void *)session, struct session, user_session);
-	session_flush_send_buffer(base_session);
 }
 
 

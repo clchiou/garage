@@ -27,6 +27,9 @@ static int _stream_close(nghttp2_session *nghttp2_session,
 	struct http_session *session = user_data;
 	session_debug("close stream %d", stream_id);
 
+	struct session *base_session = container_of(user_data, struct session, user_session);
+	session_flush_send_buffer(base_session);
+
 	struct stream *stream = expect(http_session_pop_stream(session, stream_id));
 	stream_del(stream);
 	free(stream);
@@ -49,31 +52,37 @@ static int _frame_recv(nghttp2_session *nghttp2_session,
 	struct http_session *session = user_data;
 	session_debug("recv frame on stream %d", frame->hd.stream_id);
 
-	struct stream *stream = http_session_get_stream(session, frame->hd.stream_id);
-
 	switch (frame->hd.type) {
 	case NGHTTP2_DATA:
-		if (!stream)
-			return 0;
+		{
+			struct stream *stream = http_session_get_stream(
+				session, frame->hd.stream_id);
+			if (!stream)
+				return 0;
 
-		// TODO: Handle POST data.
+			// TODO: Handle POST data.
 
-		if (frame->hd.flags & NGHTTP2_FLAG_END_STREAM)
-			_prepare_response(session, stream);
-		else
-			stream_extend_recv_timer(stream);
-		break;
+			if (frame->hd.flags & NGHTTP2_FLAG_END_STREAM)
+				_prepare_response(session, stream);
+			else
+				stream_extend_recv_timer(stream);
+			break;
+		}
 	case NGHTTP2_HEADERS:
-		if (!stream)
-			return 0;
+		{
+			struct stream *stream = http_session_get_stream(
+				session, frame->hd.stream_id);
+			if (!stream)
+				return 0;
 
-		// TODO: HTTP 100-continue
+			// TODO: HTTP 100-continue
 
-		if (frame->hd.flags & NGHTTP2_FLAG_END_STREAM)
-			_prepare_response(session, stream);
-		else
-			stream_extend_recv_timer(stream);
-		break;
+			if (frame->hd.flags & NGHTTP2_FLAG_END_STREAM)
+				_prepare_response(session, stream);
+			else
+				stream_extend_recv_timer(stream);
+			break;
+		}
 	case NGHTTP2_SETTINGS:
 		if (frame->hd.flags & NGHTTP2_FLAG_ACK)
 			http_session_stop_settings_timer(session);
@@ -131,20 +140,37 @@ static int _frame_send(nghttp2_session *nghttp2_session,
 	struct http_session *session = user_data;
 	session_debug("send frame on stream %d", frame->hd.stream_id);
 
-	struct stream *stream = http_session_get_stream(session, frame->hd.stream_id);
-
 	switch (frame->hd.type) {
 	case NGHTTP2_DATA:
 		// Fall through.
 	case NGHTTP2_HEADERS:
-		if (!stream)
-			return 0;
-		// TODO...
-		break;
+		{
+			struct stream *stream = http_session_get_stream(
+					session, frame->hd.stream_id);
+			if (!stream)
+				return 0;
+
+			if (frame->hd.flags & NGHTTP2_FLAG_END_STREAM) {
+				stream_stop_send_timer(stream);
+			} else if (nghttp2_session_get_stream_remote_window_size(
+						session->nghttp2_session,
+						frame->hd.stream_id) <= 0 ||
+					nghttp2_session_get_remote_window_size(
+						session->nghttp2_session) <= 0) {
+				// If stream is blocked by flow control, enable
+				// write timeout.
+				stream_extend_recv_timer_if_pending(stream);
+				stream_start_send_timer(stream);
+			} else {
+				stream_extend_recv_timer_if_pending(stream);
+				stream_stop_send_timer(stream);
+			}
+
+			break;
+		}
 	case NGHTTP2_PUSH_PROMISE:
-		if (!stream)
-			return 0;
-		// TODO...
+		// TODO: Implement push promise.
+		session_error("push promise is not implemented yet");
 		break;
 	default:
 		session_debug("ignore frame of type %d", frame->hd.type);
@@ -240,7 +266,7 @@ static int _header(nghttp2_session *nghttp2_session,
 	struct http_session *session = user_data;
 	session_debug("header on stream %d: \"%s\"=\"%s\"", frame->hd.stream_id, name, value);
 
-	// TODO...
+	// TODO: Construct request object.
 
 	return 0;
 }

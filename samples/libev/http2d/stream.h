@@ -21,10 +21,12 @@ void stream_del(struct stream *stream);
 
 void stream_start_recv_timer(struct stream *stream);
 void stream_extend_recv_timer(struct stream *stream);
+void stream_extend_recv_timer_if_pending(struct stream *stream);
 void stream_stop_recv_timer(struct stream *stream);
 
 void stream_start_send_timer(struct stream *stream);
 void stream_extend_send_timer(struct stream *stream);
+void stream_extend_send_timer_if_pending(struct stream *stream);
 void stream_stop_send_timer(struct stream *stream);
 
 #endif

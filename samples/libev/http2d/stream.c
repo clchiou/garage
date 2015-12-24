@@ -77,6 +77,13 @@ void stream_extend_recv_timer(struct stream *stream)
 }
 
 
+void stream_extend_recv_timer_if_pending(struct stream *stream)
+{
+	if (ev_is_active(&stream->recv_timer))
+		stream_extend_recv_timer(stream);
+}
+
+
 void stream_stop_recv_timer(struct stream *stream)
 {
 	struct http_session *session = stream->session;
@@ -96,6 +103,13 @@ void stream_start_send_timer(struct stream *stream)
 void stream_extend_send_timer(struct stream *stream)
 {
 	ev_timer_again(stream->session->loop, &stream->send_timer);
+}
+
+
+void stream_extend_send_timer_if_pending(struct stream *stream)
+{
+	if (ev_is_active(&stream->send_timer))
+		stream_extend_send_timer(stream);
 }
 
 
