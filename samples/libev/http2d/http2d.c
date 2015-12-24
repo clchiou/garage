@@ -13,6 +13,7 @@
 #include "lib/session.h"
 
 #include "http2d/channels.h"
+#include "http2d/handler.h"
 #include "http2d/http-session.h"
 
 
@@ -87,6 +88,10 @@ int main(int argc, char *argv[])
 	if (!bus_register(&bus, CHANNEL_SESSION_DELETING, _deleting, NULL))
 		return 1;
 	if (!bus_register(&bus, CHANNEL_HTTP_SESSION_WANT_WRITE, _http_want_write, NULL))
+		return 1;
+
+	struct handler handler;
+	if (!handler_init(&handler, &bus, loop))
 		return 1;
 
 	struct server server;

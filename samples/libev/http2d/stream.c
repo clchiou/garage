@@ -26,7 +26,7 @@ static void _timeout(struct stream *stream)
 				NGHTTP2_INTERNAL_ERROR),
 			nghttp2_strerror) == 0);
 
-	http_session_graceful_shutdown(session);
+	http_session_shutdown(session, 0);
 }
 
 
@@ -63,43 +63,45 @@ void stream_del(struct stream *stream)
 }
 
 
-bool stream_start_recv_timer(struct stream *stream)
+void stream_start_recv_timer(struct stream *stream)
+{
+	struct http_session *session = stream->session;
+	debug("[%d] start recv timer for stream %d", session->id, stream->id);
+	ev_timer_again(session->loop, &stream->recv_timer);
+}
+
+
+void stream_extend_recv_timer(struct stream *stream)
 {
 	ev_timer_again(stream->session->loop, &stream->recv_timer);
-	return true;
 }
 
 
-bool stream_extend_recv_timer(struct stream *stream)
+void stream_stop_recv_timer(struct stream *stream)
 {
-	ev_timer_again(stream->session->loop, &stream->recv_timer);
-	return true;
+	struct http_session *session = stream->session;
+	debug("[%d] stop recv timer for stream %d", session->id, stream->id);
+	ev_timer_stop(session->loop, &stream->recv_timer);
 }
 
 
-bool stream_stop_recv_timer(struct stream *stream)
+void stream_start_send_timer(struct stream *stream)
 {
-	ev_timer_stop(stream->session->loop, &stream->recv_timer);
-	return true;
+	struct http_session *session = stream->session;
+	debug("[%d] start send timer for stream %d", session->id, stream->id);
+	ev_timer_again(session->loop, &stream->send_timer);
 }
 
 
-bool stream_start_send_timer(struct stream *stream)
-{
-	ev_timer_again(stream->session->loop, &stream->send_timer);
-	return true;
-}
-
-
-bool stream_extend_send_timer(struct stream *stream)
+void stream_extend_send_timer(struct stream *stream)
 {
 	ev_timer_again(stream->session->loop, &stream->send_timer);
-	return true;
 }
 
 
-bool stream_stop_send_timer(struct stream *stream)
+void stream_stop_send_timer(struct stream *stream)
 {
-	ev_timer_stop(stream->session->loop, &stream->send_timer);
-	return true;
+	struct http_session *session = stream->session;
+	debug("[%d] stop send timer for stream %d", session->id, stream->id);
+	ev_timer_stop(session->loop, &stream->send_timer);
 }
