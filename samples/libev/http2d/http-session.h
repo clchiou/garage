@@ -1,11 +1,13 @@
-#ifndef HTTP_SESSION_H_
-#define HTTP_SESSION_H_
+#ifndef HTTP2D_HTTP_SESSION_H_
+#define HTTP2D_HTTP_SESSION_H_
 
 #include <stdbool.h>
 #include <stdint.h>
 
+#include <ev.h>
 #include <nghttp2/nghttp2.h>
 
+#include "lib/bus.h"
 #include "lib/hash-table.h"
 #include "lib/view.h"
 
@@ -15,18 +17,27 @@ enum {
 
 struct http_session {
 	int id;
+	struct bus *bus;
+	struct ev_loop *loop;
 	nghttp2_session *nghttp2_session;
+	struct bus_recipient *shutdown_event;
+	struct ev_timer settings_timer;
 	union {
 		struct hash_table streams;
 		uint8_t blob[hash_table_size(STREAM_HASH_TABLE_SIZE)];
 	};
 };
 
-bool http_session_init(struct http_session *http_session, int id);
+bool http_session_init(struct http_session *session, int id, struct bus *bus, struct ev_loop *loop);
 
-void http_session_del(struct http_session *http_session);
+void http_session_terminate(struct http_session *session, uint32_t error_code);
 
-ssize_t http_session_mem_recv(struct http_session *http_session,
-		struct ro_view view);
+void http_session_graceful_shutdown(struct http_session *session);
+
+void http_session_del(struct http_session *session);
+
+ssize_t http_session_mem_recv(struct http_session *session, struct ro_view view);
+
+void http_session_check_want_write(struct http_session *session);
 
 #endif
