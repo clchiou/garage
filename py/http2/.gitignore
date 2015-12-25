@@ -1,2 +1,3 @@
 http2/*.so
 http2/http2.c
+http2/http2.h

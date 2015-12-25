@@ -26,7 +26,7 @@ if os.getenv('NGHTTP2_LIBRARYDIR'):
     library_dirs.append(os.getenv('NGHTTP2_LIBRARYDIR'))
 
 _ext_modules = cythonize(_Extension(
-    'http2._http2',
+    'http2.http2',
     sources=[
         'http2/http2.pyx',
         'http2/base.c',
@@ -62,4 +62,7 @@ setup(
     license = 'MIT',
     packages = find_packages(exclude=['tests*']),
     ext_modules = ext_modules,
+    install_requires = [
+        'garage',
+    ],
 )

@@ -1,6 +1,9 @@
 #include <nghttp2/nghttp2.h>
 
+#include "Python.h"
 #include "http2/http2.h"
+
+#include "http2/lib.h"
 
 
 static int on_frame_recv_callback(nghttp2_session *nghttp2_session,

@@ -2,7 +2,10 @@
 
 #include <nghttp2/nghttp2.h>
 
+#include "Python.h"
 #include "http2/http2.h"
+
+#include "http2/lib.h"
 
 
 int session_init(struct session *session)
@@ -23,6 +26,7 @@ int session_init(struct session *session)
 unwind_session:
 	// Fall through.
 unwind_callbacks:
+	memset(session, 0, sizeof(*session));
 	return error_code;
 }
 
@@ -34,5 +38,6 @@ void session_del(struct session *session)
 
 	nghttp2_session_del(session->session);
 
+	// Make repeated calls of session_del() safe.
 	memset(session, 0, sizeof(*session));
 }
