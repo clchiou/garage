@@ -17,8 +17,7 @@ class Http2Protocol(asyncio.Protocol):
         if LOG.isEnabledFor(logging.DEBUG):
             peername = transport.get_extra_info('peername')
             LOG.debug('accept %s:%d', peername[0], peername[1])
-        self.session = Session()
-        self.transport = transport
+        self.session = Session(transport)
 
     def data_received(self, data):
         self.session.data_received(data)

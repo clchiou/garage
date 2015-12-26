@@ -38,6 +38,7 @@ _ext_modules = cythonize(_Extension(
         'http2/base.c',
         'http2/callbacks.c',
         'http2/session.c',
+        'http2/stream.c',
     ],
     libraries=['nghttp2'],
     include_dirs=include_dirs,

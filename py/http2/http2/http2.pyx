@@ -29,14 +29,16 @@ def check(ssize_t error_code):
 cdef class Session:
 
     cdef bint closed
-    cdef dict watchdogs
+    cdef public object transport
+    cdef public dict watchdogs
     cdef lib.session session
 
-    def __cinit__(self):
+    def __cinit__(self, transport):
         LOG.debug('open http session')
-        check(lib.session_init(&self.session, <lib.http_session*>self))
-        self.watchdogs = {}
         self.closed = False
+        self.transport = transport
+        self.watchdogs = {}
+        check(lib.session_init(&self.session, <lib.http_session*>self))
 
     def __dealloc__(self):
         self.close()
@@ -69,9 +71,6 @@ cdef class Session:
         self.watchdogs[watchdog_id] = Watchdog(delay, callback)
         return 0
 
-    def get_watchdog(self, watchdog_id):
-        return self.watchdogs[watchdog_id]
-
     def remove_watchdog(self, watchdog_id):
         try:
             self.watchdogs.pop(watchdog_id)
@@ -84,6 +83,14 @@ cdef class Session:
 cdef public void http_session_close(lib.http_session *http_session):
     session = <object>http_session
     session.close()
+
+
+cdef public ssize_t http_session_send(
+        lib.http_session *http_session, const uint8_t *data, size_t size):
+    session = <object>http_session
+    cdef bytes d = data[:size]
+    session.transport.write(d)
+    return size
 
 
 ### Watchdog C API ###
@@ -124,12 +131,18 @@ cdef public int watchdog_remove(
         lib.http_session *http_session,
         int watchdog_id):
     session = <object>http_session
-    return session.remvoe_watchdog(watchdog_id)
+    return session.remove_watchdog(watchdog_id)
+
+
+cdef public bint watchdog_exist(
+        lib.http_session *http_session, int watchdog_id):
+    session = <object>http_session
+    return watchdog_id in session.watchdogs
 
 
 cdef int watchdog_call(lib.http_session *http_session, int watchdog_id, method):
     session = <object>http_session
-    dog = session.get_watchdog(watchdog_id)
+    dog = session.watchdogs.get(watchdog_id)
     if dog is None:
         return lib.HTTP2_ERROR_WATCHDOG_NOT_FOUND
     method(dog)

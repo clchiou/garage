@@ -9,6 +9,28 @@ static int on_frame_recv_callback(nghttp2_session *nghttp2_session,
 		const nghttp2_frame *frame,
 		void *user_data)
 {
+	struct session *session = user_data;
+
+	switch (frame->hd.type) {
+	case NGHTTP2_DATA:
+		// TODO...
+		break;
+	case NGHTTP2_HEADERS:
+		// TODO...
+		break;
+	case NGHTTP2_SETTINGS:
+		if (frame->hd.flags & NGHTTP2_FLAG_ACK) {
+			int err = session_settings_ack(session);
+			if (err) {
+				debug("session %p stream %d: settings ack: %s",
+						session, frame->hd.stream_id,
+						http2_strerror(err));
+				return NGHTTP2_ERR_CALLBACK_FAILURE;
+			}
+		}
+		break;
+	}
+
 	return 0;
 }
 
@@ -19,6 +41,17 @@ static int on_data_chunk_recv_callback(nghttp2_session *nghttp2_session,
 		const uint8_t *data, size_t length,
 		void *user_data)
 {
+	struct session *session = user_data;
+
+	// TODO: Handle POST data.
+
+	int err = stream_on_recv(session, stream_id);
+	if (err) {
+		debug("session %p stream %d: stream_on_recv(): %s",
+				session, stream_id, http2_strerror(err));
+		return NGHTTP2_ERR_CALLBACK_FAILURE;
+	}
+
 	return 0;
 }
 
@@ -29,24 +62,15 @@ static int on_begin_headers_callback(nghttp2_session *nghttp2_session,
 {
 	struct session *session = user_data;
 
-	if (frame->hd.type != NGHTTP2_HEADERS || frame->headers.cat != NGHTTP2_HCAT_REQUEST)
+	if (frame->hd.type != NGHTTP2_HEADERS ||
+			frame->headers.cat != NGHTTP2_HCAT_REQUEST)
 		return 0;
 
-	int id, err;
-
-	id = recv_watchdog_id(frame->hd.stream_id);
-	if ((err = watchdog_add(session->http_session, id, RECV_TIMEOUT, recv_timeout, session)) != 0) {
-		debug("watchdog_add(%d): %s", id, http2_strerror(err));
-		return NGHTTP2_ERR_CALLBACK_FAILURE;
-	}
-	if ((err = watchdog_start(session->http_session, id)) != 0) {
-		debug("watchdog_start(%d): %s", id, http2_strerror(err));
-		return NGHTTP2_ERR_CALLBACK_FAILURE;
-	}
-
-	id = send_watchdog_id(frame->hd.stream_id);
-	if ((err = watchdog_add(session->http_session, id, RECV_TIMEOUT, recv_timeout, session)) != 0) {
-		debug("watchdog_add(%d): %s", id, http2_strerror(err));
+	int err = stream_on_open(session, frame->hd.stream_id);
+	if (err) {
+		debug("session %p stream %d: stream_on_open(): %s",
+				session, frame->hd.stream_id,
+				http2_strerror(err));
 		return NGHTTP2_ERR_CALLBACK_FAILURE;
 	}
 
@@ -70,7 +94,17 @@ static ssize_t on_send_callback(nghttp2_session *nghttp2_session,
 		int flags,
 		void *user_data)
 {
-	return 0;
+	struct session *session = user_data;
+	debug("session %p: send %zu bytes", session, length);
+
+	ssize_t nwrite = http_session_send(
+			session->http_session, data, length);
+	if (nwrite == 0)
+		return NGHTTP2_ERR_WOULDBLOCK;
+	else if (nwrite < 0)
+		return NGHTTP2_ERR_CALLBACK_FAILURE;
+	else
+		return nwrite;
 }
 
 
@@ -98,20 +132,11 @@ static int on_stream_close_callback(nghttp2_session *nghttp2_session,
 {
 	struct session *session = user_data;
 
-	int ids[] = {
-		recv_watchdog_id(stream_id),
-		send_watchdog_id(stream_id),
-	};
-	for (size_t i = 0; i < ARRAY_SIZE(ids); i++) {
-		int id = ids[i], err;
-		if ((err = watchdog_stop(session->http_session, id)) != 0) {
-			debug("watchdog_stop(%d): %s", id, http2_strerror(err));
-			return NGHTTP2_ERR_CALLBACK_FAILURE;
-		}
-		if ((err = watchdog_remove(session->http_session, id)) != 0) {
-			debug("watchdog_remove(%d): %s", id, http2_strerror(err));
-			return NGHTTP2_ERR_CALLBACK_FAILURE;
-		}
+	int err = stream_on_close(session, stream_id);
+	if (err) {
+		debug("session %p stream %d: stream_on_close(): %s",
+				session, stream_id, http2_strerror(err));
+		return NGHTTP2_ERR_CALLBACK_FAILURE;
 	}
 
 	return 0;

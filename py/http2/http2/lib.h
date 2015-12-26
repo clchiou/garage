@@ -47,6 +47,11 @@ int get_callbacks(nghttp2_session_callbacks **callbacks_out);
 struct http_session;
 
 
+int settings_watchdog_id(int32_t stream_id);
+int recv_watchdog_id(int32_t stream_id);
+int send_watchdog_id(int32_t stream_id);
+
+
 // Intermediary between http_session and nghttp2_session.
 struct session {
 	struct http_session *http_session;
@@ -56,21 +61,14 @@ struct session {
 int session_init(struct session *session, void *http_session);
 void session_del(struct session *session);
 
+int session_settings_ack(struct session *session);
+
 ssize_t session_recv(struct session *session, const uint8_t *data, size_t size);
 
 
-// Per-stream watchdogs.
+int stream_on_open(struct session *session, int32_t stream_id);
+int stream_on_close(struct session *session, int32_t stream_id);
 
-extern const float SETTINGS_TIMEOUT;
-extern const float RECV_TIMEOUT;
-extern const float SEND_TIMEOUT;
-
-int settings_watchdog_id(int32_t stream_id);
-int recv_watchdog_id(int32_t stream_id);
-int send_watchdog_id(int32_t stream_id);
-
-void settings_timeout(int watchdog_id, void *user_data);
-void recv_timeout(int watchdog_id, void *user_data);
-void send_timeout(int watchdog_id, void *user_data);
+int stream_on_recv(struct session *session, int32_t stream_id);
 
 #endif
