@@ -56,12 +56,20 @@ static int on_begin_headers_callback(nghttp2_session *nghttp2_session,
 		const nghttp2_frame *frame,
 		void *user_data)
 {
-	struct session *session = user_data;
-
 	if (frame->hd.type != NGHTTP2_HEADERS || frame->headers.cat != NGHTTP2_HCAT_REQUEST)
 		return 0;
 
-	return stream_on_open(session, frame->hd.stream_id);
+	struct session *session = user_data;
+	int32_t stream_id = frame->hd.stream_id;
+
+	int err;
+	if ((err = request_new(session->http_session, stream_id)) != 0) {
+		debug("session %p stream %d: request_new(): %s",
+				session, stream_id, http2_strerror(err));
+		return NGHTTP2_ERR_CALLBACK_FAILURE;
+	}
+
+	return stream_on_open(session, stream_id);
 }
 
 
@@ -72,7 +80,16 @@ static int on_header_callback(nghttp2_session *nghttp2_session,
 		uint8_t flags,
 		void *user_data)
 {
-	return 0;  // TODO: Add header to request.
+	struct session *session = user_data;
+	int32_t stream_id = frame->hd.stream_id;
+	int err = request_set_header(session->http_session, stream_id,
+			name, namelen, value, valuelen);
+	if (err) {
+		debug("session %p stream %d: request_set_header(): %s",
+				session, stream_id, http2_strerror(err));
+		return NGHTTP2_ERR_CALLBACK_FAILURE;
+	}
+	return 0;
 }
 
 
@@ -133,6 +150,7 @@ static int on_send_data_callback(nghttp2_session *nghttp2_session,
 
 	uint8_t blob[256];
 	uint8_t *buffer = size <= sizeof(blob) ? blob : malloc(size);
+	expect(buffer != NULL);
 	uint8_t *pos = buffer;
 
 	memcpy(pos, framehd, HEADER_SIZE);

@@ -37,6 +37,7 @@ _ext_modules = cythonize(_Extension(
         'http2/http2.pyx',
         'http2/base.c',
         'http2/callbacks.c',
+        'http2/response.c',
         'http2/session.c',
         'http2/stream.c',
     ],

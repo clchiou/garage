@@ -34,8 +34,13 @@
 enum {
 	HTTP2_ERROR = -1,
 
-	HTTP2_ERROR_WATCHDOG_ID_DUPLICATED = -2,
-	HTTP2_ERROR_WATCHDOG_NOT_FOUND = -3,
+	HTTP2_ERROR_RESPONSE_OVERFLOW = -2,
+
+	HTTP2_ERROR_STREAM_ID_DUPLICATED = -3,
+	HTTP2_ERROR_STREAM_ID_NOT_FOUND = -4,
+
+	HTTP2_ERROR_WATCHDOG_ID_DUPLICATED = -5,
+	HTTP2_ERROR_WATCHDOG_NOT_FOUND = -6,
 };
 
 const char *http2_strerror(int error_code);
@@ -66,6 +71,11 @@ int session_settings_ack(struct session *session);
 ssize_t session_recv(struct session *session, const uint8_t *data, size_t size);
 
 
+struct response;
+
+int stream_submit_response(struct session *session, int32_t stream_id,
+		struct response *response);
+
 int stream_on_open(struct session *session, int32_t stream_id);
 int stream_on_close(struct session *session, int32_t stream_id);
 
@@ -74,5 +84,20 @@ int stream_on_data_frame(struct session *session, const nghttp2_frame *frame);
 int stream_on_data_chunk(struct session *session, int32_t stream_id);
 
 int stream_on_send_frame(struct session *session, const nghttp2_frame *frame);
+
+
+struct response {
+	nghttp2_nv *headers;
+	size_t header_pos;
+	size_t num_headers;
+	nghttp2_nv blob[32];
+};
+
+int response_init(struct response *response, size_t num_headers);
+void response_del(struct response *response);
+
+int response_add_header(struct response *response,
+		uint8_t *name, size_t namelen,
+		uint8_t *value, size_t valuelen);
 
 #endif

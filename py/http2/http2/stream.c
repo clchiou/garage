@@ -5,6 +5,31 @@
 #include "http2/http2.h"
 
 
+int stream_submit_response(struct session *session, int32_t stream_id,
+		struct response *response)
+{
+	debug("session %p stream %d: submit response", session, stream_id);
+
+	// TODO: Make data provider.
+
+	int err;
+	err = nghttp2_submit_response(session->nghttp2_session,
+			stream_id,
+			response->headers, response->num_headers,
+			NULL);
+	if (err)
+		return err;
+
+	err = nghttp2_session_send(session->nghttp2_session);
+	if (err)
+		return err;
+
+	// TODO: Should we start send watchdog here?
+
+	return 0;
+}
+
+
 // Unit: seconds.
 static const float RECV_TIMEOUT = 10;
 static const float SEND_TIMEOUT = 10;
@@ -115,21 +140,25 @@ static int restart_recv(struct session *session, int32_t stream_id)
 
 int stream_on_headers_frame(struct session *session, const nghttp2_frame *frame)
 {
+	int32_t stream_id = frame->hd.stream_id;
 	if (frame->hd.flags & NGHTTP2_FLAG_END_STREAM) {
-		debug("prepare reponse");  // TODO...
+		int err = request_complete(session->http_session, stream_id);
+		if (err) {
+			debug("session %p stream %d: request_complete(): %s",
+					session, stream_id,
+					http2_strerror(err));
+			return NGHTTP2_ERR_CALLBACK_FAILURE;
+		}
 		return 0;
 	} else
-		return restart_recv(session, frame->hd.stream_id);
+		return restart_recv(session, stream_id);
 }
 
 
 int stream_on_data_frame(struct session *session, const nghttp2_frame *frame)
 {
-	if (frame->hd.flags & NGHTTP2_FLAG_END_STREAM) {
-		debug("prepare reponse");  // TODO...
-		return 0;
-	} else
-		return restart_recv(session, frame->hd.stream_id);
+	// Their implementations are the same (at least for now).
+	return stream_on_headers_frame(session, frame);
 }
 
 

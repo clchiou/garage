@@ -2,11 +2,13 @@ __all__ = [
     'Session',
 ]
 
+import asyncio
 import logging
 
+from .models import Request, Response
 from .watchdogs import Watchdog
 
-from libc.stdint cimport uint8_t
+from libc.stdint cimport uint8_t, int32_t
 from cpython.pycapsule cimport PyCapsule_New, PyCapsule_GetPointer
 
 cimport lib
@@ -29,19 +31,46 @@ def check(ssize_t error_code):
 cdef class Session:
 
     cdef bint closed
+    cdef object loop
     cdef public object transport
+    cdef object handler
     cdef public dict watchdogs
+    cdef public dict requests
     cdef lib.session session
 
-    def __cinit__(self, transport):
+    def __cinit__(self, transport, handler, loop=None):
         LOG.debug('open http session')
         self.closed = False
+        self.loop = loop
         self.transport = transport
+        self.handler = handler
         self.watchdogs = {}
+        self.requests = {}
         check(lib.session_init(&self.session, <lib.http_session*>self))
 
     def __dealloc__(self):
         self.close()
+
+    def handle_request(self, stream_id, request):
+        response = Response()
+        loop = self.loop or asyncio.get_event_loop()
+        loop.call_soon(self._handle, stream_id, request, response)
+
+    def _handle(self, stream_id, request, response):
+        self.handler(request, response)
+        cdef lib.response rep
+        check(lib.response_init(&rep, len(response.headers)))
+        try:
+            # Will name and value be garbage-collected after for-loop?
+            for name, value in response.headers.items():
+                check(lib.response_add_header(
+                    &rep,
+                    <uint8_t*>name, len(name),
+                    <uint8_t*>value, len(value),
+                ))
+            check(lib.stream_submit_response(&self.session, stream_id, &rep))
+        finally:
+            lib.response_del(&rep)
 
     # Called from Http2Protocol
 
@@ -63,22 +92,6 @@ cdef class Session:
             raise Http2Error(
                 'drop %d/%d bytes of data', len(data) - consumed, len(data))
 
-    # Called from C part.
-
-    def add_watchdog(self, watchdog_id, delay, callback):
-        if watchdog_id in self.watchdogs:
-            return lib.HTTP2_ERROR_WATCHDOG_ID_DUPLICATED
-        self.watchdogs[watchdog_id] = Watchdog(delay, callback)
-        return 0
-
-    def remove_watchdog(self, watchdog_id):
-        try:
-            self.watchdogs.pop(watchdog_id)
-        except KeyError:
-            return lib.HTTP2_ERROR_WATCHDOG_NOT_FOUND
-        else:
-            return 0
-
 
 cdef public void http_session_close(lib.http_session *http_session):
     session = <object>http_session
@@ -88,8 +101,8 @@ cdef public void http_session_close(lib.http_session *http_session):
 cdef public ssize_t http_session_send(
         lib.http_session *http_session, const uint8_t *data, size_t size):
     session = <object>http_session
-    cdef bytes d = data[:size]
-    session.transport.write(d)
+    cdef bytes data_bytes = data[:size]
+    session.transport.write(data_bytes)
     return size
 
 
@@ -124,14 +137,22 @@ cdef public int watchdog_add(
         PyCapsule_New(callback, NULL, NULL),
         PyCapsule_New(user_data, NULL, NULL),
     )
-    return session.add_watchdog(watchdog_id, delay, closure)
+    if watchdog_id in session.watchdogs:
+        return lib.HTTP2_ERROR_WATCHDOG_ID_DUPLICATED
+    session.watchdogs[watchdog_id] = Watchdog(delay, closure)
+    return 0
 
 
 cdef public int watchdog_remove(
         lib.http_session *http_session,
         int watchdog_id):
     session = <object>http_session
-    return session.remove_watchdog(watchdog_id)
+    try:
+        session.watchdogs.pop(watchdog_id)
+    except KeyError:
+        return lib.HTTP2_ERROR_WATCHDOG_NOT_FOUND
+    else:
+        return 0
 
 
 cdef public bint watchdog_exist(
@@ -172,4 +193,41 @@ cdef public int watchdog_restart_if_started(
         return lib.HTTP2_ERROR_WATCHDOG_NOT_FOUND
     if dog.started:
         dog.restart()
+    return 0
+
+
+### Request C API ###
+
+
+cdef public int request_new(
+        lib.http_session *http_session, int32_t stream_id):
+    session = <object>http_session
+    if stream_id in session.requests:
+        return lib.HTTP2_ERROR_STREAM_ID_DUPLICATED
+    session.requests[stream_id] = Request()
+    return 0
+
+
+cdef public int request_set_header(
+        lib.http_session *http_session, int32_t stream_id,
+        const uint8_t *name, size_t namelen,
+        const uint8_t *value, size_t valuelen):
+    session = <object>http_session
+    request = session.requests.get(stream_id)
+    if request is None:
+        return lib.HTTP2_ERROR_STREAM_ID_NOT_FOUND
+    cdef bytes name_bytes = name[:namelen]
+    cdef bytes value_bytes = value[:valuelen]
+    request.headers[name_bytes] = value_bytes
+    return 0
+
+
+cdef public int request_complete(
+        lib.http_session *http_session, int32_t stream_id):
+    session = <object>http_session
+    try:
+        request = session.requests.pop(stream_id)
+    except KeyError:
+        return lib.HTTP2_ERROR_STREAM_ID_NOT_FOUND
+    session.handle_request(stream_id, request)
     return 0
