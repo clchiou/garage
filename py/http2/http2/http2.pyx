@@ -222,6 +222,17 @@ cdef public int request_set_header(
     return 0
 
 
+cdef public int request_append_body(
+        lib.http_session *http_session, int32_t stream_id,
+        const uint8_t *data, size_t length):
+    session = <object>http_session
+    request = session.requests.get(stream_id)
+    if request is None:
+        return lib.HTTP2_ERROR_STREAM_ID_NOT_FOUND
+    request.write(data[:length])
+    return 0
+
+
 cdef public int request_complete(
         lib.http_session *http_session, int32_t stream_id):
     session = <object>http_session
@@ -229,5 +240,6 @@ cdef public int request_complete(
         request = session.requests.pop(stream_id)
     except KeyError:
         return lib.HTTP2_ERROR_STREAM_ID_NOT_FOUND
+    request.close()
     session.handle_request(stream_id, request)
     return 0

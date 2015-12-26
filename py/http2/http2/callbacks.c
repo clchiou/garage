@@ -16,7 +16,6 @@ static int on_frame_recv_callback(nghttp2_session *nghttp2_session,
 
 	switch (frame->hd.type) {
 	case NGHTTP2_DATA:
-		// TODO: Handle POST data.
 		return stream_on_data_frame(session, frame);
 	case NGHTTP2_HEADERS:
 		// TODO: HTTP 100-continue
@@ -46,7 +45,15 @@ static int on_data_chunk_recv_callback(nghttp2_session *nghttp2_session,
 {
 	struct session *session = user_data;
 
-	// TODO: Handle POST data.
+	debug("session %p: stream %d: request body recv %zu bytes",
+			session, stream_id, length);
+	int err = request_append_body(session->http_session,
+			stream_id, data, length);
+	if (err) {
+		debug("session %p stream %d: append body: %s",
+				session, stream_id, http2_strerror(err));
+		return NGHTTP2_ERR_CALLBACK_FAILURE;
+	}
 
 	return stream_on_data_chunk(session, stream_id);
 }
@@ -62,6 +69,7 @@ static int on_begin_headers_callback(nghttp2_session *nghttp2_session,
 	struct session *session = user_data;
 	int32_t stream_id = frame->hd.stream_id;
 
+	debug("session %p: stream %d: request begin", session, stream_id);
 	int err;
 	if ((err = request_new(session->http_session, stream_id)) != 0) {
 		debug("session %p stream %d: request_new(): %s",
@@ -82,6 +90,8 @@ static int on_header_callback(nghttp2_session *nghttp2_session,
 {
 	struct session *session = user_data;
 	int32_t stream_id = frame->hd.stream_id;
+	debug("session %p: stream %d: request header \"%s\"=\"%s\"",
+			session, stream_id, name, value);
 	int err = request_set_header(session->http_session, stream_id,
 			name, namelen, value, valuelen);
 	if (err) {

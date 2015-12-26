@@ -142,6 +142,7 @@ int stream_on_headers_frame(struct session *session, const nghttp2_frame *frame)
 {
 	int32_t stream_id = frame->hd.stream_id;
 	if (frame->hd.flags & NGHTTP2_FLAG_END_STREAM) {
+		debug("session %p: stream %d: request end", session, stream_id);
 		int err = request_complete(session->http_session, stream_id);
 		if (err) {
 			debug("session %p stream %d: request_complete(): %s",
