@@ -1,9 +1,8 @@
 #include <nghttp2/nghttp2.h>
 
 #include "Python.h"
-#include "http2/http2.h"
-
 #include "http2/lib.h"
+#include "http2/http2.h"
 
 
 static int on_frame_recv_callback(nghttp2_session *nghttp2_session,
@@ -28,6 +27,29 @@ static int on_begin_headers_callback(nghttp2_session *nghttp2_session,
 		const nghttp2_frame *frame,
 		void *user_data)
 {
+	struct session *session = user_data;
+
+	if (frame->hd.type != NGHTTP2_HEADERS || frame->headers.cat != NGHTTP2_HCAT_REQUEST)
+		return 0;
+
+	int id, err;
+
+	id = recv_watchdog_id(frame->hd.stream_id);
+	if ((err = watchdog_add(session->http_session, id, RECV_TIMEOUT, recv_timeout, session)) != 0) {
+		debug("watchdog_add(%d): %s", id, http2_strerror(err));
+		return NGHTTP2_ERR_CALLBACK_FAILURE;
+	}
+	if ((err = watchdog_start(session->http_session, id)) != 0) {
+		debug("watchdog_start(%d): %s", id, http2_strerror(err));
+		return NGHTTP2_ERR_CALLBACK_FAILURE;
+	}
+
+	id = send_watchdog_id(frame->hd.stream_id);
+	if ((err = watchdog_add(session->http_session, id, RECV_TIMEOUT, recv_timeout, session)) != 0) {
+		debug("watchdog_add(%d): %s", id, http2_strerror(err));
+		return NGHTTP2_ERR_CALLBACK_FAILURE;
+	}
+
 	return 0;
 }
 
@@ -74,6 +96,24 @@ static int on_stream_close_callback(nghttp2_session *nghttp2_session,
 		uint32_t error_code,
 		void *user_data)
 {
+	struct session *session = user_data;
+
+	int ids[] = {
+		recv_watchdog_id(stream_id),
+		send_watchdog_id(stream_id),
+	};
+	for (size_t i = 0; i < ARRAY_SIZE(ids); i++) {
+		int id = ids[i], err;
+		if ((err = watchdog_stop(session->http_session, id)) != 0) {
+			debug("watchdog_stop(%d): %s", id, http2_strerror(err));
+			return NGHTTP2_ERR_CALLBACK_FAILURE;
+		}
+		if ((err = watchdog_remove(session->http_session, id)) != 0) {
+			debug("watchdog_remove(%d): %s", id, http2_strerror(err));
+			return NGHTTP2_ERR_CALLBACK_FAILURE;
+		}
+	}
+
 	return 0;
 }
 

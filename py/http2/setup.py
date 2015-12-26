@@ -17,6 +17,12 @@ if _Extension is Extension:
     raise RuntimeError('_Extension is %r' % Extension)
 
 
+if os.getenv('DEBUG'):
+    undef_macros = ['NDEBUG']
+else:
+    undef_macros = []
+
+
 include_dirs = ['.']
 if os.getenv('NGHTTP2_INCLUDEDIR'):
     include_dirs.append(os.getenv('NGHTTP2_INCLUDEDIR'))
@@ -36,7 +42,9 @@ _ext_modules = cythonize(_Extension(
     libraries=['nghttp2'],
     include_dirs=include_dirs,
     library_dirs=library_dirs,
+    undef_macros=undef_macros,
     extra_compile_args=[
+        '-std=c99',
         '-Werror',
         '-Wall',
         '-Wextra',

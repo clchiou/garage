@@ -1,36 +1,92 @@
+__all__ = [
+    'Session',
+]
+
+import logging
+
 from garage.async.watchdogs import Watchdog
 
+from libc.stdint cimport uint8_t
 from cpython.pycapsule cimport PyCapsule_New, PyCapsule_GetPointer
 
 cimport lib
+
+
+LOG = logging.getLogger(__name__)
 
 
 class Http2Error(Exception):
     pass
 
 
-cdef check(int error_code):
-    if error_code:
+def check(ssize_t error_code):
+    if error_code < 0:
         error = <bytes>lib.http2_strerror(error_code)
-        raise Http2Error(error.encode('utf-8'))
+        raise Http2Error(error.decode('utf-8'))
+    return error_code
 
 
 cdef class Session:
 
+    cdef bint closed
+    cdef dict watchdogs
     cdef lib.session session
 
     def __cinit__(self):
-        check(lib.session_init(&self.session))
+        LOG.debug('open http session')
+        check(lib.session_init(&self.session, <lib.http_session*>self))
+        self.watchdogs = {}
+        self.closed = False
 
     def __dealloc__(self):
+        self.close()
+
+    # Called from Http2Protocol
+
+    def close(self):
+        if self.closed:
+            return
+        LOG.debug('close http session')
         lib.session_del(&self.session)
+        for watchdog in self.watchdogs.values():
+            watchdog.stop()
+        self.watchdogs.clear()
+        self.closed = True
+
+    def data_received(self, data):
+        cdef const uint8_t *d = data
+        cdef ssize_t consumed = check(lib.session_recv(
+            &self.session, d, len(data)))
+        if consumed != len(data):
+            raise Http2Error(
+                'drop %d/%d bytes of data', len(data) - consumed, len(data))
+
+    # Called from C part.
+
+    def add_watchdog(self, watchdog_id, delay, callback):
+        if watchdog_id in self.watchdogs:
+            return lib.HTTP2_ERROR_WATCHDOG_ID_DUPLICATED
+        self.watchdogs[watchdog_id] = Watchdog(delay, callback)
+        return 0
+
+    def get_watchdog(self, watchdog_id):
+        return self.watchdogs[watchdog_id]
+
+    def remove_watchdog(self, watchdog_id):
+        try:
+            self.watchdogs.pop(watchdog_id)
+        except KeyError:
+            return lib.HTTP2_ERROR_WATCHDOG_NOT_FOUND
+        else:
+            return 0
 
 
-### Watchdog ###
+cdef public void http_session_close(lib.http_session *http_session):
+    session = <object>http_session
+    session.close()
 
 
-WATCHDOGS = {}
-WATCHDOG_ID = 1
+### Watchdog C API ###
 
 
 ctypedef public void (*watchdog_callback)(int watchdog_id, void *user_data)
@@ -50,45 +106,46 @@ class WatchdogCallbackClosure:
         callback(self.watchdog_id, user_data)
 
 
-cdef public int watchdog_new(float delay, watchdog_callback callback, void *user_data):
-    global WATCHDOG_ID
-    if WATCHDOG_ID in WATCHDOGS:
-        return lib.HTTP2_ERROR_WATCHDOG_ID_DUPLICATED
-    cdef int watchdog_id = WATCHDOG_ID
+cdef public int watchdog_add(
+        lib.http_session *http_session,
+        int watchdog_id,
+        float delay,
+        watchdog_callback callback, void *user_data):
+    session = <object>http_session
     closure = WatchdogCallbackClosure(
-        WATCHDOG_ID,
+        watchdog_id,
         PyCapsule_New(callback, NULL, NULL),
         PyCapsule_New(user_data, NULL, NULL),
     )
-    WATCHDOGS[WATCHDOG_ID] = Watchdog(delay, closure)
-    WATCHDOG_ID += 1
-    return watchdog_id
+    return session.add_watchdog(watchdog_id, delay, closure)
 
 
-cdef int watchdog_call(int watchdog_id, method):
-    dog = WATCHDOGS.get(watchdog_id)
+cdef public int watchdog_remove(
+        lib.http_session *http_session,
+        int watchdog_id):
+    session = <object>http_session
+    return session.remvoe_watchdog(watchdog_id)
+
+
+cdef int watchdog_call(lib.http_session *http_session, int watchdog_id, method):
+    session = <object>http_session
+    dog = session.get_watchdog(watchdog_id)
     if dog is None:
         return lib.HTTP2_ERROR_WATCHDOG_NOT_FOUND
     method(dog)
     return 0
 
 
-cdef public int watchdog_start(int watchdog_id):
-    return watchdog_call(watchdog_id, Watchdog.start)
+cdef public int watchdog_start(
+        lib.http_session *http_session, int watchdog_id):
+    return watchdog_call(http_session, watchdog_id, Watchdog.start)
 
 
-cdef public int watchdog_restart(int watchdog_id):
-    return watchdog_call(watchdog_id, Watchdog.restart)
+cdef public int watchdog_restart(
+        lib.http_session *http_session, int watchdog_id):
+    return watchdog_call(http_session, watchdog_id, Watchdog.restart)
 
 
-cdef public int watchdog_stop(int watchdog_id):
-    return watchdog_call(watchdog_id, Watchdog.stop)
-
-
-cdef public int watchdog_del(int watchdog_id):
-    try:
-        WATCHDOGS.pop(watchdog_id)
-    except KeyError:
-        return lib.HTTP2_ERROR_WATCHDOG_NOT_FOUND
-    else:
-        return 0
+cdef public int watchdog_stop(
+        lib.http_session *http_session, int watchdog_id):
+    return watchdog_call(http_session, watchdog_id, Watchdog.stop)
