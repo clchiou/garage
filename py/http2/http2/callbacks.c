@@ -1,3 +1,6 @@
+#include <stdlib.h>
+#include <string.h>
+
 #include <nghttp2/nghttp2.h>
 
 #include "Python.h"
@@ -13,11 +16,11 @@ static int on_frame_recv_callback(nghttp2_session *nghttp2_session,
 
 	switch (frame->hd.type) {
 	case NGHTTP2_DATA:
-		// TODO...
-		break;
+		// TODO: Handle POST data.
+		return stream_on_data_frame(session, frame);
 	case NGHTTP2_HEADERS:
-		// TODO...
-		break;
+		// TODO: HTTP 100-continue
+		return stream_on_headers_frame(session, frame);
 	case NGHTTP2_SETTINGS:
 		if (frame->hd.flags & NGHTTP2_FLAG_ACK) {
 			int err = session_settings_ack(session);
@@ -45,14 +48,7 @@ static int on_data_chunk_recv_callback(nghttp2_session *nghttp2_session,
 
 	// TODO: Handle POST data.
 
-	int err = stream_on_recv(session, stream_id);
-	if (err) {
-		debug("session %p stream %d: stream_on_recv(): %s",
-				session, stream_id, http2_strerror(err));
-		return NGHTTP2_ERR_CALLBACK_FAILURE;
-	}
-
-	return 0;
+	return stream_on_data_chunk(session, stream_id);
 }
 
 
@@ -62,19 +58,10 @@ static int on_begin_headers_callback(nghttp2_session *nghttp2_session,
 {
 	struct session *session = user_data;
 
-	if (frame->hd.type != NGHTTP2_HEADERS ||
-			frame->headers.cat != NGHTTP2_HCAT_REQUEST)
+	if (frame->hd.type != NGHTTP2_HEADERS || frame->headers.cat != NGHTTP2_HCAT_REQUEST)
 		return 0;
 
-	int err = stream_on_open(session, frame->hd.stream_id);
-	if (err) {
-		debug("session %p stream %d: stream_on_open(): %s",
-				session, frame->hd.stream_id,
-				http2_strerror(err));
-		return NGHTTP2_ERR_CALLBACK_FAILURE;
-	}
-
-	return 0;
+	return stream_on_open(session, frame->hd.stream_id);
 }
 
 
@@ -85,7 +72,7 @@ static int on_header_callback(nghttp2_session *nghttp2_session,
 		uint8_t flags,
 		void *user_data)
 {
-	return 0;
+	return 0;  // TODO: Add header to request.
 }
 
 
@@ -96,9 +83,7 @@ static ssize_t on_send_callback(nghttp2_session *nghttp2_session,
 {
 	struct session *session = user_data;
 	debug("session %p: send %zu bytes", session, length);
-
-	ssize_t nwrite = http_session_send(
-			session->http_session, data, length);
+	ssize_t nwrite = http_session_send(session->http_session, data, length);
 	if (nwrite == 0)
 		return NGHTTP2_ERR_WOULDBLOCK;
 	else if (nwrite < 0)
@@ -112,6 +97,18 @@ static int on_frame_send_callback(nghttp2_session *nghttp2_session,
 		const nghttp2_frame *frame,
 		void *user_data)
 {
+	struct session *session = user_data;
+
+	switch (frame->hd.type) {
+	case NGHTTP2_DATA:
+		// Fall through.
+	case NGHTTP2_HEADERS:
+		return stream_on_send_frame(session, frame);
+	case NGHTTP2_PUSH_PROMISE:
+		// TODO: Implement PUSH PROMISE.
+		break;
+	}
+
 	return 0;
 }
 
@@ -121,7 +118,51 @@ static int on_send_data_callback(nghttp2_session *nghttp2_session,
 		size_t length, nghttp2_data_source *source,
 		void *user_data)
 {
-	return 0;
+	enum {
+		HEADER_SIZE = 9,
+	};
+
+	struct session *session = user_data;
+
+	size_t padlen = frame->data.padlen;
+	expect(padlen <= 256);
+
+	size_t size = HEADER_SIZE + padlen + length;
+	debug("session %p stream %d: send %zu bytes",
+			session, frame->hd.stream_id, size);
+
+	uint8_t blob[256];
+	uint8_t *buffer = size <= sizeof(blob) ? blob : malloc(size);
+	uint8_t *pos = buffer;
+
+	memcpy(pos, framehd, HEADER_SIZE);
+	pos += HEADER_SIZE;
+
+	if (padlen > 0)
+		*pos++ = (uint8_t)(padlen - 1);
+
+	if (length) {
+		// TODO: Read length bytes from data source.
+		memset(pos, 0, length);
+		pos += length;
+	}
+
+	if (padlen > 1) {
+		memset(pos, 0, padlen - 1);
+		pos += padlen - 1;
+	}
+
+	expect(pos - buffer == (ssize_t)size);
+
+	ssize_t nwrite = http_session_send(session->http_session, buffer, size);
+	if (buffer != blob)
+		free(buffer);
+	if (nwrite == 0)
+		return NGHTTP2_ERR_WOULDBLOCK;
+	else if (nwrite < (ssize_t)size)
+		return NGHTTP2_ERR_CALLBACK_FAILURE;
+	else
+		return 0;
 }
 
 
@@ -131,15 +172,7 @@ static int on_stream_close_callback(nghttp2_session *nghttp2_session,
 		void *user_data)
 {
 	struct session *session = user_data;
-
-	int err = stream_on_close(session, stream_id);
-	if (err) {
-		debug("session %p stream %d: stream_on_close(): %s",
-				session, stream_id, http2_strerror(err));
-		return NGHTTP2_ERR_CALLBACK_FAILURE;
-	}
-
-	return 0;
+	return stream_on_close(session, stream_id);
 }
 
 

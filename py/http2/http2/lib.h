@@ -69,6 +69,10 @@ ssize_t session_recv(struct session *session, const uint8_t *data, size_t size);
 int stream_on_open(struct session *session, int32_t stream_id);
 int stream_on_close(struct session *session, int32_t stream_id);
 
-int stream_on_recv(struct session *session, int32_t stream_id);
+int stream_on_headers_frame(struct session *session, const nghttp2_frame *frame);
+int stream_on_data_frame(struct session *session, const nghttp2_frame *frame);
+int stream_on_data_chunk(struct session *session, int32_t stream_id);
+
+int stream_on_send_frame(struct session *session, const nghttp2_frame *frame);
 
 #endif

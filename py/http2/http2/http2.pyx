@@ -162,3 +162,14 @@ cdef public int watchdog_restart(
 cdef public int watchdog_stop(
         lib.http_session *http_session, int watchdog_id):
     return watchdog_call(http_session, watchdog_id, Watchdog.stop)
+
+
+cdef public int watchdog_restart_if_started(
+        lib.http_session *http_session, int watchdog_id):
+    session = <object>http_session
+    dog = session.watchdogs.get(watchdog_id)
+    if dog is None:
+        return lib.HTTP2_ERROR_WATCHDOG_NOT_FOUND
+    if dog.started:
+        dog.restart()
+    return 0
