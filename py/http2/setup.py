@@ -71,7 +71,4 @@ setup(
     license = 'MIT',
     packages = find_packages(exclude=['tests*']),
     ext_modules = ext_modules,
-    install_requires = [
-        'garage',
-    ],
 )

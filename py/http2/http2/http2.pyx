@@ -4,7 +4,7 @@ __all__ = [
 
 import logging
 
-from garage.async.watchdogs import Watchdog
+from .watchdogs import Watchdog
 
 from libc.stdint cimport uint8_t
 from cpython.pycapsule cimport PyCapsule_New, PyCapsule_GetPointer
