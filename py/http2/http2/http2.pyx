@@ -68,6 +68,9 @@ cdef class Session:
                     <uint8_t*>name, len(name),
                     <uint8_t*>value, len(value),
                 ))
+            if response.body is not None:
+                check(lib.response_set_body(
+                    &rep, <uint8_t *>response.body, len(response.body)))
             check(lib.stream_submit_response(&self.session, stream_id, &rep))
         finally:
             lib.response_del(&rep)

@@ -33,3 +33,6 @@ cdef extern from 'http2/lib.h':
     int response_add_header(response *response,
             uint8_t *name, size_t namelen,
             uint8_t *value, size_t valuelen)
+
+    int response_set_body(response *response,
+            const uint8_t *body, size_t body_size)

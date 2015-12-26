@@ -170,8 +170,11 @@ static int on_send_data_callback(nghttp2_session *nghttp2_session,
 		*pos++ = (uint8_t)(padlen - 1);
 
 	if (length) {
-		// TODO: Read length bytes from data source.
-		memset(pos, 0, length);
+		struct ro_view *view = source->ptr;
+		expect(view->size >= length);
+		memcpy(pos, view->data, length);
+		view->data += length;
+		view->size -= length;
 		pos += length;
 	}
 

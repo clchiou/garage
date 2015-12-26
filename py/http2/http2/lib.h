@@ -30,6 +30,12 @@
 	} while (0)				\
 
 
+struct ro_view {
+	const uint8_t *data;
+	size_t size;
+};
+
+
 // NOTE: nghttp2_error falls in [-999, -500] range.
 enum {
 	HTTP2_ERROR = -1,
@@ -90,6 +96,8 @@ struct response {
 	nghttp2_nv *headers;
 	size_t header_pos;
 	size_t num_headers;
+	const uint8_t *body;
+	size_t body_size;
 	nghttp2_nv blob[32];
 };
 
@@ -99,5 +107,8 @@ void response_del(struct response *response);
 int response_add_header(struct response *response,
 		uint8_t *name, size_t namelen,
 		uint8_t *value, size_t valuelen);
+
+int response_set_body(struct response *response,
+		const uint8_t *body, size_t body_size);
 
 #endif

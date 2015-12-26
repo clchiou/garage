@@ -50,3 +50,12 @@ int response_add_header(struct response *response,
 
 	return 0;
 }
+
+
+int response_set_body(struct response *response,
+		const uint8_t *body, size_t body_size)
+{
+	response->body = body;
+	response->body_size = body_size;
+	return 0;
+}

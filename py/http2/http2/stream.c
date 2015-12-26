@@ -1,8 +1,32 @@
 #include <stdbool.h>
+#include <string.h>
 
 #include "Python.h"
 #include "http2/lib.h"
 #include "http2/http2.h"
+
+
+static ssize_t data_source_read(
+		nghttp2_session *session,
+		int32_t stream_id,
+		uint8_t *buf, size_t length,
+		uint32_t *data_flags,
+		nghttp2_data_source *source,
+		void *user_data)
+{
+	struct ro_view *view = source->ptr;
+
+	ssize_t count;
+	if (view->size <= length) {
+		*data_flags |= NGHTTP2_DATA_FLAG_EOF;
+		count = view->size;
+	} else
+		count = length;
+
+	*data_flags |= NGHTTP2_DATA_FLAG_NO_COPY;
+
+	return count;
+}
 
 
 int stream_submit_response(struct session *session, int32_t stream_id,
@@ -10,13 +34,23 @@ int stream_submit_response(struct session *session, int32_t stream_id,
 {
 	debug("session %p stream %d: submit response", session, stream_id);
 
-	// TODO: Make data provider.
+	nghttp2_data_provider *data_provider = NULL;
+	nghttp2_data_provider dp;
+	struct ro_view view;
+	if (response->body) {
+		view.data = response->body;
+		view.size = response->body_size;
+		memset(&dp, 0, sizeof(dp));
+		dp.source.ptr = &view;
+		dp.read_callback = data_source_read;
+		data_provider = &dp;
+	}
 
 	int err;
 	err = nghttp2_submit_response(session->nghttp2_session,
 			stream_id,
 			response->headers, response->num_headers,
-			NULL);
+			data_provider);
 	if (err)
 		return err;
 
