@@ -2,10 +2,9 @@ __all__ = [
     'Session',
 ]
 
-import asyncio
 import logging
 
-from .models import Request, Response
+from .models import Request
 from .watchdogs import Watchdog
 
 from libc.stdint cimport uint8_t, int32_t
@@ -31,19 +30,17 @@ def check(ssize_t error_code):
 cdef class Session:
 
     cdef bint closed
-    cdef object loop
+    cdef public object protocol
     cdef public object transport
-    cdef object handler
     cdef public dict watchdogs
     cdef public dict requests
     cdef lib.session session
 
-    def __cinit__(self, transport, handler, loop=None):
+    def __cinit__(self, protocol, transport):
         LOG.debug('open http session')
         self.closed = False
-        self.loop = loop
+        self.protocol = protocol
         self.transport = transport
-        self.handler = handler
         self.watchdogs = {}
         self.requests = {}
         check(lib.session_init(&self.session, <lib.http_session*>self))
@@ -51,31 +48,27 @@ cdef class Session:
     def __dealloc__(self):
         self.close()
 
-    def handle_request(self, stream_id, request):
-        response = Response()
-        loop = self.loop or asyncio.get_event_loop()
-        loop.call_soon(self._handle, stream_id, request, response)
+    # Called from Http2Protocol
 
-    def _handle(self, stream_id, request, response):
-        self.handler(request, response)
-        cdef lib.response rep
-        check(lib.response_init(&rep, len(response.headers)))
+    def handle_response(self, stream_id, response):
+        cdef lib.response c_response
+        check(lib.response_init(&c_response, len(response.headers)))
         try:
-            # Will name and value be garbage-collected after for-loop?
             for name, value in response.headers.items():
                 check(lib.response_add_header(
-                    &rep,
+                    &c_response,
                     <uint8_t*>name, len(name),
                     <uint8_t*>value, len(value),
                 ))
             if response.body is not None:
                 check(lib.response_set_body(
-                    &rep, <uint8_t *>response.body, len(response.body)))
-            check(lib.stream_submit_response(&self.session, stream_id, &rep))
+                    &c_response,
+                    <uint8_t *>response.body, len(response.body),
+                ))
+            check(lib.stream_submit_response(
+                &self.session, stream_id, &c_response))
         finally:
-            lib.response_del(&rep)
-
-    # Called from Http2Protocol
+            lib.response_del(&c_response)
 
     def close(self):
         if self.closed:
@@ -207,7 +200,7 @@ cdef public int request_new(
     session = <object>http_session
     if stream_id in session.requests:
         return lib.HTTP2_ERROR_STREAM_ID_DUPLICATED
-    session.requests[stream_id] = Request()
+    session.requests[stream_id] = Request(session.protocol)
     return 0
 
 
@@ -244,5 +237,5 @@ cdef public int request_complete(
     except KeyError:
         return lib.HTTP2_ERROR_STREAM_ID_NOT_FOUND
     request.close()
-    session.handle_request(stream_id, request)
+    session.protocol.handle_request(stream_id, request)
     return 0
