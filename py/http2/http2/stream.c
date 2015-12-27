@@ -29,8 +29,8 @@ static ssize_t data_source_read(
 }
 
 
-int stream_submit_response(struct session *session, int32_t stream_id,
-		struct response *response)
+int stream_submit_response(struct session *session,
+		int32_t stream_id, struct response *response)
 {
 	debug("session %p stream %d: submit response", session, stream_id);
 
@@ -59,6 +59,27 @@ int stream_submit_response(struct session *session, int32_t stream_id,
 		return err;
 
 	return 0;
+}
+
+
+int stream_submit_non_final_response(struct session *session,
+		int32_t stream_id, const char *status)
+{
+	nghttp2_nv headers[] = {
+		{
+			.name = (uint8_t *)":status",
+			.namelen = sizeof(":status"),
+			.value = (uint8_t *)status,
+			.valuelen = strlen(status),
+			.flags = (NGHTTP2_NV_FLAG_NO_COPY_NAME | NGHTTP2_NV_FLAG_NO_COPY_VALUE),
+		},
+	};
+	return nghttp2_submit_headers(session->nghttp2_session,
+			NGHTTP2_FLAG_NONE,
+			stream_id,
+			NULL,
+			headers, ARRAY_SIZE(headers),
+			NULL);
 }
 
 
@@ -170,14 +191,14 @@ static int restart_recv(struct session *session, int32_t stream_id)
 }
 
 
-int stream_on_headers_frame(struct session *session, const nghttp2_frame *frame)
+static int on_frame(struct session *session, const nghttp2_frame *frame)
 {
 	int32_t stream_id = frame->hd.stream_id;
 	if (frame->hd.flags & NGHTTP2_FLAG_END_STREAM) {
 		debug("session %p: stream %d: request end", session, stream_id);
-		int err = request_complete(session->http_session, stream_id);
+		int err = request_end(session->http_session, stream_id);
 		if (err) {
-			debug("session %p stream %d: request_complete(): %s",
+			debug("session %p stream %d: request_end(): %s",
 					session, stream_id,
 					http2_strerror(err));
 			return NGHTTP2_ERR_CALLBACK_FAILURE;
@@ -188,10 +209,25 @@ int stream_on_headers_frame(struct session *session, const nghttp2_frame *frame)
 }
 
 
+int stream_on_headers_frame(struct session *session, const nghttp2_frame *frame)
+{
+	if (frame->headers.cat == NGHTTP2_HCAT_REQUEST) {
+		int32_t stream_id = frame->hd.stream_id;
+		int err = request_headers_end(session->http_session, stream_id);
+		if (err) {
+			debug("session %p stream %d: request_headers_end(): %s",
+					session, stream_id,
+					http2_strerror(err));
+			return NGHTTP2_ERR_CALLBACK_FAILURE;
+		}
+	}
+	return on_frame(session, frame);
+}
+
+
 int stream_on_data_frame(struct session *session, const nghttp2_frame *frame)
 {
-	// Their implementations are the same (at least for now).
-	return stream_on_headers_frame(session, frame);
+	return on_frame(session, frame);
 }
 
 

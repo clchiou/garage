@@ -79,8 +79,11 @@ ssize_t session_recv(struct session *session, const uint8_t *data, size_t size);
 
 struct response;
 
-int stream_submit_response(struct session *session, int32_t stream_id,
-		struct response *response);
+int stream_submit_response(struct session *session,
+		int32_t stream_id, struct response *response);
+
+int stream_submit_non_final_response(struct session *session,
+		int32_t stream_id, const char *status);
 
 int stream_on_open(struct session *session, int32_t stream_id);
 int stream_on_close(struct session *session, int32_t stream_id);

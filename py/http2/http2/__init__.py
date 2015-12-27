@@ -4,6 +4,7 @@ __all__ = [
 
 import asyncio
 import logging
+from collections import namedtuple
 
 from .http2 import Session
 from .models import Response
@@ -19,6 +20,7 @@ class Http2Protocol(asyncio.Protocol):
         self.handler_factory = handler_factory
         self.handler = None
         self.loop = loop
+        self._request_metadata = {}
 
     def connection_made(self, transport):
         if LOG.isEnabledFor(logging.DEBUG):
@@ -37,11 +39,31 @@ class Http2Protocol(asyncio.Protocol):
 
     # Called from http2.Session
 
-    def handle_request(self, stream_id, request):
+    def handle_request(self, stream_id, request, expect_100_continue=False):
+        if request in self._request_metadata:
+            return
         LOG.debug('handle request of stream %d', stream_id)
+        self._request_metadata[request] = RequestMetadata(
+            stream_id=stream_id,
+            expect_100_continue=expect_100_continue,
+        )
         asyncio.ensure_future(self._handle(stream_id, request), loop=self.loop)
 
     async def _handle(self, stream_id, request):
         response = Response()
         await self.handler(request, response)
         self.session.handle_response(stream_id, response)
+        self._request_metadata.pop(request)
+
+    # Called from models.Request
+
+    def on_read_body(self, request):
+        metadata = self._request_metadata[request]
+        if metadata.expect_100_continue:
+            self.session.submit_non_final_response(metadata.stream_id, 100)
+
+
+RequestMetadata = namedtuple(
+    'RequestMetadata',
+    'stream_id expect_100_continue',
+)

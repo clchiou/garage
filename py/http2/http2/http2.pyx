@@ -88,6 +88,12 @@ cdef class Session:
             raise Http2Error(
                 'drop %d/%d bytes of data', len(data) - consumed, len(data))
 
+    def submit_non_final_response(self, stream_id, status):
+        status = b'%d' % status
+        cdef const char *c_status = status
+        check(lib.stream_submit_non_final_response(
+            &self.session, stream_id, c_status))
+
 
 cdef public void http_session_close(lib.http_session *http_session):
     session = <object>http_session
@@ -218,6 +224,21 @@ cdef public int request_set_header(
     return 0
 
 
+cdef public int request_headers_end(
+        lib.http_session *http_session, int32_t stream_id):
+    session = <object>http_session
+    request = session.requests.get(stream_id)
+    if request is None:
+        return lib.HTTP2_ERROR_STREAM_ID_NOT_FOUND
+    for name, value in request.headers.items():
+        if name.lower() == b'expect' and '100-continue' in value.lower():
+            LOG.debug('handle http expect 100-continue')
+            session.protocol.handle_request(
+                stream_id, request, expect_100_continue=True)
+            break
+    return 0
+
+
 cdef public int request_append_body(
         lib.http_session *http_session, int32_t stream_id,
         const uint8_t *data, size_t length):
@@ -229,7 +250,7 @@ cdef public int request_append_body(
     return 0
 
 
-cdef public int request_complete(
+cdef public int request_end(
         lib.http_session *http_session, int32_t stream_id):
     session = <object>http_session
     try:

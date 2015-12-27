@@ -18,7 +18,6 @@ static int on_frame_recv_callback(nghttp2_session *nghttp2_session,
 	case NGHTTP2_DATA:
 		return stream_on_data_frame(session, frame);
 	case NGHTTP2_HEADERS:
-		// TODO: HTTP 100-continue
 		return stream_on_headers_frame(session, frame);
 	case NGHTTP2_SETTINGS:
 		if (frame->hd.flags & NGHTTP2_FLAG_ACK) {
