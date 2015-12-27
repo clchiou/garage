@@ -65,27 +65,6 @@ int stream_submit_response(struct session *session,
 }
 
 
-int stream_submit_non_final_response(struct session *session,
-		int32_t stream_id, const char *status)
-{
-	nghttp2_nv headers[] = {
-		{
-			.name = (uint8_t *)":status",
-			.namelen = sizeof(":status"),
-			.value = (uint8_t *)status,
-			.valuelen = strlen(status),
-			.flags = (NGHTTP2_NV_FLAG_NO_COPY_NAME | NGHTTP2_NV_FLAG_NO_COPY_VALUE),
-		},
-	};
-	return nghttp2_submit_headers(session->nghttp2_session,
-			NGHTTP2_FLAG_NONE,
-			stream_id,
-			NULL,
-			headers, ARRAY_SIZE(headers),
-			NULL);
-}
-
-
 // Unit: seconds.
 static const float RECV_TIMEOUT = 10;
 static const float SEND_TIMEOUT = 10;

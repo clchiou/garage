@@ -12,7 +12,6 @@ class Request:
 
     def __init__(self, protocol):
         self.headers = OrderedDict()
-        self._protocol = protocol
         self._body = None
         self._body_future = asyncio.Future(loop=protocol.loop)
         self._body_buffer = io.BytesIO()
@@ -22,7 +21,6 @@ class Request:
     @property
     async def body(self):
         if self._body is None:
-            self._protocol.on_read_body(self)
             self._body = await self._body_future
         return self._body
 
