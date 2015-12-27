@@ -25,7 +25,22 @@ static void settings_timeout(int watchdog_id, void *user_data)
 {
 	struct session *session = user_data;
 	debug("session %p: settings timeout", session);
-	http_session_close(session->http_session);
+
+	int err;
+	err = nghttp2_session_terminate_session(session->nghttp2_session,
+			NGHTTP2_SETTINGS_TIMEOUT);
+	if (err) {
+		debug("session %p nghttp2_session_terminate_session(): %s",
+				session, nghttp2_strerror(err));
+	}
+	err = nghttp2_session_send(session->nghttp2_session);
+	if (err) {
+		debug("session %p: nghttp2_session_send(): %s",
+				session, nghttp2_strerror(err));
+	}
+
+	if (session_should_close(session))
+		http_session_close(session->http_session);
 }
 
 
@@ -113,6 +128,13 @@ void session_del(struct session *session)
 
 	// Make repeated calls of session_del() safe.
 	memset(session, 0, sizeof(*session));
+}
+
+
+bool session_should_close(struct session *session)
+{
+	return (nghttp2_session_want_read(session->nghttp2_session) == 0 &&
+			nghttp2_session_want_write(session->nghttp2_session) == 0);
 }
 
 

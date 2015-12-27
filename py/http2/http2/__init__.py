@@ -4,6 +4,7 @@ __all__ = [
 
 import asyncio
 import logging
+import traceback
 from collections import namedtuple
 
 from .http2 import Session
@@ -33,7 +34,13 @@ class Http2Protocol(asyncio.Protocol):
         self.session.data_received(data)
 
     def connection_lost(self, exc):
-        LOG.debug('close connection', exc_info=bool(exc))
+        if LOG.isEnabledFor(logging.DEBUG):
+            if exc:
+                tb_lines = traceback.format_exception(
+                    exc.__class__, exc, exc.__traceback__)
+                LOG.debug('close connection\n%s', ''.join(tb_lines))
+            else:
+                LOG.debug('close connection')
         self.session.close()
         self.handler = None
 

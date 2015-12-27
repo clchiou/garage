@@ -58,6 +58,9 @@ int stream_submit_response(struct session *session,
 	if (err)
 		return err;
 
+	if (session_should_close(session))
+		http_session_close(session->http_session);
+
 	return 0;
 }
 
@@ -88,25 +91,41 @@ static const float RECV_TIMEOUT = 10;
 static const float SEND_TIMEOUT = 10;
 
 
-static void recv_timeout(int watchdog_id, void *user_data)
+static void stream_timeout(int watchdog_id, void *user_data)
 {
 	struct session *session = user_data;
-#ifndef NDEBUG
 	int32_t stream_id = watchdog_id / 10;
-	debug("session %p stream %d: recv timeout", session, stream_id);
-#endif
-	http_session_close(session->http_session);
-}
+	debug("session %p stream %d: stream timeout", session, stream_id);
 
+	int err;
 
-static void send_timeout(int watchdog_id, void *user_data)
-{
-	struct session *session = user_data;
-#ifndef NDEBUG
-	int32_t stream_id = watchdog_id / 10;
-	debug("session %p stream %d: send timeout", session, stream_id);
-#endif
-	http_session_close(session->http_session);
+	int ids[] = {
+		recv_watchdog_id(stream_id),
+		send_watchdog_id(stream_id),
+	};
+	for (size_t i = 0; i < ARRAY_SIZE(ids); i++) {
+		int id = ids[i];
+		if ((err = watchdog_stop(session->http_session, id)) != 0) {
+			debug("session %p stream %d: watchdog_stop(): %s",
+					session, stream_id, http2_strerror(err));
+		}
+	}
+
+	err = nghttp2_submit_rst_stream(session->nghttp2_session,
+			NGHTTP2_FLAG_NONE, stream_id, NGHTTP2_INTERNAL_ERROR);
+	if (err) {
+		debug("session %p stream %d: nghttp2_submit_rst_stream(): %s",
+				session, stream_id, nghttp2_strerror(err));
+	}
+
+	err = nghttp2_session_send(session->nghttp2_session);
+	if (err) {
+		debug("session %p stream %d: nghttp2_session_send(): %s",
+				session, stream_id, nghttp2_strerror(err));
+	}
+
+	if (session_should_close(session))
+		http_session_close(session->http_session);
 }
 
 
@@ -121,13 +140,13 @@ int stream_on_open(struct session *session, int32_t stream_id)
 		{
 			.id = recv_watchdog_id(stream_id),
 			.timeout = RECV_TIMEOUT,
-			.callback = recv_timeout,
+			.callback = stream_timeout,
 			.start = true,
 		},
 		{
 			.id = send_watchdog_id(stream_id),
 			.timeout = SEND_TIMEOUT,
-			.callback = send_timeout,
+			.callback = stream_timeout,
 			.start = false,
 		},
 	};

@@ -1,6 +1,7 @@
 #ifndef HTTP2_LIB_H_
 #define HTTP2_LIB_H_
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -71,6 +72,8 @@ struct session {
 
 int session_init(struct session *session, void *http_session);
 void session_del(struct session *session);
+
+bool session_should_close(struct session *session);
 
 int session_settings_ack(struct session *session);
 
