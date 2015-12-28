@@ -85,17 +85,9 @@ int stream_submit_response(struct session *session,
 }
 
 
-// Unit: seconds.
-static const float RECV_TIMEOUT = 10;
-static const float SEND_TIMEOUT = 10;
-
-
-static void stream_timeout(int watchdog_id, void *user_data)
+void stream_close(struct session *session, int32_t stream_id)
 {
-	struct session *session = user_data;
-	int32_t stream_id = watchdog_id / 10;
-	debug("session %p stream %d: stream timeout", session, stream_id);
-
+	debug("session %p stream %d: close stream", session, stream_id);
 	int err;
 
 	int ids[] = {
@@ -125,6 +117,20 @@ static void stream_timeout(int watchdog_id, void *user_data)
 
 	if (session_should_close(session))
 		http_session_close(session->http_session);
+}
+
+
+// Unit: seconds.
+static const float RECV_TIMEOUT = 10;
+static const float SEND_TIMEOUT = 10;
+
+
+static void stream_timeout(int watchdog_id, void *user_data)
+{
+	struct session *session = user_data;
+	int32_t stream_id = watchdog_id / 10;
+	debug("session %p stream %d: stream timeout", session, stream_id);
+	stream_close(session, stream_id);
 }
 
 

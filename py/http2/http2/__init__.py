@@ -66,7 +66,6 @@ class Protocol(asyncio.Protocol):
         asyncio.ensure_future(self._handle(stream_id, request), loop=self.loop)
 
     async def _handle(self, stream_id, request):
-        # TODO: Catch exception and return 500 internal error.
         try:
             response = Response()
             await self.handler(request, response)
@@ -81,5 +80,17 @@ class Protocol(asyncio.Protocol):
                     self.handle_request(promised_stream_id, req)
 
             self.session.handle_response(stream_id, response)
+
+        except:
+            LOG.exception(
+                'error when handling request on stream %d', stream_id)
+            response = Response()
+            response.headers[b':status'] = (
+                b'%d' % http.HTTPStatus.INTERNAL_SERVER_ERROR.value)
+            self.session.handle_response(stream_id, response)
+            self.session.close_stream(stream_id)
+
+            # Should I re-raise the exception?
+
         finally:
             self._flying_requests.discard(request)

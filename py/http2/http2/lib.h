@@ -88,6 +88,8 @@ int32_t stream_submit_push_promise(struct session *session,
 int stream_submit_response(struct session *session,
 		int32_t stream_id, struct builder *response);
 
+void stream_close(struct session *session, int32_t stream_id);
+
 int stream_on_open(struct session *session, int32_t stream_id);
 int stream_on_close(struct session *session, int32_t stream_id);
 

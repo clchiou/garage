@@ -28,6 +28,8 @@ cdef extern from 'http2/lib.h':
     int32_t stream_submit_push_promise(session *session, int32_t stream_id, builder *resposne)
     int stream_submit_response(session *session, int32_t stream_id, builder *resposne)
 
+    void stream_close(session *session, int32_t stream_id)
+
     int builder_init(builder *builder, size_t num_headers)
     void builder_del(builder *builder)
 

@@ -88,6 +88,9 @@ cdef class Session:
         finally:
             lib.builder_del(&c_response)
 
+    def close_stream(self, stream_id):
+        lib.stream_close(&self.session, stream_id)
+
     def close(self):
         if self.closed:
             return
