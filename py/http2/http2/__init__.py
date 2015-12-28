@@ -14,6 +14,7 @@ from .models import Request, Response
 
 
 LOG = logging.getLogger(__name__)
+LOG.addHandler(logging.NullHandler())
 
 
 class Protocol(asyncio.Protocol):
