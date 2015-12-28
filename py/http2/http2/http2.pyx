@@ -48,7 +48,25 @@ cdef class Session:
     def __dealloc__(self):
         self.close()
 
-    # Called from Http2Protocol
+    # Called from Protocol
+
+    def submit_push_promise(self, stream_id, request):
+        cdef lib.response c_request
+        cdef int32_t promised_stream_id
+        check(lib.response_init(&c_request, len(request.headers)))
+        try:
+            for name, value in request.headers.items():
+                check(lib.response_add_header(
+                    &c_request,
+                    <uint8_t*>name, len(name),
+                    <uint8_t*>value, len(value),
+                ))
+            promised_stream_id = lib.stream_submit_push_promise(
+                &self.session, stream_id, &c_request)
+            check(promised_stream_id)
+            return promised_stream_id
+        finally:
+            lib.response_del(&c_request)
 
     def handle_response(self, stream_id, response):
         cdef lib.response c_response

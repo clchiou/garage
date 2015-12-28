@@ -1,5 +1,7 @@
 __all__ = [
-    'Http2Protocol',
+    'Protocol',
+    'Request',
+    'Response',
 ]
 
 import asyncio
@@ -8,13 +10,13 @@ import logging
 import traceback
 
 from .http2 import Session
-from .models import Response
+from .models import Request, Response
 
 
 LOG = logging.getLogger(__name__)
 
 
-class Http2Protocol(asyncio.Protocol):
+class Protocol(asyncio.Protocol):
 
     def __init__(self, handler_factory, loop=None):
         super().__init__()
@@ -64,9 +66,20 @@ class Http2Protocol(asyncio.Protocol):
         asyncio.ensure_future(self._handle(stream_id, request), loop=self.loop)
 
     async def _handle(self, stream_id, request):
+        # TODO: Catch exception and return 500 internal error.
         try:
             response = Response()
             await self.handler(request, response)
+
+            for req, rep in response._push_promises:
+                promised_stream_id = self.session.submit_push_promise(
+                        stream_id, req)
+                LOG.debug('push promise on stream %d', promised_stream_id)
+                if rep:
+                    self.session.handle_response(promised_stream_id, rep)
+                else:
+                    self.handle_request(promised_stream_id, req)
+
             self.session.handle_response(stream_id, response)
         finally:
             self._flying_requests.discard(request)

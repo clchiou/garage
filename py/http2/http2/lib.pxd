@@ -25,6 +25,7 @@ cdef extern from 'http2/lib.h':
 
     ssize_t session_recv(session *session, const uint8_t *data, size_t size)
 
+    int32_t stream_submit_push_promise(session *session, int32_t stream_id, response *resposne)
     int stream_submit_response(session *session, int32_t stream_id, response *resposne)
 
     int response_init(response *response, size_t num_headers)

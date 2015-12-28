@@ -82,6 +82,8 @@ ssize_t session_recv(struct session *session, const uint8_t *data, size_t size);
 
 struct response;
 
+int32_t stream_submit_push_promise(struct session *session,
+		int32_t stream_id, struct response *request);
 int stream_submit_response(struct session *session,
 		int32_t stream_id, struct response *response);
 
@@ -93,6 +95,8 @@ int stream_on_data_frame(struct session *session, const nghttp2_frame *frame);
 int stream_on_data_chunk(struct session *session, int32_t stream_id);
 
 int stream_on_send_frame(struct session *session, const nghttp2_frame *frame);
+int stream_on_send_push_promise_frame(struct session *session,
+		const nghttp2_frame *frame);
 
 
 struct response {

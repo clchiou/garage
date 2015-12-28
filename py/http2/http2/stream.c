@@ -6,6 +6,26 @@
 #include "http2/http2.h"
 
 
+int32_t stream_submit_push_promise(struct session *session,
+		int32_t stream_id, struct response *request)
+{
+	int32_t promised_stream_id = nghttp2_submit_push_promise(
+			session->nghttp2_session,
+			NGHTTP2_FLAG_END_HEADERS,
+			stream_id,
+			request->headers, request->num_headers,
+			NULL);
+	if (promised_stream_id < 0)
+		return promised_stream_id;
+
+	int err = stream_on_open(session, promised_stream_id);
+	if (err)
+		return err;
+
+	return promised_stream_id;
+}
+
+
 static ssize_t data_source_read(
 		nghttp2_session *session,
 		int32_t stream_id,
@@ -268,7 +288,7 @@ int stream_on_send_frame(struct session *session, const nghttp2_frame *frame)
 			if ((err = watchdog_restart_if_started(session->http_session, recv_id)) != 0)
 				break;
 			// Enable send watchdog only when blocked.
-			if ((err = watchdog_start(session->http_session, send_id)) != 0)
+			if ((err = watchdog_restart(session->http_session, send_id)) != 0)
 				break;
 		} else {
 			if ((err = watchdog_restart_if_started(session->http_session, recv_id)) != 0)
@@ -279,8 +299,40 @@ int stream_on_send_frame(struct session *session, const nghttp2_frame *frame)
 	} while (0);
 
 	if (err) {
-		debug("session %p stream %d: stream_on_send_frame(): %s",
-				session, stream_id, http2_strerror(err));
+		debug("session %p stream %d: %s(): %s",
+				session, stream_id,
+				__func__, http2_strerror(err));
+		return NGHTTP2_ERR_CALLBACK_FAILURE;
+	}
+
+	return 0;
+}
+
+
+int stream_on_send_push_promise_frame(struct session *session,
+		const nghttp2_frame *frame)
+{
+	int32_t stream_id = frame->hd.stream_id;
+
+	int recv_id = recv_watchdog_id(stream_id);
+	if (!watchdog_exist(session->http_session, recv_id))
+		return 0;
+
+	int send_id = send_watchdog_id(stream_id);
+	expect(watchdog_exist(session->http_session, send_id));
+
+	int err = 0;
+	do {
+		if ((err = watchdog_restart_if_started(session->http_session, recv_id)) != 0)
+			break;
+		if ((err = watchdog_restart(session->http_session, send_id)) != 0)
+			break;
+	} while (0);
+
+	if (err) {
+		debug("session %p stream %d: %s(): %s",
+				session, stream_id,
+				__func__, http2_strerror(err));
 		return NGHTTP2_ERR_CALLBACK_FAILURE;
 	}
 

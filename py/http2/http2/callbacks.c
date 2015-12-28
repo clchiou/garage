@@ -131,8 +131,7 @@ static int on_frame_send_callback(nghttp2_session *nghttp2_session,
 	case NGHTTP2_HEADERS:
 		return stream_on_send_frame(session, frame);
 	case NGHTTP2_PUSH_PROMISE:
-		// TODO: Implement PUSH PROMISE.
-		break;
+		return stream_on_send_push_promise_frame(session, frame);
 	}
 
 	return 0;
