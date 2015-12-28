@@ -1,4 +1,5 @@
 __all__ = [
+    'HttpError',
     'Protocol',
     'Request',
     'Response',
@@ -17,6 +18,13 @@ LOG = logging.getLogger(__name__)
 LOG.addHandler(logging.NullHandler())
 
 
+class HttpError(Exception):
+
+    def __init__(self, status):
+        super().__init__(status.name)
+        self.status = status
+
+
 class Protocol(asyncio.Protocol):
 
     def __init__(self, handler_factory, loop=None):
@@ -24,7 +32,6 @@ class Protocol(asyncio.Protocol):
         self.handler_factory = handler_factory
         self.handler = None
         self.loop = loop
-        self._flying_requests = set()
 
     def connection_made(self, transport):
         if LOG.isEnabledFor(logging.DEBUG):
@@ -50,9 +57,6 @@ class Protocol(asyncio.Protocol):
     # Called from http2.Session
 
     def handle_request(self, stream_id, request):
-        if request in self._flying_requests:
-            return
-
         for name, value in request.headers.items():
             if name.lower() == b'expect' and b'100-continue' in value.lower():
                 LOG.debug('reject "expect: 100-continue"')
@@ -61,16 +65,23 @@ class Protocol(asyncio.Protocol):
                     b'%d' % http.HTTPStatus.EXPECTATION_FAILED.value)
                 self.session.handle_response(stream_id, response)
                 return
-
         LOG.debug('handle request of stream %d', stream_id)
-        self._flying_requests.add(request)
         asyncio.ensure_future(self._handle(stream_id, request), loop=self.loop)
 
     async def _handle(self, stream_id, request):
+        response = Response()
         try:
-            response = Response()
             await self.handler(request, response)
-
+        except HttpError as e:
+            LOG.debug('HTTP status: %s', e.status)
+            self._submit_status(stream_id, e.status)
+        except:
+            LOG.exception(
+                'error when handling request on stream %d', stream_id)
+            self._submit_status(
+                stream_id, http.HTTPStatus.INTERNAL_SERVER_ERROR)
+            self.session.close_stream(stream_id)
+        else:
             for req, rep in response._push_promises:
                 promised_stream_id = self.session.submit_push_promise(
                         stream_id, req)
@@ -79,19 +90,9 @@ class Protocol(asyncio.Protocol):
                     self.session.handle_response(promised_stream_id, rep)
                 else:
                     self.handle_request(promised_stream_id, req)
-
             self.session.handle_response(stream_id, response)
 
-        except:
-            LOG.exception(
-                'error when handling request on stream %d', stream_id)
-            response = Response()
-            response.headers[b':status'] = (
-                b'%d' % http.HTTPStatus.INTERNAL_SERVER_ERROR.value)
-            self.session.handle_response(stream_id, response)
-            self.session.close_stream(stream_id)
-
-            # Should I re-raise the exception?
-
-        finally:
-            self._flying_requests.discard(request)
+    def _submit_status(self, stream_id, status):
+        response = Response()
+        response.headers[b':status'] = b'%d' % status.value
+        self.session.handle_response(stream_id, response)

@@ -284,5 +284,4 @@ cdef public int request_end(
     except KeyError:
         return lib.HTTP2_ERROR_STREAM_ID_NOT_FOUND
     request.close()
-    session.protocol.handle_request(stream_id, request)
     return 0
