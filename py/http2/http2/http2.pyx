@@ -2,6 +2,7 @@ __all__ = [
     'Session',
 ]
 
+import io
 import logging
 
 from .models import Request
@@ -31,7 +32,8 @@ cdef class Session:
 
     cdef bint closed
     cdef public object protocol
-    cdef public object transport
+    cdef object transport
+    cdef object buffer
     cdef public dict watchdogs
     cdef public dict requests
     cdef lib.session session
@@ -41,12 +43,23 @@ cdef class Session:
         self.closed = False
         self.protocol = protocol
         self.transport = transport
+        self.buffer = io.BytesIO()
         self.watchdogs = {}
         self.requests = {}
         check(lib.session_init(&self.session, <lib.http_session*>self))
 
     def __dealloc__(self):
         self.close()
+
+    def write(self, data):
+        self.buffer.write(data)
+
+    def flush(self):
+        output = self.buffer.getvalue()
+        LOG.debug('flush %d bytes of output buffer', len(output))
+        self.transport.write(output)
+        self.buffer.close()
+        self.buffer = io.BytesIO()
 
     # Called from Protocol
 
@@ -64,6 +77,7 @@ cdef class Session:
             promised_stream_id = lib.stream_submit_push_promise(
                 &self.session, stream_id, &c_request)
             check(promised_stream_id)
+            self.flush()
             return promised_stream_id
         finally:
             lib.builder_del(&c_request)
@@ -85,6 +99,7 @@ cdef class Session:
                 ))
             check(lib.stream_submit_response(
                 &self.session, stream_id, &c_response))
+            self.flush()
         finally:
             lib.builder_del(&c_response)
 
@@ -95,6 +110,7 @@ cdef class Session:
         if self.closed:
             return
         LOG.debug('close http session')
+        self.flush()
         lib.session_del(&self.session)
         for watchdog in self.watchdogs.values():
             watchdog.stop()
@@ -119,7 +135,7 @@ cdef public ssize_t http_session_send(
         lib.http_session *http_session, const uint8_t *data, size_t size):
     session = <object>http_session
     cdef bytes data_bytes = data[:size]
-    session.transport.write(data_bytes)
+    session.write(data_bytes)
     return size
 
 

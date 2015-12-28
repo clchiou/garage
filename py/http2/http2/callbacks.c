@@ -108,7 +108,7 @@ static ssize_t on_send_callback(nghttp2_session *nghttp2_session,
 		void *user_data)
 {
 	struct session *session = user_data;
-	debug("session %p: send %zu bytes on the wire", session, length);
+	debug("session %p: write %zu bytes to output buffer", session, length);
 	ssize_t nwrite = http_session_send(session->http_session, data, length);
 	if (nwrite == 0)
 		return NGHTTP2_ERR_WOULDBLOCK;
@@ -153,7 +153,7 @@ static int on_send_data_callback(nghttp2_session *nghttp2_session,
 	expect(padlen <= 256);
 
 	size_t size = HEADER_SIZE + padlen + length;
-	debug("session %p stream %d: prepare sending %zu bytes",
+	debug("session %p stream %d: write %zu bytes to output buffer",
 			session, frame->hd.stream_id, size);
 
 	uint8_t blob[256];
