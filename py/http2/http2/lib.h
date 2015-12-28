@@ -9,6 +9,12 @@
 #include <nghttp2/nghttp2.h>
 
 
+// cython3 still generates DL_IMPORT, WTF?!
+#ifndef DL_IMPORT
+#define DL_IMPORT(RTYPE) RTYPE
+#endif
+
+
 #define ARRAY_SIZE(a)				\
 	((sizeof(a) / sizeof(*(a))) /		\
 	 (size_t)(!(sizeof(a) % sizeof(*(a)))))
