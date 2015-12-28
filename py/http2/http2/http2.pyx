@@ -51,12 +51,12 @@ cdef class Session:
     # Called from Protocol
 
     def submit_push_promise(self, stream_id, request):
-        cdef lib.response c_request
+        cdef lib.builder c_request
         cdef int32_t promised_stream_id
-        check(lib.response_init(&c_request, len(request.headers)))
+        check(lib.builder_init(&c_request, len(request.headers)))
         try:
             for name, value in request.headers.items():
-                check(lib.response_add_header(
+                check(lib.builder_add_header(
                     &c_request,
                     <uint8_t*>name, len(name),
                     <uint8_t*>value, len(value),
@@ -66,27 +66,27 @@ cdef class Session:
             check(promised_stream_id)
             return promised_stream_id
         finally:
-            lib.response_del(&c_request)
+            lib.builder_del(&c_request)
 
     def handle_response(self, stream_id, response):
-        cdef lib.response c_response
-        check(lib.response_init(&c_response, len(response.headers)))
+        cdef lib.builder c_response
+        check(lib.builder_init(&c_response, len(response.headers)))
         try:
             for name, value in response.headers.items():
-                check(lib.response_add_header(
+                check(lib.builder_add_header(
                     &c_response,
                     <uint8_t*>name, len(name),
                     <uint8_t*>value, len(value),
                 ))
             if response.body is not None:
-                check(lib.response_set_body(
+                check(lib.builder_set_body(
                     &c_response,
                     <uint8_t *>response.body, len(response.body),
                 ))
             check(lib.stream_submit_response(
                 &self.session, stream_id, &c_response))
         finally:
-            lib.response_del(&c_response)
+            lib.builder_del(&c_response)
 
     def close(self):
         if self.closed:

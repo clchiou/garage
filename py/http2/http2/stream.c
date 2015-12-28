@@ -7,7 +7,7 @@
 
 
 int32_t stream_submit_push_promise(struct session *session,
-		int32_t stream_id, struct response *request)
+		int32_t stream_id, struct builder *request)
 {
 	int32_t promised_stream_id = nghttp2_submit_push_promise(
 			session->nghttp2_session,
@@ -50,7 +50,7 @@ static ssize_t data_source_read(
 
 
 int stream_submit_response(struct session *session,
-		int32_t stream_id, struct response *response)
+		int32_t stream_id, struct builder *response)
 {
 	debug("session %p stream %d: submit response", session, stream_id);
 

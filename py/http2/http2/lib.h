@@ -80,12 +80,13 @@ int session_settings_ack(struct session *session);
 ssize_t session_recv(struct session *session, const uint8_t *data, size_t size);
 
 
-struct response;
+struct builder;
 
 int32_t stream_submit_push_promise(struct session *session,
-		int32_t stream_id, struct response *request);
+		int32_t stream_id, struct builder *request);
+
 int stream_submit_response(struct session *session,
-		int32_t stream_id, struct response *response);
+		int32_t stream_id, struct builder *response);
 
 int stream_on_open(struct session *session, int32_t stream_id);
 int stream_on_close(struct session *session, int32_t stream_id);
@@ -99,7 +100,7 @@ int stream_on_send_push_promise_frame(struct session *session,
 		const nghttp2_frame *frame);
 
 
-struct response {
+struct builder {
 	nghttp2_nv *headers;
 	size_t header_pos;
 	size_t num_headers;
@@ -108,14 +109,14 @@ struct response {
 	nghttp2_nv blob[32];
 };
 
-int response_init(struct response *response, size_t num_headers);
-void response_del(struct response *response);
+int builder_init(struct builder *builder, size_t num_headers);
+void builder_del(struct builder *builder);
 
-int response_add_header(struct response *response,
+int builder_add_header(struct builder *builder,
 		uint8_t *name, size_t namelen,
 		uint8_t *value, size_t valuelen);
 
-int response_set_body(struct response *response,
+int builder_set_body(struct builder *builder,
 		const uint8_t *body, size_t body_size);
 
 #endif

@@ -17,7 +17,7 @@ cdef extern from 'http2/lib.h':
     struct session:
         pass
 
-    struct response:
+    struct builder:
         pass
 
     int session_init(session *session, void *http_session)
@@ -25,15 +25,15 @@ cdef extern from 'http2/lib.h':
 
     ssize_t session_recv(session *session, const uint8_t *data, size_t size)
 
-    int32_t stream_submit_push_promise(session *session, int32_t stream_id, response *resposne)
-    int stream_submit_response(session *session, int32_t stream_id, response *resposne)
+    int32_t stream_submit_push_promise(session *session, int32_t stream_id, builder *resposne)
+    int stream_submit_response(session *session, int32_t stream_id, builder *resposne)
 
-    int response_init(response *response, size_t num_headers)
-    void response_del(response *response)
+    int builder_init(builder *builder, size_t num_headers)
+    void builder_del(builder *builder)
 
-    int response_add_header(response *response,
+    int builder_add_header(builder *builder,
             uint8_t *name, size_t namelen,
             uint8_t *value, size_t valuelen)
 
-    int response_set_body(response *response,
+    int builder_set_body(builder *builder,
             const uint8_t *body, size_t body_size)
