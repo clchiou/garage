@@ -3,7 +3,6 @@ __all__ = [
     'EndpointNotFound',
     'VersionNotSupported',
     'Service',
-    'Version',
 ]
 
 import re
@@ -29,7 +28,8 @@ class VersionNotSupported(ServiceError):
 
 class Service:
 
-    def __init__(self, version):
+    def __init__(self, name, version):
+        self.name = name
         self.version = version
         self.policies = []
         self.endpoints = {}
@@ -64,7 +64,7 @@ class Service:
         endpoint = self.endpoints.get(name)
         if endpoint is None:
             raise EndpointNotFound(path)
-        if not self.version.is_compatible_with(version):
+        if self.version < version:
             raise VersionNotSupported(version)
         return endpoint
 
@@ -89,36 +89,13 @@ class Service:
         await http_response.close()
 
 
-PATTERN_PATH = re.compile(br'/(\d+\.\d+\.\d+)/([a-zA-Z0-9_\-.]+)')
+PATTERN_PATH = re.compile(br'/(\d+)/([a-zA-Z0-9_\-.]+)')
 
 
 def parse_path(path):
     match = PATTERN_PATH.match(path)
     if not match:
         raise ValueError(path)
-    version = Version.parse(match.group(1))
+    version = int(match.group(1))
     endpoint = match.group(2)
     return version, endpoint
-
-
-class Version(namedtuple('Version', 'major minor patch')):
-
-    # Should I forbid leading zeros?
-    PATTERN_VERSION = re.compile(br'(\d+)\.(\d+)\.(\d+)')
-
-    @classmethod
-    def parse(cls, version):
-        match = cls.PATTERN_VERSION.fullmatch(version)
-        if not match:
-            raise ValueError(version)
-        return cls(
-            major=int(match.group(1)),
-            minor=int(match.group(2)),
-            patch=int(match.group(3)),
-        )
-
-    def __str__(self):
-        return '%d.%d.%d' % self
-
-    def is_compatible_with(self, other):
-        return self.major == other.major

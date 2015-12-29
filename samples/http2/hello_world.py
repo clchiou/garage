@@ -5,7 +5,7 @@ import sys
 
 import http2
 
-from garage.http import services
+from garage.http.services import Service
 
 
 if len(sys.argv) < 2:
@@ -18,7 +18,7 @@ async def hello_world(request):
     print('request:', repr(request))
     return b'hello world'
 
-service = services.Service(services.Version(1, 0, 0))
+service = Service(name='hello-world', version=1)
 service.add_endpoint('hello-world', hello_world)
 
 loop = asyncio.get_event_loop()
