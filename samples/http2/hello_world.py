@@ -1,28 +1,30 @@
 import asyncio
+import logging
 import socket
 import sys
 
 import http2
+
+from garage.http import services
 
 
 if len(sys.argv) < 2:
     print('Usage: %s port' % sys.argv[0])
     sys.exit(1)
 
+logging.basicConfig()
 
-async def handler(request, response):
-    method = request.headers[b':method'].decode('ascii')
-    path = request.headers[b':path'].decode('ascii')
-    print('%s %s' % (method.upper(), path))
-    response.headers[b':status'] = b'200'
-    response.write(b'Hello, World!\n')
-    response.close()
+async def hello_world(request):
+    print('request:', repr(request))
+    return b'hello world'
 
+service = services.Service(services.Version(1, 0, 0))
+service.add_endpoint('hello-world', hello_world)
 
 loop = asyncio.get_event_loop()
 
 server = loop.run_until_complete(loop.create_server(
-    lambda: http2.Protocol(lambda: handler),
+    lambda: http2.Protocol(lambda: service),
     '127.0.0.1', int(sys.argv[1]),
 ))
 
