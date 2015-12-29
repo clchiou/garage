@@ -73,8 +73,11 @@ class Service:
             await policy(http_request.headers)
 
         request = await http_request.body
-        if self.parse:
-            request = await self.parse(http_request.headers, request)
+        if request:
+            if self.parse:
+                request = await self.parse(http_request.headers, request)
+        else:
+            request = None
 
         response = await endpoint(request)
         if self.serialize:
