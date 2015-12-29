@@ -57,9 +57,9 @@ class Response:
     def push(self, request, response=None):
         self._push_promises.append((request, response))
 
-    def write(self, data):
+    async def write(self, data):
         self._body_buffer.write(data)
 
-    def close(self):
+    async def close(self):
         self.body = self._body_buffer.getvalue()
         self._body_buffer.close()

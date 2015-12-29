@@ -91,8 +91,8 @@ class Service:
             response = await self.serialize(http_request.headers, response)
 
         http_response.headers[b':status'] = b'200'
-        http_response.write(response)
-        http_response.close()
+        await http_response.write(response)
+        await http_response.close()
 
 
 def parse_path(root, path):
