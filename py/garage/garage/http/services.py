@@ -60,7 +60,7 @@ class ServiceHub:
         br'/([a-zA-Z0-9_\-.]+)/(\d+)/([a-zA-Z0-9_\-.]+)')
 
     def dispatch(self, path):
-        match = self.PATTERN_SERVICE.fullmatch(path)
+        match = self.PATTERN_SERVICE.match(path)
         if not match:
             raise EndpointNotFound(path)
         service_name = match.group(1)
