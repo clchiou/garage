@@ -37,11 +37,16 @@ class Protocol(asyncio.Protocol):
         if LOG.isEnabledFor(logging.DEBUG):
             peername = transport.get_extra_info('peername')
             LOG.debug('accept %s:%d', peername[0], peername[1])
+        self.transport = transport
         self.handler = self.handler_factory()
         self.session = Session(self, transport)
 
     def data_received(self, data):
-        self.session.data_received(data)
+        try:
+            self.session.data_received(data)
+        except:
+            LOG.exception('error while receiving data')
+            self.transport.close()
 
     def connection_lost(self, exc):
         if LOG.isEnabledFor(logging.DEBUG):
