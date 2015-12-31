@@ -97,7 +97,7 @@ class Service:
         self.parse = None
         self.serialize = None
 
-    def add_policies(self, policy):
+    def add_policy(self, policy):
         self.policies.append(policy)
 
     def add_endpoint(self, name, endpoint):
