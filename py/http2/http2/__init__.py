@@ -20,9 +20,10 @@ LOG.addHandler(logging.NullHandler())
 
 class HttpError(Exception):
 
-    def __init__(self, status):
-        super().__init__(status.name)
+    def __init__(self, status, reason=None):
+        super().__init__('%s: %s' % (status.name, reason))
         self.status = status
+        self.reason = reason
 
 
 class Protocol(asyncio.Protocol):
@@ -78,12 +79,12 @@ class Protocol(asyncio.Protocol):
         try:
             await self.handler(request, response)
         except HttpError as e:
-            LOG.debug('HTTP status: %s', e.status)
-            self._submit_status(stream_id, e.status)
+            LOG.debug('HTTP status: %s', e)
+            await self._submit_status(stream_id, e.status, e.reason)
         except:
             LOG.exception(
                 'error when handling request on stream %d', stream_id)
-            self._submit_status(
+            await self._submit_status(
                 stream_id, http.HTTPStatus.INTERNAL_SERVER_ERROR)
             self.session.close_stream(stream_id)
         else:
@@ -97,7 +98,10 @@ class Protocol(asyncio.Protocol):
                     self.handle_request(promised_stream_id, req)
             self.session.handle_response(stream_id, response)
 
-    def _submit_status(self, stream_id, status):
+    async def _submit_status(self, stream_id, status, reason=None):
         response = Response()
         response.headers[b':status'] = b'%d' % status.value
+        if reason:
+            await response.write(reason.encode('utf-8'))
+            await response.close()
         self.session.handle_response(stream_id, response)

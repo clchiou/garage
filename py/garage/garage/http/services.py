@@ -58,14 +58,15 @@ class Service:
             endpoint = self.dispatch(path)
         except EndpointNotFound:
             raise HttpError(HTTPStatus.NOT_FOUND)
-        except VersionNotSupported:
+        except VersionNotSupported as e:
             # Returning 400 when a request's version is newer is weird,
             # but none of other 4xx or 5xx code makes more sense anyway.
             # Like, 403?  But, could we say we understand a request of
             # newer version (premise of a 403)?  At least when returning
             # 400, we are telling the client that he could modify the
             # request (down-version it) and send it again.
-            raise HttpError(HTTPStatus.BAD_REQUEST)
+            raise HttpError(
+                HTTPStatus.BAD_REQUEST, 'unsupported endpoint version')
         await self.call_endpoint(endpoint, http_request, http_response)
 
     PATTERN_ENDPOINT = re.compile(br'/(\d+)/([a-zA-Z0-9_\-.]+)')
