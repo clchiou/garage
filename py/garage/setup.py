@@ -9,7 +9,8 @@ setup(
     extras_require = {
         'components': ['startup'],
         'formatters': ['PyYAML'],
-        'http': ['lxml', 'requests'],
+        'http.clients': ['lxml', 'requests'],
+        'http.services': ['http2'],
         'sql': ['SQLAlchemy'],
     },
 )
