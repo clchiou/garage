@@ -8,6 +8,7 @@ __all__ = [
 import asyncio
 import http
 import logging
+import socket
 import traceback
 
 from .http2 import Session
@@ -36,9 +37,15 @@ class Protocol(asyncio.Protocol):
 
     def connection_made(self, transport):
         if LOG.isEnabledFor(logging.DEBUG):
-            peername = transport.get_extra_info('peername')
-            LOG.debug('accept %s:%d', peername[0], peername[1])
+            LOG.debug('accept %r', transport.get_extra_info('peername'))
+
         self.transport = transport
+        sock = self.transport.get_extra_info('socket')
+        try:
+            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        except OSError:
+            LOG.exception('error when set TCP_NODELAY')
+
         self.handler = self.handler_factory()
         self.session = Session(self, transport)
 
@@ -46,7 +53,7 @@ class Protocol(asyncio.Protocol):
         try:
             self.session.data_received(data)
         except:
-            LOG.exception('error while receiving data')
+            LOG.exception('error when receive data')
             self.transport.close()
 
     def connection_lost(self, exc):
@@ -57,8 +64,9 @@ class Protocol(asyncio.Protocol):
                 LOG.debug('close connection\n%s', ''.join(tb_lines))
             else:
                 LOG.debug('close connection')
-        self.session.close()
-        self.handler = None
+        if self.handler is not None:
+            self.session.close()
+            self.handler = None
 
     # Called from http2.Session
 

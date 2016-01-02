@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import socket
 import ssl
 import sys
 
@@ -39,8 +38,6 @@ server = loop.run_until_complete(loop.create_server(
     lambda: http2.Protocol(lambda: service),
     host='127.0.0.1', port=int(sys.argv[1]), ssl=ssl_context,
 ))
-
-server.sockets[0].setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 
 try:
     loop.run_forever()
