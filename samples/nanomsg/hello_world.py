@@ -1,41 +1,36 @@
-import os.path
-import shutil
-import tempfile
 import threading
 import sys
 
 import nanomsg as nn
 
 
-def ping(url, event):
+def ping(url, barrier):
     with nn.Socket(protocol=nn.Protocol.NN_PUSH) as sock, sock.connect(url):
-        event.wait()
         sock.send(b'Hello, World!')
+        # Shutdown the endpoint after the other side ack'ed; otherwise
+        # the message could be lost.
+        barrier.wait()
 
 
-def pong(url, event):
+def pong(url, barrier):
     with nn.Socket(protocol=nn.Protocol.NN_PULL) as sock, sock.bind(url):
-        event.set()
         message = sock.recv()
         print(bytes(message.as_memoryview()).decode('ascii'))
+        barrier.wait()
 
 
 def main():
-    path = tempfile.mkdtemp()
-    try:
-        event = threading.Event()
-        url = 'ipc://' + os.path.join(path, 'reqrep.ipc')
-        print('Play ping-pong on %s' % url)
-        threads = [
-            threading.Thread(target=ping, args=(url, event)),
-            threading.Thread(target=pong, args=(url, event)),
-        ]
-        for thread in threads:
-            thread.start()
-        for thread in threads:
-            thread.join()
-    finally:
-        shutil.rmtree(path)
+    barrier = threading.Barrier(2)
+    url = 'inproc://test'
+    print('Play ping-pong on %s' % url)
+    threads = [
+        threading.Thread(target=ping, args=(url, barrier)),
+        threading.Thread(target=pong, args=(url, barrier)),
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
     return 0
 
 
