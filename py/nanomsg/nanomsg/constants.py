@@ -1,5 +1,6 @@
 __all__ = [
     'NN_MSG',
+    'NANOMSG_OPTION_METADATA',
     # Extend in _load().
 ]
 
@@ -11,6 +12,9 @@ from . import _nanomsg as _nn
 
 
 NN_MSG = -1
+
+
+NANOMSG_OPTION_METADATA = {}
 
 
 NanomsgVersion = namedtuple('NanomsgVersion', 'current revision age')
@@ -40,17 +44,43 @@ def _load(global_vars, exposed_names):
     )
     exposed_names.append('NS_VERSION')
 
-    for name, namespace, is_unique in int_enum_decls:
+    for enum_name, namespace, is_unique in int_enum_decls:
         syms = symbols[namespace]
-        int_enum = IntEnum(name, syms, module=__name__)
+        int_enum = IntEnum(
+            enum_name,
+            [(name, sym.value) for name, sym in syms],
+            module=__name__,
+        )
         if is_unique:
             int_enum = unique(int_enum)
-        global_vars[name] = int_enum
+        global_vars[enum_name] = int_enum
+        exposed_names.append(enum_name)
+
+    for name, sym in symbols['NN_NS_LIMIT']:
+        global_vars[name] = sym.value
         exposed_names.append(name)
 
-    for name, value in symbols['NN_NS_LIMIT']:
-        global_vars[name] = value
-        exposed_names.append(name)
+    _build_metadata(
+        symbols['NN_NS_SOCKET_OPTION'],
+        global_vars['SocketOption'],
+        global_vars['OptionType'],
+        global_vars['OptionUnit'],
+    )
+
+    _build_metadata(
+        symbols['NN_NS_TRANSPORT_OPTION'],
+        global_vars['TransportOption'],
+        global_vars['OptionType'],
+        global_vars['OptionUnit'],
+    )
+
+
+def _build_metadata(symbols, enum_type, option_types, option_units):
+    symbols = dict(symbols)
+    for member in enum_type:
+        sym = symbols[member.name]
+        metadata = (option_types(sym.type), option_units(sym.unit))
+        NANOMSG_OPTION_METADATA[member.name] = metadata
 
 
 def _load_symbols():
@@ -67,7 +97,7 @@ def _load_symbols():
     symbols = {}
     for index, name in namespace_names.items():
         syms = namespace_symbols[index]
-        symbols[name] = [(sym.name.decode('ascii'), sym.value) for sym in syms]
+        symbols[name] = [(sym.name.decode('ascii'), sym) for sym in syms]
     return symbols
 
 
@@ -85,9 +115,9 @@ def _iter_symbols():
 
 
 def _find_value_by_name(symbols, target):
-    for name, value in symbols:
+    for name, symbol in symbols:
         if name == target:
-            return value
+            return symbol.value
     raise ValueError('%s not in %r' % (target, symbols))
 
 

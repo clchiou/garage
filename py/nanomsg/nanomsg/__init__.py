@@ -12,6 +12,7 @@ __all__ = [
 
 import ctypes
 from collections import OrderedDict
+from functools import partial
 
 from . import _nanomsg as _nn
 from . import constants
@@ -86,6 +87,8 @@ class Socket:
             assert socket_fd is not None
             self.fd = socket_fd
         self.endpoints = OrderedDict()
+        # Make a separate namespace for some of the options...
+        self.options = OptionsProxy(self)
 
     def __repr__(self):
         binds = []
@@ -114,7 +117,7 @@ class Socket:
         if self.fd is None:
             return
         fd, self.fd = self.fd, None
-        self.endpoints.clear()
+        self.endpoints.clear()  # Make __repr__() cleaner.
         _check(_nn.nn_close(fd))
 
     def _make_endpoint(self, address, ep_class, ep_make):
@@ -164,6 +167,85 @@ class Socket:
         else:
             return self._tx(_nn.nn_recv, message, size, flags, False)
 
+    def getsockopt(self, level, option, optval=None, optvallen=None):
+        opt_type = None
+        opt_unit = None
+        if _is_value_of_enum(OptionLevel.NN_SOL_SOCKET, level):
+            option = SocketOption(option)
+            opt_type, opt_unit = NANOMSG_OPTION_METADATA[option.name]
+            if optval is None:
+                optval, optvallen = _make_buffer_for(opt_type)
+        elif (_is_value_of_enum_type(Transport, level) or
+              _is_value_of_enum_type(Protocol, level)):
+            option = TransportOption(option)
+            opt_type, opt_unit = NANOMSG_OPTION_METADATA[option.name]
+            if optval is None:
+                optval, optvallen = _make_buffer_for(opt_type)
+        elif optval is None or optvallen is None:
+            raise AssertionError('need optval and optvallen')
+
+        _check(_nn.nn_getsockopt(self.fd, level, option, optval, optvallen))
+        if opt_type is None:
+            return
+
+        if opt_type is OptionType.NN_TYPE_INT:
+            value = optval._obj.value
+        elif opt_type is OptionType.NN_TYPE_STR:
+            size = optvallen._obj.value
+            value = optval.raw[:size].decode('ascii')
+        else:
+            raise AssertionError
+        if opt_unit is OptionUnit.NN_UNIT_BOOLEAN:
+            value = (False, True)[value]
+        return value
+
+    def setsockopt(self, level, option, optval, optvallen=None):
+        # Make sure option is a valid enum member.
+        if _is_value_of_enum(OptionLevel.NN_SOL_SOCKET, level):
+            SocketOption(option)
+        elif (_is_value_of_enum_type(Transport, level) or
+              _is_value_of_enum_type(Protocol, level)):
+            TransportOption(option)
+
+        if isinstance(optval, bool):
+            optval = ctypes.byref(ctypes.c_int(int(optval)))
+            optvallen = ctypes.sizeof(ctypes.c_int)
+        elif isinstance(optval, int):
+            optval = ctypes.byref(ctypes.c_int(optval))
+            optvallen = ctypes.sizeof(ctypes.c_int)
+        elif isinstance(optval, str):
+            optval = optval.encode('ascii')
+
+        if optvallen is None:
+            optvallen = len(optval)
+
+        _check(_nn.nn_setsockopt(self.fd, level, option, optval, optvallen))
+
+
+def _is_value_of_enum(enum_member, value):
+    return value is enum_member or value == enum_member.value
+
+
+def _is_value_of_enum_type(enum_type, value):
+    if value in enum_type:
+        return True
+    for member in enum_type:
+        if value == member.value:
+            return True
+    return False
+
+
+def _make_buffer_for(option_type):
+    if option_type is OptionType.NN_TYPE_INT:
+        buf = ctypes.byref(ctypes.c_int())
+        size = ctypes.sizeof(ctypes.c_int)
+    elif option_type is OptionType.NN_TYPE_STR:
+        buf = ctypes.create_string_buffer(64)  # Should be large enough?
+        size = len(buf)
+    else:
+        raise ValueError(option_type)
+    return buf, ctypes.byref(ctypes.c_size_t(size))
+
 
 class EndpointBase:
 
@@ -197,6 +279,55 @@ class BindEndpoint(EndpointBase):
 
 class ConnectEndpoint(EndpointBase):
     pass
+
+
+class OptionsProxy:
+
+    def __init__(self, socket):
+        self.socket = socket
+
+    def _getopt(self, level, option):
+        return self.socket.getsockopt(level, option)
+
+    def _setopt(self, value, level, option):
+        self.socket.setsockopt(level, option, value)
+
+    def _make_getters(getter, varz):
+        # partialmethod doesn't work with property :(
+        for option in SocketOption:
+            assert option.name.startswith('NN_')
+            name = option.name[len('NN_'):].lower()
+            varz[name] = property(partial(
+                getter,
+                level=OptionLevel.NN_SOL_SOCKET,
+                option=option,
+            ))
+
+    _make_getters(_getopt, locals())
+
+    del _make_getters
+
+    def _make_setters(setter, varz):
+        readonly = {
+            SocketOption.NN_DOMAIN,
+            SocketOption.NN_PROTOCOL,
+            SocketOption.NN_SNDFD,
+            SocketOption.NN_RCVFD,
+        }
+        for option in SocketOption:
+            if option in readonly:
+                continue
+            assert option.name.startswith('NN_')
+            name = option.name[len('NN_'):].lower()
+            varz[name] = varz[name].setter(partial(
+                setter,
+                level=OptionLevel.NN_SOL_SOCKET,
+                option=option,
+            ))
+
+    _make_setters(_setopt, locals())
+
+    del _make_setters
 
 
 def device(sock1, sock2=None):
