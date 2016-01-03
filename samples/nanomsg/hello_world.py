@@ -1,4 +1,3 @@
-import ctypes
 import os.path
 import shutil
 import tempfile
@@ -17,9 +16,8 @@ def ping(url, event):
 def pong(url, event):
     with nn.Socket(protocol=nn.Protocol.NN_PULL) as sock, sock.bind(url):
         event.set()
-        message = ctypes.create_string_buffer(16)
-        size = sock.recv(message)
-        print(message.raw[:size].decode('ascii'))
+        message = sock.recv()
+        print(bytes(message.as_memoryview()).decode('ascii'))
 
 
 def main():

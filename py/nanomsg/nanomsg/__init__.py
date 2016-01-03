@@ -40,6 +40,18 @@ def _raise_errno():
     raise NanomsgError(_nn.nn_strerror(_nn.nn_errno()).decode('ascii'))
 
 
+_PyBUF_READ = 0x100
+_PyBUF_WRITE = 0x200
+
+_PyMemoryView_FromMemory = ctypes.pythonapi.PyMemoryView_FromMemory
+_PyMemoryView_FromMemory.argtypes = [
+    ctypes.c_void_p,
+    ctypes.c_ssize_t,
+    ctypes.c_int,
+]
+_PyMemoryView_FromMemory.restype = ctypes.py_object
+
+
 class Message:
 
     def __init__(self, size, allocation_type=0, *, buffer=None):
@@ -61,6 +73,13 @@ class Message:
     def __del__(self):
         # Don't call super's __del__ since `object` doesn't have one.
         self.free()
+
+    def as_memoryview(self):
+        return _PyMemoryView_FromMemory(
+            self.buffer,
+            self.size,
+            _PyBUF_READ | _PyBUF_WRITE,
+        )
 
     def resize(self, size):
         self.buffer = _nn.nn_reallocmsg(self.buffer, size)
