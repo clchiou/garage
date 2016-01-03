@@ -64,6 +64,10 @@ class Message:
                 _raise_errno()
         self.size = size
 
+    def __repr__(self):
+        return ('<%s addr 0x%016x, size 0x%x>' %
+                (self.__class__.__name__, self.buffer.value, self.size))
+
     def __enter__(self):
         return self
 
@@ -75,6 +79,8 @@ class Message:
         self.free()
 
     def as_memoryview(self):
+        if self.buffer is None:
+            raise AssertionError
         return _PyMemoryView_FromMemory(
             self.buffer,
             self.size,
@@ -82,6 +88,8 @@ class Message:
         )
 
     def resize(self, size):
+        if self.buffer is None:
+            raise AssertionError
         self.buffer = _nn.nn_reallocmsg(self.buffer, size)
         if self.buffer is None:
             _raise_errno()
@@ -94,19 +102,17 @@ class Message:
         _check(_nn.nn_freemsg(buffer))
 
 
-class Socket:
+class SocketBase:
 
-    def __init__(self, *, domain=Domain.AF_SP, protocol=None, socket_fd=None):
-        self.fd = None  # A safety measure when an error raised below.
-        if protocol is None == socket_fd is None:
-            raise AssertionError('one of protocol and socket_fd must be set')
-        if protocol is not None:
-            self.fd = _check(_nn.nn_socket(domain, protocol))
-        else:
-            assert socket_fd is not None
-            self.fd = socket_fd
+    def __init__(self):
+        # Set fd to None as a safety measure in case subclass's __init__
+        # raises exception since __del__ need at least self.fd.
+        self.fd = None
+
         self.endpoints = OrderedDict()
-        # Make a separate namespace for some of the options...
+
+        # Make a separate namespace for some of the options (don't
+        # clutter up this namespace).
         self.options = OptionsProxy(self)
 
     def __repr__(self):
@@ -140,8 +146,6 @@ class Socket:
         _check(_nn.nn_close(fd))
 
     def _make_endpoint(self, address, ep_class, ep_make):
-        if self.fd is None:
-            raise AssertionError
         if isinstance(address, str):
             address_bytes = address.encode('ascii')
         else:
@@ -152,41 +156,18 @@ class Socket:
         return endpoint
 
     def bind(self, address):
+        if self.fd is None:
+            raise AssertionError
         return self._make_endpoint(address, BindEndpoint, _nn.nn_bind)
 
     def connect(self, address):
+        if self.fd is None:
+            raise AssertionError
         return self._make_endpoint(address, ConnectEndpoint, _nn.nn_connect)
 
-    def _tx(self, nn_func, message, size, flags, ensure_size):
-        if size is None:
-            size = len(message)
-        nbytes = nn_func(self.fd, message, size, flags)
-        if nbytes == -1:
-            if (flags & Flag.NN_DONTWAIT) and _nn.nn_errno() == Error.EAGAIN:
-                raise NanomsgEagain
-            else:
-                _raise_errno()
-        if size != NN_MSG and nbytes != size and ensure_size:
-            raise AssertionError('expect %d instead %d' % (size, nbytes))
-        return nbytes
-
-    def send(self, message, size=None, flags=0):
-        if isinstance(message, Message):
-            message = message.buffer
-            size = NN_MSG
-        return self._tx(_nn.nn_send, message, size, flags, True)
-
-    def recv(self, message=None, size=None, flags=0):
-        if message is None:
-            assert size is None or size == NN_MSG
-            buffer = ctypes.c_void_p()
-            bufp = ctypes.byref(buffer)
-            size = self._tx(_nn.nn_recv, bufp, NN_MSG, flags, False)
-            return Message(buffer=buffer, size=size)
-        else:
-            return self._tx(_nn.nn_recv, message, size, flags, False)
-
     def getsockopt(self, level, option, optval=None, optvallen=None):
+        if self.fd is None:
+            raise AssertionError
         opt_type = None
         opt_unit = None
         if _is_value_of_enum(OptionLevel.NN_SOL_SOCKET, level):
@@ -219,6 +200,8 @@ class Socket:
         return value
 
     def setsockopt(self, level, option, optval, optvallen=None):
+        if self.fd is None:
+            raise AssertionError
         # Make sure option is a valid enum member.
         if _is_value_of_enum(OptionLevel.NN_SOL_SOCKET, level):
             SocketOption(option)
@@ -264,6 +247,52 @@ def _make_buffer_for(option_type):
     else:
         raise ValueError(option_type)
     return buf, ctypes.byref(ctypes.c_size_t(size))
+
+
+class Socket(SocketBase):
+
+    def __init__(self, *, domain=Domain.AF_SP, protocol=None, socket_fd=None):
+        super().__init__()
+        if protocol is None == socket_fd is None:
+            raise AssertionError('one of protocol and socket_fd must be set')
+        if protocol is not None:
+            self.fd = _check(_nn.nn_socket(domain, protocol))
+        else:
+            assert socket_fd is not None
+            self.fd = socket_fd
+
+    def _tx(self, nn_func, message, size, flags, ensure_size):
+        if size is None:
+            size = len(message)
+        nbytes = nn_func(self.fd, message, size, flags)
+        if nbytes == -1:
+            if (flags & Flag.NN_DONTWAIT) and _nn.nn_errno() == Error.EAGAIN:
+                raise NanomsgEagain
+            else:
+                _raise_errno()
+        if size != NN_MSG and nbytes != size and ensure_size:
+            raise AssertionError('expect %d instead %d' % (size, nbytes))
+        return nbytes
+
+    def send(self, message, size=None, flags=0):
+        if self.fd is None:
+            raise AssertionError
+        if isinstance(message, Message):
+            message = message.buffer
+            size = NN_MSG
+        return self._tx(_nn.nn_send, message, size, flags, True)
+
+    def recv(self, message=None, size=None, flags=0):
+        if self.fd is None:
+            raise AssertionError
+        if message is None:
+            assert size is None or size == NN_MSG
+            buffer = ctypes.c_void_p()
+            bufp = ctypes.byref(buffer)
+            size = self._tx(_nn.nn_recv, bufp, NN_MSG, flags, False)
+            return Message(buffer=buffer, size=size)
+        else:
+            return self._tx(_nn.nn_recv, message, size, flags, False)
 
 
 class EndpointBase:
