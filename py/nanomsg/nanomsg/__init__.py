@@ -42,6 +42,7 @@ def _raise_errno():
 class Message:
 
     def __init__(self, size, allocation_type=0, *, buffer=None):
+        self.buffer = None  # A safety measure when an error raised below.
         if buffer:
             self.buffer = buffer
         else:
@@ -76,11 +77,13 @@ class Message:
 class Socket:
 
     def __init__(self, *, domain=Domain.AF_SP, protocol=None, socket_fd=None):
-        if protocol is not None and socket_fd is not None:
-            raise AssertionError('both protocol and socket_fd are set')
+        self.fd = None  # A safety measure when an error raised below.
+        if protocol is None == socket_fd is None:
+            raise AssertionError('one of protocol and socket_fd must be set')
         if protocol is not None:
             self.fd = _check(_nn.nn_socket(domain, protocol))
         else:
+            assert socket_fd is not None
             self.fd = socket_fd
         self.endpoints = OrderedDict()
 
@@ -117,7 +120,11 @@ class Socket:
     def _make_endpoint(self, address, ep_class, ep_make):
         if self.fd is None:
             raise AssertionError
-        endpoint_id = _check(ep_make(self.fd, address))
+        if isinstance(address, str):
+            address_bytes = address.encode('ascii')
+        else:
+            address_bytes = address
+        endpoint_id = _check(ep_make(self.fd, address_bytes))
         endpoint = ep_class(self, endpoint_id, address)
         self.endpoints[endpoint_id] = endpoint
         return endpoint
@@ -128,34 +135,34 @@ class Socket:
     def connect(self, address):
         return self._make_endpoint(address, ConnectEndpoint, _nn.nn_connect)
 
-    def _tx(self, nn_func, message, count, flags):
-        if count is None:
-            count = len(message)
-        nbytes = nn_func(self.fd, message, count, flags)
+    def _tx(self, nn_func, message, size, flags, ensure_size):
+        if size is None:
+            size = len(message)
+        nbytes = nn_func(self.fd, message, size, flags)
         if nbytes == -1:
             if (flags & Flag.NN_DONTWAIT) and _nn.nn_errno() == Error.EAGAIN:
                 raise NanomsgEagain
             else:
                 _raise_errno()
-        if count != NN_MSG and nbytes != count:
-            raise AssertionError('expect %d instead %d' % (count, nbytes))
+        if size != NN_MSG and nbytes != size and ensure_size:
+            raise AssertionError('expect %d instead %d' % (size, nbytes))
         return nbytes
 
-    def send(self, message, count=None, flags=0):
+    def send(self, message, size=None, flags=0):
         if isinstance(message, Message):
             message = message.buffer
-            count = NN_MSG
-        self._tx(_nn.nn_send, message, count, flags)
+            size = NN_MSG
+        return self._tx(_nn.nn_send, message, size, flags, True)
 
-    def recv(self, message=None, count=None, flags=0):
+    def recv(self, message=None, size=None, flags=0):
         if message is None:
+            assert size is None or size == NN_MSG
             buffer = ctypes.c_void_p()
-            message = ctypes.byref(buffer)
-            count = NN_MSG
-        nbytes = self._tx(_nn.nn_recv, message, count, flags)
-        if count == NN_MSG:
-            message = Message(buffer=buffer, size=nbytes)
-        return message
+            bufp = ctypes.byref(buffer)
+            size = self._tx(_nn.nn_recv, bufp, NN_MSG, flags, False)
+            return Message(buffer=buffer, size=size)
+        else:
+            return self._tx(_nn.nn_recv, message, size, flags, False)
 
 
 class EndpointBase:
@@ -170,9 +177,18 @@ class EndpointBase:
                 (self.__class__.__name__,
                  self.socket.fd, self.endpoint_id, self.address))
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        self.shutdown()
+
     def shutdown(self):
-        _check(_nn.nn_shutdown(self.socket.fd, self.endpoint_id))
-        self.socket.endpoints.pop(self.endpoint_id)
+        if self.endpoint_id is None:
+            return
+        endpoint_id, self.endpoint_id = self.endpoint_id, None
+        _check(_nn.nn_shutdown(self.socket.fd, endpoint_id))
+        self.socket.endpoints.pop(endpoint_id)
 
 
 class BindEndpoint(EndpointBase):
