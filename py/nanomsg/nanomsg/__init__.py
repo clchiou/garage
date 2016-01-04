@@ -104,6 +104,10 @@ class SocketBase:
             assert socket_fd is not None
             self.fd = socket_fd
 
+        # Keep a strong reference to endpoint objects to prevent them
+        # from being released because users are not expected to keep a
+        # reference to these endpoint objects, i.e., users usually treat
+        # bind() and connect() as a void function.
         self.endpoints = OrderedDict()
 
         # Make a separate namespace for some of the options (don't
