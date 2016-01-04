@@ -92,5 +92,8 @@ def _load(libnanomsg, global_vars, exposed_names):
 
     exposed_names.extend(name for name, _, _ in decls)
 
+    if len(set(exposed_names)) != len(exposed_names):
+        raise AssertionError('names conflict: %r' % exposed_names)
+
 
 _load(_LIBNANOMSG, globals(), __all__)

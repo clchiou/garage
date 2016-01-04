@@ -21,6 +21,9 @@ from .constants import *
 
 __all__.extend(constants.__all__)
 
+if len(set(__all__)) != len(__all__):
+    raise AssertionError('names conflict: %r' % __all__)
+
 
 class NanomsgError(Exception):
     pass
@@ -170,7 +173,7 @@ class SocketBase:
             raise AssertionError
         opt_type = None
         opt_unit = None
-        if _is_value_of_enum(OptionLevel.NN_SOL_SOCKET, level):
+        if _is_value_of_enum(NN_SOL_SOCKET, level):
             option = SocketOption(option)
             opt_type, opt_unit = NANOMSG_OPTION_METADATA[option.name]
             if optval is None:
@@ -203,7 +206,7 @@ class SocketBase:
         if self.fd is None:
             raise AssertionError
         # Make sure option is a valid enum member.
-        if _is_value_of_enum(OptionLevel.NN_SOL_SOCKET, level):
+        if _is_value_of_enum(NN_SOL_SOCKET, level):
             SocketOption(option)
         elif (_is_value_of_enum_type(Transport, level) or
               _is_value_of_enum_type(Protocol, level)):
@@ -266,7 +269,7 @@ class Socket(SocketBase):
             size = len(message)
         nbytes = nn_func(self.fd, message, size, flags)
         if nbytes == -1:
-            if (flags & Flag.NN_DONTWAIT) and _nn.nn_errno() == Error.EAGAIN:
+            if (flags & NN_DONTWAIT) and _nn.nn_errno() == Error.EAGAIN:
                 raise NanomsgEagain
             else:
                 _raise_errno()
@@ -347,7 +350,7 @@ class OptionsProxy:
             name = option.name[len('NN_'):].lower()
             varz[name] = property(partial(
                 getter,
-                level=OptionLevel.NN_SOL_SOCKET,
+                level=NN_SOL_SOCKET,
                 option=option,
             ))
 
@@ -357,10 +360,10 @@ class OptionsProxy:
 
     def _make_setters(setter, varz):
         readonly = {
-            SocketOption.NN_DOMAIN,
-            SocketOption.NN_PROTOCOL,
-            SocketOption.NN_SNDFD,
-            SocketOption.NN_RCVFD,
+            NN_DOMAIN,
+            NN_PROTOCOL,
+            NN_SNDFD,
+            NN_RCVFD,
         }
         for option in SocketOption:
             if option in readonly:
@@ -369,7 +372,7 @@ class OptionsProxy:
             name = option.name[len('NN_'):].lower()
             varz[name] = varz[name].setter(partial(
                 setter,
-                level=OptionLevel.NN_SOL_SOCKET,
+                level=NN_SOL_SOCKET,
                 option=option,
             ))
 

@@ -22,16 +22,17 @@ NanomsgVersion = namedtuple('NanomsgVersion', 'current revision age')
 
 def _load(global_vars, exposed_names):
     int_enum_decls = [
-        ('Domain', 'NN_NS_DOMAIN', True),
-        ('Transport', 'NN_NS_TRANSPORT', True),
-        ('Protocol', 'NN_NS_PROTOCOL', True),
-        ('OptionLevel', 'NN_NS_OPTION_LEVEL', True),
-        ('SocketOption', 'NN_NS_SOCKET_OPTION', True),
-        ('TransportOption', 'NN_NS_TRANSPORT_OPTION', False),
-        ('OptionType', 'NN_NS_OPTION_TYPE', True),
-        ('OptionUnit', 'NN_NS_OPTION_UNIT', True),
-        ('Flag', 'NN_NS_FLAG', True),
-        ('Error', 'NN_NS_ERROR', True),
+        # enum class         namespace                  unique  global
+        ('Domain',          'NN_NS_DOMAIN',             True,   True),
+        ('Transport',       'NN_NS_TRANSPORT',          True,   True),
+        ('Protocol',        'NN_NS_PROTOCOL',           True,   True),
+        ('OptionLevel',     'NN_NS_OPTION_LEVEL',       True,   True),
+        ('SocketOption',    'NN_NS_SOCKET_OPTION',      True,   True),
+        ('TransportOption', 'NN_NS_TRANSPORT_OPTION',   False,  True),
+        ('OptionType',      'NN_NS_OPTION_TYPE',        True,   False),
+        ('OptionUnit',      'NN_NS_OPTION_UNIT',        True,   False),
+        ('Flag',            'NN_NS_FLAG',               True,   True),
+        ('Error',           'NN_NS_ERROR',              True,   False),
     ]
 
     symbols = _load_symbols()
@@ -44,17 +45,25 @@ def _load(global_vars, exposed_names):
     )
     exposed_names.append('NS_VERSION')
 
-    for enum_name, namespace, is_unique in int_enum_decls:
+    for enum_name, namespace, is_unique, in_global in int_enum_decls:
         syms = symbols[namespace]
         int_enum = IntEnum(
             enum_name,
             [(name, sym.value) for name, sym in syms],
             module=__name__,
         )
+
         if is_unique:
             int_enum = unique(int_enum)
+
         global_vars[enum_name] = int_enum
         exposed_names.append(enum_name)
+
+        # Promote enum members to the global namespace if they are
+        # useful to library users.
+        if in_global:
+            global_vars.update(int_enum.__members__)
+            exposed_names.extend(int_enum.__members__)
 
     for name, sym in symbols['NN_NS_LIMIT']:
         global_vars[name] = sym.value
@@ -73,6 +82,9 @@ def _load(global_vars, exposed_names):
         global_vars['OptionType'],
         global_vars['OptionUnit'],
     )
+
+    if len(set(exposed_names)) != len(exposed_names):
+        raise AssertionError('names conflict: %r' % exposed_names)
 
 
 def _build_metadata(symbols, enum_type, option_types, option_units):
