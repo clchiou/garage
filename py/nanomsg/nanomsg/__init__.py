@@ -1,13 +1,11 @@
 __all__ = [
-    'NanomsgError',
-    'NanomsgEagain',
     'Message',
     'Socket',
     'BindEndpoint',
     'ConnectEndpoint',
     'device',
     'terminate',
-    # Extend with constants.__all__
+    # Extend with constants and errors.
 ]
 
 import ctypes
@@ -16,31 +14,17 @@ from functools import partial
 
 from . import _nanomsg as _nn
 from . import constants
+from . import errors
+
 from .constants import *
+from .errors import *
 
 
 __all__.extend(constants.__all__)
+__all__.extend(errors.__all__)
 
 if len(set(__all__)) != len(__all__):
     raise AssertionError('names conflict: %r' % __all__)
-
-
-class NanomsgError(Exception):
-    pass
-
-
-class NanomsgEagain(Exception):
-    pass
-
-
-def _check(ret):
-    if ret == -1:
-        _raise_errno()
-    return ret
-
-
-def _raise_errno():
-    raise NanomsgError(_nn.nn_strerror(_nn.nn_errno()).decode('ascii'))
 
 
 _PyBUF_READ = 0x100
@@ -64,7 +48,7 @@ class Message:
         else:
             self.buffer = _nn.nn_allocmsg(size, allocation_type)
             if self.buffer is None:
-                _raise_errno()
+                raise NanomsgError()
         self.size = size
 
     def __repr__(self):
@@ -95,22 +79,30 @@ class Message:
             raise AssertionError
         self.buffer = _nn.nn_reallocmsg(self.buffer, size)
         if self.buffer is None:
-            _raise_errno()
+            raise NanomsgError()
         self.size = size
 
     def free(self):
         if self.buffer is None:
             return
         buffer, self.buffer = self.buffer, None
-        _check(_nn.nn_freemsg(buffer))
+        errors.check(_nn.nn_freemsg(buffer))
 
 
 class SocketBase:
 
-    def __init__(self):
+    def __init__(self, *, domain=AF_SP, protocol=None, socket_fd=None):
         # Set fd to None as a safety measure in case subclass's __init__
         # raises exception since __del__ need at least self.fd.
         self.fd = None
+
+        if protocol is None == socket_fd is None:
+            raise AssertionError('one of protocol and socket_fd must be set')
+        if protocol is not None:
+            self.fd = errors.check(_nn.nn_socket(domain, protocol))
+        else:
+            assert socket_fd is not None
+            self.fd = socket_fd
 
         self.endpoints = OrderedDict()
 
@@ -131,6 +123,8 @@ class SocketBase:
         return ('<%s fd %r, listen on %r, connect to %r>' %
                 (self.__class__.__name__, self.fd, binds, connects))
 
+    ### Manage socket life cycle.
+
     def __enter__(self):
         return self
 
@@ -146,31 +140,14 @@ class SocketBase:
             return
         fd, self.fd = self.fd, None
         self.endpoints.clear()  # Make __repr__() cleaner.
-        _check(_nn.nn_close(fd))
+        errors.check(_nn.nn_close(fd))
 
-    def _make_endpoint(self, address, ep_class, ep_make):
-        if isinstance(address, str):
-            address_bytes = address.encode('ascii')
-        else:
-            address_bytes = address
-        endpoint_id = _check(ep_make(self.fd, address_bytes))
-        endpoint = ep_class(self, endpoint_id, address)
-        self.endpoints[endpoint_id] = endpoint
-        return endpoint
-
-    def bind(self, address):
-        if self.fd is None:
-            raise AssertionError
-        return self._make_endpoint(address, BindEndpoint, _nn.nn_bind)
-
-    def connect(self, address):
-        if self.fd is None:
-            raise AssertionError
-        return self._make_endpoint(address, ConnectEndpoint, _nn.nn_connect)
+    ### Configure this socket.
 
     def getsockopt(self, level, option, optval=None, optvallen=None):
         if self.fd is None:
             raise AssertionError
+
         opt_type = None
         opt_unit = None
         if _is_value_of_enum(NN_SOL_SOCKET, level):
@@ -187,7 +164,8 @@ class SocketBase:
         elif optval is None or optvallen is None:
             raise AssertionError('need optval and optvallen')
 
-        _check(_nn.nn_getsockopt(self.fd, level, option, optval, optvallen))
+        errors.check(_nn.nn_getsockopt(
+            self.fd, level, option, optval, optvallen))
         if opt_type is None:
             return
 
@@ -205,6 +183,7 @@ class SocketBase:
     def setsockopt(self, level, option, optval, optvallen=None):
         if self.fd is None:
             raise AssertionError
+
         # Make sure option is a valid enum member.
         if _is_value_of_enum(NN_SOL_SOCKET, level):
             SocketOption(option)
@@ -224,60 +203,34 @@ class SocketBase:
         if optvallen is None:
             optvallen = len(optval)
 
-        _check(_nn.nn_setsockopt(self.fd, level, option, optval, optvallen))
+        errors.check(_nn.nn_setsockopt(
+            self.fd, level, option, optval, optvallen))
 
+    ### Add endpoints to this socket.
 
-def _is_value_of_enum(enum_member, value):
-    return value is enum_member or value == enum_member.value
+    def bind(self, address):
+        if self.fd is None:
+            raise AssertionError
+        return self._make_endpoint(address, BindEndpoint, _nn.nn_bind)
 
+    def connect(self, address):
+        if self.fd is None:
+            raise AssertionError
+        return self._make_endpoint(address, ConnectEndpoint, _nn.nn_connect)
 
-def _is_value_of_enum_type(enum_type, value):
-    if value in enum_type:
-        return True
-    for member in enum_type:
-        if value == member.value:
-            return True
-    return False
-
-
-def _make_buffer_for(option_type):
-    if option_type is OptionType.NN_TYPE_INT:
-        buf = ctypes.byref(ctypes.c_int())
-        size = ctypes.sizeof(ctypes.c_int)
-    elif option_type is OptionType.NN_TYPE_STR:
-        buf = ctypes.create_string_buffer(64)  # Should be large enough?
-        size = len(buf)
-    else:
-        raise ValueError(option_type)
-    return buf, ctypes.byref(ctypes.c_size_t(size))
-
-
-class Socket(SocketBase):
-
-    def __init__(self, *, domain=Domain.AF_SP, protocol=None, socket_fd=None):
-        super().__init__()
-        if protocol is None == socket_fd is None:
-            raise AssertionError('one of protocol and socket_fd must be set')
-        if protocol is not None:
-            self.fd = _check(_nn.nn_socket(domain, protocol))
+    def _make_endpoint(self, address, ep_class, ep_make):
+        if isinstance(address, str):
+            address_bytes = address.encode('ascii')
         else:
-            assert socket_fd is not None
-            self.fd = socket_fd
+            address_bytes = address
+        endpoint_id = errors.check(ep_make(self.fd, address_bytes))
+        endpoint = ep_class(self, endpoint_id, address)
+        self.endpoints[endpoint_id] = endpoint
+        return endpoint
 
-    def _tx(self, nn_func, message, size, flags, ensure_size):
-        if size is None:
-            size = len(message)
-        nbytes = nn_func(self.fd, message, size, flags)
-        if nbytes == -1:
-            if (flags & NN_DONTWAIT) and _nn.nn_errno() == Error.EAGAIN:
-                raise NanomsgEagain
-            else:
-                _raise_errno()
-        if size != NN_MSG and nbytes != size and ensure_size:
-            raise AssertionError('expect %d instead %d' % (size, nbytes))
-        return nbytes
+    ### Transmit data.
 
-    def send(self, message, size=None, flags=0):
+    def _blocking_send(self, message, size, flags):
         if self.fd is None:
             raise AssertionError
         if isinstance(message, Message):
@@ -285,7 +238,7 @@ class Socket(SocketBase):
             size = NN_MSG
         return self._tx(_nn.nn_send, message, size, flags, True)
 
-    def recv(self, message=None, size=None, flags=0):
+    def _blocking_recv(self, message, size, flags):
         if self.fd is None:
             raise AssertionError
         if message is None:
@@ -296,6 +249,28 @@ class Socket(SocketBase):
             return Message(buffer=buffer, size=size)
         else:
             return self._tx(_nn.nn_recv, message, size, flags, False)
+
+    def _tx(self, nn_func, message, size, flags, ensure_size):
+        if size is None:
+            size = len(message)
+        nbytes = nn_func(self.fd, message, size, flags)
+        if nbytes == -1:
+            if (flags & NN_DONTWAIT) and _nn.nn_errno() == Error.EAGAIN.value:
+                raise NanomsgEagain
+            else:
+                raise NanomsgError()
+        if size != NN_MSG and nbytes != size and ensure_size:
+            raise AssertionError('expect %d instead %d' % (size, nbytes))
+        return nbytes
+
+
+class Socket(SocketBase):
+
+    def send(self, message, size=None, flags=0):
+        return self._blocking_send(message, size, flags)
+
+    def recv(self, message=None, size=None, flags=0):
+        return self._blocking_recv(message, size, flags)
 
 
 class EndpointBase:
@@ -320,7 +295,7 @@ class EndpointBase:
         if self.endpoint_id is None:
             return
         endpoint_id, self.endpoint_id = self.endpoint_id, None
-        _check(_nn.nn_shutdown(self.socket.fd, endpoint_id))
+        errors.check(_nn.nn_shutdown(self.socket.fd, endpoint_id))
         self.socket.endpoints.pop(endpoint_id)
 
 
@@ -384,8 +359,33 @@ class OptionsProxy:
 def device(sock1, sock2=None):
     fd1 = sock1.fd
     fd2 = sock2.fd if sock2 is not None else -1
-    _check(_nn.nn_device(fd1, fd2))
+    errors.check(_nn.nn_device(fd1, fd2))
 
 
 def terminate():
     _nn.nn_term()
+
+
+def _is_value_of_enum(enum_member, value):
+    return value is enum_member or value == enum_member.value
+
+
+def _is_value_of_enum_type(enum_type, value):
+    if value in enum_type:
+        return True
+    for member in enum_type:
+        if value == member.value:
+            return True
+    return False
+
+
+def _make_buffer_for(option_type):
+    if option_type is OptionType.NN_TYPE_INT:
+        buf = ctypes.byref(ctypes.c_int())
+        size = ctypes.sizeof(ctypes.c_int)
+    elif option_type is OptionType.NN_TYPE_STR:
+        buf = ctypes.create_string_buffer(64)  # Should be large enough?
+        size = len(buf)
+    else:
+        raise ValueError(option_type)
+    return buf, ctypes.byref(ctypes.c_size_t(size))
