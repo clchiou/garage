@@ -22,7 +22,6 @@ async def pong(url, ack):
 
 def main():
     url = 'inproc://test'
-    print('Play asynchronous ping-pong on %s' % url)
     loop = asyncio.get_event_loop()
     ack = asyncio.Event()
     loop.run_until_complete(asyncio.wait([
