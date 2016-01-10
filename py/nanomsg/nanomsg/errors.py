@@ -1,10 +1,15 @@
 __all__ = [
+    'Closed',
     'NanomsgError',
     'NanomsgEagain',
 ]
 
 from . import _nanomsg as _nn
 from .constants import Error
+
+
+class Closed(Exception):
+    pass
 
 
 class NanomsgError(Exception):

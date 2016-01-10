@@ -9,6 +9,7 @@ from . import errors
 from .constants import AF_SP
 from .constants import Error
 from .constants import NN_DONTWAIT
+from .errors import Closed
 
 
 class Socket(SocketBase):
@@ -48,8 +49,10 @@ class Socket(SocketBase):
             return
         if self._sndfd_ready is not None:
             self._loop.remove_writer(self.options.sndfd)
+            self._sndfd_ready.set()
         if self._rcvfd_ready is not None:
             self._loop.remove_reader(self.options.rcvfd)
+            self._rcvfd_ready.set()
         super().close()
 
     async def send(self, message, size=None, flags=0):
@@ -67,6 +70,8 @@ class Socket(SocketBase):
         while True:
             await ready.wait()
             ready.clear()
+            if self.fd is None:
+                raise Closed
             try:
                 return tx(message, size, flags)
             except errors.NanomsgEagain:

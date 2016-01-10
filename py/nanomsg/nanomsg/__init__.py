@@ -261,6 +261,8 @@ class SocketBase:
         if nbytes == -1:
             if (flags & NN_DONTWAIT) and _nn.nn_errno() == Error.EAGAIN.value:
                 raise NanomsgEagain
+            elif self.fd is None and _nn.nn_errno() == Error.EBADF.value:
+                raise Closed
             else:
                 raise NanomsgError()
         if size != NN_MSG and nbytes != size and ensure_size:
@@ -296,6 +298,9 @@ class EndpointBase:
         self.shutdown()
 
     def shutdown(self):
+        if self.socket.fd is None:
+            self.endpoint_id = None
+            return
         if self.endpoint_id is None:
             return
         endpoint_id, self.endpoint_id = self.endpoint_id, None
