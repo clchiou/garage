@@ -8,6 +8,7 @@ from . import SocketBase
 from . import errors
 from .constants import AF_SP
 from .constants import Error
+from .constants import NN_DONTWAIT
 
 
 class Socket(SocketBase):
@@ -52,15 +53,21 @@ class Socket(SocketBase):
         super().close()
 
     async def send(self, message, size=None, flags=0):
-        if self.fd is None or self._sndfd_ready is None:
-            raise AssertionError
-        await self._sndfd_ready.wait()
-        self._sndfd_ready.clear()
-        return self._blocking_send(message, size, flags)
+        return await self._async_tx(
+            self._sndfd_ready, self._blocking_send, message, size, flags)
 
     async def recv(self, message=None, size=None, flags=0):
-        if self.fd is None or self._rcvfd_ready is None:
+        return await self._async_tx(
+            self._rcvfd_ready, self._blocking_recv, message, size, flags)
+
+    async def _async_tx(self, ready, tx, message, size, flags):
+        if self.fd is None or ready is None:
             raise AssertionError
-        await self._rcvfd_ready.wait()
-        self._rcvfd_ready.clear()
-        return self._blocking_recv(message, size, flags)
+        flags |= NN_DONTWAIT
+        while True:
+            await ready.wait()
+            ready.clear()
+            try:
+                return tx(message, size, flags)
+            except errors.NanomsgEagain:
+                pass

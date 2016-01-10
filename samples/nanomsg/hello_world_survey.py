@@ -4,14 +4,11 @@ import sys
 import nanomsg as nn
 from nanomsg.asyncio import Socket
 
-from utils import Barrier
 
-
-async def ping(url, barrier, ack):
+async def ping(url):
     with Socket(protocol=nn.NN_SURVEYOR) as sock, sock.bind(url):
+        await asyncio.sleep(1)
         await sock.send(b'ping')
-        await barrier.wait()  # TODO: Figure out why we need this barrier...
-
         try:
             while True:
                 message = await sock.recv()
@@ -19,29 +16,24 @@ async def ping(url, barrier, ack):
         except nn.NanomsgError as e:
             if e.errno is not nn.Error.ETIMEDOUT:
                 raise
-        ack.set()
 
 
-async def pong(url, barrier, ack):
+async def pong(url):
     with Socket(protocol=nn.NN_RESPONDENT) as sock, sock.connect(url):
         message = await sock.recv()
         print(bytes(message.as_memoryview()).decode('ascii'))
-        await barrier.wait()  # TODO: Figure out why we need this barrier...
-
         await sock.send(b'pong')
-        await ack.wait()
+        await asyncio.sleep(1)
 
 
 def main():
     num_respondents = 2
     url = 'inproc://test'
-    barrier = Barrier(1 + num_respondents)
-    ack = asyncio.Event()
     future = asyncio.wait(
         [
-            asyncio.ensure_future(ping(url, barrier, ack)),
+            asyncio.ensure_future(ping(url)),
         ] + [
-            asyncio.ensure_future(pong(url, barrier, ack))
+            asyncio.ensure_future(pong(url))
             for _ in range(num_respondents)
         ],
         return_when=asyncio.FIRST_EXCEPTION,
