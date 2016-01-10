@@ -2,7 +2,7 @@ import unittest
 
 from collections import namedtuple
 
-from garage.async.watchdogs import Watchdog
+from garage.asyncs.watchdogs import Watchdog
 
 
 Log = namedtuple('Log', 'delay callback handle')
