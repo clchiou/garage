@@ -20,6 +20,9 @@ import nanomsg as nn
 LOG = logging.getLogger(__name__)
 
 
+GRACEFUL_PERIOD = 30  # Unit: seconds
+
+
 class MessagingError(Exception):
     pass
 
@@ -39,12 +42,15 @@ class ServiceState(enum.Enum):
 class ServiceMixin:
     """Non-restartable service mixin."""
 
-    def __init__(self, serve, name='?', close=None, *, loop=None):
+    def __init__(self, serve,
+                 name='?', close=None, graceful_period=GRACEFUL_PERIOD,
+                 *, loop=None):
         self.__name = name
         self.__state = ServiceState.INITIALIZING
         self.__server = None
         self.__serve = serve
         self.__close = close
+        self.__graceful_period = graceful_period
         self.__loop = loop
         self.__state = ServiceState.INITIALIZED
 
@@ -67,7 +73,7 @@ class ServiceMixin:
         done, pending = await asyncio.wait(
             [self.__server],
             loop=self.__loop,
-            #timeout=GRACEFUL_PERIOD,  # TODO: Set graceful period.
+            timeout=self.__graceful_period,
         )
         for fut in done:
             try:
