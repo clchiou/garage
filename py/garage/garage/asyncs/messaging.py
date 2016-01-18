@@ -43,13 +43,15 @@ class ServiceMixin:
     """Non-restartable service mixin."""
 
     def __init__(self, serve,
-                 name='?', close=None, graceful_period=GRACEFUL_PERIOD,
+                 name='?',
+                 on_stopping=None,
+                 graceful_period=GRACEFUL_PERIOD,
                  *, loop=None):
         self.__name = name
         self.__state = ServiceState.INITIALIZING
         self.__server = None
         self.__serve = serve
-        self.__close = close
+        self.__on_stopping = on_stopping
         self.__graceful_period = graceful_period
         self.__loop = loop
         self.__state = ServiceState.INITIALIZED
@@ -68,8 +70,8 @@ class ServiceMixin:
         asserts.precond(self.__state is ServiceState.STARTED)
         LOG.info('%r: stop', self)
         self.__state = ServiceState.STOPPING
-        if self.__close:
-            await self.__close()
+        if self.__on_stopping:
+            await self.__on_stopping()
         done, pending = await asyncio.wait(
             [self.__server],
             loop=self.__loop,
