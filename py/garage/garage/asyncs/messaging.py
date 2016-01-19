@@ -44,6 +44,7 @@ class ServiceMixin:
 
     def __init__(self, serve,
                  name='?',
+                 on_starting=None,
                  on_stopping=None,
                  graceful_period=GRACEFUL_PERIOD,
                  *, loop=None):
@@ -51,6 +52,7 @@ class ServiceMixin:
         self.__state = ServiceState.INITIALIZING
         self.__server = None
         self.__serve = serve
+        self.__on_starting = on_starting
         self.__on_stopping = on_stopping
         self.__graceful_period = graceful_period
         self.__loop = loop
@@ -61,15 +63,17 @@ class ServiceMixin:
 
     async def start(self):
         asserts.precond(self.__state is ServiceState.INITIALIZED)
-        LOG.info('%r: start', self)
         self.__state = ServiceState.STARTING
-        self.__server = self.__loop.create_task(self.__serve())
+        LOG.info('%r: start', self)
+        if self.__on_starting:
+            await self.__on_starting()
+        self.__server = asyncio.ensure_future(self.__serve(), loop=self.__loop)
         self.__state = ServiceState.STARTED
 
     async def stop(self):
         asserts.precond(self.__state is ServiceState.STARTED)
-        LOG.info('%r: stop', self)
         self.__state = ServiceState.STOPPING
+        LOG.info('%r: stop', self)
         if self.__on_stopping:
             await self.__on_stopping()
         done, pending = await asyncio.wait(
@@ -96,17 +100,17 @@ async def remote_call(sock, method, request):
         return json.loads(bytes(response.as_memoryview()).decode('ascii'))
 
 
-async def serve_forever(sock, methods, name='<?>'):
+async def serve_forever(sock, methods, name=None):
     while True:
         try:
             await serve_one(sock, methods)
         except nn.Closed:
             break
         except MessagingError:
-            LOG.warning('%s: invalid message', name, exc_info=True)
+            LOG.warning('%r: invalid message', name, exc_info=True)
         except Exception:
-            LOG.exception('%s: err when processing message', name)
-    LOG.info('%s: exit', name)
+            LOG.exception('%r: err when processing message', name)
+    LOG.info('%r: exit messaging loop', name)
 
 
 async def serve_one(sock, methods):
