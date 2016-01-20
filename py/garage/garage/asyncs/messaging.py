@@ -5,6 +5,7 @@ __all__ = [
     'remote_call',
     'serve_one',
     'serve_forever',
+    'send_message',
 ]
 
 import asyncio
@@ -95,21 +96,25 @@ class ServiceMixin:
 
 async def remote_call(sock, method, request):
     message = {'method': method, 'request': request}
-    await sock.send(json.dumps(message).encode('ascii'))
+    await send_message(sock, message)
     with await sock.recv() as response:
         return json.loads(bytes(response.as_memoryview()).decode('ascii'))
 
 
-async def serve_forever(sock, methods, name=None):
+async def serve_forever(sock, methods, *, name=None, on_error=None):
     while True:
         try:
             await serve_one(sock, methods)
         except nn.Closed:
             break
-        except MessagingError:
+        except MessagingError as exc:
             LOG.warning('%r: invalid message', name, exc_info=True)
-        except Exception:
+            if on_error:
+                await on_error(exc)
+        except Exception as exc:
             LOG.exception('%r: err when processing message', name)
+            if on_error:
+                await on_error(exc)
     LOG.info('%r: exit messaging loop', name)
 
 
@@ -128,4 +133,8 @@ async def serve_one(sock, methods):
 
     response = await method(request)
 
-    await sock.send(json.dumps(response).encode('ascii'))
+    await send_message(sock, response)
+
+
+async def send_message(sock, message):
+    await sock.send(json.dumps(message).encode('ascii'))
