@@ -1,6 +1,7 @@
 __all__ = [
     'ClientBase',
     'InterfaceSpec',
+    'validate_request',
 ]
 
 from collections import namedtuple
@@ -43,14 +44,19 @@ class ClientBase(metaclass=ClientMeta):
     async def remote_call(
             self, method, request_types, response_type, errno_type,
             **request):
-        asserts.precond(len(request_types) == len(request))
-        asserts.precond(all(
-            key in request_types and isinstance(value, request_types[key])
-            for key, value in request.items()
-        ))
+        asserts.precond(
+            validate_request(request_types, request), '%r', request)
         response, errno = await _remote_call(self.__sock, method, request)
         if response is not None:
             response = response_type(response)
         if errno is not None:
             errno = errno_type(errno)
         return response, errno
+
+
+def validate_request(request_types, request):
+    return (
+        len(request_types) == len(request) and
+        all(key in request_types and isinstance(value, request_types[key])
+            for key, value in request.items())
+    )
