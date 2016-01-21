@@ -37,8 +37,8 @@ class Service:
         self.version = version
         self.policies = []
         self.endpoints = {}
-        self.parse = None
-        self.serialize = None
+        self.decode = None
+        self.encode = None
 
     def add_policy(self, policy):
         self.policies.append(policy)
@@ -54,6 +54,7 @@ class Service:
         path = http_request.headers.get(b':path')
         if path is None:
             raise HttpError(HTTPStatus.BAD_REQUEST)
+
         try:
             endpoint = self.dispatch(path)
         except EndpointNotFound:
@@ -67,9 +68,16 @@ class Service:
             # request (down-version it) and send it again.
             raise HttpError(
                 HTTPStatus.BAD_REQUEST, 'unsupported endpoint version')
-        await self.call_endpoint(endpoint, http_request, http_response)
 
-    PATTERN_ENDPOINT = re.compile(br'/(\d+)/([a-zA-Z0-9_\-.]+)')
+        try:
+            await self.call_endpoint(endpoint, http_request, http_response)
+        except HttpError:
+            raise
+        except Exception:
+            LOG.exception('err when calling endpoint')
+            raise HttpError(HTTPStatus.INTERNAL_SERVER_ERROR)
+
+    PATTERN_ENDPOINT = re.compile(br'/(\d+)/([\w_\-.]+)')
 
     def dispatch(self, path):
         match = self.PATTERN_ENDPOINT.match(path)
@@ -93,14 +101,14 @@ class Service:
 
         request = await http_request.body
         if request:
-            if self.parse:
-                request = await self.parse(http_request.headers, request)
+            if self.decode:
+                request = await self.decode(http_request.headers, request)
         else:
             request = None
 
         response = await endpoint(request)
-        if self.serialize:
-            response = await self.serialize(http_request.headers, response)
+        if self.encode:
+            response = await self.encode(http_request.headers, response)
         asserts.postcond(isinstance(response, bytes))
 
         http_response.headers[b':status'] = b'200'

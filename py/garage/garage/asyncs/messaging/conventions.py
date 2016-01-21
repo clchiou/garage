@@ -65,6 +65,7 @@ class ClientBase(metaclass=ClientMeta):
 
 def validate_request(request_types, request):
     return (
+        isinstance(request, dict) and
         len(request_types) == len(request) and
         all(key in request_types and isinstance(value, request_types[key])
             for key, value in request.items())
@@ -94,7 +95,7 @@ class HttpServiceBase(ServiceMixin):
         )
 
         self.__create_server = lambda l: l.create_server(
-            lambda: Protocol(lambda: serve),
+            lambda: Protocol(lambda: serve, loop=l),
             host=host, port=port,
             backlog=backlog,
             ssl=ssl_context,
