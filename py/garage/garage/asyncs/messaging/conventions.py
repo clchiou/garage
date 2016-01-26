@@ -47,15 +47,17 @@ class ClientMeta(type):
 
 class ClientBase(metaclass=ClientMeta):
 
-    def __init__(self, sock):
+    def __init__(self, sock, *, loop=None):
         self.__sock = sock
+        self.__lock = asyncio.Lock(loop=loop)
 
     async def remote_call(
             self, method, request_types, response_type, errno_type,
             **request):
         asserts.precond(
             validate_request(request_types, request), '%r', request)
-        response, errno = await _remote_call(self.__sock, method, request)
+        async with self.__lock:
+            response, errno = await _remote_call(self.__sock, method, request)
         if response is not None:
             response = response_type(response)
         if errno is not None:
