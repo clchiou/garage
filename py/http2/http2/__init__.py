@@ -21,10 +21,11 @@ LOG.addHandler(logging.NullHandler())
 
 class HttpError(Exception):
 
-    def __init__(self, status, reason=None):
+    def __init__(self, status, *, reason=None, headers=None):
         super().__init__('%s: %s' % (status.name, reason))
         self.status = status
         self.reason = reason
+        self.headers = headers
 
 
 class Protocol(asyncio.Protocol):
@@ -88,12 +89,12 @@ class Protocol(asyncio.Protocol):
             await self.handler(request, response)
         except HttpError as e:
             LOG.debug('HTTP status: %s', e)
-            await self._submit_status(stream_id, e.status, e.reason)
+            await self._submit_status(stream_id, e.status, e.reason, e.headers)
         except:
             LOG.exception(
                 'error when handling request on stream %d', stream_id)
             await self._submit_status(
-                stream_id, http.HTTPStatus.INTERNAL_SERVER_ERROR)
+                stream_id, http.HTTPStatus.INTERNAL_SERVER_ERROR, None, None)
             self.session.close_stream(stream_id)
         else:
             for req, rep in response._push_promises:
@@ -106,9 +107,11 @@ class Protocol(asyncio.Protocol):
                     self.handle_request(promised_stream_id, req)
             self.session.handle_response(stream_id, response)
 
-    async def _submit_status(self, stream_id, status, reason=None):
+    async def _submit_status(self, stream_id, status, reason, headers):
         response = Response()
         response.headers[b':status'] = b'%d' % status.value
+        if headers:
+            response.headers.update(headers)
         if reason:
             await response.write(reason.encode('utf-8'))
             await response.close()

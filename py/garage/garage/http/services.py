@@ -67,7 +67,9 @@ class Service:
             # 400, we are telling the client that he could modify the
             # request (down-version it) and send it again.
             raise HttpError(
-                HTTPStatus.BAD_REQUEST, 'unsupported endpoint version')
+                HTTPStatus.BAD_REQUEST,
+                reason='unsupported endpoint version',
+            )
 
         try:
             await self.call_endpoint(endpoint, http_request, http_response)
