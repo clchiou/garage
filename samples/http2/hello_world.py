@@ -12,13 +12,17 @@ if len(sys.argv) < 2:
     print('Usage: %s port [server.crt server.key]' % sys.argv[0])
     sys.exit(1)
 
-logging.basicConfig()
+logging.basicConfig(level=logging.DEBUG)
+
+async def print_headers(headers):
+    for name, value in headers.items():
+        print('HEADER %s=%s' % (name.decode('ascii'), value.decode('ascii')))
 
 async def hello_world(request):
-    print('request:', repr(request))
     return b'hello world'
 
 service = Service(name='hello-world', version=1)
+service.add_policy(print_headers)
 service.add_endpoint('hello-world', hello_world)
 
 loop = asyncio.get_event_loop()
@@ -36,7 +40,7 @@ else:
 
 server = loop.run_until_complete(loop.create_server(
     lambda: http2.Protocol(lambda: service),
-    host='127.0.0.1', port=int(sys.argv[1]), ssl=ssl_context,
+    host='0.0.0.0', port=int(sys.argv[1]), ssl=ssl_context,
 ))
 
 try:
