@@ -104,10 +104,11 @@ cdef class Session:
 
     def close_stream(self, stream_id):
         LOG.debug('stop response of stream %d', stream_id)
-        _, bookkeeping = self.responses.pop(stream_id)
-        lib.response_bookkeeping_del(
-            <lib.response_bookkeeping*>PyCapsule_GetPointer(
-                bookkeeping, NULL))
+        if stream_id in self.responses:
+            _, bookkeeping = self.responses.pop(stream_id)
+            lib.response_bookkeeping_del(
+                <lib.response_bookkeeping*>PyCapsule_GetPointer(
+                    bookkeeping, NULL))
         lib.stream_close(&self.session, stream_id)
 
     def close(self):
@@ -118,11 +119,11 @@ cdef class Session:
             lib.response_bookkeeping_del(
                 <lib.response_bookkeeping*>PyCapsule_GetPointer(
                     bookkeeping, NULL))
-        self.responses.clear()
+        self.responses = None
         lib.session_del(&self.session)
         for watchdog in self.watchdogs.values():
             watchdog.stop()
-        self.watchdogs.clear()
+        self.watchdogs = None
         self.closed = True
 
     def data_received(self, data):
