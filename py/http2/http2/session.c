@@ -152,6 +152,19 @@ int session_settings_ack(struct session *session)
 }
 
 
+int session_maybe_send(struct session *session)
+{
+	int err = nghttp2_session_send(session->nghttp2_session);
+	if (err)
+		return err;
+
+	if (session_should_close(session))
+		http_session_close(session->http_session);
+
+	return 0;
+}
+
+
 ssize_t session_recv(struct session *session, const uint8_t *data, size_t size)
 {
 	debug("session %p: recv %zu bytes", session, size);

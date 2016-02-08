@@ -2,7 +2,6 @@ __all__ = [
     'Session',
 ]
 
-import io
 import logging
 
 from .models import Request
@@ -33,9 +32,9 @@ cdef class Session:
     cdef bint closed
     cdef public object protocol
     cdef object transport
-    cdef object buffer
     cdef public dict watchdogs
     cdef public dict requests
+    cdef dict responses
     cdef lib.session session
 
     def __cinit__(self, protocol, transport):
@@ -43,23 +42,17 @@ cdef class Session:
         self.closed = False
         self.protocol = protocol
         self.transport = transport
-        self.buffer = io.BytesIO()
         self.watchdogs = {}
         self.requests = {}
+        self.responses = {}
         check(lib.session_init(&self.session, <lib.http_session*>self))
 
     def __dealloc__(self):
         self.close()
 
     def write(self, data):
-        self.buffer.write(data)
-
-    def flush(self):
-        output = self.buffer.getvalue()
-        LOG.debug('flush %d bytes of output buffer', len(output))
-        self.transport.write(output)
-        self.buffer.close()
-        self.buffer = io.BytesIO()
+        LOG.debug('transport %d bytes', len(data))
+        self.transport.write(data)
 
     # Called from Protocol
 
@@ -77,13 +70,15 @@ cdef class Session:
             promised_stream_id = lib.stream_submit_push_promise(
                 &self.session, stream_id, &c_request)
             check(promised_stream_id)
-            self.flush()
             return promised_stream_id
         finally:
             lib.builder_del(&c_request)
 
     def handle_response(self, stream_id, response):
+        LOG.debug('start response of stream %d', stream_id)
+        assert stream_id not in self.responses
         cdef lib.builder c_response
+        cdef lib.response_bookkeeping *bookkeeping
         check(lib.builder_init(&c_response, len(response.headers)))
         try:
             for name, value in response.headers.items():
@@ -98,19 +93,32 @@ cdef class Session:
                     <uint8_t *>response.body, len(response.body),
                 ))
             check(lib.stream_submit_response(
-                &self.session, stream_id, &c_response))
-            self.flush()
+                &self.session, stream_id, &c_response, &bookkeeping))
+            self.responses[stream_id] = (
+                response,
+                PyCapsule_New(bookkeeping, NULL, NULL),
+            )
         finally:
             lib.builder_del(&c_response)
+        check(lib.session_maybe_send(&self.session))
 
     def close_stream(self, stream_id):
+        LOG.debug('stop response of stream %d', stream_id)
+        _, bookkeeping = self.responses.pop(stream_id)
+        lib.response_bookkeeping_del(
+            <lib.response_bookkeeping*>PyCapsule_GetPointer(
+                bookkeeping, NULL))
         lib.stream_close(&self.session, stream_id)
 
     def close(self):
         if self.closed:
             return
         LOG.debug('close http session')
-        self.flush()
+        for _, bookkeeping in self.responses.values():
+            lib.response_bookkeeping_del(
+                <lib.response_bookkeeping*>PyCapsule_GetPointer(
+                    bookkeeping, NULL))
+        self.responses.clear()
         lib.session_del(&self.session)
         for watchdog in self.watchdogs.values():
             watchdog.stop()
@@ -124,6 +132,7 @@ cdef class Session:
         if consumed != len(data):
             raise Http2Error(
                 'drop %d/%d bytes of data', len(data) - consumed, len(data))
+        check(lib.session_maybe_send(&self.session))
 
 
 cdef public void http_session_close(lib.http_session *http_session):

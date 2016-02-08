@@ -83,16 +83,21 @@ bool session_should_close(struct session *session);
 
 int session_settings_ack(struct session *session);
 
+int session_maybe_send(struct session *session);
 ssize_t session_recv(struct session *session, const uint8_t *data, size_t size);
 
 
 struct builder;
 
+struct response_bookkeeping;
+
 int32_t stream_submit_push_promise(struct session *session,
 		int32_t stream_id, struct builder *request);
 
 int stream_submit_response(struct session *session,
-		int32_t stream_id, struct builder *response);
+		int32_t stream_id,
+		struct builder *response,
+		struct response_bookkeeping **bookkeeping);
 
 void stream_close(struct session *session, int32_t stream_id);
 
@@ -126,5 +131,9 @@ int builder_add_header(struct builder *builder,
 
 int builder_set_body(struct builder *builder,
 		const uint8_t *body, size_t body_size);
+
+
+void response_bookkeeping_del(struct response_bookkeeping* bookkeeping);
+
 
 #endif

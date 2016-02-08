@@ -50,38 +50,37 @@ static ssize_t data_source_read(
 
 
 int stream_submit_response(struct session *session,
-		int32_t stream_id, struct builder *response)
+		int32_t stream_id,
+		struct builder *response,
+		struct response_bookkeeping **bookkeeping)
 {
 	debug("session %p stream %d: submit response", session, stream_id);
 
 	nghttp2_data_provider *data_provider = NULL;
 	nghttp2_data_provider dp;
-	struct ro_view view;
 	if (response->body) {
-		view.data = response->body;
-		view.size = response->body_size;
+		struct ro_view *view = malloc(sizeof(struct ro_view));
+		view->data = response->body;
+		view->size = response->body_size;
 		memset(&dp, 0, sizeof(dp));
-		dp.source.ptr = &view;
+		dp.source.ptr = view;
 		dp.read_callback = data_source_read;
 		data_provider = &dp;
+		*bookkeeping = (struct response_bookkeeping *)view;
+	} else {
+		*bookkeeping = NULL;
 	}
 
-	int err;
-	err = nghttp2_submit_response(session->nghttp2_session,
+	return nghttp2_submit_response(session->nghttp2_session,
 			stream_id,
 			response->headers, response->num_headers,
 			data_provider);
-	if (err)
-		return err;
+}
 
-	err = nghttp2_session_send(session->nghttp2_session);
-	if (err)
-		return err;
 
-	if (session_should_close(session))
-		http_session_close(session->http_session);
-
-	return 0;
+void response_bookkeeping_del(struct response_bookkeeping* bookkeeping)
+{
+	free(bookkeeping);
 }
 
 

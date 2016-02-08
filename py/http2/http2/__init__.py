@@ -51,6 +51,7 @@ class Protocol(asyncio.Protocol):
         self.session = Session(self, transport)
 
     def data_received(self, data):
+        LOG.debug('receive %d bytes', len(data))
         try:
             self.session.data_received(data)
         except:
