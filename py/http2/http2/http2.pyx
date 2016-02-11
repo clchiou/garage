@@ -94,10 +94,11 @@ cdef class Session:
                 ))
             check(lib.stream_submit_response(
                 &self.session, stream_id, &c_response, &bookkeeping))
-            self.responses[stream_id] = (
-                response,
-                PyCapsule_New(bookkeeping, NULL, NULL),
-            )
+            if bookkeeping:
+                self.responses[stream_id] = (
+                    response,
+                    PyCapsule_New(bookkeeping, NULL, NULL),
+                )
         finally:
             lib.builder_del(&c_response)
         check(lib.session_maybe_send(&self.session))
