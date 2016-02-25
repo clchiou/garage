@@ -1,5 +1,7 @@
 import unittest
 
+import asyncio
+
 from garage.asyncs import queues
 
 from . import synchronous
@@ -34,7 +36,7 @@ class QueueTest(unittest.TestCase):
         await queue.put(2)
         await queue.put(3)
 
-        self.assertListEqual([], await queue.close())
+        self.assertListEqual([], queue.close())
         self.assertTrue(queue.is_closed())
 
         with self.assertRaises(queues.Closed):
@@ -46,6 +48,32 @@ class QueueTest(unittest.TestCase):
 
         with self.assertRaises(queues.Closed):
             await queue.get()
+
+    @synchronous
+    async def test_raising_closed(self):
+
+        num_expects = 4
+        flag = asyncio.Event()
+        queue = queues.Queue()
+
+        async def expect_closed():
+            nonlocal num_expects
+            with self.assertRaises(queues.Closed):
+                num_expects -= 1
+                if num_expects == 0:
+                    flag.set()
+                await queue.get()
+
+        async def call_close():
+            await flag.wait()
+            queue.close()
+
+        fs = [asyncio.ensure_future(call_close())]
+        for _ in range(num_expects):
+            fs.append(asyncio.ensure_future(expect_closed()))
+
+        for fut in asyncio.as_completed(fs):
+            await fut
 
 
 if __name__ == '__main__':

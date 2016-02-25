@@ -65,7 +65,7 @@ class Process:
         except queues.Closed:
             pass
         finally:
-            await self.inbox.close(graceful=False)
+            self.inbox.close(graceful=False)
             # Stop linked processes as soon as possible.
             for proc in self.linked_procs:
                 await proc.shutdown(graceful=False)
@@ -74,7 +74,7 @@ class Process:
         # Exit if inbox is closed to prevent circular calls.
         if self.inbox.is_closed():
             return
-        await self.inbox.close(graceful=graceful)
+        self.inbox.close(graceful=graceful)
         if recursive:
             for proc in self.linked_procs:
                 await proc.shutdown(graceful=graceful, recursive=recursive)
