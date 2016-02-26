@@ -36,7 +36,7 @@ class QueueBase:
 
     def __init__(self, capacity=0, *, loop=None):
         self._capacity = capacity
-        self._closed = False
+        self._closed = asyncio.Event(loop=loop)
         # Use Event rather than Condition so that close() could be
         # non-async.
         self._has_item = asyncio.Event(loop=loop)
@@ -67,7 +67,12 @@ class QueueBase:
         return self._capacity > 0 and len(self._queue) >= self._capacity
 
     def is_closed(self):
-        return self._closed
+        return self._closed.is_set()
+
+    async def until_closed(self, raises=Closed):
+        await self._closed.wait()
+        if raises:
+            raise raises
 
     def close(self, graceful=True):
         if self.is_closed():
@@ -76,7 +81,7 @@ class QueueBase:
             items = []
         else:  # Drain the queue.
             items, self._queue = list(self._queue), ()
-        self._closed = True
+        self._closed.set()
         # Wake up all waiters.
         self._has_item.set()
         self._has_vacancy.set()
