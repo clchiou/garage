@@ -169,13 +169,19 @@ def _silence_closed(future):
     # which could be raised there :(
     #
 
-    # 1. Call future.exception() to silence traceback logger.
+    # 0. Check our assumption about future object internal.
+    asserts.precond(hasattr(future, '_exception'))
+
+    # 1. Don't alter states of futures that we don't want to silence.
+    if not isinstance(future._exception, queues.Closed):
+        return
+
+    # 2. Call future.exception() to silence traceback logger.
     exc = future.exception()
 
-    # 2. Make sure future.exception() returns future._exception;
+    # 3. Make sure future.exception() returns future._exception;
     #    otherwise this hack wouldn't work.
     asserts.precond(exc is future._exception)
 
-    # 3. Clear exception so that future.result() wouldn't raise.
-    if isinstance(future._exception, queues.Closed):
-        future._exception = None
+    # 4. Clear exception so that future.result() wouldn't raise.
+    future._exception = None
