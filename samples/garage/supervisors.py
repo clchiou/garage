@@ -3,16 +3,16 @@
 import asyncio
 import logging
 
-from garage.asyncs.processes import Nudges, each_completed, process
+from garage.asyncs.futures import awaiting, each_completed
+from garage.asyncs.processes import process
 
 
 @process
 async def supervisor_proc(inbox):
     print('supervisor start')
-    async with Nudges() as nudges:
-        stop = nudges.add_task(nudges.add_inbox(inbox).until_closed())
-        c = nudges.add_proc(consumer_proc())
-        p = nudges.add_proc(producer_proc(c))
+    async with awaiting(inbox.until_closed(), cancel_on_exit=True) as stop, \
+               consumer_proc() as c, \
+               producer_proc(c) as p:
         async for task in each_completed([c.task, p.task], [stop]):
             await task
     print('supervisor stop')

@@ -17,17 +17,17 @@ class QueueTest(unittest.TestCase):
         for queue_class, test_input, test_output in testdata:
             queue = queue_class(capacity=len(test_input))
             for data in test_input:
-                await queue.put(data, block=False)
+                queue.put_nowait(data)
 
             with self.assertRaises(queues.Full):
-                await queue.put(999, block=False)
+                queue.put_nowait(999)
 
             for data in test_output:
-                self.assertEqual(data, await queue.get(block=False))
+                self.assertEqual(data, queue.get_nowait())
             self.assertFalse(queue)
 
             with self.assertRaises(queues.Empty):
-                await queue.get(block=False)
+                queue.get_nowait()
 
     @synchronous
     async def test_close(self):
@@ -82,7 +82,7 @@ class ZeroQueueTest(unittest.TestCase):
     async def test_put(self):
         zq = queues.ZeroQueue()
         with self.assertRaises(queues.Full):
-            await zq.put(42, block=False)
+            zq.put_nowait(42)
         zq.close()
         with self.assertRaises(queues.Closed):
             await zq.put(42)
@@ -91,7 +91,7 @@ class ZeroQueueTest(unittest.TestCase):
     async def test_get(self):
         zq = queues.ZeroQueue()
         with self.assertRaises(queues.Empty):
-            await zq.get(block=False)
+            zq.get_nowait()
         zq.close()
         with self.assertRaises(queues.Closed):
             await zq.get()

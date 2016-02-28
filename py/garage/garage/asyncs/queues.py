@@ -88,30 +88,42 @@ class QueueBase:
         self._has_vacancy.set()
         return items
 
-    async def put(self, item, block=True):
+    async def put(self, item):
         while True:
             if self.is_closed():
                 raise Closed
             if not self.is_full():
                 break
-            if not block:
-                raise Full
             asserts.precond(not self._has_vacancy.is_set())
             await self._has_vacancy.wait()
+        self.put_nowait(item)
+
+    def put_nowait(self, item):
+        """Non-blocking version of put()."""
+        if self.is_closed():
+            raise Closed
+        if self.is_full():
+            raise Full
         asserts.postcond(self._has_vacancy.is_set())
         self._put(item)
         self._has_item.set()
         if self.is_full():
             self._has_vacancy.clear()
 
-    async def get(self, block=True):
+    async def get(self):
         while self.is_empty():
             if self.is_closed():
                 raise Closed
-            if not block:
-                raise Empty
             asserts.precond(not self._has_item.is_set())
             await self._has_item.wait()
+        return self.get_nowait()
+
+    def get_nowait(self):
+        """Non-blocking version of get()."""
+        if self.is_empty():
+            if self.is_closed():
+                raise Closed
+            raise Empty
         asserts.postcond(self._has_item.is_set())
         item = self._get()
         self._has_vacancy.set()
@@ -162,16 +174,24 @@ class ZeroQueue:
         self._closed.set()
         return []
 
-    async def put(self, item, block=True):
+    async def put(self, item):
         if self.is_closed():
             raise Closed
-        if not block:
-            raise Full
         await self.until_closed()
 
-    async def get(self, block=True):
+    def put_nowait(self, item):
         if self.is_closed():
             raise Closed
-        if not block:
-            raise Empty
+        else:
+            raise Full
+
+    async def get(self):
+        if self.is_closed():
+            raise Closed
         await self.until_closed()
+
+    def get_nowait(self):
+        if self.is_closed():
+            raise Closed
+        else:
+            raise Empty
