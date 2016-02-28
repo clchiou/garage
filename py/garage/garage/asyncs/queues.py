@@ -5,6 +5,7 @@ __all__ = [
     'Empty',
     'Full',
     'Queue',
+    'ZeroQueue',
 ]
 
 import asyncio
@@ -129,3 +130,48 @@ class Queue(QueueBase):
 
     def _put(self, item):
         self._queue.append(item)
+
+
+class ZeroQueue:
+    """A queue with zero capacity."""
+
+    def __init__(self, *, loop=None):
+        self._closed = asyncio.Event(loop=loop)
+
+    def __bool__(self):
+        return False
+
+    def __len__(self):
+        return 0
+
+    def is_empty(self):
+        return True
+
+    def is_full(self):
+        return True
+
+    def is_closed(self):
+        return self._closed.is_set()
+
+    async def until_closed(self, raises=Closed):
+        await self._closed.wait()
+        if raises:
+            raise raises
+
+    def close(self, graceful=True):
+        self._closed.set()
+        return []
+
+    async def put(self, item, block=True):
+        if self.is_closed():
+            raise Closed
+        if not block:
+            raise Full
+        await self.until_closed()
+
+    async def get(self, block=True):
+        if self.is_closed():
+            raise Closed
+        if not block:
+            raise Empty
+        await self.until_closed()

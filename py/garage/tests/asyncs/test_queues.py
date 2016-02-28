@@ -76,5 +76,26 @@ class QueueTest(unittest.TestCase):
             await fut
 
 
+class ZeroQueueTest(unittest.TestCase):
+
+    @synchronous
+    async def test_put(self):
+        zq = queues.ZeroQueue()
+        with self.assertRaises(queues.Full):
+            await zq.put(42, block=False)
+        zq.close()
+        with self.assertRaises(queues.Closed):
+            await zq.put(42)
+
+    @synchronous
+    async def test_get(self):
+        zq = queues.ZeroQueue()
+        with self.assertRaises(queues.Empty):
+            await zq.get(block=False)
+        zq.close()
+        with self.assertRaises(queues.Closed):
+            await zq.get()
+
+
 if __name__ == '__main__':
     unittest.main()
