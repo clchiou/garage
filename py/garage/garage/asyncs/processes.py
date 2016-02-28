@@ -103,8 +103,9 @@ class Nudges:
     """
 
     def __init__(self, *, timeout=None, loop=None):
-        self.nudges = []
-        self.tasks = []
+        self.nudges = set()
+        self.tasks = set()
+        self.proc_table = {}
         self.timeout = timeout
         self.loop = loop
 
@@ -112,20 +113,27 @@ class Nudges:
         """Add a nudge - which is just a (coroutine) function that takes
            no argument.
         """
-        self.nudges.append(nudge)
+        self.nudges.add(nudge)
         return nudge
 
     def add_task(self, coro_or_task):
         """Add a task that will be waited for."""
         task = asyncio.ensure_future(coro_or_task)
-        self.tasks.append(task)
+        self.tasks.add(task)
         return task
 
     def add_proc(self, proc):
         """Add a process that will be nudged then waited for."""
-        self.add_nudge(proc.inbox.close)
-        self.add_task(proc.task)
+        self.proc_table[proc] = (
+            self.add_nudge(proc.inbox.close),
+            self.add_task(proc.task),
+        )
         return proc
+
+    def remove_proc(self, proc):
+        nudge, task = self.proc_table.pop(proc)
+        self.nudges.remove(nudge)
+        self.tasks.remove(task)
 
     def add_inbox(self, inbox):
         """Add a nudge through the inbox."""
