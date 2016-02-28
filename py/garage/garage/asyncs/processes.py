@@ -207,6 +207,32 @@ class Process:
             self.task.add_done_callback(_silence_closed)
         self.inbox = inbox
 
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *_):
+        self.inbox.close()
+
+        # Wait for the result if not done so yet.
+        if not self.task.done():
+            try:
+                await self.task
+            except Exception:
+                LOG.exception('error of %r', self.task)
+            return
+
+        # HACK: Retrieve the exception if not done so yet.
+        if hasattr(self.task, '_log_traceback'):  # Python 3.4+
+            retrieved = not self.task._log_traceback
+        elif hasattr(self.task, '_tb_logger'):  # Python 3.3
+            retrieved = not self.task._tb_logger
+        else:
+            retrieved = False  # Just to be safe...
+        if not retrieved:
+            exc = self.task.exception()
+            if exc:
+                LOG.error('error of %r', self.task, exc_info=exc)
+
 
 def _silence_closed(future):
     #

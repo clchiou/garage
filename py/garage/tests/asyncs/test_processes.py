@@ -29,6 +29,11 @@ async def raises(inbox):
     raise MyException
 
 
+@process
+async def until_closed(inbox):
+    await inbox.until_closed()
+
+
 class ProcessesTest(unittest.TestCase):
 
     @synchronous
@@ -51,6 +56,18 @@ class ProcessesTest(unittest.TestCase):
         proc = raises()
         with self.assertRaises(MyException):
             await proc.task
+
+    @synchronous
+    async def test_context(self):
+        for make_proc in [until_closed, raises]:
+            # Let context manager do await.
+            async with make_proc() as proc:
+                pass
+            self.assertTrue(proc.task.done())
+            # Context manager won't (?) do await.
+            async with make_proc() as proc:
+                await asyncio.sleep(0.01)
+            self.assertTrue(proc.task.done())
 
 
 class WaitHelpersTest(unittest.TestCase):
