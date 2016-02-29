@@ -55,6 +55,12 @@ class Socket(SocketBase):
             self._rcvfd_ready.set()
         super().close()
 
+    async def __aenter__(self):
+        return super().__enter__()
+
+    async def __aexit__(self, *exc_info):
+        return super().__exit__(*exc_info)  # XXX: Would this block?
+
     async def send(self, message, size=None, flags=0):
         return await self._async_tx(
             self._sndfd_ready, self._blocking_send, message, size, flags)
