@@ -7,7 +7,11 @@ __all__ = [
 ]
 
 import asyncio
+import inspect
 import logging
+
+
+from garage import asserts
 
 
 LOG = logging.getLogger(__name__)
@@ -20,9 +24,9 @@ class awaiting:
     """
 
     class callback:
-        """Wrap a ordinary function (NOT a coroutine) in an async
-           context manager.  It is handy when you want to mix functions
-           with coroutines in an `async with` statement.
+        """Wrap an ordinary function or an awaitable in an async context
+           manager which is called on exit.  If the function returns an
+           awaitable, it will be awaited.
         """
 
         def __init__(self, callback, *, loop=None):
@@ -33,7 +37,55 @@ class awaiting:
             return self.callback
 
         async def __aexit__(self, *_):
-            self.callback()
+            if inspect.isawaitable(self.callback):
+                await self.callback
+            else:
+                awaitable = self.callback()
+                if inspect.isawaitable(awaitable):
+                    await awaitable
+
+    class replaceable:
+        """An async context manager that wraps a future object that you
+           may replace with another future object.  When you replace,
+           the old future object will be awaited.
+
+           You may use this to implement task restart - the context
+           manager represents the overall lifetime of tasks while each
+           task may die and be replaced.
+        """
+
+        def __init__(self, *, cancel_on_exit=False, loop=None):
+            self._context_manager = None
+            self.cancel_on_exit = cancel_on_exit
+            self.loop = loop
+
+        async def __aenter__(self):
+            asserts.precond(self._context_manager is None)
+            return self
+
+        async def __aexit__(self, *exc_info):
+            if self._context_manager is not None:
+                return await self._context_manager.__aexit__(*exc_info)
+
+        async def remove(self):
+            mgr = self._context_manager
+            self._context_manager = None
+            if mgr is not None:
+                await mgr.__aexit__(None, None, None)
+                return mgr.future
+
+        def set(self, future):
+            asserts.precond(self._context_manager is None)
+            if future:
+                self._context_manager = awaiting(
+                    future,
+                    cancel_on_exit=self.cancel_on_exit,
+                    loop=self.loop,
+                )
+                # NOTE: Not calling `await __aenter__()`.
+                future = self._context_manager.future
+                asserts.postcond(future is not None)
+            return future
 
     def __init__(self, future, *, cancel_on_exit=False, loop=None):
         self.future = asyncio.ensure_future(future, loop=loop)
@@ -97,9 +149,8 @@ class each_completed:
             return_when=asyncio.FIRST_COMPLETED,
         )
         if not self._done:
-            for fut in pending:
-                if fut in self.required:
-                    fut.cancel()
+            for fut in self.required:
+                fut.cancel()
             raise asyncio.TimeoutError
         for fut in self._done:
             self.required.discard(fut)

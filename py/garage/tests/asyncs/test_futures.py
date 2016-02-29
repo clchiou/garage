@@ -3,6 +3,7 @@ import unittest
 import asyncio
 
 from garage.asyncs.futures import (
+    awaiting,
     each_completed,
     each_of,
     one_completed,
@@ -13,6 +14,36 @@ from . import synchronous
 
 
 class FuturesTest(unittest.TestCase):
+
+    @synchronous
+    async def test_awaiting(self):
+        async with awaiting(do_nothing()) as fut:
+            pass
+        self.assertTrue(fut.done())
+
+        data = []
+        async with awaiting.callback(lambda: data.append(42)):
+            self.assertListEqual([], data)
+        self.assertListEqual([42], data)
+
+        async with awaiting.replaceable(cancel_on_exit=True) as box:
+            self.assertIsNone(await box.remove())
+
+            f1 = asyncio.ensure_future(asyncio.sleep(100))
+            self.assertIs(f1, box.set(f1))
+
+            self.assertFalse(f1.done())
+            self.assertIs(f1, await box.remove())
+            self.assertTrue(f1.done())
+            self.assertTrue(f1.cancelled())
+
+            f2 = asyncio.ensure_future(asyncio.sleep(100))
+            self.assertIs(f2, box.set(f2))
+
+            self.assertFalse(f2.done())
+
+        self.assertTrue(f2.done())
+        self.assertTrue(f2.cancelled())
 
     @synchronous
     async def test_each_completed(self):
