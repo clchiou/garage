@@ -1,5 +1,6 @@
 __all__ = [
     'Nudges',
+    'Throne',
     'process',
 ]
 
@@ -80,6 +81,49 @@ class Nudges:
                     pass
                 except Exception:
                     LOG.debug('error of %r', task, exc_info=True)
+
+
+class Throne:
+    """A throne represents a continuous service provided by processes.
+       When a process dies, a new process is (immediately) created to
+       continue the service.
+
+       The process is dead, long live the process!
+    """
+
+    def __init__(self, *, loop=None):
+        self.proc = None
+        self._throne = awaiting.replaceable(loop=loop)
+
+    async def __aenter__(self):
+        await self._throne.__aenter__()
+        return self
+
+    async def __aexit__(self, *exc_info):
+        if self.proc:
+            self.proc.inbox.close()
+        return await self._throne.__aexit__(*exc_info)
+
+    async def dethrone(self):
+        """Dethrone the current process.
+
+           This is blocking - as dethroning all kings.
+        """
+        asserts.precond(self.proc)
+        proc, self.proc = self.proc, None
+        proc.inbox.close()
+        await self._throne.remove()
+        return proc
+
+    def throne(self, proc):
+        """Make the new process come to the throne.
+
+           This is non-blocking.
+        """
+        asserts.precond(proc)
+        self._throne.set(proc.task)
+        self.proc = proc
+        return self.proc
 
 
 def process(coro_func=None, *, make_queue=None, loop=None):
