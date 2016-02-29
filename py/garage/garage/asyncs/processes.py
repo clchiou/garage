@@ -71,17 +71,19 @@ def process(coro_func=None, *, make_queue=None, loop=None):
 
 class ProcessFactory:
 
-    def __init__(self, coro_func, make_queue, *, loop):
+    def __init__(self, coro_func, make_queue, *, loop=None):
         self.coro_func = coro_func
         self.closed_as_normal_exit = True
         self.make_queue = make_queue
         self.loop = loop
 
     def __call__(self, *args, **kwargs):
-        return Process(self.coro_func, args, kwargs,
-                       closed_as_normal_exit=self.closed_as_normal_exit,
-                       make_queue=self.make_queue,
-                       loop=self.loop)
+        return self.make(args, kwargs)
+
+    def make(self, args, kwargs, **options):
+        for opt in ('closed_as_normal_exit', 'make_queue', 'loop'):
+            options.setdefault(opt, getattr(self, opt))
+        return Process(self.coro_func, args, kwargs, **options)
 
 
 class Process:
