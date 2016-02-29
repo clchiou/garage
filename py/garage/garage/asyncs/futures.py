@@ -68,8 +68,7 @@ class awaiting:
                 return await self._context_manager.__aexit__(*exc_info)
 
         async def remove(self):
-            mgr = self._context_manager
-            self._context_manager = None
+            mgr, self._context_manager = self._context_manager, None
             if mgr is not None:
                 await mgr.__aexit__(None, None, None)
                 return mgr.future
@@ -90,6 +89,8 @@ class awaiting:
     def __init__(self, future, *, cancel_on_exit=False, loop=None):
         self.future = asyncio.ensure_future(future, loop=loop)
         self.cancel_on_exit = cancel_on_exit
+        # Dirty workaround for silencing queues.Closed :(
+        self.silence_exc_type = None
 
     async def __aenter__(self):
         return self.future
@@ -116,7 +117,8 @@ class awaiting:
             retrieved = False  # Just to be safe...
         if not retrieved:
             exc = self.future.exception()
-            if exc:
+            if exc and not (self.silence_exc_type and
+                            isinstance(exc, self.silence_exc_type)):
                 LOG.error('error of %r', self.future, exc_info=exc)
 
 

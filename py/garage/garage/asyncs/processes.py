@@ -2,6 +2,7 @@ __all__ = [
     'Nudges',
     'Throne',
     'process',
+    'until_closed',
 ]
 
 import asyncio
@@ -181,6 +182,14 @@ class Process:
     async def __aexit__(self, *exc_info):
         self.inbox.close()
         return await self._context_manager.__aexit__(*exc_info)
+
+
+def until_closed(inbox, *, closed_as_normal_exit=True, loop=None):
+    """Wrap inbox.until_closed() in an awaiting context manager."""
+    cxtmgr = awaiting(inbox.until_closed(), cancel_on_exit=True, loop=loop)
+    if closed_as_normal_exit:
+        cxtmgr.silence_exc_type = queues.Closed
+    return cxtmgr
 
 
 def _silence_closed(future):
