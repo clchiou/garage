@@ -27,7 +27,7 @@ class CircuitBreaker:
             return True
         return False
 
-    def err(self, raises=Disconnected):
+    def count(self, raises=Disconnected):
         self.timestamps.append(self.clock())
         if raises and not self.connected:
             raise raises
