@@ -1,5 +1,4 @@
 __all__ = [
-    'Nudges',
     'Throne',
     'process',
     'until_closed',
@@ -16,72 +15,6 @@ from .futures import awaiting
 
 
 LOG = logging.getLogger(__name__)
-
-
-class Nudges:
-    """Nudge tasks and wait for them to exit.
-
-       A nudge should not cancel tasks but should request tasks to exit
-       cooperatively.
-    """
-
-    def __init__(self, *, timeout=None, loop=None):
-        self.nudges = set()
-        self.tasks = set()
-        self.proc_table = {}
-        self.timeout = timeout
-        self.loop = loop
-
-    def add_nudge(self, nudge):
-        """Add a nudge - which is just a (coroutine) function that takes
-           no argument.
-        """
-        self.nudges.add(nudge)
-        return nudge
-
-    def add_task(self, coro_or_task):
-        """Add a task that will be waited for."""
-        task = asyncio.ensure_future(coro_or_task)
-        self.tasks.add(task)
-        return task
-
-    def add_proc(self, proc):
-        """Add a process that will be nudged then waited for."""
-        self.proc_table[proc] = (
-            self.add_nudge(proc.inbox.close),
-            self.add_task(proc.task),
-        )
-        return proc
-
-    def remove_proc(self, proc):
-        nudge, task = self.proc_table.pop(proc)
-        self.nudges.remove(nudge)
-        self.tasks.remove(task)
-
-    def add_inbox(self, inbox):
-        """Add a nudge through the inbox."""
-        self.add_nudge(inbox.close)
-        return inbox
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, *_):
-        for nudge in self.nudges:
-            maybe_coro = nudge()
-            if asyncio.iscoroutine(maybe_coro):
-                await maybe_coro
-        tasks = self.tasks
-        while tasks:
-            done, tasks = await asyncio.wait(
-                tasks, timeout=self.timeout, loop=self.loop)
-            for task in done:
-                try:
-                    await task
-                except queues.Closed:
-                    pass
-                except Exception:
-                    LOG.debug('error of %r', task, exc_info=True)
 
 
 class Throne:
