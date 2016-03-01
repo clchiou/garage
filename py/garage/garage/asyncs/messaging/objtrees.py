@@ -31,13 +31,11 @@ class Record:
 
     class Either:
         """Annotate an exclusive group of fields."""
-        def __init__(self, field_list):
+        def __init__(self, *field_list):
             asserts.precond(len(field_list) > 1)
             self.field_list = field_list
 
-    def __init__(self, name, decls):
-        self.name = name
-
+    def __init__(self, *decls):
         self.fields = OrderedDict()
         self.optionals = set()
         self.eithers = set()
@@ -58,7 +56,7 @@ class Record:
                 name, type_ = decl
                 self.fields[name] = type_
 
-        self.record = namedtuple(name, self.fields)
+        self.record = namedtuple('Record', self.fields)
 
     def _check_exclusive(self, rdict):
         for group in self.groups:
@@ -69,8 +67,7 @@ class Record:
                     if match > 1:
                         break
             if match != 1:
-                raise ValueError('%r are exclusive in %s: %r' %
-                                 (group, self.name, rdict))
+                raise ValueError('%r are exclusive: %r' % (group, rdict))
 
     def lower(self, record):
         rdict = {}
@@ -89,8 +86,7 @@ class Record:
                 if value is not None:
                     rdict[name] = type_.lower(value)
             else:
-                raise ValueError('%r is required in %s: %r' %
-                                 (name, self.name, record))
+                raise ValueError('%r is required: %r' % (name, record))
         self._check_exclusive(rdict)
         return rdict
 
@@ -108,8 +104,7 @@ class Record:
             elif name in self.optionals:
                 values.append(None)
             else:
-                raise ValueError('%r is required in %s: %r' %
-                                 (name, self.name, rdict))
+                raise ValueError('%r is required: %r' % (name, rdict))
         return self.record._make(values)
 
 
