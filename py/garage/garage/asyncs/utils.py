@@ -1,7 +1,9 @@
 __all__ = [
     'CircuitBreaker',
+    'timer',
 ]
 
+import asyncio
 import collections
 import time
 
@@ -30,4 +32,14 @@ class CircuitBreaker:
     def count(self, raises=Disconnected):
         self.timestamps.append(self.clock())
         if raises and not self.connected:
+            raise raises
+
+
+async def timer(timeout, *, raises=asyncio.TimeoutError, loop=None):
+    """Wait until timeout.  If timeout is None or negative, wait forever."""
+    if timeout is None or timeout < 0:
+        await asyncio.Event(loop=loop).wait()  # Wait forever.
+    else:
+        await asyncio.sleep(timeout, loop=loop)
+        if raises:
             raise raises
