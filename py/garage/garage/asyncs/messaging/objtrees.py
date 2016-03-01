@@ -9,15 +9,14 @@ network presentation (say, JSON).
 
 __all__ = [
     # Means of combination.
-    'Either',
     'List',
-    'Record',
     'Set',
+    'Record',
     # Means of primitive.
     'Primitive',
 ]
 
-from collections import namedtuple
+from collections import OrderedDict, namedtuple
 
 from garage import asserts
 
@@ -26,85 +25,92 @@ class Record:
 
     class Optional:
         """Annotate an optional field."""
-        def __init__(self, type_):
+        def __init__(self, name, type_):
+            self.name = name
             self.type_ = type_
 
-    def __init__(self, name, fields):
+    class Either:
+        """Annotate an exclusive group of fields."""
+        def __init__(self, field_list):
+            asserts.precond(len(field_list) > 1)
+            self.field_list = field_list
+
+    def __init__(self, name, decls):
         self.name = name
-        self.fields = fields
-        self._make_record = namedtuple(name, self.fields.keys())
+
+        self.fields = OrderedDict()
+        self.optionals = set()
+        self.eithers = set()
+        self.groups = []
+
+        for decl in decls:
+            if isinstance(decl, Record.Optional):
+                self.fields[decl.name] = decl.type_
+                self.optionals.add(decl.name)
+            elif isinstance(decl, Record.Either):
+                group = set()
+                for name, type_ in decl.field_list:
+                    self.fields[name] = type_
+                    self.eithers.add(name)
+                    group.add(name)
+                self.groups.append(group)
+            else:
+                name, type_ = decl
+                self.fields[name] = type_
+
+        self.record = namedtuple(name, self.fields)
+
+    def _check_exclusive(self, rdict):
+        for group in self.groups:
+            match = 0
+            for name in group:
+                if name in rdict:
+                    match += 1
+                    if match > 1:
+                        break
+            if match != 1:
+                raise ValueError('%r are exclusive in %s: %r' %
+                                 (group, self.name, rdict))
 
     def lower(self, record):
         rdict = {}
-        for field_name, field_type in self.fields.items():
-            field_value = getattr(record, field_name, None)
-            if isinstance(field_type, Record.Optional):
-                if field_value is None:
-                    continue
-                else:
-                    field_type = field_type.type_
-            elif isinstance(field_type, Collection):
-                if not field_value:
-                    continue
-            elif field_value is None:
+        for name, type_ in self.fields.items():
+            value = getattr(record, name, None)
+            if value:  # Lower non-empty value.
+                rdict[name] = type_.lower(value)
+            elif name in self.eithers:
+                # "either" is special, we lower empty value, too.
+                if value is not None:
+                    rdict[name] = type_.lower(value)
+            elif isinstance(type_, Collection):
+                if value:  # Only lower non-empty value.
+                    rdict[name] = type_.lower(value)
+            elif name in self.optionals:
+                if value is not None:
+                    rdict[name] = type_.lower(value)
+            else:
                 raise ValueError('%r is required in %s: %r' %
-                                 (field_name, self.name, record))
-            rdict[field_name] = field_type.lower(field_value)
+                                 (name, self.name, record))
+        self._check_exclusive(rdict)
         return rdict
 
     def higher(self, rdict):
-        fields = {}
-        for field_name, field_type in self.fields.items():
-            value = rdict.get(field_name)
-            if isinstance(field_type, Record.Optional):
-                if value is None:
-                    fields[field_name] = None
-                    continue
-                else:
-                    field_type = field_type.type_
-            elif isinstance(field_type, Collection):
-                if not value:
-                    fields[field_name] = field_type.unit()
-                    continue
-            elif value is None:
-                raise ValueError('%r is required in %s: %r' %
-                                 (field_name, self.name, rdict))
-            fields[field_name] = field_type.higher(value)
-        return self._make_record(**fields)
-
-
-class Either:
-
-    def __init__(self, choices):
-        asserts.precond(len(choices) > 1)
-        self.choices = choices
-        name = 'Either__%s' % '_'.join(choices)
-        self._make_either = namedtuple(name, self.choices.keys())
-
-    def lower_choice(self, choice_name, value):
-        if choice_name not in self.choices:
-            raise ValueError('no matching choice: %r' % choice_name)
-        return {choice_name: self.choices[choice_name].lower(value)}
-
-    def lower(self, either):
-        edict = {}
-        for choice_name, choice_type in self.choices.items():
-            value = getattr(either, choice_name, None)
+        self._check_exclusive(rdict)
+        values = []
+        for name, type_ in self.fields.items():
+            value = rdict.get(name)
             if value is not None:
-                edict[choice_name] = choice_type.lower(value)
-        if len(edict) != 1:
-            raise ValueError('must choose exactly one: %r' % either)
-        return edict
-
-    def higher(self, edict):
-        if len(edict) != 1:
-            raise ValueError('must choose exactly one: %r' % edict)
-        choice_name, value = next(iter(edict.items()))
-        if choice_name not in self.choices:
-            raise ValueError('no matching choice: %r' % edict)
-        choices = {name: None for name in self.choices}
-        choices[choice_name] = self.choices[choice_name].higher(value)
-        return self._make_either(**choices)
+                values.append(type_.higher(value))
+            elif isinstance(type_, Collection):
+                values.append(type_.unit())
+            elif name in self.eithers:
+                values.append(None)
+            elif name in self.optionals:
+                values.append(None)
+            else:
+                raise ValueError('%r is required in %s: %r' %
+                                 (name, self.name, rdict))
+        return self.record._make(values)
 
 
 class Collection:

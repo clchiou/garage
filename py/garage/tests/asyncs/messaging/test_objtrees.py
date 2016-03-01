@@ -45,12 +45,12 @@ class ObjtreesTest(unittest.TestCase):
             set_of_ints.higher(('1',))
 
     def test_record(self):
-        record_type = Record('record', {
-            'x': Primitive.of_type(int),
-            'x_list': List(Primitive.of_type(int)),
-            'x_set': Set(Primitive.of_type(int)),
-            'x_optional': Record.Optional(Primitive.of_type(int)),
-        })
+        record_type = Record('record', [
+            ('x', Primitive.of_type(int)),
+            ('x_list', List(Primitive.of_type(int))),
+            ('x_set', Set(Primitive.of_type(int))),
+            Record.Optional('x_optional', Primitive.of_type(int)),
+        ])
 
         def assertRecordEqual(expect, actual):
             self.assertEqual(expect.x, actual.x)
@@ -67,9 +67,9 @@ class ObjtreesTest(unittest.TestCase):
         obj = Obj(x=3)
         self.assertDictEqual({'x': 3}, record_type.lower(obj))
 
-        obj = Obj(x=4, x_list=[5], x_optional=6)
+        obj = Obj(x=4, x_list=[5], x_optional=0)
         self.assertDictEqual(
-            {'x': 4, 'x_list': (5,), 'x_optional': 6},
+            {'x': 4, 'x_list': (5,), 'x_optional': 0},
             record_type.lower(obj),
         )
 
@@ -100,10 +100,12 @@ class ObjtreesTest(unittest.TestCase):
             record_type.higher({})
 
     def test_either(self):
-        either = Either({
-            'x': Primitive.of_type(int),
-            'y': Primitive.of_type(str),
-        })
+        either = Record('either', [
+            Record.Either([
+                ('x', Primitive.of_type(int)),
+                ('y', Primitive.of_type(str)),
+            ]),
+        ]);
 
         def assertObjectEqual(expect, actual):
             self.assertEqual(expect.x, actual.x)
@@ -111,9 +113,6 @@ class ObjtreesTest(unittest.TestCase):
 
         self.assertEqual({'x': 1}, either.lower(Obj(x=1)))
         self.assertEqual({'y': '1'}, either.lower(Obj(y='1')))
-
-        self.assertEqual({'x': 1}, either.lower_choice('x', 1))
-        self.assertEqual({'y': '1'}, either.lower_choice('y', '1'))
 
         assertObjectEqual(Obj(x=1, y=None), either.higher({'x': 1}))
         assertObjectEqual(Obj(x=None, y='1'), either.higher({'y': '1'}))
@@ -124,10 +123,12 @@ class ObjtreesTest(unittest.TestCase):
             either.higher({'x': 1, 'y': '1'})
 
     def test_either_list(self):
-        either = Either({
-            'x': List(Primitive.of_type(int)),
-            'y': Set(Primitive.of_type(str)),
-        })
+        either = Record('either', [
+            Record.Either([
+                ('x', List(Primitive.of_type(int))),
+                ('y', Set(Primitive.of_type(str))),
+            ]),
+        ]);
 
         self.assertEqual({'x': ()}, either.lower(Obj(x=[])))
         self.assertEqual({'y': ()}, either.lower(Obj(y=set())))
@@ -136,7 +137,7 @@ class ObjtreesTest(unittest.TestCase):
             either.lower(Obj(x=[], y=set()))
 
     def test_nested(self):
-        type_ = List(List(Record('r', {'x': Primitive.of_type(int)})))
+        type_ = List(List(Record('r', [('x', Primitive.of_type(int))])))
         self.assertEqual(
             (({'x': 1}, {'x': 2}),),
             type_.lower([[Obj(x=1), Obj(x=2)]]),
