@@ -109,6 +109,12 @@ class Process:
             self.task.add_done_callback(_silence_closed)
         self.inbox = inbox
 
+    def stop(self, graceful=True):
+        self.inbox.close(graceful=graceful)
+
+    def __await__(self):
+        return self.task.__await__()
+
     async def __aenter__(self):
         self._context_manager = awaiting(self.task, loop=self.loop)
         await self._context_manager.__aenter__()
