@@ -3,7 +3,6 @@ __all__ = [
 ]
 
 import asyncio
-import functools
 
 from garage import asserts
 
@@ -12,40 +11,27 @@ class ProcessExit(Exception):
     pass
 
 
-def process(coro_func=None, *, loop=None):
-    """Decorator to mark processes."""
-    if coro_func is None:
-        return functools.partial(process, loop=loop)
-    # NOTE: A coroutine object is not a coroutine function!
-    asserts.precond(not asyncio.iscoroutine(coro_func))
-    return Process(coro_func, loop=loop)
-
-
-class Process:
+class process:
     """A process is an asyncio.Task plus a `stop` future object, and
        I find this much more easier to work with than Task.cancel().
     """
 
-    def __init__(self, coro_func, *, loop=None):
+    def __init__(self, coro_func):
+        # NOTE: A coroutine object is not a coroutine function!
+        asserts.precond(not asyncio.iscoroutine(coro_func))
         self.coro_func = coro_func
-        self.loop = loop
 
     def __call__(self, *args, **kwargs):
-        stop_flag = asyncio.Event(loop=self.loop)
-        exit_fut = asyncio.ensure_future(exit(stop_flag), loop=self.loop)
+        return self.make(args, kwargs, loop=None)
+
+    def make(self, args, kwargs, *, loop=None):
+        exit = asyncio.Future(loop=loop)
         task = asyncio.ensure_future(
-            self.coro_func(exit_fut, *args, **kwargs),
-            loop=self.loop,
-        )
+            self.coro_func(exit, *args, **kwargs), loop=loop)
         task.add_done_callback(_silence_process_exit)
-        task.add_done_callback(lambda fut: exit_fut.cancel())
-        task.stop = stop_flag.set  # Monkey patch task.
+        task.add_done_callback(lambda fut: exit.cancel())
+        task.stop = lambda: exit.set_exception(ProcessExit)
         return task
-
-
-async def exit(stop_flag):
-    await stop_flag.wait()
-    raise ProcessExit
 
 
 def _silence_process_exit(future):
