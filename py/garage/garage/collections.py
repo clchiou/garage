@@ -60,7 +60,7 @@ def group(iterable, key=None):
 class LoadingDict(UserDict):
 
     def __init__(self, load, data=None):
-        super().__init__(dict=data)
+        super().__init__(**(data or {}))
         self.load = load
 
     def __missing__(self, key):
