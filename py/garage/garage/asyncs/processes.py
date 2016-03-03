@@ -30,7 +30,10 @@ class process:
             self.coro_func(exit, *args, **kwargs), loop=loop)
         task.add_done_callback(_silence_process_exit)
         task.add_done_callback(lambda fut: exit.cancel())
-        task.stop = lambda: exit.set_exception(ProcessExit)
+        def stop():
+            if not exit.cancelled():
+                exit.set_exception(ProcessExit)
+        task.stop = stop
         return task
 
 
