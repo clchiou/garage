@@ -1,5 +1,9 @@
 __all__ = [
+    # Context manager helpers.
+    'Ownership',
     'awaiting',
+    'on_exit',
+    # Future selectors.
     'each_completed',
     'each_of',
     'one_completed',
@@ -23,74 +27,9 @@ class awaiting:
        tasks do not outlive their parent task.
     """
 
-    class callback:
-        """Wrap an ordinary function or an awaitable in an async context
-           manager which is called on exit.  If the function returns an
-           awaitable, it will be awaited.
-        """
-
-        def __init__(self, callback, *, loop=None):
-            self.callback = callback
-            self.loop = loop
-
-        async def __aenter__(self):
-            return self.callback
-
-        async def __aexit__(self, *_):
-            if inspect.isawaitable(self.callback):
-                await self.callback
-            else:
-                awaitable = self.callback()
-                if inspect.isawaitable(awaitable):
-                    await awaitable
-
-    class replaceable:
-        """An async context manager that wraps a future object that you
-           may replace with another future object.  When you replace,
-           the old future object will be awaited.
-
-           You may use this to implement task restart - the context
-           manager represents the overall lifetime of tasks while each
-           task may die and be replaced.
-        """
-
-        def __init__(self, *, cancel_on_exit=False, loop=None):
-            self._context_manager = None
-            self.cancel_on_exit = cancel_on_exit
-            self.loop = loop
-
-        async def __aenter__(self):
-            asserts.precond(self._context_manager is None)
-            return self
-
-        async def __aexit__(self, *exc_info):
-            if self._context_manager is not None:
-                return await self._context_manager.__aexit__(*exc_info)
-
-        async def remove(self):
-            mgr, self._context_manager = self._context_manager, None
-            if mgr is not None:
-                await mgr.__aexit__(None, None, None)
-                return mgr.future
-
-        def set(self, future):
-            asserts.precond(self._context_manager is None)
-            if future:
-                self._context_manager = awaiting(
-                    future,
-                    cancel_on_exit=self.cancel_on_exit,
-                    loop=self.loop,
-                )
-                # NOTE: Not calling `await __aenter__()`.
-                future = self._context_manager.future
-                asserts.postcond(future is not None)
-            return future
-
     def __init__(self, future, *, cancel_on_exit=False, loop=None):
         self.future = asyncio.ensure_future(future, loop=loop)
         self.cancel_on_exit = cancel_on_exit
-        # Dirty workaround for silencing queues.Closed :(
-        self.silence_exc_type = None
 
     async def __aenter__(self):
         return self.future
@@ -117,9 +56,72 @@ class awaiting:
             retrieved = False  # Just to be safe...
         if not retrieved:
             exc = self.future.exception()
-            if exc and not (self.silence_exc_type and
-                            isinstance(exc, self.silence_exc_type)):
+            if exc:
                 LOG.error('error of %r', self.future, exc_info=exc)
+
+
+class Ownership:
+    """An async context manager that wraps a future object that you
+       may replace with another future object.  When you replace,
+       the old future object will be awaited.
+
+       You may use this to implement task restart - the context
+       manager represents the overall lifetime of tasks while each
+       task may die and be replaced.
+    """
+
+    def __init__(self, *, cancel_on_exit=False, loop=None):
+        self._context_manager = None
+        self.cancel_on_exit = cancel_on_exit
+        self.loop = loop
+
+    async def __aenter__(self):
+        asserts.precond(self._context_manager is None)
+        return self
+
+    async def __aexit__(self, *exc_info):
+        if self._context_manager is not None:
+            return await self._context_manager.__aexit__(*exc_info)
+
+    async def disown(self):
+        mgr, self._context_manager = self._context_manager, None
+        if mgr is not None:
+            await mgr.__aexit__(None, None, None)
+            return mgr.future
+
+    def own(self, future):
+        asserts.precond(self._context_manager is None)
+        if future:
+            self._context_manager = awaiting(
+                future,
+                cancel_on_exit=self.cancel_on_exit,
+                loop=self.loop,
+            )
+            # NOTE: Not calling `await __aenter__()`.
+            future = self._context_manager.future
+            asserts.postcond(future is not None)
+        return future
+
+
+class on_exit:
+    """Wrap an ordinary function or an awaitable in an async context
+       manager which is called on exit.  If the function returns an
+       awaitable, it will be awaited.
+    """
+
+    def __init__(self, callback):
+        self.callback = callback
+
+    async def __aenter__(self):
+        return self.callback
+
+    async def __aexit__(self, *_):
+        if inspect.isawaitable(self.callback):
+            await self.callback
+        else:
+            awaitable = self.callback()
+            if inspect.isawaitable(awaitable):
+                await awaitable
 
 
 class each_completed:

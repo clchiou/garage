@@ -3,7 +3,9 @@ import unittest
 import asyncio
 
 from garage.asyncs.futures import (
+    Ownership,
     awaiting,
+    on_exit,
     each_completed,
     each_of,
     one_completed,
@@ -22,23 +24,23 @@ class FuturesTest(unittest.TestCase):
         self.assertTrue(fut.done())
 
         data = []
-        async with awaiting.callback(lambda: data.append(42)):
+        async with on_exit(lambda: data.append(42)):
             self.assertListEqual([], data)
         self.assertListEqual([42], data)
 
-        async with awaiting.replaceable(cancel_on_exit=True) as box:
-            self.assertIsNone(await box.remove())
+        async with Ownership(cancel_on_exit=True) as box:
+            self.assertIsNone(await box.disown())
 
             f1 = asyncio.ensure_future(asyncio.sleep(100))
-            self.assertIs(f1, box.set(f1))
+            self.assertIs(f1, box.own(f1))
 
             self.assertFalse(f1.done())
-            self.assertIs(f1, await box.remove())
+            self.assertIs(f1, await box.disown())
             self.assertTrue(f1.done())
             self.assertTrue(f1.cancelled())
 
             f2 = asyncio.ensure_future(asyncio.sleep(100))
-            self.assertIs(f2, box.set(f2))
+            self.assertIs(f2, box.own(f2))
 
             self.assertFalse(f2.done())
 
