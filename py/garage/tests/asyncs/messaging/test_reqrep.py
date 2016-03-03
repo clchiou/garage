@@ -4,6 +4,7 @@ import asyncio
 import random
 
 from garage.asyncs import queues
+from garage.asyncs.futures import each_completed
 from garage.asyncs.messaging import reqrep
 
 from .. import synchronous
@@ -19,56 +20,68 @@ class ReqrepTest(unittest.TestCase):
 
     @synchronous
     async def test_stop_client(self):
-        client = reqrep.client(self.url)
+        rq = queues.Queue()
+        client = asyncio.ensure_future(reqrep.client(self.url, rq))
 
         response_fut = asyncio.Future()
-        await client.inbox.put((b'', response_fut))
+        await rq.put((b'', response_fut))
 
         client.stop()
         await client
 
-        self.assertTrue(client.task.done())
+        self.assertTrue(client.done())
         self.assertFalse(response_fut.cancelled())
 
         response_fut.cancel()
 
     @synchronous
     async def test_stop_server(self):
-        client = reqrep.client(self.url)
-        client_response_fut = asyncio.Future()
-        await client.inbox.put((b'hello world', client_response_fut))
 
-        server = reqrep.server(self.url)
+        flag = asyncio.Event()
 
-        request, response_fut = await server.inbox.get()
-        self.assertEqual(b'hello world', request)
-        self.assertIsNot(client_response_fut, response_fut)
+        async def run_client():
+            client_rq = queues.Queue()
+            client = asyncio.ensure_future(reqrep.client(self.url, client_rq))
+            client_response_fut = asyncio.Future()
+            await client_rq.put((b'hello world', client_response_fut))
 
-        server.stop()
-        await server
+            await flag.wait()
 
-        self.assertTrue(server.task.done())
-        self.assertTrue(response_fut.cancelled())
+            client.stop()
+            await client
 
-        client.stop()
-        await client
-        self.assertFalse(client_response_fut.cancelled())
-        self.assertIsNotNone(client_response_fut.exception())
-        self.assertTrue(
-            isinstance(client_response_fut.exception(), queues.Closed))
+            self.assertFalse(client_response_fut.done())
+            self.assertFalse(client_response_fut.cancelled())
+            client_response_fut.cancel()
 
-        client_response_fut.cancel()
+        async def run_server():
+            server_rq = queues.Queue()
+            server = asyncio.ensure_future(reqrep.server(self.url, server_rq))
+
+            request, response_fut = await server_rq.get()
+            self.assertEqual(b'hello world', request)
+
+            flag.set()
+
+            server.stop()
+            await server
+            self.assertTrue(response_fut.cancelled())
+
+        async for task in each_completed([run_client(), run_server()]):
+            await task
 
     @synchronous
     async def test_end_to_end(self):
-        client = reqrep.client(self.url)
-        server = reqrep.server(self.url)
+        client_rq = queues.Queue()
+        client = reqrep.client(self.url, client_rq)
+        server_rq = queues.Queue()
+        server = reqrep.server(self.url, server_rq)
 
         client_request = b'hello'
         client_response_fut = asyncio.Future()
-        await client.inbox.put((client_request, client_response_fut))
+        await client_rq.put((client_request, client_response_fut))
 
-        server_request, server_response_fut = await server.inbox.get()
+        server_request, server_response_fut = await server_rq.get()
         self.assertEqual(client_request, server_request)
 
         expect = b'world'
@@ -83,10 +96,11 @@ class ReqrepTest(unittest.TestCase):
 
     @synchronous
     async def test_client_timeout(self):
-        client = reqrep.client(self.url, timeout=0.01)
+        client_rq = queues.Queue()
+        client = reqrep.client(self.url, client_rq, timeout=0.01)
 
         response_fut = asyncio.Future()
-        await client.inbox.put((b'', response_fut))
+        await client_rq.put((b'', response_fut))
 
         with self.assertRaises(asyncio.TimeoutError):
             await response_fut
@@ -96,17 +110,20 @@ class ReqrepTest(unittest.TestCase):
 
     @synchronous
     async def test_server_timeout(self):
-        client = reqrep.client(self.url)
+        client_rq = queues.Queue()
+        client = reqrep.client(self.url, client_rq)
         client_response_fut = asyncio.Future()
-        await client.inbox.put((b'hello world', client_response_fut))
+        await client_rq.put((b'hello world', client_response_fut))
 
+        server_rq = queues.Queue()
         server = reqrep.server(
             self.url,
+            server_rq,
             timeout=0.01,
             timeout_response=b'timeout',
         )
 
-        request, response_fut = await server.inbox.get()
+        request, response_fut = await server_rq.get()
         self.assertEqual(b'hello world', request)
 
         self.assertEqual(b'timeout', await client_response_fut)
@@ -120,16 +137,19 @@ class ReqrepTest(unittest.TestCase):
 
     @synchronous
     async def test_server_timeout_crash(self):
-        client = reqrep.client(self.url)
+        client_rq = queues.Queue()
+        client = reqrep.client(self.url, client_rq)
         client_response_fut = asyncio.Future()
-        await client.inbox.put((b'hello world', client_response_fut))
+        await client_rq.put((b'hello world', client_response_fut))
 
+        server_rq = queues.Queue()
         server = reqrep.server(
             self.url,
+            server_rq,
             timeout=0.01,
         )
 
-        request, response_fut = await server.inbox.get()
+        request, response_fut = await server_rq.get()
         self.assertEqual(b'hello world', request)
 
         with self.assertRaises(asyncio.TimeoutError):

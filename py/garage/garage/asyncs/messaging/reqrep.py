@@ -5,12 +5,11 @@ __all__ = [
 
 import asyncio
 import logging
-from functools import partial
 
 from garage import asserts
 from garage.asyncs import utils
-from garage.asyncs.futures import awaiting, one_of
-from garage.asyncs.processes import process
+from garage.asyncs.futures import one_of
+from garage.asyncs.processes import ProcessExit, process
 
 import nanomsg as nn
 from nanomsg.asyncio import Socket
@@ -20,90 +19,76 @@ LOG = logging.getLogger(__name__)
 
 
 @process
-async def client(inbox, service_url, *, timeout=None):
+async def client(exit, service_url, request_queue, *, timeout=None):
 
-    def close_inbox(inbox):
-        num_reqs = len(inbox.close(graceful=False))
-        if num_reqs:
-            LOG.warning('client: drop %d requests', num_reqs)
-        # The "producer" side of a future object should not cancel it.
+    async def main(sock):
+        request, response_fut = await one_of([request_queue.get()], [exit])
+        timer = asyncio.ensure_future(utils.timer(timeout))
+        try:
+            await on_response(
+                one_of([transmit(sock, request)], [timer, exit]),
+                request, response_fut,
+            )
+        finally:
+            timer.cancel()
 
-    async with awaiting.callback(partial(close_inbox, inbox)), \
-               Socket(protocol=nn.NN_REQ) as sock:
-        sock.connect(service_url)
+    async def transmit(sock, request):
+        asserts.precond(isinstance(request, bytes))
+        await sock.send(request)
+        with await sock.recv() as message:
+            return bytes(message.as_memoryview())
 
-        while not inbox.is_closed():
-
-            # XXX Wrap inbox.get() in an asyncio.ensure_future() call so
-            # that we may yield to the event loop?  This is strange.
-            request, response_fut = await asyncio.ensure_future(inbox.get())
-
-            stop = asyncio.ensure_future(inbox.until_closed())
-            timer = asyncio.ensure_future(utils.timer(timeout))
-
-            response = None
-            try:
-                asserts.precond(isinstance(request, bytes))
-                await one_of([sock.send(request)], [stop, timer])
-                with await one_of([sock.recv()], [stop, timer]) as message:
-                    response = bytes(message.as_memoryview())
-
-            except Exception as exc:
-                if response_fut.cancelled():
-                    LOG.exception(
-                        'client: request errs while response_fut cancelled: '
-                        'request=%r response=%r',
-                        request, response)
-                else:
-                    response_fut.set_exception(exc)
+    async def on_response(transmit_fut, request, response_fut):
+        try:
+            response = await transmit_fut
+        except ProcessExit:
+            raise
+        except Exception as exc:
+            if response_fut.cancelled():
+                LOG.exception(
+                    'client: request errs while response_fut cancelled: '
+                    'request=%r',
+                    request)
             else:
-                if response_fut.cancelled():
-                    LOG.warning(
-                        'client: drop response: request=%r response=%r',
-                        request, response)
-                else:
-                    asserts.postcond(response is not None)
-                    response_fut.set_result(response)
+                response_fut.set_exception(exc)
+        else:
+            if response_fut.cancelled():
+                LOG.warning(
+                    'client: drop response: request=%r response=%r',
+                    request, response)
+            else:
+                asserts.postcond(response is not None)
+                response_fut.set_result(response)
 
-            finally:
-                stop.cancel()
-                timer.cancel()
+    with Socket(protocol=nn.NN_REQ) as sock:
+        sock.connect(service_url)
+        while True:
+            await main(sock)
 
 
 @process
-async def server(inbox, service_url, *,
+async def server(exit, service_url, request_queue, *,
                  timeout=None,
                  timeout_response=None):
-
-    # NOTE: server() _write_ to instead of read from its inbox.
-
     asserts.precond(timeout_response is None or
                     isinstance(timeout_response, bytes))
 
-    def close_inbox(inbox):
-        reqreps = inbox.close(graceful=False)
-        if reqreps:
-            LOG.warning('server: drop %d requests', len(reqreps))
-        # The "consumer" side of a future object is responsible for
-        # canceling it.
-        for _, rep_fut in reqreps:
-            rep_fut.cancel()
+    async def serve_one(request, response_fut):
+        await request_queue.put((request, response_fut))
+        response = await response_fut
+        asserts.postcond(isinstance(response, bytes))
+        return response
 
-    async with awaiting.callback(partial(close_inbox, inbox)), \
-               Socket(protocol=nn.NN_REP) as sock:
+    with Socket(protocol=nn.NN_REP) as sock:
         sock.bind(service_url)
-
-        while not inbox.is_closed():
-
-            with await one_of([sock.recv(), inbox.until_closed()]) as message:
+        while True:
+            with await one_of([sock.recv()], [exit]) as message:
                 request = bytes(message.as_memoryview())
-
             response_fut = asyncio.Future()
-            await inbox.put((request, response_fut))
-
             try:
                 response = await one_of(
-                    [response_fut, inbox.until_closed()],
+                    [serve_one(request, response_fut)],
+                    [exit],
                     timeout=timeout,
                 )
             except asyncio.TimeoutError:
@@ -111,6 +96,6 @@ async def server(inbox, service_url, *,
                     raise
                 LOG.warning('request timeout %f', timeout, exc_info=True)
                 response = timeout_response
-            asserts.postcond(isinstance(response, bytes))
-
-            await one_of([sock.send(response), inbox.until_closed()])
+            finally:
+                response_fut.cancel()
+            await one_of([sock.send(response)], [exit])
