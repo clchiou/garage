@@ -23,6 +23,11 @@ from garage import asserts
 
 class Record:
 
+    class Name:
+        """Annotate the name of this record."""
+        def __init__(self, name):
+            self.name = name
+
     class Optional:
         """Annotate an optional field."""
         def __init__(self, name, type_):
@@ -36,13 +41,17 @@ class Record:
             self.field_list = field_list
 
     def __init__(self, *decls):
+        self.name = 'Record'
         self.fields = OrderedDict()
         self.optionals = set()
         self.eithers = set()
         self.groups = []
 
         for decl in decls:
-            if isinstance(decl, Record.Optional):
+            if isinstance(decl, Record.Name):
+                self.name = decl.name
+                continue
+            elif isinstance(decl, Record.Optional):
                 self.fields[decl.name] = decl.type_
                 self.optionals.add(decl.name)
             elif isinstance(decl, Record.Either):
@@ -56,7 +65,7 @@ class Record:
                 name, type_ = decl
                 self.fields[name] = type_
 
-        self.record = namedtuple('Record', self.fields)
+        self.record = namedtuple(self.name, self.fields)
 
     def _check_exclusive(self, rdict):
         for group in self.groups:
@@ -67,7 +76,8 @@ class Record:
                     if match > 1:
                         break
             if match != 1:
-                raise ValueError('%r are exclusive: %r' % (group, rdict))
+                raise ValueError('%r of %s are exclusive: %r' %
+                                 (group, self.name, rdict))
 
     def lower(self, record):
         rdict = {}
@@ -86,7 +96,8 @@ class Record:
                 if value is not None:
                     rdict[name] = type_.lower(value)
             else:
-                raise ValueError('%r is required: %r' % (name, record))
+                raise ValueError('%r is required in %s: %r' %
+                                 (name, self.name, record))
         self._check_exclusive(rdict)
         return rdict
 
@@ -104,7 +115,8 @@ class Record:
             elif name in self.optionals:
                 values.append(None)
             else:
-                raise ValueError('%r is required: %r' % (name, rdict))
+                raise ValueError('%r is required in %s: %r' %
+                                 (name, self.name, rdict))
         return self.record._make(values)
 
 
