@@ -24,13 +24,10 @@ async def client(exit, service_url, request_queue, *, timeout=None):
     async def main(sock):
         request, response_fut = await one_of([request_queue.get()], [exit])
         timer = asyncio.ensure_future(utils.timer(timeout))
-        try:
-            await on_response(
-                one_of([transmit(sock, request)], [timer, exit]),
-                request, response_fut,
-            )
-        finally:
-            timer.cancel()
+        await on_response(
+            one_of([transmit(sock, request), timer], [exit]),
+            request, response_fut,
+        )
 
     async def transmit(sock, request):
         asserts.precond(isinstance(request, bytes))
