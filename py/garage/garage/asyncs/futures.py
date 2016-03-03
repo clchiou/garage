@@ -130,8 +130,12 @@ class each_completed:
     """
 
     def __init__(self, required, optional=(), *, timeout=None, loop=None):
-        self.required = set(required)
-        self.optional = set(optional)
+        self.required = {
+            asyncio.ensure_future(coro, loop=loop) for coro in required
+        }
+        self.optional = {
+            asyncio.ensure_future(coro, loop=loop) for coro in optional
+        }
         self.timeout = timeout
         self.loop = loop
         self._done = None
