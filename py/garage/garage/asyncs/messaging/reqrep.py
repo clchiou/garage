@@ -9,7 +9,7 @@ import logging
 from garage import asserts
 from garage.asyncs import utils
 from garage.asyncs.futures import one_of
-from garage.asyncs.processes import ProcessExit, process
+from garage.asyncs.processes import process
 
 import nanomsg as nn
 from nanomsg.asyncio import Socket
@@ -38,8 +38,6 @@ async def client(exit, service_url, request_queue, *, timeout=None):
     async def on_response(transmit_fut, request, response_fut):
         try:
             response = await transmit_fut
-        except ProcessExit:
-            raise
         except Exception as exc:
             if response_fut.cancelled():
                 LOG.exception(
