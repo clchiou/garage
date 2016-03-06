@@ -3,8 +3,7 @@ import unittest
 import asyncio
 
 from garage.asyncs.processes import process
-
-from . import synchronous
+from garage.asyncs.utils import synchronous
 
 
 class MyException(Exception):

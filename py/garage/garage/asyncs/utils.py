@@ -1,11 +1,13 @@
 __all__ = [
     'CircuitBreaker',
+    'synchronous',
     'timer',
 ]
 
 import asyncio
 import collections
 import time
+from functools import wraps
 
 
 class CircuitBreaker:
@@ -37,6 +39,17 @@ class CircuitBreaker:
             raise raises
         else:
             return False
+
+
+def synchronous(coro_func):
+    """Transform the decorated coroutine function into a synchronous
+       function.
+    """
+    @wraps(coro_func)
+    def wrapper(*args, **kwargs):
+        return asyncio.get_event_loop().run_until_complete(
+            coro_func(*args, **kwargs))
+    return wrapper
 
 
 async def timer(timeout, *, raises=asyncio.TimeoutError, loop=None):

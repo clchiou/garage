@@ -6,8 +6,7 @@ import random
 from garage.asyncs import queues
 from garage.asyncs.futures import each_completed
 from garage.asyncs.messaging import reqrep
-
-from .. import synchronous
+from garage.asyncs.utils import synchronous
 
 
 URL_BASE = 'inproc://test_reqrep/'

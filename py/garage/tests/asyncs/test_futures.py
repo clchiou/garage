@@ -11,8 +11,7 @@ from garage.asyncs.futures import (
     one_completed,
     one_of,
 )
-
-from . import synchronous
+from garage.asyncs.utils import synchronous
 
 
 class FuturesTest(unittest.TestCase):

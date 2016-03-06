@@ -3,8 +3,7 @@ import unittest
 import asyncio
 
 from garage.asyncs import queues
-
-from . import synchronous
+from garage.asyncs.utils import synchronous
 
 
 class QueueTest(unittest.TestCase):
