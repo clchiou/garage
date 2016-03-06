@@ -89,7 +89,7 @@ async def server(exit, service_url, request_queue, *,
             except asyncio.TimeoutError:
                 if timeout_response is None:
                     raise
-                LOG.warning('request timeout %f', timeout, exc_info=True)
+                LOG.warning('request timeout (%f seconds)', timeout)
                 response = timeout_response
             finally:
                 response_fut.cancel()
