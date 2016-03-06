@@ -65,7 +65,12 @@ class Record:
                 name, type_ = decl
                 self.fields[name] = type_
 
-        self.record = namedtuple(self.name, self.fields)
+        self._record = namedtuple(self.name, self.fields)
+
+    def make(self, **kwargs):
+        for name in self.fields:
+            kwargs.setdefault(name, None)
+        return self._record(**kwargs)
 
     def _check_exclusive(self, rdict):
         for group in self.groups:
@@ -117,7 +122,7 @@ class Record:
             else:
                 raise ValueError('%r is required in %s: %r' %
                                  (name, self.name, rdict))
-        return self.record._make(values)
+        return self._record._make(values)
 
 
 class Collection:
