@@ -88,9 +88,7 @@ class Record:
         rdict = {}
         for name, type_ in self.fields.items():
             value = getattr(record, name, None)
-            if value:  # Lower non-empty value.
-                rdict[name] = type_.lower(value)
-            elif name in self.eithers:
+            if name in self.eithers:
                 # "either" is special, we lower empty value, too.
                 if value is not None:
                     rdict[name] = type_.lower(value)
@@ -100,6 +98,8 @@ class Record:
             elif name in self.optionals:
                 if value is not None:
                     rdict[name] = type_.lower(value)
+            elif value is not None:
+                rdict[name] = type_.lower(value)
             else:
                 raise ValueError('%r is required in %s: %r' %
                                  (name, self.name, record))

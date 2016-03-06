@@ -58,8 +58,8 @@ class ObjtreesTest(unittest.TestCase):
             self.assertSetEqual(expect.x_set, actual.x_set)
             self.assertEqual(expect.x_optional, actual.x_optional)
 
-        obj = Obj(x=1, x_list=None, x_set=None, x_optional=None, extra='x')
-        self.assertDictEqual({'x': 1}, record_type.lower(obj))
+        obj = Obj(x=0, x_list=None, x_set=None, x_optional=None, extra='x')
+        self.assertDictEqual({'x': 0}, record_type.lower(obj))
 
         obj = Obj(x=2, x_list=[], x_set=set())
         self.assertDictEqual({'x': 2}, record_type.lower(obj))
