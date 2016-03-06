@@ -1,10 +1,13 @@
 __all__ = [
+    'ProcessOwnership',
     'process',
 ]
 
 import asyncio
 
 from garage import asserts
+
+from .futures import Ownership
 
 
 # Inherit from BaseException so that `except Exception` won't catch it.
@@ -63,3 +66,28 @@ class Process(asyncio.Task):
             self.set_result(None)
         else:
             super().set_exception(exc)
+
+
+class ProcessOwnership(Ownership):
+
+    def __init__(self):
+        super().__init__()
+        self.proc = None
+
+    async def __aexit__(self, *exc_info):
+        if self.proc:
+            self.proc.stop()
+        self.proc = None
+        return await super().__aexit__(*exc_info)
+
+    async def disown(self):
+        if self.proc:
+            self.proc.stop()
+        self.proc = None
+        return await super().disown()
+
+    def own(self, proc):
+        asserts.precond(isinstance(proc, Process))
+        asserts.precond(self.proc is None)
+        self.proc = proc
+        return super().own(proc)
