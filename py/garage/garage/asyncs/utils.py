@@ -31,8 +31,12 @@ class CircuitBreaker:
 
     def count(self, raises=Disconnected):
         self.timestamps.append(self.clock())
-        if raises and not self.connected:
+        if self.connected:
+            return True
+        elif raises:
             raise raises
+        else:
+            return False
 
 
 async def timer(timeout, *, raises=asyncio.TimeoutError, loop=None):
