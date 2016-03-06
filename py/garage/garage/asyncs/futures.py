@@ -80,8 +80,9 @@ class Ownership:
         return self
 
     async def __aexit__(self, *exc_info):
-        if self._context_manager is not None:
-            return await self._context_manager.__aexit__(*exc_info)
+        mgr, self._context_manager = self._context_manager, None
+        if mgr is not None:
+            return await mgr.__aexit__(*exc_info)
 
     async def disown(self):
         mgr, self._context_manager = self._context_manager, None
