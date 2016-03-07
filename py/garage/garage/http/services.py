@@ -35,6 +35,7 @@ class Service:
         LOG.info('create service %s version %d', name, version)
         self.name = name
         self.version = version
+        self.root_path = None
         self.policies = []
         self.endpoints = {}
         self.decode = None
@@ -82,6 +83,11 @@ class Service:
     PATTERN_ENDPOINT = re.compile(br'/(\d+)/([\w_\-.]+)')
 
     def dispatch(self, path):
+        if self.root_path:
+            if not path.startswith(self.root_path):
+                raise EndpointNotFound(path)
+            path = path[len(self.root_path):]
+
         match = self.PATTERN_ENDPOINT.match(path)
         if not match:
             raise EndpointNotFound(path)
