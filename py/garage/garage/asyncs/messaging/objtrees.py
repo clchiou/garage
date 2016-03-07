@@ -9,6 +9,7 @@ network presentation (say, JSON).
 
 __all__ = [
     # Means of combination.
+    'Dict',
     'List',
     'Set',
     'Record',
@@ -92,7 +93,7 @@ class Record:
                 # "either" is special, we lower empty value, too.
                 if value is not None:
                     rdict[name] = type_.lower(value)
-            elif isinstance(type_, Collection):
+            elif Collection.is_collection(type_):
                 if value:  # Only lower non-empty value.
                     rdict[name] = type_.lower(value)
             elif name in self.optionals:
@@ -113,7 +114,7 @@ class Record:
             value = rdict.get(name)
             if value is not None:
                 values.append(type_.higher(value))
-            elif isinstance(type_, Collection):
+            elif Collection.is_collection(type_):
                 values.append(type_.unit())
             elif name in self.eithers:
                 values.append(None)
@@ -126,7 +127,30 @@ class Record:
 
 
 class Collection:
-    pass
+
+    @staticmethod
+    def is_collection(type_):
+        return (isinstance(type_, Collection) or
+                (isinstance(type_, type) and issubclass(type_, Collection)))
+
+
+class Dict(Collection):
+
+    @staticmethod
+    def unit():
+        return {}
+
+    @staticmethod
+    def lower(value):
+        if not isinstance(value, dict):
+            raise ValueError('not %r typed: %r' % (dict, value))
+        return value
+
+    @staticmethod
+    def higher(value):
+        if not isinstance(value, dict):
+            raise ValueError('not %r typed: %r' % (dict, value))
+        return value
 
 
 class List(Collection):
