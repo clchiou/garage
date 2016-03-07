@@ -1,13 +1,20 @@
 __all__ = [
     'CircuitBreaker',
     'synchronous',
+    'tcp_server',
     'timer',
 ]
 
 import asyncio
 import collections
+import logging
 import time
 from functools import wraps
+
+from garage.asyncs.processes import process
+
+
+LOG = logging.getLogger(__name__)
 
 
 class CircuitBreaker:
@@ -50,6 +57,23 @@ def synchronous(coro_func):
         return asyncio.get_event_loop().run_until_complete(
             coro_func(*args, **kwargs))
     return wrapper
+
+
+@process
+async def tcp_server(exit, create_server):
+    """Wrap a TCP server in a process."""
+    LOG.info('start server')
+    server = await create_server()
+    LOG.info('serving...')
+    try:
+        await exit
+    finally:
+        LOG.info('stop server')
+        server.close()
+        try:
+            await server.wait_closed()
+        except Exception:
+            LOG.exception('err when closing server')
 
 
 async def timer(timeout, *, raises=asyncio.TimeoutError, loop=None):
