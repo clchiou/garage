@@ -99,6 +99,19 @@ class ObjtreesTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             record_type.higher({})
 
+    def test_extra_fields(self):
+        record_type = Record(
+            ('x', Primitive.of_type(int)),
+        )
+
+        self.assertEqual(
+            {'x': 0},
+            record_type.lower(Obj(x=0, y=1, z=2)),
+        )
+
+        obj = record_type.higher({'x': 0, 'y': 1, 'z': 2})
+        self.assertEqual({'x': 0}, obj._asdict())
+
     def test_either(self):
         either = Record(
             Record.Either(
