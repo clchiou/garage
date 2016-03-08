@@ -3,7 +3,7 @@ import unittest
 import asyncio
 
 from garage.asyncs.futures import (
-    Ownership,
+    TaskOwner,
     awaiting,
     on_exit,
     each_completed,
@@ -27,7 +27,7 @@ class FuturesTest(unittest.TestCase):
             self.assertListEqual([], data)
         self.assertListEqual([42], data)
 
-        async with Ownership(cancel_on_exit=True) as box:
+        async with TaskOwner(cancel_on_exit=True) as box:
             self.assertIsNone(await box.disown())
 
             f1 = asyncio.ensure_future(asyncio.sleep(100))

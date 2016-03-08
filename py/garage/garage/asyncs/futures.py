@@ -1,6 +1,6 @@
 __all__ = [
     # Context manager helpers.
-    'Ownership',
+    'TaskOwner',
     'awaiting',
     'on_exit',
     # Future selectors.
@@ -60,7 +60,7 @@ class awaiting:
                 LOG.error('error of %r', self.future, exc_info=exc)
 
 
-class Ownership:
+class TaskOwner:
     """An async context manager that wraps a future object that you
        may replace with another future object.  When you replace,
        the old future object will be awaited.

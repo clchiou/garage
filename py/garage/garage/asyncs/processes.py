@@ -1,5 +1,5 @@
 __all__ = [
-    'ProcessOwnership',
+    'ProcessOwner',
     'process',
 ]
 
@@ -7,7 +7,7 @@ import asyncio
 
 from garage import asserts
 
-from .futures import Ownership
+from .futures import TaskOwner
 
 
 # Inherit from BaseException so that `except Exception` won't catch it.
@@ -68,7 +68,7 @@ class Process(asyncio.Task):
             super().set_exception(exc)
 
 
-class ProcessOwnership(Ownership):
+class ProcessOwner(TaskOwner):
 
     def __init__(self):
         super().__init__()
