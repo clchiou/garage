@@ -43,6 +43,12 @@ class process:
 
 class Process(asyncio.Task):
 
+    # Sanity checks of premises of our hack.
+    asserts.precond(callable(asyncio.Task._step))
+    asserts.precond(callable(asyncio.Task._wakeup))
+    asserts.precond(callable(asyncio.Task.set_exception))
+    asserts.precond(not hasattr(asyncio.Task, 'stop'))
+
     # HACK: Prevent ProcessExit from bubbling up.
     def _step(self, exc=None):
         try:
