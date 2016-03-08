@@ -151,7 +151,7 @@ class each_completed:
             return self._done.pop()
         if not self.required:
             raise StopAsyncIteration
-        self._done, pending = await asyncio.wait(
+        self._done, _ = await asyncio.wait(
             self.required | self.optional,
             timeout=self.timeout,
             loop=self.loop,

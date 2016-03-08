@@ -5,6 +5,7 @@ __all__ = [
     'Service',
 ]
 
+import asyncio
 import logging
 import re
 from http import HTTPStatus
@@ -12,6 +13,7 @@ from http import HTTPStatus
 from http2 import HttpError
 
 from garage import asserts
+from garage.asyncs.futures import each_completed
 
 
 LOG = logging.getLogger(__name__)
@@ -35,11 +37,21 @@ class Service:
         LOG.info('create service %s version %d', name, version)
         self.name = name
         self.version = version
-        self.root_path = None
+        self._root_path = None
         self.policies = []
         self.endpoints = {}
         self.decode = None
         self.encode = None
+
+    @property
+    def root_path(self):
+        return self._root_path.decode('ascii')
+
+    @root_path.setter
+    def root_path(self, root_path):
+        if isinstance(root_path, str):
+            root_path = root_path.encode('ascii')
+        self._root_path = root_path
 
     def add_policy(self, policy):
         self.policies.append(policy)
@@ -83,10 +95,10 @@ class Service:
     PATTERN_ENDPOINT = re.compile(br'/(\d+)/([\w_\-.]+)')
 
     def dispatch(self, path):
-        if self.root_path:
-            if not path.startswith(self.root_path):
+        if self._root_path:
+            if not path.startswith(self._root_path):
                 raise EndpointNotFound(path)
-            path = path[len(self.root_path):]
+            path = path[len(self._root_path):]
 
         match = self.PATTERN_ENDPOINT.match(path)
         if not match:
@@ -104,19 +116,29 @@ class Service:
         return endpoint
 
     async def call_endpoint(self, endpoint, http_request, http_response):
-        for policy in self.policies:
-            await policy(http_request.headers)
+        # Run policies in parallel.
+        policy_futs = [
+            asyncio.ensure_future(policy(http_request.headers))
+            for policy in self.policies
+        ]
+        try:
+            async for fut in each_completed(policy_futs):
+                await fut
+        finally:
+            for fut in policy_futs:
+                fut.cancel()
 
         request = await http_request.body
         if request:
             if self.decode:
-                request = await self.decode(http_request.headers, request)
+                request = self.decode(http_request.headers, request)
         else:
             request = None
 
         response = await endpoint(request)
+
         if self.encode:
-            response = await self.encode(http_request.headers, response)
+            response = self.encode(http_request.headers, response)
         asserts.postcond(isinstance(response, bytes))
 
         http_response.headers[b':status'] = b'200'
