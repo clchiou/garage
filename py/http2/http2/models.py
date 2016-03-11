@@ -60,6 +60,6 @@ class Response:
     async def write(self, data):
         self._body_buffer.write(data)
 
-    async def close(self):
+    def close(self):
         self.body = self._body_buffer.getvalue()
         self._body_buffer.close()

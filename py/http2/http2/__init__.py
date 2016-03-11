@@ -115,5 +115,5 @@ class Protocol(asyncio.Protocol):
             response.headers.update(headers)
         if reason:
             await response.write(reason.encode('utf-8'))
-            await response.close()
+            response.close()
         self.session.handle_response(stream_id, response)

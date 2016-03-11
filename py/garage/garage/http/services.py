@@ -140,4 +140,4 @@ class Service:
 
         http_response.headers[b':status'] = b'200'
         await http_response.write(response)
-        await http_response.close()
+        http_response.close()

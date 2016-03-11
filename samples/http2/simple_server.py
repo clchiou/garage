@@ -41,7 +41,7 @@ class Handler:
 
             response.headers[b':status'] = b'200'
             await response.write(contents)
-            await response.close()
+            response.close()
 
         except HttpError:
             raise
