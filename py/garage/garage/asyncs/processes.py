@@ -35,7 +35,7 @@ class process:
         proc = Process(self.coro_func(exit, *args, **kwargs), loop=loop)
         proc.add_done_callback(lambda _: exit.cancel())
         def stop():
-            if not exit.cancelled():
+            if not exit.done():
                 exit.set_exception(ProcessExit)
         proc.stop = stop
         return proc
