@@ -4,6 +4,7 @@ __all__ = [
     'awaiting',
     'on_exit',
     # Future selectors.
+    'all_of',
     'each_completed',
     'each_of',
     'one_completed',
@@ -123,6 +124,25 @@ class on_exit:
             awaitable = self.callback()
             if inspect.isawaitable(awaitable):
                 await awaitable
+
+
+async def all_of(coros, *, timeout=None, loop=None):
+    futs = [asyncio.ensure_future(coro, loop=loop) for coro in coros]
+    done, _ = await asyncio.wait(
+        futs,
+        timeout=timeout,
+        loop=loop,
+        return_when=asyncio.FIRST_EXCEPTION,
+    )
+    try:
+        for task in done:
+            await task
+        if not done:
+            raise asyncio.TimeoutError
+        return tuple(fut.result() for fut in futs)
+    finally:
+        for fut in futs:
+            fut.cancel()
 
 
 class each_completed:
