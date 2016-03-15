@@ -32,7 +32,9 @@ from garage import models
 from garage.sql.specs import SPEC_ATTR_NAME
 from garage.sql.tables import is_not_foreign
 
-from garage.datetimes import parse_isoformat as parse_datetime
+# TODO: Remove these aliases.
+from garage.datetimes import format_iso8601 as format_datetime
+from garage.datetimes import parse_iso8601 as parse_datetime
 
 
 LOG = logging.getLogger(__name__)
@@ -80,10 +82,6 @@ def make_insert_or_ignore(model, *, spec_attr=SPEC_ATTR_NAME):
 
 def insert_or_ignore(conn, table, values):
     conn.execute(table.insert().prefix_with('OR IGNORE'), values)
-
-
-def format_datetime(dt_obj):
-    return dt_obj.isoformat()
 
 
 _ELEMENT_TYPES = frozenset((int, float, str, datetime))

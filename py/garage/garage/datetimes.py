@@ -1,7 +1,8 @@
 """Utilities for datetime objects."""
 
 __all__ = [
-    'parse_isoformat',
+    'format_iso8601',
+    'parse_iso8601',
 ]
 
 from datetime import datetime
@@ -12,7 +13,14 @@ DATETIME_FORMAT = '%Y-%m-%dT%H:%M:%S.%f%z'
 DATETIME_FORMAT_WO_TIMEZONE = '%Y-%m-%dT%H:%M:%S.%f'
 
 
-def parse_isoformat(dt_str):
+def format_iso8601(dt_obj):
+    # datetime.isoformat() would generate a ':' in the time zone, which
+    # datetime.strptime cannot parse :(
+    # So use datetime.strftime(DATETIME_FORMAT) here.
+    return dt_obj.strftime(DATETIME_FORMAT)
+
+
+def parse_iso8601(dt_str):
     for dt_format in (DATETIME_FORMAT, DATETIME_FORMAT_WO_TIMEZONE):
         try:
             return datetime.strptime(dt_str, dt_format)

@@ -13,6 +13,8 @@ import yaml
 
 def represent_datetime(dumper, value, datetime_format=None):
     assert isinstance(value, datetime.datetime)
+    # NOTE: PyYaml implementation uses a regex for ISO-8601 string which
+    # matches a ':' in timezone string :(
     if datetime_format is None:
         str_value = value.isoformat()
     else:

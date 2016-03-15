@@ -10,6 +10,8 @@ import datetime
 from collections import Mapping
 from collections import OrderedDict
 
+from garage import datetimes
+
 
 def _type_error(obj):
     return TypeError(repr(obj) + ' is not JSON serializable')
@@ -19,7 +21,7 @@ def encode_datetime(obj, datetime_format=None):
     if not isinstance(obj, datetime.datetime):
         raise _type_error(obj)
     if datetime_format is None:
-        return obj.isoformat()
+        return datetimes.format_iso8601(obj)
     else:
         return obj.strftime(datetime_format)
 

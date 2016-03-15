@@ -15,7 +15,7 @@ class JsonTest(unittest.TestCase):
 
     def test_encoders(self):
         dt = datetime.datetime(2000, 1, 2, 3, 4, 5, 6, TimeZone.UTC)
-        dt_json = '"2000-01-02T03:04:05.000006+00:00"'
+        dt_json = '"2000-01-02T03:04:05.000006+0000"'
 
         mapping = make_sorted_ordered_dict(c=3, a=1, b=2)
         mapping_json = '{"a": 1, "b": 2, "c": 3}'
