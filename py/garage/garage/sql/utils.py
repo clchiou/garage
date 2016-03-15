@@ -32,13 +32,10 @@ from garage import models
 from garage.sql.specs import SPEC_ATTR_NAME
 from garage.sql.tables import is_not_foreign
 
+from garage.datetimes import parse_isoformat as parse_datetime
+
 
 LOG = logging.getLogger(__name__)
-
-
-# ISO 8601 date and time format (with time zone designator).
-DATETIME_FORMAT = '%Y-%m-%dT%H:%M:%S.%f%z'
-DATETIME_FORMAT_WO_TIMEZONE = '%Y-%m-%dT%H:%M:%S.%f'
 
 
 def make_find(key_column, select_, execute):
@@ -86,16 +83,7 @@ def insert_or_ignore(conn, table, values):
 
 
 def format_datetime(dt_obj):
-    return dt_obj.strftime(DATETIME_FORMAT)
-
-
-def parse_datetime(dt_str):
-    for dt_format in (DATETIME_FORMAT, DATETIME_FORMAT_WO_TIMEZONE):
-        try:
-            return datetime.strptime(dt_str, dt_format)
-        except ValueError:
-            pass
-    raise ValueError('cannot parse %r using ISO-8601 format', dt_str)
+    return dt_obj.isoformat()
 
 
 _ELEMENT_TYPES = frozenset((int, float, str, datetime))
@@ -195,6 +183,6 @@ def as_str(value):
     if isinstance(value, str):
         return value
     elif isinstance(value, datetime):
-        return value.strftime(DATETIME_FORMAT)
+        return value.isoformat()
     else:
         return None
