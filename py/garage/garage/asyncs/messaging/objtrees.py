@@ -203,6 +203,19 @@ class Primitive:
 
         return cls(lower, higher)
 
+    @classmethod
+    def of_enum(cls, enum_type):
+
+        def lower(member):
+            if not isinstance(member, enum_type):
+                raise ValueError('not member of %r: %r' % (enum_type, member))
+            return member.value
+
+        def higher(value):
+            return enum_type(value)
+
+        return cls(lower, higher)
+
     def __init__(self, lower, higher):
         self.lower = lower
         self.higher = higher
