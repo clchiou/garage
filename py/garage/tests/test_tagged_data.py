@@ -5,7 +5,7 @@ from datetime import datetime
 
 from garage.timezones import TimeZone
 
-from garage.tagged_data import deserialize, serialize
+from garage import tagged_data
 
 
 class SqlUtilsTest(unittest.TestCase):
@@ -19,53 +19,53 @@ class SqlUtilsTest(unittest.TestCase):
 
         for data in (101, 'a string', dt0, dt1, utc0, utc1, cst):
             self.assertEqual(
-                data, deserialize(serialize(data)))
+                data, tagged_data.loads(tagged_data.dumps(data)))
 
         self.assertEqual(
             (),
-            deserialize(serialize([])),
+            tagged_data.loads(tagged_data.dumps([])),
         )
         self.assertEqual(
             (1,),
-            deserialize(serialize([1])),
+            tagged_data.loads(tagged_data.dumps([1])),
         )
         self.assertEqual(
             (1, 'hello'),
-            deserialize(serialize([1, 'hello'])),
+            tagged_data.loads(tagged_data.dumps([1, 'hello'])),
         )
         self.assertEqual(
             (1, 'hello', dt0),
-            deserialize(serialize([1, 'hello', dt0])),
+            tagged_data.loads(tagged_data.dumps([1, 'hello', dt0])),
         )
 
         self.assertEqual(
             frozenset(),
-            deserialize(serialize(set())),
+            tagged_data.loads(tagged_data.dumps(set())),
         )
         self.assertEqual(
             frozenset((1,)),
-            deserialize(serialize({1})),
+            tagged_data.loads(tagged_data.dumps({1})),
         )
         self.assertEqual(
             frozenset((1, 'hello')),
-            deserialize(serialize({1, 'hello'})),
+            tagged_data.loads(tagged_data.dumps({1, 'hello'})),
         )
         self.assertEqual(
             frozenset((1, 'hello', dt0)),
-            deserialize(serialize({1, 'hello', dt0})),
+            tagged_data.loads(tagged_data.dumps({1, 'hello', dt0})),
         )
 
         self.assertEqual(
             OrderedDict(),
-            deserialize(serialize({})),
+            tagged_data.loads(tagged_data.dumps({})),
         )
         self.assertEqual(
             OrderedDict([(1, 'hello')]),
-            deserialize(serialize({1: 'hello'})),
+            tagged_data.loads(tagged_data.dumps({1: 'hello'})),
         )
         self.assertDictEqual(
             {1: 'hello', dt0: dt1},
-            dict(deserialize(serialize({
+            dict(tagged_data.loads(tagged_data.dumps({
                 1: 'hello',
                 dt0: dt1,
             }))),
