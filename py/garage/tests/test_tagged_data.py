@@ -71,6 +71,20 @@ class SqlUtilsTest(unittest.TestCase):
             }))),
         )
 
+    def test_nested(self):
+        testdata = [
+            ((1, 2), ('', 'x'), ((), ())),
+            OrderedDict([
+                ((), (1, 2, 3)),
+                ((1,), 'hello'),
+            ]),
+        ]
+        for expect in testdata:
+            self.assertEqual(
+                expect,
+                tagged_data.loads(tagged_data.dumps(expect)),
+            )
+
 
 if __name__ == '__main__':
     unittest.main()

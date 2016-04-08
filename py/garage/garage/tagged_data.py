@@ -25,24 +25,26 @@ _ELEMENT_TYPES = frozenset((int, float, str, datetime))
 
 
 def dumps(obj):
+    return json.dumps(_dump(obj))
+
+
+def _dump(obj):
     if isinstance(obj, Sequence) and not isinstance(obj, str):
         data = ['L']
-        for element in obj:
-            data.extend(_dump_element(element))
-        return json.dumps(data)
+        data.extend(map(_dump, obj))
+        return data
     elif isinstance(obj, Set):
         data = ['S']
-        for element in obj:
-            data.extend(_dump_element(element))
-        return json.dumps(data)
+        data.extend(map(_dump, obj))
+        return data
     elif isinstance(obj, Mapping):
         data = ['M']
         for key, value in obj.items():
-            data.extend(_dump_element(key))
-            data.extend(_dump_element(value))
-        return json.dumps(data)
+            data.append(_dump(key))
+            data.append(_dump(value))
+        return data
     else:
-        return json.dumps(_dump_element(obj))
+        return _dump_element(obj)
 
 
 def _dump_element(value):
@@ -66,32 +68,24 @@ def _dump_element(value):
 
 
 def loads(json_str):
-    packed_obj = json.loads(json_str)
+    return _load(json.loads(json_str))
+
+
+def _load(packed_obj):
     asserts.precond(packed_obj)
     if packed_obj[0] == 'L':
-        return tuple(
-            _load_element(packed_obj[i:i+2])
-            for i in range(1, len(packed_obj), 2)
-        )
+        return tuple(map(_load, packed_obj[1:]))
     elif packed_obj[0] == 'S':
-        return frozenset(
-            _load_element(packed_obj[i:i+2])
-            for i in range(1, len(packed_obj), 2)
-        )
+        return frozenset(map(_load, packed_obj[1:]))
     elif packed_obj[0] == 'M':
-        return OrderedDict(
-            (
-                _load_element(packed_obj[i:i+2]),
-                _load_element(packed_obj[i+2:i+4]),
-            )
-            for i in range(1, len(packed_obj), 4)
-        )
+        return OrderedDict((_load(packed_obj[i]), _load(packed_obj[i+1]))
+                           for i in range(1, len(packed_obj), 2))
     else:
-        asserts.precond(len(packed_obj) == 2)
         return _load_element(packed_obj)
 
 
 def _load_element(packed_value):
+    asserts.precond(len(packed_value) == 2)
     asserts.precond(packed_value[0] in ('i', 'f', 's', 'dt'))
     return {
         'i': int,
