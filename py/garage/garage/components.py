@@ -10,6 +10,12 @@ resolve MAIN and ARGS.  Its dependency graph is:
 
   MAIN
 
+The `components` model is most useful for creating of static singleton
+objects, which traditionally are implemented by global objects that
+usually result in cyclic imports.  This means that if the number of the
+objects you would like to create is not known statically, you might need
+to put some extra work.
+
 NOTE: 'fqname' stands for 'fully-qualified name'.
 """
 

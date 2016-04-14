@@ -1,40 +1,32 @@
-"""Initialize sqlalchemy."""
+"""Helper for initializing SQLAlchemy Engine object."""
 
 __all__ = [
-    'SqlComponent',
+    'add_db_uri_arg',
+    'check_db_uri',
+    'make_engine',
 ]
 
 import logging
 
-from sqlalchemy import MetaData
-
-from garage import components
-from garage import sql
-
-import garage.sql.sqlite # as sql.sqlite
+import garage.sql
+import garage.sql.sqlite
 
 from garage.startups.logging import LoggingComponent
 
 
-class SqlComponent(components.Component):
+def add_db_uri_arg(parser, db_uri_arg):
+    parser.add_argument(
+        db_uri_arg, required=True,
+        help="""set database engine URI""")
 
-    require = components.ARGS
 
-    provide = components.make_fqname_tuple(__name__, 'engine', 'metadata')
+def check_db_uri(parser, args, db_uri_arg, db_uri_name):
+    db_uri = getattr(args, db_uri_name)
+    if not db_uri.startswith('sqlite'):
+        parser.error('only support sqlite in "%s" at the moment' % db_uri_arg)
 
-    def add_arguments(self, parser):
-        group = parser.add_argument_group(sql.__name__)
-        group.add_argument(
-            '--db-uri', required=True,
-            help="""set database engine URI""")
 
-    def check_arguments(self, parser, args):
-        if not args.db_uri.startswith('sqlite'):
-            parser.error('only support sqlite in "--db-uri" at the moment')
-
-    def make(self, require):
-        echo = logging.getLogger().isEnabledFor(LoggingComponent.TRACE)
-        return (
-            sql.sqlite.create_engine(require.args.db_uri, echo=echo),
-            MetaData(),
-        )
+def make_engine(args, db_uri_name):
+    db_uri = getattr(args, db_uri_name)
+    echo = logging.getLogger().isEnabledFor(LoggingComponent.TRACE)
+    return garage.sql.sqlite.create_engine(db_uri, echo=echo)
