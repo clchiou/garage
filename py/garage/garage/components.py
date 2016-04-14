@@ -89,6 +89,8 @@ class Component:
 
     require = ()
 
+    aliases = None
+
     provide = None
 
     def add_arguments(self, parser):
@@ -122,12 +124,17 @@ def bind(component, startup=startup_, next_startup=None, parser_=PARSER):
             provide = provide[0]
         annotations = {'return': provide}
 
+        aliases = getattr(component, 'aliases', None)
+
         require = component.require
         if isinstance(require, str):
             require = (require,)
         for fqname_ in require:
             asserts.precond(_is_fqname(fqname_))
-            name = _get_name(fqname_)
+            if aliases and fqname_ in aliases:
+                name = aliases[fqname_]
+            else:
+                name = _get_name(fqname_)
             asserts.precond(name not in annotations)
             annotations[name] = fqname_
 
