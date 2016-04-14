@@ -6,6 +6,7 @@ from garage.components import (
     Component,
     bind,
     make_fqname_tuple,
+    vars_as_namespace,
     _get_name,
     _is_method_overridden,
 )
@@ -74,6 +75,25 @@ class ComponentsTest(unittest.TestCase):
         bind(A(), startup)
         bind(B(), startup)
         self.assertDictEqual({':A': 'a', ':B': 'a'}, startup.call())
+
+    def test_vars_as_namespace(self):
+        varz = vars_as_namespace({'a': 1, 'x.y.z:b': 2})
+        self.assertEqual(1, varz.a)
+        self.assertEqual(2, varz.b)
+        with self.assertRaises(AttributeError):
+            varz.c
+
+        with self.assertRaises(ValueError):
+            varz = vars_as_namespace({'a': 1, 'x.y.z:a': 2})
+
+        varz = vars_as_namespace(
+            {'a': 1, 'x.y.z:a': 2},
+            aliases={'x.y.z:a': 'b'},
+        )
+        self.assertEqual(1, varz.a)
+        self.assertEqual(2, varz.b)
+        with self.assertRaises(AttributeError):
+            varz.c
 
 
 if __name__ == '__main__':

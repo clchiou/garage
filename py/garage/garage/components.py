@@ -204,10 +204,17 @@ def find_closure(*comps, ignore=(), ignore_more=_SYMBOLS):
     return comps
 
 
-def vars_as_namespace(varz):
-    return DictViewAttrs({
-        _get_name(fqname): value for fqname, value in varz.items()
-    })
+def vars_as_namespace(varz, aliases=None):
+    ndict = {}
+    for fqname_, value in varz.items():
+        if aliases and fqname_ in aliases:
+            name = aliases[fqname_]
+        else:
+            name = _get_name(fqname_)
+        if name in ndict:
+            raise ValueError('overwrite name: %r' % name)
+        ndict[name] = value
+    return DictViewAttrs(ndict)
 
 
 def parse_argv(parser: PARSER, argv: ARGV, _: PARSE) -> ARGS:
