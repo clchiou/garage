@@ -35,6 +35,19 @@ class Record:
             self.name = name
             self.type_ = type_
 
+    # Use AtLeastOne and Either carefully and maybe rarely.  A group of
+    # AtLeastOne or Either fields implies that there is one field that
+    # is **required**, and required field should be used carefully and
+    # maybe rarely.
+
+    class AtLeastOne:
+        """Annotate a group of fields that at least one of them is
+           present.
+        """
+        def __init__(self, *field_list):
+            asserts.precond(len(field_list) > 1)
+            self.field_list = field_list
+
     class Either:
         """Annotate an exclusive group of fields."""
         def __init__(self, *field_list):
@@ -45,8 +58,9 @@ class Record:
         self.name = 'Record'
         self.fields = OrderedDict()
         self.optionals = set()
-        self.eithers = set()
-        self.groups = []
+        self.grouped_fields = set()
+        self.at_least_one_groups = []
+        self.exclusive_groups = []
 
         for decl in decls:
             if isinstance(decl, Record.Name):
@@ -55,13 +69,17 @@ class Record:
             elif isinstance(decl, Record.Optional):
                 self.fields[decl.name] = decl.type_
                 self.optionals.add(decl.name)
-            elif isinstance(decl, Record.Either):
+            elif (isinstance(decl, Record.AtLeastOne) or
+                  isinstance(decl, Record.Either)):
                 group = set()
                 for name, type_ in decl.field_list:
                     self.fields[name] = type_
-                    self.eithers.add(name)
+                    self.grouped_fields.add(name)
                     group.add(name)
-                self.groups.append(group)
+                if isinstance(decl, Record.AtLeastOne):
+                    self.at_least_one_groups.append(group)
+                else:
+                    self.exclusive_groups.append(group)
             else:
                 name, type_ = decl
                 self.fields[name] = type_
@@ -73,8 +91,15 @@ class Record:
             kwargs.setdefault(name, None)
         return self._record(**kwargs)
 
-    def _check_exclusive(self, rdict):
-        for group in self.groups:
+    def _check_constraints(self, rdict):
+        for group in self.at_least_one_groups:
+            for name in group:
+                if name in rdict:
+                    break
+            else:
+                raise ValueError('%r of %s are at-least-one: %r' %
+                                 (group, self.name, rdict))
+        for group in self.exclusive_groups:
             match = 0
             for name in group:
                 if name in rdict:
@@ -89,8 +114,9 @@ class Record:
         rdict = {}
         for name, type_ in self.fields.items():
             value = getattr(record, name, None)
-            if name in self.eithers:
-                # "either" is special, we lower empty value, too.
+            if name in self.grouped_fields:
+                # Fields that are associated with a group are special,
+                # we lower empty value, too.
                 if value is not None:
                     rdict[name] = type_.lower(value)
             elif Collection.is_collection(type_):
@@ -104,11 +130,11 @@ class Record:
             else:
                 raise ValueError('%r is required in %s: %r' %
                                  (name, self.name, record))
-        self._check_exclusive(rdict)
+        self._check_constraints(rdict)
         return rdict
 
     def higher(self, rdict):
-        self._check_exclusive(rdict)
+        self._check_constraints(rdict)
         values = []
         for name, type_ in self.fields.items():
             value = rdict.get(name)
@@ -116,7 +142,7 @@ class Record:
                 values.append(type_.higher(value))
             elif Collection.is_collection(type_):
                 values.append(type_.unit())
-            elif name in self.eithers:
+            elif name in self.grouped_fields:
                 values.append(None)
             elif name in self.optionals:
                 values.append(None)

@@ -158,7 +158,24 @@ class ObjtreesTest(unittest.TestCase):
         self.assertEqual({'y': ()}, either.lower(Obj(y=set())))
 
         with self.assertRaises(ValueError):
+            either.lower(Obj())
+        with self.assertRaises(ValueError):
             either.lower(Obj(x=[], y=set()))
+
+    def test_some_list(self):
+        some = Record(
+            Record.AtLeastOne(
+                ('x', Primitive.of_type(int)),
+                ('y', Primitive.of_type(int)),
+            ),
+        )
+
+        self.assertEqual({'x': 1}, some.lower(Obj(x=1)))
+        self.assertEqual({'y': 2}, some.lower(Obj(y=2)))
+        self.assertEqual({'x': 1, 'y': 2}, some.lower(Obj(x=1, y=2)))
+
+        with self.assertRaises(ValueError):
+            some.lower(Obj())
 
     def test_nested(self):
         type_ = List(List(Record(('x', Primitive.of_type(int)))))
