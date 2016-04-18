@@ -14,6 +14,17 @@ class ObjtreesTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             Int.higher('1')
 
+        NNInt = Primitive(
+            Primitive.predicate(lambda i: 0 <= i),
+            Primitive.predicate(lambda i: 0 <= i),
+        )
+        self.assertEqual(0, NNInt.lower(0))
+        self.assertEqual(3, NNInt.higher(3))
+        with self.assertRaises(ValueError):
+            NNInt.lower(-1)
+        with self.assertRaises(ValueError):
+            NNInt.higher(-1)
+
     def test_list(self):
         list_of_ints = List(Primitive.of_type(int))
         low_high = [
@@ -118,7 +129,7 @@ class ObjtreesTest(unittest.TestCase):
                 ('x', Primitive.of_type(int)),
                 ('y', Primitive.of_type(str)),
             ),
-        );
+        )
 
         def assertObjectEqual(expect, actual):
             self.assertEqual(expect.x, actual.x)
@@ -141,7 +152,7 @@ class ObjtreesTest(unittest.TestCase):
                 ('x', List(Primitive.of_type(int))),
                 ('y', Set(Primitive.of_type(str))),
             ),
-        );
+        )
 
         self.assertEqual({'x': ()}, either.lower(Obj(x=[])))
         self.assertEqual({'y': ()}, either.lower(Obj(y=set())))

@@ -188,6 +188,14 @@ class Set(Collection):
 
 class Primitive:
 
+    @staticmethod
+    def predicate(predicate_func):
+        def wrapper(value):
+            if not predicate_func(value):
+                raise ValueError('predicate fails on %r' % value)
+            return value
+        return wrapper
+
     @classmethod
     def of_type(cls, type_):
 
