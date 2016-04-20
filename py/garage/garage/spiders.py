@@ -1,15 +1,15 @@
 """A simple web spider implementation."""
 
 __all__ = [
-    'DOCUMENT_MODEL',
+    'Document',
     'Spider',
     'Parser',
 ]
 
 import functools
 import logging
+from collections import namedtuple
 
-from garage import models
 from garage.http import clients
 from garage.threads import queues
 from garage.threads import supervisors
@@ -20,19 +20,17 @@ from garage.threads import utils
 LOG = logging.getLogger(__name__)
 
 
-DOCUMENT_MODEL = (
-    models.Model('DOCUMENT_MODEL')
+# Your parser may return a compatible class of this (duck typing).
+Document = namedtuple('Document', [
 
-    .field('identity', doc="""
-    The unique identity of this document (multiple URIs may point to the
-    same document).
-    """)
+    # The unique identity of this document (multiple URIs may point to
+    # the same document).
+    'identity',
 
-    .field('links', doc="""
-    Return HTTP requests and an estimate numbers of further links from
-    that document (estimates could be None).
-    """)
-)
+    # Return HTTP requests and an estimate numbers of further links from
+    # that document (estimates could be None).
+    'links',
+])
 
 
 class Parser:
