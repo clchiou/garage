@@ -28,6 +28,21 @@ class CollectionsTest(unittest.TestCase):
         attrs.z = 3
         self.assertListEqual(['x', 'z'], list(sorted((attrs))))
 
+    def test_symbols(self):
+        symbols = Symbols('a', 'b', ('c', 3), d=4)
+        self.assertEqual('a', symbols.a)
+        self.assertEqual('b', symbols.b)
+        self.assertEqual(3, symbols.c)
+        self.assertEqual(4, symbols.d)
+        with self.assertRaises(AttributeError):
+            symbols.e
+        with self.assertRaises(TypeError):
+            symbols.e = 1
+        with self.assertRaises(TypeError):
+            symbols.a = 1
+        with self.assertRaises(ValueError):
+            Symbols('a', a=1)
+
     def test_trie(self):
         trie = Trie()
         self.assertTrieNodeEqual((Trie.EMPTY, {}), trie._root)

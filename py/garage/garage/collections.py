@@ -3,6 +3,7 @@
 __all__ = [
     'DictViewAttrs',
     'LoadingDict',
+    'Symbols',
     'Trie',
     'collect',
     'collect_pairs',
@@ -102,6 +103,33 @@ class DictViewAttrs:
 
     def __iter__(self):
         return iter(self.__data.keys())
+
+
+class Symbols:
+    """Read-only namespace."""
+
+    def __init__(self, *nv_pairs, **symbols):
+        for nv_pair in nv_pairs:
+            if isinstance(nv_pair, str):
+                name = value = nv_pair
+            else:
+                name, value = nv_pair
+            if name in symbols:
+                raise ValueError('overwrite name %r' % name)
+            symbols[name] = value
+        super().__setattr__('_Symbols__symbols', symbols)
+
+    def __getattr__(self, name):
+        try:
+            return self.__symbols[name]
+        except KeyError:
+            msg = ('%r object has no attribute %r' %
+                   (self.__class__.__name__, name))
+            raise AttributeError(msg) from None
+
+    def __setattr__(self, name, value):
+        raise TypeError('%r object does not support attribute assignment' %
+                        self.__class__.__name__)
 
 
 class Trie:
