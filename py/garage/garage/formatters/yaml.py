@@ -2,11 +2,13 @@
 
 __all__ = [
     'represent_datetime',
+    'represent_enum',
     'represent_mapping',
 ]
 
 import collections
 import datetime
+import enum
 
 import yaml
 
@@ -20,6 +22,20 @@ def represent_datetime(dumper, value, datetime_format=None):
     else:
         str_value = value.strftime(datetime_format)
     return dumper.represent_scalar('tag:yaml.org,2002:timestamp', str_value)
+
+
+def represent_enum(dumper, value):
+    assert isinstance(value, enum.Enum)
+    value = value.value
+    if isinstance(value, int):
+        tag = 'tag:yaml.org,2002:int'
+        value = str(value)
+    elif isinstance(value, str):
+        tag = 'tag:yaml.org,2002:str'
+    else:
+        raise ValueError(
+            'cannot represent enum value %r of type %s' % (value, type(value)))
+    return dumper.represent_scalar(tag, value)
 
 
 def represent_mapping(dumper, value, flow_style=None):

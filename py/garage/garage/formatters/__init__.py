@@ -4,6 +4,7 @@ __all__ = [
 ]
 
 import datetime
+import enum
 from collections import Mapping
 from collections import OrderedDict
 from functools import partial
@@ -30,8 +31,10 @@ def make_json_formatter():
 def make_yaml_formatter():
     import yaml
     from .yaml import represent_datetime
+    from .yaml import represent_enum
     from .yaml import represent_mapping
     yaml.SafeDumper.add_representer(datetime.datetime, represent_datetime)
+    yaml.SafeDumper.add_multi_representer(enum.Enum, represent_enum)
     yaml.SafeDumper.add_multi_representer(Mapping, represent_mapping)
     # We need this because OrderedDict is not "strictly" a Mapping.
     yaml.SafeDumper.add_representer(OrderedDict, represent_mapping)
