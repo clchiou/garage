@@ -85,6 +85,27 @@ class SqlUtilsTest(unittest.TestCase):
                 tagged_data.loads(tagged_data.dumps(expect)),
             )
 
+    def test_more_element_types(self):
+
+        class Foo:
+            def __init__(self, x):
+                self.x = x
+            def __eq__(self, other):
+                return self.x == other.x
+
+        dumpers = {Foo: lambda foo: foo.x}
+        loaders = {Foo: lambda x: Foo(x)}
+
+        self.assertEqual(
+            '["x/Foo", 99]',
+            tagged_data.dumps(Foo(99), dumpers),
+        )
+
+        self.assertEqual(
+            Foo(99),
+            tagged_data.loads('["x/Foo", 99]', loaders),
+        )
+
 
 if __name__ == '__main__':
     unittest.main()
