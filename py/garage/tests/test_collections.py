@@ -42,6 +42,10 @@ class CollectionsTest(unittest.TestCase):
             symbols.a = 1
         with self.assertRaises(ValueError):
             Symbols('a', a=1)
+        # Symbols return names in sorted order.
+        self.assertEqual(['a', 'b', 'c', 'd'], list(symbols))
+        symbols = Symbols('b', 'd', 'a', 'c')
+        self.assertEqual(['a', 'b', 'c', 'd'], list(symbols))
 
     def test_trie(self):
         trie = Trie()
