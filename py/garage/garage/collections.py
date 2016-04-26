@@ -116,6 +116,8 @@ class Symbols:
                 name, value = nv_pair
             if name in symbols:
                 raise ValueError('overwrite name %r' % name)
+            if name.startswith('_'):
+                raise ValueError('symbol name %r starts with \'_\'' % name)
             symbols[name] = value
         # Return keys in deterministic order (i.e., sorted).
         symbols = OrderedDict((key, symbols[key]) for key in sorted(symbols))
@@ -123,6 +125,9 @@ class Symbols:
 
     def __iter__(self):
         return iter(self.__symbols)
+
+    def _asdict(self):
+        return self.__symbols.copy()
 
     def __getattr__(self, name):
         try:
