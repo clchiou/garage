@@ -10,22 +10,26 @@ the build tools of each sub-project, monitors their execution, and then
 verifies their results.
 
 There are two important design decisions:
-  * The foreman only depends on Python 3 standard library.
+  * The foreman only depends on Python 3.4 standard library.
   * The entirety of foreman is just one Python file.
 
 In other words, you just copy `foreman.py` to anywhere you want, make
-sure that Python 3 is installed, and you are good to go.  We need this
+sure that Python 3.4 is installed, and you are good to go.  We need this
 property because it is now common that a build process starts within a
 vanilla operating system, usually inside a container, and the build tool
 will have to bootstrap itself, like installing more build tools, before
 it could actually start building something.  So reducing the install
 steps of foreman down to minimum makes it very easy to be bootstrapped.
+
+(We target Python 3.4 because that was when pathlib was added to the
+standard library.)
 """
 
 __all__ = [
     'ForemanError',
     'define_parameter',
     'define_rule',
+    'decorate_rule',
 ]
 
 import argparse
@@ -120,6 +124,12 @@ class Things:
         for things in self.things.values():
             yield from things
 
+    def get(self, label, default=None):
+        try:
+            return self[label]
+        except KeyError:
+            return default
+
     def values(self):
         for things in self.things.values():
             yield from things.values()
@@ -133,9 +143,14 @@ class Parameter:
 
     def __init__(self, label):
         self.label = label
+        self.doc = None
         self.default = None
         self.parse = None
         self.type = None
+
+    def with_doc(self, doc):
+        self.doc = doc
+        return self
 
     def with_default(self, default):
         self.default = default
@@ -172,8 +187,14 @@ class Rule:
 
     def __init__(self, label):
         self.label = label
+        self.doc = None
         self.build = None
         self.dependencies = []
+        self.implicit_dependencies = []
+
+    def with_doc(self, doc):
+        self.doc = doc
+        return self
 
     def with_build(self, build):
         self.build = build
@@ -182,6 +203,11 @@ class Rule:
     def depend(self, label, when=None, configs=None):
         self.dependencies.append(Rule.Dependency(label, when, configs))
         return self
+
+    @property
+    def all_dependencies(self):
+        yield from self.dependencies
+        yield from self.implicit_dependencies
 
     def parse_labels(self, implicit_path):
         """Parse label strings in the dependency definitions.
@@ -255,34 +281,49 @@ def load_build_files(paths, search_build_file):
             build_file_path = search_build_file(label.path)
             LOG.info('load build file %s', build_file_path)
             with Context(label.path):
-                load_build_file(label.path, build_file_path)
+                load_build_file(label.path, build_file_path, search_build_file)
             loaded_paths.add(label.path)
         # 3. Notify caller.
         yield label
         # 4. Add not-created-yet rules to the queue.
-        for dep in RULES[label].dependencies:
+        for dep in RULES[label].all_dependencies:
             if dep.label not in RULES:
                 queue.append(dep.label)
     # Make sure that build rules do not refer to undefined parameters.
     for rule in RULES.values():
-        for dep in rule.dependencies:
+        for dep in rule.all_dependencies:
             if dep.configs:
                 for label, _ in dep.configs:
                     if label not in PARAMETERS:
                         raise ForemanError('parameter %s is undefined' % label)
 
 
-def load_build_file(label_path, build_file_path):
+def load_build_file(label_path, build_file_path, search_build_file):
     """Load, compile, and execute one build file."""
-    code = build_file_path.read_text()
+    # Path.read_text() is added until Python 3.5 :(
+    with build_file_path.open() as build_file:
+        code = build_file.read()
     code = compile(code, str(build_file_path), 'exec')
-    exec(code, {})
+    exec(code, {'__name__': str(label_path).replace('/', '.')})
     # Validate parameters.
     for parameter in PARAMETERS.get_things(label_path):
         parameter.validate()
     # Parse the label of rule's dependencies.
     for rule in RULES.get_things(label_path):
         rule.parse_labels(label_path)
+    # Compute rules' implicit dependencies.
+    for rule in RULES.get_things(label_path):
+        for path in list(rule.label.path.parents)[:-1]:
+            try:
+                search_build_file(path)
+            except FileNotFoundError:
+                pass
+            else:
+                rule.implicit_dependencies.append(Rule.Dependency(
+                    Label.parse_name(path, path.name),
+                    None,
+                    None,
+                ))
 
 
 class BuildIds:
@@ -312,14 +353,17 @@ class BuildIds:
 class ParameterValues:
     """"A "view" of parameters and environment dict."""
 
-    def __init__(self, parameters, environment):
+    def __init__(self, parameters, environment, implicit_path):
         self.parameters = parameters
         self.environment = environment
+        self.implicit_path = implicit_path
 
     def __contains__(self, label):
         return label in self.parameters
 
     def __getitem__(self, label):
+        if isinstance(label, str):
+            label = Label.parse(label, self.implicit_path)
         try:
             return self.environment[label]
         except KeyError:
@@ -335,9 +379,9 @@ def execute_rule(rule, environment, build_ids):
     if build_ids.check_and_add(rule, environment):
         return
 
-    values = ParameterValues(PARAMETERS, environment)
+    values = ParameterValues(PARAMETERS, environment, rule.label.path)
 
-    for dep in rule.dependencies:
+    for dep in rule.all_dependencies:
 
         # Evaluate conditional dependency.
         if dep.when and not dep.when(values):
@@ -396,6 +440,24 @@ def define_rule(name):
     return rule
 
 
+def decorate_rule(*args):
+    """Helper for creating simple build rule."""
+    if len(args) == 1 and not isinstance(args[0], str):
+        build = args[0]
+        return (
+            define_rule(build.__name__)
+            .with_doc(build.__doc__)
+            .with_build(build)
+        )
+    else:
+        def wrapper(build):
+            rule = decorate_rule(build)
+            for dep in args:
+                rule.depend(dep)
+            return rule
+        return wrapper
+
+
 ### Command-line entries.
 
 
@@ -420,7 +482,7 @@ def main(argv):
     parser_build = subparsers.add_parser(
         'build', help="""Start and supervise a build.""")
     parser_build.add_argument(
-        '--parameter', action='append',
+        '--parameter', action='append', default=(),
         help="""set build parameter; the format is either label=value or
                 @file.json""")
     parser_build.add_argument(
@@ -482,7 +544,7 @@ def command_build(args, search_build_file):
         pass
 
     environment = ChainMap()
-    for spec in args.parameter or ():
+    for spec in args.parameter:
         if spec.startswith('@'):
             with open(spec[1:], 'r') as input_file:
                 pv_pairs = json.loads(input_file.read())
@@ -515,9 +577,10 @@ def command_list(args, search_build_file):
     def format_parameter(parameter):
         contents = OrderedDict()
         contents['label'] = str(parameter.label)
+        contents['doc'] = parameter.doc
         if parameter.default is not None:
             contents['default'] = parameter.default
-        contents['has_parse'] = bool(parameter.parse)
+        contents['custom_parser'] = bool(parameter.parse)
         if parameter.type is not None:
             contents['type'] = parameter.type.__name__
         return contents
@@ -525,15 +588,17 @@ def command_list(args, search_build_file):
     def format_rule(rule):
         return OrderedDict([
             ('label', str(rule.label)),
-            ('has_build', bool(rule.build)),
+            ('doc', rule.doc),
             ('dependencies',
              list(map(format_dependency, rule.dependencies))),
+            ('implicit_dependencies',
+             list(map(format_dependency, rule.implicit_dependencies))),
         ])
 
     def format_dependency(dependency):
         contents = OrderedDict()
         contents['label'] = str(dependency.label)
-        contents['has_when'] = bool(dependency.when)
+        contents['conditional'] = bool(dependency.when)
         if dependency.configs:
             contents['configs'] = OrderedDict([
                 (str(label), value)
