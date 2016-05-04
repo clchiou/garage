@@ -17,7 +17,8 @@ main() {
   # With this `import shipyard` will import shipyard/shipyard.py.
   export PYTHONPATH="${SHIPYARD}"
 
-  exec "${FOREMAN}" "${@}"
+  set -o xtrace
+  exec "${FOREMAN}" --path "${ROOT}" "${@}"
 }
 
 main "${@}"

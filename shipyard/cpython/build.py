@@ -20,8 +20,8 @@ LOG = logging.getLogger(__name__)
 
 
 (define_parameter('prefix')
- .with_type(str)
- .with_default('/usr/local')
+ .with_type(Path)
+ .with_default(Path('/usr/local'))
 )
 
 
@@ -153,7 +153,7 @@ def build_image(parameters):
 
 
 def get_root_path(parameters):
-    return Path(parameters['//shipyard:build_src']) / 'cpython'
+    return parameters['//shipyard:build_src'] / 'cpython'
 
 
 def get_src_path(parameters):
@@ -161,9 +161,8 @@ def get_src_path(parameters):
 
 
 def get_bin_dir(parameters):
-    return Path(parameters['prefix']) / 'bin'
+    return parameters['prefix'] / 'bin'
 
 
 def get_lib_dir(parameters):
-    return (Path(parameters['prefix']) /
-            ('lib/python%d.%d' % parameters['version']))
+    return parameters['prefix'] / ('lib/python%d.%d' % parameters['version'])

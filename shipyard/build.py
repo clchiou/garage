@@ -2,10 +2,11 @@
 
 import logging
 import os
-import os.path
+from pathlib import Path
 
 from foreman import define_parameter, decorate_rule
 
+import shipyard
 from shipyard import (
     call,
     ensure_directory,
@@ -17,22 +18,29 @@ LOG = logging.getLogger(__name__)
 LOG.addHandler(logging.NullHandler())
 
 
+(define_parameter('root')
+ .with_doc("""Location of this repository.""")
+ .with_type(Path)
+ .with_default(Path(shipyard.__file__).parent.parent)
+)
+
+
 (define_parameter('build_src')
  .with_doc("""Location of checked-out source repos.""")
- .with_type(str)
- .with_default(os.path.join(os.environ['HOME'], 'build/src'))
+ .with_type(Path)
+ .with_default(Path(os.environ['HOME']) / 'build/src')
 )
 
 
 (define_parameter('build_out')
  .with_doc("""Location of intermediate and final build artifacts.""")
- .with_type(str)
- .with_default(os.path.join(os.environ['HOME'], 'build/out'))
+ .with_type(Path)
+ .with_default(Path(os.environ['HOME']) / 'build/out')
 )
 (define_parameter('build_rootfs')
  .with_doc("""Location of final container image.""")
- .with_type(str)
- .with_default(os.path.join(os.environ['HOME'], 'build/out/rootfs'))
+ .with_type(Path)
+ .with_default(Path(os.environ['HOME']) / 'build/out/rootfs')
 )
 
 

@@ -37,7 +37,7 @@ import json
 import logging
 import sys
 from collections import ChainMap, OrderedDict, defaultdict
-from pathlib import Path, PurePosixPath
+from pathlib import Path, PurePath, PurePosixPath
 
 
 LOG = logging.getLogger('foreman')
@@ -606,6 +606,11 @@ def command_list(args, search_build_file):
             ])
         return contents
 
+    def encode_path(obj):
+        if not isinstance(obj, PurePath):
+            raise TypeError(repr(obj) + ' is not JSON serializable')
+        return str(obj)
+
     build_file_contents = OrderedDict()
     for label in load_build_files(args.rule, search_build_file):
         path_str = '//%s' % label.path
@@ -617,7 +622,13 @@ def command_list(args, search_build_file):
             ('rules',
              list(map(format_rule, RULES.get_things(label.path)))),
         ])
-    print(json.dumps(build_file_contents, indent=4))
+
+    print(json.dumps(
+        build_file_contents,
+        indent=4,
+        default=encode_path,
+    ))
+
     return 0
 
 
