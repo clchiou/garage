@@ -98,10 +98,16 @@ class Label:
 
 
 class Things:
-    """Colletion of things keyed by label."""
+    """Colletion of things keyed by label.
+
+       NOTE: When iterate over Things, it returns objects in the order
+       when they are inserted instead of the order of label.  This
+       provides some level of determinism of the ordering while still be
+       as efficient as possible.
+    """
 
     def __init__(self):
-        self.things = {}
+        self.things = OrderedDict()
 
     def __contains__(self, label):
         things = self.things.get(label.path)
@@ -121,8 +127,9 @@ class Things:
         things[label.name] = thing
 
     def __iter__(self):
-        for things in self.things.values():
-            yield from things
+        for path, things in self.things.items():
+            for name in things:
+                yield Label(path, name)
 
     def get(self, label, default=None):
         try:
