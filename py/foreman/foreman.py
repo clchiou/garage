@@ -500,23 +500,26 @@ def decorate_rule(*args):
 def main(argv):
     parser = argparse.ArgumentParser(
         description="""A build tool that supervises build tools.""")
-    group = parser.add_mutually_exclusive_group()
-    group.add_argument(
-        '--debug', action='store_true',
-        help="""enable debug output""")
-    group.add_argument(
-        '--quiet', action='store_true',
-        help="""disable output""")
-    parser.add_argument(
-        '--path', action='append',
-        help="""add path to search for build files (default to the
-                current directory if none is provided)""")
+
+    def add_common_args(parser):
+        group = parser.add_mutually_exclusive_group()
+        group.add_argument(
+            '--debug', action='store_true',
+            help="""enable debug output""")
+        group.add_argument(
+            '--quiet', action='store_true',
+            help="""disable output""")
+        parser.add_argument(
+            '--path', action='append',
+            help="""add path to search for build files (default to the
+                    current directory if none is provided)""")
 
     subparsers = parser.add_subparsers(
         help="""Sub-commands.""")
 
     parser_build = subparsers.add_parser(
         'build', help="""Start and supervise a build.""")
+    add_common_args(parser_build)
     parser_build.add_argument(
         '--parameter', action='append', default=(),
         help="""set build parameter; the format is either label=value or
@@ -527,6 +530,7 @@ def main(argv):
 
     parser_list = subparsers.add_parser(
         'list', help="""List build rules and parameters.""")
+    add_common_args(parser_list)
     parser_list.add_argument(
         'rule', nargs='+', help="""add build rule to list from""")
     parser_list.set_defaults(command=command_list)
