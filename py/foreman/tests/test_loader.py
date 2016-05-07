@@ -2,7 +2,8 @@ import unittest
 
 from pathlib import Path
 
-from foreman import Searcher
+import foreman
+from foreman import Label, Loader, Searcher
 
 
 class SearcherTest(unittest.TestCase):
@@ -22,6 +23,30 @@ class SearcherTest(unittest.TestCase):
         # Test search path order.
         self.assertTrue(str(search('pkg1')).endswith('path1/pkg1/build.py'))
         self.assertTrue(str(search('pkg3')).endswith('path2/pkg3/build.py'))
+
+
+class LoaderTest(unittest.TestCase):
+
+    def test_loader(self):
+        testdata = Path(__file__).parent / 'testdata'
+        self.assertTrue(testdata.is_dir())
+
+        search = Searcher([testdata / 'path2', testdata / 'path1'])
+        loader = Loader(search)
+
+        loader, foreman.LOADER = foreman.LOADER, loader
+        try:
+            foreman.LOADER.load_build_files(['//pkg1/pkg2:rule_x'])
+        finally:
+            loader, foreman.LOADER = foreman.LOADER, loader
+
+        self.assertEqual(
+            {Label.parse('//pkg1/pkg2:par_x')}, set(loader.parameters))
+        self.assertEqual(
+            {Label.parse('//pkg1:pkg1'),
+             Label.parse('//pkg1/pkg2:rule_x'),
+             Label.parse('//pkg3:rule_y')},
+            set(loader.rules))
 
 
 if __name__ == '__main__':

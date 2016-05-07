@@ -33,6 +33,7 @@ __all__ = [
 ]
 
 import argparse
+import functools
 import json
 import logging
 import sys
@@ -233,30 +234,118 @@ class Rule:
                 dep.configs = configs
 
 
-### Execution engine.
+### Build file loader.
 
 
-PARAMETERS = Things()
-RULES = Things()
+class Loader:
 
+    def __init__(self, search_build_file):
+        self.parameters = Things()
+        self.rules = Things()
+        self.path = None
+        self.search_build_file = search_build_file
 
-CURRENT_PATH = None
+    def load_build_files(self, paths):
+        """Load build files in breadth-first order."""
+        return list(self._load_build_files(paths))
+
+    def _load_build_files(self, paths):
+        assert self.search_build_file is not None
+        queue = list(paths)
+        loaded_paths = set()
+        while queue:
+            # 1. Pop up the first label.
+            label = queue.pop(0)
+            if not isinstance(label, Label):
+                label = Label.parse(label)
+            # 2. Search and load the build file.
+            if label.path not in loaded_paths:
+                build_file_path = self.search_build_file(label.path)
+                LOG.info('load build file %s', build_file_path)
+                with Context(self, label.path):
+                    self.load_build_file(label.path, build_file_path)
+                loaded_paths.add(label.path)
+            # 3. Notify caller.
+            yield label
+            # 4. Add not-created-yet rules to the queue.
+            for dep in self.rules[label].all_dependencies:
+                if dep.label not in self.rules:
+                    queue.append(dep.label)
+        # Make sure that build rules do not refer to undefined parameters.
+        for rule in self.rules.values():
+            for dep in rule.all_dependencies:
+                if dep.configs:
+                    for label, _ in dep.configs:
+                        if label not in self.parameters:
+                            msg = 'parameter %s is undefined' % label
+                            raise ForemanError(msg)
+
+    def load_build_file(self, label_path, build_file_path):
+        """Load, compile, and execute one build file."""
+        assert self.search_build_file is not None
+        # Path.read_text() is added until Python 3.5 :(
+        with build_file_path.open() as build_file:
+            code = build_file.read()
+        code = compile(code, str(build_file_path), 'exec')
+        exec(code, {'__name__': str(label_path).replace('/', '.')})
+        # Validate parameters.
+        for parameter in self.parameters.get_things(label_path):
+            parameter.validate()
+        # Parse the label of rule's dependencies.
+        for rule in self.rules.get_things(label_path):
+            rule.parse_labels(label_path)
+        # Compute rules' implicit dependencies.
+        for rule in self.rules.get_things(label_path):
+            for path in list(rule.label.path.parents)[:-1]:
+                try:
+                    self.search_build_file(path)
+                except FileNotFoundError:
+                    pass
+                else:
+                    label = Label.parse_name(path, path.name)
+                    dep = Rule.Dependency(label, None, None)
+                    rule.implicit_dependencies.append(dep)
+
+    # Methods that are called from build files.
+
+    def define_parameter(self, name):
+        """Define a build parameter."""
+        if self.path is None:
+            raise RuntimeError('lack execution context')
+        label = Label.parse_name(self.path, name)
+        if label in self.parameters:
+            raise ForemanError('overwrite parameter %s' % label)
+        LOG.debug('define parameter %s', label)
+        parameter = self.parameters[label] = Parameter(label)
+        return parameter
+
+    def define_rule(self, name):
+        """Define a build rule."""
+        if self.path is None:
+            raise RuntimeError('lack execution context')
+        label = Label.parse_name(self.path, name)
+        if label in self.rules:
+            raise ForemanError('overwrite rule %s' % label)
+        LOG.debug('define rule %s', label)
+        rule = self.rules[label] = Rule(label)
+        return rule
 
 
 class Context:
-    """Manage global state `CURRENT_PATH`."""
+    """Manage Loader.path."""
 
-    def __init__(self, path):
-        self.path = path
-        self.previous_path = None
+    def __init__(self, loader, path):
+        self.loader = loader
+        self._path = path
+
+    def swap(self):
+        self._path, self.loader.path = self.loader.path, self._path
 
     def __enter__(self):
-        global CURRENT_PATH
-        self.previous_path, CURRENT_PATH = CURRENT_PATH, self.path
+        self.swap()
 
     def __exit__(self, *_):
-        global CURRENT_PATH
-        CURRENT_PATH = self.previous_path
+        self.swap()
 
 
 class Searcher:
@@ -274,63 +363,51 @@ class Searcher:
         raise FileNotFoundError('No build file found for: %s' % path)
 
 
-def load_build_files(paths, search_build_file):
-    """Load build files in breadth-first order."""
-    queue = list(paths)
-    loaded_paths = set()
-    while queue:
-        # 1. Pop up the first label.
-        label = queue.pop(0)
-        if not isinstance(label, Label):
-            label = Label.parse(label)
-        # 2. Search and load the build file.
-        if label.path not in loaded_paths:
-            build_file_path = search_build_file(label.path)
-            LOG.info('load build file %s', build_file_path)
-            with Context(label.path):
-                load_build_file(label.path, build_file_path, search_build_file)
-            loaded_paths.add(label.path)
-        # 3. Notify caller.
-        yield label
-        # 4. Add not-created-yet rules to the queue.
-        for dep in RULES[label].all_dependencies:
-            if dep.label not in RULES:
-                queue.append(dep.label)
-    # Make sure that build rules do not refer to undefined parameters.
-    for rule in RULES.values():
+### Execution engine.
+
+
+class Executor:
+
+    def __init__(self, parameters, rules):
+        self.parameters = parameters
+        self.rules = rules
+
+    def execute(self, rule_label, environment):
+        self.execute_rule(self.rules[rule_label], environment, BuildIds())
+
+    def execute_rule(self, rule, environment, build_ids):
+        """Execute build rule in depth-first order."""
+
+        if build_ids.check_and_add(rule, environment):
+            return
+
+        values = ParameterValues(self.parameters, environment, rule.label.path)
+
         for dep in rule.all_dependencies:
+
+            # Evaluate conditional dependency.
+            if dep.when and not dep.when(values):
+                continue
+
             if dep.configs:
-                for label, _ in dep.configs:
-                    if label not in PARAMETERS:
-                        raise ForemanError('parameter %s is undefined' % label)
-
-
-def load_build_file(label_path, build_file_path, search_build_file):
-    """Load, compile, and execute one build file."""
-    # Path.read_text() is added until Python 3.5 :(
-    with build_file_path.open() as build_file:
-        code = build_file.read()
-    code = compile(code, str(build_file_path), 'exec')
-    exec(code, {'__name__': str(label_path).replace('/', '.')})
-    # Validate parameters.
-    for parameter in PARAMETERS.get_things(label_path):
-        parameter.validate()
-    # Parse the label of rule's dependencies.
-    for rule in RULES.get_things(label_path):
-        rule.parse_labels(label_path)
-    # Compute rules' implicit dependencies.
-    for rule in RULES.get_things(label_path):
-        for path in list(rule.label.path.parents)[:-1]:
-            try:
-                search_build_file(path)
-            except FileNotFoundError:
-                pass
+                next_env = environment.new_child()
+                next_env.update(dep.configs)
             else:
-                rule.implicit_dependencies.append(Rule.Dependency(
-                    Label.parse_name(path, path.name),
-                    None,
-                    None,
+                next_env = environment
+
+            self.execute_rule(self.rules[dep.label], next_env, build_ids)
+
+        if LOG.isEnabledFor(logging.INFO):
+            if environment.maps[0] is not environment.maps[-1]:
+                current_env = environment.maps[0]
+                LOG.info('execute rule %s with %s', rule.label, ', '.join(
+                    '%s = %r' % (label, current_env[label])
+                    for label in sorted(current_env)
                 ))
+            else:
+                LOG.info('execute rule %s', rule.label)
+        if rule.build:
+            rule.build(values)
 
 
 class BuildIds:
@@ -380,42 +457,7 @@ class ParameterValues:
             return parameter.default
 
 
-def execute_rule(rule, environment, build_ids):
-    """Execute build rule in depth-first order."""
-
-    if build_ids.check_and_add(rule, environment):
-        return
-
-    values = ParameterValues(PARAMETERS, environment, rule.label.path)
-
-    for dep in rule.all_dependencies:
-
-        # Evaluate conditional dependency.
-        if dep.when and not dep.when(values):
-            continue
-
-        if dep.configs:
-            next_env = environment.new_child()
-            next_env.update(dep.configs)
-        else:
-            next_env = environment
-
-        execute_rule(RULES[dep.label], next_env, build_ids)
-
-    if LOG.isEnabledFor(logging.INFO):
-        if environment.maps[0] is not environment.maps[-1]:
-            current_env = environment.maps[0]
-            LOG.info('execute rule %s with %s', rule.label, ', '.join(
-                '%s = %r' % (label, current_env[label])
-                for label in sorted(current_env)
-            ))
-        else:
-            LOG.info('execute rule %s', rule.label)
-    if rule.build:
-        rule.build(values)
-
-
-### Implementation of public API.
+### APIs for build files.
 
 
 class ForemanError(Exception):
@@ -423,28 +465,15 @@ class ForemanError(Exception):
     pass
 
 
-def define_parameter(name):
-    """Define a build parameter."""
-    if CURRENT_PATH is None:
-        raise RuntimeError('lack execution context')
-    label = Label.parse_name(CURRENT_PATH, name)
-    if label in PARAMETERS:
-        raise ForemanError('overwrite parameter %s' % label)
-    LOG.debug('define parameter %s', label)
-    parameter = PARAMETERS[label] = Parameter(label)
-    return parameter
+LOADER = None
 
 
-def define_rule(name):
-    """Define a build rule."""
-    if CURRENT_PATH is None:
-        raise RuntimeError('lack execution context')
-    label = Label.parse_name(CURRENT_PATH, name)
-    if label in RULES:
-        raise ForemanError('overwrite rule %s' % label)
-    LOG.debug('define rule %s', label)
-    rule = RULES[label] = Rule(label)
-    return rule
+def call_loader(method, *args):
+    return method(LOADER, *args)
+
+
+define_parameter = functools.partial(call_loader, Loader.define_parameter)
+define_rule = functools.partial(call_loader, Loader.define_rule)
 
 
 def decorate_rule(*args):
@@ -536,10 +565,13 @@ def main(argv):
         search_paths = [Path.cwd()]
     searcher = Searcher(search_paths)
 
-    return args.command(args, searcher)
+    global LOADER
+    LOADER = Loader(searcher)
+
+    return args.command(args, LOADER)
 
 
-def command_build(args, search_build_file):
+def command_build(args, loader):
 
     rule_labels = []
     for rule_label in args.rule:
@@ -547,8 +579,9 @@ def command_build(args, search_build_file):
         if rule_label not in rule_labels:
             rule_labels.append(rule_label)
 
-    for _ in load_build_files(rule_labels, search_build_file):
-        pass
+    loader.load_build_files(rule_labels)
+
+    executor = Executor(loader.parameters, loader.rules)
 
     environment = ChainMap()
     for spec in args.parameter:
@@ -560,7 +593,7 @@ def command_build(args, search_build_file):
         for parameter_label, value in pv_pairs:
             parameter_label = Label.parse(parameter_label)
             try:
-                parameter = PARAMETERS[parameter_label]
+                parameter = executor.parameters[parameter_label]
             except KeyError:
                 msg = 'parameter %s is undefined' % parameter_label
                 raise ForemanError(msg) from None
@@ -574,12 +607,12 @@ def command_build(args, search_build_file):
             LOG.debug('parameter %s is set to: %r', parameter.label, value)
 
     for rule_label in rule_labels:
-        execute_rule(RULES[rule_label], environment, BuildIds())
+        executor.execute(rule_label, environment)
 
     return 0
 
 
-def command_list(args, search_build_file):
+def command_list(args, loader):
 
     def format_parameter(parameter):
         contents = OrderedDict()
@@ -619,15 +652,17 @@ def command_list(args, search_build_file):
         return str(obj)
 
     build_file_contents = OrderedDict()
-    for label in load_build_files(args.rule, search_build_file):
+    for label in loader.load_build_files(args.rule):
         path_str = '//%s' % label.path
         if path_str in build_file_contents:
             continue
         build_file_contents[path_str] = OrderedDict([
             ('parameters',
-             list(map(format_parameter, PARAMETERS.get_things(label.path)))),
+             list(map(format_parameter,
+                      loader.parameters.get_things(label.path)))),
             ('rules',
-             list(map(format_rule, RULES.get_things(label.path)))),
+             list(map(format_rule,
+                      loader.rules.get_things(label.path)))),
         ])
 
     print(json.dumps(
