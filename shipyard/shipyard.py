@@ -5,6 +5,8 @@ __all__ = [
     'call',
     'ensure_directory',
     'get_home',
+    'git_clone',
+    'run_commands',
     'sync_files',
     'tar_extract',
     'wget',
@@ -53,6 +55,30 @@ def ensure_directory(path, mode=0o777):
 def get_home(user='~'):
     # Path.home() is defined in Python 3.5.
     return Path(os.path.expanduser(user))
+
+
+def git_clone(repo, local_path=None, checkout=None):
+    if local_path and local_path.exists():
+        if not local_path.is_dir():
+            raise FileExistsError('not a directory: %s' % local_path)
+    else:
+        cmd = ['git', 'clone', repo]
+        if local_path:
+            cmd.append(local_path.name)
+            cwd = str(local_path.parent)
+        else:
+            cwd = None
+        call(cmd, cwd=cwd)
+    if checkout:
+        call(['git', 'checkout', checkout])
+
+
+def run_commands(commands_str, path=None):
+    cwd = str(path) if path else None
+    for command in commands_str.split('\n'):
+        command = command.strip().split()
+        if command:
+            call(command, cwd=cwd)
 
 
 def sync_files(srcs, dst, *, includes=(), excludes=(), sudo=False):
@@ -183,8 +209,9 @@ def python_get_site_packages(parameters):
 ### Helpers for the build image phase.
 
 
-def copy_libraries(parameters, libnames):
-    lib_dir = Path('/usr/lib/x86_64-linux-gnu')
+def copy_libraries(parameters, libnames,
+                   lib_dir='/usr/lib/x86_64-linux-gnu'):
+    lib_dir = Path(lib_dir)
     libs = list(itertools.chain.from_iterable(
         lib_dir.glob('%s*' % name) for name in libnames))
     sync_files(libs, parameters['//shipyard:build_rootfs'], sudo=True)

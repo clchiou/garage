@@ -49,7 +49,10 @@ def shipyard(parameters):
     ensure_directory(parameters['build_src'])
     ensure_directory(parameters['build_out'])
     ensure_directory(parameters['build_rootfs'])
-    cli_tools = ['wget']
+    cli_tools = [
+        'rsync',  # shipyard.sync_files()
+        'wget',  # shipyard.wget()
+    ]
     call(['sudo', 'apt-get', 'install', '--yes'] + cli_tools)
 
 
