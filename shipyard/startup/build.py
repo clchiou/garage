@@ -27,7 +27,7 @@ from shipyard import get_home
 
 
 (define_rule('build_image')
- .with_doc("""Copy startup build artifacts.""")
+ .with_doc("""Copy build artifacts.""")
  .with_build(lambda ps: shipyard.python_copy_package(ps, 'startup'))
  .depend('//shipyard/cpython:build_image')
  .depend('startup')

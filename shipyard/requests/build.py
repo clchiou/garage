@@ -12,7 +12,7 @@ from foreman import define_rule
 
 
 (define_rule('build_image')
- .with_doc("""Copy requests build artifacts.""")
+ .with_doc("""Copy build artifacts.""")
  .with_build(lambda ps: shipyard.python_copy_package(ps, 'requests'))
  .depend('//shipyard/cpython:build_image')
  .depend('requests')

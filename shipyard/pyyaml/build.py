@@ -1,4 +1,4 @@
-"""Install lxml."""
+"""Install PyYAML."""
 
 import shipyard
 from foreman import define_parameter, define_rule
@@ -9,8 +9,7 @@ from foreman import define_parameter, define_rule
  .with_type(list)
  .with_parse(lambda pkgs: pkgs.split(','))
  .with_default([
-     'libxml2-dev',
-     'libxslt1-dev',
+     'libyaml-dev',
  ])
 )
 
@@ -20,21 +19,16 @@ from foreman import define_parameter, define_rule
  .with_type(list)
  .with_parse(lambda pkgs: pkgs.split(','))
  .with_default([
-     'libexslt.so',
-     'libicudata.so',
-     'libicuuc.so',
-     'libstdc++.so',
-     'libxml2.so',
-     'libxslt.so',
+     'libyaml',  # Match both libyaml-0.so and libyaml.so.
  ])
 )
 
 
-(define_rule('lxml')
+(define_rule('pyyaml')
  .with_doc(__doc__)
  .with_build(lambda ps: (
      shipyard.install_packages(ps['deps']),
-     shipyard.python_pip_install(ps, 'lxml'),
+     shipyard.python_pip_install(ps, 'PyYAML'),
  ))
  .depend('//shipyard/cpython:cpython')
 )
@@ -44,8 +38,8 @@ from foreman import define_parameter, define_rule
  .with_doc("""Copy build artifacts.""")
  .with_build(lambda ps: (
      shipyard.copy_libraries(ps, ps['libs']),
-     shipyard.python_copy_package(ps, 'lxml'),
+     shipyard.python_copy_package(ps, 'PyYAML', patterns=['*yaml*']),
  ))
  .depend('//shipyard/cpython:build_image')
- .depend('lxml')
+ .depend('pyyaml')
 )

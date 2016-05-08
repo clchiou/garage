@@ -161,16 +161,15 @@ def python_pip_install(parameters, package_name):
         call(['sudo', str(pip), 'install', package_name])
 
 
-def python_copy_package(parameters, package_name):
+def python_copy_package(parameters, package_name, patterns=()):
     LOG.info('copy %s', package_name)
     site_packages = python_get_site_packages(parameters)
     if not site_packages.is_dir():
         raise FileNotFoundError('not a directory: %s' % site_packages)
-    sync_files(
-        list(site_packages.glob('%s*' % package_name)),
-        parameters['//shipyard:build_rootfs'],
-        sudo=True,
-    )
+    dirs = list(site_packages.glob('%s*' % package_name))
+    dirs.extend(
+        itertools.chain.from_iterable(map(site_packages.glob, patterns)))
+    sync_files(dirs, parameters['//shipyard:build_rootfs'], sudo=True)
 
 
 def python_get_site_packages(parameters):
