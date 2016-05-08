@@ -2,9 +2,12 @@
 
 from pathlib import Path
 
-import shipyard
 from foreman import define_parameter, define_rule
-from shipyard import get_home
+from shipyard import (
+    get_home,
+    python_build_package,
+    python_copy_package,
+)
 
 
 (define_parameter('src')
@@ -16,19 +19,14 @@ from shipyard import get_home
 
 (define_rule('startup')
  .with_doc(__doc__)
- .with_build(lambda parameters: shipyard.python_build_package(
-     parameters,
-     'startup',
-     parameters['//shipyard/startup:src'],
-     parameters['//shipyard:build_src'] / 'startup',
- ))
+ .with_build(lambda ps: python_build_package(ps, 'startup', src=ps['src']))
  .depend('//shipyard/cpython:cpython')
 )
 
 
 (define_rule('build_image')
  .with_doc("""Copy build artifacts.""")
- .with_build(lambda ps: shipyard.python_copy_package(ps, 'startup'))
+ .with_build(lambda ps: python_copy_package(ps, 'startup'))
  .depend('//shipyard/cpython:build_image')
  .depend('startup')
 )

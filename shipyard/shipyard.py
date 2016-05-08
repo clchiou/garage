@@ -138,8 +138,18 @@ def install_packages(pkgs):
 ### Python-specific helpers.
 
 
-def python_build_package(parameters, package_name, src, build_src):
+def python_build_package(parameters, package_name, src=None, build_src=None):
     LOG.info('build %s', package_name)
+
+    if not src:
+        src = 'py/%s' % package_name
+    if isinstance(src, str):
+        src = parameters['//shipyard:root'] / src
+
+    if not build_src:
+        build_src = package_name
+    if isinstance(build_src, str):
+        build_src = parameters['//shipyard:build_src'] / build_src
 
     # Just a sanity check...
     setup_py = src / 'setup.py'
