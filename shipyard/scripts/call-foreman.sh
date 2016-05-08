@@ -18,7 +18,7 @@ main() {
   export PYTHONPATH="${SHIPYARD}"
 
   set -o xtrace
-  exec "${FOREMAN}" --path "${ROOT}" "${@}"
+  exec "${FOREMAN}" "${@}" --path "${ROOT}"
 }
 
 main "${@}"

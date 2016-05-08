@@ -1,18 +1,21 @@
 """Build CPython from source."""
 
-import itertools
 import logging
 from collections import namedtuple
 from pathlib import Path
 
-from foreman import define_parameter, decorate_rule
-
+from foreman import define_parameter, define_rule, decorate_rule
 from shipyard import (
+
     call,
     ensure_directory,
     sync_files,
     tar_extract,
     wget,
+
+    install_packages,
+
+    copy_libraries,
 )
 
 
@@ -44,6 +47,17 @@ LOG = logging.getLogger(__name__)
      'libsqlite3-dev',
      # Network...
      'libssl-dev',
+ ])
+)
+(define_parameter('libs')
+ .with_doc("""Runtime libraries.""")
+ .with_type(list)
+ .with_parse(lambda pkgs: pkgs.split(','))
+ .with_default([
+     'libgdbm.so',
+     'libgdbm_compat.so',
+     'libpanelw.so',
+     'libsqlite3.so',
  ])
 )
 
@@ -78,7 +92,7 @@ def cpython(parameters):
 
     if not (src_path / 'Makefile').exists():
         LOG.info('configure cpython')
-        cmd = ['./configure', '--prefix', parameters['prefix']]
+        cmd = ['./configure', '--prefix', str(parameters['prefix'])]
         call(cmd, cwd=str(src_path))
 
     if not (src_path / 'python').exists():
@@ -88,11 +102,10 @@ def cpython(parameters):
         call(['sudo', 'make', 'install'], cwd=str(src_path))
 
 
-@decorate_rule
-def install_deps(parameters):
-    """Install build dependencies."""
-    LOG.info('install packages')
-    call(['sudo', 'apt-get', 'install', '--yes'] + parameters['deps'])
+(define_rule('install_deps')
+ .with_doc("""Install build dependencies.""")
+ .with_build(lambda ps: install_packages(ps['deps']))
+)
 
 
 @decorate_rule
@@ -117,14 +130,7 @@ def build_image(parameters):
     """Copy final CPython build artifacts."""
 
     LOG.info('copy cpython runtime libraries')
-    lib_dir = Path('/usr/lib/x86_64-linux-gnu')
-    libs = list(itertools.chain(
-        lib_dir.glob('libgdbm.so*'),
-        lib_dir.glob('libgdbm_compat.so*'),
-        lib_dir.glob('libpanelw.so*'),
-        lib_dir.glob('libsqlite3.so*'),
-    ))
-    sync_files(libs, parameters['//shipyard:build_rootfs'], sudo=True)
+    copy_libraries(parameters, parameters['libs'])
 
     LOG.info('copy cpython modules')
     lib_dir = get_lib_dir(parameters)

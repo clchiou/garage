@@ -1,8 +1,7 @@
 """Build py/garage."""
 
-from foreman import define_rule
-
 import shipyard
+from foreman import define_rule
 
 
 (define_rule('garage')

@@ -4,15 +4,23 @@ __all__ = [
     # Generic scripting helpers.
     'call',
     'ensure_directory',
+    'get_home',
     'sync_files',
     'tar_extract',
     'wget',
+    # OS Package helpers.
+    'install_packages',
     # Python-specific helpers.
     'python_build_package',
+    'python_pip_install',
     'python_copy_package',
+    # Helpers for the build image phase.
+    'copy_libraries',
 ]
 
+import itertools
 import logging
+import os.path
 from pathlib import Path
 from subprocess import check_call
 
@@ -26,7 +34,7 @@ LOG = logging.getLogger(__name__)
 def call(args, **kwargs):
     """Log and then call subprocess.check_call."""
     if LOG.isEnabledFor(logging.DEBUG):
-        LOG.debug('call: %s', ' '.join(args))
+        LOG.debug('call: %s # cwd = %r', ' '.join(args), kwargs.get('cwd'))
     check_call(args, **kwargs)
 
 
@@ -40,6 +48,11 @@ def ensure_directory(path, mode=0o777):
         return
     LOG.debug('make directory: %s', path)
     path.mkdir(mode=mode, parents=True)
+
+
+def get_home(user='~'):
+    # Path.home() is defined in Python 3.5.
+    return Path(os.path.expanduser(user))
 
 
 def sync_files(srcs, dst, *, includes=(), excludes=(), sudo=False):
@@ -87,14 +100,23 @@ def wget(uri, output_path=None):
     check_call(cmd)
 
 
+### OS Package helpers.
+
+
+def install_packages(pkgs):
+    cmd = ['sudo', 'apt-get', 'install', '--yes']
+    cmd.extend(pkgs)
+    call(cmd)
+
+
 ### Python-specific helpers.
 
 
-def python_build_package(parameters, package_name, package_path, build_src):
+def python_build_package(parameters, package_name, src, build_src):
     LOG.info('build %s', package_name)
 
     # Just a sanity check...
-    setup_py = package_path / 'setup.py'
+    setup_py = src / 'setup.py'
     if not setup_py.is_file():
         raise FileNotFoundError(setup_py)
 
@@ -103,7 +125,7 @@ def python_build_package(parameters, package_name, package_path, build_src):
     if not python.is_file():
         raise FileNotFoundError(python)
 
-    # Copy source into build_src.
+    # Copy src into build_src (and build from there).
     cmd = ['rsync', '--archive']
     excludes = [
         '*.egg-info',
@@ -116,8 +138,8 @@ def python_build_package(parameters, package_name, package_path, build_src):
     ]
     for exclude in excludes:
         cmd.extend(['--exclude', exclude])
-    # NOTE: Appending slash to package_path is a rsync trick.
-    cmd.extend(['%s/' % package_path, str(build_src)])
+    # NOTE: Appending slash to src is a rsync trick.
+    cmd.extend(['%s/' % src, str(build_src)])
     call(cmd)
 
     if not (build_src / 'build').exists():
@@ -126,6 +148,17 @@ def python_build_package(parameters, package_name, package_path, build_src):
     site_packages = python_get_site_packages(parameters)
     if not list(site_packages.glob('%s*' % package_name)):
         call(['sudo', str(python), 'setup.py', 'install'], cwd=str(build_src))
+
+
+def python_pip_install(parameters, package_name):
+    pip = (parameters['//shipyard/cpython:prefix'] /
+           ('bin/pip%d.%d' % parameters['//shipyard/cpython:version']))
+    if not pip.is_file():
+        raise FileNotFoundError(pip)
+    site_packages = python_get_site_packages(parameters)
+    if not list(site_packages.glob('%s*' % package_name)):
+        LOG.info('install %s', package_name)
+        call(['sudo', str(pip), 'install', package_name])
 
 
 def python_copy_package(parameters, package_name):
@@ -146,3 +179,13 @@ def python_get_site_packages(parameters):
         ('lib/python%d.%d/site-packages' %
          parameters['//shipyard/cpython:version'])
     )
+
+
+### Helpers for the build image phase.
+
+
+def copy_libraries(parameters, libnames):
+    lib_dir = Path('/usr/lib/x86_64-linux-gnu')
+    libs = list(itertools.chain.from_iterable(
+        lib_dir.glob('%s*' % name) for name in libnames))
+    sync_files(libs, parameters['//shipyard:build_rootfs'], sudo=True)

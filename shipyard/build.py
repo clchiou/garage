@@ -1,15 +1,14 @@
 """Common parts of the shipyard."""
 
 import logging
-import os
 from pathlib import Path
 
+import shipyard as shipyard_
 from foreman import define_parameter, decorate_rule
-
-import shipyard
 from shipyard import (
     call,
     ensure_directory,
+    get_home,
     sync_files,
 )
 
@@ -21,26 +20,26 @@ LOG.addHandler(logging.NullHandler())
 (define_parameter('root')
  .with_doc("""Location of this repository.""")
  .with_type(Path)
- .with_default(Path(shipyard.__file__).parent.parent)
+ .with_default(Path(shipyard_.__file__).parent.parent)
 )
 
 
 (define_parameter('build_src')
  .with_doc("""Location of checked-out source repos.""")
  .with_type(Path)
- .with_default(Path(os.environ['HOME']) / 'build/src')
+ .with_default(get_home() / 'build/src')
 )
 
 
 (define_parameter('build_out')
  .with_doc("""Location of intermediate and final build artifacts.""")
  .with_type(Path)
- .with_default(Path(os.environ['HOME']) / 'build/out')
+ .with_default(get_home() / 'build/out')
 )
 (define_parameter('build_rootfs')
  .with_doc("""Location of final container image.""")
  .with_type(Path)
- .with_default(Path(os.environ['HOME']) / 'build/out/rootfs')
+ .with_default(get_home() / 'build/out/rootfs')
 )
 
 
