@@ -62,6 +62,13 @@ class LoaderTest(unittest.TestCase):
             set(r.label for r in rule.all_dependencies),
         )
 
+        # Verify dependency.
+        rule = loader.rules[Label.parse('//pkg1/pkg2:rule_x')]
+        self.assertEqual(
+            {Label.parse('//pkg1:pkg1')},
+            set(r.label for r in rule.all_dependencies),
+        )
+
 
 if __name__ == '__main__':
     unittest.main()

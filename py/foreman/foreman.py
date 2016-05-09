@@ -201,7 +201,6 @@ class Rule:
         self.build = None
         self.dependencies = []
         self.from_reverse_dependencies = []
-        self.implicit_dependencies = []
         self.reverse_dependencies = []
 
     def with_doc(self, doc):
@@ -224,7 +223,6 @@ class Rule:
     def all_dependencies(self):
         yield from self.dependencies
         yield from self.from_reverse_dependencies
-        yield from self.implicit_dependencies
 
     def parse_labels(self, implicit_path):
         """Parse label strings in the dependency definitions.
@@ -319,17 +317,6 @@ class Loader:
         # Parse the label of rule's dependencies.
         for rule in self.rules.get_things(label_path):
             rule.parse_labels(label_path)
-        # Compute rules' implicit dependencies.
-        for rule in self.rules.get_things(label_path):
-            for path in list(rule.label.path.parents)[:-1]:
-                try:
-                    self.search_build_file(path)
-                except FileNotFoundError:
-                    pass
-                else:
-                    label = Label.parse_name(path, path.name)
-                    dep = Rule.Dependency(label, None, None)
-                    rule.implicit_dependencies.append(dep)
 
     # Methods that are called from build files.
 
@@ -660,8 +647,6 @@ def command_list(args, loader):
             ('doc', rule.doc),
             ('dependencies',
              list(map(format_dependency, rule.dependencies))),
-            ('implicit_dependencies',
-             list(map(format_dependency, rule.implicit_dependencies))),
             ('reverse_dependencies',
              list(map(format_dependency, rule.reverse_dependencies))),
         ])

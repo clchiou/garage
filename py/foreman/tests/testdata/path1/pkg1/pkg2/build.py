@@ -10,4 +10,4 @@ COUNT += 1
 define_parameter('par_x')
 
 
-define_rule('rule_x')
+define_rule('rule_x').depend('//pkg1:pkg1')
