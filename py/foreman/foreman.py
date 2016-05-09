@@ -33,7 +33,6 @@ __all__ = [
 ]
 
 import argparse
-import functools
 import json
 import logging
 import sys
@@ -193,12 +192,17 @@ class Rule:
             self.when = when
             self.configs = configs
 
+        def with_label(self, label):
+            return Rule.Dependency(label, self.when, self.configs)
+
     def __init__(self, label):
         self.label = label
         self.doc = None
         self.build = None
         self.dependencies = []
+        self.from_reverse_dependencies = []
         self.implicit_dependencies = []
+        self.reverse_dependencies = []
 
     def with_doc(self, doc):
         self.doc = doc
@@ -212,9 +216,14 @@ class Rule:
         self.dependencies.append(Rule.Dependency(label, when, configs))
         return self
 
+    def reverse_depend(self, label, when=None, configs=None):
+        self.reverse_dependencies.append(Rule.Dependency(label, when, configs))
+        return self
+
     @property
     def all_dependencies(self):
         yield from self.dependencies
+        yield from self.from_reverse_dependencies
         yield from self.implicit_dependencies
 
     def parse_labels(self, implicit_path):
@@ -223,15 +232,21 @@ class Rule:
            You must call this right after its build file is executed.
         """
         for dep in self.dependencies:
-            if not isinstance(dep.label, Label):
-                dep.label = Label.parse(dep.label, implicit_path)
-            if dep.configs:
-                configs = []
-                for label, value in dep.configs:
-                    if not isinstance(label, Label):
-                        label = Label.parse(label, implicit_path)
-                    configs.append((label, value))
-                dep.configs = configs
+            self._resolve_dep(dep, implicit_path)
+        for dep in self.reverse_dependencies:
+            self._resolve_dep(dep, implicit_path)
+
+    @staticmethod
+    def _resolve_dep(dep, implicit_path):
+        if not isinstance(dep.label, Label):
+            dep.label = Label.parse(dep.label, implicit_path)
+        if dep.configs:
+            configs = []
+            for label, value in dep.configs:
+                if not isinstance(label, Label):
+                    label = Label.parse(label, implicit_path)
+                configs.append((label, value))
+            dep.configs = configs
 
 
 ### Build file loader.
@@ -247,7 +262,13 @@ class Loader:
 
     def load_build_files(self, paths):
         """Load build files in breadth-first order."""
-        return list(self._load_build_files(paths))
+        labels = list(self._load_build_files(paths))
+        # Resolve reverse dependencies.
+        for rule in self.rules.values():
+            for rdep in rule.reverse_dependencies:
+                self.rules[rdep.label].from_reverse_dependencies.append(
+                    rdep.with_label(rule.label))
+        return labels
 
     def _load_build_files(self, paths):
         assert self.search_build_file is not None
@@ -268,7 +289,11 @@ class Loader:
             # 3. Notify caller.
             yield label
             # 4. Add not-created-yet rules to the queue.
-            for dep in self.rules[label].all_dependencies:
+            rule = self.rules[label]
+            for dep in rule.dependencies:
+                if dep.label not in self.rules:
+                    queue.append(dep.label)
+            for dep in rule.reverse_dependencies:
                 if dep.label not in self.rules:
                     queue.append(dep.label)
         # Make sure that build rules do not refer to undefined parameters.
@@ -468,12 +493,12 @@ class ForemanError(Exception):
 LOADER = None
 
 
-def call_loader(method, *args):
-    return method(LOADER, *args)
+def define_parameter(name):
+    return LOADER.define_parameter(name)
 
 
-define_parameter = functools.partial(call_loader, Loader.define_parameter)
-define_rule = functools.partial(call_loader, Loader.define_rule)
+def define_rule(name):
+    return LOADER.define_rule(name)
 
 
 def decorate_rule(*args):
@@ -637,6 +662,8 @@ def command_list(args, loader):
              list(map(format_dependency, rule.dependencies))),
             ('implicit_dependencies',
              list(map(format_dependency, rule.implicit_dependencies))),
+            ('reverse_dependencies',
+             list(map(format_dependency, rule.reverse_dependencies))),
         ])
 
     def format_dependency(dependency):

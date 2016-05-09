@@ -7,4 +7,11 @@ if COUNT > 0:
 COUNT += 1
 
 
-define_rule('pkg1').depend('//pkg3:rule_y')
+(define_rule('pkg1')
+ .depend('//pkg3:rule_y')
+ .reverse_depend('pkg2')
+ .reverse_depend('//pkg4:pkg4')
+)
+
+
+define_rule('pkg2')
