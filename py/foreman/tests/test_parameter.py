@@ -13,6 +13,12 @@ class ParameterTest(unittest.TestCase):
         with self.assertRaises(ForemanError):
             p.validate()
 
+        p = (Parameter(Label.parse('//x:y'))
+             .with_default('')
+             .with_derive(lambda _: ''))
+        with self.assertRaises(ForemanError):
+            p.validate()
+
 
 if __name__ == '__main__':
     unittest.main()

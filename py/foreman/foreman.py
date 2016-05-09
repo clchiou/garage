@@ -152,6 +152,7 @@ class Parameter:
         self.label = label
         self.doc = None
         self.default = None
+        self.derive = None
         self.parse = None
         self.type = None
 
@@ -161,6 +162,10 @@ class Parameter:
 
     def with_default(self, default):
         self.default = default
+        return self
+
+    def with_derive(self, derive):
+        self.derive = derive
         return self
 
     def with_parse(self, parse):
@@ -181,6 +186,8 @@ class Parameter:
                 raise ForemanError(
                     'default value of parameter %s is not %s-typed: %r' %
                     (self.label, self.type.__name__, self.default))
+        if self.default is not None and self.derive is not None:
+            raise ForemanError('default and derive are exclusive')
 
 
 class Rule:
@@ -466,7 +473,20 @@ class ParameterValues:
             parameter = self.parameters.get(label)
             if parameter is None:
                 raise
-            return parameter.default
+            if parameter.derive:
+                value = parameter.derive(ParameterValues(
+                    self.parameters,
+                    self.environment,
+                    parameter.label.path,
+                ))
+                if (parameter.type is not None and
+                        not isinstance(value, parameter.type)):
+                    raise ForemanError(
+                        'derived value of parameter %s is not %s-typed: %r' %
+                        (parameter.label, parameter.type.__name__, value))
+                return value
+            else:
+                return parameter.default
 
 
 ### APIs for build files.
@@ -634,9 +654,13 @@ def command_list(args, loader):
         contents = OrderedDict()
         contents['label'] = str(parameter.label)
         contents['doc'] = parameter.doc
-        if parameter.default is not None:
+        if parameter.derive is not None:
+            contents['default'] = parameter.derive(
+                ParameterValues(loader.parameters, {}, parameter.label.path))
+        elif parameter.default is not None:
             contents['default'] = parameter.default
         contents['custom_parser'] = bool(parameter.parse)
+        contents['derived'] = bool(parameter.derive)
         if parameter.type is not None:
             contents['type'] = parameter.type.__name__
         return contents
