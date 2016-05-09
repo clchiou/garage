@@ -7,20 +7,19 @@ from shipyard import (
 )
 
 
-(define_rule('nanomsg')
+(define_rule('build')
  .with_doc(__doc__)
  .with_build(
      lambda ps: python_build_package(ps, 'nanomsg', build_src='nanomsg.py'))
- .depend('//shipyard:shipyard')
- .depend('//shipyard/nanomsg:nanomsg')
- .depend('//shipyard/cpython:cpython')
+ .depend('//shipyard/cpython:build')
+ .depend('//shipyard/nanomsg:build')
 )
 
 
-(define_rule('build_image')
+(define_rule('tapeout')
  .with_doc("""Copy build artifacts.""")
  .with_build(lambda ps: python_copy_package(ps, 'nanomsg'))
- .depend('//shipyard/cpython:build_image')
- .depend('//shipyard/nanomsg:build_image')
- .depend('nanomsg')
+ .depend('build')
+ .depend('//shipyard/nanomsg:tapeout')
+ .reverse_depend('//shipyard/cpython:final_tapeout')
 )

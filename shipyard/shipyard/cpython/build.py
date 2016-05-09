@@ -84,10 +84,10 @@ Version = namedtuple('Version', 'major minor')
 )
 
 
-@decorate_rule('//shipyard:shipyard',
+@decorate_rule('//shipyard:build',
                'install_deps',
                'download')
-def cpython(parameters):
+def build(parameters):
     """Build CPython from source."""
 
     src_path = get_src_path(parameters)
@@ -127,9 +127,10 @@ def download(parameters):
         tar_extract(tarball_path, root_path)
 
 
-@decorate_rule('cpython', '//shipyard:build_image')
-def build_image(parameters):
-    """Copy final CPython build artifacts."""
+# NOTE: All Python module's `tapeout` rules should reverse depend on
+# this rule rather than `//shipyard:final_tapeout` directly.
+def final_tapeout(parameters):
+    """Join point of all Python module's `tapeout` rule."""
 
     LOG.info('copy cpython runtime libraries')
     copy_libraries(parameters, parameters['libs'])
@@ -154,10 +155,20 @@ def build_image(parameters):
     sync_files([lib_dir], parameters['//shipyard:build_rootfs'],
                excludes=excludes, sudo=True)
 
+    # TODO: Copy pth file.
+
     LOG.info('copy cpython binaries')
     bins = list(get_bin_dir(parameters)
                 .glob('python%d*' % parameters['version'].major))
     sync_files(bins, parameters['//shipyard:build_rootfs'], sudo=True)
+
+
+(define_rule(final_tapeout.__name__)
+ .with_doc(final_tapeout.__doc__)
+ .with_build(final_tapeout)
+ .depend('build')
+ .reverse_depend('//shipyard:final_tapeout')
+)
 
 
 def get_root_path(parameters):

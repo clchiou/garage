@@ -44,7 +44,7 @@ LOG.addHandler(logging.NullHandler())
 
 
 @decorate_rule
-def shipyard(parameters):
+def build(parameters):
     """Common setup of the shipyard."""
     ensure_directory(parameters['build_src'])
     ensure_directory(parameters['build_out'])
@@ -57,9 +57,13 @@ def shipyard(parameters):
     call(['sudo', 'apt-get', 'install', '--yes'] + cli_tools)
 
 
-@decorate_rule
-def build_image(parameters):
-    """Copy runtime libraries."""
+# NOTE: All `tapeout` rules should reverse depend on this rule (or
+# another `final_tapeout` rule that reverse depend on this rule).
+@decorate_rule('build')
+def final_tapeout(parameters):
+    """Join point of all `tapeout` rules."""
+
+    # Copy runtime libraries.
     libs = [
         '/lib/x86_64-linux-gnu',
         '/lib64',

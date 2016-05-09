@@ -17,17 +17,16 @@ from shipyard import (
 )
 
 
-(define_rule('startup')
+(define_rule('build')
  .with_doc(__doc__)
  .with_build(lambda ps: python_build_package(ps, 'startup', src=ps['src']))
- .depend('//shipyard:shipyard')
- .depend('//shipyard/cpython:cpython')
+ .depend('//shipyard/cpython:build')
 )
 
 
-(define_rule('build_image')
+(define_rule('tapeout')
  .with_doc("""Copy build artifacts.""")
  .with_build(lambda ps: python_copy_package(ps, 'startup'))
- .depend('//shipyard/cpython:build_image')
- .depend('startup')
+ .depend('build')
+ .reverse_depend('//shipyard/cpython:final_tapeout')
 )

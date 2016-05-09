@@ -33,8 +33,8 @@ from shipyard import (
 )
 
 
-@decorate_rule('//shipyard:shipyard')
-def nanomsg(parameters):
+@decorate_rule('//shipyard:build')
+def build(parameters):
     """Build nanomsg from source."""
     install_packages(parameters['deps'])
     src_path = parameters['//shipyard:build_src'] / 'nanomsg'
@@ -49,9 +49,10 @@ def nanomsg(parameters):
         ''')
 
 
-(define_rule('build_image')
+(define_rule('tapeout')
  .with_doc("""Copy build artifacts.""")
  .with_build(
      lambda ps: copy_libraries(ps, ['libnanomsg'], lib_dir='/usr/local/lib'))
- .depend('nanomsg')
+ .depend('build')
+ .reverse_depend('//shipyard:final_tapeout')
 )

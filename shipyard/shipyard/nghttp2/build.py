@@ -32,8 +32,8 @@ from shipyard import (
 )
 
 
-@decorate_rule('//shipyard:shipyard')
-def nghttp2(parameters):
+@decorate_rule('//shipyard:build')
+def build(parameters):
     """Build nghttp2 from source."""
     install_packages(parameters['deps'])
     src_path = parameters['//shipyard:build_src'] / 'nghttp2'
@@ -49,9 +49,10 @@ def nghttp2(parameters):
         ''')
 
 
-(define_rule('build_image')
+(define_rule('tapeout')
  .with_doc("""Copy build artifacts.""")
  .with_build(
      lambda ps: copy_libraries(ps, ['libnghttp2'], lib_dir='/usr/local/lib'))
- .depend('nghttp2')
+ .depend('build')
+ .reverse_depend('//shipyard:final_tapeout')
 )

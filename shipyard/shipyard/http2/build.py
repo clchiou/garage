@@ -8,22 +8,21 @@ from shipyard import (
 )
 
 
-(define_rule('http2')
+(define_rule('build')
  .with_doc(__doc__)
  .with_build(lambda ps: (
      python_pip_install(ps, 'cython'),
      python_build_package(ps, 'http2'),
  ))
- .depend('//shipyard:shipyard')
- .depend('//shipyard/cpython:cpython')
- .depend('//shipyard/nghttp2:nghttp2')
+ .depend('//shipyard/cpython:build')
+ .depend('//shipyard/nghttp2:build')
 )
 
 
-(define_rule('build_image')
+(define_rule('tapeout')
  .with_doc("""Copy build artifacts.""")
  .with_build(lambda ps: python_copy_package(ps, 'http2'))
- .depend('//shipyard/cpython:build_image')
- .depend('//shipyard/nghttp2:build_image')
- .depend('http2')
+ .depend('build')
+ .depend('//shipyard/nghttp2:tapeout')
+ .reverse_depend('//shipyard/cpython:final_tapeout')
 )
