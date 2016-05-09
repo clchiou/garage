@@ -50,6 +50,7 @@ def shipyard(parameters):
     ensure_directory(parameters['build_out'])
     ensure_directory(parameters['build_rootfs'])
     cli_tools = [
+        'git',  # shipyard.git_clone()
         'rsync',  # shipyard.sync_files()
         'wget',  # shipyard.wget()
     ]

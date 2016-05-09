@@ -15,10 +15,10 @@ main() {
   local FOREMAN="${ROOT}/py/foreman/foreman.py"
 
   # With this `import shipyard` will import shipyard/shipyard.py.
-  export PYTHONPATH="${SHIPYARD}"
+  export PYTHONPATH="${SHIPYARD}/lib"
 
   set -o xtrace
-  exec "${FOREMAN}" "${@}" --path "${ROOT}"
+  exec "${FOREMAN}" "${@}" --path "${SHIPYARD}"
 }
 
 main "${@}"

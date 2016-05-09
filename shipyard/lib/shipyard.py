@@ -83,6 +83,9 @@ def run_commands(commands_str, path=None):
 
 def sync_files(srcs, dst, *, includes=(), excludes=(), sudo=False):
     """Copy files with rsync."""
+    if not srcs:
+        LOG.warning('sync_files: empty srcs: %r', srcs)
+        return
     cmd = ['rsync', '--archive', '--relative']
     if sudo:
         cmd.insert(0, 'sudo')
