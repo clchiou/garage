@@ -20,7 +20,7 @@ LOG.addHandler(logging.NullHandler())
 (define_parameter('root')
  .with_doc("""Location of this repository.""")
  .with_type(Path)
- .with_default(Path(shipyard_.__file__).parent.parent)
+ .with_default(Path(shipyard_.__file__).parent.parent.parent)
 )
 
 
@@ -46,6 +46,12 @@ LOG.addHandler(logging.NullHandler())
 @decorate_rule
 def build(parameters):
     """Common setup of the shipyard."""
+
+    # Sanity check
+    git_dir = parameters['root'] / '.git'
+    if not git_dir.is_dir():
+        raise FileExistsError('not a directory: %s' % git_dir)
+
     ensure_directory(parameters['build_src'])
     ensure_directory(parameters['build_out'])
     ensure_directory(parameters['build_rootfs'])

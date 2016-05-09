@@ -54,10 +54,10 @@ _ext_modules = cythonize(_Extension(
     'v8.v8',
     language='c++',
     sources=['v8/v8.pyx'],
-    include_dirs=[V8],
+    include_dirs=[V8, os.path.join(V8, 'include')],
     library_dirs=[
         os.path.join(V8_OUT, 'lib.target'),
-        os.path.join(V8_OUT, 'obj.target/tools/gyp'),
+        os.path.join(V8_OUT, 'obj.target/src'),
     ],
     libraries=[
         'icui18n',

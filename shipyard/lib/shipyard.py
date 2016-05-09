@@ -190,7 +190,8 @@ def python_build_package(parameters, package_name, build_src):
         call([str(python), 'setup.py', 'build'], cwd=str(build_src))
     site_packages = python_get_site_packages(parameters)
     if not list(site_packages.glob('%s*' % package_name)):
-        call(['sudo', str(python), 'setup.py', 'install'], cwd=str(build_src))
+        call(['sudo', '--preserve-env', str(python), 'setup.py', 'install'],
+             cwd=str(build_src))
 
 
 def python_copy_and_build_package(
