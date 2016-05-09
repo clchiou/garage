@@ -32,7 +32,7 @@ from shipyard import (
 )
 
 
-@decorate_rule
+@decorate_rule('//shipyard:shipyard')
 def nghttp2(parameters):
     """Build nghttp2 from source."""
     install_packages(parameters['deps'])

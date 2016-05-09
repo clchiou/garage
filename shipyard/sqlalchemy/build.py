@@ -7,6 +7,7 @@ from foreman import define_rule
 (define_rule('sqlalchemy')
  .with_doc(__doc__)
  .with_build(lambda ps: shipyard.python_pip_install(ps, 'SQLAlchemy'))
+ .depend('//shipyard:shipyard')
  .depend('//shipyard/cpython:cpython')
 )
 

@@ -14,6 +14,7 @@ from shipyard import (
      python_pip_install(ps, 'cython'),
      python_build_package(ps, 'http2'),
  ))
+ .depend('//shipyard:shipyard')
  .depend('//shipyard/cpython:cpython')
  .depend('//shipyard/nghttp2:nghttp2')
 )

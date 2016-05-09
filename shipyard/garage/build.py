@@ -7,6 +7,7 @@ from foreman import define_rule
 (define_rule('garage')
  .with_doc(__doc__)
  .with_build(lambda ps: shipyard.python_build_package(ps, 'garage'))
+ .depend('//shipyard:shipyard')
  .depend('//shipyard/cpython:cpython')
 )
 

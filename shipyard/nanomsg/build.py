@@ -33,7 +33,7 @@ from shipyard import (
 )
 
 
-@decorate_rule
+@decorate_rule('//shipyard:shipyard')
 def nanomsg(parameters):
     """Build nanomsg from source."""
     install_packages(parameters['deps'])

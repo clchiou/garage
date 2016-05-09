@@ -7,6 +7,7 @@ from foreman import define_rule
 (define_rule('mako')
  .with_doc(__doc__)
  .with_build(lambda ps: shipyard.python_pip_install(ps, 'Mako'))
+ .depend('//shipyard:shipyard')
  .depend('//shipyard/cpython:cpython')
 )
 

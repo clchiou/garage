@@ -20,6 +20,7 @@ from shipyard import (
 (define_rule('startup')
  .with_doc(__doc__)
  .with_build(lambda ps: python_build_package(ps, 'startup', src=ps['src']))
+ .depend('//shipyard:shipyard')
  .depend('//shipyard/cpython:cpython')
 )
 

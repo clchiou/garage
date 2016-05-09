@@ -84,7 +84,9 @@ Version = namedtuple('Version', 'major minor')
 )
 
 
-@decorate_rule('install_deps', 'download')
+@decorate_rule('//shipyard:shipyard',
+               'install_deps',
+               'download')
 def cpython(parameters):
     """Build CPython from source."""
 

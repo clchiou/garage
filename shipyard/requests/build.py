@@ -7,6 +7,7 @@ from foreman import define_rule
 (define_rule('requests')
  .with_doc(__doc__)
  .with_build(lambda ps: shipyard.python_pip_install(ps, 'requests'))
+ .depend('//shipyard:shipyard')
  .depend('//shipyard/cpython:cpython')
 )
 

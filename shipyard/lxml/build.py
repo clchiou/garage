@@ -36,6 +36,7 @@ from foreman import define_parameter, define_rule
      shipyard.install_packages(ps['deps']),
      shipyard.python_pip_install(ps, 'lxml'),
  ))
+ .depend('//shipyard:shipyard')
  .depend('//shipyard/cpython:cpython')
 )
 
