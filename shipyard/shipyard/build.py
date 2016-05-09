@@ -9,7 +9,7 @@ from shipyard import (
     call,
     ensure_directory,
     get_home,
-    sync_files,
+    rsync,
 )
 
 
@@ -57,7 +57,7 @@ def build(parameters):
     ensure_directory(parameters['build_rootfs'])
     cli_tools = [
         'git',  # shipyard.git_clone()
-        'rsync',  # shipyard.sync_files()
+        'rsync',  # shipyard.rsync()
         'wget',  # shipyard.wget()
     ]
     call(['sudo', 'apt-get', 'install', '--yes'] + cli_tools)
@@ -74,4 +74,4 @@ def final_tapeout(parameters):
         '/lib/x86_64-linux-gnu',
         '/lib64',
     ]
-    sync_files(libs, parameters['build_rootfs'], sudo=True)
+    rsync(libs, parameters['build_rootfs'], relative=True, sudo=True)

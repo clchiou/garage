@@ -8,6 +8,7 @@ from shipyard import (
     call,
     ensure_directory,
     git_clone,
+    rsync,
 
     install_packages,
 )
@@ -93,7 +94,5 @@ def get_dst_path(parameters):
 
 
 def copy(parameters):
-    cmd = ['sudo', 'rsync', '--archive']
-    cmd.extend(map(str, get_lib_path(parameters).glob('*')))
-    cmd.append(str(get_dst_path(parameters)))
-    call(cmd)
+    rsync(list(get_lib_path(parameters).glob('*')), get_dst_path(parameters),
+          sudo=True)

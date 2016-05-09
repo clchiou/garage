@@ -9,7 +9,7 @@ from shipyard import (
 
     call,
     ensure_directory,
-    sync_files,
+    rsync,
     tar_extract,
     wget,
 
@@ -152,17 +152,19 @@ def final_tapeout(parameters):
         # Exclude site-packages (you will have to cherry-pick them).
         lib_dir / 'site-packages',
     ]
-    sync_files([lib_dir], parameters['//shipyard:build_rootfs'],
-               excludes=excludes, sudo=True)
+    rsync([lib_dir], parameters['//shipyard:build_rootfs'],
+          relative=True, excludes=excludes, sudo=True)
 
     LOG.info('copy pth files')
     pth_files = list((lib_dir / 'site-packages').glob('*.pth'))
-    sync_files(pth_files, parameters['//shipyard:build_rootfs'], sudo=True)
+    rsync(pth_files, parameters['//shipyard:build_rootfs'],
+          relative=True, sudo=True)
 
     LOG.info('copy cpython binaries')
     bins = list(get_bin_dir(parameters)
                 .glob('python%d*' % parameters['version'].major))
-    sync_files(bins, parameters['//shipyard:build_rootfs'], sudo=True)
+    rsync(bins, parameters['//shipyard:build_rootfs'],
+          relative=True, sudo=True)
 
 
 (define_rule(final_tapeout.__name__)

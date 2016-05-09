@@ -6,8 +6,8 @@ __all__ = [
     'ensure_directory',
     'get_home',
     'git_clone',
+    'rsync',
     'run_commands',
-    'sync_files',
     'tar_extract',
     'wget',
     # OS Package helpers.
@@ -85,14 +85,18 @@ def run_commands(commands_str, path=None):
             call(command, cwd=cwd)
 
 
-def sync_files(srcs, dst, *, includes=(), excludes=(), sudo=False):
-    """Copy files with rsync."""
+def rsync(srcs, dst, *,
+          relative=False,
+          includes=(), excludes=(),
+          sudo=False):
     if not srcs:
-        LOG.warning('sync_files: empty srcs: %r', srcs)
+        LOG.warning('rsync: empty srcs: %r', srcs)
         return
-    cmd = ['rsync', '--archive', '--relative']
+    cmd = ['rsync', '--archive']
     if sudo:
         cmd.insert(0, 'sudo')
+    if relative:
+        cmd.append('--relative')
     for include in includes:
         cmd.extend(['--include', str(include)])
     for exclude in excludes:
@@ -164,8 +168,8 @@ def python_copy_source(parameters, package_name, src=None, build_src=None):
         raise FileNotFoundError(setup_py)
 
     # Copy src into build_src (and build from there).
-    cmd = ['rsync', '--archive']
-    excludes = [
+    # NOTE: Appending slash to src is a rsync trick.
+    rsync(['%s/' % src], build_src, excludes=[
         '*.egg-info',
         '*.pyc',
         '.git',
@@ -173,12 +177,7 @@ def python_copy_source(parameters, package_name, src=None, build_src=None):
         '__pycache__',
         'build',
         'dist',
-    ]
-    for exclude in excludes:
-        cmd.extend(['--exclude', exclude])
-    # NOTE: Appending slash to src is a rsync trick.
-    cmd.extend(['%s/' % src, str(build_src)])
-    call(cmd)
+    ])
 
     return build_src
 
@@ -219,7 +218,8 @@ def python_copy_package(parameters, package_name, patterns=()):
     dirs = list(site_packages.glob('%s*' % package_name))
     dirs.extend(
         itertools.chain.from_iterable(map(site_packages.glob, patterns)))
-    sync_files(dirs, parameters['//shipyard:build_rootfs'], sudo=True)
+    rsync(dirs, parameters['//shipyard:build_rootfs'],
+          relative=True, sudo=True)
 
 
 def python_get_python(parameters, check=True):
@@ -246,4 +246,5 @@ def copy_libraries(parameters, libnames,
     lib_dir = Path(lib_dir)
     libs = list(itertools.chain.from_iterable(
         lib_dir.glob('%s*' % name) for name in libnames))
-    sync_files(libs, parameters['//shipyard:build_rootfs'], sudo=True)
+    rsync(libs, parameters['//shipyard:build_rootfs'],
+          relative=True, sudo=True)
