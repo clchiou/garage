@@ -155,7 +155,9 @@ def final_tapeout(parameters):
     sync_files([lib_dir], parameters['//shipyard:build_rootfs'],
                excludes=excludes, sudo=True)
 
-    # TODO: Copy pth file.
+    LOG.info('copy pth files')
+    pth_files = list((lib_dir / 'site-packages').glob('*.pth'))
+    sync_files(pth_files, parameters['//shipyard:build_rootfs'], sudo=True)
 
     LOG.info('copy cpython binaries')
     bins = list(get_bin_dir(parameters)
