@@ -126,7 +126,7 @@ def tar_extract(tarball_path, output_path=None):
     if output_path:
         cmd.extend(['--directory', str(output_path)])
     LOG.info('extract %s', tarball_path)
-    check_call(cmd)
+    call(cmd)
 
 
 def wget(uri, output_path=None):
@@ -134,7 +134,7 @@ def wget(uri, output_path=None):
     if output_path:
         cmd.extend(['--output-document', str(output_path)])
     LOG.info('download %s', uri)
-    check_call(cmd)
+    call(cmd)
 
 
 ### OS Package helpers.
