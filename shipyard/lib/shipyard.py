@@ -13,9 +13,13 @@ __all__ = [
     # OS Package helpers.
     'install_packages',
     # Python-specific helpers.
+    'python_copy_source',
     'python_build_package',
+    'python_copy_and_build_package',
     'python_pip_install',
     'python_copy_package',
+    'python_get_python',
+    'python_get_site_packages',
     # Helpers for the build image phase.
     'copy_libraries',
 ]
@@ -141,8 +145,8 @@ def install_packages(pkgs):
 ### Python-specific helpers.
 
 
-def python_build_package(parameters, package_name, src=None, build_src=None):
-    LOG.info('build %s', package_name)
+def python_copy_source(parameters, package_name, src=None, build_src=None):
+    LOG.info('copy source for %s', package_name)
 
     if not src:
         src = 'py/%s' % package_name
@@ -158,11 +162,6 @@ def python_build_package(parameters, package_name, src=None, build_src=None):
     setup_py = src / 'setup.py'
     if not setup_py.is_file():
         raise FileNotFoundError(setup_py)
-
-    python = (parameters['//shipyard/cpython:prefix'] /
-              ('bin/python%d.%d' % parameters['//shipyard/cpython:version']))
-    if not python.is_file():
-        raise FileNotFoundError(python)
 
     # Copy src into build_src (and build from there).
     cmd = ['rsync', '--archive']
@@ -181,12 +180,23 @@ def python_build_package(parameters, package_name, src=None, build_src=None):
     cmd.extend(['%s/' % src, str(build_src)])
     call(cmd)
 
+    return build_src
+
+
+def python_build_package(parameters, package_name, build_src):
+    LOG.info('build %s', package_name)
+    python = python_get_python(parameters)
     if not (build_src / 'build').exists():
         call([str(python), 'setup.py', 'build'], cwd=str(build_src))
-
     site_packages = python_get_site_packages(parameters)
     if not list(site_packages.glob('%s*' % package_name)):
         call(['sudo', str(python), 'setup.py', 'install'], cwd=str(build_src))
+
+
+def python_copy_and_build_package(
+        parameters, package_name, src=None, build_src=None):
+    build_src = python_copy_soruce(parameters, package_name, src, build_src)
+    python_build_package(parameters, package_name, build_src)
 
 
 def python_pip_install(parameters, package_name):
@@ -209,6 +219,14 @@ def python_copy_package(parameters, package_name, patterns=()):
     dirs.extend(
         itertools.chain.from_iterable(map(site_packages.glob, patterns)))
     sync_files(dirs, parameters['//shipyard:build_rootfs'], sudo=True)
+
+
+def python_get_python(parameters, check=True):
+    python = (parameters['//shipyard/cpython:prefix'] /
+              ('bin/python%d.%d' % parameters['//shipyard/cpython:version']))
+    if check and not python.is_file():
+        raise FileNotFoundError(python)
+    return python
 
 
 def python_get_site_packages(parameters):

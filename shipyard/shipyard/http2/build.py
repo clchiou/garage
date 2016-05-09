@@ -2,7 +2,7 @@
 
 from foreman import define_rule
 from shipyard import (
-    python_build_package,
+    python_copy_and_build_package,
     python_copy_package,
     python_pip_install,
 )
@@ -12,7 +12,7 @@ from shipyard import (
  .with_doc(__doc__)
  .with_build(lambda ps: (
      python_pip_install(ps, 'cython'),
-     python_build_package(ps, 'http2'),
+     python_copy_and_build_package(ps, 'http2'),
  ))
  .depend('//shipyard/cpython:build')
  .depend('//shipyard/nghttp2:build')

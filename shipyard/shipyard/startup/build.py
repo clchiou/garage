@@ -5,7 +5,7 @@ from pathlib import Path
 from foreman import define_parameter, define_rule
 from shipyard import (
     get_home,
-    python_build_package,
+    python_copy_and_build_package,
     python_copy_package,
 )
 
@@ -19,7 +19,8 @@ from shipyard import (
 
 (define_rule('build')
  .with_doc(__doc__)
- .with_build(lambda ps: python_build_package(ps, 'startup', src=ps['src']))
+ .with_build(lambda ps: \
+     python_copy_and_build_package(ps, 'startup', src=ps['src']))
  .depend('//shipyard/cpython:build')
 )
 
