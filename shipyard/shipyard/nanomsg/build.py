@@ -37,11 +37,11 @@ from shipyard import (
 def build(parameters):
     """Build nanomsg from source."""
     install_packages(parameters['deps'])
-    src_path = parameters['//shipyard:build_src'] / 'nanomsg'
-    git_clone(parameters['repo'], src_path)
-    if not (src_path / 'nanocat').exists():
+    build_src = parameters['//shipyard:build_src'] / 'nanomsg'
+    git_clone(parameters['repo'], build_src)
+    if not (build_src / 'nanocat').exists():
         # Don't run `make check` at the moment.
-        run_commands(path=src_path, commands_str='''
+        run_commands(path=build_src, commands_str='''
             ./autogen.sh
             ./configure
             make
@@ -52,7 +52,7 @@ def build(parameters):
 (define_rule('tapeout')
  .with_doc("""Copy build artifacts.""")
  .with_build(
-     lambda ps: copy_libraries(ps, ['libnanomsg'], lib_dir='/usr/local/lib'))
+     lambda ps: copy_libraries(ps, '/usr/local/lib', ['libnanomsg']))
  .depend('build')
  .reverse_depend('//shipyard:final_tapeout')
 )

@@ -26,6 +26,18 @@ LOG = logging.getLogger(__name__)
  .with_type(Path)
  .with_default(Path('/usr/local'))
 )
+(define_parameter('python')
+ .with_type(Path)
+ .with_derive(lambda ps: ps['prefix'] / ('bin/python%d.%d' % ps['version']))
+)
+(define_parameter('pip')
+ .with_type(Path)
+ .with_derive(lambda ps: ps['prefix'] / ('bin/pip%d.%d' % ps['version']))
+)
+(define_parameter('modules')
+ .with_type(Path)
+ .with_derive(lambda ps: ps['prefix'] / ('lib/python%d.%d' % ps['version']))
+)
 
 
 (define_parameter('deps')
@@ -84,13 +96,20 @@ Version = namedtuple('Version', 'major minor')
 )
 
 
+(define_parameter('build_src')
+ .with_type(Path)
+ .with_derive(lambda ps: \
+     ps['//shipyard:build_src'] / 'cpython' / ps['tarball'].output)
+)
+
+
 @decorate_rule('//shipyard:build',
                'install_deps',
                'download')
 def build(parameters):
     """Build CPython from source."""
 
-    src_path = get_src_path(parameters)
+    src_path = parameters['build_src']
 
     if not (src_path / 'Makefile').exists():
         LOG.info('configure cpython')
@@ -114,17 +133,18 @@ def build(parameters):
 def download(parameters):
     """Download source repo."""
 
-    root_path = get_root_path(parameters)
-    ensure_directory(root_path)
-    tarball_path = root_path / parameters['tarball'].filename
+    build_src = parameters['build_src']
 
+    ensure_directory(build_src.parent)
+
+    tarball_path = build_src.parent / parameters['tarball'].filename
     if not tarball_path.exists():
         LOG.info('download tarball')
         wget(parameters['tarball'].uri, tarball_path)
 
-    if not get_src_path(parameters).exists():
+    if not build_src.exists():
         LOG.info('extract tarball')
-        tar_extract(tarball_path, root_path)
+        tar_extract(tarball_path, build_src.parent)
 
 
 # NOTE: All Python module's `tapeout` rules should reverse depend on
@@ -133,35 +153,35 @@ def final_tapeout(parameters):
     """Join point of all Python module's `tapeout` rule."""
 
     LOG.info('copy cpython runtime libraries')
-    copy_libraries(parameters, parameters['libs'])
+    copy_libraries(parameters, '/usr/lib/x86_64-linux-gnu', parameters['libs'])
 
     LOG.info('copy cpython modules')
-    lib_dir = get_lib_dir(parameters)
+    modules = parameters['modules']
     excludes = [
         # Exclude idlelib, lib2to3, tkinter, and turtledemo.
-        lib_dir / 'idlelib',
-        lib_dir / 'lib2to3',
-        lib_dir / 'tkinter',
-        lib_dir / 'turtledemo',
+        modules / 'idlelib',
+        modules / 'lib2to3',
+        modules / 'tkinter',
+        modules / 'turtledemo',
         # Exclude tests.
-        lib_dir / 'ctypes/test',
-        lib_dir / 'distutils/tests',
-        lib_dir / 'sqlite3/test',
-        lib_dir / 'test',
-        lib_dir / 'unittest/test',
+        modules / 'ctypes/test',
+        modules / 'distutils/tests',
+        modules / 'sqlite3/test',
+        modules / 'test',
+        modules / 'unittest/test',
         # Exclude site-packages (you will have to cherry-pick them).
-        lib_dir / 'site-packages',
+        modules / 'site-packages',
     ]
-    rsync([lib_dir], parameters['//shipyard:build_rootfs'],
+    rsync([modules], parameters['//shipyard:build_rootfs'],
           relative=True, excludes=excludes, sudo=True)
 
     LOG.info('copy pth files')
-    pth_files = list((lib_dir / 'site-packages').glob('*.pth'))
+    pth_files = list((modules / 'site-packages').glob('*.pth'))
     rsync(pth_files, parameters['//shipyard:build_rootfs'],
           relative=True, sudo=True)
 
     LOG.info('copy cpython binaries')
-    bins = list(get_bin_dir(parameters)
+    bins = list((parameters['prefix'] / 'bin')
                 .glob('python%d*' % parameters['version'].major))
     rsync(bins, parameters['//shipyard:build_rootfs'],
           relative=True, sudo=True)
@@ -173,19 +193,3 @@ def final_tapeout(parameters):
  .depend('build')
  .reverse_depend('//shipyard:final_tapeout')
 )
-
-
-def get_root_path(parameters):
-    return parameters['//shipyard:build_src'] / 'cpython'
-
-
-def get_src_path(parameters):
-    return get_root_path(parameters) / parameters['tarball'].output
-
-
-def get_bin_dir(parameters):
-    return parameters['prefix'] / 'bin'
-
-
-def get_lib_dir(parameters):
-    return parameters['prefix'] / ('lib/python%d.%d' % parameters['version'])

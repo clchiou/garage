@@ -1,6 +1,7 @@
 """Build V8 from source."""
 
 import os
+from pathlib import Path
 
 from foreman import define_parameter, define_rule, decorate_rule
 from shipyard import (
@@ -48,6 +49,17 @@ from shipyard import (
 )
 
 
+(define_parameter('build_src')
+ .with_type(Path)
+ .with_derive(lambda ps: ps['//shipyard:build_src'] / 'v8')
+)
+(define_parameter('out_target')
+ .with_type(Path)
+ .with_derive(
+     lambda ps: ps['build_src'] / ('out/%s' % ps['target']))
+)
+
+
 @decorate_rule('//shipyard:build')
 def build(parameters):
     """Build V8 from source."""
@@ -60,39 +72,23 @@ def build(parameters):
     path = '%s:%s' % (depot_tools, path) if path else str(depot_tools)
     os.environ['PATH'] = path
 
-    src_path = get_src_path(parameters)
-    if not src_path.exists():
-        call(['fetch', 'v8'], cwd=str(src_path.parent))
+    build_src = parameters['build_src']
+    if not build_src.exists():
+        call(['fetch', 'v8'], cwd=str(build_src.parent))
 
-    if not (get_lib_path(parameters) / 'libv8.so').exists():
+    if not (parameters['out_target'] / 'lib.target/libv8.so').exists():
         call(['make', 'library=shared', parameters['target']],
-             cwd=str(src_path))
+             cwd=str(build_src))
 
 
 (define_rule('tapeout')
  .with_doc("""Copy build artifacts.""")
  .with_build(lambda ps: (
-     ensure_directory(get_dst_path(ps)),
-     copy(ps),
+     ensure_directory(ps['//shipyard:build_rootfs'] / 'usr/local/lib'),
+     rsync(list((ps['out_target'] / 'lib.target').glob('*')),
+           ps['//shipyard:build_rootfs'] / 'usr/local/lib',
+           sudo=True),
  ))
  .depend('build')
  .reverse_depend('//shipyard:final_tapeout')
 )
-
-
-def get_src_path(parameters):
-    return parameters['//shipyard:build_src'] / 'v8'
-
-
-def get_lib_path(parameters):
-    return (get_src_path(parameters) /
-            ('out/%s/lib.target' % parameters['target']))
-
-
-def get_dst_path(parameters):
-    return parameters['//shipyard:build_rootfs'] / 'usr/local/lib'
-
-
-def copy(parameters):
-    rsync(list(get_lib_path(parameters).glob('*')), get_dst_path(parameters),
-          sudo=True)

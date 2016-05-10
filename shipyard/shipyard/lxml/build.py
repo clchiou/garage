@@ -13,8 +13,6 @@ from foreman import define_parameter, define_rule
      'libxslt1-dev',
  ])
 )
-
-
 (define_parameter('libs')
  .with_doc("""Runtime library names.""")
  .with_type(list)
@@ -43,7 +41,7 @@ from foreman import define_parameter, define_rule
 (define_rule('tapeout')
  .with_doc("""Copy build artifacts.""")
  .with_build(lambda ps: (
-     shipyard.copy_libraries(ps, ps['libs']),
+     shipyard.copy_libraries(ps, '/usr/lib/x86_64-linux-gnu', ps['libs']),
      shipyard.python_copy_package(ps, 'lxml'),
  ))
  .depend('build')

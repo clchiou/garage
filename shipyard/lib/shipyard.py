@@ -18,8 +18,6 @@ __all__ = [
     'python_copy_and_build_package',
     'python_pip_install',
     'python_copy_package',
-    'python_get_python',
-    'python_get_site_packages',
     # Helpers for the build image phase.
     'copy_libraries',
 ]
@@ -72,8 +70,10 @@ def git_clone(repo, local_path=None, checkout=None):
             cwd = str(local_path.parent)
         else:
             cwd = None
+        LOG.info('clone git repo %s', repo)
         call(cmd, cwd=cwd)
     if checkout:
+        LOG.info('checkout %s %s', repo, checkout)
         call(['git', 'checkout', checkout])
 
 
@@ -141,6 +141,8 @@ def wget(uri, output_path=None):
 
 
 def install_packages(pkgs):
+    if LOG.isEnabledFor(logging.INFO):
+        LOG.info('install %s', ' '.join(pkgs))
     cmd = ['sudo', 'apt-get', 'install', '--yes']
     cmd.extend(pkgs)
     call(cmd)
@@ -184,10 +186,10 @@ def python_copy_source(parameters, package_name, src=None, build_src=None):
 
 def python_build_package(parameters, package_name, build_src):
     LOG.info('build %s', package_name)
-    python = python_get_python(parameters)
+    python = parameters['//shipyard/cpython:python']
     if not (build_src / 'build').exists():
         call([str(python), 'setup.py', 'build'], cwd=str(build_src))
-    site_packages = python_get_site_packages(parameters)
+    site_packages = parameters['//shipyard/cpython:modules'] / 'site-packages'
     if not list(site_packages.glob('%s*' % package_name)):
         call(['sudo', '--preserve-env', str(python), 'setup.py', 'install'],
              cwd=str(build_src))
@@ -195,54 +197,32 @@ def python_build_package(parameters, package_name, build_src):
 
 def python_copy_and_build_package(
         parameters, package_name, src=None, build_src=None):
-    build_src = python_copy_soruce(parameters, package_name, src, build_src)
+    build_src = python_copy_source(parameters, package_name, src, build_src)
     python_build_package(parameters, package_name, build_src)
 
 
 def python_pip_install(parameters, package_name):
-    pip = (parameters['//shipyard/cpython:prefix'] /
-           ('bin/pip%d.%d' % parameters['//shipyard/cpython:version']))
-    if not pip.is_file():
-        raise FileNotFoundError(pip)
-    site_packages = python_get_site_packages(parameters)
+    LOG.info('install %s', package_name)
+    pip = parameters['//shipyard/cpython:pip']
+    site_packages = parameters['//shipyard/cpython:modules'] / 'site-packages'
     if not list(site_packages.glob('%s*' % package_name)):
-        LOG.info('install %s', package_name)
         call(['sudo', str(pip), 'install', package_name])
 
 
 def python_copy_package(parameters, package_name, patterns=()):
     LOG.info('copy %s', package_name)
-    site_packages = python_get_site_packages(parameters)
-    if not site_packages.is_dir():
-        raise FileNotFoundError('not a directory: %s' % site_packages)
+    site_packages = parameters['//shipyard/cpython:modules'] / 'site-packages'
     dirs = list(site_packages.glob('%s*' % package_name))
-    dirs.extend(
-        itertools.chain.from_iterable(map(site_packages.glob, patterns)))
+    dirs.extend(itertools.chain.from_iterable(
+        map(site_packages.glob, patterns)))
     rsync(dirs, parameters['//shipyard:build_rootfs'],
           relative=True, sudo=True)
-
-
-def python_get_python(parameters, check=True):
-    python = (parameters['//shipyard/cpython:prefix'] /
-              ('bin/python%d.%d' % parameters['//shipyard/cpython:version']))
-    if check and not python.is_file():
-        raise FileNotFoundError(python)
-    return python
-
-
-def python_get_site_packages(parameters):
-    return (
-        parameters['//shipyard/cpython:prefix'] /
-        ('lib/python%d.%d/site-packages' %
-         parameters['//shipyard/cpython:version'])
-    )
 
 
 ### Helpers for the build image phase.
 
 
-def copy_libraries(parameters, libnames,
-                   lib_dir='/usr/lib/x86_64-linux-gnu'):
+def copy_libraries(parameters, lib_dir, libnames):
     lib_dir = Path(lib_dir)
     libs = list(itertools.chain.from_iterable(
         lib_dir.glob('%s*' % name) for name in libnames))

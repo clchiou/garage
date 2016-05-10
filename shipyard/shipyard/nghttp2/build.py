@@ -12,6 +12,9 @@ from shipyard import (
 )
 
 
+# NOTE: These dependencies are for the executables (e.g., nghttpx).
+# libnghttp2.so itself only depends on libc, and thus there is not need
+# for a rule to copy libraries.
 (define_parameter('deps')
  .with_doc("""Build-time Debian packages.""")
  .with_type(list)
@@ -36,10 +39,10 @@ from shipyard import (
 def build(parameters):
     """Build nghttp2 from source."""
     install_packages(parameters['deps'])
-    src_path = parameters['//shipyard:build_src'] / 'nghttp2'
-    git_clone(parameters['repo'], src_path)
-    if not (src_path / 'src/.libs/nghttp').exists():
-        run_commands(path=src_path, commands_str='''
+    build_src = parameters['//shipyard:build_src'] / 'nghttp2'
+    git_clone(parameters['repo'], build_src)
+    if not (build_src / 'src/.libs/nghttp').exists():
+        run_commands(path=build_src, commands_str='''
             autoreconf -i
             automake
             autoconf
@@ -52,7 +55,7 @@ def build(parameters):
 (define_rule('tapeout')
  .with_doc("""Copy build artifacts.""")
  .with_build(
-     lambda ps: copy_libraries(ps, ['libnghttp2'], lib_dir='/usr/local/lib'))
+     lambda ps: copy_libraries(ps, '/usr/local/lib', ['libnghttp2']))
  .depend('build')
  .reverse_depend('//shipyard:final_tapeout')
 )

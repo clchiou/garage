@@ -55,12 +55,12 @@ def build(parameters):
     ensure_directory(parameters['build_src'])
     ensure_directory(parameters['build_out'])
     ensure_directory(parameters['build_rootfs'])
-    cli_tools = [
+    call([
+        'sudo', 'apt-get', 'install', '--yes',
         'git',  # shipyard.git_clone()
         'rsync',  # shipyard.rsync()
         'wget',  # shipyard.wget()
-    ]
-    call(['sudo', 'apt-get', 'install', '--yes'] + cli_tools)
+    ])
 
 
 # NOTE: All `tapeout` rules should reverse depend on this rule (or
@@ -70,8 +70,5 @@ def final_tapeout(parameters):
     """Join point of all `tapeout` rules."""
 
     # Copy runtime libraries.
-    libs = [
-        '/lib/x86_64-linux-gnu',
-        '/lib64',
-    ]
+    libs = ['/lib/x86_64-linux-gnu', '/lib64']
     rsync(libs, parameters['build_rootfs'], relative=True, sudo=True)

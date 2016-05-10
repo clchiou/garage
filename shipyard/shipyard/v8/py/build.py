@@ -13,12 +13,12 @@ def build(parameters):
     build_src = shipyard.python_copy_source(
         parameters, 'v8', build_src='v8.py')
 
-    v8_build_src = parameters['//shipyard:build_src'] / 'v8'
+    v8_build_src = parameters['//shipyard/v8:build_src']
     if not v8_build_src.is_dir():
         raise FileExistsError('not a directory: %s' % v8_build_src)
     os.environ['V8'] = str(v8_build_src)
 
-    v8_out = v8_build_src / 'out' / parameters['//shipyard/v8:target']
+    v8_out = parameters['//shipyard/v8:out_target']
     if not v8_out.is_dir():
         raise FileExistsError('not a directory: %s' % v8_out)
     os.environ['V8_OUT'] = str(v8_out)

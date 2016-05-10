@@ -14,10 +14,10 @@ from foreman import define_rule
 (define_rule('tapeout')
  .with_doc("""Copy build artifacts.""")
  .with_build(lambda ps: shipyard.python_copy_package(ps, 'Mako', patterns=[
-     '*mako*',
+     'mako*',
      # Mako's dependency.
-     'MarkupSafe',
-     '*markupsafe*',
+     'MarkupSafe*',
+     'markupsafe*',
  ]))
  .depend('build')
  .reverse_depend('//shipyard/cpython:final_tapeout')
