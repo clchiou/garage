@@ -6,7 +6,7 @@ set -o errexit -o nounset -o pipefail
 
 main() {
   if ! which python3 > /dev/null; then
-    echo "Install Python 3"
+    echo "install python3"
     sudo apt-get install --yes python3
   fi
 

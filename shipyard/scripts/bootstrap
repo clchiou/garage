@@ -1,0 +1,43 @@
+#!/usr/bin/env python3
+
+from argparse import ArgumentParser
+from pathlib import Path
+from subprocess import check_call
+from tempfile import TemporaryDirectory
+
+
+DOCKERFILE = '''\
+FROM {base_image}
+
+RUN apt-get update \\
+ && apt-get --yes install sudo \\
+    # Add user `plumber` and grant password-less sudo to him.
+ && adduser --disabled-password --gecos "" plumber \\
+ && echo >> /etc/sudoers \\
+ && echo "# Grant password-less on all commands to plumber" >> /etc/sudoers \\
+ && echo "plumber ALL=(ALL:ALL) NOPASSWD: ALL" >> /etc/sudoers
+
+USER plumber
+WORKDIR /home/plumber
+CMD ["/bin/bash"]
+'''
+
+
+def main():
+    parser = ArgumentParser(description="""Make base builder Docker image.""")
+    parser.add_argument('--base-image', default='ubuntu:15.10',
+                        help="""set base image (default to %(default)s)""")
+    parser.add_argument('output', help="""set the tag of the builder image""")
+    args = parser.parse_args()
+    with TemporaryDirectory() as build_dir:
+        build_dir = Path(build_dir)
+        # Path.write_text is defined in Python 3.5 :(
+        with (build_dir / 'Dockerfile').open('w') as dockerfile:
+            dockerfile.write(DOCKERFILE.format(base_image=args.base_image))
+        cmd = ['docker', 'build', '--tag', args.output, str(build_dir)]
+        print('execute: %s' % ' '.join(cmd))
+        check_call(cmd)
+
+
+if __name__ == '__main__':
+    main()

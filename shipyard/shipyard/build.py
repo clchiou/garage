@@ -68,7 +68,27 @@ def build(parameters):
 @decorate_rule('build')
 def final_tapeout(parameters):
     """Join point of all `tapeout` rules."""
-
     # Copy runtime libraries.
     libs = ['/lib/x86_64-linux-gnu', '/lib64']
     rsync(libs, parameters['build_rootfs'], relative=True, sudo=True)
+
+
+@decorate_rule('final_tapeout')
+def build_appc_image(parameters):
+    """Build Appc image."""
+    build_out = parameters['build_out']
+    manifest = build_out / 'manifest'
+    if not manifest.exists():
+        raise FileNotFoundError(str(manifest))
+    call(['tar', 'czf', 'image.aci', 'manifest', 'rootfs'], cwd=str(build_out))
+    # TODO: Encrypt and/or sign the image.
+
+
+@decorate_rule('final_tapeout')
+def build_docker_image(parameters):
+    """Prepare Docker image data (not the final image yet)."""
+    build_out = parameters['build_out']
+    dockerfile = build_out / 'Dockerfile'
+    if not dockerfile.exists():
+        raise FileNotFoundError(str(dockerfile))
+    call(['tar', 'cf', 'rootfs.tar', 'rootfs'], cwd=str(build_out))

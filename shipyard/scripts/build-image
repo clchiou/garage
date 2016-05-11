@@ -1,0 +1,102 @@
+#!/usr/bin/env python3
+
+import datetime
+from argparse import ArgumentParser
+from pathlib import Path
+from subprocess import check_call
+from tempfile import TemporaryDirectory
+
+
+def main():
+
+    parser = ArgumentParser(description="""Build a containerized image.""")
+
+    def add_common_args(parser):
+        parser.add_argument('--builder', required=True,
+                            help="""set builder image""")
+        parser.add_argument('--volume', action='append', default=(),
+                            help="""add data volume""")
+        parser.add_argument('--path', action='append', default=(),
+                            help="""add foreman search path""")
+        parser.add_argument('--parameter', action='append', default=(),
+                            help="""add parameter to foreman""")
+        parser.add_argument('--output', required=True,
+                            help="""set output""")
+        parser.add_argument('rule', nargs='+',
+                            help="""add build rule""")
+
+    subparsers = parser.add_subparsers(help="""Container types.""")
+    # http://bugs.python.org/issue9253
+    subparsers.dest = 'container_type'
+    subparsers.required = True
+
+    parser_appc = subparsers.add_parser(
+        'appc', help="""Build an Appc image.""")
+    add_common_args(parser_appc)
+    parser_appc.set_defaults(build_image=build_appc_image)
+
+    parser_docker = subparsers.add_parser(
+        'docker', help="""Build a Docker image.""")
+    add_common_args(parser_docker)
+    parser_docker.set_defaults(build_image=build_docker_image)
+
+    args = parser.parse_args()
+
+    build_id = int(datetime.datetime.now().timestamp())
+    build_name = 'build-%d' % build_id
+
+    root = Path(__file__).resolve().parent.parent.parent
+    if not (root / '.git').is_dir():
+        raise AssertionError('not garage root: %s' % root)
+
+    output = args.output.format(build_id=build_id)
+
+    if args.build_image is build_appc_image:
+        output = Path(output)
+        if output.exists():
+            raise FileExistsError('attempt to overwrite: %s' % output)
+
+    cmd = ['docker', 'run']
+    cmd.extend(['--name', build_name])
+
+    cmd.extend(['--volume', '%s:/home/plumber/garage:ro' % root])
+    for volume in args.volume:
+        cmd.extend(['--volume', volume])
+
+    cmd.append(args.builder)
+
+    cmd.extend(['/home/plumber/garage/shipyard/scripts/foreman.sh', 'build'])
+    for path in args.path:
+        cmd.extend(['--path', path])
+    for parameter in args.parameter:
+        cmd.extend(['--parameter', parameter])
+    cmd.extend(args.rule)
+
+    call(cmd)
+
+    args.build_image(build_name, output)
+
+
+def build_appc_image(build_name, output):
+    image = '%s:/home/plumber/build/out/image.aci' % build_name
+    call(['docker', 'cp', image, str(output)])
+    call(['docker', 'rm', build_name])
+
+
+def build_docker_image(build_name, output):
+    with TemporaryDirectory() as build_dir:
+        build_dir = Path(build_dir)
+        for file in ('Dockerfile', 'rootfs'):
+            path = '%s:/home/plumber/build/out/%s' % (build_name, file)
+            call(['docker', 'cp', path, str(build_dir / file)])
+        call(['docker', 'build', '--tag', output, str(build_dir)])
+        call(['docker', 'rm', build_name])
+
+
+def call(cmd):
+    print('execute: %s' % ' '.join(cmd))
+    check_call(cmd)
+
+
+if __name__ == '__main__':
+    main()

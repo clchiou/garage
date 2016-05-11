@@ -546,8 +546,10 @@ def main(argv):
             help="""add path to search for build files (default to the
                     current directory if none is provided)""")
 
-    subparsers = parser.add_subparsers(
-        help="""Sub-commands.""")
+    subparsers = parser.add_subparsers(help="""Sub-commands.""")
+    # http://bugs.python.org/issue9253
+    subparsers.dest = 'command'
+    subparsers.required = True
 
     parser_build = subparsers.add_parser(
         'build', help="""Start and supervise a build.""")
