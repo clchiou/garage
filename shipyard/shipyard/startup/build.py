@@ -4,7 +4,6 @@ from pathlib import Path
 
 from foreman import define_parameter, define_rule
 from shipyard import (
-    get_home,
     python_copy_and_build_package,
     python_copy_package,
 )
@@ -13,7 +12,7 @@ from shipyard import (
 (define_parameter('src')
  .with_doc("""Location of the startup source repo.""")
  .with_type(Path)
- .with_default(get_home() / 'startup')
+ .with_default(Path.home() / 'startup')
 )
 
 

@@ -30,6 +30,7 @@ __all__ = [
     'define_parameter',
     'define_rule',
     'decorate_rule',
+    'to_path',
 ]
 
 import argparse
@@ -45,6 +46,36 @@ LOG.addHandler(logging.NullHandler())
 
 
 BUILD_FILE = 'build.py'
+
+
+def patch_pathlib():
+    """Monkey patch pathlib for some functions available in Python 3.5,
+       but the implementations are different; so don't count this as a
+       backport.
+    """
+
+    if not hasattr(Path, 'home'):
+        import os.path
+        def home(cls):
+            return cls(os.path.expanduser('~'))
+        Path.home = classmethod(home)
+
+    if not hasattr(Path, 'read_text'):
+        def read_text(self, encoding=None, errors=None):
+            with self.open(encoding=encoding, errors=errors) as file:
+                return file.read()
+        Path.read_text = read_text
+
+    if not hasattr(Path, 'write_text'):
+        def write_text(self, data, encoding=None, errors=None):
+            if not isinstance(data, str):
+                raise TypeError('not str type: %s' % data.__class__.__name__)
+            with self.open('w', encoding=encoding, errors=errors) as file:
+                return file.write(data)
+        Path.write_text = write_text
+
+
+patch_pathlib()
 
 
 ### Core data model.
@@ -349,6 +380,17 @@ class Loader:
         rule = self.rules[label] = Rule(label)
         return rule
 
+    def to_path(self, label):
+        """Translate label to local path."""
+        if self.path is None:
+            raise RuntimeError('lack execution context')
+        if isinstance(label, str):
+            label = Label.parse(label, self.path)
+        build_file_path = self.search_build_file(label.path)
+        file_path = build_file_path.parent / label.name
+        LOG.debug('resolve %s to: %s', label, file_path)
+        return file_path
+
 
 class Context:
     """Manage Loader.path."""
@@ -387,9 +429,11 @@ class Searcher:
 
 class Executor:
 
-    def __init__(self, parameters, rules):
+    def __init__(self, parameters, rules, loader, *, dry_run=False):
         self.parameters = parameters
         self.rules = rules
+        self.loader = loader
+        self.dry_run = dry_run
 
     def execute(self, rule_label, environment):
         self.execute_rule(self.rules[rule_label], environment, BuildIds())
@@ -425,8 +469,9 @@ class Executor:
                 ))
             else:
                 LOG.info('execute rule %s', rule.label)
-        if rule.build:
-            rule.build(values)
+        if not self.dry_run and rule.build:
+            with Context(self.loader, rule.label.path):
+                rule.build(values)
 
 
 class BuildIds:
@@ -526,6 +571,10 @@ def decorate_rule(*args):
         return wrapper
 
 
+def to_path(label):
+    return LOADER.to_path(label)
+
+
 ### Command-line entries.
 
 
@@ -555,7 +604,10 @@ def main(argv):
         'build', help="""Start and supervise a build.""")
     add_common_args(parser_build)
     parser_build.add_argument(
-        '--parameter', action='append', default=(),
+        '--dry-run', action='store_true',
+        help="""do not really execute builds""")
+    parser_build.add_argument(
+        '--parameter', action='append',
         help="""set build parameter; the format is either label=value or
                 @file.json""")
     parser_build.add_argument(
@@ -619,10 +671,14 @@ def command_build(args, loader):
 
     loader.load_build_files(rule_labels)
 
-    executor = Executor(loader.parameters, loader.rules)
+    executor = Executor(
+        loader.parameters, loader.rules,
+        loader,
+        dry_run=args.dry_run,
+    )
 
     environment = ChainMap()
-    for spec in args.parameter:
+    for spec in args.parameter or ():
         if spec.startswith('@'):
             with open(spec[1:], 'r') as input_file:
                 pv_pairs = json.loads(input_file.read())

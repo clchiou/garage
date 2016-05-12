@@ -21,3 +21,35 @@ The build process consists of two phases:
     application image.  As we said, we don't export a builder; instead,
     we cherry-pick only the build artifacts required in the application.
     The resulting application image is much smaller than its builder's.
+
+
+Development flows:
+
+  * You may reduce developer build time with "cached" builders, which
+    are builder images that hold intermediate build artifacts.
+
+      ./scripts/build-image build ...  # Start builder with BUILD_ID.
+      docker commit -c 'CMD ["/bin/bash"]' BUILD_ID TAG
+
+
+Currently we have build files for these packages:
+
+		C/C++	PP	PC	CY
+cpython		x
+garage			x
+http2					x
+lxml				x
+mako			x
+  markupsafe		x
+nanomsg		x	x
+nghttp2		x
+pyyaml				x
+requests		x
+sqlalchemy			x
+startup			x
+v8		x			x
+  depot_tools
+
+PP = Pure Python (maybe using ctypes)
+PC = Python + C module
+CY = Cython

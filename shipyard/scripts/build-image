@@ -14,31 +14,36 @@ def main():
     def add_common_args(parser):
         parser.add_argument('--builder', required=True,
                             help="""set builder image""")
-        parser.add_argument('--volume', action='append', default=(),
+        parser.add_argument('--volume', action='append',
                             help="""add data volume""")
-        parser.add_argument('--path', action='append', default=(),
+
+    def add_build_args(parser):
+        add_common_args(parser)
+        parser.add_argument('--path', action='append',
                             help="""add foreman search path""")
-        parser.add_argument('--parameter', action='append', default=(),
+        parser.add_argument('--parameter', action='append',
                             help="""add parameter to foreman""")
-        parser.add_argument('--output', required=True,
-                            help="""set output""")
+        parser.add_argument('--appc-image',
+                            help="""set Appc image output path""")
+        parser.add_argument('--docker-image',
+                            help="""set output Docker image tag""")
         parser.add_argument('rule', nargs='+',
                             help="""add build rule""")
 
-    subparsers = parser.add_subparsers(help="""Container types.""")
+    subparsers = parser.add_subparsers(help="""Sub-commands.""")
     # http://bugs.python.org/issue9253
     subparsers.dest = 'container_type'
     subparsers.required = True
 
-    parser_appc = subparsers.add_parser(
-        'appc', help="""Build an Appc image.""")
-    add_common_args(parser_appc)
-    parser_appc.set_defaults(build_image=build_appc_image)
+    parser_run = subparsers.add_parser(
+        'run', help="""Run builder.""")
+    add_common_args(parser_run)
+    parser_run.set_defaults(build=False)
 
-    parser_docker = subparsers.add_parser(
-        'docker', help="""Build a Docker image.""")
-    add_common_args(parser_docker)
-    parser_docker.set_defaults(build_image=build_docker_image)
+    parser_build = subparsers.add_parser(
+        'build', help="""Build packages and maybe tapeout images.""")
+    add_build_args(parser_build)
+    parser_build.set_defaults(build=True)
 
     args = parser.parse_args()
 
@@ -49,32 +54,42 @@ def main():
     if not (root / '.git').is_dir():
         raise AssertionError('not garage root: %s' % root)
 
-    output = args.output.format(build_id=build_id)
-
-    if args.build_image is build_appc_image:
-        output = Path(output)
-        if output.exists():
-            raise FileExistsError('attempt to overwrite: %s' % output)
+    if args.build and args.appc_image:
+        appc_image = Path(args.appc_image)
+        if appc_image.exists():
+            raise FileExistsError('attempt to overwrite: %s' % appc_image)
+    else:
+        appc_image = None
 
     cmd = ['docker', 'run']
     cmd.extend(['--name', build_name])
+    if not args.build:
+        cmd.extend(['--interactive', '--tty'])
 
     cmd.extend(['--volume', '%s:/home/plumber/garage:ro' % root])
-    for volume in args.volume:
+    for volume in args.volume or ():
         cmd.extend(['--volume', volume])
 
     cmd.append(args.builder)
 
-    cmd.extend(['/home/plumber/garage/shipyard/scripts/foreman.sh', 'build'])
-    for path in args.path:
-        cmd.extend(['--path', path])
-    for parameter in args.parameter:
-        cmd.extend(['--parameter', parameter])
-    cmd.extend(args.rule)
+    if args.build:
+        foreman = '/home/plumber/garage/shipyard/scripts/foreman.sh'
+        cmd.extend([foreman, 'build'])
+        for path in args.path or ():
+            cmd.extend(['--path', path])
+        for parameter in args.parameter or ():
+            cmd.extend(['--parameter', parameter])
+        cmd.extend(args.rule)
+    else:
+        cmd.append('/bin/bash')
 
     call(cmd)
 
-    args.build_image(build_name, output)
+    if args.build:
+        if appc_image:
+            build_appc_image(build_name, appc_image)
+        if args.docker_image:
+            build_appc_image(build_name, args.docker_image)
 
 
 def build_appc_image(build_name, output):

@@ -4,11 +4,10 @@ import logging
 from pathlib import Path
 
 import shipyard as shipyard_
-from foreman import define_parameter, decorate_rule
+from foreman import define_parameter, define_rule, decorate_rule, to_path
 from shipyard import (
     call,
     ensure_directory,
-    get_home,
     rsync,
 )
 
@@ -27,19 +26,27 @@ LOG.addHandler(logging.NullHandler())
 (define_parameter('build_src')
  .with_doc("""Location of checked-out source repos.""")
  .with_type(Path)
- .with_default(get_home() / 'build/src')
+ .with_default(Path.home() / 'build/src')
 )
 
 
 (define_parameter('build_out')
  .with_doc("""Location of intermediate and final build artifacts.""")
  .with_type(Path)
- .with_default(get_home() / 'build/out')
+ .with_default(Path.home() / 'build/out')
 )
 (define_parameter('build_rootfs')
  .with_doc("""Location of final container image.""")
  .with_type(Path)
- .with_default(get_home() / 'build/out/rootfs')
+ .with_default(Path.home() / 'build/out/rootfs')
+)
+
+
+(define_parameter('update')
+ .with_doc("""Whether to update OS package index.""")
+ .with_type(bool)
+ .with_parse(lambda update: update.lower() == 'true')
+ .with_default(True)
 )
 
 
@@ -55,6 +62,11 @@ def build(parameters):
     ensure_directory(parameters['build_src'])
     ensure_directory(parameters['build_out'])
     ensure_directory(parameters['build_rootfs'])
+
+    if parameters['update']:
+        call(['sudo', 'apt-get', 'update'])
+        call(['sudo', 'apt-get', '--yes', 'upgrade'])
+
     call([
         'sudo', 'apt-get', 'install', '--yes',
         'git',  # shipyard.git_clone()
@@ -68,9 +80,12 @@ def build(parameters):
 @decorate_rule('build')
 def final_tapeout(parameters):
     """Join point of all `tapeout` rules."""
-    # Copy runtime libraries.
+    # Copy /etc and runtime libraries.
+    rootfs = parameters['build_rootfs']
     libs = ['/lib/x86_64-linux-gnu', '/lib64']
-    rsync(libs, parameters['build_rootfs'], relative=True, sudo=True)
+    rsync([to_path('etc')], rootfs, sudo=True)
+    rsync(libs, rootfs, relative=True, sudo=True)
+    call(['sudo', 'chown', '--recursive', 'root:root', str(rootfs / 'etc')])
 
 
 @decorate_rule('final_tapeout')
@@ -92,3 +107,10 @@ def build_docker_image(parameters):
     if not dockerfile.exists():
         raise FileNotFoundError(str(dockerfile))
     call(['tar', 'cf', 'rootfs.tar', 'rootfs'], cwd=str(build_out))
+
+
+(define_rule('build_image')
+ .with_doc("""Build containerized images.""")
+ .depend('build_appc_image')
+ .depend('build_docker_image')
+)

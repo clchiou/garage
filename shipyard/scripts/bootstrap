@@ -6,12 +6,12 @@ from subprocess import check_call
 from tempfile import TemporaryDirectory
 
 
+# Add user `plumber` and grant password-less sudo to him.
 DOCKERFILE = '''\
 FROM {base_image}
 
 RUN apt-get update \\
  && apt-get --yes install sudo \\
-    # Add user `plumber` and grant password-less sudo to him.
  && adduser --disabled-password --gecos "" plumber \\
  && echo >> /etc/sudoers \\
  && echo "# Grant password-less on all commands to plumber" >> /etc/sudoers \\
@@ -25,7 +25,7 @@ CMD ["/bin/bash"]
 
 def main():
     parser = ArgumentParser(description="""Make base builder Docker image.""")
-    parser.add_argument('--base-image', default='ubuntu:15.10',
+    parser.add_argument('--base-image', default='ubuntu:16.04',
                         help="""set base image (default to %(default)s)""")
     parser.add_argument('output', help="""set the tag of the builder image""")
     args = parser.parse_args()

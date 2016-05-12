@@ -4,7 +4,6 @@ __all__ = [
     # Generic scripting helpers.
     'call',
     'ensure_directory',
-    'get_home',
     'git_clone',
     'rsync',
     'run_commands',
@@ -52,11 +51,6 @@ def ensure_directory(path, mode=0o777):
         return
     LOG.debug('make directory: %s', path)
     path.mkdir(mode=mode, parents=True)
-
-
-def get_home(user='~'):
-    # Path.home() is defined in Python 3.5.
-    return Path(os.path.expanduser(user))
 
 
 def git_clone(repo, local_path=None, checkout=None):
