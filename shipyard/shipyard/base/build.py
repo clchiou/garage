@@ -50,6 +50,7 @@ LOG.addHandler(logging.NullHandler())
 )
 
 
+# NOTE: All `build` rule should depend on this rule.
 @decorate_rule
 def build(parameters):
     """Common setup of the shipyard."""
@@ -75,10 +76,9 @@ def build(parameters):
     ])
 
 
-# NOTE: All `tapeout` rules should reverse depend on this rule (or
-# another `final_tapeout` rule that reverse depend on this rule).
+# NOTE: All `tapeout` rules should reverse depend on this rule.
 @decorate_rule('build')
-def final_tapeout(parameters):
+def tapeout(parameters):
     """Join point of all `tapeout` rules."""
     # Copy /etc and runtime libraries.
     rootfs = parameters['build_rootfs']
@@ -88,7 +88,7 @@ def final_tapeout(parameters):
     call(['sudo', 'chown', '--recursive', 'root:root', str(rootfs / 'etc')])
 
 
-@decorate_rule('final_tapeout')
+@decorate_rule('tapeout')
 def build_appc_image(parameters):
     """Build Appc image."""
     build_out = parameters['build_out']
@@ -99,7 +99,7 @@ def build_appc_image(parameters):
     # TODO: Encrypt and/or sign the image.
 
 
-@decorate_rule('final_tapeout')
+@decorate_rule('tapeout')
 def build_docker_image(parameters):
     """Prepare Docker image data (not the final image yet)."""
     build_out = parameters['build_out']

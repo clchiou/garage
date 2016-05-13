@@ -7,6 +7,7 @@ from foreman import define_rule
 (define_rule('build')
  .with_doc(__doc__)
  .with_build(lambda ps: shipyard.python_copy_and_build_package(ps, 'garage'))
+ .depend('//base:build')
  .depend('//cpython:build')
 )
 
@@ -15,5 +16,6 @@ from foreman import define_rule
  .with_doc("""Copy build artifacts.""")
  .with_build(lambda ps: shipyard.python_copy_package(ps, 'garage'))
  .depend('build')
- .reverse_depend('//cpython:final_tapeout')
+ .reverse_depend('//base:tapeout')
+ .reverse_depend('//cpython:tapeout')
 )

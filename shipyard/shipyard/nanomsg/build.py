@@ -54,5 +54,5 @@ def build(parameters):
  .with_build(
      lambda ps: copy_libraries(ps, '/usr/local/lib', ['libnanomsg']))
  .depend('build')
- .reverse_depend('//base:final_tapeout')
+ .reverse_depend('//base:tapeout')
 )

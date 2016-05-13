@@ -3,10 +3,14 @@
 import os
 
 import shipyard
-from foreman import define_rule
+from foreman import define_rule, decorate_rule
 
 
+@decorate_rule('//base:build',
+               '//cpython:build',
+               '//v8:build')
 def build(parameters):
+    """Build V8 Python binding."""
 
     shipyard.python_pip_install(parameters, 'cython')
 
@@ -34,18 +38,11 @@ def build(parameters):
     shipyard.python_build_package(parameters, 'v8', build_src)
 
 
-(define_rule('build')
- .with_doc(__doc__)
- .with_build(build)
- .depend('//cpython:build')
- .depend('//v8:build')
-)
-
-
 (define_rule('tapeout')
  .with_doc("""Copy build artifacts.""")
  .with_build(lambda ps: shipyard.python_copy_package(ps, 'v8'))
  .depend('build')
  .depend('//v8:tapeout')
- .reverse_depend('//cpython:final_tapeout')
+ .reverse_depend('//base:tapeout')
+ .reverse_depend('//cpython:tapeout')
 )

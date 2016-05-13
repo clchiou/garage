@@ -124,5 +124,5 @@ def fix_gold_version(parameters):
            sudo=True),
  ))
  .depend('build')
- .reverse_depend('//base:final_tapeout')
+ .reverse_depend('//base:tapeout')
 )

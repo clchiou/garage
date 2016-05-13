@@ -148,8 +148,8 @@ def download(parameters):
 
 
 # NOTE: All Python module's `tapeout` rules should reverse depend on
-# this rule rather than `//base:final_tapeout` directly.
-def final_tapeout(parameters):
+# this rule (and `//base:tapeout`, too).
+def tapeout(parameters):
     """Join point of all Python module's `tapeout` rule."""
 
     LOG.info('copy cpython runtime libraries')
@@ -185,9 +185,9 @@ def final_tapeout(parameters):
     rsync(bins, parameters['//base:build_rootfs'], relative=True, sudo=True)
 
 
-(define_rule(final_tapeout.__name__)
- .with_doc(final_tapeout.__doc__)
- .with_build(final_tapeout)
+(define_rule(tapeout.__name__)
+ .with_doc(tapeout.__doc__)
+ .with_build(tapeout)
  .depend('build')
- .reverse_depend('//base:final_tapeout')
+ .reverse_depend('//base:tapeout')
 )
