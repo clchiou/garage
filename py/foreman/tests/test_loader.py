@@ -45,6 +45,7 @@ class LoaderTest(unittest.TestCase):
         self.assertEqual(
             {Label.parse('//pkg1:pkg1'),
              Label.parse('//pkg1:pkg2'),
+             Label.parse('//pkg1:pkg3'),
              Label.parse('//pkg1/pkg2:rule_x'),
              Label.parse('//pkg3:rule_y'),
              Label.parse('//pkg4:pkg4')},
@@ -64,6 +65,26 @@ class LoaderTest(unittest.TestCase):
 
         # Verify dependency.
         rule = loader.rules[Label.parse('//pkg1/pkg2:rule_x')]
+        self.assertEqual(
+            {Label.parse('//pkg1:pkg1')},
+            set(r.label for r in rule.all_dependencies),
+        )
+
+    def test_reverse_dep(self):
+        testdata = Path(__file__).parent / 'testdata'
+        self.assertTrue(testdata.is_dir())
+
+        search = Searcher([testdata / 'path2', testdata / 'path1'])
+        loader = Loader(search)
+
+        loader, foreman.LOADER = foreman.LOADER, loader
+        try:
+            foreman.LOADER.load_build_files(['//pkg1:pkg3'])
+        finally:
+            loader, foreman.LOADER = foreman.LOADER, loader
+
+        # Verify dependency.
+        rule = loader.rules[Label.parse('//pkg1:pkg2')]
         self.assertEqual(
             {Label.parse('//pkg1:pkg1')},
             set(r.label for r in rule.all_dependencies),

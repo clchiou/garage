@@ -15,3 +15,6 @@ COUNT += 1
 
 
 define_rule('pkg2')
+
+
+define_rule('pkg3').depend('pkg2')

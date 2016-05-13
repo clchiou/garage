@@ -325,13 +325,26 @@ class Loader:
             # 3. Notify caller.
             yield label
             # 4. Add not-created-yet rules to the queue.
-            rule = self.rules[label]
-            for dep in rule.dependencies:
-                if dep.label not in self.rules:
-                    queue.append(dep.label)
-            for dep in rule.reverse_dependencies:
-                if dep.label not in self.rules:
-                    queue.append(dep.label)
+            #
+            # Unfortunately due to reverse dependency, we can't be sure
+            # which rule is in the transitive dependency graph until it
+            # is loaded.  To alleviate this, we examine dependencies of
+            # every rules of this build file, not just one referred by
+            # the label.  Certainly this is not bullet-proof - we still
+            # could miss build rules from other build files that reverse
+            # depends on rules here.
+            #
+            for rule in self.rules.get_things(label.path):
+                for dep in rule.dependencies:
+                    if dep.label not in self.rules:
+                        queue.append(dep.label)
+                for dep in rule.reverse_dependencies:
+                    if dep.label not in self.rules:
+                        queue.append(dep.label)
+
+        self._validate_rules()
+
+    def _validate_rules(self):
         # Make sure that build rules do not refer to undefined parameters.
         for rule in self.rules.values():
             for dep in rule.all_dependencies:
