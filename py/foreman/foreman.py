@@ -447,14 +447,15 @@ class Executor:
         self.rules = rules
         self.loader = loader
         self.dry_run = dry_run
+        self.build_ids = BuildIds()
 
     def execute(self, rule_label, environment):
-        self.execute_rule(self.rules[rule_label], environment, BuildIds())
+        self.execute_rule(self.rules[rule_label], environment)
 
-    def execute_rule(self, rule, environment, build_ids):
+    def execute_rule(self, rule, environment):
         """Execute build rule in depth-first order."""
 
-        if build_ids.check_and_add(rule, environment):
+        if self.build_ids.check_and_add(rule, environment):
             return
 
         values = ParameterValues(self.parameters, environment, rule.label.path)
@@ -471,7 +472,7 @@ class Executor:
             else:
                 next_env = environment
 
-            self.execute_rule(self.rules[dep.label], next_env, build_ids)
+            self.execute_rule(self.rules[dep.label], next_env)
 
         if LOG.isEnabledFor(logging.INFO):
             if environment.maps[0] is not environment.maps[-1]:
