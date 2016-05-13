@@ -11,8 +11,8 @@ from shipyard import (
  .with_doc(__doc__)
  .with_build(lambda ps: \
      python_copy_and_build_package(ps, 'nanomsg', build_src='nanomsg.py'))
- .depend('//shipyard/cpython:build')
- .depend('//shipyard/nanomsg:build')
+ .depend('//cpython:build')
+ .depend('//nanomsg:build')
 )
 
 
@@ -20,6 +20,6 @@ from shipyard import (
  .with_doc("""Copy build artifacts.""")
  .with_build(lambda ps: python_copy_package(ps, 'nanomsg'))
  .depend('build')
- .depend('//shipyard/nanomsg:tapeout')
- .reverse_depend('//shipyard/cpython:final_tapeout')
+ .depend('//nanomsg:tapeout')
+ .reverse_depend('//cpython:final_tapeout')
 )

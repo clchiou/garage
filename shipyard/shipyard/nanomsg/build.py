@@ -33,11 +33,11 @@ from shipyard import (
 )
 
 
-@decorate_rule('//shipyard:build')
+@decorate_rule('//base:build')
 def build(parameters):
     """Build nanomsg from source."""
     install_packages(parameters['deps'])
-    build_src = parameters['//shipyard:build_src'] / 'nanomsg'
+    build_src = parameters['//base:build_src'] / 'nanomsg'
     git_clone(parameters['repo'], build_src)
     if not (build_src / 'nanocat').exists():
         # Don't run `make check` at the moment.
@@ -54,5 +54,5 @@ def build(parameters):
  .with_build(
      lambda ps: copy_libraries(ps, '/usr/local/lib', ['libnanomsg']))
  .depend('build')
- .reverse_depend('//shipyard:final_tapeout')
+ .reverse_depend('//base:final_tapeout')
 )

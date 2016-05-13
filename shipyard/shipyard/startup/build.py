@@ -20,7 +20,7 @@ from shipyard import (
  .with_doc(__doc__)
  .with_build(lambda ps: \
      python_copy_and_build_package(ps, 'startup', src=ps['src']))
- .depend('//shipyard/cpython:build')
+ .depend('//cpython:build')
 )
 
 
@@ -28,5 +28,5 @@ from shipyard import (
  .with_doc("""Copy build artifacts.""")
  .with_build(lambda ps: python_copy_package(ps, 'startup'))
  .depend('build')
- .reverse_depend('//shipyard/cpython:final_tapeout')
+ .reverse_depend('//cpython:final_tapeout')
 )

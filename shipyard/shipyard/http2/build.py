@@ -14,8 +14,8 @@ from shipyard import (
      python_pip_install(ps, 'cython'),
      python_copy_and_build_package(ps, 'http2'),
  ))
- .depend('//shipyard/cpython:build')
- .depend('//shipyard/nghttp2:build')
+ .depend('//cpython:build')
+ .depend('//nghttp2:build')
 )
 
 
@@ -23,6 +23,6 @@ from shipyard import (
  .with_doc("""Copy build artifacts.""")
  .with_build(lambda ps: python_copy_package(ps, 'http2'))
  .depend('build')
- .depend('//shipyard/nghttp2:tapeout')
- .reverse_depend('//shipyard/cpython:final_tapeout')
+ .depend('//nghttp2:tapeout')
+ .reverse_depend('//cpython:final_tapeout')
 )

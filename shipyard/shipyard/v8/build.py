@@ -56,7 +56,7 @@ LOG = logging.getLogger(__name__)
 
 (define_parameter('build_src')
  .with_type(Path)
- .with_derive(lambda ps: ps['//shipyard:build_src'] / 'v8')
+ .with_derive(lambda ps: ps['//base:build_src'] / 'v8')
 )
 (define_parameter('out_target')
  .with_type(Path)
@@ -65,13 +65,13 @@ LOG = logging.getLogger(__name__)
 )
 
 
-@decorate_rule('//shipyard:build')
+@decorate_rule('//base:build')
 def build(parameters):
     """Build V8 from source."""
 
     install_packages(parameters['deps'])
 
-    depot_tools = parameters['//shipyard:build_src'] / 'depot_tools'
+    depot_tools = parameters['//base:build_src'] / 'depot_tools'
     git_clone(parameters['depot_tools'], depot_tools)
     path = os.environ.get('PATH')
     path = '%s:%s' % (depot_tools, path) if path else str(depot_tools)
@@ -97,7 +97,7 @@ def fix_gold_version(parameters):
 
     old_version = b'GNU Binutils 2.24'
 
-    gold = (parameters['build_src']/
+    gold = (parameters['build_src'] /
             'third_party/binutils/Linux_x64/Release/bin/ld.gold')
     if not gold.exists():
         return
@@ -118,11 +118,11 @@ def fix_gold_version(parameters):
 (define_rule('tapeout')
  .with_doc("""Copy build artifacts.""")
  .with_build(lambda ps: (
-     ensure_directory(ps['//shipyard:build_rootfs'] / 'usr/local/lib'),
+     ensure_directory(ps['//base:build_rootfs'] / 'usr/local/lib'),
      rsync(list((ps['out_target'] / 'lib.target').glob('*')),
-           ps['//shipyard:build_rootfs'] / 'usr/local/lib',
+           ps['//base:build_rootfs'] / 'usr/local/lib',
            sudo=True),
  ))
  .depend('build')
- .reverse_depend('//shipyard:final_tapeout')
+ .reverse_depend('//base:final_tapeout')
 )

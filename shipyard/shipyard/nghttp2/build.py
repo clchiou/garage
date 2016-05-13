@@ -35,11 +35,11 @@ from shipyard import (
 )
 
 
-@decorate_rule('//shipyard:build')
+@decorate_rule('//base:build')
 def build(parameters):
     """Build nghttp2 from source."""
     install_packages(parameters['deps'])
-    build_src = parameters['//shipyard:build_src'] / 'nghttp2'
+    build_src = parameters['//base:build_src'] / 'nghttp2'
     git_clone(parameters['repo'], build_src)
     if not (build_src / 'src/.libs/nghttp').exists():
         run_commands(path=build_src, commands_str='''
@@ -57,5 +57,5 @@ def build(parameters):
  .with_build(
      lambda ps: copy_libraries(ps, '/usr/local/lib', ['libnghttp2']))
  .depend('build')
- .reverse_depend('//shipyard:final_tapeout')
+ .reverse_depend('//base:final_tapeout')
 )

@@ -25,11 +25,12 @@ main() {
   export PYTHONPATH="${SHIPYARD}/lib${PYTHONPATH:+:}${PYTHONPATH:-}"
   echo "export PYTHONPATH=${PYTHONPATH}"
 
+  # Make sure our --path is the first.
   local COMMAND="${1}"
   shift
 
   set -o xtrace
-  exec "${FOREMAN}" "${COMMAND}" --path "${SHIPYARD}" "${@}"
+  exec "${FOREMAN}" "${COMMAND}" --path "${SHIPYARD}/shipyard" "${@}"
 }
 
 main "${@}"

@@ -1,4 +1,4 @@
-"""Common parts of the shipyard."""
+"""Base part of the application image."""
 
 import logging
 from pathlib import Path

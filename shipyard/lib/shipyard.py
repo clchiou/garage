@@ -158,12 +158,12 @@ def python_copy_source(parameters, package_name, src=None, build_src=None):
     if not src:
         src = 'py/%s' % package_name
     if isinstance(src, str):
-        src = parameters['//shipyard:root'] / src
+        src = parameters['//base:root'] / src
 
     if not build_src:
         build_src = package_name
     if isinstance(build_src, str):
-        build_src = parameters['//shipyard:build_src'] / build_src
+        build_src = parameters['//base:build_src'] / build_src
 
     # Just a sanity check...
     setup_py = src / 'setup.py'
@@ -187,10 +187,10 @@ def python_copy_source(parameters, package_name, src=None, build_src=None):
 
 def python_build_package(parameters, package_name, build_src):
     LOG.info('build %s', package_name)
-    python = parameters['//shipyard/cpython:python']
+    python = parameters['//cpython:python']
     if not (build_src / 'build').exists():
         call([str(python), 'setup.py', 'build'], cwd=str(build_src))
-    site_packages = parameters['//shipyard/cpython:modules'] / 'site-packages'
+    site_packages = parameters['//cpython:modules'] / 'site-packages'
     if not list(site_packages.glob('%s*' % package_name)):
         call(['sudo', '--preserve-env', str(python), 'setup.py', 'install'],
              cwd=str(build_src))
@@ -204,20 +204,19 @@ def python_copy_and_build_package(
 
 def python_pip_install(parameters, package_name):
     LOG.info('install %s', package_name)
-    pip = parameters['//shipyard/cpython:pip']
-    site_packages = parameters['//shipyard/cpython:modules'] / 'site-packages'
+    pip = parameters['//cpython:pip']
+    site_packages = parameters['//cpython:modules'] / 'site-packages'
     if not list(site_packages.glob('%s*' % package_name)):
         call(['sudo', str(pip), 'install', package_name])
 
 
 def python_copy_package(parameters, package_name, patterns=()):
     LOG.info('copy %s', package_name)
-    site_packages = parameters['//shipyard/cpython:modules'] / 'site-packages'
+    site_packages = parameters['//cpython:modules'] / 'site-packages'
     dirs = list(site_packages.glob('%s*' % package_name))
     dirs.extend(itertools.chain.from_iterable(
         map(site_packages.glob, patterns)))
-    rsync(dirs, parameters['//shipyard:build_rootfs'],
-          relative=True, sudo=True)
+    rsync(dirs, parameters['//base:build_rootfs'], relative=True, sudo=True)
 
 
 ### Helpers for the build image phase.
@@ -227,5 +226,4 @@ def copy_libraries(parameters, lib_dir, libnames):
     lib_dir = Path(lib_dir)
     libs = list(itertools.chain.from_iterable(
         lib_dir.glob('%s*' % name) for name in libnames))
-    rsync(libs, parameters['//shipyard:build_rootfs'],
-          relative=True, sudo=True)
+    rsync(libs, parameters['//base:build_rootfs'], relative=True, sudo=True)

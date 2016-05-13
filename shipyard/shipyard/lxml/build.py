@@ -34,7 +34,7 @@ from foreman import define_parameter, define_rule
      shipyard.install_packages(ps['deps']),
      shipyard.python_pip_install(ps, 'lxml'),
  ))
- .depend('//shipyard/cpython:build')
+ .depend('//cpython:build')
 )
 
 
@@ -45,5 +45,5 @@ from foreman import define_parameter, define_rule
      shipyard.python_copy_package(ps, 'lxml'),
  ))
  .depend('build')
- .reverse_depend('//shipyard/cpython:final_tapeout')
+ .reverse_depend('//cpython:final_tapeout')
 )

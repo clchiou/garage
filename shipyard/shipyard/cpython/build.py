@@ -99,11 +99,11 @@ Version = namedtuple('Version', 'major minor')
 (define_parameter('build_src')
  .with_type(Path)
  .with_derive(lambda ps: \
-     ps['//shipyard:build_src'] / 'cpython' / ps['tarball'].output)
+     ps['//base:build_src'] / 'cpython' / ps['tarball'].output)
 )
 
 
-@decorate_rule('//shipyard:build',
+@decorate_rule('//base:build',
                'install_deps',
                'download')
 def build(parameters):
@@ -148,7 +148,7 @@ def download(parameters):
 
 
 # NOTE: All Python module's `tapeout` rules should reverse depend on
-# this rule rather than `//shipyard:final_tapeout` directly.
+# this rule rather than `//base:final_tapeout` directly.
 def final_tapeout(parameters):
     """Join point of all Python module's `tapeout` rule."""
 
@@ -172,24 +172,22 @@ def final_tapeout(parameters):
         # Exclude site-packages (you will have to cherry-pick them).
         modules / 'site-packages',
     ]
-    rsync([modules], parameters['//shipyard:build_rootfs'],
+    rsync([modules], parameters['//base:build_rootfs'],
           relative=True, excludes=excludes, sudo=True)
 
     LOG.info('copy pth files')
-    pth_files = list((modules / 'site-packages').glob('*.pth'))
-    rsync(pth_files, parameters['//shipyard:build_rootfs'],
-          relative=True, sudo=True)
+    pths = list((modules / 'site-packages').glob('*.pth'))
+    rsync(pths, parameters['//base:build_rootfs'], relative=True, sudo=True)
 
     LOG.info('copy cpython binaries')
-    bins = list((parameters['prefix'] / 'bin')
-                .glob('python%d*' % parameters['version'].major))
-    rsync(bins, parameters['//shipyard:build_rootfs'],
-          relative=True, sudo=True)
+    bins = parameters['prefix'] / 'bin'
+    bins = list(bins.glob('python%d*' % parameters['version'].major))
+    rsync(bins, parameters['//base:build_rootfs'], relative=True, sudo=True)
 
 
 (define_rule(final_tapeout.__name__)
  .with_doc(final_tapeout.__doc__)
  .with_build(final_tapeout)
  .depend('build')
- .reverse_depend('//shipyard:final_tapeout')
+ .reverse_depend('//base:final_tapeout')
 )
