@@ -3,6 +3,7 @@
 __all__ = [
     # Generic scripting helpers.
     'call',
+    'call_with_output',
     'ensure_directory',
     'git_clone',
     'rsync',
@@ -23,9 +24,8 @@ __all__ = [
 
 import itertools
 import logging
-import os.path
 from pathlib import Path
-from subprocess import check_call
+from subprocess import check_call, check_output
 
 
 LOG = logging.getLogger(__name__)
@@ -39,6 +39,13 @@ def call(args, **kwargs):
     if LOG.isEnabledFor(logging.DEBUG):
         LOG.debug('call: %s # cwd = %r', ' '.join(args), kwargs.get('cwd'))
     check_call(args, **kwargs)
+
+
+def call_with_output(args, **kwargs):
+    """Log and then call subprocess.check_output."""
+    if LOG.isEnabledFor(logging.DEBUG):
+        LOG.debug('call: %s # cwd = %r', ' '.join(args), kwargs.get('cwd'))
+    return check_output(args, **kwargs)
 
 
 def ensure_directory(path, mode=0o777):
