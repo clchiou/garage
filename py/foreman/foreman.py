@@ -665,6 +665,8 @@ def main(argv):
                 continue
             LOG.debug('add search path: %s', search_path)
             search_paths.append(search_path)
+        # Latter --path overrides former (like --parameter).
+        search_paths.reverse()
     else:
         search_paths = [Path.cwd()]
     searcher = Searcher(search_paths)
