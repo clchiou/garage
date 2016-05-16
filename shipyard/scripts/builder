@@ -95,23 +95,22 @@ def main():
         if appc_image:
             build_appc_image(build_name, appc_image)
         if args.docker_image:
-            build_appc_image(build_name, args.docker_image)
+            build_docker_image(build_name, args.docker_image)
+        call(['docker', 'rm', build_name])
 
 
 def build_appc_image(build_name, output):
     image = '%s:/home/plumber/build/out/image.aci' % build_name
     call(['docker', 'cp', image, str(output)])
-    call(['docker', 'rm', build_name])
 
 
 def build_docker_image(build_name, output):
     with TemporaryDirectory() as build_dir:
         build_dir = Path(build_dir)
-        for file in ('Dockerfile', 'rootfs'):
+        for file in ('Dockerfile', 'rootfs.tar'):
             path = '%s:/home/plumber/build/out/%s' % (build_name, file)
             call(['docker', 'cp', path, str(build_dir / file)])
         call(['docker', 'build', '--tag', output, str(build_dir)])
-        call(['docker', 'rm', build_name])
 
 
 def call(cmd):

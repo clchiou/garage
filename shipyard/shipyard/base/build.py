@@ -106,7 +106,8 @@ def build_docker_image(parameters):
     dockerfile = build_out / 'Dockerfile'
     if not dockerfile.exists():
         raise FileNotFoundError(str(dockerfile))
-    call(['tar', 'cf', 'rootfs.tar', 'rootfs'], cwd=str(build_out))
+    call(['tar', 'cf', str(build_out / 'rootfs.tar'), '.'],
+         cwd=str(build_out / 'rootfs'))
 
 
 (define_rule('build_image')
