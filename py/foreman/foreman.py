@@ -253,6 +253,34 @@ class Rule:
         self.dependencies.append(Rule.Dependency(label, when, configs))
         return self
 
+    #
+    # Reverse dependency is a double-edged sword.  One the one hand, it
+    # is very convenient to have "join point" rules that other rules
+    # reverse depend on.  On the other hand, the transitive closure can
+    # not be easily determined - it will be affected by how many build
+    # files you examine because each of them could reverse depend on
+    # your target build rule.
+    #
+    # The downside is that: Scanning all directories for build files
+    # might be inefficient.  And, even if a full scan is efficient, it
+    # doesn't mean you should, because this could pull in too many
+    # dependencies.  Let's use the "join point" for example; assume we
+    # have a final sign-off build rule that every other package-building
+    # rule reverse depends on.  Now, say you want to build just one
+    # package, if somehow all package-building rules are pulled in
+    # because they all reverse depend on the final sign-off rule, that
+    # would be quite undesirable.
+    #
+    # Since scanning too many build files could result in accidentally
+    # building too much stuff, we would err on the side of caution that
+    # we will only examine rules of the same build file.  And if a rule
+    # is not but should be included in the transitive closure, you can
+    # always add it to the build target.  (However, if we don't examine
+    # rules of the same build file, you will probably have to add all
+    # rules that declare reverse dependency to the targets, which makes
+    # reverse dependency quite useless.)
+    #
+
     def reverse_depend(self, label, when=None, configs=None):
         self.reverse_dependencies.append(Rule.Dependency(label, when, configs))
         return self
