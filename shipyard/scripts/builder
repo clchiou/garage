@@ -9,7 +9,7 @@ from tempfile import TemporaryDirectory
 
 def main():
 
-    parser = ArgumentParser(description="""Build a containerized image.""")
+    parser = ArgumentParser(description="""Prepare and call builder.""")
 
     def add_common_args(parser):
         parser.add_argument('--builder', required=True,
@@ -19,10 +19,15 @@ def main():
 
     def add_build_args(parser):
         add_common_args(parser)
+        # While you could do "--foreman=--path=/some/path", for your
+        # convenience, we have denormalized "--path", "--parameter", and
+        # "rule" argument of foreman.
         parser.add_argument('--path', action='append',
                             help="""add foreman search path""")
         parser.add_argument('--parameter', action='append',
                             help="""add parameter to foreman""")
+        parser.add_argument('--foreman', action='append',
+                            help="""send argument to foreman""")
         parser.add_argument('--appc-image',
                             help="""set Appc image output path""")
         parser.add_argument('--docker-image',
@@ -79,6 +84,7 @@ def main():
             cmd.extend(['--path', path])
         for parameter in args.parameter or ():
             cmd.extend(['--parameter', parameter])
+        cmd.extend(args.foreman or ())
         cmd.extend(args.rule)
     else:
         cmd.append('/bin/bash')
