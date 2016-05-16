@@ -3,6 +3,7 @@
 from foreman import define_parameter, define_rule, decorate_rule
 from shipyard import (
 
+    ensure_directory,
     git_clone,
     run_commands,
 
@@ -17,10 +18,8 @@ from shipyard import (
  .with_type(list)
  .with_parse(lambda pkgs: pkgs.split(','))
  .with_default([
-     'autoconf',
-     'automake',
      'build-essential',
-     'libtool',
+     'cmake',
  ])
 )
 
@@ -36,15 +35,18 @@ from shipyard import (
 @decorate_rule('//base:build')
 def build(parameters):
     """Build nanomsg from source."""
+
     install_packages(parameters['deps'])
+
     build_src = parameters['//base:build_src'] / 'nanomsg'
     git_clone(parameters['repo'], build_src)
-    if not (build_src / 'nanocat').exists():
-        # Don't run `make check` at the moment.
-        run_commands(path=build_src, commands_str='''
-            ./autogen.sh
-            ./configure
-            make
+
+    build_dir = build_src / 'build'
+    if not ensure_directory(build_dir):
+        # Don't run `ctest .` at the moment.
+        run_commands(path=build_dir, commands_str='''
+            cmake ..
+            cmake --build .
             sudo make install
         ''')
 

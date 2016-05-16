@@ -49,15 +49,18 @@ def call_with_output(args, **kwargs):
 
 
 def ensure_directory(path, mode=0o777):
-    """Create a directory if it does not exists."""
+    """Return True when the directory exists; else return false and
+       create the directory.
+    """
     # exist_ok is added to Path.mkdir until Python 3.5 :(
     path = Path(path)
     if path.exists():
         if not path.is_dir():
             raise FileExistsError('not a directory: %s' % path)
-        return
+        return True
     LOG.debug('make directory: %s', path)
     path.mkdir(mode=mode, parents=True)
+    return False
 
 
 def git_clone(repo, local_path=None, checkout=None):
