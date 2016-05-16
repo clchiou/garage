@@ -1,0 +1,32 @@
+{
+    "acKind": "ImageManifest",
+    "acVersion": "0.7.1",
+    "name": "python3",
+    "labels": [
+        {
+            "name": "os",
+            "value": "linux"
+        },
+        {
+            "name": "arch",
+            "value": "amd64"
+        }
+    ],
+    "app": {
+        "exec": [
+            "/usr/local/bin/python3"
+        ],
+        "user": "65534",
+        "group": "65534",
+        "environment": [
+            {
+                "name": "LD_LIBRARY_PATH",
+                "value": "/usr/local/lib"
+            },
+            {
+                "name": "PYTHONIOENCODING",
+                "value": "UTF-8"
+            }
+        ]
+    }
+}

@@ -1,0 +1,14 @@
+In addition to the CPython build file, here you may also find generic
+Appc manifest and Dockerfile.
+
+There are two hacks in the Appc manifest and Dockerfile:
+
+  LD_LIBRARY_PATH=/usr/local/lib
+  PYTHONIOENCODING=UTF-8
+
+Not sure why I need them, but I've tried to import
+
+  /etc/ld.so.conf
+  /etc/default/locale
+
+But this didn't work.
