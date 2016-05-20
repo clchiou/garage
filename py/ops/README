@@ -1,0 +1,12 @@
+Collection of command-line ops scripts executed on the remote machines,
+and are most commonly invoked by Ansible, doing heavy lifting for it.
+
+You add more scripts to here only when both of the following are met:
+* It is not possible to be done within a container.
+* The alternative implementation in Ansible is clumsy.
+
+Otherwise you should keep these ops scripts at minimum, meaning:
+* If you are in situations where ops scripts need to be executed as a
+  daemon, something probably went wrong.
+* Ops scripts should only depend on Python 3 standard library (so that
+  it is easy to deploy these scripts to the remote machine).
