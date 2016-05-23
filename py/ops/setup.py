@@ -6,7 +6,7 @@ setup(
     description = 'Tools for operations',
     packages = [
         'ops',
-        'ops.common',
-        'ops.install',
+        'ops.apps',
+        'ops.pkgs',
     ],
 )

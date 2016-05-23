@@ -1,11 +1,11 @@
-"""Install packages that will not be installed from OS package manager."""
+"""Manage packages that will not be installed from OS package manager."""
 
 import argparse
 import logging
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from ops.common import commands
+from ops import commands
 
 
 LOG = logging.getLogger(__name__)
@@ -18,7 +18,7 @@ RKT_URI = 'https://github.com/coreos/rkt/releases/download/v{version}/rkt-v{vers
 RKT_STAGE1_PREFIX = 'coreos.com/rkt/stage1-coreos'
 
 
-def install_rkt(version, tarball_path=None):
+def rkt_install(version, tarball_path=None):
     if Path('/usr/bin/rkt').exists():
         LOG.warning('attempt to overwrite /usr/bin/rkt')
     cmds = []
@@ -52,21 +52,41 @@ def install_rkt(version, tarball_path=None):
 
 
 PACKAGES = {
-    'rkt': install_rkt,
+    'rkt': {
+        'install': rkt_install,
+    },
 }
 
 
 def main(argv):
-    prog = __name__ if argv[0].endswith('__main__.py') else argv[0]
-    parser = argparse.ArgumentParser(prog=prog, description=__doc__)
-    commands.add_args(parser)
-    parser.add_argument(
-        '--tarball', help="""use local package tarball file""")
-    parser.add_argument(
-        'package', help="""install package with the form 'name:version'""")
+    parser = argparse.ArgumentParser(prog=__name__, description=__doc__)
+    subparsers = parser.add_subparsers(help="""Sub-commands.""")
+    # http://bugs.python.org/issue9253
+    subparsers.dest = 'command'
+    subparsers.required = True
+
+    parser_install = subparsers.add_parser(
+        'install', help="""Install package.""")
+    parser_install.set_defaults(command=command_install)
+    command_install_add_arguments(parser_install)
 
     args = parser.parse_args(argv[1:])
-    commands.process_args(parser, args)
+    return args.command(parser, args)
+
+
+### Command: Install
+
+
+def command_install_add_arguments(parser):
+    commands.add_arguments(parser)
+    parser.add_argument(
+        '--tarball', help="""use local tarball file for package""")
+    parser.add_argument(
+        'package', help="""package name of the form 'name:version'""")
+
+
+def command_install(parser, args):
+    commands.process_arguments(parser, args)
     if args.tarball:
         tarball_path = Path(args.tarball).resolve()
         if not tarball_path.exists():
@@ -77,7 +97,11 @@ def main(argv):
     name, version = args.package.rsplit(':', maxsplit=1)
     if name not in PACKAGES:
         raise RuntimeError('unknown package: %s' % name)
+    installer = PACKAGES[name].get('install')
+    if installer is None:
+        raise RuntimeError('no installer for package: %s' % name)
+
     LOG.info('install: %s', args.package)
-    PACKAGES[name](version, tarball_path=tarball_path)
+    installer(version, tarball_path=tarball_path)
 
     return 0

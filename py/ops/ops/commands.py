@@ -1,6 +1,6 @@
 __all__ = [
-    'add_args',
-    'process_args',
+    'add_arguments',
+    'process_arguments',
     # Scripting helpers.
     'execute',
     'execute_many',
@@ -17,7 +17,7 @@ LOG_FORMAT = '%(asctime)s %(levelname)s %(name)s: %(message)s'
 DRY_RUN = False
 
 
-def add_args(parser):
+def add_arguments(parser):
     parser.add_argument(
         '-v', '--verbose', action='count', default=0,
         help="""verbose output""")
@@ -26,7 +26,7 @@ def add_args(parser):
         help="""do not actually run commands""")
 
 
-def process_args(_, args):
+def process_arguments(_, args):
     if args.verbose > 0:
         level = logging.DEBUG
     else:
