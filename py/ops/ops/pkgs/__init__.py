@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from ops import commands
+from ops import scripting
 
 
 LOG = logging.getLogger(__name__)
@@ -28,7 +28,7 @@ def docker2aci_install(version, tarball_path=None):
     cmds.append(make_tar_extract(tarball_path))
     cmds.append(['sudo', 'cp', 'docker2aci', '/usr/bin'])
     with TemporaryDirectory() as working_dir:
-        commands.execute_many(cmds, cwd=working_dir)
+        scripting.execute_many(cmds, cwd=working_dir)
 
 
 ### Package: rkt
@@ -57,7 +57,7 @@ def rkt_install(version, tarball_path=None):
         ['sudo', 'cp', 'rkt', '/usr/bin'],
     ])
     with TemporaryDirectory() as working_dir:
-        commands.execute_many(cmds, cwd=working_dir)
+        scripting.execute_many(cmds, cwd=working_dir)
 
 
 ### Main function.
@@ -93,7 +93,7 @@ def main(argv):
 
 
 def command_install_add_arguments(parser):
-    commands.add_arguments(parser)
+    scripting.add_arguments(parser)
     parser.add_argument(
         '--tarball', help="""use local tarball file for package""")
     parser.add_argument(
@@ -101,7 +101,7 @@ def command_install_add_arguments(parser):
 
 
 def command_install(parser, args):
-    commands.process_arguments(parser, args)
+    scripting.process_arguments(parser, args)
     if args.tarball:
         tarball_path = Path(args.tarball).resolve()
         if not tarball_path.exists():
