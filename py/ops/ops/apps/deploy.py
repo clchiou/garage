@@ -3,7 +3,6 @@ __all__ = [
 ]
 
 import logging
-from pathlib import Path
 
 from ops import scripting
 from ops.apps.models import ContainerGroup
@@ -194,11 +193,7 @@ def make_pod(args):
     LOG.debug('load container group spec from: %s', args.path)
     pod = ContainerGroup.load_json(args.path)
 
-    root_config_path = Path(args.config)
-    if not root_config_path.is_dir():
-        scripting.execute(['sudo', 'mkdir', '--parents', root_config_path])
-
-    pod.root_config_path = root_config_path
+    pod.root_config_path = args.config
     LOG.debug('set config path to: %s', pod.config_path)
 
     if not pod.pod_config_path.is_dir():

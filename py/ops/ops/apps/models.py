@@ -32,7 +32,7 @@ class ContainerGroup:
         ensure_names(self.PROP_NAMES, pod_data)
 
         # Path to this JSON file.
-        self.path = pod_path.resolve()
+        self.path = pod_path.absolute()
 
         self.name = pod_data['name']
         self.version = int(pod_data['version'])
@@ -57,7 +57,7 @@ class ContainerGroup:
 
     @root_config_path.setter
     def root_config_path(self, root_config_path):
-        self._root_config_path = Path(root_config_path).resolve()
+        self._root_config_path = Path(root_config_path).absolute()
 
     @property
     def pod_config_path(self):
