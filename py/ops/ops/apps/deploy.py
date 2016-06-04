@@ -7,6 +7,7 @@ from pathlib import Path
 
 from ops import scripting
 from ops.apps.models import ContainerGroup
+from ops.scripting import systemctl
 
 
 LOG = logging.getLogger(__name__)
@@ -109,8 +110,8 @@ def deploy_enable(pod):
                 else:
                     names = [unit.name]
                 for name in names:
-                    scripting.execute(['sudo', 'systemctl', 'enable', name])
-                    scripting.execute(['systemctl', 'is-enabled', name])
+                    systemctl.enable(name)
+                    systemctl.is_enabled(name)
         else:
             raise AssertionError
 
@@ -120,8 +121,8 @@ def deploy_start(pod):
     for container in pod.containers:
         if container.systemd:
             for service in container.systemd.services:
-                scripting.execute(['sudo', 'systemctl', 'start', service])
-                scripting.execute(['systemctl', 'is-active', service])
+                systemctl.start(service)
+                systemctl.is_active(service)
         else:
             raise AssertionError
 
@@ -142,18 +143,12 @@ def undeploy_disable(pod):
         if container.systemd:
             for unit in container.systemd.units:
                 for instance in unit.instances:
-                    retcode = scripting.execute(
-                        ['systemctl', 'is-enabled', instance], check=False)
-                    if retcode == 0:
-                        scripting.execute(
-                            ['sudo', 'systemctl', 'disable', instance])
+                    if systemctl.is_enabled(instance, check=False) == 0:
+                        systemctl.disable(instance)
                     else:
                         LOG.warning('service is not enabled: %s', instance)
-                retcode = scripting.execute(
-                    ['systemctl', 'is-enabled', unit.name], check=False)
-                if retcode == 0:
-                    scripting.execute(
-                        ['sudo', 'systemctl', 'disable', unit.name])
+                if systemctl.is_enabled(unit.name, check=False) == 0:
+                    systemctl.disable(unit.name)
                 else:
                     LOG.warning('service is not enabled: %s', unit.name)
                 scripting.execute(['sudo', 'rm', '--force', unit.system_path])
@@ -166,10 +161,8 @@ def undeploy_stop(pod):
     for container in pod.containers:
         if container.systemd:
             for service in container.systemd.services:
-                retcode = scripting.execute(
-                    ['systemctl', 'is-active', service], check=False)
-                if retcode == 0:
-                    scripting.execute(['sudo', 'systemctl', 'stop', service])
+                if systemctl.is_active(service, check=False) == 0:
+                    systemctl.stop(service)
                 else:
                     LOG.warning('service is not active: %s', service)
         else:

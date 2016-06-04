@@ -4,9 +4,11 @@ __all__ = [
     # Scripting helpers.
     'execute',
     'execute_many',
+    'systemctl',
 ]
 
 import logging
+from functools import partial
 from subprocess import call, check_call
 
 
@@ -54,3 +56,20 @@ def execute(cmd, *, cwd=None, check=True):
 def execute_many(cmds, *, cwd=None):
     for cmd in cmds:
         execute(cmd, cwd=cwd)
+
+
+def systemctl(command, name, *, sudo=True, **kwargs):
+    cmd = ['systemctl', command, name]
+    if sudo:
+        cmd.insert(0, 'sudo')
+    return execute(cmd, **kwargs)
+
+
+systemctl.enable = partial(systemctl, 'enable')
+systemctl.disable = partial(systemctl, 'disable')
+systemctl.is_enabled = partial(systemctl, 'is-enabled', sudo=False)
+
+
+systemctl.start = partial(systemctl, 'start')
+systemctl.stop = partial(systemctl, 'stop')
+systemctl.is_active = partial(systemctl, 'is-active', sudo=False)
