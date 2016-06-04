@@ -7,7 +7,7 @@ __all__ = [
 ]
 
 import logging
-from subprocess import check_call
+from subprocess import call, check_call
 
 
 LOG = logging.getLogger(__name__)
@@ -39,15 +39,18 @@ def process_arguments(_, args):
 ### Scripting helpers.
 
 
-def execute(cmd, cwd=None):
+def execute(cmd, *, cwd=None, check=True):
     cmd = list(map(str, cmd))
     cwd = str(cwd) if cwd is not None else None
     if LOG.isEnabledFor(logging.DEBUG):
         LOG.debug('execute: %s # cwd = %s', ' '.join(cmd), cwd)
     if not DRY_RUN:
-        check_call(cmd, cwd=cwd)
+        if check:
+            return check_call(cmd, cwd=cwd)
+        else:
+            return call(cmd, cwd=cwd)
 
 
-def execute_many(cmds, cwd=None):
+def execute_many(cmds, *, cwd=None):
     for cmd in cmds:
         execute(cmd, cwd=cwd)

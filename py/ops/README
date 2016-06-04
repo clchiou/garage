@@ -2,11 +2,91 @@ Collection of command-line ops scripts executed on the remote machines,
 and are most commonly invoked by Ansible, doing heavy lifting for it.
 
 You add more scripts to here only when both of the following are met:
-* It is not possible to be done within a container.
-* The alternative implementation in Ansible is clumsy.
+
+  * It is not possible to be done within a container.
+
+  * The alternative implementation in Ansible is clumsy.
 
 Otherwise you should keep these ops scripts at minimum, meaning:
-* If you are in situations where ops scripts need to be executed as a
-  daemon, something probably went wrong.
-* Ops scripts should only depend on Python 3 standard library (so that
-  it is easy to deploy these scripts to the remote machine).
+
+  * If you are in situations where ops scripts need to be executed as a
+    daemon, something probably went wrong.
+
+  * Ops scripts should only depend on Python 3 standard library (so that
+    it is easy to deploy these scripts to the remote machine).
+
+
+=== Container Groups
+
+Containers are (un-)deployed in a tightly-coupled group, which would
+usually be called a "pod".  A container group is specified with a JSON
+object like this:
+
+    {
+        # A group of container works together to provide a service.
+        # Its name has to be unique among groups deployed to the same
+        # machine.
+        "name": "example",
+
+        # This is unique among deployments of the same group; you could
+        # use timestamp for this.
+        "version": 1001,
+
+        # The containers are defined here (however, technically you are
+        # not required to launch containerized services; anything that
+        # the process manager can launch may go here).
+        "containers": [
+            {
+                # The name of this service, which must be unique within
+                # the group.
+                "name": "frontend",
+
+                # You may optionally define the replication of this
+                # service, either as an array or just an integer for the
+                # number of replicas.
+                "replication": [8080, 8081, 8082],
+
+                # A container must have at least one process manager
+                # specific section, such as this one for systemd.
+                # Currently we only support systemd though.
+                "systemd": {
+                    "unit-files": [
+                        "example.service",
+                    ],
+                },
+            },
+        ],
+
+        # These are images for the containers above.
+        "images": [
+            {
+                # This is the ID for the container runtime (rkt or
+                # Docker) to identify an image.
+                "id": "sha512-XXXXXX",
+
+                # The location of this image; you specify either "uri"
+                # or "path", but not both.  If you choose to specify
+                # path, it is relative to the location of the JSON file
+                # that defines this container group.
+                "path": ...,
+                "uri": ...,
+
+                # Optionally, you may provide a signature file.
+                "signature": ...,
+            },
+        ],
+    }
+
+To deploy, you create a deployment bundle, copy that bundle to the
+target machine, and then run the ops scripts on the bundle.  You may
+remove the bundle after deployment.  A bundle includes:
+
+  * A JSON file defines a container group (usually named "pod.json").
+
+  * All required build artifacts: images, unit files, etc.  (Note that
+    we said that the "path" of an image is relative to pod.json.)
+
+The build artifacts are stored under /etc (for configuration files) and
+container runtime (for images).  The pod.json is also stored under /etc,
+which means you may redeploy prior versions of the same group that you
+have deployed to this machine, given that you have not cleaned them up.
