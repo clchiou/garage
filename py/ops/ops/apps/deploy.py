@@ -24,9 +24,15 @@ def deploy(args):
         deploy_fetch(pod)
         deploy_install(pod)
 
-    # Disable and stop right before we enable and start the new pod to
-    # reduce the service down time (note that we do not remove them so
-    # that you may redeploy them if this deployment fails).
+    # There should be only one active version of this container group;
+    # so we stop all others before we start this version. Note:
+    #
+    #   * We do this right before start to reduce the service down time.
+    #
+    #   * We do not remove them so that you may redeploy quickly if this
+    #     version fails.  The downside is, you will have to clean up the
+    #     non-active versions periodically.
+    #
     for other in pod.iter_pods():
         if other.version != pod.version:
             undeploy_disable(other)
