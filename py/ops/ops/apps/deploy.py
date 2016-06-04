@@ -18,9 +18,9 @@ def deploy(args):
     pod = make_pod(args)
     LOG.info('deploy %s:%s', pod.name, pod.version)
 
-    # If this group of containers has been deployed before, we may skip
-    # deploy_fetch and deploy_install.
-    if args.redeploy:
+    # If this group of containers has not been deployed before (i.e.,
+    # not a redeploy), we don't skip deploy_fetch and deploy_install.
+    if not args.redeploy:
         deploy_fetch(pod)
         deploy_install(pod)
 
