@@ -4,7 +4,7 @@ a "pod" (not to be confused with a Linux kernel cgroup).
 """
 
 __all__ = [
-    'ContainerGroup',
+    'ContainerGroupRepo',
 ]
 
 import json
@@ -13,6 +13,58 @@ from pathlib import Path
 
 
 LOG = logging.getLogger(__name__)
+
+
+class ContainerGroupRepo:
+    """The central repository of container groups."""
+
+    def __init__(self, path):
+        self.path = Path(path).absolute()
+
+    def get_pod_names(self):
+        try:
+            return sorted(path.name for path in self.path.iterdir())
+        except FileNotFoundError:
+            LOG.warning('cannot list directory: %s', self.path)
+            return []
+
+    def iter_pods_from_name(self, pod_name):
+        for version in self._iter_pod_versions(pod_name):
+            yield self._get_pod(pod_name, version)
+
+    def find_pod(self, path_or_name):
+        """Load a pod with either a path or a 'name:version' string."""
+        if Path(path_or_name).exists():
+            return ContainerGroup.load_json(path_or_name)
+        else:
+            pod_name, version = path_or_name.rsplit(':', 1)
+            return self._get_pod(pod_name, version)
+
+    def iter_pods(self, pod, exclude_self=False):
+        """Iterate versions of a pod."""
+        for version in self._iter_pod_versions(pod.name):
+            if exclude_self and pod.version == version:
+                continue
+            yield self._get_pod(pod.name, version)
+
+    def get_config_path(self, pod):
+        return self._get_config_path(pod.name, pod.version)
+
+    def _get_pod(self, pod_name, version):
+        path = self._get_config_path(pod_name, version)
+        return ContainerGroup.load_json(path)
+
+    def _iter_pod_versions(self, pod_name):
+        path = self.path / pod_name
+        try:
+            versions = sorted(int(p.name) for p in path.iterdir())
+        except FileNotFoundError:
+            LOG.warning('cannot list directory: %s', path)
+            versions = ()
+        yield from versions
+
+    def _get_config_path(self, pod_name, version):
+        return self.path / pod_name / str(version)
 
 
 class ContainerGroup:
@@ -47,39 +99,8 @@ class ContainerGroup:
             for image_data in pod_data.get('images', ())
         ]
 
-        self._root_config_path = None
-
-    @property
-    def root_config_path(self):
-        if self._root_config_path is None:
-            raise RuntimeError('ContainerGroup.root_config_path is not set')
-        return self._root_config_path
-
-    @root_config_path.setter
-    def root_config_path(self, root_config_path):
-        self._root_config_path = Path(root_config_path).absolute()
-
-    @property
-    def pod_config_path(self):
-        return self.root_config_path / self.name
-
-    @property
-    def config_path(self):
-        return self.pod_config_path / str(self.version)
-
-    def get_pod(self, version):
-        """Get pod for version."""
-        path = self.root_config_path / self.name / str(version)
-        pod = self.load_json(path)
-        pod.root_config_path = self.root_config_path
-        return pod
-
-    def iter_pods(self):
-        """Iterate pods of all versions."""
-        for path in self.config_path.parent.iterdir():
-            pod = self.load_json(path)
-            pod.root_config_path = self.root_config_path
-            yield pod
+    def __str__(self):
+        return '%s:%s' % (self.name, self.version)
 
 
 class Container:

@@ -59,7 +59,7 @@ def execute_many(cmds, *, cwd=None):
 
 
 def systemctl(command, name, *, sudo=True, **kwargs):
-    cmd = ['systemctl', command, name]
+    cmd = ['systemctl', '--quiet', command, name]
     if sudo:
         cmd.insert(0, 'sudo')
     return execute(cmd, **kwargs)

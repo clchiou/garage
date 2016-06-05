@@ -3,6 +3,7 @@
 import argparse
 
 from ops import scripting
+from ops.apps import basics
 from ops.apps import deploy
 
 
@@ -13,8 +14,9 @@ def main(argv):
     subparsers.dest = 'command'
     subparsers.required = True
 
-    for command in deploy.COMMANDS:
-        add_command(subparsers, command)
+    for commands in (basics.COMMANDS, deploy.COMMANDS):
+        for command in commands:
+            add_command(subparsers, command)
 
     args = parser.parse_args(argv[1:])
     scripting.process_arguments(parser, args)
@@ -22,7 +24,8 @@ def main(argv):
 
 
 def add_command(subparsers, command):
-    parser = subparsers.add_parser(command.__name__, help=command.__doc__)
+    name = command.__name__.replace('_', '-')
+    parser = subparsers.add_parser(name, help=command.__doc__)
     parser.set_defaults(command=command)
     scripting.add_arguments(parser)
     command.add_arguments(parser)
