@@ -202,6 +202,23 @@ def undeploy_remove(repo, pod):
         ['sudo', 'rm', '--recursive', '--force', repo.get_config_path(pod)])
 
 
+def cleanup(args):
+    """Clean up container groups that are not currently deployed."""
+    repo = ContainerGroupRepo(args.config)
+    for pod_name in repo.get_pod_names():
+        version = repo.get_current_version_from_name(pod_name)
+        pods = list(repo.iter_pods_from_name(pod_name))
+        num_removed = len(pods) - args.keep
+        for pod in pods:
+            if pod.version == version:
+                continue  # Don't clean up the currently deployed one.
+            if num_removed <= 0:
+                break
+            undeploy_remove(repo, pod)
+            num_removed -= 1
+    return 0
+
+
 def add_arguments(parser):
     basics.add_arguments(parser)
     parser.add_argument(
@@ -225,7 +242,16 @@ undeploy.add_arguments = lambda parser: (
 )
 
 
+cleanup.add_arguments = lambda parser: (
+    basics.add_arguments(parser),
+    parser.add_argument(
+        '--keep', type=int, default=1,
+        help="""keep latest N versions (default to %(default)s)""")
+)
+
+
 COMMANDS = [
     deploy,
     undeploy,
+    cleanup,
 ]
