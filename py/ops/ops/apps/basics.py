@@ -18,8 +18,9 @@ def list_pods(args):
     """List pod names."""
     repo = ContainerGroupRepo(args.config)
     for name in repo.get_pod_names():
+        version = repo.get_current_version_from_name(name)
         for pod in repo.iter_pods_from_name(name):
-            print(pod)
+            print('%s%s' % (pod, ' *' if pod.version == version else ''))
     return 0
 
 

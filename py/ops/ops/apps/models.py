@@ -16,21 +16,46 @@ LOG = logging.getLogger(__name__)
 
 
 class ContainerGroupRepo:
-    """The central repository of container groups."""
+    """The central repository of container groups.
+
+       Directory structure:
+
+         * ${ROOT}/pods/${NAME}/${VERSION}
+           Directory for a pod's config files.
+
+         * ${ROOT}/current/${NAME}
+           Symlink to the currently deployed pod.
+    """
 
     def __init__(self, path):
-        self.path = Path(path).absolute()
+        self._path = Path(path).absolute()
+        self._pods = self._path / 'pods'
+        self._current = self._path / 'current'
+
+    # Most methods should expect ContainerGroup object in their
+    # arguments except these few methods below.
 
     def get_pod_names(self):
         try:
-            return sorted(path.name for path in self.path.iterdir())
+            return sorted(path.name for path in self._pods.iterdir())
         except FileNotFoundError:
-            LOG.warning('cannot list directory: %s', self.path)
+            LOG.warning('cannot list directory: %s', self._pods)
             return []
 
     def iter_pods_from_name(self, pod_name):
         for version in self._iter_pod_versions(pod_name):
             yield self._get_pod(pod_name, version)
+
+    def get_current_version_from_name(self, pod_name):
+        """Return the version that is currently deployed."""
+        link = self._get_current_path(pod_name)
+        if not link.exists():
+            # No version of this pod has been deployed.
+            return None
+        if not link.is_symlink():
+            LOG.warning('not a symlink to pod: %s', link)
+            return None
+        return int(link.resolve().name)
 
     def find_pod(self, path_or_name):
         """Load a pod with either a path or a 'name:version' string."""
@@ -40,6 +65,9 @@ class ContainerGroupRepo:
             pod_name, version = path_or_name.rsplit(':', 1)
             return self._get_pod(pod_name, version)
 
+    # Below are "normal" methods that expect ContainerGroup object in
+    # their arguments.
+
     def iter_pods(self, pod, exclude_self=False):
         """Iterate versions of a pod."""
         for version in self._iter_pod_versions(pod.name):
@@ -47,7 +75,22 @@ class ContainerGroupRepo:
                 continue
             yield self._get_pod(pod.name, version)
 
+    def get_current_version(self, pod):
+        return self.get_current_version_from_name(pod.name)
+
+    def get_current_pod(self, pod):
+        """Return the currently deployed pod."""
+        version = self.get_current_version(pod)
+        if version is None:
+            return None
+        else:
+            return self._get_pod(pod.name, version)
+
+    def get_current_path(self, pod):
+        return self._get_current_path(pod.name)
+
     def get_config_path(self, pod):
+        """Return the directory for this pod's config files."""
         return self._get_config_path(pod.name, pod.version)
 
     def _get_pod(self, pod_name, version):
@@ -55,7 +98,7 @@ class ContainerGroupRepo:
         return ContainerGroup.load_json(path)
 
     def _iter_pod_versions(self, pod_name):
-        path = self.path / pod_name
+        path = self._pods / pod_name
         try:
             versions = sorted(int(p.name) for p in path.iterdir())
         except FileNotFoundError:
@@ -63,8 +106,11 @@ class ContainerGroupRepo:
             versions = ()
         yield from versions
 
+    def _get_current_path(self, pod_name):
+        return self._current / pod_name
+
     def _get_config_path(self, pod_name, version):
-        return self.path / pod_name / str(version)
+        return self._pods / pod_name / str(version)
 
 
 class ContainerGroup:

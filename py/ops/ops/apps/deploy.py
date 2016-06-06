@@ -5,6 +5,7 @@ __all__ = [
 ]
 
 import logging
+import os.path
 
 from ops import scripting
 from ops.apps import basics
@@ -28,8 +29,8 @@ def deploy(args):
         deploy_fetch(pod)
         deploy_install(repo, pod)
 
-    # There should be only one active version of this container group;
-    # so we stop all others before we start this version. Note:
+    # There should be only one active version of this container group.
+    # Note that:
     #
     #   * We do this right before start to reduce the service down time.
     #
@@ -37,11 +38,12 @@ def deploy(args):
     #     version fails.  The downside is, you will have to clean up the
     #     non-active versions periodically.
     #
-    for other in repo.iter_pods(pod, exclude_self=True):
-        undeploy_disable(other)
-        undeploy_stop(other)
+    current = repo.get_current_pod(pod)
+    if current is not None:
+        undeploy_disable(repo, current)
+        undeploy_stop(current)
 
-    deploy_enable(pod)
+    deploy_enable(repo, pod)
     deploy_start(pod)
 
     return 0
@@ -97,7 +99,7 @@ def deploy_install(repo, pod):
             raise AssertionError
 
 
-def deploy_enable(pod):
+def deploy_enable(repo, pod):
     """Install and enable containers to the process manager, but might
        not start them yet.
     """
@@ -117,6 +119,17 @@ def deploy_enable(pod):
                     systemctl.is_enabled(name)
         else:
             raise AssertionError
+    current_path = repo.get_current_path(pod)
+    scripting.execute(['sudo', 'mkdir', '--parents', current_path.parent])
+    scripting.execute([
+        'sudo', 'ln', '--symbolic',
+        # Unfortunately Path.relative_to doesn't work in this case.
+        os.path.relpath(
+            str(repo.get_config_path(pod)),
+            str(current_path.parent),
+        ),
+        current_path,
+    ])
 
 
 def deploy_start(pod):
@@ -135,14 +148,14 @@ def undeploy(args):
     repo = ContainerGroupRepo(args.config)
     pod = repo.find_pod(args.pod)
     LOG.info('%s - undeploy', pod)
-    undeploy_disable(pod)
+    undeploy_disable(repo, pod)
     undeploy_stop(pod)
     if args.remove:
         undeploy_remove(repo, pod)
     return 0
 
 
-def undeploy_disable(pod):
+def undeploy_disable(repo, pod):
     LOG.info('%s - disable containers', pod)
     for container in pod.containers:
         if container.systemd:
@@ -159,6 +172,9 @@ def undeploy_disable(pod):
                 scripting.execute(['sudo', 'rm', '--force', unit.system_path])
         else:
             raise AssertionError
+    if repo.get_current_version(pod) == pod.version:
+        scripting.execute(
+            ['sudo', 'rm', '--force', repo.get_current_path(pod)])
 
 
 def undeploy_stop(pod):
