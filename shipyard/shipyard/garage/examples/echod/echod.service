@@ -1,0 +1,8 @@
+[Unit]
+Description=echod
+
+[Service]
+Slice=machine.slice
+ExecStart=/usr/bin/rkt run --net=host python3 -- -m echod
+KillMode=mixed
+Restart=always
