@@ -194,7 +194,7 @@ def undeploy_remove(repo, pod):
     LOG.info('%s - remove configs and images', pod)
     for image in pod.images:
         retcode = scripting.execute(
-            ['sudo', 'rkt', 'image', 'rm', image.id], check=False)
+            ['rkt', 'image', 'rm', image.id], check=False)
         if retcode:
             LOG.warning('cannot safely remove image: %s (rc=%d)',
                         image.id, retcode)
