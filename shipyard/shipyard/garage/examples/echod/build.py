@@ -28,14 +28,12 @@ PATH = 'py/garage/examples/echod'
 )
 
 
-# Use generic Appc manifest and Dockerfile at the moment.
+# Use generic Appc manifest at the moment.
 (define_rule('tapeout')
  .with_doc("""Copy build artifacts.""")
  .with_build(lambda ps: (
      (ps['//base:build_out'] / 'manifest').write_text(
          to_path('//cpython:manifest').read_text()),
-     (ps['//base:build_out'] / 'Dockerfile').write_text(
-         to_path('//cpython:Dockerfile').read_text()),
      copy_pkg(ps, NAME),
  ))
  .depend('build')
