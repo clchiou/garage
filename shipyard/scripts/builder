@@ -28,10 +28,8 @@ def main():
                             help="""add parameter to foreman""")
         parser.add_argument('--foreman', action='append',
                             help="""send argument to foreman""")
-        parser.add_argument('--appc-image',
-                            help="""set Appc image output path""")
-        parser.add_argument('--docker-image',
-                            help="""set output Docker image tag""")
+        parser.add_argument('--out',
+                            help="""set output directory path""")
         parser.add_argument('rule', nargs='+',
                             help="""add build rule""")
 
@@ -59,12 +57,10 @@ def main():
     if not (root / '.git').is_dir():
         raise AssertionError('not garage root: %s' % root)
 
-    if args.build and args.appc_image:
-        appc_image = Path(args.appc_image)
-        if appc_image.exists():
-            raise FileExistsError('attempt to overwrite: %s' % appc_image)
+    if args.build and args.out:
+        out = Path(args.out).resolve()
     else:
-        appc_image = None
+        out = None
 
     cmd = ['docker', 'run']
     cmd.extend(['--name', build_name])
@@ -74,6 +70,8 @@ def main():
     cmd.extend(['--volume', '%s:/home/plumber/garage:ro' % root])
     for volume in args.volume or ():
         cmd.extend(['--volume', volume])
+    if out:
+        cmd.extend(['--volume', '%s:/home/plumber/out:rw' % out])
 
     cmd.append(args.builder)
 
@@ -91,26 +89,8 @@ def main():
 
     call(cmd)
 
-    if args.build:
-        if appc_image:
-            build_appc_image(build_name, appc_image)
-        if args.docker_image:
-            build_docker_image(build_name, args.docker_image)
-        call(['docker', 'rm', build_name])
-
-
-def build_appc_image(build_name, output):
-    image = '%s:/home/plumber/build/out/image.aci' % build_name
-    call(['docker', 'cp', image, str(output)])
-
-
-def build_docker_image(build_name, output):
-    with TemporaryDirectory() as build_dir:
-        build_dir = Path(build_dir)
-        for file in ('Dockerfile', 'rootfs.tar'):
-            path = '%s:/home/plumber/build/out/%s' % (build_name, file)
-            call(['docker', 'cp', path, str(build_dir / file)])
-        call(['docker', 'build', '--tag', output, str(build_dir)])
+    # Don't remove builder on crash so that you may examine it.
+    call(['docker', 'rm', build_name])
 
 
 def call(cmd):

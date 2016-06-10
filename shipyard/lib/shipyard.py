@@ -19,13 +19,16 @@ __all__ = [
     'python_pip_install',
     'python_copy_package',
     # Helpers for the build image phase.
+    'build_appc_image',
     'copy_libraries',
 ]
 
+import hashlib
 import itertools
 import logging
+from contextlib import ExitStack
 from pathlib import Path
-from subprocess import check_call, check_output
+from subprocess import PIPE, Popen, check_call, check_output
 
 
 LOG = logging.getLogger(__name__)
@@ -223,6 +226,50 @@ def python_copy_package(parameters, package_name, patterns=()):
 
 
 ### Helpers for the build image phase.
+
+
+# TODO: Encrypt and/or sign the image.
+def build_appc_image(src_dir, dst_dir):
+    LOG.info('build appc image: %s -> %s', src_dir, dst_dir)
+
+    for target in ('manifest', 'rootfs'):
+        target = src_dir / target
+        if not target.exists():
+            raise FileNotFoundError(str(target))
+
+    with ExitStack() as stack:
+        proc_tar = stack.enter_context(Popen(
+            ['tar', '--create', 'manifest', 'rootfs'],
+            stdout=PIPE,
+            cwd=str(src_dir),
+        ))
+
+        proc_gzip = stack.enter_context(Popen(
+            ['gzip'],
+            stdin=PIPE,
+            stdout=stack.enter_context((dst_dir / 'image.aci').open('wb')),
+        ))
+
+        sha512 = hashlib.sha512()
+        while True:
+            data = proc_tar.stdout.read(4096)
+            if not data:
+                break
+            sha512.update(data)
+            proc_gzip.stdin.write(data)
+
+        proc_tar.stdout.close()
+        proc_gzip.stdin.close()
+
+        (dst_dir / 'sha512').write_text('%s\n' % sha512.hexdigest())
+
+        retcode = proc_tar.wait()
+        if retcode != 0:
+            raise RuntimeError('error in tar: rc=%d' % retcode)
+
+        retcode = proc_gzip.wait()
+        if retcode != 0:
+            raise RuntimeError('error in gzip: rc=%d' % retcode)
 
 
 def copy_libraries(parameters, lib_dir, libnames):

@@ -6,6 +6,7 @@ from pathlib import Path
 import shipyard as shipyard_
 from foreman import define_parameter, define_rule, decorate_rule, to_path
 from shipyard import (
+    build_appc_image,
     call,
     ensure_directory,
     rsync,
@@ -36,9 +37,16 @@ LOG.addHandler(logging.NullHandler())
  .with_default(Path.home() / 'build/out')
 )
 (define_parameter('build_rootfs')
- .with_doc("""Location of final container image.""")
+ .with_doc("""Location of final container image data.""")
  .with_type(Path)
  .with_default(Path.home() / 'build/out/rootfs')
+)
+
+
+(define_parameter('out')
+ .with_doc("""Location of final build artifacts.""")
+ .with_type(Path)
+ .with_default(Path.home() / 'out')
 )
 
 
@@ -88,30 +96,8 @@ def tapeout(parameters):
     call(['sudo', 'chown', '--recursive', 'root:root', str(rootfs / 'etc')])
 
 
-@decorate_rule('tapeout')
-def build_appc_image(parameters):
-    """Build Appc image."""
-    build_out = parameters['build_out']
-    manifest = build_out / 'manifest'
-    if not manifest.exists():
-        raise FileNotFoundError(str(manifest))
-    call(['tar', 'czf', 'image.aci', 'manifest', 'rootfs'], cwd=str(build_out))
-    # TODO: Encrypt and/or sign the image.
-
-
-@decorate_rule('tapeout')
-def build_docker_image(parameters):
-    """Prepare Docker image data (not the final image yet)."""
-    build_out = parameters['build_out']
-    dockerfile = build_out / 'Dockerfile'
-    if not dockerfile.exists():
-        raise FileNotFoundError(str(dockerfile))
-    call(['tar', 'cf', str(build_out / 'rootfs.tar'), '.'],
-         cwd=str(build_out / 'rootfs'))
-
-
 (define_rule('build_image')
- .with_doc("""Build containerized images.""")
- .depend('build_appc_image')
- .depend('build_docker_image')
+ .with_doc("""Build containerized image.""")
+ .with_build(lambda ps: build_appc_image(ps['build_out'], ps['out']))
+ .depend('tapeout')
 )
