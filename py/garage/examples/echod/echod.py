@@ -1,13 +1,10 @@
 """A simple echo service."""
 
-__all__ = [
-    'main',
-]
-
 import argparse
 import asyncio
 import json
 import logging
+import sys
 
 from garage.asyncs.futures import one_completed
 from garage.asyncs.processes import ProcessOwner, process
@@ -15,7 +12,11 @@ from garage.asyncs.utils import CircuitBreaker, tcp_server
 from http2 import Protocol
 
 
-LOG = logging.getLogger(__name__)
+NAME = 'echod'
+
+
+LOG = logging.getLogger(NAME)
+LOG.addHandler(logging.NullHandler())
 
 
 @process
@@ -62,7 +63,7 @@ async def echo(request, response):
 
 
 def main(argv):
-    parser = argparse.ArgumentParser(prog='echod', description=__doc__)
+    parser = argparse.ArgumentParser(prog=NAME, description=__doc__)
     parser.add_argument(
         '--port', type=int, default=8080,
         help="""port to listen on (default to %(default)s)""")
@@ -104,3 +105,7 @@ def main(argv):
 
     LOG.info('exit')
     return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv))

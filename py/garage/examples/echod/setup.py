@@ -4,9 +4,7 @@ from setuptools import setup
 setup(
     name = 'echod',
     description = 'Echo service',
-    packages = [
-        'echod',
-    ],
+    py_modules = ['echod'],
     install_requires = [
         'garage',
         'http2',
