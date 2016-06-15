@@ -1,0 +1,20 @@
+{
+    "name": "example",
+    "version": ${version},
+    "containers": [
+        {
+            "name": "echod",
+            "systemd": {
+                "unit-files": [
+                    "echod.service"
+                ]
+            }
+        }
+    ],
+    "images": [
+        {
+            "id": "sha512-${sha512}",
+            "path": "image.aci"
+        }
+    ]
+}

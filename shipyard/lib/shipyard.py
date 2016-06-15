@@ -21,6 +21,7 @@ __all__ = [
     # Helpers for the build image phase.
     'build_appc_image',
     'copy_libraries',
+    'render_template',
 ]
 
 import hashlib
@@ -277,3 +278,19 @@ def copy_libraries(parameters, lib_dir, libnames):
     libs = list(itertools.chain.from_iterable(
         lib_dir.glob('%s*' % name) for name in libnames))
     rsync(libs, parameters['//base:build_rootfs'], relative=True, sudo=True)
+
+
+def render_template(
+        parameters, template_path, output_path, template_vars=None):
+    LOG.info('render %s', template_path)
+    mako_render = parameters['//host/mako:mako_render']
+    if not mako_render.is_file():
+        raise FileNotFoundError(str(mako_render))
+    cmd = [str(mako_render)]
+    if template_vars:
+        for name, value in template_vars.items():
+            cmd.append('--var')
+            cmd.append('%s=%s' % (name, value))
+    cmd.append(str(template_path.resolve()))
+    with output_path.open('wb') as output_file:
+        call(cmd, stdout=output_file)

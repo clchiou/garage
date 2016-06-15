@@ -1,6 +1,5 @@
 """Base part of the application image."""
 
-import logging
 from pathlib import Path
 
 import shipyard as shipyard_
@@ -13,14 +12,17 @@ from shipyard import (
 )
 
 
-LOG = logging.getLogger(__name__)
-LOG.addHandler(logging.NullHandler())
-
-
 (define_parameter('root')
  .with_doc("""Location of this repository.""")
  .with_type(Path)
  .with_default(Path(shipyard_.__file__).parent.parent.parent)
+)
+
+
+(define_parameter('build')
+ .with_doc("""Location of build artifacts.""")
+ .with_type(Path)
+ .with_default(Path.home() / 'build')
 )
 
 

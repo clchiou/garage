@@ -2,9 +2,10 @@
 
 from pathlib import Path
 
-from foreman import define_parameter, define_rule, to_path
+from foreman import decorate_rule, define_parameter, define_rule, to_path
 from shipyard import python_copy_and_build_package as build_pkg
 from shipyard import python_copy_package as copy_pkg
+from shipyard import render_template
 
 
 NAME = 'echod'
@@ -15,6 +16,12 @@ PATH = 'py/garage/examples/echod'
  .with_doc("""Location of the source.""")
  .with_type(Path)
  .with_derive(lambda ps: ps['//base:root'] / PATH)
+)
+
+
+(define_parameter('version')
+ .with_doc("""Version of this build.""")
+ .with_type(int)
 )
 
 
@@ -47,3 +54,29 @@ PATH = 'py/garage/examples/echod'
  .depend('tapeout')
  .depend('//base:build_image')
 )
+
+
+@decorate_rule('//host/mako:install')
+def build_configs(parameters):
+    """Build pod configs."""
+
+    version = parameters['version']
+    if version is None:
+        raise RuntimeError('no version is set')
+
+    sha512_path = parameters['//base:out'] / 'sha512'
+    if not sha512_path.is_file():
+        raise FileExistsError('not a file: %s' % sha512_path)
+
+    template_vars = {
+        'version': version,
+        'sha512': sha512_path.read_text().strip(),
+    }
+
+    for name in ('pod.json', 'echod.service'):
+        render_template(
+            parameters,
+            to_path('templates/%s' % name),
+            parameters['//base:out'] / name,
+            template_vars,
+        )

@@ -28,7 +28,7 @@ def main():
                             help="""add parameter to foreman""")
         parser.add_argument('--foreman', action='append',
                             help="""send argument to foreman""")
-        parser.add_argument('--out',
+        parser.add_argument('--out', required=True,
                             help="""set output directory path""")
         parser.add_argument('rule', nargs='+',
                             help="""add build rule""")
