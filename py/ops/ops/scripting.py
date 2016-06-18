@@ -4,12 +4,14 @@ __all__ = [
     # Scripting helpers.
     'execute',
     'execute_many',
+    'is_gzipped',
+    'remove_tree',
     'systemctl',
 ]
 
 import logging
 from functools import partial
-from subprocess import call, check_call
+from subprocess import call, check_call, check_output
 
 
 LOG = logging.getLogger(__name__)
@@ -41,21 +43,34 @@ def process_arguments(_, args):
 ### Scripting helpers.
 
 
-def execute(cmd, *, cwd=None, check=True):
+def execute(cmd, *, cwd=None, return_output=False, check=True):
     cmd = list(map(str, cmd))
     cwd = str(cwd) if cwd is not None else None
     if LOG.isEnabledFor(logging.DEBUG):
         LOG.debug('execute: %s # cwd = %s', ' '.join(cmd), cwd)
-    if not DRY_RUN:
-        if check:
-            return check_call(cmd, cwd=cwd)
-        else:
-            return call(cmd, cwd=cwd)
+    if DRY_RUN:
+        return
+    if return_output:
+        caller = check_output
+    elif check:
+        caller = check_call
+    else:
+        caller = call
+    return caller(cmd, cwd=cwd)
 
 
 def execute_many(cmds, *, cwd=None):
     for cmd in cmds:
         execute(cmd, cwd=cwd)
+
+
+def is_gzipped(path):
+    output = execute(['file', path], return_output=True)
+    return output and 'gzip compressed data' in output
+
+
+def remove_tree(path):
+    execute(['sudo', 'rm', '--force', '--recursive', path])
 
 
 def systemctl(command, name, *, sudo=True, **kwargs):

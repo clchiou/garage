@@ -6,6 +6,7 @@ __all__ = [
 
 import logging
 import os.path
+from subprocess import PIPE, Popen
 
 from ops import scripting
 from ops.apps import basics
@@ -19,15 +20,16 @@ LOG = logging.getLogger(__name__)
 def deploy(args):
     """Deploy a group of containers."""
 
-    repo = ContainerGroupRepo(args.config)
+    repo = ContainerGroupRepo(args.config_path, args.data_path)
     pod = repo.find_pod(args.pod)
     LOG.info('%s - deploy', pod)
 
     # If this group of containers has not been deployed before (i.e.,
-    # not a redeploy), we don't skip deploy_fetch and deploy_install.
+    # not a redeploy), we don't skip deploy_fetch, etc.
     if not args.redeploy:
         deploy_fetch(pod)
         deploy_install(repo, pod)
+        deploy_create_volumes(repo, pod)
 
     # There should be only one active version of this container group.
     # Note that:
@@ -49,14 +51,30 @@ def deploy(args):
     return 0
 
 
-# NOTE: deploy_fetch + deploy_install and undeploy_remove are inverse
-# operations to each other.
+# NOTE: deploy_fetch + deploy_install + deploy_create_volumes and
+# undeploy_remove are inverse operations to each other.
 
 
 def deploy_fetch(pod):
     """Fetch images."""
     LOG.info('%s - fetch images', pod)
+
+    cmd = ['rkt', 'image', 'list', '--fields=id', '--full', '--no-legend']
+    cmd_output = scripting.execute(cmd, return_output=True)
+    if cmd_output:
+        cmd_output = cmd_output.decode('ascii')
+        image_ids = frozenset(
+            image_id
+            for image_id in map(str.strip, cmd_output.split('\n'))
+            if image_id
+        )
+    else:
+        image_ids = frozenset()
+
     for image in pod.images:
+        if match_image_id(image.id, image_ids):
+            LOG.debug('skip fetching image %s', image.id)
+            continue
         cmd = ['rkt', 'fetch']
         if image.signature:
             cmd.append('--signature')
@@ -74,6 +92,13 @@ def deploy_fetch(pod):
         scripting.execute(cmd)
 
 
+def match_image_id(target_id, image_ids):
+    for image_id in image_ids:
+        if image_id.startswith(target_id) or target_id.startswith(image_id):
+            return True
+    return False
+
+
 def deploy_install(repo, pod):
     """Install config files so that you may later redeploy from here."""
     LOG.info('%s - install configs', pod)
@@ -82,6 +107,9 @@ def deploy_install(repo, pod):
     config_path = repo.get_config_path(pod)
     if config_path.exists():
         if config_path.samefile(bundle_path):
+            # If you are here, it means that you are deploying from
+            # installed config files, and you don't need to reinstall
+            # them again.
             return
         raise RuntimeError('attempt to overwrite dir: %s' % config_path)
     scripting.execute(['sudo', 'mkdir', '--parents', config_path])
@@ -99,6 +127,31 @@ def deploy_install(repo, pod):
             raise AssertionError
 
 
+def deploy_create_volumes(repo, pod):
+    """Create data volumes."""
+    LOG.info('%s - create data volumes', pod)
+    if not pod.volumes:
+        return
+    volume_root_path = repo.get_volume_path(pod)
+    for volume in pod.volumes:
+        volume_path = volume_root_path / volume.name
+        if volume_path.exists():
+            LOG.warning('volume exists: %s', volume_path)
+            continue
+        scripting.execute(['sudo', 'mkdir', '--parents', volume_path])
+        if volume.data:
+            data = pod.path.parent / volume.data
+            cmd = [
+                'tar',
+                '--extract',
+                '--file', data,
+                '--directory', volume_path,
+            ]
+            if scripting.is_gzipped(data):
+                cmd.append('--gzip')
+            scripting.execute(cmd)
+
+
 def deploy_enable(repo, pod):
     """Install and enable containers to the process manager, but might
        not start them yet.
@@ -110,6 +163,7 @@ def deploy_enable(repo, pod):
             # behave as you expected :(
             for unit in container.systemd.units:
                 scripting.execute(['sudo', 'cp', unit.path, unit.system_path])
+                systemd_make_rkt_dropin(repo, pod, unit)
                 if unit.is_templated:
                     names = unit.instances
                 else:
@@ -132,6 +186,46 @@ def deploy_enable(repo, pod):
     ])
 
 
+RKT_VOLUME_ARG = '--volume {name},kind=host,source={source},readOnly={ro}'
+RKT_MOUNT_ARG = '--mount volume={name},target={target}'
+
+
+def systemd_make_rkt_dropin(repo, pod, unit):
+    if not pod.volumes:
+        return
+    dropin_path = unit.dropin_path
+    scripting.execute(['sudo', 'mkdir', '--parents', dropin_path])
+    if scripting.DRY_RUN:
+        return
+    conf_path = dropin_path / '10-volumes.conf'
+    with Popen(['sudo', 'tee', str(conf_path)], stdin=PIPE) as conf_proc:
+        # TODO: Do we need to support other sections?
+        conf_proc.stdin.write(b'[Service]\n')
+        volume_root_path = repo.get_volume_path(pod)
+        for volume in pod.volumes:
+            arg = RKT_VOLUME_ARG.format(
+                name=volume.name,
+                source=str(volume_root_path / volume.name),
+                ro='true' if volume.read_only else 'false',
+            )
+            conf_proc.stdin.write(b'Environment="VOLUME_%s=%s"\n' % (
+                volume.name.encode('ascii'),
+                arg.encode('ascii'),
+            ))
+            arg = RKT_MOUNT_ARG.format(
+                name=volume.name,
+                target=str(volume.path),
+            )
+            conf_proc.stdin.write(b'Environment="MOUNT_%s=%s"\n' % (
+                volume.name.encode('ascii'),
+                arg.encode('ascii'),
+            ))
+        conf_proc.stdin.close()
+        retcode = conf_proc.wait()
+        if retcode != 0:
+            raise RuntimeError('tee %s: rc=%d', conf_path, retcode)
+
+
 def deploy_start(pod):
     LOG.info('%s - start containers', pod)
     for container in pod.containers:
@@ -145,7 +239,7 @@ def deploy_start(pod):
 
 def undeploy(args):
     """Undeploy a group of containers."""
-    repo = ContainerGroupRepo(args.config)
+    repo = ContainerGroupRepo(args.config_path, args.data_path)
     pod = repo.find_pod(args.pod)
     LOG.info('%s - undeploy', pod)
     undeploy_disable(repo, pod)
@@ -169,12 +263,12 @@ def undeploy_disable(repo, pod):
                     systemctl.disable(unit.name)
                 elif not unit.is_templated:
                     LOG.warning('service is not enabled: %s', unit.name)
-                scripting.execute(['sudo', 'rm', '--force', unit.system_path])
+                for path in (unit.system_path, unit.dropin_path):
+                    scripting.remove_tree(path)
         else:
             raise AssertionError
     if repo.get_current_version(pod) == pod.version:
-        scripting.execute(
-            ['sudo', 'rm', '--force', repo.get_current_path(pod)])
+        scripting.remove_tree(repo.get_current_path(pod))
 
 
 def undeploy_stop(pod):
@@ -198,14 +292,15 @@ def undeploy_remove(repo, pod):
         if retcode:
             LOG.warning('cannot safely remove image: %s (rc=%d)',
                         image.id, retcode)
-    scripting.execute(
-        ['sudo', 'rm', '--recursive', '--force', repo.get_config_path(pod)])
+    for path in (repo.get_config_path(pod), repo.get_volume_path(pod)):
+        scripting.remove_tree(path)
 
 
 def cleanup(args):
     """Clean up container groups that are not currently deployed."""
-    repo = ContainerGroupRepo(args.config)
+    repo = ContainerGroupRepo(args.config_path, args.data_path)
     for pod_name in repo.get_pod_names():
+        LOG.info('%s - cleanup', pod_name)
         version = repo.get_current_version_from_name(pod_name)
         pods = list(repo.iter_pods_from_name(pod_name))
         num_removed = len(pods) - args.keep
@@ -214,6 +309,8 @@ def cleanup(args):
                 continue  # Don't clean up the currently deployed one.
             if num_removed <= 0:
                 break
+            undeploy_disable(repo, pod)
+            undeploy_stop(pod)
             undeploy_remove(repo, pod)
             num_removed -= 1
     return 0

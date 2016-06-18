@@ -57,11 +57,13 @@ object like this:
             },
         ],
 
-        # These are images for the containers above.
+        # These are images for the containers above, and are usually
+        # only useful when you are deploying from a bundle (you may add
+        # bypass them with the `--redeploy` flag).
         "images": [
             {
-                # This is the ID for the container runtime (rkt or
-                # Docker) to identify an image.
+                # This is the ID for the container runtime (usually rkt)
+                # to identify an image.
                 "id": "sha512-XXXXXX",
 
                 # The location of this image; you specify either "uri"
@@ -73,6 +75,30 @@ object like this:
 
                 # Optionally, you may provide a signature file.
                 "signature": ...,
+            },
+        ],
+
+        # Stateful data volumes that are shared among containers of this
+        # pod.  They are _NOT_ shared across versions of pod, though.
+        # If you want to share stateful data across versions of pod, you
+        # probably should go for solutions like RDBMS.
+        "volumes": [
+            {
+                # Name of the volume, unique within the pod.
+                "name": "volume-name",
+
+                # The mount point, common to all containers of the pod.
+                # (This is less flexible than allowing different path
+                # for each container, but I guess this flexibility is
+                # not that useful and sometimes confusing in practice.)
+                "path": "/var/lib/example",
+
+                # Whether this volume is read-only.
+                "read-only": true,
+
+                # (Optional) Location of an archive for initial contents
+                # of files, relative to the location of the JSON file.
+                "data": "data.tar",
             },
         ],
     }

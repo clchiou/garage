@@ -20,17 +20,21 @@ class ContainerGroupRepo:
 
        Directory structure:
 
-         * ${ROOT}/pods/${NAME}/${VERSION}
+         * ${CONFIGS}/pods/${NAME}/${VERSION}
            Directory for a pod's config files.
 
-         * ${ROOT}/current/${NAME}
+         * ${CONFIGS}/current/${NAME}
            Symlink to the currently deployed pod.
+
+         * ${VOLUMES}/volumes/${NAME}/${VERSION}
+           Directory for a pod's data volumes.
     """
 
-    def __init__(self, path):
-        self._path = Path(path).absolute()
-        self._pods = self._path / 'pods'
-        self._current = self._path / 'current'
+    def __init__(self, config_path, data_path):
+        config_path = Path(config_path).absolute()
+        self._pods = config_path / 'pods'
+        self._current = config_path / 'current'
+        self._volumes = Path(data_path).absolute() / 'volumes'
 
     # Most methods should expect ContainerGroup object in their
     # arguments except these few methods below.
@@ -93,6 +97,9 @@ class ContainerGroupRepo:
         """Return the directory for this pod's config files."""
         return self._get_config_path(pod.name, pod.version)
 
+    def get_volume_path(self, pod):
+        return self._volumes / pod.name / str(pod.version)
+
     def _get_pod(self, pod_name, version):
         path = self._get_config_path(pod_name, version)
         return ContainerGroup.load_json(path)
@@ -117,7 +124,13 @@ class ContainerGroup:
 
     POD_JSON = 'pod.json'
 
-    PROP_NAMES = frozenset(('name', 'version', 'containers', 'images'))
+    PROP_NAMES = frozenset((
+        'name',
+        'version',
+        'containers',
+        'images',
+        'volumes',
+    ))
 
     @classmethod
     def load_json(cls, pod_path):
@@ -143,6 +156,11 @@ class ContainerGroup:
         self.images = [
             Image(self, image_data)
             for image_data in pod_data.get('images', ())
+        ]
+
+        self.volumes = [
+            Volume(self, volume_data)
+            for volume_data in pod_data.get('volumes', ())
         ]
 
     def __str__(self):
@@ -231,9 +249,12 @@ class Systemd:
         @property
         def system_path(self):
             """Path to the unit file under /etc/systemd/system."""
-            # We need this mainly because `systemctl link` is not what
-            # we expect it to be?
             return self.SYSTEM_PATH / self.name
+
+        @property
+        def dropin_path(self):
+            path = self.system_path
+            return path.with_name(path.name + '.d')
 
     def __init__(self, pod, container, systemd_data):
         ensure_names(self.PROP_NAMES, systemd_data)
@@ -273,6 +294,23 @@ class Image:
 
         signature = image_data.get('signature')
         self.signature = pod.path / signature if signature else None
+
+
+class Volume:
+
+    PROP_NAMES = frozenset(('name', 'path', 'read-only', 'data'))
+
+    def __init__(self, pod, volume_data):
+        ensure_names(self.PROP_NAMES, volume_data)
+
+        self.name = volume_data['name']
+
+        self.path = Path(volume_data['path'])
+
+        self.read_only = bool(volume_data['read-only'])
+
+        data = volume_data.get('data')
+        self.data = pod.path.parent / data if data else None
 
 
 def ensure_names(expect, actual):
