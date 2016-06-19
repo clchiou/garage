@@ -1,0 +1,22 @@
+{
+    "acKind": "ImageManifest",
+    "acVersion": "0.8.2",
+    "name": "test-image",
+    "labels": [
+        {
+            "name": "os",
+            "value": "linux"
+        },
+        {
+            "name": "arch",
+            "value": "amd64"
+        }
+    ],
+    "app": {
+        "exec": [
+            "/bin/bash"
+        ],
+        "user": "65534",
+        "group": "65534"
+    }
+}

@@ -1,9 +1,15 @@
 import unittest
 
+import getpass
 from subprocess import call, check_call, check_output
 
 
 class PkgsTest(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        # Make sure we are inside a container.
+        assert getpass.getuser() == 'plumber'
 
     def test_install_pkgs(self):
 
