@@ -28,7 +28,7 @@ def main():
                             help="""add parameter to foreman""")
         parser.add_argument('--foreman', action='append',
                             help="""send argument to foreman""")
-        parser.add_argument('--out', required=True,
+        parser.add_argument('--output', required=True,
                             help="""set output directory path""")
         parser.add_argument('rule', nargs='+',
                             help="""add build rule""")
@@ -57,10 +57,10 @@ def main():
     if not (root / '.git').is_dir():
         raise AssertionError('not garage root: %s' % root)
 
-    if args.build and args.out:
-        out = Path(args.out).resolve()
+    if args.build and args.output:
+        output = Path(args.output).resolve()
     else:
-        out = None
+        output = None
 
     cmd = ['docker', 'run']
     cmd.extend(['--name', build_name])
@@ -70,8 +70,8 @@ def main():
     cmd.extend(['--volume', '%s:/home/plumber/garage:ro' % root])
     for volume in args.volume or ():
         cmd.extend(['--volume', volume])
-    if out:
-        cmd.extend(['--volume', '%s:/home/plumber/out:rw' % out])
+    if output:
+        cmd.extend(['--volume', '%s:/home/plumber/output:rw' % output])
 
     cmd.append(args.builder)
 

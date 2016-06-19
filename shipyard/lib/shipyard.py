@@ -283,14 +283,22 @@ def copy_libraries(parameters, lib_dir, libnames):
 def render_template(
         parameters, template_path, output_path, template_vars=None):
     LOG.info('render %s', template_path)
-    mako_render = parameters['//host/mako:mako_render']
-    if not mako_render.is_file():
-        raise FileNotFoundError(str(mako_render))
-    cmd = [str(mako_render)]
+
+    python = parameters['//host/cpython:python']
+    if not python.is_file():
+        raise FileNotFoundError(str(python))
+
+    render = Path(__file__).parent / 'render.py'
+    if not render.is_file():
+        raise FileNotFoundError(str(render))
+
+    cmd = [str(python), str(render)]
     if template_vars:
         for name, value in template_vars.items():
             cmd.append('--var')
             cmd.append('%s=%s' % (name, value))
-    cmd.append(str(template_path.resolve()))
-    with output_path.open('wb') as output_file:
-        call(cmd, stdout=output_file)
+    cmd.append('--output')
+    cmd.append(str(output_path.absolute()))
+    cmd.append(str(template_path.relative_to(Path.home())))
+
+    call(cmd, cwd=str(Path.home()))

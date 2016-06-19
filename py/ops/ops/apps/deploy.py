@@ -142,6 +142,7 @@ def deploy_create_volumes(repo, pod):
         if volume.data:
             data = pod.path.parent / volume.data
             cmd = [
+                'sudo',
                 'tar',
                 '--extract',
                 '--file', data,

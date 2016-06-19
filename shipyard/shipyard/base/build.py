@@ -45,10 +45,10 @@ from shipyard import (
 )
 
 
-(define_parameter('out')
+(define_parameter('output')
  .with_doc("""Location of final build artifacts.""")
  .with_type(Path)
- .with_default(Path.home() / 'out')
+ .with_default(Path.home() / 'output')
 )
 
 
@@ -100,6 +100,6 @@ def tapeout(parameters):
 
 (define_rule('build_image')
  .with_doc("""Build containerized image.""")
- .with_build(lambda ps: build_appc_image(ps['build_out'], ps['out']))
+ .with_build(lambda ps: build_appc_image(ps['build_out'], ps['output']))
  .depend('tapeout')
 )

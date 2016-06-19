@@ -1,22 +1,7 @@
-"""Build echod."""
-
-from pathlib import Path
+"""Build an image that uses CPython http.server."""
 
 from foreman import decorate_rule, define_parameter, define_rule, to_path
-from shipyard import python_copy_and_build_package as build_pkg
-from shipyard import python_copy_package as copy_pkg
-from shipyard import render_template
-
-
-NAME = 'echod'
-PATH = 'py/garage/examples/echod'
-
-
-(define_parameter('src')
- .with_doc("""Location of the source.""")
- .with_type(Path)
- .with_derive(lambda ps: ps['//base:root'] / PATH)
-)
+from shipyard import render_template, rsync
 
 
 (define_parameter('version')
@@ -27,11 +12,8 @@ PATH = 'py/garage/examples/echod'
 
 (define_rule('build')
  .with_doc(__doc__)
- .with_build(lambda ps: build_pkg(ps, NAME, src=ps['src']))
  .depend('//base:build')
  .depend('//cpython:build')
- .depend('//garage:build')
- .depend('//http2:build')
 )
 
 
@@ -41,7 +23,6 @@ PATH = 'py/garage/examples/echod'
  .with_build(lambda ps: (
      (ps['//base:build_out'] / 'manifest').write_text(
          to_path('//cpython:manifest').read_text()),
-     copy_pkg(ps, NAME),
  ))
  .depend('build')
  .reverse_depend('//base:tapeout')
@@ -73,10 +54,12 @@ def build_configs(parameters):
         'sha512': sha512_path.read_text().strip(),
     }
 
-    for name in ('pod.json', 'echod.service'):
+    for name in ('pod.json', 'httpd.service'):
         render_template(
             parameters,
             to_path('templates/%s' % name),
             parameters['//base:output'] / name,
             template_vars,
         )
+
+    rsync([to_path('data.tgz')], parameters['//base:output'])

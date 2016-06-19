@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Shorthand for building echod; sample arguments:
-#   ./scripts/do-build-echod.sh --builder BUILDER --output OUTPUT
+# Shorthand for building httpd; sample arguments:
+#   ./scripts/do-build-httpd.sh --builder BUILDER --output OUTPUT
 
 set -o errexit -o nounset -o pipefail
 
@@ -17,9 +17,9 @@ main() {
   set -o xtrace
 
   "${BUILDER}" build \
-    //garage/examples/echod:build_image \
-    //garage/examples/echod:build_configs \
-    --parameter "//garage/examples/echod:version=${VERSION}" \
+    //cpython/examples/httpd:build_image \
+    //cpython/examples/httpd:build_configs \
+    --parameter "//cpython/examples/httpd:version=${VERSION}" \
     "${@}"
 }
 

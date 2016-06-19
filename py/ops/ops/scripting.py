@@ -66,7 +66,7 @@ def execute_many(cmds, *, cwd=None):
 
 def is_gzipped(path):
     output = execute(['file', path], return_output=True)
-    return output and 'gzip compressed data' in output
+    return output and b'gzip compressed data' in output
 
 
 def remove_tree(path):
