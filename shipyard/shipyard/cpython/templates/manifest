@@ -27,6 +27,7 @@
                 "name": "PYTHONIOENCODING",
                 "value": "UTF-8"
             }
-        ]
+        ],
+        "workingDirectory": "${context.get('working_directory', '/')}"
     }
 }

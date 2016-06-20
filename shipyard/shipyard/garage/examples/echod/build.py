@@ -2,10 +2,13 @@
 
 from pathlib import Path
 
-from foreman import decorate_rule, define_parameter, define_rule, to_path
+from foreman import define_parameter, define_rule
 from shipyard import python_copy_and_build_package as build_pkg
 from shipyard import python_copy_package as copy_pkg
-from shipyard import render_template
+from shipyard import (
+    render_appc_manifest,
+    render_bundle_files,
+)
 
 
 NAME = 'echod'
@@ -35,15 +38,14 @@ PATH = 'py/garage/examples/echod'
 )
 
 
-# Use generic Appc manifest at the moment.
 (define_rule('tapeout')
  .with_doc("""Copy build artifacts.""")
  .with_build(lambda ps: (
-     (ps['//base:build_out'] / 'manifest').write_text(
-         to_path('//cpython:manifest').read_text()),
+     render_appc_manifest(ps, '//cpython:templates/manifest'),
      copy_pkg(ps, NAME),
  ))
  .depend('build')
+ .depend('//host/mako:install')
  .reverse_depend('//base:tapeout')
  .reverse_depend('//cpython:tapeout')
 )
@@ -56,27 +58,11 @@ PATH = 'py/garage/examples/echod'
 )
 
 
-@decorate_rule('//host/mako:install')
-def build_configs(parameters):
-    """Build pod configs."""
-
-    version = parameters['version']
-    if version is None:
-        raise RuntimeError('no version is set')
-
-    sha512_path = parameters['//base:output'] / 'sha512'
-    if not sha512_path.is_file():
-        raise FileExistsError('not a file: %s' % sha512_path)
-
-    template_vars = {
-        'version': version,
-        'sha512': sha512_path.read_text().strip(),
-    }
-
-    for name in ('pod.json', 'echod.service'):
-        render_template(
-            parameters,
-            to_path('templates/%s' % name),
-            parameters['//base:output'] / name,
-            template_vars,
-        )
+(define_rule('build_configs')
+ .with_doc("""Build pod configs.""")
+ .with_build(lambda ps: render_bundle_files(ps, [
+     ('templates/%s' % name, ps['//base:output'] / name)
+     for name in ('pod.json', 'echod.service')
+ ]))
+ .depend('//host/mako:install')
+)

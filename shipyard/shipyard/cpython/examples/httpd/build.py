@@ -1,7 +1,11 @@
 """Build an image that uses CPython http.server."""
 
-from foreman import decorate_rule, define_parameter, define_rule, to_path
-from shipyard import render_template, rsync
+from foreman import define_parameter, define_rule, to_path
+from shipyard import (
+    render_appc_manifest,
+    render_bundle_files,
+    rsync,
+)
 
 
 (define_parameter('version')
@@ -17,14 +21,14 @@ from shipyard import render_template, rsync
 )
 
 
-# Use generic Appc manifest at the moment.
+# XXX: Unfortunately `working_directory` has to be kept in sync with
+# pod.json and httpd.service, which is somewhat error-prone.
 (define_rule('tapeout')
  .with_doc("""Copy build artifacts.""")
- .with_build(lambda ps: (
-     (ps['//base:build_out'] / 'manifest').write_text(
-         to_path('//cpython:manifest').read_text()),
- ))
+ .with_build(lambda ps: render_appc_manifest(
+     ps, '//cpython:templates/manifest', {'working_directory': '/var/www'}))
  .depend('build')
+ .depend('//host/mako:install')
  .reverse_depend('//base:tapeout')
  .reverse_depend('//cpython:tapeout')
 )
@@ -37,29 +41,14 @@ from shipyard import render_template, rsync
 )
 
 
-@decorate_rule('//host/mako:install')
-def build_configs(parameters):
-    """Build pod configs."""
-
-    version = parameters['version']
-    if version is None:
-        raise RuntimeError('no version is set')
-
-    sha512_path = parameters['//base:output'] / 'sha512'
-    if not sha512_path.is_file():
-        raise FileExistsError('not a file: %s' % sha512_path)
-
-    template_vars = {
-        'version': version,
-        'sha512': sha512_path.read_text().strip(),
-    }
-
-    for name in ('pod.json', 'httpd.service'):
-        render_template(
-            parameters,
-            to_path('templates/%s' % name),
-            parameters['//base:output'] / name,
-            template_vars,
-        )
-
-    rsync([to_path('data.tgz')], parameters['//base:output'])
+(define_rule('build_configs')
+ .with_doc("""Build pod configs.""")
+ .with_build(lambda ps: (
+     render_bundle_files(ps, [
+         ('templates/%s' % name, ps['//base:output'] / name)
+         for name in ('pod.json', 'httpd.service')
+     ]),
+     rsync([to_path('data.tgz')], ps['//base:output']),
+ ))
+ .depend('//host/mako:install')
+)

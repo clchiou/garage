@@ -3,6 +3,6 @@ Description=echod
 
 [Service]
 Slice=machine.slice
-ExecStart=/usr/bin/rkt run --net=host ${sha512} -- -m echod
+ExecStart=/usr/bin/rkt run --net=host sha512-${sha512} -- -m echod
 KillMode=mixed
 Restart=always

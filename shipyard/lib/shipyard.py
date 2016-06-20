@@ -18,9 +18,11 @@ __all__ = [
     'python_copy_and_build_package',
     'python_pip_install',
     'python_copy_package',
-    # Helpers for the build image phase.
+    # Helpers for the build image/configs phases.
     'build_appc_image',
     'copy_libraries',
+    'render_appc_manifest',
+    'render_bundle_files',
     'render_template',
 ]
 
@@ -30,6 +32,8 @@ import logging
 from contextlib import ExitStack
 from pathlib import Path
 from subprocess import PIPE, Popen, check_call, check_output
+
+from foreman import to_path
 
 
 LOG = logging.getLogger(__name__)
@@ -278,6 +282,39 @@ def copy_libraries(parameters, lib_dir, libnames):
     libs = list(itertools.chain.from_iterable(
         lib_dir.glob('%s*' % name) for name in libnames))
     rsync(libs, parameters['//base:build_rootfs'], relative=True, sudo=True)
+
+
+def render_appc_manifest(parameters, manifest_label, template_vars=None):
+    """Helper for creating appc image manifest."""
+    render_template(
+        parameters,
+        to_path(manifest_label),
+        parameters['//base:build_out'] / 'manifest',
+        template_vars=template_vars,
+    )
+
+
+def render_bundle_files(parameters, label_path_pairs, template_vars=None):
+    """Helper for creating some basic deployment bundle files by
+       following some conventions.
+    """
+
+    template_vars = template_vars or {}
+
+    if 'version' not in template_vars:
+        version = parameters['version']
+        if version is None:
+            raise RuntimeError('no version is set')
+        template_vars['version'] = version
+
+    if 'sha512' not in template_vars:
+        sha512_path = parameters['//base:output'] / 'sha512'
+        if not sha512_path.is_file():
+            raise FileExistsError('not a file: %s' % sha512_path)
+        template_vars['sha512'] = sha512_path.read_text().strip()
+
+    for label, path in label_path_pairs:
+        render_template(parameters, to_path(label), path, template_vars)
 
 
 def render_template(
