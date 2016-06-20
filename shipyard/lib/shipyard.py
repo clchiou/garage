@@ -18,7 +18,7 @@ __all__ = [
     'python_copy_and_build_package',
     'python_pip_install',
     'python_copy_package',
-    # Helpers for the build image/configs phases.
+    # Helpers for the build image/pod phases.
     'build_appc_image',
     'copy_libraries',
     'render_appc_manifest',

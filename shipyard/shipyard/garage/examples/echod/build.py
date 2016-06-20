@@ -58,11 +58,12 @@ PATH = 'py/garage/examples/echod'
 )
 
 
-(define_rule('build_configs')
- .with_doc("""Build pod configs.""")
+(define_rule('build_pod')
+ .with_doc("""Build deployable bundle for a pod.""")
  .with_build(lambda ps: render_bundle_files(ps, [
      ('templates/%s' % name, ps['//base:output'] / name)
      for name in ('pod.json', 'echod.service')
  ]))
+ .depend('build_image')
  .depend('//host/mako:install')
 )

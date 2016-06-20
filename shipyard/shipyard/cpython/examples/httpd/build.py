@@ -41,8 +41,8 @@ from shipyard import (
 )
 
 
-(define_rule('build_configs')
- .with_doc("""Build pod configs.""")
+(define_rule('build_pod')
+ .with_doc("""Build deployable bundle for a pod.""")
  .with_build(lambda ps: (
      render_bundle_files(ps, [
          ('templates/%s' % name, ps['//base:output'] / name)
@@ -50,5 +50,6 @@ from shipyard import (
      ]),
      rsync([to_path('data.tgz')], ps['//base:output']),
  ))
+ .depend('build_image')
  .depend('//host/mako:install')
 )
