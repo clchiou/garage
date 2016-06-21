@@ -7,9 +7,8 @@ from pathlib import Path
 from foreman import define_parameter, define_rule, decorate_rule
 from shipyard import (
 
-    call,
-    call_with_output,
     ensure_directory,
+    execute,
     git_clone,
     rsync,
 
@@ -80,14 +79,14 @@ def build(parameters):
     build_src = parameters['build_src']
     if not build_src.exists():
         LOG.info('fetch V8')
-        call(['fetch', 'v8'], cwd=str(build_src.parent))
+        execute(['fetch', 'v8'], cwd=build_src.parent)
 
     fix_gold_version(parameters)
 
     if not (parameters['out_target'] / 'lib.target/libv8.so').exists():
         LOG.info('build V8')
-        call(['make', 'library=shared', parameters['target']],
-             cwd=str(build_src))
+        execute(['make', 'library=shared', parameters['target']],
+                cwd=build_src)
 
 
 def fix_gold_version(parameters):
@@ -102,12 +101,12 @@ def fix_gold_version(parameters):
     if not gold.exists():
         return
 
-    if old_version not in call_with_output([str(gold), '--version']):
+    if old_version not in execute([gold, '--version'], return_output=True):
         return
 
-    new_gold = call_with_output(['which', 'gold'])
+    new_gold = execute(['which', 'gold'], return_output=True)
     new_gold = Path(new_gold.decode('ascii').strip())
-    if old_version in call_with_output([str(new_gold), '--version']):
+    if old_version in execute([new_gold, '--version'], return_output=True):
         raise RuntimeError('gold version too old')
 
     LOG.info('replace bundled gold with: %s', new_gold)

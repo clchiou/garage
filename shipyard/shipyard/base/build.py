@@ -6,8 +6,8 @@ import shipyard as shipyard_
 from foreman import define_parameter, define_rule, decorate_rule, to_path
 from shipyard import (
     build_appc_image,
-    call,
     ensure_directory,
+    execute,
     rsync,
 )
 
@@ -75,10 +75,10 @@ def build(parameters):
     ensure_directory(parameters['build_rootfs'])
 
     if parameters['update']:
-        call(['sudo', 'apt-get', 'update'])
-        call(['sudo', 'apt-get', '--yes', 'upgrade'])
+        execute(['sudo', 'apt-get', 'update'])
+        execute(['sudo', 'apt-get', '--yes', 'upgrade'])
 
-    call([
+    execute([
         'sudo', 'apt-get', 'install', '--yes',
         'git',  # shipyard.git_clone()
         'rsync',  # shipyard.rsync()
@@ -95,7 +95,7 @@ def tapeout(parameters):
     libs = ['/lib/x86_64-linux-gnu', '/lib64']
     rsync([to_path('etc')], rootfs, sudo=True)
     rsync(libs, rootfs, relative=True, sudo=True)
-    call(['sudo', 'chown', '--recursive', 'root:root', str(rootfs / 'etc')])
+    execute(['sudo', 'chown', '--recursive', 'root:root', rootfs / 'etc'])
 
 
 (define_rule('build_image')

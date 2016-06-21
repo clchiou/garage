@@ -7,8 +7,8 @@ from pathlib import Path
 from foreman import define_parameter, define_rule, decorate_rule
 from shipyard import (
 
-    call,
     ensure_directory,
+    execute,
     rsync,
     tar_extract,
     wget,
@@ -113,14 +113,14 @@ def build(parameters):
 
     if not (src_path / 'Makefile').exists():
         LOG.info('configure cpython')
-        cmd = ['./configure', '--prefix', str(parameters['prefix'])]
-        call(cmd, cwd=str(src_path))
+        cmd = ['./configure', '--prefix', parameters['prefix']]
+        execute(cmd, cwd=src_path)
 
     if not (src_path / 'python').exists():
         LOG.info('build cpython')
-        call(['make'], cwd=str(src_path))
+        execute(['make'], cwd=src_path)
         LOG.info('install cpython')
-        call(['sudo', 'make', 'install'], cwd=str(src_path))
+        execute(['sudo', 'make', 'install'], cwd=src_path)
 
 
 (define_rule('install_deps')

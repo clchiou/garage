@@ -2,9 +2,8 @@
 
 __all__ = [
     # Generic scripting helpers.
-    'call',
-    'call_with_output',
     'ensure_directory',
+    'execute',
     'git_clone',
     'rsync',
     'run_commands',
@@ -42,20 +41,6 @@ LOG = logging.getLogger(__name__)
 ### Generic scripting helpers.
 
 
-def call(args, **kwargs):
-    """Log and then call subprocess.check_call."""
-    if LOG.isEnabledFor(logging.DEBUG):
-        LOG.debug('call: %s # cwd = %r', ' '.join(args), kwargs.get('cwd'))
-    check_call(args, **kwargs)
-
-
-def call_with_output(args, **kwargs):
-    """Log and then call subprocess.check_output."""
-    if LOG.isEnabledFor(logging.DEBUG):
-        LOG.debug('call: %s # cwd = %r', ' '.join(args), kwargs.get('cwd'))
-    return check_output(args, **kwargs)
-
-
 def ensure_directory(path, mode=0o777):
     """Return True when the directory exists; else return false and
        create the directory.
@@ -71,6 +56,19 @@ def ensure_directory(path, mode=0o777):
     return False
 
 
+def execute(args, *, return_output=False, cwd=None):
+    """Log and then call subprocess.check_call."""
+    args = list(map(str, args))
+    if LOG.isEnabledFor(logging.DEBUG):
+        LOG.debug('execute: %s # cwd = %r', ' '.join(args), cwd)
+    if return_output:
+        caller = check_output
+    else:
+        caller = check_call
+    cwd = str(cwd) if cwd else None
+    return caller(args, cwd=cwd)
+
+
 def git_clone(repo, local_path=None, checkout=None):
     if local_path and local_path.exists():
         if not local_path.is_dir():
@@ -79,22 +77,21 @@ def git_clone(repo, local_path=None, checkout=None):
         cmd = ['git', 'clone', repo]
         if local_path:
             cmd.append(local_path.name)
-            cwd = str(local_path.parent)
+            cwd = local_path.parent
         else:
             cwd = None
         LOG.info('clone git repo %s', repo)
-        call(cmd, cwd=cwd)
+        execute(cmd, cwd=cwd)
     if checkout:
         LOG.info('checkout %s %s', repo, checkout)
-        call(['git', 'checkout', checkout])
+        execute(['git', 'checkout', checkout])
 
 
 def run_commands(commands_str, path=None):
-    cwd = str(path) if path else None
     for command in commands_str.split('\n'):
         command = command.strip().split()
         if command:
-            call(command, cwd=cwd)
+            execute(command, cwd=path)
 
 
 def rsync(srcs, dst, *,
@@ -110,12 +107,12 @@ def rsync(srcs, dst, *,
     if relative:
         cmd.append('--relative')
     for include in includes:
-        cmd.extend(['--include', str(include)])
+        cmd.extend(['--include', include])
     for exclude in excludes:
-        cmd.extend(['--exclude', str(exclude)])
-    cmd.extend(map(str, srcs))
-    cmd.append(str(dst))
-    call(cmd)
+        cmd.extend(['--exclude', exclude])
+    cmd.extend(srcs)
+    cmd.append(dst)
+    execute(cmd)
 
 
 def tar_extract(tarball_path, output_path=None):
@@ -132,21 +129,21 @@ def tar_extract(tarball_path, output_path=None):
         compress_flag = '--xz'
     else:
         raise RuntimeError('cannot parse tarball suffix: %s' % tarball_path)
-    cmd = ['tar', '--extract', '--file', str(tarball_path)]
+    cmd = ['tar', '--extract', '--file', tarball_path]
     if compress_flag:
         cmd.append(compress_flag)
     if output_path:
-        cmd.extend(['--directory', str(output_path)])
+        cmd.extend(['--directory', output_path])
     LOG.info('extract %s', tarball_path)
-    call(cmd)
+    execute(cmd)
 
 
 def wget(uri, output_path=None):
     cmd = ['wget', uri]
     if output_path:
-        cmd.extend(['--output-document', str(output_path)])
+        cmd.extend(['--output-document', output_path])
     LOG.info('download %s', uri)
-    call(cmd)
+    execute(cmd)
 
 
 ### OS Package helpers.
@@ -157,7 +154,7 @@ def install_packages(pkgs):
         LOG.info('install %s', ' '.join(pkgs))
     cmd = ['sudo', 'apt-get', 'install', '--yes']
     cmd.extend(pkgs)
-    call(cmd)
+    execute(cmd)
 
 
 ### Python-specific helpers.
@@ -179,7 +176,7 @@ def python_copy_source(parameters, package_name, src=None, build_src=None):
     # Just a sanity check...
     setup_py = src / 'setup.py'
     if not setup_py.is_file():
-        raise FileNotFoundError(setup_py)
+        raise FileNotFoundError(str(setup_py))
 
     # Copy src into build_src (and build from there).
     # NOTE: Appending slash to src is a rsync trick.
@@ -200,11 +197,11 @@ def python_build_package(parameters, package_name, build_src):
     LOG.info('build %s', package_name)
     python = parameters['//cpython:python']
     if not (build_src / 'build').exists():
-        call([str(python), 'setup.py', 'build'], cwd=str(build_src))
+        execute([python, 'setup.py', 'build'], cwd=build_src)
     site_packages = parameters['//cpython:modules'] / 'site-packages'
     if not list(site_packages.glob('%s*' % package_name)):
-        call(['sudo', '--preserve-env', str(python), 'setup.py', 'install'],
-             cwd=str(build_src))
+        execute(['sudo', '--preserve-env', python, 'setup.py', 'install'],
+                cwd=build_src)
 
 
 def python_copy_and_build_package(
@@ -215,10 +212,9 @@ def python_copy_and_build_package(
 
 def python_pip_install(parameters, package_name):
     LOG.info('install %s', package_name)
-    pip = parameters['//cpython:pip']
     site_packages = parameters['//cpython:modules'] / 'site-packages'
     if not list(site_packages.glob('%s*' % package_name)):
-        call(['sudo', str(pip), 'install', package_name])
+        execute(['sudo', parameters['//cpython:pip'], 'install', package_name])
 
 
 def python_copy_package(parameters, package_name, patterns=()):
@@ -329,13 +325,13 @@ def render_template(
     if not render.is_file():
         raise FileNotFoundError(str(render))
 
-    cmd = [str(python), str(render)]
+    cmd = [python, render]
     if template_vars:
         for name, value in template_vars.items():
             cmd.append('--var')
             cmd.append('%s=%s' % (name, value))
     cmd.append('--output')
-    cmd.append(str(output_path.absolute()))
-    cmd.append(str(template_path.relative_to(Path.home())))
+    cmd.append(output_path.absolute())
+    cmd.append(template_path.relative_to(Path.home()))
 
-    call(cmd, cwd=str(Path.home()))
+    execute(cmd, cwd=Path.home())
