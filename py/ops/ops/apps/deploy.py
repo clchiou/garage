@@ -221,6 +221,10 @@ def systemd_make_rkt_dropin(repo, pod, unit):
                 volume.name.encode('ascii'),
                 arg.encode('ascii'),
             ))
+            conf_proc.stdin.write(b'Environment="MOUNT_POINT_%s=%s"\n' % (
+                volume.name.encode('ascii'),
+                str(volume.path).encode('ascii'),
+            ))
         conf_proc.stdin.close()
         retcode = conf_proc.wait()
         if retcode != 0:
