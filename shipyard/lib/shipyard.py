@@ -27,6 +27,7 @@ __all__ = [
 
 import hashlib
 import itertools
+import json
 import logging
 from contextlib import ExitStack
 from pathlib import Path
@@ -328,8 +329,9 @@ def render_template(
     cmd = [python, render]
     if template_vars:
         for name, value in template_vars.items():
-            cmd.append('--var')
-            cmd.append('%s=%s' % (name, value))
+            cmd.append('--json-value')
+            cmd.append(name)
+            cmd.append(json.dumps(value))
     cmd.append('--output')
     cmd.append(output_path.absolute())
     cmd.append(template_path.relative_to(Path.home()))

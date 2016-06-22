@@ -1,6 +1,7 @@
 """Render a Mako template."""
 
 import argparse
+import json
 import sys
 
 from mako.lookup import TemplateLookup
@@ -15,15 +16,15 @@ def main(argv):
         '--dir', action='append', default=('.',),
         help="""add directory for looking up Mako templates""")
     parser.add_argument(
-        '--var', metavar='NAME=VALUE', action='append',
-        help="""add a variable value.""")
+        '--json-value', metavar=('NAME', 'VALUE'), nargs=2, action='append',
+        help="""add a variable with JSON-encoded value.""")
     parser.add_argument('template', help="""set Mako template to render""")
     args = parser.parse_args(argv[1:])
 
     template_vars = {}
-    for pair in args.var or ():
-        name, value = pair.split('=', 1)
-        template_vars[name] = value
+    for pair in args.json_value or ():
+        name, value = pair
+        template_vars[name] = json.loads(value)
 
     templates = TemplateLookup(
         directories=args.dir,
