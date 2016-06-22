@@ -38,6 +38,7 @@ import json
 import logging
 import sys
 from collections import ChainMap, OrderedDict, defaultdict
+from functools import total_ordering
 from pathlib import Path, PurePath, PurePosixPath
 
 
@@ -81,6 +82,7 @@ patch_pathlib()
 ### Core data model.
 
 
+@total_ordering
 class Label:
     """We use labels to name things.  A label is string starts with two
        slashes, followed by a path part and a name part that are joined
@@ -126,6 +128,10 @@ class Label:
 
     def __eq__(self, other):
         return self.path == other.path and self.name == other.name
+
+    def __lt__(self, other):
+        return (self.path < other.path or
+                (self.path == other.path and self.name < other.name))
 
 
 class Things:
