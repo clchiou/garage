@@ -8,7 +8,7 @@ as a "builder image".  To create a base builder image, you run:
   ./scripts/bootstrap TAG
 
 
-The build process consists of two phases:
+The build process consists of multiple phases:
 
   * Build phase: In this phase, the build process builds and installs
     all intermediate and final artifacts _locally_ within the container.
@@ -17,10 +17,51 @@ The build process consists of two phases:
     we generally don't create an application image this way because a
     builder has all the intermediate artifacts that takes much space.
 
-  * Tapeout phase: In this phase, the build process creates the final
-    application image.  As we said, we don't export a builder; instead,
-    we cherry-pick only the build artifacts required in the application.
-    The resulting application image is much smaller than its builder's.
+  * Tapeout phase: In this phase, we cherry-pick only build artifacts
+    required in the final application image.  The resulting application
+    image is much smaller than its builder's.
+
+  * Build image phase: Packaging all build artifacts into a container
+    image from the tapeout phase.
+
+  * Build pod phase: Bundle together configuration files, static data,
+    and container image(s).  Note that at the moment, a builder can only
+    generate **one** image at a time, because it builds everything
+    locally, and thus if a pod is composed of multiple images, you will
+    have to run multiple builders.
+
+
+The build phase is sequenced as:
+
+  * //base:build
+    All other `build` rules should depend on this rule so that this will
+    be the first executed `build` rule.
+
+  * //your/package:build
+    This is the `build` rule of your package; at very minimum it should
+    depend on `//base:build`.
+
+  * //your/package:tapeout
+    This should depend on `//your/package:build` so that it is executed
+    after its `build` rule, and reverse depend on `//base:tapeout`.
+
+  * //base:tapeout
+    All other `tapeout` rules should reverse depend on this rule so that
+    this will be the last executed `tapeout` rule.
+
+  * //base:build_image
+    This rule builds a generic container image; if you don't intend to
+    do anything fancy, your `build_image` rule can be empty and simply
+    depends on this rule.  (Should we turn this rule into a function
+    instead?)
+
+  * //your/app:build_image
+    As said before, you may defer all work to `//base:build_image` if
+    you don't intend to do anything fancy.
+
+  * //your/pod:build_pod
+    Bundle together configuration files and application image(s) into a
+    pod (a tightly-coupled group of containers).
 
 
 Development flows:
@@ -34,20 +75,20 @@ Development flows:
 
 Currently we have build files for these packages:
 
-		C/C++	PP	PC	CY
-cpython		x
-garage			x
-http2					x
-lxml				x
-mako			x
+		C/C++	PP	PC	CY	REV
+cpython		x				3.5.1
+garage			x			master
+http2					x	master
+lxml				x		3.6.0
+mako			x			1.0.4
   markupsafe		x
-nanomsg		x	x
-nghttp2		x
-pyyaml				x
-requests		x
-sqlalchemy			x
-startup			x
-v8		x			x
+nanomsg		x	x			1.0.0
+nghttp2		x				v1.11.1
+pyyaml				x		3.11
+requests		x			2.10.0
+sqlalchemy			x		1.0.13
+startup			x			master
+v8		x			x	master
   depot_tools
 
 PP = Pure Python (maybe using ctypes)
