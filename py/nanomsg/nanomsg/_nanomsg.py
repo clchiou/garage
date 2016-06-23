@@ -13,6 +13,9 @@ from ctypes import POINTER, c_char_p, c_int, c_short, c_size_t, c_void_p
 _LIBNANOMSG = ctypes.cdll.LoadLibrary('libnanomsg.so')
 
 
+# NOTE: Definitions below are targeting nanomsg 1.0.0.
+
+
 class nn_symbol_properties(ctypes.Structure):
     _fields_ = [
         ('value', c_int),
@@ -80,8 +83,6 @@ def _load(libnanomsg, global_vars, exposed_names):
         ('nn_poll', [POINTER(nn_pollfd), c_int, c_int], c_int),
         # Built-in support for devices.
         ('nn_device', [c_int, c_int], c_int),
-        # Built-in support for multiplexers.
-        ('nn_tcpmuxd', [c_int], c_int),
     ]
 
     for name, argtypes, restype in decls:
