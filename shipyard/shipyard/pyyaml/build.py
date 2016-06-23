@@ -4,6 +4,13 @@ import shipyard
 from foreman import define_parameter, define_rule
 
 
+(define_parameter('version')
+ .with_doc("""Version to install.""")
+ .with_type(str)
+ .with_default('3.11')
+)
+
+
 (define_parameter('deps')
  .with_doc("""Build-time Debian packages.""")
  .with_type(list)
@@ -26,7 +33,7 @@ from foreman import define_parameter, define_rule
  .with_doc(__doc__)
  .with_build(lambda ps: (
      shipyard.install_packages(ps['deps']),
-     shipyard.python_pip_install(ps, 'PyYAML'),
+     shipyard.python_pip_install(ps, 'PyYAML', ps['version']),
  ))
  .depend('//base:build')
  .depend('//cpython:build')

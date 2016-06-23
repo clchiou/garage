@@ -24,11 +24,15 @@ from shipyard import (
 )
 
 
-# NOTE: Use top of trunk at the moment.
 (define_parameter('repo')
  .with_doc("""Location of source repo.""")
  .with_type(str)
  .with_default('https://github.com/nanomsg/nanomsg.git')
+)
+(define_parameter('version')
+ .with_doc("""Version to build.""")
+ .with_type(str)
+ .with_default('1.0.0')
 )
 
 
@@ -39,7 +43,7 @@ def build(parameters):
     install_packages(parameters['deps'])
 
     build_src = parameters['//base:build_src'] / 'nanomsg'
-    git_clone(parameters['repo'], build_src)
+    git_clone(parameters['repo'], build_src, parameters['version'])
 
     build_dir = build_src / 'build'
     if not ensure_directory(build_dir):

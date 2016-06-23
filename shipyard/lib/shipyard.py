@@ -78,14 +78,13 @@ def git_clone(repo, local_path=None, checkout=None):
         cmd = ['git', 'clone', repo]
         if local_path:
             cmd.append(local_path.name)
-            cwd = local_path.parent
-        else:
-            cwd = None
         LOG.info('clone git repo %s', repo)
+        cwd = local_path.parent if local_path else None
         execute(cmd, cwd=cwd)
     if checkout:
         LOG.info('checkout %s %s', repo, checkout)
-        execute(['git', 'checkout', checkout])
+        cwd = local_path if local_path else None
+        execute(['git', 'checkout', checkout], cwd=cwd)
 
 
 def run_commands(commands_str, path=None):
@@ -211,11 +210,15 @@ def python_copy_and_build_package(
     python_build_package(parameters, package_name, build_src)
 
 
-def python_pip_install(parameters, package_name):
-    LOG.info('install %s', package_name)
+def python_pip_install(parameters, package_name, version=None):
+    LOG.info('install %s with version %s', package_name, version)
     site_packages = parameters['//cpython:modules'] / 'site-packages'
     if not list(site_packages.glob('%s*' % package_name)):
-        execute(['sudo', parameters['//cpython:pip'], 'install', package_name])
+        if version:
+            target = '%s==%s' % (package_name, version)
+        else:
+            target = package_name
+        execute(['sudo', parameters['//cpython:pip'], 'install', target])
 
 
 def python_copy_package(parameters, package_name, patterns=()):

@@ -27,11 +27,15 @@ from shipyard import (
 )
 
 
-# NOTE: Use top of trunk at the moment.
 (define_parameter('repo')
  .with_doc("""Location of source repo.""")
  .with_type(str)
  .with_default('https://github.com/nghttp2/nghttp2.git')
+)
+(define_parameter('version')
+ .with_doc("""Version to build.""")
+ .with_type(str)
+ .with_default('v1.11.1')
 )
 
 
@@ -40,7 +44,7 @@ def build(parameters):
     """Build nghttp2 from source."""
     install_packages(parameters['deps'])
     build_src = parameters['//base:build_src'] / 'nghttp2'
-    git_clone(parameters['repo'], build_src)
+    git_clone(parameters['repo'], build_src, parameters['version'])
     if not (build_src / 'src/.libs/nghttp').exists():
         run_commands(path=build_src, commands_str='''
             autoreconf -i
