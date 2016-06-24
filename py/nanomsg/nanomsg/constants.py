@@ -31,8 +31,10 @@ def _load(global_vars, exposed_names):
         ('TransportOption', 'NN_NS_TRANSPORT_OPTION',   False,  True),
         ('OptionType',      'NN_NS_OPTION_TYPE',        True,   False),
         ('OptionUnit',      'NN_NS_OPTION_UNIT',        True,   False),
-        ('Flag',            'NN_NS_FLAG',               True,   True),
+        # NOTE: NN_NS_FLAG was expanded to ws.h and not unique anymore.
+        ('Flag',            'NN_NS_FLAG',               False,   True),
         ('Error',           'NN_NS_ERROR',              True,   False),
+        # TODO: NN_NS_LIMIT, NN_NS_EVENT, and NN_NS_STATISTIC.
     ]
 
     symbols = _load_symbols()
