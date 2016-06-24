@@ -16,6 +16,8 @@ def main():
                             help="""set builder image""")
         parser.add_argument('--volume', action='append',
                             help="""add data volume""")
+        parser.add_argument('--preserve-container', action='store_true',
+                            help="""do not remove container on exit""")
 
     def add_build_args(parser):
         add_common_args(parser)
@@ -89,8 +91,9 @@ def main():
 
     call(cmd)
 
-    # Don't remove builder on crash so that you may examine it.
-    call(['docker', 'rm', build_name])
+    if not args.preserve_container:
+        # Don't remove builder on crash so that you may examine it.
+        call(['docker', 'rm', build_name])
 
 
 def call(cmd):
