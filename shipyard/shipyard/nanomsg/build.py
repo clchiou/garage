@@ -51,7 +51,8 @@ def build(parameters):
         run_commands(path=build_dir, commands_str='''
             cmake ..
             cmake --build .
-            sudo make install
+            sudo cmake --build . --target install
+            sudo ldconfig
         ''')
 
 
