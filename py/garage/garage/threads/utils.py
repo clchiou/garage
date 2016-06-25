@@ -11,11 +11,15 @@ __all__ = [
 
 import collections
 import functools
+import logging
 import threading
 
 from garage import asserts
 
 from . import queues
+
+
+LOG = logging.getLogger(__name__)
 
 
 class AtomicInt:
@@ -171,6 +175,7 @@ def make_get_thread_local(make):
     return get_thread_local
 
 
+# NOTE: This function is a hack; don't expect it to always work.
 def set_pthread_name(thread, name):
     if not thread.ident:
         import warnings
@@ -184,13 +189,18 @@ def set_pthread_name(thread, name):
     if not hasattr(set_pthread_name, 'pthread_setname_np'):
         import ctypes
         import ctypes.util
-        pthread = ctypes.CDLL(ctypes.util.find_library('pthread'))
-        pthread_setname_np = pthread.pthread_setname_np
-        # XXX: Evil: Use long for pthread_t, which is not quite true.
-        pthread_setname_np.argtypes = [ctypes.c_long, ctypes.c_char_p]
-        pthread_setname_np.restype = ctypes.c_int
+        try:
+            pthread = ctypes.CDLL(ctypes.util.find_library('pthread'))
+        except FileNotFoundError:
+            LOG.warning('cannot load lib pthread', exc_info=True)
+            pthread_setname_np = lambda *_: -1
+        else:
+            pthread_setname_np = pthread.pthread_setname_np
+            # XXX: Evil: Use long for pthread_t, which is not quite true.
+            pthread_setname_np.argtypes = [ctypes.c_long, ctypes.c_char_p]
+            pthread_setname_np.restype = ctypes.c_int
         set_pthread_name.pthread_setname_np = pthread_setname_np
     # XXX: Evil: Use thread.ident as a shortcut of pthread_self().
     err = set_pthread_name.pthread_setname_np(thread.ident, name)
     if err:
-        raise RuntimeError('cannot set pthread name (err=%d)' % err)
+        LOG.warning('cannot set pthread name (err=%d)', err)
