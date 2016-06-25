@@ -31,10 +31,8 @@ from foreman import define_parameter, define_rule
 
 (define_rule('build')
  .with_doc(__doc__)
- .with_build(lambda ps: (
-     shipyard.install_packages(ps['deps']),
-     shipyard.python_pip_install(ps, 'PyYAML', ps['version']),
- ))
+ .with_build(lambda ps: shipyard.python_pip_install(
+     ps, 'PyYAML', version=ps['version'], deps=ps['deps']))
  .depend('//base:build')
  .depend('//cpython:build')
 )

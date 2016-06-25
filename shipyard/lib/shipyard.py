@@ -210,10 +210,12 @@ def python_copy_and_build_package(
     python_build_package(parameters, package_name, build_src)
 
 
-def python_pip_install(parameters, package_name, version=None):
+def python_pip_install(parameters, package_name, version=None, *, deps=None):
     LOG.info('install %s with version %s', package_name, version)
     site_packages = parameters['//cpython:modules'] / 'site-packages'
     if not list(site_packages.glob('%s*' % package_name)):
+        if deps:
+            install_packages(deps)
         if version:
             target = '%s==%s' % (package_name, version)
         else:

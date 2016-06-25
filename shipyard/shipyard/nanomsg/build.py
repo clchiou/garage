@@ -40,13 +40,12 @@ from shipyard import (
 def build(parameters):
     """Build nanomsg from source."""
 
-    install_packages(parameters['deps'])
-
     build_src = parameters['//base:build_src'] / 'nanomsg'
     git_clone(parameters['repo'], build_src, parameters['version'])
 
     build_dir = build_src / 'build'
     if not ensure_directory(build_dir):
+        install_packages(parameters['deps'])
         # Don't run `ctest .` at the moment.
         run_commands(path=build_dir, commands_str='''
             cmake ..

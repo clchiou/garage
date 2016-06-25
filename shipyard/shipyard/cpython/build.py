@@ -104,7 +104,6 @@ Version = namedtuple('Version', 'major minor')
 
 
 @decorate_rule('//base:build',
-               'install_deps',
                'download')
 def build(parameters):
     """Build CPython from source."""
@@ -112,6 +111,8 @@ def build(parameters):
     src_path = parameters['build_src']
 
     if not (src_path / 'Makefile').exists():
+        install_packages(parameters['deps'])
+
         LOG.info('configure cpython')
         cmd = ['./configure', '--prefix', parameters['prefix']]
         execute(cmd, cwd=src_path)
@@ -121,12 +122,6 @@ def build(parameters):
         execute(['make'], cwd=src_path)
         LOG.info('install cpython')
         execute(['sudo', 'make', 'install'], cwd=src_path)
-
-
-(define_rule('install_deps')
- .with_doc("""Install build dependencies.""")
- .with_build(lambda ps: install_packages(ps['deps']))
-)
 
 
 @decorate_rule

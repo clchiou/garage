@@ -18,7 +18,7 @@ And those issues will be handled here - hopefully not many.
 from pathlib import Path
 
 from foreman import define_parameter, decorate_rule
-from shipyard import execute
+from shipyard import execute, install_packages
 
 
 (define_parameter('venv')
@@ -46,5 +46,6 @@ def install(parameters):
     # the builder to build and tape out CPython (due to corner cases of
     # reverse dependency).
     venv = parameters['venv'].absolute()
-    execute(['sudo', 'apt-get', 'install', '--yes', 'python3-venv'])
-    execute(['/usr/bin/python3', '-m', 'venv', '--clear', venv])
+    if not venv.is_dir():
+        install_packages(['python3-venv'])
+        execute(['/usr/bin/python3', '-m', 'venv', '--clear', venv])
