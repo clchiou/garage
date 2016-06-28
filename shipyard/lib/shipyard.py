@@ -17,6 +17,9 @@ __all__ = [
     'python_copy_and_build_package',
     'python_pip_install',
     'python_copy_package',
+    # Node.js-specific helpers.
+    'npm_copy_source',
+    'npm_link_package',
     # Helpers for the build image/pod phases.
     'build_appc_image',
     'copy_libraries',
@@ -230,6 +233,33 @@ def python_copy_package(parameters, package_name, patterns=()):
     dirs.extend(itertools.chain.from_iterable(
         map(site_packages.glob, patterns)))
     rsync(dirs, parameters['//base:build_rootfs'], relative=True, sudo=True)
+
+
+### Node.js-specific helpers.
+
+
+def npm_copy_source(src, build_src):
+    LOG.info('copy npm package: %s -> %s', src, build_src)
+
+    # Just a sanity check...
+    package_json = src / 'package.json'
+    if not package_json.is_file():
+        raise FileNotFoundError(str(package_json))
+
+    ensure_directory(build_src)
+
+    # Copy src into build_src (and build from there).
+    # NOTE: Appending slash to src is a rsync trick.
+    rsync(['%s/' % src], build_src, excludes=['node_modules'])
+
+
+def npm_link_package(build_src, deps):
+    LOG.info('link npm package: %s', build_src)
+    # Link dependent packages.
+    for dep in deps:
+        execute(['npm', 'link', dep], cwd=build_src)
+    # Then link this package.
+    execute(['npm', 'link'], cwd=build_src)
 
 
 ### Helpers for the build image phase.

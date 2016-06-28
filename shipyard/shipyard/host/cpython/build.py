@@ -1,5 +1,5 @@
 """\
-Base part of the host-only environment.
+Base part of the host-only environment for Python.
 
 We adopt the build-then-cherry-pick approach, meaning that a builder
 will build the final image in place, and when the build process is done,
@@ -40,7 +40,7 @@ from shipyard import execute, install_packages
 
 @decorate_rule('//base:build')
 def install(parameters):
-    """Set up host-only environment."""
+    """Set up host-only environment for Python."""
 
     # NOTE: Don't use `//cpython:python` here since doing so would force
     # the builder to build and tape out CPython (due to corner cases of
