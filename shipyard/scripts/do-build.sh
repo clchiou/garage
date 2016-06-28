@@ -31,6 +31,12 @@ main() {
       //v8:build
       //v8/py:build
     )
+    # And all host tools, too.
+    BUILDER_ARGS+=(
+      //host/cpython:install
+      //host/mako:install
+      //host/node:install
+    )
   elif [[ "${1}" = "echod" ]]; then
     BUILDER_ARGS+=(
       //garage/examples/echod:build_pod
