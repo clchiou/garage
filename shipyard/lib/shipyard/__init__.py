@@ -297,7 +297,7 @@ def render_template(
     if not python.is_file():
         raise FileNotFoundError(str(python))
 
-    render = Path(__file__).parent / 'render.py'
+    render = parameters['//base:root'] / 'shipyard/scripts/render-template'
     if not render.is_file():
         raise FileNotFoundError(str(render))
 
