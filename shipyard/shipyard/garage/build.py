@@ -1,21 +1,13 @@
 """Build garage."""
 
-import shipyard
-from foreman import define_rule
+from shipyard import py
 
 
-(define_rule('build')
- .with_doc(__doc__)
- .with_build(lambda ps: shipyard.python_copy_and_build_package(ps, 'garage'))
- .depend('//base:build')
- .depend('//cpython:build')
-)
+PATH = 'py/garage'
 
 
-(define_rule('tapeout')
- .with_doc("""Copy build artifacts.""")
- .with_build(lambda ps: shipyard.python_copy_package(ps, 'garage'))
- .depend('build')
- .reverse_depend('//base:tapeout')
- .reverse_depend('//cpython:tapeout')
+py.define_package(
+    package_name='garage',
+    derive_src_path=lambda ps: ps['//base:root'] / PATH,
+    derive_build_src_path=lambda ps: ps['//base:build_src'] / PATH,
 )

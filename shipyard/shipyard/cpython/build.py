@@ -6,17 +6,16 @@ from pathlib import Path
 
 from foreman import define_parameter, define_rule, decorate_rule
 from shipyard import (
-
     ensure_directory,
     execute,
+    install_packages,
     rsync,
+    tapeout_libraries,
     tar_extract,
     wget,
-
-    install_packages,
-
-    copy_libraries,
 )
+
+from shipyard import py
 
 
 LOG = logging.getLogger(__name__)
@@ -148,7 +147,8 @@ def tapeout(parameters):
     """Join point of all Python module's `tapeout` rule."""
 
     LOG.info('copy cpython runtime libraries')
-    copy_libraries(parameters, '/usr/lib/x86_64-linux-gnu', parameters['libs'])
+    tapeout_libraries(
+        parameters, '/usr/lib/x86_64-linux-gnu', parameters['libs'])
 
     LOG.info('copy cpython modules')
     modules = parameters['modules']
@@ -186,3 +186,9 @@ def tapeout(parameters):
  .depend('build')
  .reverse_depend('//base:tapeout')
 )
+
+
+@decorate_rule('build')
+def install_cython(parameters):
+    """Install (latest) Cython."""
+    py.pip_install(parameters, 'cython')

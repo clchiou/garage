@@ -1,27 +1,15 @@
 """Build nanomsg Python binding."""
 
-from foreman import define_rule
-from shipyard import (
-    python_copy_and_build_package,
-    python_copy_package,
-)
+from shipyard import py
 
 
-(define_rule('build')
- .with_doc(__doc__)
- .with_build(lambda ps: \
-     python_copy_and_build_package(ps, 'nanomsg', build_src='nanomsg.py'))
- .depend('//base:build')
- .depend('//cpython:build')
- .depend('//nanomsg:build')
-)
+PATH = 'py/nanomsg'
 
 
-(define_rule('tapeout')
- .with_doc("""Copy build artifacts.""")
- .with_build(lambda ps: python_copy_package(ps, 'nanomsg'))
- .depend('build')
- .depend('//nanomsg:tapeout')
- .reverse_depend('//base:tapeout')
- .reverse_depend('//cpython:tapeout')
+py.define_package(
+    package_name='nanomsg',
+    derive_src_path=lambda ps: ps['//base:root'] / PATH,
+    derive_build_src_path=lambda ps: ps['//base:build_src'] / PATH,
+    build_rule_deps=['//nanomsg:build'],
+    tapeout_rule_deps=['//nanomsg:tapeout'],
 )

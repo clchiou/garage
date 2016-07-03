@@ -2,14 +2,11 @@
 
 from foreman import define_parameter, define_rule, decorate_rule
 from shipyard import (
-
     ensure_directory,
     git_clone,
-    run_commands,
-
     install_packages,
-
-    copy_libraries,
+    run_commands,
+    tapeout_libraries,
 )
 
 
@@ -58,7 +55,7 @@ def build(parameters):
 (define_rule('tapeout')
  .with_doc("""Copy build artifacts.""")
  .with_build(
-     lambda ps: copy_libraries(ps, '/usr/local/lib', ['libnanomsg']))
+     lambda ps: tapeout_libraries(ps, '/usr/local/lib', ['libnanomsg']))
  .depend('build')
  .reverse_depend('//base:tapeout')
 )

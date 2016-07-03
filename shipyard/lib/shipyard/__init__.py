@@ -2,6 +2,8 @@
 
 __all__ = [
     # Generic scripting helpers.
+    'copy_source',
+    'ensure_file',
     'ensure_directory',
     'execute',
     'git_clone',
@@ -11,21 +13,14 @@ __all__ = [
     'wget',
     # OS Package helpers.
     'install_packages',
-    # Python-specific helpers.
-    'python_copy_source',
-    'python_build_package',
-    'python_copy_and_build_package',
-    'python_pip_install',
-    'python_copy_package',
-    # Node.js-specific helpers.
-    'npm_copy_source',
-    'npm_link_package',
+    # build.py templates.
+    'define_package_common',
     # Helpers for the build image/pod phases.
     'build_appc_image',
-    'copy_libraries',
     'render_appc_manifest',
     'render_bundle_files',
     'render_template',
+    'tapeout_libraries',
 ]
 
 import hashlib
@@ -36,13 +31,39 @@ from contextlib import ExitStack
 from pathlib import Path
 from subprocess import PIPE, Popen, check_call, check_output
 
-from foreman import to_path
+from foreman import (
+    define_parameter,
+    to_path,
+)
 
 
 LOG = logging.getLogger(__name__)
 
 
 ### Generic scripting helpers.
+
+
+def copy_source(src, build_src):
+    """Copy src into build_src (and then you will build from there)."""
+    LOG.info('copy source: %s -> %s', src, build_src)
+    ensure_directory(build_src)
+    # NOTE: Appending slash to src is an rsync trick.
+    rsync(['%s/' % src], build_src, excludes=[
+        '*.egg-info',
+        '*.pyc',
+        '.git',
+        '.svn',
+        '__pycache__',
+        'build',
+        'dist',
+        'node_modules',
+    ])
+
+
+def ensure_file(path):
+    path = Path(path)
+    if not path.is_file():
+        raise FileNotFoundError('not a file: %s' % path)
 
 
 def ensure_directory(path, mode=0o777):
@@ -160,106 +181,25 @@ def install_packages(pkgs):
     execute(cmd)
 
 
-### Python-specific helpers.
+### build.py templates.
 
 
-def python_copy_source(parameters, package_name, src=None, build_src=None):
-    LOG.info('copy source for %s', package_name)
-
-    if not src:
-        src = 'py/%s' % package_name
-    if isinstance(src, str):
-        src = parameters['//base:root'] / src
-
-    if not build_src:
-        build_src = package_name
-    if isinstance(build_src, str):
-        build_src = parameters['//base:build_src'] / build_src
-
-    # Just a sanity check...
-    setup_py = src / 'setup.py'
-    if not setup_py.is_file():
-        raise FileNotFoundError(str(setup_py))
-
-    # Copy src into build_src (and build from there).
-    # NOTE: Appending slash to src is a rsync trick.
-    rsync(['%s/' % src], build_src, excludes=[
-        '*.egg-info',
-        '*.pyc',
-        '.git',
-        '.svn',
-        '__pycache__',
-        'build',
-        'dist',
-    ])
-
-    return build_src
-
-
-def python_build_package(parameters, package_name, build_src):
-    LOG.info('build %s', package_name)
-    python = parameters['//cpython:python']
-    if not (build_src / 'build').exists():
-        execute([python, 'setup.py', 'build'], cwd=build_src)
-    site_packages = parameters['//cpython:modules'] / 'site-packages'
-    if not list(site_packages.glob('%s*' % package_name)):
-        execute(['sudo', '--preserve-env', python, 'setup.py', 'install'],
-                cwd=build_src)
-
-
-def python_copy_and_build_package(
-        parameters, package_name, src=None, build_src=None):
-    build_src = python_copy_source(parameters, package_name, src, build_src)
-    python_build_package(parameters, package_name, build_src)
-
-
-def python_pip_install(parameters, package_name, version=None, *, deps=None):
-    LOG.info('install %s with version %s', package_name, version)
-    site_packages = parameters['//cpython:modules'] / 'site-packages'
-    if not list(site_packages.glob('%s*' % package_name)):
-        if deps:
-            install_packages(deps)
-        if version:
-            target = '%s==%s' % (package_name, version)
-        else:
-            target = package_name
-        execute(['sudo', parameters['//cpython:pip'], 'install', target])
-
-
-def python_copy_package(parameters, package_name, patterns=()):
-    LOG.info('copy %s', package_name)
-    site_packages = parameters['//cpython:modules'] / 'site-packages'
-    dirs = list(site_packages.glob('%s*' % package_name))
-    dirs.extend(itertools.chain.from_iterable(
-        map(site_packages.glob, patterns)))
-    rsync(dirs, parameters['//base:build_rootfs'], relative=True, sudo=True)
-
-
-### Node.js-specific helpers.
-
-
-def npm_copy_source(src, build_src):
-    LOG.info('copy npm package: %s -> %s', src, build_src)
-
-    # Just a sanity check...
-    package_json = src / 'package.json'
-    if not package_json.is_file():
-        raise FileNotFoundError(str(package_json))
-
-    ensure_directory(build_src)
-
-    # Copy src into build_src (and build from there).
-    # NOTE: Appending slash to src is a rsync trick.
-    rsync(['%s/' % src], build_src, excludes=['node_modules'])
-
-
-def npm_link_package(build_src, deps):
-    LOG.info('link npm package: %s', build_src)
-    # Link dependent packages.
-    for dep in deps:
-        execute(['npm', 'link', dep], cwd=build_src)
-    # Then link this package.
-    execute(['npm', 'link'], cwd=build_src)
+def define_package_common(
+        *,
+        derive_src_path,
+        derive_build_src_path):
+    (
+        define_parameter('src')
+        .with_doc("""Location of the source.""")
+        .with_type(Path)
+        .with_derive(derive_src_path)
+    )
+    (
+        define_parameter('build_src')
+        .with_doc("""Location of the copied source to build from.""")
+        .with_type(Path)
+        .with_derive(derive_build_src_path)
+    )
 
 
 ### Helpers for the build image phase.
@@ -309,7 +249,7 @@ def build_appc_image(src_dir, dst_dir):
             raise RuntimeError('error in gzip: rc=%d' % retcode)
 
 
-def copy_libraries(parameters, lib_dir, libnames):
+def tapeout_libraries(parameters, lib_dir, libnames):
     lib_dir = Path(lib_dir)
     libs = list(itertools.chain.from_iterable(
         lib_dir.glob('%s*' % name) for name in libnames))

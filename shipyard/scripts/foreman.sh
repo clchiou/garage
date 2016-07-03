@@ -21,7 +21,7 @@ main() {
   local SHIPYARD="${ROOT}/shipyard"
   local FOREMAN="${ROOT}/py/foreman/foreman.py"
 
-  # With this `import shipyard` will import shipyard/shipyard.py.
+  # With this `import shipyard` will import lib/shipyard.py.
   export PYTHONPATH="${SHIPYARD}/lib${PYTHONPATH:+:}${PYTHONPATH:-}"
   echo "export PYTHONPATH=${PYTHONPATH}"
 

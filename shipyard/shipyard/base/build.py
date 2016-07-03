@@ -15,7 +15,7 @@ from shipyard import (
 (define_parameter('root')
  .with_doc("""Location of this repository.""")
  .with_type(Path)
- .with_default(Path(shipyard_.__file__).parent.parent.parent)
+ .with_default(Path(shipyard_.__file__).parent.parent.parent.parent)
 )
 
 

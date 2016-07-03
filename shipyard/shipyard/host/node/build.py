@@ -18,5 +18,5 @@ def install(parameters):
     """Set up host-only environment for Node.js."""
     if not Path('/usr/bin/nodejs').exists():
         install_packages(['nodejs', 'npm'])
-        (Path.home() / '.npmrc').write_text(
-            'prefix = %s' % parameters['npm_prefix'].absolute())
+        contents = 'prefix = %s\n' % parameters['npm_prefix'].absolute()
+        (Path.home() / '.npmrc').write_text(contents)
