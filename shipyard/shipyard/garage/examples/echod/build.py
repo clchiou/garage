@@ -1,11 +1,11 @@
 """Build echod."""
 
-from pathlib import Path
-
 from foreman import define_parameter, define_rule
-from shipyard import python_copy_and_build_package as build_pkg
-from shipyard import python_copy_package as copy_pkg
+from shipyard import py
 from shipyard import (
+    copy_source,
+    define_package_common,
+    ensure_file,
     render_appc_manifest,
     render_bundle_files,
 )
@@ -15,22 +15,25 @@ NAME = 'echod'
 PATH = 'py/garage/examples/echod'
 
 
-(define_parameter('src')
- .with_doc("""Location of the source.""")
- .with_type(Path)
- .with_derive(lambda ps: ps['//base:root'] / PATH)
-)
-
-
 (define_parameter('version')
  .with_doc("""Version of this build.""")
  .with_type(int)
 )
 
 
+define_package_common(
+    derive_src_path=lambda ps: ps['//base:root'] / PATH,
+    derive_build_src_path=lambda ps: ps['//base:build_src'] / PATH,
+)
+
+
 (define_rule('build')
  .with_doc(__doc__)
- .with_build(lambda ps: build_pkg(ps, NAME, src=ps['src']))
+ .with_build(lambda ps: (
+     copy_source(ps['src'], ps['build_src']),
+     ensure_file(ps['build_src'] / 'setup.py'),
+     py.build_package(ps, NAME, ps['build_src']),
+ ))
  .depend('//base:build')
  .depend('//cpython:build')
  .depend('//garage:build')
@@ -41,8 +44,8 @@ PATH = 'py/garage/examples/echod'
 (define_rule('tapeout')
  .with_doc("""Copy build artifacts.""")
  .with_build(lambda ps: (
+     py.tapeout_package(ps, NAME),
      render_appc_manifest(ps, '//cpython:templates/manifest'),
-     copy_pkg(ps, NAME),
  ))
  .depend('build')
  .depend('//host/mako:install')
