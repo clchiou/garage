@@ -11,5 +11,4 @@ py.define_package(
     derive_src_path=lambda ps: ps['//base:root'] / PATH,
     derive_build_src_path=lambda ps: ps['//base:build_src'] / PATH,
     build_rule_deps=['//nanomsg:build'],
-    tapeout_rule_deps=['//nanomsg:tapeout'],
 )

@@ -14,7 +14,4 @@ py.define_package(
         '//cpython:install_cython',
         '//nghttp2:build',
     ],
-    tapeout_rule_deps=[
-        '//nghttp2:tapeout',
-    ],
 )
