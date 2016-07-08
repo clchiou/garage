@@ -1,10 +1,9 @@
-"""Initialize garage.http."""
+"""Initialize garage.http.clients."""
 
 __all__ = [
     'HttpClientComponent',
 ]
 
-import garage.http
 from garage import components
 from garage.http import clients
 from garage.http import policies
@@ -19,7 +18,7 @@ class HttpClientComponent(components.Component):
     provide = components.make_fqname_tuple(__name__, 'client')
 
     def add_arguments(self, parser):
-        group = parser.add_argument_group(garage.http.__name__)
+        group = parser.add_argument_group(clients.__name__)
         group.add_argument(
             '--http-user-agent', default=self.HTTP_USER_AGENT,
             help="""set http user agent""")
