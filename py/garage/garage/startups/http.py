@@ -12,11 +12,7 @@ from garage.http import policies
 
 class HttpComponent(components.Component):
 
-    HTTP_USER_AGENT = (
-        'Mozilla/5.0 (X11; Linux x86_64) '
-        'AppleWebKit/537.36 (KHTML, like Gecko) '
-        'Chrome/40.0.2214.111 Safari/537.36'
-    )
+    HTTP_USER_AGENT = 'Mozilla/5.0'
 
     require = components.ARGS
 
