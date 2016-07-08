@@ -34,7 +34,8 @@ class CircuitBreaker:
     def connected(self):
         if len(self.timestamps) < self.timestamps.maxlen:
             return True
-        if self.timestamps[0] + self.period < self.clock():
+        if (self.period is not None and
+                self.timestamps[0] + self.period < self.clock()):
             return True
         return False
 
