@@ -1,7 +1,7 @@
 """Initialize garage.http."""
 
 __all__ = [
-    'HttpComponent',
+    'HttpClientComponent',
 ]
 
 import garage.http
@@ -10,7 +10,7 @@ from garage.http import clients
 from garage.http import policies
 
 
-class HttpComponent(components.Component):
+class HttpClientComponent(components.Component):
 
     HTTP_USER_AGENT = 'Mozilla/5.0'
 

@@ -8,7 +8,7 @@ import garage.spiders
 from garage import components
 from garage.spiders import Spider
 
-from garage.startups.http import HttpComponent
+from garage.startups.http.clients import HttpClientComponent
 
 
 class SpiderComponent(components.Component):
@@ -18,7 +18,7 @@ class SpiderComponent(components.Component):
     require = components.make_fqname_tuple(
         __name__,
         components.ARGS,
-        HttpComponent.provide.client,
+        HttpClientComponent.provide.client,
         'spider_parser',
     )
 
