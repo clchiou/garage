@@ -27,7 +27,7 @@ def make_http_server_component(
         provide = components.make_fqname_tuple(package_name, 'config')
 
         def add_arguments(self, parser):
-            group = parser.add_argument_group(argument_group + '#http')
+            group = parser.add_argument_group(argument_group)
             group.add_argument(
                 '--%s-host' % argument_prefix, dest=HOST,
                 action='append',
@@ -62,5 +62,10 @@ def make_http_server_component(
             config.private_key = getattr(args, PRIVATE_KEY)
             config.backlog = getattr(args, BACKLOG)
             return config
+
+    # Hack for manipulating call order.
+    HttpServerComponent.add_arguments.__module__ = package_name
+    HttpServerComponent.check_arguments.__module__ = package_name
+    HttpServerComponent.make.__module__ = package_name
 
     return HttpServerComponent
