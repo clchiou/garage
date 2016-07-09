@@ -52,7 +52,7 @@ class Handler:
 
 def main(argv):
     if len(argv) < 2 or argv[1] == '-h':
-        print('Usage: %s [-h] port')
+        print('Usage: %s [-h] port' % argv[0])
         return 0
 
     logging.basicConfig(level=logging.DEBUG)

@@ -6,7 +6,7 @@ from distutils.core import Extension as _Extension
 import os
 
 from Cython.Build import cythonize
-from setuptools import find_packages, setup
+from setuptools import setup
 from setuptools.extension import Extension
 
 
@@ -70,6 +70,6 @@ for _ext_module in _ext_modules:
 setup(
     name = 'http2',
     license = 'MIT',
-    packages = find_packages(exclude=['tests*']),
+    packages = ['http2'],
     ext_modules = ext_modules,
 )
