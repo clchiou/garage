@@ -14,16 +14,15 @@ if len(sys.argv) < 2:
 
 logging.basicConfig(level=logging.DEBUG)
 
-async def print_headers(headers):
-    for name, value in headers.items():
+async def hello_world(request, response):
+    for name, value in request.headers.items():
         print('HEADER %s=%s' % (name.decode('ascii'), value.decode('ascii')))
-
-async def hello_world(request):
-    return b'hello world'
+    response.headers[b':status'] = b'200'
+    await response.write(b'hello world')
+    response.close()
 
 router = ApiRouter(name='hello-world', version=1)
-router.add_policy(print_headers)
-router.add_endpoint('hello-world', hello_world)
+router.add_handler('hello-world', hello_world)
 
 loop = asyncio.get_event_loop()
 

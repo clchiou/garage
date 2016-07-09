@@ -1,21 +1,34 @@
 """HTTP request routing schemes."""
 
 __all__ = [
+    'HttpMethod',
+    # Routers
     'ApiRouter',
+    'PrefixRouter',
 ]
 
-import asyncio
+import enum
 import logging
 import re
+from collections import OrderedDict
 from http import HTTPStatus
 
-from http2 import HttpError
-
 from garage import asserts
-from garage.asyncs.futures import each_completed
+from http2 import HttpError
 
 
 LOG = logging.getLogger(__name__)
+
+
+class HttpMethod(enum.Enum):
+    GET = b'GET'
+    HEAD = b'HEAD'
+    POST = b'POST'
+    PUT = b'PUT'
+
+
+__all__.extend(HttpMethod.__members__.keys())
+globals().update(HttpMethod.__members__)
 
 
 class ApiRouter:
@@ -35,10 +48,7 @@ class ApiRouter:
         self.name = name
         self.version = version
         self._root_path = None
-        self.policies = []
-        self.endpoints = {}
-        self.decode = None
-        self.encode = None
+        self.handlers = {}
 
     @property
     def root_path(self):
@@ -50,23 +60,19 @@ class ApiRouter:
             root_path = root_path.encode('ascii')
         self._root_path = root_path
 
-    def add_policy(self, policy):
-        self.policies.append(policy)
-
-    def add_endpoint(self, name, endpoint):
-        LOG.info('register endpoint %s to service %s version %d',
-                 name, self.name, self.version)
+    def add_handler(self, name, handler):
+        LOG.info('%s/%d: add handler %s', self.name, self.version, name)
         name = name.encode('ascii')
-        asserts.precond(name not in self.endpoints)
-        self.endpoints[name] = endpoint
+        asserts.precond(name not in self.handlers)
+        self.handlers[name] = handler
 
-    async def __call__(self, http_request, http_response):
-        path = http_request.headers.get(b':path')
+    async def __call__(self, request, response):
+        path = request.headers.get(b':path')
         if path is None:
             raise HttpError(HTTPStatus.BAD_REQUEST)
 
         try:
-            endpoint = self.dispatch(path)
+            handler = self.dispatch(path)
         except self.EndpointNotFound:
             raise HttpError(HTTPStatus.NOT_FOUND) from None
         except self.VersionNotSupported as e:
@@ -78,13 +84,7 @@ class ApiRouter:
             # request (down-version it) and send it again.
             raise HttpError(HTTPStatus.BAD_REQUEST) from None
 
-        try:
-            await self.call_endpoint(endpoint, http_request, http_response)
-        except HttpError:
-            raise
-        except Exception:
-            LOG.exception('err when calling endpoint')
-            raise HttpError(HTTPStatus.INTERNAL_SERVER_ERROR)
+        await handler(request, response)
 
     PATTERN_ENDPOINT = re.compile(br'/(\d+)/([\w_\-.]+)')
 
@@ -98,43 +98,53 @@ class ApiRouter:
         if not match:
             raise self.EndpointNotFound(path)
         version = int(match.group(1))
-        endpoint_name = match.group(2)
+        handler_name = match.group(2)
 
-        endpoint = self.endpoints.get(endpoint_name)
-        if endpoint is None:
+        handler = self.handlers.get(handler_name)
+        if handler is None:
             raise self.EndpointNotFound(path)
 
         if self.version < version:
             raise self.VersionNotSupported(version)
 
-        return endpoint
+        return handler
 
-    async def call_endpoint(self, endpoint, http_request, http_response):
-        # Run policies in parallel.
-        policy_futs = [
-            asyncio.ensure_future(policy(http_request.headers))
-            for policy in self.policies
-        ]
-        try:
-            async for fut in each_completed(policy_futs):
-                await fut
-        finally:
-            for fut in policy_futs:
-                fut.cancel()
 
-        request = await http_request.body
-        if request:
-            if self.decode:
-                request = self.decode(http_request.headers, request)
+class PrefixRouter:
+    """Routing based on HTTP request method and path prefix."""
+
+    def __init__(self, *, name=None):
+        self.name = name or self.__class__.__name__
+        # prefix -> method -> handler
+        self.handlers = OrderedDict()
+
+    def add_handler(self, method, prefix, handler):
+        asserts.precond(method in HttpMethod)
+        if isinstance(prefix, str):
+            prefix = prefix.encode('ascii')
+        if prefix not in self.handlers:
+            self.handlers[prefix] = {}
+        handlers = self.handlers[prefix]
+        asserts.precond(method.value not in handlers)  # No overwrite.
+        handlers[method.value] = handler
+
+    async def __call__(self, request, response):
+        path = request.headers.get(b':path')
+        if path is None:
+            raise HttpError(HTTPStatus.BAD_REQUEST)
+        for prefix, handlers in self.handlers.items():
+            if path.startswith(prefix):
+                break
         else:
-            request = None
+            LOG.warning('%s: no matching path prefix: %r', self.name, path)
+            raise HttpError(HTTPStatus.NOT_FOUND)
 
-        response = await endpoint(request)
+        method = request.headers.get(b':method')
+        handler = handlers.get(method)
+        if not handler:
+            raise HttpError(
+                HTTPStatus.METHOD_NOT_ALLOWED,
+                headers={b'allow': b', '.join(sorted(handlers))},
+            )
 
-        if self.encode:
-            response = self.encode(http_request.headers, response)
-        asserts.postcond(isinstance(response, bytes))
-
-        http_response.headers[b':status'] = b'200'
-        await http_response.write(response)
-        http_response.close()
+        await handler(request, response)

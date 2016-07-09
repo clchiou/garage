@@ -7,8 +7,8 @@ class RoutersTest(unittest.TestCase):
 
     def test_api_router_dispatch(self):
         router = ApiRouter(name='test-service', version=1)
-        router.add_endpoint('point-1', 'point-1')
-        router.add_endpoint('point-2', 'point-2')
+        router.add_handler('point-1', 'point-1')
+        router.add_handler('point-2', 'point-2')
 
         self.assertEqual('point-1', router.dispatch(b'/0/point-1'))
         self.assertEqual('point-1', router.dispatch(b'/1/point-1'))
