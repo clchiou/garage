@@ -5,7 +5,7 @@ import sys
 
 import http2
 
-from garage.http.services import Service
+from garage.http.routers import ApiRouter
 
 
 if len(sys.argv) < 2:
@@ -21,9 +21,9 @@ async def print_headers(headers):
 async def hello_world(request):
     return b'hello world'
 
-service = Service(name='hello-world', version=1)
-service.add_policy(print_headers)
-service.add_endpoint('hello-world', hello_world)
+router = ApiRouter(name='hello-world', version=1)
+router.add_policy(print_headers)
+router.add_endpoint('hello-world', hello_world)
 
 loop = asyncio.get_event_loop()
 
@@ -39,7 +39,7 @@ else:
     ssl_context = None
 
 server = loop.run_until_complete(loop.create_server(
-    lambda: http2.Protocol(lambda: service),
+    lambda: http2.Protocol(lambda: router),
     host='0.0.0.0', port=int(sys.argv[1]), ssl=ssl_context,
 ))
 

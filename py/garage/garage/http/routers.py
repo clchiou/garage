@@ -1,8 +1,7 @@
+"""HTTP request routing schemes."""
+
 __all__ = [
-    'ServiceError',
-    'EndpointNotFound',
-    'VersionNotSupported',
-    'Service',
+    'ApiRouter',
 ]
 
 import asyncio
@@ -19,19 +18,17 @@ from garage.asyncs.futures import each_completed
 LOG = logging.getLogger(__name__)
 
 
-class ServiceError(Exception):
-    pass
+class ApiRouter:
+    """Simple routing scheme for implementing versioned API."""
 
+    class ApiRouterError(Exception):
+        pass
 
-class EndpointNotFound(ServiceError):
-    pass
+    class EndpointNotFound(ApiRouterError):
+        pass
 
-
-class VersionNotSupported(ServiceError):
-    pass
-
-
-class Service:
+    class VersionNotSupported(ApiRouterError):
+        pass
 
     def __init__(self, name, version):
         LOG.info('create service %s version %d', name, version)
@@ -70,9 +67,9 @@ class Service:
 
         try:
             endpoint = self.dispatch(path)
-        except EndpointNotFound:
+        except self.EndpointNotFound:
             raise HttpError(HTTPStatus.NOT_FOUND) from None
-        except VersionNotSupported as e:
+        except self.VersionNotSupported as e:
             # Returning 400 when a request's version is newer is weird,
             # but none of other 4xx or 5xx code makes more sense anyway.
             # Like, 403?  But, could we say we understand a request of
@@ -94,21 +91,21 @@ class Service:
     def dispatch(self, path):
         if self._root_path:
             if not path.startswith(self._root_path):
-                raise EndpointNotFound(path)
+                raise self.EndpointNotFound(path)
             path = path[len(self._root_path):]
 
         match = self.PATTERN_ENDPOINT.match(path)
         if not match:
-            raise EndpointNotFound(path)
+            raise self.EndpointNotFound(path)
         version = int(match.group(1))
         endpoint_name = match.group(2)
 
         endpoint = self.endpoints.get(endpoint_name)
         if endpoint is None:
-            raise EndpointNotFound(path)
+            raise self.EndpointNotFound(path)
 
         if self.version < version:
-            raise VersionNotSupported(version)
+            raise self.VersionNotSupported(version)
 
         return endpoint
 
