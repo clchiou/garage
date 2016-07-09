@@ -5,6 +5,7 @@ import sys
 
 import http2
 
+from garage.http.handlers import ApiHandler
 from garage.http.routers import ApiRouter
 
 
@@ -12,17 +13,24 @@ if len(sys.argv) < 2:
     print('Usage: %s port [server.crt server.key]' % sys.argv[0])
     sys.exit(1)
 
+
 logging.basicConfig(level=logging.DEBUG)
 
-async def hello_world(request, response):
-    for name, value in request.headers.items():
+
+async def print_headers(headers):
+    for name, value in headers.items():
         print('HEADER %s=%s' % (name.decode('ascii'), value.decode('ascii')))
-    response.headers[b':status'] = b'200'
-    await response.write(b'hello world')
-    response.close()
+
+
+async def hello_world(_):
+    return b'hello world'
+
+
+handler = ApiHandler(hello_world)
+handler.add_policy(print_headers)
 
 router = ApiRouter(name='hello-world', version=1)
-router.add_handler('hello-world', hello_world)
+router.add_handler('hello-world', handler)
 
 loop = asyncio.get_event_loop()
 
