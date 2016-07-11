@@ -1,4 +1,5 @@
 __all__ = [
+    'IteratorAdapter',
     'CircuitBreaker',
     'synchronous',
     'tcp_server',
@@ -15,6 +16,27 @@ from garage.asyncs.processes import process
 
 
 LOG = logging.getLogger(__name__)
+
+
+class IteratorAdapter:
+    """Run a synchronous iterator in an executor."""
+
+    def __init__(self, executor, iterator):
+        self.executor = executor
+        self.iterator = iterator
+
+    async def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        # next(iterator) raises StopIteration, which messes up async
+        # event loop; so we have to detect it explicitly.
+        value_future = self.executor.submit(next, self.iterator)
+        await value_future  # This won't raise StopIteration.
+        try:
+            return value_future.result()
+        except StopIteration:
+            raise StopAsyncIteration from None
 
 
 class CircuitBreaker:
