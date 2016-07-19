@@ -17,7 +17,7 @@ from shipyard import (
 (define_rule('build')
  .with_doc(__doc__)
  .depend('//base:build')
- .depend('//cpython:build')
+ .depend('//py/cpython:build')
 )
 
 
@@ -26,11 +26,11 @@ from shipyard import (
 (define_rule('tapeout')
  .with_doc("""Copy build artifacts.""")
  .with_build(lambda ps: render_appc_manifest(
-     ps, '//cpython:templates/manifest', {'working_directory': '/var/www'}))
+     ps, '//py/cpython:templates/manifest', {'working_directory': '/var/www'}))
  .depend('build')
  .depend('//host/mako:install')
  .reverse_depend('//base:tapeout')
- .reverse_depend('//cpython:tapeout')
+ .reverse_depend('//py/cpython:tapeout')
 )
 
 

@@ -37,7 +37,7 @@ from shipyard import (
 def build(parameters):
     """Build nanomsg from source."""
 
-    build_src = parameters['//base:build_src'] / 'nanomsg'
+    build_src = parameters['//base:build'] / 'cc/nanomsg'
     git_clone(parameters['repo'], build_src, parameters['version'])
 
     build_dir = build_src / 'build'

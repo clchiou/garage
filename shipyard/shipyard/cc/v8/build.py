@@ -55,7 +55,7 @@ LOG = logging.getLogger(__name__)
 
 (define_parameter('build_src')
  .with_type(Path)
- .with_derive(lambda ps: ps['//base:build_src'] / 'v8')
+ .with_derive(lambda ps: ps['//base:build'] / 'cc/v8')
 )
 (define_parameter('out_target')
  .with_type(Path)
@@ -70,7 +70,7 @@ def build(parameters):
 
     install_packages(parameters['deps'])
 
-    depot_tools = parameters['//base:build_src'] / 'depot_tools'
+    depot_tools = parameters['//base:build'] / 'host/depot_tools'
     git_clone(parameters['depot_tools'], depot_tools)
     path = os.environ.get('PATH')
     path = '%s:%s' % (depot_tools, path) if path else str(depot_tools)

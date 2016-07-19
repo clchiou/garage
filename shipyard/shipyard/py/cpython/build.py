@@ -98,7 +98,7 @@ Version = namedtuple('Version', 'major minor')
 (define_parameter('build_src')
  .with_type(Path)
  .with_derive(lambda ps: \
-     ps['//base:build_src'] / 'cpython' / ps['tarball'].output)
+     ps['//base:build'] / 'py/cpython' / ps['tarball'].output)
 )
 
 

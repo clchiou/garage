@@ -39,7 +39,7 @@ from shipyard import (
 @decorate_rule('//base:build')
 def build(parameters):
     """Build nghttp2 from source."""
-    build_src = parameters['//base:build_src'] / 'nghttp2'
+    build_src = parameters['//base:build'] / 'cc/nghttp2'
     git_clone(parameters['repo'], build_src, parameters['version'])
     if not (build_src / 'src/.libs/nghttp').exists():
         install_packages(parameters['deps'])

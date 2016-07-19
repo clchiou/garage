@@ -16,20 +16,20 @@ main() {
   if [[ "${1}" = "all" ]]; then
     # Enumerate all packages here.
     BUILDER_ARGS+=(
-      //cpython:build
-      //garage:build
-      //http2:build
-      //lxml:build
-      //mako:build
-      //nanomsg:build
-      //nanomsg/py:build
-      //nghttp2:build
-      //pyyaml:build
-      //requests:build
-      //sqlalchemy:build
-      //startup:build
-      //v8:build
-      //v8/py:build
+      //cc/nanomsg:build
+      //cc/nghttp2:build
+      //cc/v8:build
+      //py/cpython:build
+      //py/garage:build
+      //py/http2:build
+      //py/lxml:build
+      //py/mako:build
+      //py/nanomsg:build
+      //py/pyyaml:build
+      //py/requests:build
+      //py/sqlalchemy:build
+      //py/startup:build
+      //py/v8:build
     )
     # And all host tools, too.
     BUILDER_ARGS+=(
@@ -39,13 +39,13 @@ main() {
     )
   elif [[ "${1}" = "echod" ]]; then
     BUILDER_ARGS+=(
-      //garage/examples/echod:build_pod
-      --parameter "//garage/examples/echod:version=${VERSION}"
+      //py/garage/examples/echod:build_pod
+      --parameter "//py/garage/examples/echod:version=${VERSION}"
     )
   elif [[ "${1}" = "httpd" ]]; then
     BUILDER_ARGS+=(
-      //cpython/examples/httpd:build_pod
-      --parameter "//cpython/examples/httpd:version=${VERSION}"
+      //py/cpython/examples/httpd:build_pod
+      --parameter "//py/cpython/examples/httpd:version=${VERSION}"
     )
   else
     echo "unknown build target: ${1}"

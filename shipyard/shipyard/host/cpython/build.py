@@ -24,7 +24,7 @@ from shipyard import execute, install_packages
 (define_parameter('venv')
  .with_doc("""Location of a Python venv for host-only packages.""")
  .with_type(Path)
- .with_derive(lambda ps: ps['//base:build'] / 'host/venv')
+ .with_derive(lambda ps: ps['//base:build'] / 'host/cpython/venv')
 )
 (define_parameter('python')
  .with_doc("""Location of the host-only python.""")
@@ -42,7 +42,7 @@ from shipyard import execute, install_packages
 def install(parameters):
     """Set up host-only environment for Python."""
 
-    # NOTE: Don't use `//cpython:python` here since doing so would force
+    # NOTE: Don't use `//py/cpython:python` here since doing so would force
     # the builder to build and tape out CPython (due to corner cases of
     # reverse dependency).
     venv = parameters['venv'].absolute()

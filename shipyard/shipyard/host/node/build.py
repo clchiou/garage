@@ -13,7 +13,7 @@ from shipyard import (
 (define_parameter('npm_prefix')
  .with_doc("""Location host-only npm.""")
  .with_type(Path)
- .with_derive(lambda ps: ps['//base:build'] / 'host/npm-host')
+ .with_derive(lambda ps: ps['//base:build'] / 'host/node/modules')
 )
 
 

@@ -2,9 +2,9 @@
 
 from pathlib import Path
 
-import shipyard as shipyard_
 from foreman import define_parameter, define_rule, decorate_rule, to_path
 from shipyard import (
+    __file__ as shipyard_path,
     build_appc_image,
     ensure_directory,
     execute,
@@ -15,7 +15,7 @@ from shipyard import (
 (define_parameter('root')
  .with_doc("""Location of this repository.""")
  .with_type(Path)
- .with_default(Path(shipyard_.__file__).parent.parent.parent.parent)
+ .with_default(Path(shipyard_path).parent.parent.parent.parent)
 )
 
 
@@ -23,13 +23,6 @@ from shipyard import (
  .with_doc("""Location of build artifacts.""")
  .with_type(Path)
  .with_default(Path.home() / 'build')
-)
-
-
-(define_parameter('build_src')
- .with_doc("""Location of checked-out source repos.""")
- .with_type(Path)
- .with_default(Path.home() / 'build/src')
 )
 
 
@@ -70,7 +63,10 @@ def build(parameters):
     if not git_dir.is_dir():
         raise FileExistsError('not a directory: %s' % git_dir)
 
-    ensure_directory(parameters['build_src'])
+    ensure_directory(parameters['build'])
+    ensure_directory(parameters['build'] / 'cc')
+    ensure_directory(parameters['build'] / 'host')
+    ensure_directory(parameters['build'] / 'py')
     ensure_directory(parameters['build_out'])
     ensure_directory(parameters['build_rootfs'])
 

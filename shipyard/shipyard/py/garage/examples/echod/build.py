@@ -23,7 +23,7 @@ PATH = 'py/garage/examples/echod'
 
 define_package_common(
     derive_src_path=lambda ps: ps['//base:root'] / PATH,
-    derive_build_src_path=lambda ps: ps['//base:build_src'] / PATH,
+    derive_build_src_path=lambda ps: ps['//base:build'] / PATH,
 )
 
 
@@ -35,9 +35,9 @@ define_package_common(
      py.build_package(ps, NAME, ps['build_src']),
  ))
  .depend('//base:build')
- .depend('//cpython:build')
- .depend('//garage:build')
- .depend('//http2:build')
+ .depend('//py/cpython:build')
+ .depend('//py/garage:build')
+ .depend('//py/http2:build')
 )
 
 
@@ -45,12 +45,12 @@ define_package_common(
  .with_doc("""Copy build artifacts.""")
  .with_build(lambda ps: (
      py.tapeout_package(ps, NAME),
-     render_appc_manifest(ps, '//cpython:templates/manifest'),
+     render_appc_manifest(ps, '//py/cpython:templates/manifest'),
  ))
  .depend('build')
  .depend('//host/mako:install')
  .reverse_depend('//base:tapeout')
- .reverse_depend('//cpython:tapeout')
+ .reverse_depend('//py/cpython:tapeout')
 )
 
 
