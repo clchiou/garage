@@ -13,9 +13,8 @@ FROM {base_image}
 RUN apt-get update \\
  && apt-get --yes install sudo \\
  && adduser --disabled-password --gecos "" plumber \\
- && echo >> /etc/sudoers \\
- && echo "# Grant password-less on all commands to plumber" >> /etc/sudoers \\
- && echo "plumber ALL=(ALL:ALL) NOPASSWD: ALL" >> /etc/sudoers
+ && echo "plumber ALL=(ALL:ALL) NOPASSWD: ALL" > /etc/sudoers.d/99-plumber \\
+ && chmod 440 /etc/sudoers.d/99-plumber
 
 USER plumber
 WORKDIR /home/plumber
