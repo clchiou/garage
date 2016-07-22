@@ -41,6 +41,7 @@ LOG = logging.getLogger(__name__)
  .with_parse(lambda pkgs: pkgs.split(','))
  .with_default([
      'build-essential',  # GCC and make.
+     'curl',
      'python',  # depot_tools needs Python 2.
  ])
 )
