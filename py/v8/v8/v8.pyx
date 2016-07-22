@@ -15,13 +15,19 @@ LOG = logging.getLogger(__name__)
 
 cdef class V8:
 
+    cdef str icu_data_path
     cdef str natives_blob_path
     cdef str snapshot_blob_path
 
     cdef Platform* platform
 
-    def __init__(self, natives_blob_path=None, snapshot_blob_path=None):
+    def __init__(self,
+                 icu_data_path=None,
+                 natives_blob_path=None,
+                 snapshot_blob_path=None):
         here = os.path.dirname(__file__)
+        self.icu_data_path = (
+            icu_data_path or os.path.join(here, 'data/icudtl.dat'))
         self.natives_blob_path = (
             natives_blob_path or os.path.join(here, 'data/natives_blob.bin'))
         self.snapshot_blob_path = (
@@ -32,12 +38,20 @@ cdef class V8:
         assert self.platform is NULL
         LOG.info('initialize V8')
 
-        if not InitializeICU(NULL):
-            raise RuntimeError('cannot initialize ICU')
-
-        for path in (self.natives_blob_path, self.snapshot_blob_path):
+        paths = (
+            self.icu_data_path,
+            self.natives_blob_path,
+            self.snapshot_blob_path,
+        )
+        for path in paths:
             if not os.path.exists(path):
                 raise RuntimeError('%r does not exist' % path)
+
+        icu_data_path_bytes = self.icu_data_path.encode('utf-8')
+        cdef char* icu_data_path_cstr = icu_data_path_bytes
+        if not InitializeICU(icu_data_path_cstr):
+            raise RuntimeError('cannot initialize ICU')
+
         natives_blob_path_bytes = self.natives_blob_path.encode('utf-8')
         snapshot_blob_path_bytes = self.snapshot_blob_path.encode('utf-8')
         cdef char* natives_blob_path_cstr = natives_blob_path_bytes

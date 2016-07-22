@@ -33,7 +33,7 @@ def build(parameters):
 
     # Remove v8/data/*.bin so that setup.py would create link to the
     # latest blobs.
-    for filename in ('natives_blob.bin', 'snapshot_blob.bin'):
+    for filename in ('icudtl.dat', 'natives_blob.bin', 'snapshot_blob.bin'):
         blob_path = build_src / 'v8/data' / filename
         # NOTE: Path.exists() returns False on failed symlink.
         if blob_path.exists() or blob_path.is_symlink():

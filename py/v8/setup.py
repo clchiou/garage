@@ -1,9 +1,5 @@
 '''Build V8 extension with Cython.'''
 
-# Hack to force distutils using g++ for C++ source files... WTF!?
-from _sysconfigdata import build_time_vars
-build_time_vars['CC'] = build_time_vars['CXX']
-
 # Import distutils' Extension class before setuptools patches it.
 from distutils.core import Extension as _Extension
 
@@ -29,7 +25,7 @@ V8_OUT = os.path.realpath(V8_OUT)
 # those file paths from environment variable and do the linking myself.
 
 
-for filename in ('natives_blob.bin', 'snapshot_blob.bin'):
+for filename in ('icudtl.dat', 'natives_blob.bin', 'snapshot_blob.bin'):
     src = os.path.join(V8_OUT, filename)
     dst = os.path.join('v8/data', filename)
     if not os.path.exists(src):
@@ -93,6 +89,7 @@ setup(
     ext_modules = ext_modules,
     package_data = {
         'v8': [
+            'data/icudtl.dat',
             'data/natives_blob.bin',
             'data/snapshot_blob.bin',
         ],
