@@ -6,7 +6,7 @@ __all__ = [
 
 from asyncio.locks import (
     _ContextManagerMixin,
-    Condition,
+    Event,
 )
 
 
@@ -17,10 +17,10 @@ class ReadWriteLock:
         def __init__(self, *, loop=None):
             self.num_readers = 0
             self.num_writers = 0
-            # Condition: num_writers == 0.
-            self.cond_nwz = Condition(loop=loop)
-            # Condition: num_readers == num_writers == 0.
-            self.cond_nrnwz = Condition(loop=loop)
+            # Event: num_writers == 0.
+            self.event_nwz = Event(loop=loop)
+            # Event: num_readers == num_writers == 0.
+            self.event_nrnwz = Event(loop=loop)
 
     class ReadLock(_ContextManagerMixin):
 
@@ -28,25 +28,22 @@ class ReadWriteLock:
             self.state = state
 
         def locked(self):
-            return not self._nwz()
-
-        def _nwz(self):
-            return self.state.num_writers == 0
+            return self.state.num_writers != 0
 
         async def acquire(self):
-            async with self.state.cond_nwz:
-                if not self._nwz():
-                    await self.state.cond_nwz.wait_for(self._nwz)
-                self.state.num_readers += 1
-                return True
+            while self.locked():
+                await self.state.event_nwz.wait()
+            self.state.event_nwz.clear()
+            self.state.num_readers += 1
+            return True
 
         def release(self):
             if self.state.num_readers == 0:
                 raise RuntimeError('ReadLock is not acquired')
             assert self.state.num_writers == 0
             self.state.num_readers -= 1
-            if self.state.num_readers == 0 and self.state.cond_nrnwz.locked():
-                self.state.cond_nrnwz.notify()
+            if self.state.num_readers == 0:
+                self.state.event_nrnwz.set()
 
     class WriteLock(_ContextManagerMixin):
 
@@ -54,17 +51,14 @@ class ReadWriteLock:
             self.state = state
 
         def locked(self):
-            return not self._nrnwz()
-
-        def _nrnwz(self):
-            return self.state.num_readers == 0 and self.state.num_writers == 0
+            return self.state.num_readers != 0 or self.state.num_writers != 0
 
         async def acquire(self):
-            async with self.state.cond_nrnwz:
-                if not self._nrnwz():
-                    await self.state.cond_nrnwz.wait_for(self._nrnwz)
-                self.state.num_writers += 1
-                return True
+            while self.locked():
+                await self.state.event_nrnwz.wait()
+            self.state.event_nrnwz.clear()
+            self.state.num_writers += 1
+            return True
 
         def release(self):
             if self.state.num_writers == 0:
@@ -72,10 +66,8 @@ class ReadWriteLock:
             assert self.state.num_readers == 0
             assert self.state.num_writers == 1
             self.state.num_writers = 0
-            if self.state.cond_nwz.locked():
-                self.state.cond_nwz.notify_all()
-            if self.state.cond_nrnwz.locked():
-                self.state.cond_nrnwz.notify()
+            self.state.event_nwz.set()
+            self.state.event_nrnwz.set()
 
     def __init__(self, *, loop=None):
         state = self._State(loop=loop)
