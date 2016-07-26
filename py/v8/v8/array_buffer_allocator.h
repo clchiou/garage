@@ -4,7 +4,7 @@
 #include <cstdlib>
 #include <cstring>
 
-#include "include/v8.h"
+#include "v8.h"
 
 namespace v8_python {
   class ArrayBufferAllocator : public v8::ArrayBuffer::Allocator {

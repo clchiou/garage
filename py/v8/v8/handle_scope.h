@@ -1,7 +1,7 @@
 #ifndef V8_PYTHON_HANDLE_SCOPE_H_
 #define V8_PYTHON_HANDLE_SCOPE_H_
 
-#include "include/v8.h"
+#include "v8.h"
 
 namespace v8_python {
   // Because v8::HandleScope forbids new/delete directly...

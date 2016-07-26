@@ -1,7 +1,7 @@
 #ifndef V8_PYTHON_OBJECT_HELPER_H_
 #define V8_PYTHON_OBJECT_HELPER_H_
 
-#include "include/v8.h"
+#include "v8.h"
 
 // Unfortunately, in generated code, Cython declares variables
 // uninitialized (which is a problem when the object's default

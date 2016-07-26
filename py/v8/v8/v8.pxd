@@ -2,7 +2,7 @@ from libc.stdint cimport int64_t, uint32_t
 from libcpp cimport bool
 
 
-cdef extern from 'include/v8.h' namespace 'v8':
+cdef extern from 'v8.h' namespace 'v8':
 
     ### Templates ###
 
@@ -125,7 +125,7 @@ cdef extern from 'include/v8.h' namespace 'v8':
 
 
 # Hack for static methods of v8::V8.
-cdef extern from 'include/v8.h' namespace 'v8::V8':
+cdef extern from 'v8.h' namespace 'v8::V8':
 
     cdef bool Initialize()
 
@@ -141,6 +141,6 @@ cdef extern from 'include/v8.h' namespace 'v8::V8':
     cdef void ShutdownPlatform()
 
 
-cdef extern from 'include/libplatform/libplatform.h' namespace 'v8::platform':
+cdef extern from 'libplatform/libplatform.h' namespace 'v8::platform':
 
     Platform* CreateDefaultPlatform(int thread_pool_size)
