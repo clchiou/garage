@@ -162,10 +162,12 @@ def tar_extract(tarball_path, output_path=None):
     execute(cmd)
 
 
-def wget(uri, output_path=None):
+def wget(uri, output_path=None, *, headers=()):
     cmd = ['wget', uri]
     if output_path:
         cmd.extend(['--output-document', output_path])
+    for header in headers:
+        cmd.extend(['--header', header])
     LOG.info('download %s', uri)
     execute(cmd)
 

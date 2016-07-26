@@ -66,6 +66,7 @@ def build(parameters):
     ensure_directory(parameters['build'])
     ensure_directory(parameters['build'] / 'cc')
     ensure_directory(parameters['build'] / 'host')
+    ensure_directory(parameters['build'] / 'java')
     ensure_directory(parameters['build'] / 'py')
     ensure_directory(parameters['build_out'])
     ensure_directory(parameters['build_rootfs'])
