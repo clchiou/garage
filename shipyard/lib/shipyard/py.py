@@ -32,15 +32,19 @@ LOG = logging.getLogger(__name__)
 ### Helpers
 
 
-def build_package(parameters, package_name, build_src):
+def build_package(parameters, package_name, build_src, *, build_cmd=None):
     LOG.info('build %s', package_name)
     python = parameters['//py/cpython:python']
     if not (build_src / 'build').exists():
-        execute([python, 'setup.py', 'build'], cwd=build_src)
+        cmd = [python, 'setup.py']
+        if build_cmd:
+            cmd.extend(build_cmd)
+        else:
+            cmd.append('build')
+        execute(cmd, cwd=build_src)
     site_packages = parameters['//py/cpython:modules'] / 'site-packages'
     if not list(site_packages.glob('%s*' % package_name)):
-        execute(['sudo', '--preserve-env', python, 'setup.py', 'install'],
-                cwd=build_src)
+        execute(['sudo', python, 'setup.py', 'install'], cwd=build_src)
 
 
 def pip_install(parameters, package_name, *, version=None, deps=None):

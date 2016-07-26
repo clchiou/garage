@@ -1,7 +1,5 @@
 """Build V8 Python binding."""
 
-import os
-
 from foreman import define_rule, decorate_rule
 from shipyard import (
     copy_source,
@@ -24,22 +22,25 @@ def build(parameters):
     v8_build_src = parameters['//cc/v8:build_src']
     if not v8_build_src.is_dir():
         raise FileExistsError('not a directory: %s' % v8_build_src)
-    os.environ['V8'] = str(v8_build_src)
+
+    include_dirs = '%s/include' % v8_build_src
 
     v8_out = parameters['//cc/v8:out_target']
     if not v8_out.is_dir():
         raise FileExistsError('not a directory: %s' % v8_out)
-    os.environ['V8_OUT'] = str(v8_out)
 
-    # Remove v8/data/*.bin so that setup.py would create link to the
-    # latest blobs.
-    for filename in ('icudtl.dat', 'natives_blob.bin', 'snapshot_blob.bin'):
-        blob_path = build_src / 'v8/data' / filename
-        # NOTE: Path.exists() returns False on failed symlink.
-        if blob_path.exists() or blob_path.is_symlink():
-            blob_path.unlink()
+    library_dirs = (
+        '{v8_out}/lib.target:{v8_out}/obj.target/src'.format(v8_out=v8_out))
 
-    py.build_package(parameters, 'v8', build_src)
+    build_cmd = ['build']
+    build_cmd.extend(['copy_v8_data', '--v8-out', v8_out])
+    build_cmd.extend([
+        'build_ext',
+        '--include-dirs', include_dirs,
+        '--library-dirs', library_dirs,
+    ])
+
+    py.build_package(parameters, 'v8', build_src, build_cmd=build_cmd)
 
 
 (define_rule('tapeout')
