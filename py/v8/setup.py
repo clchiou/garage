@@ -6,7 +6,7 @@ from distutils.command.build import build
 from distutils.core import Command
 from distutils.errors import DistutilsOptionError
 from distutils.file_util import copy_file
-from setuptools import find_packages, setup
+from setuptools import setup
 from setuptools.extension import Extension
 
 
@@ -54,7 +54,7 @@ setup(
     cmdclass = {
         'copy_v8_data': copy_v8_data,
     },
-    packages = find_packages(exclude=['tests*']),
+    packages = ['v8'],
     ext_modules = cythonize(Extension(
         'v8.v8',
         language = 'c++',
