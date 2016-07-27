@@ -6,7 +6,7 @@ set -o errexit -o nounset -o pipefail
 
 main() {
   if [[ -z "${1:-}" ]]; then
-    echo "Usage: $(basename "${0}") {all|echod|httpd} --builder BUILDER --output OUTPUT ..."
+    echo "Usage: $(basename "${0}") {all|third-party|echod|httpd} --builder BUILDER --preserve-container --output OUTPUT ..."
     exit 1
   fi
 
@@ -14,12 +14,16 @@ main() {
 
   local BUILDER_ARGS=(build)
   if [[ "${1}" = "all" ]]; then
-    # Enumerate all packages here.
     BUILDER_ARGS+=(
       //cc/nanomsg:build
       //cc/nghttp2:build
       //cc/v8:build
+      //host/cpython:install
+      //host/mako:install
+      //host/node:install
+      //java/java:build
       //py/cpython:build
+      //py/cpython:install_cython
       //py/garage:build
       //py/http2:build
       //py/lxml:build
@@ -31,11 +35,23 @@ main() {
       //py/startup:build
       //py/v8:build
     )
-    # And all host tools, too.
+  elif [[ "${1}" = "third-party" ]]; then
+    # Build all third-party packages (including all host tools).
     BUILDER_ARGS+=(
+      //cc/nanomsg:build
+      //cc/nghttp2:build
+      //cc/v8:build
       //host/cpython:install
       //host/mako:install
       //host/node:install
+      //java/java:build
+      //py/cpython:build
+      //py/cpython:install_cython
+      //py/lxml:build
+      //py/mako:build
+      //py/pyyaml:build
+      //py/requests:build
+      //py/sqlalchemy:build
     )
   elif [[ "${1}" = "echod" ]]; then
     BUILDER_ARGS+=(
