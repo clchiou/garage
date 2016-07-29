@@ -4,6 +4,7 @@ __all__ = [
     'COMMANDS',
 ]
 
+import getpass
 import logging
 import os.path
 from subprocess import PIPE, Popen
@@ -139,12 +140,20 @@ def deploy_create_volumes(repo, pod):
             LOG.warning('volume exists: %s', volume_path)
             continue
         scripting.execute(['sudo', 'mkdir', '--parents', volume_path])
+        scripting.execute([
+            'sudo',
+            'chown',
+            '{whoami}:{whoami}'.format(whoami=getpass.getuser()),
+            volume_path,
+        ])
         if volume.data:
             data = pod.path.parent / volume.data
             cmd = [
                 'sudo',
                 'tar',
                 '--extract',
+                # This is the default for root, but better be explicit.
+                '--preserve-permissions',
                 '--file', data,
                 '--directory', volume_path,
             ]
