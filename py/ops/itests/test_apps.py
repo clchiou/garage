@@ -140,7 +140,7 @@ class AppsTest(unittest.TestCase):
         self.assertDir('/etc/ops/apps/pods/test-pod/1001')
         self.assertNotDir('/var/lib/ops/apps/volumes/test-pod/1001')
         # Sanity check.
-        self.assertNotFile('/etc/systemd/system/test-pod-example:1001.service')
+        self.assertNotFile('/etc/systemd/system/test-pod-example-1001.service')
 
     def assertNoPod1001(self):
         self.assertNotDir('/etc/ops/apps/pods/test-pod/1001')
@@ -151,9 +151,9 @@ class AppsTest(unittest.TestCase):
         self.assertNotDir('/var/lib/ops/apps/volumes/test-pod/1002')
         # Can't fully test templated services in a Docker container.
         services = [
-            'test-pod-simple:1002.service',
-            'test-pod-replicated:1002@.service',
-            'test-pod-replicated-with-arg:1002@.service',
+            'test-pod-simple-1002.service',
+            'test-pod-replicated-1002@.service',
+            'test-pod-replicated-with-arg-1002@.service',
         ]
         for service in services:
             self.assertFile('/etc/systemd/system/%s' % service)
@@ -166,9 +166,9 @@ class AppsTest(unittest.TestCase):
 
     def assertNoPod1002Etc(self):
         services = [
-            'test-pod-simple:1002.service',
-            'test-pod-replicated:1002@.service',
-            'test-pod-replicated-with-arg:1002@.service',
+            'test-pod-simple-1002.service',
+            'test-pod-replicated-1002@.service',
+            'test-pod-replicated-with-arg-1002@.service',
         ]
         for service in services:
             self.assertNotFile('/etc/systemd/system/%s' % service)
@@ -180,7 +180,7 @@ class AppsTest(unittest.TestCase):
     def assertPod1003(self):
         self.assertPod1003Configs()
         services = [
-            'test-pod-volume:1003.service',
+            'test-pod-volume-1003.service',
         ]
         for service in services:
             self.assertFile('/etc/systemd/system/%s' % service)
@@ -202,7 +202,7 @@ class AppsTest(unittest.TestCase):
 
     def assertNoPod1003Etc(self):
         services = [
-            'test-pod-volume:1003.service',
+            'test-pod-volume-1003.service',
         ]
         for service in services:
             self.assertNotFile('/etc/systemd/system/%s' % service)

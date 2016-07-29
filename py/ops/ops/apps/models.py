@@ -202,7 +202,7 @@ class Systemd:
         SYSTEM_PATH = Path('/etc/systemd/system')
 
         UNIT_NAME_FORMAT = \
-            '{pod_name}-{container_name}:{pod_version}{templated}{suffix}'
+            '{pod_name}-{container_name}-{pod_version}{templated}{suffix}'
 
         def __init__(self, pod, container, unit_file):
 
