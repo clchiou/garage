@@ -8,6 +8,8 @@ from ops.apps import deploy
 
 
 def main(argv):
+    scripting.ensure_not_root()
+
     parser = argparse.ArgumentParser(prog=__name__, description=__doc__)
     subparsers = parser.add_subparsers(help="""Sub-commands.""")
     # http://bugs.python.org/issue9253

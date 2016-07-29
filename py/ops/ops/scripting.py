@@ -1,5 +1,6 @@
 __all__ = [
     'add_arguments',
+    'ensure_not_root',
     'process_arguments',
     # Scripting helpers.
     'execute',
@@ -9,6 +10,7 @@ __all__ = [
     'systemctl',
 ]
 
+import getpass
 import logging
 from functools import partial
 from subprocess import call, check_call, check_output
@@ -19,6 +21,11 @@ LOG_FORMAT = '%(asctime)s %(levelname)s %(name)s: %(message)s'
 
 
 DRY_RUN = False
+
+
+def ensure_not_root():
+    if getpass.getuser() == 'root':
+        raise RuntimeError('run by root')
 
 
 def add_arguments(parser):
