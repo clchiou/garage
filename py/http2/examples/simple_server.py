@@ -9,6 +9,7 @@ import os.path
 import urllib.parse
 from http import HTTPStatus
 
+import http2.utils
 from http2 import HttpError, Protocol
 
 
@@ -52,18 +53,22 @@ class Handler:
 
 def main(argv):
     if len(argv) < 2 or argv[1] == '-h':
-        print('Usage: %s [-h] port' % argv[0])
+        print('Usage: %s [-h] port [server.crt server.key]' % argv[0])
         return 0
 
     logging.basicConfig(level=logging.DEBUG)
+
+    if len(argv) >= 4:
+        ssl_context = http2.utils.make_ssl_context(argv[2], argv[3])
+    else:
+        ssl_context = None
 
     loop = asyncio.get_event_loop()
 
     handler = Handler()
     server = loop.run_until_complete(loop.create_server(
         lambda: Protocol(lambda: handler),
-        '0.0.0.0',
-        int(argv[1]),
+        host='0.0.0.0', port=int(argv[1]), ssl=ssl_context,
     ))
 
     print('Serving on port %s' % argv[1])

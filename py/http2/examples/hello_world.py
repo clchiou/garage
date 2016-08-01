@@ -4,6 +4,7 @@ import ssl
 import sys
 
 import http2
+import http2.utils
 
 from garage.http.handlers import ApiHandler
 from garage.http.routers import ApiRouter
@@ -35,13 +36,7 @@ router.add_handler('hello-world', handler)
 loop = asyncio.get_event_loop()
 
 if len(sys.argv) >= 4:
-    ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
-    ssl_context.load_cert_chain(sys.argv[2], sys.argv[3])
-    if ssl.HAS_ALPN:
-        ssl_context.set_alpn_protocols(['h2'])
-    else:
-        assert ssl.HAS_NPN
-        ssl_context.set_npn_protocols(['h2'])
+    ssl_context = http2.utils.make_ssl_context(sys.argv[2], sys.argv[3])
 else:
     ssl_context = None
 
