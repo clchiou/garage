@@ -14,11 +14,12 @@ def make_http_server_component(
         argument_group,
         argument_prefix):
 
-    HOST = '%s_host' % argument_prefix
-    PORT = '%s_port' % argument_prefix
-    CERTIFICATE = '%s_certificate' % argument_prefix
-    PRIVATE_KEY = '%s_private_key' % argument_prefix
-    BACKLOG = '%s_backlog' % argument_prefix
+    prefix = argument_prefix.replace('-', '_')
+    HOST = '%s_host' % prefix
+    PORT = '%s_port' % prefix
+    CERTIFICATE = '%s_certificate' % prefix
+    PRIVATE_KEY = '%s_private_key' % prefix
+    BACKLOG = '%s_backlog' % prefix
 
     class HttpServerComponent(components.Component):
 
