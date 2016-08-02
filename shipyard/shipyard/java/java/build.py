@@ -1,12 +1,15 @@
 """Install Java SE Development Kit 8."""
 
 import logging
+import os
 from collections import namedtuple
 from pathlib import Path
 
 from foreman import define_parameter, define_rule, decorate_rule
 from shipyard import (
+    copy_source,
     ensure_directory,
+    execute,
     rsync,
     tar_extract,
     wget,
@@ -29,16 +32,33 @@ TarballInfo = namedtuple('TarballInfo', 'uri filename output')
 )
 
 
-(define_parameter('build_src')
+(define_parameter('java_root')
+ .with_doc("""Location of Java build root.""")
  .with_type(Path)
- .with_derive(lambda ps: \
-     ps['//base:build'] / 'java/java' / ps['tarball'].output)
+ .with_derive(lambda ps: ps['//base:build'] / 'java')
+)
+
+
+(define_parameter('build_src')
+ .with_doc("""Location of JDK.""")
+ .with_type(Path)
+ .with_derive(lambda ps: ps['java_root'] / 'java' / ps['tarball'].output)
+)
+
+
+# NOTE: Do not allow multiple versions of JRE at the moment.
+(define_parameter('java_output')
+ .with_doc("""Location of tapeout'ed Java artifacts.""")
+ .with_type(Path)
+ .with_derive(lambda ps: ps['//base:build_rootfs'] / 'usr/local/lib/java')
 )
 
 
 @decorate_rule('//base:build')
-def build(parameters):
-    """Install JDK."""
+def install(parameters):
+    """Install Java Development Kit"""
+
+    # Download JDK.
     build_src = parameters['build_src']
     ensure_directory(build_src.parent)
     tarball_path = build_src.parent / parameters['tarball'].filename
@@ -50,15 +70,37 @@ def build(parameters):
         LOG.info('extract tarball')
         tar_extract(tarball_path, build_src.parent)
 
+    # Add jdk/bin to PATH.
+    assert build_src.exists()
+    jdk_bin = build_src / 'bin'
+    path = os.environ.get('PATH')
+    path = '%s:%s' % (jdk_bin, path) if path else str(jdk_bin)
+    os.environ['PATH'] = path
+
+
+@decorate_rule('//base:build',
+               '//host/gradle:install',
+               'install')
+def build(parameters):
+    """Prepare Java development environment."""
+
+    # Copy source (because all Java projects are under one Gradle root
+    # project and thus we don't copy Java projects individually).
+    java_root = parameters['java_root']
+    copy_source(parameters['//base:root'] / 'java', java_root)
+
+    # Create gradle wrapper.
+    execute(['gradle', 'wrapper'], cwd=java_root)
+
 
 # NOTE: All Java package's `tapeout` rules should reverse depend on this
 # rule (and `//base:tapeout`, too).
 def tapeout(parameters):
     """Join point of all Java package's `tapeout` rule."""
-    LOG.info('copy jre')
-    # NOTE: Do not allow multiple versions of JRE in /opt for now.
-    rsync([parameters['build_src'] / 'jre'],
-          (parameters['//base:build_rootfs'] / 'opt'))
+    LOG.info('copy Java runtime environment')
+    java_output = parameters['java_output']
+    execute(['sudo', 'mkdir', '--parents', java_output])
+    rsync([parameters['build_src'] / 'jre'], java_output, sudo=True)
 
 
 (define_rule(tapeout.__name__)

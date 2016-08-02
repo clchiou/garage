@@ -52,10 +52,15 @@ def copy_source(src, build_src):
         '*.egg-info',
         '*.pyc',
         '.git',
+        '.gradle',
+        '.hg',
         '.svn',
         '__pycache__',
         'build',
         'dist',
+        'gradle',
+        'gradlew',
+        'gradlew.bat',
         'node_modules',
     ])
 

@@ -79,6 +79,7 @@ def build(parameters):
         'sudo', 'apt-get', 'install', '--yes',
         'git',  # shipyard.git_clone()
         'rsync',  # shipyard.rsync()
+        'unzip',
         'wget',  # shipyard.wget()
     ])
 
