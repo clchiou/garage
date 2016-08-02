@@ -219,7 +219,7 @@ def systemd_make_rkt_dropin(repo, pod, unit):
                 ro='true' if volume.read_only else 'false',
             )
             conf_proc.stdin.write(b'Environment="VOLUME_%s=%s"\n' % (
-                volume.name.encode('ascii'),
+                volume.name.replace('-', '_').encode('ascii'),
                 arg.encode('ascii'),
             ))
             arg = RKT_MOUNT_ARG.format(
@@ -227,11 +227,11 @@ def systemd_make_rkt_dropin(repo, pod, unit):
                 target=str(volume.path),
             )
             conf_proc.stdin.write(b'Environment="MOUNT_%s=%s"\n' % (
-                volume.name.encode('ascii'),
+                volume.name.replace('-', '_').encode('ascii'),
                 arg.encode('ascii'),
             ))
             conf_proc.stdin.write(b'Environment="MOUNT_POINT_%s=%s"\n' % (
-                volume.name.encode('ascii'),
+                volume.name.replace('-', '_').encode('ascii'),
                 str(volume.path).encode('ascii'),
             ))
         conf_proc.stdin.close()
