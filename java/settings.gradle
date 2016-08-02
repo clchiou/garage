@@ -1,0 +1,5 @@
+// List of projects.
+
+rootProject.name = 'garage'
+
+include ':garage'
