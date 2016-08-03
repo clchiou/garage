@@ -6,16 +6,13 @@ from pathlib import Path
 
 from foreman import define_parameter, define_rule, decorate_rule
 from shipyard import (
-    ensure_directory,
     execute,
     install_packages,
     rsync,
     tapeout_libraries,
-    tar_extract,
-    wget,
 )
 
-from shipyard import py
+from shipyard import define_archive, py
 
 
 LOG = logging.getLogger(__name__)
@@ -73,16 +70,11 @@ LOG = logging.getLogger(__name__)
 )
 
 
-TarballInfo = namedtuple('TarballInfo', 'uri filename output')
-(define_parameter('tarball')
- .with_doc("""Python source tarball.""")
- .with_type(TarballInfo)
- .with_parse(lambda info: TarballInfo(*info.split(',')))
- .with_default(TarballInfo(
-     uri='https://www.python.org/ftp/python/3.5.1/Python-3.5.1.tar.xz',
-     filename='Python-3.5.1.tar.xz',
-     output='Python-3.5.1',
- ))
+define_archive(
+    uri='https://www.python.org/ftp/python/3.5.1/Python-3.5.1.tar.xz',
+    filename='Python-3.5.1.tar.xz',
+    output='Python-3.5.1',
+    derive_dst_path=lambda ps: ps['//base:build'] / 'py/cpython',
 )
 
 
@@ -98,7 +90,7 @@ Version = namedtuple('Version', 'major minor')
 (define_parameter('build_src')
  .with_type(Path)
  .with_derive(lambda ps: \
-     ps['//base:build'] / 'py/cpython' / ps['tarball'].output)
+     ps['//base:build'] / 'py/cpython' / ps['archive_info'].output)
 )
 
 
@@ -121,24 +113,6 @@ def build(parameters):
         execute(['make'], cwd=src_path)
         LOG.info('install cpython')
         execute(['sudo', 'make', 'install'], cwd=src_path)
-
-
-@decorate_rule
-def download(parameters):
-    """Download source repo."""
-
-    build_src = parameters['build_src']
-
-    ensure_directory(build_src.parent)
-
-    tarball_path = build_src.parent / parameters['tarball'].filename
-    if not tarball_path.exists():
-        LOG.info('download tarball')
-        wget(parameters['tarball'].uri, tarball_path)
-
-    if not build_src.exists():
-        LOG.info('extract tarball')
-        tar_extract(tarball_path, build_src.parent)
 
 
 # NOTE: All Python module's `tapeout` rules should reverse depend on

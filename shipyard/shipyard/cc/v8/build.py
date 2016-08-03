@@ -1,18 +1,16 @@
 """Build V8 from source."""
 
 import logging
-import os
 from pathlib import Path
 
 from foreman import define_parameter, define_rule, decorate_rule
 from shipyard import (
-
     ensure_directory,
     execute,
     git_clone,
-    rsync,
-
+    insert_path,
     install_packages,
+    rsync,
 )
 
 
@@ -73,9 +71,7 @@ def build(parameters):
 
     depot_tools = parameters['//base:build'] / 'host/depot_tools'
     git_clone(parameters['depot_tools'], depot_tools)
-    path = os.environ.get('PATH')
-    path = '%s:%s' % (depot_tools, path) if path else str(depot_tools)
-    os.environ['PATH'] = path
+    insert_path(depot_tools)
 
     build_src = parameters['build_src']
     if not build_src.exists():

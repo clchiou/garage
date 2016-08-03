@@ -2,6 +2,7 @@
 
 __all__ = [
     # Generic scripting helpers.
+    'insert_path',
     'copy_source',
     'ensure_file',
     'ensure_directory',
@@ -14,6 +15,7 @@ __all__ = [
     # OS Package helpers.
     'install_packages',
     # build.py templates.
+    'define_archive',
     'define_package_common',
     # Helpers for the build image/pod phases.
     'build_appc_image',
@@ -27,11 +29,14 @@ import hashlib
 import itertools
 import json
 import logging
+import os
+from collections import namedtuple
 from contextlib import ExitStack
 from pathlib import Path
 from subprocess import PIPE, Popen, check_call, check_output
 
 from foreman import (
+    decorate_rule,
     define_parameter,
     to_path,
 )
@@ -41,6 +46,14 @@ LOG = logging.getLogger(__name__)
 
 
 ### Generic scripting helpers.
+
+
+def insert_path(path_element):
+    """Prepend path element to PATH environment variable."""
+    path = os.environ.get('PATH')
+    path = '%s:%s' % (path_element, path) if path else str(path_element)
+    LOG.info('new PATH: %s', path)
+    os.environ['PATH'] = path
 
 
 def copy_source(src, build_src):
@@ -192,6 +205,57 @@ def install_packages(pkgs):
 
 
 ### build.py templates.
+
+
+ArchiveInfo = namedtuple('ArchiveInfo', 'uri filename output')
+
+
+def define_archive(
+        *,
+        uri, filename, output,
+        derive_dst_path,
+        wget_headers=()):
+
+    (
+        define_parameter('archive_info')
+        .with_doc("""Archive info.""")
+        .with_type(ArchiveInfo)
+        .with_parse(lambda info: ArchiveInfo(*info.split(',')))
+        .with_default(ArchiveInfo(uri=uri, filename=filename, output=output))
+    )
+
+    (
+        define_parameter('archive_destination')
+        .with_doc("""Location of archive.""")
+        .with_type(Path)
+        .with_derive(derive_dst_path)
+    )
+
+    @decorate_rule
+    def download(parameters):
+        """Download and extract archive."""
+
+        destination = parameters['archive_destination']
+
+        ensure_directory(destination)
+        archive_info = parameters['archive_info']
+
+        archive_path = destination / archive_info.filename
+        if not archive_path.exists():
+            LOG.info('download archive: %s', archive_info.uri)
+            wget(archive_info.uri, archive_path, headers=wget_headers)
+        ensure_file(archive_path)
+
+        output_path = destination / archive_info.output
+        if not output_path.exists():
+            LOG.info('extract archive: %s', archive_path)
+            if archive_path.suffix == '.zip':
+                execute(['unzip', archive_path], cwd=destination)
+            else:
+                tar_extract(archive_path, destination)
+        ensure_directory(output_path)
+
+    return download
 
 
 def define_package_common(

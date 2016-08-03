@@ -1,35 +1,24 @@
 """Install Java SE Development Kit 8."""
 
-import logging
-import os
-from collections import namedtuple
 from pathlib import Path
 
 from foreman import define_parameter, define_rule, decorate_rule
 from shipyard import (
     copy_source,
-    ensure_directory,
+    define_archive,
     ensure_file,
     execute,
+    insert_path,
     rsync,
-    tar_extract,
-    wget,
 )
 
 
-LOG = logging.getLogger(__name__)
-
-
-TarballInfo = namedtuple('TarballInfo', 'uri filename output')
-(define_parameter('tarball')
- .with_doc("""JDK tarball.""")
- .with_type(TarballInfo)
- .with_parse(lambda info: TarballInfo(*info.split(',')))
- .with_default(TarballInfo(
-     uri='http://download.oracle.com/otn-pub/java/jdk/8u102-b14/jdk-8u102-linux-x64.tar.gz',
-     filename='jdk-8u102-linux-x64.tar.gz',
-     output='jdk1.8.0_102',
- ))
+define_archive(
+    uri='http://download.oracle.com/otn-pub/java/jdk/8u102-b14/jdk-8u102-linux-x64.tar.gz',
+    filename='jdk-8u102-linux-x64.tar.gz',
+    output='jdk1.8.0_102',
+    derive_dst_path=lambda ps: ps['//base:build'] / 'host/java',
+    wget_headers=['Cookie: oraclelicense=a'],
 )
 
 
@@ -44,7 +33,7 @@ TarballInfo = namedtuple('TarballInfo', 'uri filename output')
  .with_doc("""Location of JDK.""")
  .with_type(Path)
  .with_derive(lambda ps: \
-     ps['//base:build'] / 'host/java' / ps['tarball'].output)
+     ps['//base:build'] / 'host/java' / ps['archive_info'].output)
 )
 
 
@@ -56,28 +45,13 @@ TarballInfo = namedtuple('TarballInfo', 'uri filename output')
 )
 
 
-@decorate_rule('//base:build')
+@decorate_rule('//base:build',
+               'download')
 def install(parameters):
-    """Install Java Development Kit"""
-
-    # Download JDK.
-    build_src = parameters['build_src']
-    ensure_directory(build_src.parent)
-    tarball_path = build_src.parent / parameters['tarball'].filename
-    if not tarball_path.exists():
-        LOG.info('download tarball')
-        wget(parameters['tarball'].uri, tarball_path,
-             headers=['Cookie: oraclelicense=a'])
-    if not build_src.exists():
-        LOG.info('extract tarball')
-        tar_extract(tarball_path, build_src.parent)
-
-    # Add jdk/bin to PATH.
-    jdk_bin = build_src / 'bin'
-    ensure_file(jdk_bin / 'java')
-    path = os.environ.get('PATH')
-    path = '%s:%s' % (jdk_bin, path) if path else str(jdk_bin)
-    os.environ['PATH'] = path
+    """Install Java Development Kit."""
+    jdk_bin = parameters['build_src'] / 'bin'
+    ensure_file(jdk_bin / 'java')  # Sanity check.
+    insert_path(jdk_bin)
 
 
 @decorate_rule('//base:build',
@@ -99,7 +73,6 @@ def build(parameters):
 # rule (and `//base:tapeout`, too).
 def tapeout(parameters):
     """Join point of all Java package's `tapeout` rule."""
-    LOG.info('copy Java runtime environment')
     java_output = parameters['java_output']
     execute(['sudo', 'mkdir', '--parents', java_output])
     rsync([parameters['build_src'] / 'jre'], java_output, sudo=True)
