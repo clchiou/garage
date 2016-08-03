@@ -8,6 +8,7 @@ from pathlib import Path
 from foreman import define_parameter, decorate_rule
 from shipyard import (
     ensure_directory,
+    ensure_file,
     execute,
     wget,
 )
@@ -51,8 +52,8 @@ def install(parameters):
         LOG.info('extract zip archive')
         execute(['unzip', parameters['zip'].filename], cwd=build_src.parent)
 
-    assert build_src.exists()
     gradle_bin = build_src / 'bin'
+    ensure_file(gradle_bin / 'gradle')
     path = os.environ.get('PATH')
     path = '%s:%s' % (gradle_bin, path) if path else str(gradle_bin)
     os.environ['PATH'] = path

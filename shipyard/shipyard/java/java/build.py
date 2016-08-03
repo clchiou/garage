@@ -9,6 +9,7 @@ from foreman import define_parameter, define_rule, decorate_rule
 from shipyard import (
     copy_source,
     ensure_directory,
+    ensure_file,
     execute,
     rsync,
     tar_extract,
@@ -42,7 +43,8 @@ TarballInfo = namedtuple('TarballInfo', 'uri filename output')
 (define_parameter('build_src')
  .with_doc("""Location of JDK.""")
  .with_type(Path)
- .with_derive(lambda ps: ps['java_root'] / 'java' / ps['tarball'].output)
+ .with_derive(lambda ps: \
+     ps['//base:build'] / 'host/java' / ps['tarball'].output)
 )
 
 
@@ -71,8 +73,8 @@ def install(parameters):
         tar_extract(tarball_path, build_src.parent)
 
     # Add jdk/bin to PATH.
-    assert build_src.exists()
     jdk_bin = build_src / 'bin'
+    ensure_file(jdk_bin / 'java')
     path = os.environ.get('PATH')
     path = '%s:%s' % (jdk_bin, path) if path else str(jdk_bin)
     os.environ['PATH'] = path
