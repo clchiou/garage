@@ -48,7 +48,7 @@ def copy_source(src, build_src):
     LOG.info('copy source: %s -> %s', src, build_src)
     ensure_directory(build_src)
     # NOTE: Appending slash to src is an rsync trick.
-    rsync(['%s/' % src], build_src, excludes=[
+    rsync(['%s/' % src], build_src, delete=True, excludes=[
         '*.egg-info',
         '*.pyc',
         '.git',
@@ -124,6 +124,7 @@ def run_commands(commands_str, path=None):
 
 
 def rsync(srcs, dst, *,
+          delete=False,
           relative=False,
           includes=(), excludes=(),
           sudo=False):
@@ -133,6 +134,8 @@ def rsync(srcs, dst, *,
     cmd = ['rsync', '--archive']
     if sudo:
         cmd.insert(0, 'sudo')
+    if delete:
+        cmd.append('--delete')
     if relative:
         cmd.append('--relative')
     for include in includes:
