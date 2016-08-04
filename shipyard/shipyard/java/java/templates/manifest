@@ -1,7 +1,7 @@
 {
     "acKind": "ImageManifest",
     "acVersion": "0.8.6",
-    "name": "${context.get('name', 'python3')}",
+    "name": "${context.get('name', 'java')}",
     "labels": [
         {
             "name": "os",
@@ -14,20 +14,13 @@
     ],
     "app": {
         "exec": [
-            "/usr/local/bin/python3"
+            "${context['java_home']}/bin/java"${',' if context.get('classpath') else ''}
+            % if context.get('classpath'):
+            "-classpath", "${context['classpath']}"
+            % endif
         ],
         "user": "65534",
         "group": "65534",
-        "environment": [
-            {
-                "name": "LD_LIBRARY_PATH",
-                "value": "/usr/local/lib"
-            },
-            {
-                "name": "PYTHONIOENCODING",
-                "value": "UTF-8"
-            }
-        ],
         "workingDirectory": "${context.get('working_directory', '/')}"
     }
 }

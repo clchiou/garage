@@ -24,7 +24,7 @@ def define_package(
 
     def build(parameters):
         execute(['./gradlew', build_task],
-                cwd=parameters['//java/java:java_root'])
+                cwd=parameters['//java/java:build_src_root'])
 
     build_rule = (
         define_rule('build')
@@ -43,13 +43,13 @@ def define_package(
 
     def tapeout(parameters):
         jar_path = (
-            parameters['//java/java:java_root'] /
+            parameters['//java/java:build_src_root'] /
             package_path / 'build/libs' / jar_file_name
         )
         ensure_file(jar_path)
-        java_output = parameters['//java/java:java_output']
-        execute(['sudo', 'mkdir', '--parents', java_output])
-        rsync([jar_path], java_output, sudo=True)
+        java_libs = parameters['//java/java:java_output'] / 'libs'
+        execute(['sudo', 'mkdir', '--parents', java_libs])
+        rsync([jar_path], java_libs, sudo=True)
 
     tapeout_rule = (
         define_rule('tapeout')

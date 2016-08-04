@@ -22,14 +22,14 @@ define_archive(
 )
 
 
-(define_parameter('java_root')
+(define_parameter('build_src_root')
  .with_doc("""Location of Java build root.""")
  .with_type(Path)
  .with_derive(lambda ps: ps['//base:build'] / 'java')
 )
 
 
-(define_parameter('build_src')
+(define_parameter('jdk')
  .with_doc("""Location of JDK.""")
  .with_type(Path)
  .with_derive(lambda ps: \
@@ -37,11 +37,21 @@ define_archive(
 )
 
 
+JAVA_PATH = 'usr/local/lib/java'
+
+
 # NOTE: Do not allow multiple versions of JRE at the moment.
 (define_parameter('java_output')
  .with_doc("""Location of tapeout'ed Java artifacts.""")
  .with_type(Path)
- .with_derive(lambda ps: ps['//base:build_rootfs'] / 'usr/local/lib/java')
+ .with_derive(lambda ps: ps['//base:build_rootfs'] / JAVA_PATH)
+)
+
+
+(define_parameter('java_root')
+ .with_doc("""Location of Java in the output image.""")
+ .with_type(Path)
+ .with_default(Path('/' + JAVA_PATH))
 )
 
 
@@ -49,7 +59,7 @@ define_archive(
                'download')
 def install(parameters):
     """Install Java Development Kit."""
-    jdk_bin = parameters['build_src'] / 'bin'
+    jdk_bin = parameters['jdk'] / 'bin'
     ensure_file(jdk_bin / 'java')  # Sanity check.
     insert_path(jdk_bin)
 
@@ -62,11 +72,15 @@ def build(parameters):
 
     # Copy source (because all Java projects are under one Gradle root
     # project and thus we don't copy Java projects individually).
-    java_root = parameters['java_root']
-    copy_source(parameters['//base:root'] / 'java', java_root)
+    build_src_root = parameters['build_src_root']
+    copy_source(parameters['//base:root'] / 'java', build_src_root)
 
     # Create gradle wrapper.
-    execute(['gradle', 'wrapper'], cwd=java_root)
+    if not (build_src_root / 'gradlew').exists():
+        execute(['gradle', 'wrapper'], cwd=build_src_root)
+
+    # Download and install gradle with the wrapper.
+    execute(['./gradlew', 'wrapper'], cwd=build_src_root)
 
 
 # NOTE: All Java package's `tapeout` rules should reverse depend on this
@@ -75,7 +89,7 @@ def tapeout(parameters):
     """Join point of all Java package's `tapeout` rule."""
     java_output = parameters['java_output']
     execute(['sudo', 'mkdir', '--parents', java_output])
-    rsync([parameters['build_src'] / 'jre'], java_output, sudo=True)
+    rsync([parameters['jdk'] / 'jre'], java_output, sudo=True)
 
 
 (define_rule(tapeout.__name__)

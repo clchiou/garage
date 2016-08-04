@@ -22,6 +22,7 @@
             "name": "www",
             "path": "/var/www",
             "read-only": true,
+            ## For index.html
             "data": "data.tgz"
         }
     ]
