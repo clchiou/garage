@@ -64,6 +64,7 @@ def copy_source(src, build_src):
     rsync(['%s/' % src], build_src, delete=True, excludes=[
         '*.egg-info',
         '*.pyc',
+        '.idea',
         '.git',
         '.gradle',
         '.hg',
