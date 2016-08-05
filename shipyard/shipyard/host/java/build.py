@@ -22,8 +22,7 @@ define_archive(
 (define_parameter('jdk')
  .with_doc("""Location of JDK.""")
  .with_type(Path)
- .with_derive(lambda ps: \
-     ps['//base:build'] / 'host/java' / ps['archive_info'].output)
+ .with_derive(lambda ps: ps['archive_destination'] / ps['archive_info'].output)
 )
 
 

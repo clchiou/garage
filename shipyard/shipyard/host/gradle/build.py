@@ -1,8 +1,6 @@
 """Install Gradle build system."""
 
-from pathlib import Path
-
-from foreman import define_parameter, decorate_rule
+from foreman import decorate_rule
 from shipyard import (
     define_archive,
     ensure_file,
@@ -18,18 +16,15 @@ define_archive(
 )
 
 
-(define_parameter('build_src')
- .with_type(Path)
- .with_derive(lambda ps: \
-     ps['//base:build'] / 'host/gradle' / ps['archive_info'].output)
-)
-
-
 @decorate_rule('//base:build',
                '//host/java:install',
                'download')
 def install(parameters):
     """Install Gradle build system."""
-    gradle_bin = parameters['build_src'] / 'bin'
+    gradle_bin = (
+        parameters['archive_destination'] /
+        parameters['archive_info'].output /
+        'bin'
+    )
     ensure_file(gradle_bin / 'gradle')  # Sanity check.
     insert_path(gradle_bin)

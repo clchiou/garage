@@ -17,6 +17,7 @@ main() {
     //cc/nghttp2:build
     //cc/v8:build
     //host/cpython:install
+    //host/docker2aci:install
     //host/java:install
     //host/mako:install
     //host/node:install
