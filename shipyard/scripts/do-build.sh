@@ -12,47 +12,38 @@ main() {
 
   local VERSION="${VERSION:-$(date +%s)}"
 
+  local THIRD_PARTY=(
+    //cc/nanomsg:build
+    //cc/nghttp2:build
+    //cc/v8:build
+    //host/cpython:install
+    //host/java:install
+    //host/mako:install
+    //host/node:install
+    //java/java:build
+    //py/cpython:build
+    //py/cpython:install_cython
+    //py/lxml:build
+    //py/mako:build
+    //py/pyyaml:build
+    //py/requests:build
+    //py/sqlalchemy:build
+  )
+
   local BUILDER_ARGS=(build)
   if [[ "${1}" = "all" ]]; then
     BUILDER_ARGS+=(
-      //cc/nanomsg:build
-      //cc/nghttp2:build
-      //cc/v8:build
-      //host/cpython:install
-      //host/mako:install
-      //host/node:install
-      //java/java:build
-      //py/cpython:build
-      //py/cpython:install_cython
+      //java/garage:build
       //py/garage:build
       //py/http2:build
-      //py/lxml:build
-      //py/mako:build
       //py/nanomsg:build
-      //py/pyyaml:build
-      //py/requests:build
-      //py/sqlalchemy:build
       //py/startup:build
       //py/v8:build
     )
+    BUILDER_ARGS+=("${THIRD_PARTY[@]}")
   elif [[ "${1}" = "third-party" ]]; then
     # Build all third-party packages (including all host tools).
-    BUILDER_ARGS+=(
-      //cc/nanomsg:build
-      //cc/nghttp2:build
-      //cc/v8:build
-      //host/cpython:install
-      //host/mako:install
-      //host/node:install
-      //java/java:build
-      //py/cpython:build
-      //py/cpython:install_cython
-      //py/lxml:build
-      //py/mako:build
-      //py/pyyaml:build
-      //py/requests:build
-      //py/sqlalchemy:build
-    )
+    BUILDER_ARGS+=("${THIRD_PARTY[@]}")
   elif [[ "${1}" = "echod" ]]; then
     BUILDER_ARGS+=(
       //py/garage/examples/echod:build_pod
