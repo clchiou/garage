@@ -88,8 +88,8 @@ pyyaml				x		3.11
 requests		x			2.10.0
 sqlalchemy			x		1.0.13
 startup			x			master
-v8		x			x	master
-  depot_tools
+v8		x			x	5.4.310
+  depot_tools           x
 
 PP = Pure Python (maybe using ctypes)
 PC = Python + C module

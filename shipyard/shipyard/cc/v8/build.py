@@ -23,6 +23,12 @@ LOG = logging.getLogger(__name__)
  .with_type(str)
  .with_default('https://chromium.googlesource.com/v8/v8.git')
 )
+# Find the current releases here: https://omahaproxy.appspot.com/
+(define_parameter('version')
+ .with_doc("""Version to build.""")
+ .with_type(str)
+ .with_default('5.4.310')
+)
 
 
 (define_parameter('depot_tools')
@@ -54,7 +60,9 @@ LOG = logging.getLogger(__name__)
 
 (define_parameter('build_src')
  .with_type(Path)
- .with_derive(lambda ps: ps['//base:build'] / 'cc/v8')
+ # Add one extra level of directory 'cc/v8/v8' for gclient to manage
+ # metadata at 'cc/v8' directory.
+ .with_derive(lambda ps: ps['//base:build'] / 'cc/v8/v8')
 )
 (define_parameter('out_target')
  .with_type(Path)
@@ -76,7 +84,10 @@ def build(parameters):
     build_src = parameters['build_src']
     if not build_src.exists():
         LOG.info('fetch V8')
+        ensure_directory(build_src.parent)
         execute(['fetch', 'v8'], cwd=build_src.parent)
+        execute(['git', 'checkout', parameters['version']], cwd=build_src)
+        execute(['gclient', 'sync'], cwd=build_src)
 
     fix_gold_version(parameters)
 
