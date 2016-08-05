@@ -23,7 +23,8 @@ def build(parameters):
     if not v8_build_src.is_dir():
         raise FileExistsError('not a directory: %s' % v8_build_src)
 
-    include_dirs = '%s/include' % v8_build_src
+    include_dirs = '{v8_build_src}:{v8_build_src}/include'.format(
+        v8_build_src=v8_build_src)
 
     v8_out = parameters['//cc/v8:out_target']
     if not v8_out.is_dir():
