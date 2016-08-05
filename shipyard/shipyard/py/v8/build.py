@@ -23,6 +23,8 @@ def build(parameters):
     if not v8_build_src.is_dir():
         raise FileExistsError('not a directory: %s' % v8_build_src)
 
+    # Add v8_build_src to include directories to workaround a bug(?) in
+    # libplatform/libplatform.h (which should be fixed pretty soon?).
     include_dirs = '{v8_build_src}:{v8_build_src}/include'.format(
         v8_build_src=v8_build_src)
 
