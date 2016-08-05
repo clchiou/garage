@@ -1,24 +1,12 @@
-"""Install Java SE Development Kit 8."""
+"""Set up Java environment."""
 
 from pathlib import Path
 
 from foreman import define_parameter, define_rule, decorate_rule
 from shipyard import (
     copy_source,
-    define_archive,
-    ensure_file,
     execute,
-    insert_path,
     rsync,
-)
-
-
-define_archive(
-    uri='http://download.oracle.com/otn-pub/java/jdk/8u102-b14/jdk-8u102-linux-x64.tar.gz',
-    filename='jdk-8u102-linux-x64.tar.gz',
-    output='jdk1.8.0_102',
-    derive_dst_path=lambda ps: ps['//base:build'] / 'host/java',
-    wget_headers=['Cookie: oraclelicense=a'],
 )
 
 
@@ -26,14 +14,6 @@ define_archive(
  .with_doc("""Location of Java build root.""")
  .with_type(Path)
  .with_derive(lambda ps: ps['//base:build'] / 'java')
-)
-
-
-(define_parameter('jdk')
- .with_doc("""Location of JDK.""")
- .with_type(Path)
- .with_derive(lambda ps: \
-     ps['//base:build'] / 'host/java' / ps['archive_info'].output)
 )
 
 
@@ -56,17 +36,8 @@ JAVA_PATH = 'usr/local/lib/java'
 
 
 @decorate_rule('//base:build',
-               'download')
-def install(parameters):
-    """Install Java Development Kit."""
-    jdk_bin = parameters['jdk'] / 'bin'
-    ensure_file(jdk_bin / 'java')  # Sanity check.
-    insert_path(jdk_bin)
-
-
-@decorate_rule('//base:build',
                '//host/gradle:install',
-               'install')
+               '//host/java:install')
 def build(parameters):
     """Prepare Java development environment."""
 
@@ -80,7 +51,7 @@ def build(parameters):
         execute(['gradle', 'wrapper'], cwd=build_src_root)
 
     # Download and install gradle with the wrapper.
-    execute(['./gradlew', 'wrapper'], cwd=build_src_root)
+    execute(['./gradlew', ':help'], cwd=build_src_root)
 
 
 # NOTE: All Java package's `tapeout` rules should reverse depend on this
@@ -89,7 +60,7 @@ def tapeout(parameters):
     """Join point of all Java package's `tapeout` rule."""
     java_output = parameters['java_output']
     execute(['sudo', 'mkdir', '--parents', java_output])
-    rsync([parameters['jdk'] / 'jre'], java_output, sudo=True)
+    rsync([parameters['//host/java:jdk'] / 'jre'], java_output, sudo=True)
 
 
 (define_rule(tapeout.__name__)

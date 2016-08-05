@@ -26,7 +26,7 @@ define_archive(
 
 
 @decorate_rule('//base:build',
-               '//java/java:install',
+               '//host/java:install',
                'download')
 def install(parameters):
     """Install Gradle build system."""
