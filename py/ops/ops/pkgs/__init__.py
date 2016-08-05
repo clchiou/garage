@@ -11,26 +11,6 @@ from ops import scripting
 LOG = logging.getLogger(__name__)
 
 
-### Package: docker2aci
-
-
-DOCKER2ACI_URI = 'https://github.com/appc/docker2aci/releases/download/v{version}/docker2aci-v{version}.tar.gz'
-
-
-def docker2aci_install(version, tarball_path=None):
-    if Path('/usr/bin/docker2aci').exists():
-        LOG.warning('attempt to overwrite /usr/bin/docker2aci')
-    cmds = []
-    if not tarball_path:
-        tarball_path = 'docker2aci.tar.gz'
-        uri = DOCKER2ACI_URI.format(version=version)
-        cmds.append(make_wget(uri, tarball_path))
-    cmds.append(make_tar_extract(tarball_path))
-    cmds.append(['sudo', 'cp', 'docker2aci', '/usr/bin'])
-    with TemporaryDirectory() as working_dir:
-        scripting.execute_many(cmds, cwd=working_dir)
-
-
 ### Package: rkt
 
 
@@ -64,9 +44,6 @@ def rkt_install(version, tarball_path=None):
 
 
 PACKAGES = {
-    'docker2aci': {
-        'install': docker2aci_install,
-    },
     'rkt': {
         'install': rkt_install,
     },
