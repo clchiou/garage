@@ -163,7 +163,7 @@ class each_completed:
         self.loop = loop
         self._done = None
 
-    async def __aiter__(self):
+    def __aiter__(self):
         return self
 
     async def __anext__(self):
