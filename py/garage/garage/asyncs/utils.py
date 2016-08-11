@@ -61,14 +61,12 @@ class CircuitBreaker:
             return True
         return False
 
-    def count(self, raises=Disconnected):
-        self.timestamps.append(self.clock())
-        if self.connected:
-            return True
-        elif raises:
+    def ensure_connected(self, raises=Disconnected):
+        if not self.connected:
             raise raises
-        else:
-            return False
+
+    def trigger(self):
+        self.timestamps.append(self.clock())
 
 
 def synchronous(coro_func):
@@ -106,5 +104,5 @@ async def timer(timeout, *, raises=asyncio.TimeoutError, loop=None):
         await asyncio.Event(loop=loop).wait()  # Wait forever.
     else:
         await asyncio.sleep(timeout, loop=loop)
-        if raises:
-            raise raises
+    if raises:
+        raise raises
