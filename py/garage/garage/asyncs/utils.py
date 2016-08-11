@@ -25,16 +25,16 @@ class IteratorAdapter:
         self.executor = executor
         self.iterator = iterator
 
-    async def __aiter__(self):
+    def __aiter__(self):
         return self
 
     async def __anext__(self):
-        # next(iterator) raises StopIteration, which messes up async
-        # event loop; so we have to detect it explicitly.
-        value_future = self.executor.submit(next, self.iterator)
-        await value_future  # This won't raise StopIteration.
+        return await self.executor.submit(self._next)
+
+    # This is potentially blocking.
+    def _next(self):
         try:
-            return value_future.result()
+            return next(self.iterator)
         except StopIteration:
             raise StopAsyncIteration from None
 
