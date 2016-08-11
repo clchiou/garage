@@ -6,9 +6,7 @@ import json
 import logging
 import sys
 
-from garage.asyncs.futures import one_completed
-from garage.asyncs.processes import ProcessOwner, process
-from garage.asyncs.utils import CircuitBreaker, tcp_server
+from garage.asyncs.utils import tcp_server
 from http2 import Protocol
 
 
@@ -19,8 +17,7 @@ LOG = logging.getLogger(NAME)
 LOG.addHandler(logging.NullHandler())
 
 
-@process
-async def echo_service(exit, port):
+def make_server(port):
 
     def create_handler():
         return Protocol(lambda: echo)
@@ -29,19 +26,7 @@ async def echo_service(exit, port):
         loop = asyncio.get_event_loop()
         return loop.create_server(create_handler, port=port)
 
-    async with ProcessOwner() as server:
-        breaker = CircuitBreaker(count=4, period=60)
-        while True:
-            server.own(tcp_server(create_server))
-            proc = await one_completed([], [server.proc, exit])
-            try:
-                await proc
-            except Exception:
-                LOG.exception('http server has crashed')
-            if not breaker.count(raises=False):
-                LOG.warning('circuit breaker is disconnected')
-                return
-            await server.disown()
+    return tcp_server(create_server)
 
 
 async def echo(request, response):
@@ -74,16 +59,15 @@ def main(argv):
         format='%(asctime)s %(levelname)s %(name)s: %(message)s',
     )
 
-    LOG.info('start')
     loop = asyncio.get_event_loop()
-    procs = [
-        echo_service(args.port),
-    ]
+    procs = [make_server(args.port)]
 
+    LOG.info('start')
     try:
-        LOG.info('run services')
-        done, _ = loop.run_until_complete(
-            asyncio.wait(procs, return_when=asyncio.FIRST_EXCEPTION))
+        done, _ = loop.run_until_complete(asyncio.wait(
+            procs,
+            return_when=asyncio.FIRST_EXCEPTION,
+        ))
         for proc in done:
             proc.result()
 
@@ -94,7 +78,7 @@ def main(argv):
         done, _ = loop.run_until_complete(asyncio.wait(procs))
         for proc in done:
             if proc.exception():
-                LOG.error('error in service %r',
+                LOG.error('error in server %r',
                           proc, exc_info=proc.exception())
 
     except Exception:

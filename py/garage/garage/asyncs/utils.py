@@ -83,20 +83,21 @@ def synchronous(coro_func):
 
 
 @process
-async def tcp_server(exit, create_server):
+async def tcp_server(exit, create_server, *, name=None):
     """Wrap a TCP server in a process."""
-    LOG.info('start server')
+    name = name or 'tcp_server'
+    LOG.info('%s: create server', name)
     server = await create_server()
-    LOG.info('serving...')
+    LOG.info('%s: start serving', name)
     try:
         await exit
     finally:
-        LOG.info('stop server')
+        LOG.info('%s: stop server', name)
         server.close()
         try:
             await server.wait_closed()
         except Exception:
-            LOG.exception('err when closing server')
+            LOG.exception('%s: err when closing server', name)
 
 
 async def timer(timeout, *, raises=asyncio.TimeoutError, loop=None):
