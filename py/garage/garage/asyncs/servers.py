@@ -24,6 +24,7 @@ SERVER_MAKERS = __name__ + ':server_makers'
 
 
 GRACEFUL_SHUTDOWN = __name__ + ':graceful_shutdown'
+GRACEFUL_SHUTDOWN_CALLBACKS = __name__ + ':graceful_shutdown_callbacks'
 
 
 LOOP = __name__ + ':loop'
@@ -47,7 +48,7 @@ def prepare(*, prog=None, description, comps, verbose=1):
     next_startup.set(MAKE_SERVER, None)
     next_startup(collect_make_server)
     next_startup.set(GRACEFUL_SHUTDOWN, None)
-    next_startup(register_graceful_shutdown)
+    next_startup(collect_graceful_shutdown)
 
     # First-stage startup
     components.bind(LoggingComponent(verbose=verbose))
@@ -72,17 +73,9 @@ def collect_make_server(server_makers: [MAKE_SERVER]) -> SERVER_MAKERS:
     return list(filter(None, server_makers))
 
 
-def register_graceful_shutdown(callbacks: [GRACEFUL_SHUTDOWN]):
-    callbacks = list(filter(None, callbacks))
-    if not callbacks:
-        # Don't use SIG_IGN because we want to log a message.
-        signal.signal(signal.SIGQUIT, lambda *_: LOG.info('ignore SIGQUIT'))
-        return
-    def sigquit(*_):
-        LOG.info('request graceful shutdown')
-        for callback in callbacks:
-            callback()
-    signal.signal(signal.SIGQUIT, sigquit)
+def collect_graceful_shutdown(callbacks: [GRACEFUL_SHUTDOWN]) \
+        -> GRACEFUL_SHUTDOWN_CALLBACKS:
+    return dict(filter(None, callbacks))
 
 
 def main(args):
@@ -92,12 +85,18 @@ def main(args):
 
         varz = next_startup.call()
         loop = varz[LOOP]
-        server_makers = varz[SERVER_MAKERS]
-        del varz
 
         LOG.info('start servers: pid=%d', os.getpid())
-        servers = [make_server() for make_server in server_makers]
+        servers = make_servers(
+            varz[SERVER_MAKERS],
+            varz[GRACEFUL_SHUTDOWN_CALLBACKS],
+            loop,
+        )
+
+        del varz
+
         try:
+            # Run servers...
             done, pending = loop.run_until_complete(asyncio.wait(
                 servers,
                 return_when=asyncio.FIRST_EXCEPTION,
@@ -114,6 +113,25 @@ def main(args):
 
         LOG.info('exit')
         return 0
+
+
+def make_servers(server_makers, callback_table, loop):
+    servers = []
+    callbacks = []
+    for make_server in server_makers:
+        server = make_server()
+        servers.append(server)
+        # By default, use server.stop to request graceful shutdown.
+        callbacks.append(callback_table.get(make_server, server.stop))
+    loop.add_signal_handler(
+        signal.SIGQUIT, request_graceful_shutdown, callbacks)
+    return servers
+
+
+def request_graceful_shutdown(callbacks):
+    LOG.info('graceful shutdown')
+    for callback in callbacks:
+        callback()
 
 
 def stop_servers(servers, *, timeout=None, loop=None):

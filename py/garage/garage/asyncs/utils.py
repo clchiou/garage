@@ -91,7 +91,7 @@ async def tcp_server(exit, create_server, *, name=None):
         await exit
     finally:
         LOG.info('%s: stop server', name)
-        server.close()
+        server.close()  # This initiates graceful shutdown.
         try:
             await server.wait_closed()
         except Exception:
