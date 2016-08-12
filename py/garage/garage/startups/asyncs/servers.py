@@ -1,16 +1,16 @@
-"""Generic 2-stage startup for launching servers.
-
-A server is just a convenient name for long-running async process.
-"""
+"""Generic server container."""
 
 __all__ = [
     'MAKE_SERVER',
+    'GRACEFUL_SHUTDOWN',
     'prepare',
 ]
 
 import argparse
 import asyncio
 import logging
+import os
+import signal
 from contextlib import ExitStack
 
 from garage import components
@@ -22,6 +22,9 @@ from . import LOOP
 
 MAKE_SERVER = __name__ + ':make_server'
 SERVER_MAKERS = __name__ + ':server_makers'
+
+
+GRACEFUL_SHUTDOWN = __name__ + ':graceful_shutdown'
 
 
 LOG = logging.getLogger(__name__)
@@ -41,6 +44,8 @@ def prepare(*, prog=None, description, comps, verbose=1):
     # Overcome the limitation that startup requires >0 writes.
     next_startup.set(MAKE_SERVER, None)
     next_startup(collect_make_server)
+    next_startup.set(GRACEFUL_SHUTDOWN, None)
+    next_startup(register_graceful_shutdown)
 
     # First-stage startup
     components.bind(LoggingComponent(verbose=verbose))
@@ -65,6 +70,19 @@ def collect_make_server(server_makers: [MAKE_SERVER]) -> SERVER_MAKERS:
     return list(filter(None, server_makers))
 
 
+def register_graceful_shutdown(callbacks: [GRACEFUL_SHUTDOWN]):
+    callbacks = list(filter(None, callbacks))
+    if not callbacks:
+        # Don't use SIG_IGN because we want to log a message.
+        signal.signal(signal.SIGQUIT, lambda *_: LOG.info('ignore SIGQUIT'))
+        return
+    def sigquit(*_):
+        LOG.info('request graceful shutdown')
+        for callback in callbacks:
+            callback()
+    signal.signal(signal.SIGQUIT, sigquit)
+
+
 def main(args):
     with ExitStack() as exit_stack:
         next_startup = args.next_startup
@@ -75,29 +93,41 @@ def main(args):
         server_makers = varz[SERVER_MAKERS]
         del varz
 
+        LOG.info('start servers: pid=%d', os.getpid())
         servers = [make_server() for make_server in server_makers]
         try:
-            LOG.info('run servers')
-            done, _ = loop.run_until_complete(
-                asyncio.wait(servers, return_when=asyncio.FIRST_EXCEPTION))
-            for server in done:
-                server.result()
+            done, pending = loop.run_until_complete(asyncio.wait(
+                servers,
+                return_when=asyncio.FIRST_EXCEPTION,
+            ))
+            check_servers(done)
+            stop_servers(pending, timeout=10, loop=loop)
 
         except KeyboardInterrupt:
-            LOG.info('graceful shutdown')
-            for server in servers:
-                server.stop()
-            done, _ = loop.run_until_complete(asyncio.wait(servers))
-            for server in done:
-                if server.exception():
-                    LOG.error('error in server %r', server,
-                              exc_info=server.exception())
-
-        except Exception:
-            LOG.exception('non-graceful shutdown')
+            LOG.info('shutdown')
+            stop_servers(servers, timeout=2, loop=loop)
 
         finally:
             loop.close()
 
         LOG.info('exit')
         return 0
+
+
+def stop_servers(servers, *, timeout=None, loop=None):
+    if not servers:
+        return
+    for server in servers:
+        server.stop()
+    done, pending = (loop or asyncio.get_event_loop()).run_until_complete(
+        asyncio.wait(servers, timeout=timeout))
+    check_servers(done)
+    for server in pending:
+        LOG.error('server did not stop: %r', server)
+
+
+def check_servers(servers):
+    for server in servers:
+        if server.exception():
+            LOG.error('server crashed: %r', server,
+                      exc_info=server.exception())
