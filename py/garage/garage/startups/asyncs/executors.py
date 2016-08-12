@@ -7,9 +7,8 @@ import functools
 from garage import components
 from garage.asyncs import executors
 from garage.asyncs.executors import WorkerPoolAdapter
+from garage.asyncs.servers import LOOP
 from garage.threads.executors import WorkerPool
-
-from . import LOOP
 
 
 class ExecutorComponent(components.Component):

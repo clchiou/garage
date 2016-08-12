@@ -3,6 +3,7 @@
 __all__ = [
     'MAKE_SERVER',
     'GRACEFUL_SHUTDOWN',
+    'LOOP',
     'prepare',
 ]
 
@@ -17,14 +18,15 @@ from garage import components
 from garage.startups.logging import LoggingComponent
 from startup import Startup, startup
 
-from . import LOOP
-
 
 MAKE_SERVER = __name__ + ':make_server'
 SERVER_MAKERS = __name__ + ':server_makers'
 
 
 GRACEFUL_SHUTDOWN = __name__ + ':graceful_shutdown'
+
+
+LOOP = __name__ + ':loop'
 
 
 LOG = logging.getLogger(__name__)
