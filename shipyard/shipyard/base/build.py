@@ -5,7 +5,6 @@ from pathlib import Path
 from foreman import define_parameter, define_rule, decorate_rule, to_path
 from shipyard import (
     __file__ as shipyard_path,
-    build_appc_image,
     ensure_directory,
     execute,
     rsync,
@@ -94,10 +93,3 @@ def tapeout(parameters):
     rsync([to_path('etc')], rootfs, sudo=True)
     rsync(libs, rootfs, relative=True, sudo=True)
     execute(['sudo', 'chown', '--recursive', 'root:root', rootfs / 'etc'])
-
-
-(define_rule('build_image')
- .with_doc("""Build containerized image.""")
- .with_build(lambda ps: build_appc_image(ps['build_out'], ps['output']))
- .depend('tapeout')
-)

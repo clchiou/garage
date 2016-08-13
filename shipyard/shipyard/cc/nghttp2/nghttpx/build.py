@@ -2,16 +2,9 @@
 
 from foreman import define_rule
 from shipyard import (
-    render_appc_manifest,
+    pod,
     tapeout_files,
     tapeout_libraries,
-)
-
-
-(define_rule('build')
- .with_doc(__doc__)
- .depend('//base:build')
- .depend('//cc/nghttp2:build')
 )
 
 
@@ -23,17 +16,14 @@ from shipyard import (
          'libjemalloc',
          'libstdc++',
      ]),
-     render_appc_manifest(ps, 'templates/manifest'),
  ))
- .depend('build')
  .depend('//cc/nghttp2:tapeout')
  .depend('//host/mako:install')
  .reverse_depend('//base:tapeout')
 )
 
 
-(define_rule('build_image')
- .with_doc("""Build containerized image.""")
- .depend('tapeout')
- .depend('//base:build_image')
-)
+pod.define_image(pod.Image(
+    name='nghttpx',
+    manifest='templates/manifest',
+))

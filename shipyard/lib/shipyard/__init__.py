@@ -290,6 +290,8 @@ def build_appc_image(src_dir, dst_dir):
         if not target.exists():
             raise FileNotFoundError(str(target))
 
+    ensure_directory(dst_dir)
+
     with ExitStack() as stack:
         proc_tar = stack.enter_context(Popen(
             ['tar', '--create', 'manifest', 'rootfs'],

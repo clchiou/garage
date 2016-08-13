@@ -47,17 +47,17 @@ main() {
     BUILDER_ARGS+=("${THIRD_PARTY[@]}")
   elif [[ "${1}" = "echod" ]]; then
     BUILDER_ARGS+=(
-      //py/garage/examples/echod:build_pod
+      //py/garage/examples/echod:build_pod/echod
       --parameter "//py/garage/examples/echod:version=${VERSION}"
     )
   elif [[ "${1}" = "httpd" ]]; then
     BUILDER_ARGS+=(
-      //py/cpython/examples/httpd:build_pod
+      //py/cpython/examples/httpd:build_pod/httpd
       --parameter "//py/cpython/examples/httpd:version=${VERSION}"
     )
   elif [[ "${1}" = "nghttpx" ]]; then
     BUILDER_ARGS+=(
-      //cc/nghttp2/nghttpx:build_image
+      //cc/nghttp2/nghttpx:build_image/nghttpx
     )
   else
     echo "unknown build target: ${1}"
