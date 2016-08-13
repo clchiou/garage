@@ -226,6 +226,12 @@ class Parameter:
         if self.default is not None and self.derive is not None:
             raise ForemanError('default and derive are exclusive')
 
+    def ensure_type(self, value):
+        if self.type is not None and not isinstance(value, self.type):
+            raise ForemanError('value of parameter %s is not %s-typed: %r' %
+                               (self.label, self.type.__name__, value))
+        return value
+
 
 class Rule:
 
@@ -573,26 +579,19 @@ class ParameterValues:
     def __getitem__(self, label):
         if isinstance(label, str):
             label = Label.parse(label, self.implicit_path)
-        try:
-            return self.environment[label]
-        except KeyError:
-            parameter = self.parameters.get(label)
-            if parameter is None:
-                raise
-            if parameter.derive:
-                value = parameter.derive(ParameterValues(
-                    self.parameters,
-                    self.environment,
-                    parameter.label.path,
-                ))
-                if (parameter.type is not None and
-                        not isinstance(value, parameter.type)):
-                    raise ForemanError(
-                        'derived value of parameter %s is not %s-typed: %r' %
-                        (parameter.label, parameter.type.__name__, value))
-                return value
-            else:
-                return parameter.default
+        # Check if the parameter is defined first.
+        parameter = self.parameters[label]
+        if label in self.environment:
+            return parameter.ensure_type(self.environment[label])
+        elif parameter.derive:
+            # Create a ParameterValues with different implicit_path.
+            return parameter.ensure_type(parameter.derive(ParameterValues(
+                self.parameters,
+                self.environment,
+                parameter.label.path,
+            )))
+        else:
+            return parameter.default
 
 
 ### APIs for build files.
