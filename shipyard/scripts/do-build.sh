@@ -6,7 +6,7 @@ set -o errexit -o nounset -o pipefail
 
 main() {
   if [[ -z "${1:-}" ]]; then
-    echo "Usage: $(basename "${0}") {all|third-party|echod|httpd} --builder BUILDER --preserve-container --output OUTPUT ..."
+    echo "Usage: $(basename "${0}") {all|third-party|echod|httpd|nghttpx} --builder BUILDER --preserve-container --output OUTPUT ..."
     exit 1
   fi
 
@@ -54,6 +54,10 @@ main() {
     BUILDER_ARGS+=(
       //py/cpython/examples/httpd:build_pod
       --parameter "//py/cpython/examples/httpd:version=${VERSION}"
+    )
+  elif [[ "${1}" = "nghttpx" ]]; then
+    BUILDER_ARGS+=(
+      //cc/nghttp2/nghttpx:build_image
     )
   else
     echo "unknown build target: ${1}"

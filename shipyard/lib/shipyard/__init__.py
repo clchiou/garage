@@ -22,6 +22,7 @@ __all__ = [
     'render_appc_manifest',
     'render_bundle_files',
     'render_template',
+    'tapeout_files',
     'tapeout_libraries',
 ]
 
@@ -324,11 +325,15 @@ def build_appc_image(src_dir, dst_dir):
             raise RuntimeError('error in gzip: rc=%d' % retcode)
 
 
+def tapeout_files(parameters, paths):
+    rsync(paths, parameters['//base:build_rootfs'], relative=True, sudo=True)
+
+
 def tapeout_libraries(parameters, lib_dir, libnames):
     lib_dir = Path(lib_dir)
     libs = list(itertools.chain.from_iterable(
         lib_dir.glob('%s*' % name) for name in libnames))
-    rsync(libs, parameters['//base:build_rootfs'], relative=True, sudo=True)
+    tapeout_files(parameters, libs)
 
 
 def render_appc_manifest(parameters, manifest_label, template_vars=None):

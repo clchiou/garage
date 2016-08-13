@@ -1,4 +1,4 @@
-"""Build nghttp2 from source."""
+"""Build nghttp2 from source - core library."""
 
 from foreman import define_parameter, define_rule, decorate_rule
 from shipyard import (
