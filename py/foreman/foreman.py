@@ -332,13 +332,26 @@ class Loader:
 
     def load_build_files(self, paths):
         """Load build files in breadth-first order."""
-        labels = list(self._load_build_files(paths))
-        # Resolve reverse dependencies.
-        for rule in self.rules.values():
+        return list(self._load_build_files(paths))
+
+    def resolve_reverse_dependencies(self, rule_labels):
+        """Add reverse dependencies from transitive closure of rules."""
+        queue = []
+        for label in rule_labels:
+            if not isinstance(label, Label):
+                label = Label.parse(label)
+            queue.append(label)
+        visited = set()
+        while queue:
+            label = queue.pop(0)
+            if label in visited:
+                continue
+            rule = self.rules[label]
             for rdep in rule.reverse_dependencies:
                 self.rules[rdep.label].from_reverse_dependencies.append(
                     rdep.with_label(rule.label))
-        return labels
+            queue.extend(dep.label for dep in rule.dependencies)
+            visited.add(label)
 
     def _load_build_files(self, paths):
         assert self.search_build_file is not None
@@ -720,6 +733,7 @@ def command_build(args, loader):
             rule_labels.append(rule_label)
 
     loader.load_build_files(rule_labels)
+    loader.resolve_reverse_dependencies(rule_labels)
 
     executor = Executor(
         loader.parameters, loader.rules,
@@ -781,6 +795,8 @@ def command_list(args, loader):
              list(map(format_dependency, rule.dependencies))),
             ('reverse_dependencies',
              list(map(format_dependency, rule.reverse_dependencies))),
+            ('all_dependencies',
+             list(map(format_dependency, rule.all_dependencies))),
         ])
 
     def format_dependency(dependency):
@@ -800,7 +816,9 @@ def command_list(args, loader):
         return str(obj)
 
     build_file_contents = OrderedDict()
-    for label in loader.load_build_files(args.rule):
+    labels = loader.load_build_files(args.rule)
+    loader.resolve_reverse_dependencies(args.rule)
+    for label in labels:
         path_str = '//%s' % label.path
         if path_str in build_file_contents:
             continue

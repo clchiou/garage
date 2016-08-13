@@ -40,6 +40,11 @@ class LoaderTest(unittest.TestCase):
         finally:
             loader, foreman.LOADER = foreman.LOADER, loader
 
+        loader.resolve_reverse_dependencies([
+            # Add reverse dependencies from this rule.
+            '//pkg1:pkg1',
+        ])
+
         self.assertEqual(
             {Label.parse('//pkg1/pkg2:par_x')}, set(loader.parameters))
         self.assertEqual(
@@ -83,12 +88,43 @@ class LoaderTest(unittest.TestCase):
         finally:
             loader, foreman.LOADER = foreman.LOADER, loader
 
+        loader.resolve_reverse_dependencies([
+            # Add reverse dependencies from this rule.
+            '//pkg1:pkg1',
+        ])
+
         # Verify dependency.
         rule = loader.rules[Label.parse('//pkg1:pkg2')]
         self.assertEqual(
             {Label.parse('//pkg1:pkg1')},
             set(r.label for r in rule.all_dependencies),
         )
+
+    def test_resolve_reverse_dep(self):
+        testdata = Path(__file__).parent / 'testdata'
+        self.assertTrue(testdata.is_dir())
+
+        search = Searcher([testdata / 'path2', testdata / 'path1'])
+        loader = Loader(search)
+
+        loader, foreman.LOADER = foreman.LOADER, loader
+        try:
+            foreman.LOADER.load_build_files(['//pkg-rdeps:joint-rule-2'])
+        finally:
+            loader, foreman.LOADER = foreman.LOADER, loader
+
+        loader.resolve_reverse_dependencies([
+            '//pkg-rdeps:joint-rule-2',
+        ])
+
+        # Verify dependency.
+        rule = loader.rules[Label.parse('//pkg-rdeps:joint-rule-1')]
+        self.assertEqual(
+            {Label.parse('//pkg-rdeps:build-rule-1')},
+            {r.label for r in rule.all_dependencies},
+        )
+        rule = loader.rules[Label.parse('//pkg-rdeps:joint-rule-2')]
+        self.assertEqual(set(), {r.label for r in rule.all_dependencies})
 
 
 if __name__ == '__main__':
