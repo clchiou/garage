@@ -2,20 +2,13 @@ __all__ = [
     'IteratorAdapter',
     'CircuitBreaker',
     'synchronous',
-    'tcp_server',
     'timer',
 ]
 
 import asyncio
 import collections
-import logging
 import time
 from functools import wraps
-
-from garage.asyncs.processes import process
-
-
-LOG = logging.getLogger(__name__)
 
 
 class IteratorAdapter:
@@ -78,24 +71,6 @@ def synchronous(coro_func):
         return asyncio.get_event_loop().run_until_complete(
             coro_func(*args, **kwargs))
     return wrapper
-
-
-@process
-async def tcp_server(exit, create_server, *, name=None):
-    """Wrap a TCP server in a process."""
-    name = name or 'tcp_server'
-    LOG.info('%s: create server', name)
-    server = await create_server()
-    LOG.info('%s: start serving', name)
-    try:
-        await exit
-    finally:
-        LOG.info('%s: stop server', name)
-        server.close()  # This initiates graceful shutdown.
-        try:
-            await server.wait_closed()
-        except Exception:
-            LOG.exception('%s: err when closing server', name)
 
 
 async def timer(timeout, *, raises=asyncio.TimeoutError, loop=None):

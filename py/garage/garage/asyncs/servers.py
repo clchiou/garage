@@ -5,6 +5,8 @@ __all__ = [
     'GRACEFUL_SHUTDOWN',
     'LOOP',
     'prepare',
+    # Server helpers.
+    'tcp_server',
 ]
 
 import argparse
@@ -15,6 +17,7 @@ import signal
 from contextlib import ExitStack
 
 from garage import components
+from garage.asyncs.processes import process
 from garage.okay import OKAY, NOT_OKAY
 from garage.startups.logging import LoggingComponent
 from startup import Startup, startup
@@ -158,3 +161,24 @@ def check_servers(servers):
                       exc_info=server.exception())
             okay = NOT_OKAY
     return okay
+
+
+### Server helpers.
+
+
+@process
+async def tcp_server(exit, create_server, *, name=None):
+    """Wrap a TCP server in a process."""
+    name = name or 'tcp_server'
+    LOG.info('%s: create server', name)
+    server = await create_server()
+    LOG.info('%s: start serving', name)
+    try:
+        await exit
+    finally:
+        LOG.info('%s: stop server', name)
+        server.close()  # This initiates graceful shutdown.
+        try:
+            await server.wait_closed()
+        except Exception:
+            LOG.exception('%s: err when closing server', name)

@@ -6,7 +6,7 @@ import json
 import logging
 import sys
 
-from garage.asyncs.utils import tcp_server
+from garage.asyncs.servers import tcp_server
 from http2 import Protocol
 
 

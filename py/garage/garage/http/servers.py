@@ -10,7 +10,7 @@ from functools import partial
 
 import http2
 import http2.utils
-from garage.asyncs.utils import tcp_server
+from garage.asyncs.servers import tcp_server
 
 
 class ServerConfigError(Exception):
