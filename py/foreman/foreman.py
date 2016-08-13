@@ -410,10 +410,8 @@ class Loader:
     def load_build_file(self, label_path, build_file_path):
         """Load, compile, and execute one build file."""
         assert self.search_build_file is not None
-        # Path.read_text() is added until Python 3.5 :(
-        with build_file_path.open() as build_file:
-            code = build_file.read()
-        code = compile(code, str(build_file_path), 'exec')
+        code = compile(
+            build_file_path.read_text(), str(build_file_path), 'exec')
         exec(code, {'__name__': str(label_path).replace('/', '.')})
         # Validate parameters.
         for parameter in self.parameters.get_things(label_path):
