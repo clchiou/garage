@@ -8,5 +8,6 @@ setup(
     install_requires = [
         'garage',
         'http2',
+        'startup',
     ],
 )

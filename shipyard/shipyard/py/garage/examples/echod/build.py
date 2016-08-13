@@ -7,7 +7,7 @@ from shipyard import (
     define_package_common,
     ensure_file,
     render_appc_manifest,
-    render_bundle_files,
+    render_files,
 )
 
 
@@ -38,6 +38,7 @@ define_package_common(
  .depend('//py/cpython:build')
  .depend('//py/garage:build')
  .depend('//py/http2:build')
+ .depend('//py/startup:build')
 )
 
 
@@ -63,10 +64,14 @@ define_package_common(
 
 (define_rule('build_pod')
  .with_doc("""Build deployable bundle for a pod.""")
- .with_build(lambda ps: render_bundle_files(ps, [
+ .with_build(lambda ps: render_files(ps, [
      ('templates/%s' % name, ps['//base:output'] / name)
      for name in ('pod.json', 'echod.service')
- ]))
+ ], {
+     'version': ps['version'],
+     'sha512': (ps['//base:output'] / 'sha512').read_text().strip(),
+ }))
+ # Depend on build_image since this is a single-image pod.
  .depend('build_image')
  .depend('//host/mako:install')
 )

@@ -20,7 +20,7 @@ __all__ = [
     # Helpers for the build image/pod phases.
     'build_appc_image',
     'render_appc_manifest',
-    'render_bundle_files',
+    'render_files',
     'render_template',
     'tapeout_files',
     'tapeout_libraries',
@@ -346,25 +346,8 @@ def render_appc_manifest(parameters, manifest_label, template_vars=None):
     )
 
 
-def render_bundle_files(parameters, label_path_pairs, template_vars=None):
-    """Helper for creating some basic deployment bundle files by
-       following some conventions.
-    """
-
-    template_vars = template_vars or {}
-
-    if 'version' not in template_vars:
-        version = parameters['version']
-        if version is None:
-            raise RuntimeError('no version is set')
-        template_vars['version'] = version
-
-    if 'sha512' not in template_vars:
-        sha512_path = parameters['//base:output'] / 'sha512'
-        if not sha512_path.is_file():
-            raise FileExistsError('not a file: %s' % sha512_path)
-        template_vars['sha512'] = sha512_path.read_text().strip()
-
+def render_files(parameters, label_path_pairs, template_vars=None):
+    """Helper for render multiple templates."""
     for label, path in label_path_pairs:
         render_template(parameters, to_path(label), path, template_vars)
 
