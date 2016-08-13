@@ -26,4 +26,7 @@ from shipyard import (
 pod.define_image(pod.Image(
     name='nghttpx',
     manifest='templates/manifest',
+    depends=[
+        'tapeout',
+    ],
 ))

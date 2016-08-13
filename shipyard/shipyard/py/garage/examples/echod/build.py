@@ -40,9 +40,4 @@ pod.define_pod(pod.Pod(
             ],
         ),
     ],
-    # Since there is only one image, we could build the image and the
-    # pod in the one build.
-    depends=[
-        'build_image/echod',
-    ],
 ))

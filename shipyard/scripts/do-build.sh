@@ -48,12 +48,12 @@ main() {
   elif [[ "${1}" = "echod" ]]; then
     BUILDER_ARGS+=(
       //py/garage/examples/echod:build_pod/echod
-      --parameter "//py/garage/examples/echod:version=${VERSION}"
+      --parameter "//py/garage/examples/echod:version/echod=${VERSION}"
     )
   elif [[ "${1}" = "httpd" ]]; then
     BUILDER_ARGS+=(
       //py/cpython/examples/httpd:build_pod/httpd
-      --parameter "//py/cpython/examples/httpd:version=${VERSION}"
+      --parameter "//py/cpython/examples/httpd:version/echod=${VERSION}"
     )
   elif [[ "${1}" = "nghttpx" ]]; then
     BUILDER_ARGS+=(

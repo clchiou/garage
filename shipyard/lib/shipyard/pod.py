@@ -63,10 +63,15 @@ Volume = partial(
 )
 
 
+
 def define_image(image):
-    """Generate build_image/IMAGE_NAME rule."""
+    """Generate build_image/IMAGE rule."""
+    _define_image('build_image/%s' % image.name, image)
+
+
+def _define_image(rule_name, image):
     rule = (
-        define_rule('build_image/%s' % image.name)
+        define_rule(rule_name)
         .with_build(partial(_build_image, image=image))
         .depend('//base:tapeout')
         .depend('//host/mako:install')
@@ -88,20 +93,25 @@ def _build_image(parameters, image):
 
 
 def define_pod(pod):
+    """Generate build_pod/POD and build_pod/POD/IMAGE rules."""
     (
-        define_parameter('version')
-        .with_doc("""Pod version.""")
+        define_parameter('version/%s' % pod.name)
         .with_type(int)
     )
+
+    build_image_names = []
     for image in pod.images:
-        define_image(image)
-    # Define build rules for the application pod.
-    # NOTE: build_pod should not depend not the build_image rules.
+        build_image_name = 'build_pod/%s/%s' % (pod.name, image.name)
+        build_image_names.append(build_image_name)
+        _define_image(build_image_name, image)
+
     rule = (
         define_rule('build_pod/%s' % pod.name)
         .with_build(partial(_build_pod, pod=pod))
         .depend('//host/mako:install')
     )
+    for build_image_name in build_image_names:
+        rule.depend(build_image_name)
     for depend in pod.depends:
         rule.depend(depend)
 
@@ -110,7 +120,7 @@ def _build_pod(parameters, pod):
 
     template_vars = {
         'name': pod.name,
-        'version': parameters['version'],
+        'version': parameters['version/%s' % pod.name],
         'images': {
             image.name: {
                 'sha512': ((parameters['//base:output'] /
