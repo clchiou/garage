@@ -15,6 +15,7 @@ import signal
 from contextlib import ExitStack
 
 from garage import components
+from garage.okay import OKAY, NOT_OKAY
 from garage.startups.logging import LoggingComponent
 from startup import Startup, startup
 
@@ -95,24 +96,25 @@ def main(args):
 
         del varz
 
+        okay = OKAY
         try:
             # Run servers...
             done, pending = loop.run_until_complete(asyncio.wait(
                 servers,
                 return_when=asyncio.FIRST_EXCEPTION,
             ))
-            check_servers(done)
-            stop_servers(pending, timeout=10, loop=loop)
+            okay &= check_servers(done)
+            okay &= stop_servers(pending, timeout=10, loop=loop)
 
         except KeyboardInterrupt:
             LOG.info('shutdown')
-            stop_servers(servers, timeout=2, loop=loop)
+            okay &= stop_servers(servers, timeout=2, loop=loop)
 
         finally:
             loop.close()
 
         LOG.info('exit')
-        return 0
+        return 0 if okay else 1
 
 
 def make_servers(server_makers, callback_table, loop):
@@ -136,18 +138,23 @@ def request_graceful_shutdown(callbacks):
 
 def stop_servers(servers, *, timeout=None, loop=None):
     if not servers:
-        return
+        return OKAY
     for server in servers:
         server.stop()
     done, pending = (loop or asyncio.get_event_loop()).run_until_complete(
         asyncio.wait(servers, timeout=timeout))
-    check_servers(done)
+    okay = check_servers(done)
     for server in pending:
         LOG.error('server did not stop: %r', server)
+        okay = NOT_OKAY
+    return okay
 
 
 def check_servers(servers):
+    okay = OKAY
     for server in servers:
         if server.exception():
             LOG.error('server crashed: %r', server,
                       exc_info=server.exception())
+            okay = NOT_OKAY
+    return okay
