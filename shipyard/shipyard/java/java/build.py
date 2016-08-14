@@ -24,7 +24,7 @@ JAVA_PATH = 'usr/local/lib/java'
 (define_parameter('java_output')
  .with_doc("""Location of tapeout'ed Java artifacts.""")
  .with_type(Path)
- .with_derive(lambda ps: ps['//base:build_rootfs'] / JAVA_PATH)
+ .with_derive(lambda ps: ps['//base:rootfs'] / JAVA_PATH)
 )
 
 

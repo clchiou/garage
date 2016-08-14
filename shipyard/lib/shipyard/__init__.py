@@ -328,7 +328,7 @@ def build_appc_image(src_dir, dst_dir):
 
 
 def tapeout_files(parameters, paths):
-    rsync(paths, parameters['//base:build_rootfs'], relative=True, sudo=True)
+    rsync(paths, parameters['//base:rootfs'], relative=True, sudo=True)
 
 
 def tapeout_libraries(parameters, lib_dir, libnames):
@@ -343,7 +343,7 @@ def render_appc_manifest(parameters, manifest_label, template_vars=None):
     render_template(
         parameters,
         to_path(manifest_label),
-        parameters['//base:build_out'] / 'manifest',
+        parameters['//base:manifest'],
         template_vars=template_vars,
     )
 

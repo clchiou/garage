@@ -125,9 +125,9 @@ def fix_gold_version(parameters):
 (define_rule('tapeout')
  .with_doc("""Copy build artifacts.""")
  .with_build(lambda ps: (
-     ensure_directory(ps['//base:build_rootfs'] / 'usr/local/lib'),
+     ensure_directory(ps['//base:rootfs'] / 'usr/local/lib'),
      rsync(list((ps['out_target'] / 'lib.target').glob('*')),
-           ps['//base:build_rootfs'] / 'usr/local/lib',
+           ps['//base:rootfs'] / 'usr/local/lib',
            sudo=True),
  ))
  .depend('build')

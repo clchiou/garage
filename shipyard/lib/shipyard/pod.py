@@ -87,7 +87,7 @@ def _build_image(parameters, image):
     template_vars.update(image.make_template_vars(parameters) or {})
     render_appc_manifest(parameters, image.manifest, template_vars)
     build_appc_image(
-        parameters['//base:build_out'],
+        parameters['//base:image'],
         parameters['//base:output'] / image.name,
     )
 
@@ -110,8 +110,9 @@ def define_pod(pod):
         .with_build(partial(_build_pod, pod=pod))
         .depend('//host/mako:install')
     )
-    for build_image_name in build_image_names:
-        rule.depend(build_image_name)
+    # TODO: We cannot build multiple images in one-pass at the moment.
+    #for build_image_name in build_image_names:
+    #    rule.depend(build_image_name)
     for depend in pod.depends:
         rule.depend(depend)
 

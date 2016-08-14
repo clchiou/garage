@@ -49,17 +49,13 @@ The build phase is sequenced as:
     All other `tapeout` rules should reverse depend on this rule so that
     this will be the last executed `tapeout` rule.
 
-  * //base:build_image
-    This rule builds a generic container image; if you don't intend to
-    do anything fancy, your `build_image` rule can be empty and simply
-    depends on this rule.  (Should we turn this rule into a function
-    instead?)
+  * //your/app:build_pod/POD/IMAGE or //your/app:build_image/IMAGE
+    Build containerized application image, which could be just an image
+    or image(s) of a pod.  Unfortunately our build system cannot build
+    multiple images in one-pass at the moment; if you have multiple
+    images, you will have to build each of them in separate passes.
 
-  * //your/app:build_image
-    As said before, you may defer all work to `//base:build_image` if
-    you don't intend to do anything fancy.
-
-  * //your/pod:build_pod
+  * //your/app:build_pod/POD
     Bundle together configuration files and application image(s) into a
     pod (a tightly-coupled group of containers).
 

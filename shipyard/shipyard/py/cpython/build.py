@@ -141,17 +141,17 @@ def tapeout(parameters):
         # Exclude site-packages (you will have to cherry-pick them).
         modules / 'site-packages',
     ]
-    rsync([modules], parameters['//base:build_rootfs'],
+    rsync([modules], parameters['//base:rootfs'],
           relative=True, excludes=excludes, sudo=True)
 
     LOG.info('copy pth files')
     pths = list((modules / 'site-packages').glob('*.pth'))
-    rsync(pths, parameters['//base:build_rootfs'], relative=True, sudo=True)
+    rsync(pths, parameters['//base:rootfs'], relative=True, sudo=True)
 
     LOG.info('copy cpython binaries')
     bins = parameters['prefix'] / 'bin'
     bins = list(bins.glob('python%d*' % parameters['version'].major))
-    rsync(bins, parameters['//base:build_rootfs'], relative=True, sudo=True)
+    rsync(bins, parameters['//base:rootfs'], relative=True, sudo=True)
 
 
 (define_rule(tapeout.__name__)

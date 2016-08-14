@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Handy shortcuts for launching builder.
+# Build packages or images (but not pods).
 
 set -o errexit -o nounset -o pipefail
 
@@ -10,8 +10,7 @@ main() {
     exit 1
   fi
 
-  local VERSION="${VERSION:-$(date +%s)}"
-
+  # All third-party packages (including all host tools).
   local THIRD_PARTY=(
     //cc/nanomsg:build
     //cc/nghttp2:build
@@ -43,22 +42,15 @@ main() {
     )
     BUILDER_ARGS+=("${THIRD_PARTY[@]}")
   elif [[ "${1}" = "third-party" ]]; then
-    # Build all third-party packages (including all host tools).
     BUILDER_ARGS+=("${THIRD_PARTY[@]}")
   elif [[ "${1}" = "echod" ]]; then
-    BUILDER_ARGS+=(
-      //py/garage/examples/echod:build_pod/echod
-      --parameter "//py/garage/examples/echod:version/echod=${VERSION}"
-    )
+    # Build the main image (also named echod) of the echod pod.
+    BUILDER_ARGS+=(//py/garage/examples/echod:build_pod/echod/echod)
   elif [[ "${1}" = "httpd" ]]; then
-    BUILDER_ARGS+=(
-      //py/cpython/examples/httpd:build_pod/httpd
-      --parameter "//py/cpython/examples/httpd:version/echod=${VERSION}"
-    )
+    # Build the main image (also named httpd) of the httpd pod.
+    BUILDER_ARGS+=(//py/cpython/examples/httpd:build_pod/httpd/httpd)
   elif [[ "${1}" = "nghttpx" ]]; then
-    BUILDER_ARGS+=(
-      //cc/nghttp2/nghttpx:build_image/nghttpx
-    )
+    BUILDER_ARGS+=(//cc/nghttp2/nghttpx:build_image/nghttpx)
   else
     echo "unknown build target: ${1}"
     exit 1

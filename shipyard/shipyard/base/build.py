@@ -25,15 +25,20 @@ from shipyard import (
 )
 
 
-(define_parameter('build_out')
- .with_doc("""Location of intermediate and final build artifacts.""")
+(define_parameter('image')
+ .with_doc("""Location of image artifacts.""")
  .with_type(Path)
- .with_default(Path.home() / 'build/out')
+ .with_derive(lambda ps: ps['build'] / 'output')
 )
-(define_parameter('build_rootfs')
- .with_doc("""Location of final container image data.""")
+(define_parameter('manifest')
+ .with_doc("""Location of image manifest.""")
  .with_type(Path)
- .with_default(Path.home() / 'build/out/rootfs')
+ .with_derive(lambda ps: ps['image'] / 'manifest')
+)
+(define_parameter('rootfs')
+ .with_doc("""Location of image rootfs.""")
+ .with_type(Path)
+ .with_derive(lambda ps: ps['image'] / 'rootfs')
 )
 
 
@@ -67,8 +72,8 @@ def build(parameters):
     ensure_directory(parameters['build'] / 'host')
     ensure_directory(parameters['build'] / 'java')
     ensure_directory(parameters['build'] / 'py')
-    ensure_directory(parameters['build_out'])
-    ensure_directory(parameters['build_rootfs'])
+    ensure_directory(parameters['image'])
+    ensure_directory(parameters['rootfs'])
 
     if parameters['update']:
         execute(['sudo', 'apt-get', 'update'])
@@ -88,7 +93,7 @@ def build(parameters):
 def tapeout(parameters):
     """Join point of all `tapeout` rules."""
     # Copy /etc and runtime libraries.
-    rootfs = parameters['build_rootfs']
+    rootfs = parameters['rootfs']
     libs = ['/lib/x86_64-linux-gnu', '/lib64']
     rsync([to_path('etc')], rootfs, sudo=True)
     rsync(libs, rootfs, relative=True, sudo=True)

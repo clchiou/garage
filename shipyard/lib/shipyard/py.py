@@ -66,7 +66,7 @@ def tapeout_package(parameters, package_name, patterns=()):
     dirs = list(site_packages.glob('%s*' % package_name))
     dirs.extend(itertools.chain.from_iterable(
         map(site_packages.glob, patterns)))
-    rsync(dirs, parameters['//base:build_rootfs'], relative=True, sudo=True)
+    rsync(dirs, parameters['//base:rootfs'], relative=True, sudo=True)
 
 
 ### Templates
