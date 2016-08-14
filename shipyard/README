@@ -52,8 +52,8 @@ The build phase is sequenced as:
   * //your/app:build_pod/POD/IMAGE or //your/app:build_image/IMAGE
     Build containerized application image, which could be just an image
     or image(s) of a pod.  Unfortunately our build system cannot build
-    multiple images in one-pass at the moment; if you have multiple
-    images, you will have to build each of them in separate passes.
+    multiple images in one-pass because we use //base:tapeout as a joint
+    point.
 
   * //your/app:build_pod/POD
     Bundle together configuration files and application image(s) into a

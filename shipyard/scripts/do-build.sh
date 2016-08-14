@@ -11,7 +11,7 @@ main() {
   fi
 
   # All third-party packages (including all host tools).
-  local THIRD_PARTY=(
+  local THIRD_PARTY=(\
     //cc/nanomsg:build
     //cc/nghttp2:build
     //cc/v8:build
@@ -32,7 +32,7 @@ main() {
 
   local BUILDER_ARGS=(build)
   if [[ "${1}" = "all" ]]; then
-    BUILDER_ARGS+=(
+    BUILDER_ARGS+=(\
       //java/garage:build
       //py/garage:build
       //py/http2:build

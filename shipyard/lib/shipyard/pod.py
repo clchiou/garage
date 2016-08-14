@@ -99,20 +99,17 @@ def define_pod(pod):
         .with_type(int)
     )
 
-    build_image_names = []
     for image in pod.images:
-        build_image_name = 'build_pod/%s/%s' % (pod.name, image.name)
-        build_image_names.append(build_image_name)
-        _define_image(build_image_name, image)
+        _define_image('build_pod/%s/%s' % (pod.name, image.name), image)
 
+    # Do not make build_pod/POD depend on build_pod/POD/IMAGE rules.
+    # Our build system cannot build multiple images in one pass because
+    # we use //base:tapeout as joint point.
     rule = (
         define_rule('build_pod/%s' % pod.name)
         .with_build(partial(_build_pod, pod=pod))
         .depend('//host/mako:install')
     )
-    # TODO: We cannot build multiple images in one-pass at the moment.
-    #for build_image_name in build_image_names:
-    #    rule.depend(build_image_name)
     for depend in pod.depends:
         rule.depend(depend)
 
