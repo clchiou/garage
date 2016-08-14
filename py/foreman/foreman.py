@@ -317,11 +317,11 @@ class Rule:
         if not isinstance(dep.label, Label):
             dep.label = Label.parse(dep.label, implicit_path)
         if dep.configs:
-            configs = []
-            for label, value in dep.configs:
+            configs = {}
+            for label, value in dep.configs.items():
                 if not isinstance(label, Label):
                     label = Label.parse(label, implicit_path)
-                configs.append((label, value))
+                configs[label] = value
             dep.configs = configs
 
 
@@ -402,7 +402,7 @@ class Loader:
         for rule in self.rules.values():
             for dep in rule.all_dependencies:
                 if dep.configs:
-                    for label, _ in dep.configs:
+                    for label in dep.configs:
                         if label not in self.parameters:
                             msg = 'parameter %s is undefined' % label
                             raise ForemanError(msg)
@@ -802,8 +802,8 @@ def command_list(args, loader):
         contents['conditional'] = bool(dependency.when)
         if dependency.configs:
             contents['configs'] = OrderedDict([
-                (str(label), value)
-                for label, value in dependency.configs
+                (str(label), dependency.configs[label])
+                for label in sorted(dependency.configs)
             ])
         return contents
 
