@@ -2,7 +2,7 @@ import unittest
 
 import getpass
 from pathlib import Path
-from subprocess import call, check_call, check_output
+from subprocess import check_call, check_output
 
 
 class AppsTest(unittest.TestCase):
@@ -46,6 +46,7 @@ class AppsTest(unittest.TestCase):
         self.assertNoPod1002()
         self.deploy(self.testdata_path / 'bundle2')
         self.assertPod1002()
+        self.assertNoPod1001Etc()
         self.assertEqual(
             ['test-pod:1001', 'test-pod:1002 *'],
             self.list_pods(),
@@ -55,6 +56,7 @@ class AppsTest(unittest.TestCase):
         self.assertNoPod1003()
         self.deploy(self.testdata_path / 'bundle3')
         self.assertPod1003()
+        self.assertNoPod1001Etc()
         self.assertNoPod1002Etc()
         self.assertEqual(
             ['test-pod:1001', 'test-pod:1002', 'test-pod:1003 *'],
@@ -65,6 +67,7 @@ class AppsTest(unittest.TestCase):
         self.assertNoPod1002Etc()
         self.deploy('test-pod:1002', redeploy=True)
         self.assertPod1002()
+        self.assertNoPod1001Etc()
         self.assertNoPod1003Etc()
         self.assertEqual(
             ['test-pod:1001', 'test-pod:1002 *', 'test-pod:1003'],
@@ -72,6 +75,7 @@ class AppsTest(unittest.TestCase):
         )
 
     def test_0005_redeploy_v1001(self):
+        self.assertNoPod1001Etc()
         self.deploy('test-pod:1001', redeploy=True)
         self.assertNoPod1002Etc()
         self.assertNoPod1003Etc()
@@ -84,6 +88,7 @@ class AppsTest(unittest.TestCase):
         self.assertNoPod1002Etc()
         self.assertNoPod1003Etc()
         self.deploy('test-pod:1003', redeploy=True)
+        self.assertNoPod1001Etc()
         self.assertNoPod1002Etc()
         self.assertPod1003()
         self.assertEqual(
@@ -93,6 +98,7 @@ class AppsTest(unittest.TestCase):
 
     def test_0007_redeploy_v1003_again(self):
         self.deploy('test-pod:1003', redeploy=True)
+        self.assertNoPod1001Etc()
         self.assertNoPod1002Etc()
         self.assertPod1003()
         self.assertEqual(
@@ -139,25 +145,27 @@ class AppsTest(unittest.TestCase):
     def assertPod1001(self):
         self.assertDir('/etc/ops/apps/pods/test-pod/1001')
         self.assertNotDir('/var/lib/ops/apps/volumes/test-pod/1001')
-        # Sanity check.
-        self.assertNotFile('/etc/systemd/system/test-pod-example-1001.service')
+        service = 'test-pod-1001.service'
+        self.assertFile('/etc/systemd/system/%s' % service)
+        self.assertNotDir('/etc/systemd/system/%s.d' % service)
 
     def assertNoPod1001(self):
         self.assertNotDir('/etc/ops/apps/pods/test-pod/1001')
         self.assertNotDir('/var/lib/ops/apps/volumes/test-pod/1001')
+        self.assertNoPod1001Etc()
+
+    def assertNoPod1001Etc(self):
+        service = 'test-pod-1001.service'
+        self.assertNotFile('/etc/systemd/system/%s' % service)
+        self.assertNotDir('/etc/systemd/system/%s.d' % service)
 
     def assertPod1002(self):
         self.assertDir('/etc/ops/apps/pods/test-pod/1002')
         self.assertNotDir('/var/lib/ops/apps/volumes/test-pod/1002')
         # Can't fully test templated services in a Docker container.
-        services = [
-            'test-pod-simple-1002.service',
-            'test-pod-replicated-1002@.service',
-            'test-pod-replicated-with-arg-1002@.service',
-        ]
-        for service in services:
-            self.assertFile('/etc/systemd/system/%s' % service)
-            self.assertNotDir('/etc/systemd/system/%s.d' % service)
+        service = 'test-pod-1002@.service'
+        self.assertFile('/etc/systemd/system/%s' % service)
+        self.assertNotDir('/etc/systemd/system/%s.d' % service)
 
     def assertNoPod1002(self):
         self.assertNotDir('/etc/ops/apps/pods/test-pod/1002')
@@ -165,27 +173,18 @@ class AppsTest(unittest.TestCase):
         self.assertNoPod1002Etc()
 
     def assertNoPod1002Etc(self):
-        services = [
-            'test-pod-simple-1002.service',
-            'test-pod-replicated-1002@.service',
-            'test-pod-replicated-with-arg-1002@.service',
-        ]
-        for service in services:
-            self.assertNotFile('/etc/systemd/system/%s' % service)
-            self.assertNotDir('/etc/systemd/system/%s.d' % service)
+        service = 'test-pod-1002@.service'
+        self.assertNotFile('/etc/systemd/system/%s' % service)
+        self.assertNotDir('/etc/systemd/system/%s.d' % service)
 
     # This SHA should match pod.json, which in turn, matches image.aci.
     bundle3_sha512 = 'sha512-f369d16070'
 
     def assertPod1003(self):
         self.assertPod1003Configs()
-        services = [
-            'test-pod-volume-1003.service',
-        ]
-        for service in services:
-            self.assertFile('/etc/systemd/system/%s' % service)
-            self.assertFile(
-                '/etc/systemd/system/%s.d/10-volumes.conf' % service)
+        service = 'test-pod-1003.service'
+        self.assertFile('/etc/systemd/system/%s' % service)
+        self.assertFile('/etc/systemd/system/%s.d/10-volumes.conf' % service)
 
     def assertPod1003Configs(self):
         self.assertDir('/etc/ops/apps/pods/test-pod/1003')
@@ -201,12 +200,9 @@ class AppsTest(unittest.TestCase):
         self.assertNoPod1003Etc()
 
     def assertNoPod1003Etc(self):
-        services = [
-            'test-pod-volume-1003.service',
-        ]
-        for service in services:
-            self.assertNotFile('/etc/systemd/system/%s' % service)
-            self.assertNotDir('/etc/systemd/system/%s.d' % service)
+        service = 'test-pod-1003.service'
+        self.assertNotFile('/etc/systemd/system/%s' % service)
+        self.assertNotDir('/etc/systemd/system/%s.d' % service)
 
     # Helper methods.
 

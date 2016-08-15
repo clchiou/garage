@@ -12,11 +12,11 @@ Otherwise you should keep these ops scripts at minimum, meaning:
   * If you are in situations where ops scripts need to be executed as a
     daemon, something probably went wrong.
 
-  * Ops scripts should only depend on Python 3 standard library (so that
-    it is easy to deploy these scripts to the remote machine).
+  * The ops scripts should only depend on Python 3 standard library (so
+    that it is easy to deploy these scripts to the remote machine).
 
 
-=== Container Groups
+=== Pod (Container Group)
 
 Containers are (un-)deployed in a tightly-coupled group, which would
 usually be called a "pod".  A container group is specified with a JSON
@@ -32,33 +32,20 @@ object like this:
         # use timestamp for this.
         "version": 1001,
 
-        # The containers are defined here (however, technically you are
-        # not required to launch containerized services; anything that
-        # the process manager can launch may go here).
-        "containers": [
-            {
-                # The name of this service, which must be unique within
-                # the group.
-                "name": "frontend",
+        # A pod must have at least one process manager section, such as
+        # this one for systemd.  We support only systemd at the moment.
+        "systemd": {
+            "unit-files": [
+                "example.service",
+            ],
+        },
 
-                # You may optionally define the replication of this
-                # service, either as an array or just an integer for the
-                # number of replicas.
-                "replication": [8080, 8081, 8082],
+        # (Optional) You may define the replication of this service,
+        # either as an array or as the number of replicas.
+        "replication": [8080, 8081, 8082],
 
-                # A container must have at least one process manager
-                # specific section, such as this one for systemd.
-                # Currently we only support systemd though.
-                "systemd": {
-                    "unit-files": [
-                        "example.service",
-                    ],
-                },
-            },
-        ],
-
-        # These are images for the containers above, and are usually
-        # only useful when you are deploying from a bundle (you may add
+        # These are images for the containers, and are usually only
+        # useful when you are deploying from a bundle (you may add
         # bypass them with the `--redeploy` flag).
         "images": [
             {

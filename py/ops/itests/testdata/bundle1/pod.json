@@ -1,4 +1,9 @@
 {
     "name": "test-pod",
-    "version": 1001
+    "version": 1001,
+    "systemd": {
+        "unit-files": [
+            "simple.service"
+        ]
+    }
 }

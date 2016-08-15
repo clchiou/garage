@@ -4,7 +4,7 @@ a "pod" (not to be confused with a Linux kernel cgroup).
 """
 
 __all__ = [
-    'ContainerGroupRepo',
+    'PodRepo',
 ]
 
 import json
@@ -15,8 +15,8 @@ from pathlib import Path
 LOG = logging.getLogger(__name__)
 
 
-class ContainerGroupRepo:
-    """The central repository of container groups.
+class PodRepo:
+    """The central repository of pods.
 
        Directory structure:
 
@@ -36,8 +36,8 @@ class ContainerGroupRepo:
         self._current = config_path / 'current'
         self._volumes = Path(data_path).absolute() / 'volumes'
 
-    # Most methods should expect ContainerGroup object in their
-    # arguments except these few methods below.
+    # Most methods should expect Pod object in their arguments except
+    # these few methods below.
 
     def get_pod_names(self):
         try:
@@ -64,13 +64,12 @@ class ContainerGroupRepo:
     def find_pod(self, path_or_name):
         """Load a pod with either a path or a 'name:version' string."""
         if Path(path_or_name).exists():
-            return ContainerGroup.load_json(path_or_name)
+            return Pod.load_json(path_or_name)
         else:
             pod_name, version = path_or_name.rsplit(':', 1)
             return self._get_pod(pod_name, version)
 
-    # Below are "normal" methods that expect ContainerGroup object in
-    # their arguments.
+    # Below are "normal" methods that expect an Pod object.
 
     def iter_pods(self, pod, exclude_self=False):
         """Iterate versions of a pod."""
@@ -102,7 +101,7 @@ class ContainerGroupRepo:
 
     def _get_pod(self, pod_name, version):
         path = self._get_config_path(pod_name, version)
-        return ContainerGroup.load_json(path)
+        return Pod.load_json(path)
 
     def _iter_pod_versions(self, pod_name):
         path = self._pods / pod_name
@@ -120,14 +119,15 @@ class ContainerGroupRepo:
         return self._pods / pod_name / str(version)
 
 
-class ContainerGroup:
+class Pod:
 
     POD_JSON = 'pod.json'
 
     PROP_NAMES = frozenset((
         'name',
         'version',
-        'containers',
+        'systemd',
+        'replication',
         'images',
         'volumes',
     ))
@@ -148,10 +148,19 @@ class ContainerGroup:
         self.name = pod_data['name']
         self.version = int(pod_data['version'])
 
-        self.containers = [
-            Container(self, container_data)
-            for container_data in pod_data.get('containers', ())
-        ]
+        # NOTE: The systemd section below will check replication.
+        # Parse this first.
+        self.replication = pod_data.get('replication', 1)
+        if isinstance(self.replication, int):
+            if self.replication < 1:
+                raise ValueError('invalid replication: %d' % self.replication)
+
+        systemd = pod_data.get('systemd')
+        self.systemd = Systemd(self, systemd) if systemd else None
+
+        # We only support systemd at the moment.
+        if not self.systemd:
+            raise ValueError('no process manager for pod %s' % self.name)
 
         self.images = [
             Image(self, image_data)
@@ -167,28 +176,6 @@ class ContainerGroup:
         return '%s:%s' % (self.name, self.version)
 
 
-class Container:
-
-    PROP_NAMES = frozenset(('name', 'replication', 'systemd'))
-
-    def __init__(self, pod, container_data):
-        ensure_names(self.PROP_NAMES, container_data)
-
-        self.name = container_data['name']
-
-        self.replication = container_data.get('replication', 1)
-        if isinstance(self.replication, int):
-            if self.replication < 1:
-                raise ValueError('invalid replication: %d' % self.replication)
-
-        systemd = container_data.get('systemd')
-        self.systemd = Systemd(pod, self, systemd) if systemd else None
-
-        # We only support systemd at the moment.
-        if not self.systemd:
-            raise ValueError('no process manager for container %s' % self.name)
-
-
 class Systemd:
 
     PROP_NAMES = frozenset(('unit-files',))
@@ -202,22 +189,21 @@ class Systemd:
         SYSTEM_PATH = Path('/etc/systemd/system')
 
         UNIT_NAME_FORMAT = \
-            '{pod_name}-{container_name}-{pod_version}{templated}{suffix}'
+            '{pod_name}-{pod_version}{templated}{suffix}'
 
-        def __init__(self, pod, container, unit_file):
+        def __init__(self, pod, unit_file):
 
             # Path to the unit file (not to be confused with unit name
             # or the path to the unit file under /etc/systemd/system).
             self.path = pod.path.parent / unit_file
 
-            self.is_templated = container.replication != 1
+            self.is_templated = pod.replication != 1
 
             # Name of this unit, which encodes the information of this
             # container group.
             self.name = self.UNIT_NAME_FORMAT.format(
                 pod_name=pod.name,
                 pod_version=pod.version,
-                container_name=container.name,
                 templated='@' if self.is_templated else '',
                 suffix=self.path.suffix,
             )
@@ -225,15 +211,14 @@ class Systemd:
             # If this unit is templated, this is a list of unit names of
             # the instances; otherwise it's an empty list.
             if self.is_templated:
-                if isinstance(container.replication, int):
-                    instances = range(container.replication)
+                if isinstance(pod.replication, int):
+                    instances = range(pod.replication)
                 else:
-                    instances = container.replication
+                    instances = pod.replication
                 self.instances = [
                     self.UNIT_NAME_FORMAT.format(
                         pod_name=pod.name,
                         pod_version=pod.version,
-                        container_name=container.name,
                         templated='@%s' % i,
                         suffix=self.path.suffix,
                     )
@@ -256,11 +241,11 @@ class Systemd:
             path = self.system_path
             return path.with_name(path.name + '.d')
 
-    def __init__(self, pod, container, systemd_data):
+    def __init__(self, pod, systemd_data):
         ensure_names(self.PROP_NAMES, systemd_data)
 
         self.units = [
-            Systemd.Unit(pod, container, unit_file)
+            Systemd.Unit(pod, unit_file)
             for unit_file in systemd_data.get('unit-files', ())
         ]
 

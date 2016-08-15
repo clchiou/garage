@@ -1,16 +1,11 @@
 {
     "name": "test-pod",
     "version": 1003,
-    "containers": [
-        {
-            "name": "volume",
-            "systemd": {
-                "unit-files": [
-                    "volume.service"
-                ]
-            }
-        }
-    ],
+    "systemd": {
+        "unit-files": [
+            "volume.service"
+        ]
+    },
     "images": [
         {
             "id": "sha512-f369d16070a9494783b0846bbea607b2d84b24bf77b412ffa37dcd08e64ab5c1ce88147dba87628b932c016264955f3700fe91e72648abd77e64729c0f04f3ee",

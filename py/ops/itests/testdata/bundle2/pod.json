@@ -1,32 +1,10 @@
 {
     "name": "test-pod",
     "version": 1002,
-    "containers": [
-        {
-            "name": "simple",
-            "systemd": {
-                "unit-files": [
-                    "simple.service"
-                ]
-            }
-        },
-        {
-            "name": "replicated",
-            "replication": 3,
-            "systemd": {
-                "unit-files": [
-                    "replicated.service"
-                ]
-            }
-        },
-        {
-            "name": "replicated-with-arg",
-            "replication": ["x", "y", "z"],
-            "systemd": {
-                "unit-files": [
-                    "replicated.service"
-                ]
-            }
-        }
-    ]
+    "systemd": {
+        "unit-files": [
+            "replicated.service"
+        ]
+    },
+    "replication": ["x", "y", "z"]
 }

@@ -4,7 +4,7 @@ __all__ = [
     'COMMANDS',
 ]
 
-from ops.apps.models import ContainerGroupRepo
+from ops.apps.models import PodRepo
 
 
 def add_arguments(parser):
@@ -20,7 +20,7 @@ def add_arguments(parser):
 
 def list_pods(args):
     """List pod names."""
-    repo = ContainerGroupRepo(args.config_path, args.data_path)
+    repo = PodRepo(args.config_path, args.data_path)
     for name in repo.get_pod_names():
         version = repo.get_current_version_from_name(name)
         for pod in repo.iter_pods_from_name(name):
