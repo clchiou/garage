@@ -9,10 +9,14 @@ __all__ = [
 
 import json
 import logging
+import re
 from pathlib import Path
 
 
 LOG = logging.getLogger(__name__)
+
+
+NAME_PATTERN = re.compile(r'[a-zA-Z0-9_\-.]+')
 
 
 class PodRepo:
@@ -146,6 +150,8 @@ class Pod:
         self.path = pod_path.absolute()
 
         self.name = pod_data['name']
+        if not NAME_PATTERN.fullmatch(self.name):
+            raise ValueError('invalid pod name: %s' % self.name)
         self.version = int(pod_data['version'])
 
         # NOTE: The systemd section below will check replication.
@@ -262,10 +268,14 @@ class Systemd:
 
 class Image:
 
-    PROP_NAMES = frozenset(('id', 'path', 'uri', 'signature'))
+    PROP_NAMES = frozenset(('name', 'id', 'path', 'uri', 'signature'))
 
     def __init__(self, pod, image_data):
         ensure_names(self.PROP_NAMES, image_data)
+
+        self.name = image_data['name']
+        if not NAME_PATTERN.fullmatch(self.name):
+            raise ValueError('invalid image name: %s' % self.name)
 
         self.id = image_data['id']
 
@@ -289,6 +299,8 @@ class Volume:
         ensure_names(self.PROP_NAMES, volume_data)
 
         self.name = volume_data['name']
+        if not NAME_PATTERN.fullmatch(self.name):
+            raise ValueError('invalid volume name: %s' % self.name)
 
         self.path = Path(volume_data['path'])
 

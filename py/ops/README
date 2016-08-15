@@ -49,6 +49,10 @@ object like this:
         # bypass them with the `--redeploy` flag).
         "images": [
             {
+                # A short name of this image for other parts of ops to
+                # reference this image.
+                "name": "image-name",
+
                 # This is the ID for the container runtime (usually rkt)
                 # to identify an image.
                 "id": "sha512-XXXXXX",

@@ -184,6 +184,7 @@ class AppsTest(unittest.TestCase):
         self.assertPod1003Configs()
         service = 'test-pod-1003.service'
         self.assertFile('/etc/systemd/system/%s' % service)
+        self.assertFile('/etc/systemd/system/%s.d/10-images.conf' % service)
         self.assertFile('/etc/systemd/system/%s.d/10-volumes.conf' % service)
 
     def assertPod1003Configs(self):

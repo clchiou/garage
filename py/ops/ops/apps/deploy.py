@@ -7,6 +7,7 @@ __all__ = [
 import getpass
 import logging
 import os.path
+import re
 from subprocess import PIPE, Popen
 
 from ops import scripting
@@ -195,26 +196,49 @@ def deploy_enable(repo, pod):
 
 
 def systemd_make_rkt_dropin(repo, pod, unit):
-    if not pod.volumes:
+    if not pod.images and not pod.volumes:
         return
-    dropin_path = unit.dropin_path
-    scripting.execute(['sudo', 'mkdir', '--parents', dropin_path])
+    scripting.execute(['sudo', 'mkdir', '--parents', unit.dropin_path])
     if scripting.DRY_RUN:
         return
-    conf_path = dropin_path / '10-volumes.conf'
-    with Popen(['sudo', 'tee', str(conf_path)], stdin=PIPE) as conf_proc:
-        _write_volume_dropin(
-            pod.volumes, repo.get_volume_path(pod), conf_proc.stdin)
-        conf_proc.stdin.close()
-        retcode = conf_proc.wait()
+    if pod.images:
+        _make_dropin(
+            unit.dropin_path / '10-images.conf',
+            lambda output: _write_image_dropin(pod.images, output),
+        )
+    if pod.volumes:
+        _make_dropin(
+            unit.dropin_path / '10-volumes.conf',
+            lambda output: _write_volume_dropin(
+                pod.volumes, repo.get_volume_path(pod), output),
+        )
+
+
+def _make_dropin(dropin_path, writer):
+    with Popen(['sudo', 'tee', str(dropin_path)], stdin=PIPE) as tee:
+        writer(tee.stdin)
+        tee.stdin.close()
+        retcode = tee.wait()
         if retcode != 0:
-            raise RuntimeError('tee %s: rc=%d', conf_path, retcode)
+            raise RuntimeError('tee %s: rc=%d', dropin_path, retcode)
+
+
+def _write_image_dropin(images, output):
+    output.write(b'[Service]\n')
+    for image in images:
+        output.write(
+            'Environment="IMAGE_{systemd_name}={id}"\n'.format(
+                systemd_name=_to_systemd_name(image.name),
+                id=image.id,
+            )
+            .encode('ascii')
+        )
 
 
 RKT_VOLUME_DROPIN = '''\
-Environment="VOLUME_{tag}=--volume {name},kind=host,source={source},readOnly={ro}
-Environment="MOUNT_{tag}=--mount volume={name},target={target}
-Environment="MOUNT_POINT_{tag}={target}"
+Environment="VOLUME_{systemd_name}=--volume {rkt_name},kind=host,source={source},readOnly={ro}"
+Environment="MOUNT_{systemd_name}=--mount volume={rkt_name},target={target}"
+Environment="MOUNT_POINT_{systemd_name}={target}"
 '''
 
 
@@ -223,14 +247,23 @@ def _write_volume_dropin(volumes, volume_root_path, output):
     for volume in volumes:
         output.write(
             RKT_VOLUME_DROPIN.format(
-                tag=volume.name.replace('-', '_'),
-                name=volume.name,
+                systemd_name=_to_systemd_name(volume.name),
+                rkt_name=_to_rkt_name(volume.name),
                 source=str(volume_root_path / volume.name),
                 target=str(volume.path),
                 ro='true' if volume.read_only else 'false',
             )
             .encode('ascii')
         )
+
+
+def _to_systemd_name(name):
+    return re.sub(r'[\-.]', '_', name)
+
+
+def _to_rkt_name(name):
+    # NOTE: rkt does not accept '_' in volume name!
+    return re.sub(r'[_.]', '-', name)
 
 
 def deploy_start(pod):
