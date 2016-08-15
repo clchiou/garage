@@ -1,21 +1,17 @@
 {
     "name": "${name}",
     "version": ${version},
-    "containers": [
-        {
-            "name": "main",
-            "systemd": {
-                "unit-files": [
-                    % for unit_file in context.get('unit_files', ()):
-                    "${unit_file}"${'' if loop.last else ','}
-                    % endfor
-                ]
-            }
-        }
-    ],
+    "systemd": {
+        "unit-files": [
+            % for unit_file in context.get('unit_files', ()):
+            "${unit_file}"${'' if loop.last else ','}
+            % endfor
+        ]
+    },
     "images": [
         % for image_name in sorted(images):
         {
+            "name": "${image_name}",
             "id": "sha512-${images[image_name]['sha512']}",
             "path": "${images[image_name]['path']}"
         }${'' if loop.last else ','}

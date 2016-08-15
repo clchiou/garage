@@ -8,11 +8,11 @@ pod.define_pod(pod.Pod(
     name='httpd',
     template_files=[
         '//base:templates/pod.json',
-        'templates/httpd.service',
     ],
     make_template_vars=lambda ps: {'unit_files': ['httpd.service']},
     files=[
-        'data.tgz',
+        'files/httpd.service',
+        'files/data.tgz',
     ],
     images=[
         pod.Image(

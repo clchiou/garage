@@ -1,8 +1,0 @@
-[Unit]
-Description=httpd
-
-[Service]
-Slice=machine.slice
-ExecStart=/usr/bin/rkt run --net=host $VOLUME_www $MOUNT_www sha512-${images['httpd']['sha512']} -- -m http.server 8080
-KillMode=mixed
-Restart=always

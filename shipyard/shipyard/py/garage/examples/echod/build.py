@@ -26,9 +26,11 @@ pod.define_pod(pod.Pod(
     name='echod',
     template_files=[
         '//base:templates/pod.json',
-        'templates/echod.service',
     ],
     make_template_vars=lambda ps: {'unit_files': ['echod.service']},
+    files=[
+        'files/echod.service',
+    ],
     images=[
         pod.Image(
             name='echod',
