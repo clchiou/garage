@@ -3,7 +3,8 @@
     "version": 1001,
     "systemd": {
         "unit-files": [
-            "simple.service"
+            "simple.service",
+            "complex.service"
         ]
     }
 }

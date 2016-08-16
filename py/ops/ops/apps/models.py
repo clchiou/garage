@@ -195,7 +195,7 @@ class Systemd:
         SYSTEM_PATH = Path('/etc/systemd/system')
 
         UNIT_NAME_FORMAT = \
-            '{pod_name}-{pod_version}{templated}{suffix}'
+            '{pod_name}-{stem}-{pod_version}{templated}{suffix}'
 
         def __init__(self, pod, unit_file):
 
@@ -211,6 +211,7 @@ class Systemd:
                 pod_name=pod.name,
                 pod_version=pod.version,
                 templated='@' if self.is_templated else '',
+                stem=self.path.stem,
                 suffix=self.path.suffix,
             )
 

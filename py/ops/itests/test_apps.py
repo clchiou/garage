@@ -142,12 +142,17 @@ class AppsTest(unittest.TestCase):
 
     # Assertions on pod states.
 
+    POD_1001_SERVICES = [
+        '/etc/systemd/system/test-pod-simple-1001.service',
+        '/etc/systemd/system/test-pod-complex-1001.service',
+    ]
+
     def assertPod1001(self):
         self.assertDir('/etc/ops/apps/pods/test-pod/1001')
         self.assertNotDir('/var/lib/ops/apps/volumes/test-pod/1001')
-        service = 'test-pod-1001.service'
-        self.assertFile('/etc/systemd/system/%s' % service)
-        self.assertNotDir('/etc/systemd/system/%s.d' % service)
+        for service in self.POD_1001_SERVICES:
+            self.assertFile(service)
+            self.assertNotDir('%s.d' % service)
 
     def assertNoPod1001(self):
         self.assertNotDir('/etc/ops/apps/pods/test-pod/1001')
@@ -155,17 +160,21 @@ class AppsTest(unittest.TestCase):
         self.assertNoPod1001Etc()
 
     def assertNoPod1001Etc(self):
-        service = 'test-pod-1001.service'
-        self.assertNotFile('/etc/systemd/system/%s' % service)
-        self.assertNotDir('/etc/systemd/system/%s.d' % service)
+        for service in self.POD_1001_SERVICES:
+            self.assertNotFile(service)
+            self.assertNotDir('%s.d' % service)
+
+    POD_1002_SERVICES = [
+        '/etc/systemd/system/test-pod-replicated-1002.service',
+    ]
 
     def assertPod1002(self):
         self.assertDir('/etc/ops/apps/pods/test-pod/1002')
         self.assertNotDir('/var/lib/ops/apps/volumes/test-pod/1002')
         # Can't fully test templated services in a Docker container.
-        service = 'test-pod-1002@.service'
-        self.assertFile('/etc/systemd/system/%s' % service)
-        self.assertNotDir('/etc/systemd/system/%s.d' % service)
+        for service in self.POD_1002_SERVICES:
+            self.assertFile(service)
+            self.assertNotDir('%s.d' % service)
 
     def assertNoPod1002(self):
         self.assertNotDir('/etc/ops/apps/pods/test-pod/1002')
@@ -173,37 +182,41 @@ class AppsTest(unittest.TestCase):
         self.assertNoPod1002Etc()
 
     def assertNoPod1002Etc(self):
-        service = 'test-pod-1002@.service'
-        self.assertNotFile('/etc/systemd/system/%s' % service)
-        self.assertNotDir('/etc/systemd/system/%s.d' % service)
+        for service in self.POD_1002_SERVICES:
+            self.assertNotFile(service)
+            self.assertNotDir('%s.d' % service)
+
+    POD_1003_SERVICES = [
+        '/etc/systemd/system/test-pod-volume-1003.service',
+    ]
 
     # This SHA should match pod.json, which in turn, matches image.aci.
-    bundle3_sha512 = 'sha512-f369d16070'
+    BUNDLE3_SHA512 = 'sha512-f369d16070'
 
     def assertPod1003(self):
         self.assertPod1003Configs()
-        service = 'test-pod-1003.service'
-        self.assertFile('/etc/systemd/system/%s' % service)
-        self.assertFile('/etc/systemd/system/%s.d/10-images.conf' % service)
-        self.assertFile('/etc/systemd/system/%s.d/10-volumes.conf' % service)
+        for service in self.POD_1003_SERVICES:
+            self.assertFile(service)
+            self.assertFile('%s.d/10-images.conf' % service)
+            self.assertFile('%s.d/10-volumes.conf' % service)
 
     def assertPod1003Configs(self):
         self.assertDir('/etc/ops/apps/pods/test-pod/1003')
         # These volumes should match pod.json.
         self.assertDir('/var/lib/ops/apps/volumes/test-pod/1003/volume-1')
         self.assertDir('/var/lib/ops/apps/volumes/test-pod/1003/volume-2')
-        self.assertImage(self.bundle3_sha512)
+        self.assertImage(self.BUNDLE3_SHA512)
 
     def assertNoPod1003(self):
         self.assertNotDir('/etc/ops/apps/pods/test-pod/1003')
         self.assertNotDir('/var/lib/ops/apps/volumes/test-pod/1003')
-        self.assertNotImage(self.bundle3_sha512)
+        self.assertNotImage(self.BUNDLE3_SHA512)
         self.assertNoPod1003Etc()
 
     def assertNoPod1003Etc(self):
-        service = 'test-pod-1003.service'
-        self.assertNotFile('/etc/systemd/system/%s' % service)
-        self.assertNotDir('/etc/systemd/system/%s.d' % service)
+        for service in self.POD_1003_SERVICES:
+            self.assertNotFile(service)
+            self.assertNotDir('%s.d' % service)
 
     # Helper methods.
 
