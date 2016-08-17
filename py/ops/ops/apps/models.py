@@ -227,6 +227,7 @@ class Systemd:
                         pod_name=pod.name,
                         pod_version=pod.version,
                         templated='@%s' % i,
+                        stem=self.path.stem,
                         suffix=self.path.suffix,
                     )
                     for i in instances

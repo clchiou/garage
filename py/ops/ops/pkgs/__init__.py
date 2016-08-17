@@ -18,6 +18,10 @@ RKT_URI = 'https://github.com/coreos/rkt/releases/download/v{version}/rkt-v{vers
 RKT_STAGE1_PREFIX = 'coreos.com/rkt/stage1-coreos'
 
 
+SYSTEM_DIR = '/usr/lib/systemd/system'
+TMPFILES_D = '/usr/lib/tmpfiles.d'
+
+
 def rkt_install(version, tarball_path=None):
     if Path('/usr/bin/rkt').exists():
         LOG.warning('attempt to overwrite /usr/bin/rkt')
@@ -25,16 +29,30 @@ def rkt_install(version, tarball_path=None):
     if not tarball_path:
         tarball_path = 'rkt.tar.gz'
         cmds.append(make_wget(RKT_URI.format(version=version), tarball_path))
-    # TODO: Install systemd unit files (for GC, etc.).
     cmds.extend([
         make_tar_extract(tarball_path),
+
+        # Don't install api and metadata service for now.
+        ['sudo', 'mkdir', '--parents', SYSTEM_DIR],
+        ['sudo', 'cp', 'init/systemd/rkt-gc.service', SYSTEM_DIR],
+        ['sudo', 'cp', 'init/systemd/rkt-gc.timer', SYSTEM_DIR],
+
+        ['sudo', 'mkdir', '--parents', TMPFILES_D],
+        ['sudo', 'cp', 'init/systemd/tmpfiles.d/rkt.conf', TMPFILES_D],
+
         ['sudo', './scripts/setup-data-dir.sh'],
+
         ['sudo', './rkt', 'trust',
          '--trust-keys-from-https',
          '--prefix', RKT_STAGE1_PREFIX],
+
         ['sudo', './rkt', 'fetch', '%s:%s' % (RKT_STAGE1_PREFIX, version)],
+
         # Install rkt only if everything is okay.
         ['sudo', 'cp', 'rkt', '/usr/bin'],
+
+        ['sudo', 'systemctl', 'enable', 'rkt-gc.timer'],
+        ['sudo', 'systemctl', 'start', 'rkt-gc.timer'],
     ])
     with TemporaryDirectory() as working_dir:
         scripting.execute_many(cmds, cwd=working_dir)

@@ -11,8 +11,9 @@ from tempfile import TemporaryDirectory
 DOCKERFILE = '''\
 FROM {base_image}
 
-RUN sudo groupadd --force rkt \\
- && sudo usermod --append --groups rkt plumber \\
+RUN sudo groupadd --force --system rkt-admin \\
+ && sudo groupadd --force --system rkt \\
+ && sudo usermod --append --groups rkt-admin,rkt plumber \\
  && sudo apt-get install --yes python3 wget
 '''
 

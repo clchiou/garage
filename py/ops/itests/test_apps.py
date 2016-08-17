@@ -165,7 +165,7 @@ class AppsTest(unittest.TestCase):
             self.assertNotDir('%s.d' % service)
 
     POD_1002_SERVICES = [
-        '/etc/systemd/system/test-pod-replicated-1002.service',
+        '/etc/systemd/system/test-pod-replicated-1002@.service',
     ]
 
     def assertPod1002(self):
