@@ -113,11 +113,13 @@ def tar_extract(tarball_path, *, sudo=False, tar_extra_args=(), **kwargs):
     return execute(cmd, **kwargs)
 
 
-def wget(uri, output_path, **kwargs):
+def wget(uri, output_path, *, sudo=False, **kwargs):
     cmd = [
         'wget',
         '--no-verbose',  # No progress bar.
         '--output-document', output_path,
         uri,
     ]
+    if sudo:
+        cmd.insert(0, 'sudo')
     return execute(cmd, **kwargs)

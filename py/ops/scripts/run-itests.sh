@@ -25,7 +25,8 @@ main() {
     "${1}" \
     python3 -m unittest --verbose --failfast \
     itests.test_pkgs \
-    itests.test_apps
+    itests.test_apps \
+    itests.test_apps_http \
 
   # Removes the container only when success so that you may examine the
   # contents when fail.

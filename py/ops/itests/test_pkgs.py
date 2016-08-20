@@ -1,33 +1,27 @@
 import unittest
 
-import getpass
 from subprocess import call, check_call, check_output
 
+from .fixtures import Fixture
 
-@unittest.skipUnless(getpass.getuser() == 'plumber', 'not in container')
-class PkgsTest(unittest.TestCase):
+
+@Fixture.inside_container
+class PkgsTest(Fixture):
 
     @classmethod
     def setUpClass(cls):
-        # Make sure we are inside a container.
-        assert getpass.getuser() == 'plumber'
-
-        # Install the fake systemctl because you can't run systemd in a
-        # Docker container (can you?).
-        check_call(['sudo', 'cp', '/bin/echo', '/usr/local/bin/systemctl'])
+        super().setUpClass()
 
     @classmethod
     def tearDownClass(cls):
-        # Uninstall the fake systemctl.
-        check_call(['sudo', 'rm', '/usr/local/bin/systemctl'])
+        super().tearDownClass()
 
     def test_install_pkgs(self):
 
         # Ensure rkt is not installed.
         self.assertEqual(1, call(['which', 'rkt']))
 
-        for pkg in ('rkt:1.12.0', ):
-            check_call(['python3', '-m', 'ops.pkgs', 'install', pkg])
+        check_call(['python3', '-m', 'ops.pkgs', 'install', 'rkt:1.12.0'])
 
         output = check_output(['rkt', 'version'])
         self.assertTrue(b'rkt Version: 1.12.0' in output, repr(output))

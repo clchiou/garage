@@ -171,8 +171,10 @@ def deploy_create_volumes(repo, pod):
                 tarball_path = volume.path
             else:
                 assert volume.uri
-                working_dir = Path(stack.enter_context(TemporaryDirectory()))
-                tarball_path = working_dir / _uri_to_filename(volume.uri)
+                tarball_path = (
+                    Path(stack.enter_context(TemporaryDirectory())) /
+                    Path(urllib.parse.urlparse(volume.uri).path).name
+                )
                 scripting.wget(volume.uri, tarball_path)
 
             scripting.tar_extract(tarball_path, sudo=True, tar_extra_args=[
@@ -180,10 +182,6 @@ def deploy_create_volumes(repo, pod):
                 '--preserve-permissions',
                 '--directory', volume_path,
             ])
-
-
-def _uri_to_filename(uri):
-    return Path(urllib.parse.urlparse(uri).path).name
 
 
 def deploy_enable(repo, pod):

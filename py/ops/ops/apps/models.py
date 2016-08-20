@@ -7,6 +7,7 @@ __all__ = [
 import json
 import logging
 import re
+import urllib.parse
 from pathlib import Path
 
 
@@ -217,6 +218,15 @@ class SystemdUnit:
 
         self.start = unit_data.get('start', False)
 
+        if self.uri:
+            path = Path(urllib.parse.urlparse(self.uri).path)
+            stem = path.stem
+            suffix = path.suffix
+        else:
+            assert self.path
+            stem = self.path.stem
+            suffix = self.path.suffix
+
         # If this unit is templated, this is a list of unit names of the
         # instances; otherwise it's an empty list.
         if 'instances' in unit_data:
@@ -232,8 +242,8 @@ class SystemdUnit:
                     pod_name=pod.name,
                     pod_version=pod.version,
                     templated='@%s' % instance,
-                    stem=self.path.stem,
-                    suffix=self.path.suffix,
+                    stem=stem,
+                    suffix=suffix,
                 )
                 for instance in instances
             )
@@ -246,8 +256,8 @@ class SystemdUnit:
             pod_name=pod.name,
             pod_version=pod.version,
             templated='@' if self.instances else '',
-            stem=self.path.stem,
-            suffix=self.path.suffix,
+            stem=stem,
+            suffix=suffix,
         )
 
     @property
