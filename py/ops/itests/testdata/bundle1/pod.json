@@ -1,10 +1,8 @@
 {
-    "name": "test-pod",
-    "version": 1001,
-    "systemd": {
-        "unit-files": [
-            "simple.service",
-            "complex.service"
-        ]
-    }
+    "annotations": [
+        {
+            "name": "ops",
+            "value": "{\"name\": \"test-pod\", \"version\": 1001, \"systemd-units\": [{\"unit-file\": \"simple.service\"}, {\"unit-file\": \"complex.service\"}]}"
+        }
+    ]
 }

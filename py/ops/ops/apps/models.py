@@ -1,7 +1,4 @@
-"""\
-Data model of a tightly-coupled container group, which is usually called
-a "pod" (not to be confused with a Linux kernel cgroup).
-"""
+"""Data model of pod manifest."""
 
 __all__ = [
     'PodRepo',
@@ -16,7 +13,8 @@ from pathlib import Path
 LOG = logging.getLogger(__name__)
 
 
-NAME_PATTERN = re.compile(r'[a-zA-Z0-9_\-.]+')
+# https://github.com/appc/spec/blob/master/spec/types.md#ac-name-type
+AC_NAME_PATTERN = re.compile(r'[a-z0-9]+(-[a-z0-9]+)*')
 
 
 class PodRepo:
@@ -125,13 +123,16 @@ class PodRepo:
 
 class Pod:
 
+    # ${CONFIGS}/pods/${NAME}/${VERSION}/pod.json
     POD_JSON = 'pod.json'
+
+    # ${CONFIGS}/pods/${NAME}/${VERSION}/units/${UNIT_FILE}
+    UNITS_DIR = 'units'
 
     PROP_NAMES = frozenset((
         'name',
         'version',
-        'systemd',
-        'replication',
+        'systemd-units',
         'images',
         'volumes',
     ))
@@ -141,7 +142,17 @@ class Pod:
         pod_path = Path(pod_path)
         if pod_path.is_dir():
             pod_path = pod_path / cls.POD_JSON
-        return cls(pod_path, json.loads(pod_path.read_text()))
+        pod_manifest = json.loads(pod_path.read_text())
+        pod_data = None
+        for annotation in pod_manifest.get('annotations', ()):
+            if annotation['name'] == 'ops':
+                if pod_data is not None:
+                    raise ValueError('multiple ops annotations: %s' % pod_path)
+                pod_data = annotation['value']
+        if pod_data is None:
+            raise ValueError('no ops annotation: %s' % pod_path)
+        # pod_data is JSON-encoded.
+        return cls(pod_path, json.loads(pod_data))
 
     def __init__(self, pod_path, pod_data):
         ensure_names(self.PROP_NAMES, pod_data)
@@ -150,136 +161,120 @@ class Pod:
         self.path = pod_path.absolute()
 
         self.name = pod_data['name']
-        if not NAME_PATTERN.fullmatch(self.name):
+        if not AC_NAME_PATTERN.fullmatch(self.name):
             raise ValueError('invalid pod name: %s' % self.name)
         self.version = int(pod_data['version'])
 
-        # NOTE: The systemd section below will check replication.
-        # Parse this first.
-        self.replication = pod_data.get('replication', 1)
-        if isinstance(self.replication, int):
-            if self.replication < 1:
-                raise ValueError('invalid replication: %d' % self.replication)
+        self.systemd_units = tuple(
+            SystemdUnit(self, unit_data)
+            for unit_data in pod_data.get('systemd-units', ())
+        )
+        if not self.systemd_units:
+            LOG.warning('no systemd units for pod %s', self)
 
-        systemd = pod_data.get('systemd')
-        self.systemd = Systemd(self, systemd) if systemd else None
-
-        # We only support systemd at the moment.
-        if not self.systemd:
-            raise ValueError('no process manager for pod %s' % self.name)
-
-        self.images = [
+        self.images = tuple(
             Image(self, image_data)
             for image_data in pod_data.get('images', ())
-        ]
+        )
 
-        self.volumes = [
+        self.volumes = tuple(
             Volume(self, volume_data)
             for volume_data in pod_data.get('volumes', ())
-        ]
+        )
 
     def __str__(self):
         return '%s:%s' % (self.name, self.version)
 
 
-class Systemd:
+class SystemdUnit:
 
-    PROP_NAMES = frozenset(('unit-files',))
+    PROP_NAMES = frozenset((
+        'unit-file',
+        'start',
+        'instances',
+    ))
 
-    class Unit:
+    # NOTE: We encode pod information into unit names, and so they will
+    # not be the same as the unit _file_ names specified in the pod.json
+    # (see also UNIT_NAME_FORMAT below).
 
-        # NOTE: We encode container group information into unit names,
-        # and so they will not be the same as the unit _file_ names
-        # specified in the pod.json (see also UNIT_NAME_FORMAT below).
+    SYSTEM_PATH = Path('/etc/systemd/system')
 
-        SYSTEM_PATH = Path('/etc/systemd/system')
+    UNIT_NAME_FORMAT = '{pod_name}-{stem}-{pod_version}{templated}{suffix}'
 
-        UNIT_NAME_FORMAT = \
-            '{pod_name}-{stem}-{pod_version}{templated}{suffix}'
+    def __init__(self, pod, unit_data):
+        ensure_names(self.PROP_NAMES, unit_data)
 
-        def __init__(self, pod, unit_file):
-
-            # Path to the unit file (not to be confused with unit name
-            # or the path to the unit file under /etc/systemd/system).
+        # self.path to the unit file (not to be confused with unit name
+        # or the path to the unit file under /etc/systemd/system).
+        unit_file = unit_data['unit-file']
+        if is_uri(unit_file):
+            self.path = None
+            self.uri = unit_file
+        else:
             self.path = pod.path.parent / unit_file
+            self.uri = None
 
-            self.is_templated = pod.replication != 1
+        self.start = unit_data.get('start', False)
 
-            # Name of this unit, which encodes the information of this
-            # container group.
-            self.name = self.UNIT_NAME_FORMAT.format(
-                pod_name=pod.name,
-                pod_version=pod.version,
-                templated='@' if self.is_templated else '',
-                stem=self.path.stem,
-                suffix=self.path.suffix,
+        # If this unit is templated, this is a list of unit names of the
+        # instances; otherwise it's an empty list.
+        if 'instances' in unit_data:
+            instances = unit_data.get('instances', 1)
+            if isinstance(instances, int):
+                if instances < 1:
+                    raise ValueError('invalid instances: %d' % instances)
+                instances = range(instances)
+            elif not instances:
+                raise ValueError('empty instances: %r' % instances)
+            self.instances = tuple(
+                self.UNIT_NAME_FORMAT.format(
+                    pod_name=pod.name,
+                    pod_version=pod.version,
+                    templated='@%s' % instance,
+                    stem=self.path.stem,
+                    suffix=self.path.suffix,
+                )
+                for instance in instances
             )
+            assert self.instances
+        else:
+            self.instances = ()
 
-            # If this unit is templated, this is a list of unit names of
-            # the instances; otherwise it's an empty list.
-            if self.is_templated:
-                if isinstance(pod.replication, int):
-                    instances = range(pod.replication)
-                else:
-                    instances = pod.replication
-                self.instances = [
-                    self.UNIT_NAME_FORMAT.format(
-                        pod_name=pod.name,
-                        pod_version=pod.version,
-                        templated='@%s' % i,
-                        stem=self.path.stem,
-                        suffix=self.path.suffix,
-                    )
-                    for i in instances
-                ]
-            else:
-                self.instances = []
+        # Name of this unit, which encodes the information of this pod.
+        self.name = self.UNIT_NAME_FORMAT.format(
+            pod_name=pod.name,
+            pod_version=pod.version,
+            templated='@' if self.instances else '',
+            stem=self.path.stem,
+            suffix=self.path.suffix,
+        )
 
-        @property
-        def is_service(self):
-            return self.name.endswith('.service')
+    @property
+    def unit_path(self):
+        """Path to the unit file under /etc/systemd/system."""
+        return self.SYSTEM_PATH / self.name
 
-        @property
-        def system_path(self):
-            """Path to the unit file under /etc/systemd/system."""
-            return self.SYSTEM_PATH / self.name
+    @property
+    def dropin_path(self):
+        return self.unit_path.with_name(self.unit_path.name + '.d')
 
-        @property
-        def dropin_path(self):
-            path = self.system_path
-            return path.with_name(path.name + '.d')
-
-    def __init__(self, pod, systemd_data):
-        ensure_names(self.PROP_NAMES, systemd_data)
-
-        self.units = [
-            Systemd.Unit(pod, unit_file)
-            for unit_file in systemd_data.get('unit-files', ())
-        ]
-
-        # Unit names of services (precompute they for convenience).
-        self.services = []
-        for unit in self.units:
-            if not unit.is_service:
-                continue
-            if unit.is_templated:
-                self.services.extend(unit.instances)
-            else:
-                self.services.append(unit.name)
+    @property
+    def unit_names(self):
+        if self.instances:
+            return self.instances
+        else:
+            return (self.name,)
 
 
 class Image:
 
-    PROP_NAMES = frozenset(('name', 'id', 'path', 'uri', 'signature'))
+    PROP_NAMES = frozenset(('id', 'path', 'uri', 'signature'))
 
     def __init__(self, pod, image_data):
         ensure_names(self.PROP_NAMES, image_data)
 
-        self.name = image_data['name']
-        if not NAME_PATTERN.fullmatch(self.name):
-            raise ValueError('invalid image name: %s' % self.name)
-
-        self.id = image_data['id']
+        self.id = image_data.get('id')
 
         path = image_data.get('path')
         self.path = pod.path.parent / path if path else None
@@ -288,31 +283,60 @@ class Image:
 
         if self.path and self.uri:
             raise ValueError('both "path" and "uri" are set')
+        if not self.path and not self.uri:
+            raise ValueError('none of "path" and "uri" are set')
 
         signature = image_data.get('signature')
-        self.signature = pod.path / signature if signature else None
+        if signature is None:
+            self.signature = None
+        elif is_uri(signature):
+            if not self.uri:
+                raise ValueError('"signature" is URI but "uri" is not set')
+            self.signature = signature
+        else:
+            if not self.path:
+                raise ValueError('"signature" is path but "path" is not set')
+            self.signature = pod.path.parent / signature
 
 
 class Volume:
 
-    PROP_NAMES = frozenset(('name', 'path', 'read-only', 'data'))
+    PROP_NAMES = frozenset(('volume', 'data'))
 
     def __init__(self, pod, volume_data):
         ensure_names(self.PROP_NAMES, volume_data)
 
-        self.name = volume_data['name']
-        if not NAME_PATTERN.fullmatch(self.name):
-            raise ValueError('invalid volume name: %s' % self.name)
+        self.volume = volume_data['volume']
+        if not AC_NAME_PATTERN.fullmatch(self.volume):
+            raise ValueError('invalid volume name: %s' % self.volume)
 
-        self.path = Path(volume_data['path'])
-
-        self.read_only = bool(volume_data['read-only'])
-
-        data = volume_data.get('data')
-        self.data = pod.path.parent / data if data else None
+        data = volume_data['data']
+        if is_uri(data):
+            self.path = None
+            self.uri = data
+        else:
+            self.path = pod.path.parent / data
+            self.uri = None
 
 
 def ensure_names(expect, actual):
     names = [name for name in actual if name not in expect]
     if names:
         raise ValueError('unknown names: %s' % ', '.join(names))
+
+
+URI_SCHEME_PATTERN = re.compile(r'(\w+)://')
+SUPPORTED_URI_SCHEMES = frozenset((
+    'http',
+    'https',
+))
+
+
+def is_uri(path_or_uri):
+    match = URI_SCHEME_PATTERN.match(path_or_uri)
+    if match:
+        if match.group(1) not in SUPPORTED_URI_SCHEMES:
+            raise ValueError('unsupported URI scheme: %s' % match.group(1))
+        return True  # Assume it's URI.
+    else:
+        return False

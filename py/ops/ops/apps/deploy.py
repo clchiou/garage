@@ -7,8 +7,11 @@ __all__ = [
 import getpass
 import logging
 import os.path
-import re
+import urllib.parse
+from contextlib import ExitStack
+from pathlib import Path
 from subprocess import PIPE, Popen
+from tempfile import TemporaryDirectory
 
 from ops import scripting
 from ops.apps import basics
@@ -74,23 +77,28 @@ def deploy_fetch(pod):
         image_ids = frozenset()
 
     for image in pod.images:
-        if match_image_id(image.id, image_ids):
+
+        if image.id and match_image_id(image.id, image_ids):
             LOG.debug('skip fetching image %s', image.id)
             continue
+
         cmd = ['rkt', 'fetch']
+
         if image.signature:
-            cmd.append('--signature')
-            cmd.append(image.signature)
+            cmd.extend(['--signature', image.signature])
+
         if image.path:
             sig = image.signature or image.path.with_suffix('.sig')
             if not sig.is_file():
                 LOG.warning('no signature for %s', image.path)
                 cmd.append('--insecure-options=image')
             cmd.append(image.path)
-        elif image.uri:
-            cmd.append(image.uri)
         else:
-            raise ValueError('neither "path" nor "uri" is set')
+            assert image.uri
+            if image.uri.startswith('docker://'):
+                cmd.append('--insecure-options=image')
+            cmd.append(image.uri)
+
         scripting.execute(cmd)
 
 
@@ -104,7 +112,7 @@ def match_image_id(target_id, image_ids):
 def deploy_install(repo, pod):
     """Install config files so that you may later redeploy from here."""
     LOG.info('%s - install configs', pod)
-    # Install: bundle -> pod's config_path
+
     bundle_path = pod.path.parent
     config_path = repo.get_config_path(pod)
     if config_path.exists():
@@ -115,17 +123,23 @@ def deploy_install(repo, pod):
             return
         raise RuntimeError('attempt to overwrite dir: %s' % config_path)
     scripting.execute(['sudo', 'mkdir', '--parents', config_path])
+
+    # Install pod.json.
     scripting.execute(['sudo', 'cp', pod.path, config_path / pod.POD_JSON])
-    if pod.systemd:
-        for unit in pod.systemd.units:
-            # Preserve directory structure.
-            relpath = unit.path.relative_to(bundle_path)
-            scripting.execute(
-                ['sudo', 'cp', '--parents', relpath, config_path],
-                cwd=bundle_path,
-            )
-    else:
-        raise AssertionError
+
+    # Install systemd unit files.
+    units_dir = config_path / pod.UNITS_DIR
+    scripting.execute(['sudo', 'mkdir', '--parents', units_dir])
+    for unit in pod.systemd_units:
+        unit_path = units_dir / unit.name
+        if unit_path.exists():
+            LOG.warning('unit exists: %s', unit_path)
+            continue
+        if unit.path:
+            scripting.execute(['sudo', 'cp', unit.path, unit_path])
+        else:
+            assert unit.uri
+            scripting.wget(unit.uri, unit_path, sudo=True)
 
 
 def deploy_create_volumes(repo, pod):
@@ -133,12 +147,16 @@ def deploy_create_volumes(repo, pod):
     LOG.info('%s - create data volumes', pod)
     if not pod.volumes:
         return
+
     volume_root_path = repo.get_volume_path(pod)
+
     for volume in pod.volumes:
-        volume_path = volume_root_path / volume.name
+
+        volume_path = volume_root_path / volume.volume
         if volume_path.exists():
             LOG.warning('volume exists: %s', volume_path)
             continue
+
         scripting.execute(['sudo', 'mkdir', '--parents', volume_path])
         scripting.execute([
             'sudo',
@@ -146,20 +164,26 @@ def deploy_create_volumes(repo, pod):
             '{whoami}:{whoami}'.format(whoami=getpass.getuser()),
             volume_path,
         ])
-        if volume.data:
-            data = pod.path.parent / volume.data
-            cmd = [
-                'sudo',
-                'tar',
-                '--extract',
+
+        with ExitStack() as stack:
+
+            if volume.path:
+                tarball_path = volume.path
+            else:
+                assert volume.uri
+                working_dir = Path(stack.enter_context(TemporaryDirectory()))
+                tarball_path = working_dir / _uri_to_filename(volume.uri)
+                scripting.wget(volume.uri, tarball_path)
+
+            scripting.tar_extract(tarball_path, sudo=True, tar_extra_args=[
                 # This is the default for root, but better be explicit.
                 '--preserve-permissions',
-                '--file', data,
                 '--directory', volume_path,
-            ]
-            if scripting.is_gzipped(data):
-                cmd.append('--gzip')
-            scripting.execute(cmd)
+            ])
+
+
+def _uri_to_filename(uri):
+    return Path(urllib.parse.urlparse(uri).path).name
 
 
 def deploy_enable(repo, pod):
@@ -167,22 +191,25 @@ def deploy_enable(repo, pod):
        start them yet.
     """
     LOG.info('%s - enable pod', pod)
-    if pod.systemd:
+
+    # Check if there is a pod currently enabled.
+    current_path = repo.get_current_path(pod)
+    if current_path.exists():
+        raise RuntimeError('attempt to overwrite: %s' % current_path)
+
+    # Enable systemd units.
+    config_path = repo.get_config_path(pod)
+    for unit in pod.systemd_units:
         # Don't use `systemctl link` because it usually doesn't behave
         # as you expected :(
-        for unit in pod.systemd.units:
-            scripting.execute(['sudo', 'cp', unit.path, unit.system_path])
-            systemd_make_rkt_dropin(repo, pod, unit)
-            if unit.is_templated:
-                names = unit.instances
-            else:
-                names = [unit.name]
-            for name in names:
-                systemctl.enable(name)
-                systemctl.is_enabled(name)
-    else:
-        raise AssertionError
-    current_path = repo.get_current_path(pod)
+        unit_path = config_path / pod.UNITS_DIR / unit.name
+        scripting.execute(['sudo', 'cp', unit_path, unit.unit_path])
+        systemd_make_rkt_dropin(repo, pod, unit)
+        for name in unit.unit_names:
+            systemctl.enable(name)
+            systemctl.is_enabled(name)
+
+    # Mark this pod as the current one.
     scripting.execute(['sudo', 'mkdir', '--parents', current_path.parent])
     scripting.execute([
         'sudo', 'ln', '--symbolic',
@@ -196,22 +223,13 @@ def deploy_enable(repo, pod):
 
 
 def systemd_make_rkt_dropin(repo, pod, unit):
-    if not pod.images and not pod.volumes:
-        return
-    scripting.execute(['sudo', 'mkdir', '--parents', unit.dropin_path])
     if scripting.DRY_RUN:
         return
-    if pod.images:
-        _make_dropin(
-            unit.dropin_path / '10-images.conf',
-            lambda output: _write_image_dropin(pod.images, output),
-        )
-    if pod.volumes:
-        _make_dropin(
-            unit.dropin_path / '10-volumes.conf',
-            lambda output: _write_volume_dropin(
-                pod.volumes, repo.get_volume_path(pod), output),
-        )
+    scripting.execute(['sudo', 'mkdir', '--parents', unit.dropin_path])
+    _make_dropin(
+        unit.dropin_path / '10-pod-manifest.conf',
+        lambda output: _write_pod_manifest_dropin(repo, pod, output),
+    )
 
 
 def _make_dropin(dropin_path, writer):
@@ -223,57 +241,23 @@ def _make_dropin(dropin_path, writer):
             raise RuntimeError('tee %s: rc=%d', dropin_path, retcode)
 
 
-def _write_image_dropin(images, output):
-    output.write(b'[Service]\n')
-    for image in images:
-        output.write(
-            'Environment="IMAGE_{systemd_name}={id}"\n'.format(
-                systemd_name=_to_systemd_name(image.name),
-                id=image.id,
-            )
-            .encode('ascii')
-        )
-
-
-RKT_VOLUME_DROPIN = '''\
-Environment="VOLUME_{systemd_name}=--volume {rkt_name},kind=host,source={source},readOnly={ro}"
-Environment="MOUNT_{systemd_name}=--mount volume={rkt_name},target={target}"
-Environment="MOUNT_POINT_{systemd_name}={target}"
-'''
-
-
-def _write_volume_dropin(volumes, volume_root_path, output):
-    output.write(b'[Service]\n')
-    for volume in volumes:
-        output.write(
-            RKT_VOLUME_DROPIN.format(
-                systemd_name=_to_systemd_name(volume.name),
-                rkt_name=_to_rkt_name(volume.name),
-                source=str(volume_root_path / volume.name),
-                target=str(volume.path),
-                ro='true' if volume.read_only else 'false',
-            )
-            .encode('ascii')
-        )
-
-
-def _to_systemd_name(name):
-    return re.sub(r'[\-.]', '_', name)
-
-
-def _to_rkt_name(name):
-    # NOTE: rkt does not accept '_' in volume name!
-    return re.sub(r'[_.]', '-', name)
+def _write_pod_manifest_dropin(repo, pod, output):
+    config_path = repo.get_config_path(pod)
+    output.write(
+        ('[Service]\n'
+         'Environment="POD_MANIFEST={pod_manifest}"\n')
+        .format(pod_manifest=str(config_path / pod.POD_JSON))
+        .encode('ascii')
+    )
 
 
 def deploy_start(pod):
     LOG.info('%s - start pod', pod)
-    if pod.systemd:
-        for service in pod.systemd.services:
-            systemctl.start(service)
-            systemctl.is_active(service)
-    else:
-        raise AssertionError
+    for unit in pod.systemd_units:
+        if unit.start:
+            for name in unit.unit_names:
+                systemctl.start(name)
+                systemctl.is_active(name)
 
 
 def undeploy(args):
@@ -290,47 +274,56 @@ def undeploy(args):
 
 def undeploy_disable(repo, pod):
     LOG.info('%s - disable pod', pod)
-    if pod.systemd:
-        for unit in pod.systemd.units:
+
+    for unit in pod.systemd_units:
+
+        # Disable unit.
+        if unit.instances:
             for instance in unit.instances:
                 if systemctl.is_enabled(instance, check=False) == 0:
                     systemctl.disable(instance)
                 else:
-                    LOG.warning('service is not enabled: %s', instance)
+                    LOG.warning('unit is not enabled: %s', instance)
+        else:
             if systemctl.is_enabled(unit.name, check=False) == 0:
                 systemctl.disable(unit.name)
-            elif not unit.is_templated:
-                LOG.warning('service is not enabled: %s', unit.name)
-            for path in (unit.system_path, unit.dropin_path):
-                scripting.remove_tree(path)
-    else:
-        raise AssertionError
+            else:
+                LOG.warning('unit is not enabled: %s', unit.name)
+
+        # Remove unit files.
+        scripting.remove_tree(unit.unit_path)
+        scripting.remove_tree(unit.dropin_path)
+
+    # Unmark this pod as the current one.
     if repo.get_current_version(pod) == pod.version:
         scripting.remove_tree(repo.get_current_path(pod))
 
 
 def undeploy_stop(pod):
     LOG.info('%s - stop pod', pod)
-    if pod.systemd:
-        for service in pod.systemd.services:
-            if systemctl.is_active(service, check=False) == 0:
-                systemctl.stop(service)
-            else:
-                LOG.warning('service is not active: %s', service)
-    else:
-        raise AssertionError
+    for unit in pod.systemd_units:
+        if unit.start:
+            for name in unit.unit_names:
+                if systemctl.is_active(name, check=False) == 0:
+                    systemctl.stop(name)
+                else:
+                    LOG.warning('unit is not active: %s', name)
 
 
 def undeploy_remove(repo, pod):
     LOG.info('%s - remove configs and images', pod)
+
     for image in pod.images:
+        if not image.id:
+            continue
         retcode = scripting.execute(
             ['rkt', 'image', 'rm', image.id], check=False)
         if retcode:
             LOG.warning('cannot safely remove image: %s (rc=%d)',
                         image.id, retcode)
-    for path in (repo.get_config_path(pod), repo.get_volume_path(pod)):
-        scripting.remove_tree(path)
+
+    scripting.remove_tree(repo.get_config_path(pod))
+    scripting.remove_tree(repo.get_volume_path(pod))
 
 
 def cleanup(args):
@@ -356,7 +349,7 @@ def cleanup(args):
 def add_arguments(parser):
     basics.add_arguments(parser)
     parser.add_argument(
-        'pod', help="""either a pod spec file or 'name:version'""")
+        'pod', help="""either a pod manifest or 'name:version'""")
 
 
 deploy.add_arguments = lambda parser: (

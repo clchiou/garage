@@ -5,9 +5,10 @@ __all__ = [
     # Scripting helpers.
     'execute',
     'execute_many',
-    'is_gzipped',
     'remove_tree',
     'systemctl',
+    'tar_extract',
+    'wget',
 ]
 
 import getpass
@@ -71,11 +72,6 @@ def execute_many(cmds, *, cwd=None):
         execute(cmd, cwd=cwd)
 
 
-def is_gzipped(path):
-    output = execute(['file', path], return_output=True)
-    return output and b'gzip compressed data' in output
-
-
 def remove_tree(path):
     execute(['sudo', 'rm', '--force', '--recursive', path])
 
@@ -95,3 +91,33 @@ systemctl.is_enabled = partial(systemctl, 'is-enabled', sudo=False)
 systemctl.start = partial(systemctl, 'start')
 systemctl.stop = partial(systemctl, 'stop')
 systemctl.is_active = partial(systemctl, 'is-active', sudo=False)
+
+
+def tar_extract(tarball_path, *, sudo=False, tar_extra_args=(), **kwargs):
+    cmd = ['tar', '--extract', '--file', tarball_path]
+    if sudo:
+        cmd.insert(0, 'sudo')
+
+    output = execute(['file', tarball_path], return_output=True)
+    if not output:
+        raise RuntimeError('command `file` no output: %s' % tarball_path)
+    if b'gzip compressed data' in output:
+        cmd.append('--gzip')
+    elif b'bzip2 compressed data' in output:
+        cmd.append('--bzip2')
+    elif b'XZ compressed data' in output:
+        cmd.append('--xz')
+
+    cmd.extend(tar_extra_args)
+
+    return execute(cmd, **kwargs)
+
+
+def wget(uri, output_path, **kwargs):
+    cmd = [
+        'wget',
+        '--no-verbose',  # No progress bar.
+        '--output-document', output_path,
+        uri,
+    ]
+    return execute(cmd, **kwargs)

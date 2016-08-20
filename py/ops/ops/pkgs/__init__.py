@@ -25,13 +25,8 @@ TMPFILES_D = '/usr/lib/tmpfiles.d'
 def rkt_install(version, tarball_path=None):
     if Path('/usr/bin/rkt').exists():
         LOG.warning('attempt to overwrite /usr/bin/rkt')
-    cmds = []
-    if not tarball_path:
-        tarball_path = 'rkt.tar.gz'
-        cmds.append(make_wget(RKT_URI.format(version=version), tarball_path))
-    cmds.extend([
-        make_tar_extract(tarball_path),
 
+    cmds = [
         # Don't install api and metadata service for now.
         ['sudo', 'mkdir', '--parents', SYSTEM_DIR],
         ['sudo', 'cp', 'init/systemd/rkt-gc.service', SYSTEM_DIR],
@@ -53,8 +48,18 @@ def rkt_install(version, tarball_path=None):
 
         ['sudo', 'systemctl', 'enable', 'rkt-gc.timer'],
         ['sudo', 'systemctl', 'start', 'rkt-gc.timer'],
-    ])
+    ]
+
     with TemporaryDirectory() as working_dir:
+        if not tarball_path:
+            tarball_path = Path(working_dir) / 'rkt.tar.gz'
+        if not tarball_path.exists():
+            scripting.wget(RKT_URI.format(version=version), tarball_path)
+        scripting.tar_extract(
+            tarball_path,
+            tar_extra_args=['--strip-components', '1'],
+            cwd=working_dir,
+        )
         scripting.execute_many(cmds, cwd=working_dir)
 
 
@@ -117,17 +122,3 @@ def command_install(parser, args):
     installer(version, tarball_path=tarball_path)
 
     return 0
-
-
-### Helpers
-
-
-def make_wget(uri, output_path):
-    # No progress bar.
-    return ['wget', '--no-verbose', '--output-document', output_path, uri]
-
-
-def make_tar_extract(tarball_path):
-    cmd = ['tar', '--extract', '--gzip', '--strip-components', '1', '--file']
-    cmd.append(tarball_path)
-    return cmd

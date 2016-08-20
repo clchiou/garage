@@ -4,6 +4,7 @@ import getpass
 from subprocess import call, check_call, check_output
 
 
+@unittest.skipUnless(getpass.getuser() == 'plumber', 'not in container')
 class PkgsTest(unittest.TestCase):
 
     @classmethod

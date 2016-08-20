@@ -1,11 +1,13 @@
-Collection of command-line ops scripts executed on the remote machines,
-and are most commonly invoked by Ansible, doing heavy lifting for it.
+ops - Low-Level Operation Scripts
+
+ops is a collection of scripts executed on the remote machines, most
+commonly by configuration management tools.
 
 You add more scripts to here only when both of the following are met:
 
   * It is not possible to be done within a container.
 
-  * The alternative implementation in Ansible is clumsy.
+  * Implementing in configuration management tools is clumsy.
 
 Otherwise you should keep these ops scripts at minimum, meaning:
 
@@ -19,80 +21,82 @@ Otherwise you should keep these ops scripts at minimum, meaning:
 === Pod (Container Group)
 
 Containers are (un-)deployed in a tightly-coupled group, which would
-usually be called a "pod".  A container group is specified with a JSON
-object like this:
+usually be called a "pod".  A container group is specified by an Appc
+pod manifest with additional (deployment) metadata.
 
     {
-        # A group of container works together to provide a service.
-        # Its name has to be unique among groups deployed to the same
-        # machine.
-        "name": "example",
+        "acVersion": "0.8.6",
+        "acKind": "PodManifest",
 
-        # This is unique among deployments of the same group; you could
-        # use timestamp for this.
-        "version": 1001,
-
-        # A pod must have at least one process manager section, such as
-        # this one for systemd.  We support only systemd at the moment.
-        "systemd": {
-            "unit-files": [
-                "example.service",
-            ],
-        },
-
-        # (Optional) You may define the replication of this service,
-        # either as an array or as the number of replicas.
-        "replication": [8080, 8081, 8082],
-
-        # These are images for the containers, and are usually only
-        # useful when you are deploying from a bundle (you may add
-        # bypass them with the `--redeploy` flag).
-        "images": [
+        "annotations": [
             {
-                # A short name of this image for other parts of ops to
-                # reference this image.
-                "name": "image-name",
+                "name": "ops",
+                "value": """{  # JSON-encoded.
+                    # Required.
+                    "name": "example-pod",
 
-                # This is the ID for the container runtime (usually rkt)
-                # to identify an image.
-                "id": "sha512-XXXXXX",
+                    # Required, integer.
+                    "version": 1001,
 
-                # The location of this image; you specify either "uri"
-                # or "path", but not both.  If you choose to specify
-                # path, it is relative to the location of the JSON file
-                # that defines this container group.
-                "path": ...,
-                "uri": ...,
+                    # Optional: Series of systemd units.
+                    "systemd-units": [
+                        {
+                            # Required: Location of the unit file,
+                            # either a path or an URI.
+                            "unit-file": "path/to/unit-file",
 
-                # Optionally, you may provide a signature file.
-                "signature": ...,
+                            # Optional, default to false.
+                            "start": true,
+
+                            # Optional: Instances of a templated unit,
+                            # which could be either as an array or as
+                            # the number of instances.
+                            "instances": [8080, 8081, 8082],
+                        },
+                        ...
+                    ],
+
+                    # Optional: Series of image locations.
+                    "images": [
+                        {
+                            # Optional: Image ID.
+                            # https://github.com/appc/spec/blob/master/spec/types.md#image-id-type
+                            "id": "sha512-XXX",
+
+                            # Either "uri" or "path" must be set ("uri"
+                            # could be without scheme).
+                            "path": "path/to/image.aci",
+
+                            # Optional: Location of signature, either
+                            # path or URI.
+                            "signature": "path/to/image.aci.asc",
+                        },
+                        ...
+                    ],
+
+                    # Optional: Series of volume initial contents.
+                    #
+                    # They are _NOT_ shared across versions of pod,
+                    # though; if you want to share stateful data across
+                    # versions of pod, you probably should things like
+                    # RDBMS.
+                    "volumes": [
+                        {
+                            # Required.
+                            "volume": "volume-name",
+
+                            # Required: Either path or URI.
+                            "data": "path/to/data.tar.gz",
+                        },
+                        ...
+                    ],
+                }""",
             },
         ],
 
-        # Stateful data volumes that are shared among containers of this
-        # pod.  They are _NOT_ shared across versions of pod, though.
-        # If you want to share stateful data across versions of pod, you
-        # probably should go for solutions like RDBMS.
-        "volumes": [
-            {
-                # Name of the volume, unique within the pod.
-                "name": "volume-name",
-
-                # The mount point, common to all containers of the pod.
-                # (This is less flexible than allowing different path
-                # for each container, but I guess this flexibility is
-                # not that useful and sometimes confusing in practice.)
-                "path": "/var/lib/example",
-
-                # Whether this volume is read-only.
-                "read-only": true,
-
-                # (Optional) Location of an archive for initial contents
-                # of files, relative to the location of the JSON file.
-                "data": "data.tar",
-            },
-        ],
+        ...
     }
+
 
 To deploy, you create a deployment bundle, copy that bundle to the
 target machine, and then run the ops scripts on the bundle.  You may

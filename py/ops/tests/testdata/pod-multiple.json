@@ -1,0 +1,12 @@
+{
+    "annotations": [
+        {
+            "name": "ops",
+            "value": "{\"name\": \"example\", \"version\": 1001}"
+        },
+        {
+            "name": "ops",
+            "value": "{\"name\": \"example\", \"version\": 1002}"
+        }
+    ]
+}

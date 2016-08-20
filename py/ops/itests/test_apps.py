@@ -5,6 +5,7 @@ from pathlib import Path
 from subprocess import check_call, check_output
 
 
+@unittest.skipUnless(getpass.getuser() == 'plumber', 'not in container')
 class AppsTest(unittest.TestCase):
 
     @classmethod
@@ -152,7 +153,7 @@ class AppsTest(unittest.TestCase):
         self.assertNotDir('/var/lib/ops/apps/volumes/test-pod/1001')
         for service in self.POD_1001_SERVICES:
             self.assertFile(service)
-            self.assertNotDir('%s.d' % service)
+            self.assertFile('%s.d/10-pod-manifest.conf' % service)
 
     def assertNoPod1001(self):
         self.assertNotDir('/etc/ops/apps/pods/test-pod/1001')
@@ -174,7 +175,7 @@ class AppsTest(unittest.TestCase):
         # Can't fully test templated services in a Docker container.
         for service in self.POD_1002_SERVICES:
             self.assertFile(service)
-            self.assertNotDir('%s.d' % service)
+            self.assertFile('%s.d/10-pod-manifest.conf' % service)
 
     def assertNoPod1002(self):
         self.assertNotDir('/etc/ops/apps/pods/test-pod/1002')
@@ -197,8 +198,7 @@ class AppsTest(unittest.TestCase):
         self.assertPod1003Configs()
         for service in self.POD_1003_SERVICES:
             self.assertFile(service)
-            self.assertFile('%s.d/10-images.conf' % service)
-            self.assertFile('%s.d/10-volumes.conf' % service)
+            self.assertFile('%s.d/10-pod-manifest.conf' % service)
 
     def assertPod1003Configs(self):
         self.assertDir('/etc/ops/apps/pods/test-pod/1003')

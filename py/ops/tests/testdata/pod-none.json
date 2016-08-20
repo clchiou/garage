@@ -1,0 +1,8 @@
+{
+    "annotations": [
+        {
+            "name": "ops-not",
+            "value": "{\"name\": \"example\", \"version\": 1001}"
+        }
+    ]
+}
