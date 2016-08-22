@@ -135,7 +135,8 @@ class AppsTest(Fixture):
     ]
 
     def assertPod1001(self):
-        self.assertDir('/etc/ops/apps/pods/test-pod/1001')
+        self.assertFile('/etc/ops/apps/pods/test-pod/1001/pod.json')
+        self.assertFile('/etc/ops/apps/pods/test-pod/1001/pod-manifest.json')
         self.assertNotDir('/var/lib/ops/apps/volumes/test-pod/1001')
         for service in self.POD_1001_SERVICES:
             self.assertFile(service)
@@ -156,7 +157,8 @@ class AppsTest(Fixture):
     ]
 
     def assertPod1002(self):
-        self.assertDir('/etc/ops/apps/pods/test-pod/1002')
+        self.assertFile('/etc/ops/apps/pods/test-pod/1002/pod.json')
+        self.assertFile('/etc/ops/apps/pods/test-pod/1002/pod-manifest.json')
         self.assertNotDir('/var/lib/ops/apps/volumes/test-pod/1002')
         # Can't fully test templated services in a Docker container.
         for service in self.POD_1002_SERVICES:
@@ -187,7 +189,8 @@ class AppsTest(Fixture):
             self.assertFile('%s.d/10-pod-manifest.conf' % service)
 
     def assertPod1003Configs(self):
-        self.assertDir('/etc/ops/apps/pods/test-pod/1003')
+        self.assertFile('/etc/ops/apps/pods/test-pod/1003/pod.json')
+        self.assertFile('/etc/ops/apps/pods/test-pod/1003/pod-manifest.json')
         # These volumes should match pod.json.
         self.assertDir('/var/lib/ops/apps/volumes/test-pod/1003/volume-1')
         self.assertDir('/var/lib/ops/apps/volumes/test-pod/1003/volume-2')

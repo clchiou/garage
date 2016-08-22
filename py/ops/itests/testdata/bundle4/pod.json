@@ -1,8 +1,23 @@
 {
-    "annotations": [
+    "name": "test-http-pod",
+    "version": 1001,
+    "systemd-units": [
         {
-            "name": "ops",
-            "value": "{\"name\": \"test-http-pod\", \"version\": 1001, \"systemd-units\": [{\"unit-file\": \"http://localhost:8080/bundle3/volume.service\"}], \"volumes\": [{\"volume\": \"volume-1\", \"data\": \"http://localhost:8080/bundle3/image.aci\"}]}"
+            "unit-file": "http://localhost:8080/bundle3/volume.service"
         }
-    ]
+    ],
+    "volumes": [
+        {
+            "name": "volume-1",
+            "data": "http://localhost:8080/bundle3/image.aci"
+        }
+    ],
+    "manifest": {
+        "volumes": [
+            {
+                "name": "volume-1",
+                "kind": "host"
+            }
+        ]
+    }
 }

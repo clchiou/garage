@@ -7,50 +7,39 @@ from ops.apps import models
 
 class ModelsTest(unittest.TestCase):
 
-    @classmethod
-    def setUpClass(cls):
-        cls.testdata_path = Path(__file__).parent / 'testdata'
-        assert cls.testdata_path.is_dir()
-
-    def test_pod_load_json(self):
-        with self.assertRaisesRegex(
-                ValueError,
-                r'^no ops annotation: .*/testdata/pod-none.json$'):
-            models.Pod.load_json(self.testdata_path / 'pod-none.json')
-        with self.assertRaisesRegex(
-                ValueError,
-                r'^multiple ops annotations: .*/testdata/pod-multiple.json$'):
-            models.Pod.load_json(self.testdata_path / 'pod-multiple.json')
-
     def test_pod(self):
         with self.assertRaisesRegex(KeyError, 'name'):
-            models.Pod(self.testdata_path, {})
+            models.Pod(Path(__file__), {})
         with self.assertRaisesRegex(KeyError, 'version'):
-            models.Pod(self.testdata_path, {'name': 'example'})
+            models.Pod(Path(__file__), {'name': 'example'})
         with self.assertRaisesRegex(ValueError, 'invalid pod name: x--y'):
-            models.Pod(self.testdata_path, {'name': 'x--y', 'version': 1001})
+            models.Pod(Path(__file__), {'name': 'x--y', 'version': 1001})
         with self.assertRaisesRegex(ValueError, 'invalid literal for int'):
-            models.Pod(self.testdata_path, {'name': 'x-y', 'version': 'z'})
+            models.Pod(Path(__file__), {'name': 'x-y', 'version': 'z'})
         with self.assertRaisesRegex(ValueError, 'unknown names: x'):
-            models.Pod(
-                self.testdata_path, {'name': 'x-y', 'version': 1001, 'x': 1})
+            models.Pod(Path(__file__), {'name': 'x-y', 'version': 1, 'x': 1})
 
-        pod = models.Pod(self.testdata_path, {'name': 'xy', 'version': 1001})
+        pod = models.Pod(Path(__file__), dict(
+            name='xy',
+            version=1001,
+            manifest={},
+        ))
         self.assertEqual('xy:1001', str(pod))
         self.assertObjectFields(
             dict(
-                path=self.testdata_path.absolute(),
+                path=Path(__file__).absolute(),
                 name='xy',
                 version=1001,
                 systemd_units=(),
                 images=(),
                 volumes=(),
+                manifest={},
             ),
             pod,
         )
 
     def test_systemd_unit(self):
-        pod = models.Pod(self.testdata_path, {
+        pod = models.Pod(Path(__file__), {
             'name': 'xy',
             'version': 1001,
             'systemd-units': [
@@ -78,11 +67,12 @@ class ModelsTest(unittest.TestCase):
                     'instances': ['a', 'b', 'c'],
                 },
             ],
+            'manifest': {},
         })
         self.assertEqual(6, len(pod.systemd_units))
         self.assertObjectFields(
             dict(
-                path=self.testdata_path.parent / 'example.service',
+                path=Path(__file__).parent / 'example.service',
                 name='xy-example-1001.service',
                 start=False,
                 instances=(),
@@ -94,7 +84,7 @@ class ModelsTest(unittest.TestCase):
         )
         self.assertObjectFields(
             dict(
-                path=self.testdata_path.parent / 'sample.timer',
+                path=Path(__file__).parent / 'sample.timer',
                 name='xy-sample-1001.timer',
                 start=True,
                 instances=(),
@@ -143,15 +133,16 @@ class ModelsTest(unittest.TestCase):
         )
 
     def test_image(self):
-        pod = models.Pod(self.testdata_path, dict(
+        pod = models.Pod(Path(__file__), dict(
             name='xy',
             version=1001,
             images=[
-                {'uri': 'http://localhost/image.aci'},
-                {'uri': 'docker://busybox'},
-                {'path': 'path/to/image.aci',
-                 'signature': 'image.aci.asc'},
+                {'id': 'sha512-XXX', 'uri': 'http://localhost/image.aci'},
+                {'id': 'sha512-XXX', 'uri': 'docker://busybox'},
+                {'id': 'sha512-XXX',
+                 'path': 'path/to/image.aci', 'signature': 'image.aci.asc'},
             ],
+            manifest={},
         ))
         self.assertEqual(3, len(pod.images))
         self.assertObjectFields(
@@ -164,21 +155,22 @@ class ModelsTest(unittest.TestCase):
         )
         self.assertObjectFields(
             dict(
-                path=self.testdata_path.parent / 'path/to/image.aci',
-                signature=self.testdata_path.parent / 'image.aci.asc',
+                path=Path(__file__).parent / 'path/to/image.aci',
+                signature=Path(__file__).parent / 'image.aci.asc',
             ),
             pod.images[2],
         )
 
     def test_volume(self):
-        pod = models.Pod(self.testdata_path, dict(
+        pod = models.Pod(Path(__file__), dict(
             name='xy',
             version=1001,
-            volumes=[dict(volume='x', data='y')],
+            volumes=[dict(name='x', data='y')],
+            manifest={},
         ))
         self.assertEqual(1, len(pod.volumes))
         self.assertObjectFields(
-            dict(volume='x', path=self.testdata_path.parent / 'y'),
+            dict(name='x', path=Path(__file__).parent / 'y'),
             pod.volumes[0],
         )
 

@@ -1,9 +1,10 @@
-"""Data model of pod manifest."""
+"""Data model of pods."""
 
 __all__ = [
     'PodRepo',
 ]
 
+import copy
 import json
 import logging
 import re
@@ -124,8 +125,9 @@ class PodRepo:
 
 class Pod:
 
-    # ${CONFIGS}/pods/${NAME}/${VERSION}/pod.json
+    # ${CONFIGS}/pods/${NAME}/${VERSION}/{pod.json,pod-manifest.json}
     POD_JSON = 'pod.json'
+    POD_MANIFEST_JSON = 'pod-manifest.json'
 
     # ${CONFIGS}/pods/${NAME}/${VERSION}/units/${UNIT_FILE}
     UNITS_DIR = 'units'
@@ -136,6 +138,7 @@ class Pod:
         'systemd-units',
         'images',
         'volumes',
+        'manifest',
     ))
 
     @classmethod
@@ -143,17 +146,8 @@ class Pod:
         pod_path = Path(pod_path)
         if pod_path.is_dir():
             pod_path = pod_path / cls.POD_JSON
-        pod_manifest = json.loads(pod_path.read_text())
-        pod_data = None
-        for annotation in pod_manifest.get('annotations', ()):
-            if annotation['name'] == 'ops':
-                if pod_data is not None:
-                    raise ValueError('multiple ops annotations: %s' % pod_path)
-                pod_data = annotation['value']
-        if pod_data is None:
-            raise ValueError('no ops annotation: %s' % pod_path)
-        # pod_data is JSON-encoded.
-        return cls(pod_path, json.loads(pod_data))
+        pod_data = json.loads(pod_path.read_text())
+        return cls(pod_path, pod_data)
 
     def __init__(self, pod_path, pod_data):
         ensure_names(self.PROP_NAMES, pod_data)
@@ -182,6 +176,30 @@ class Pod:
             Volume(self, volume_data)
             for volume_data in pod_data.get('volumes', ())
         )
+
+        self.manifest = pod_data['manifest']
+
+    def make_manifest(self, repo):
+        # Make a copy before modifying it.
+        manifest = copy.deepcopy(self.manifest)
+
+        # Insert volume source path.
+        volume_root_path = repo.get_volume_path(self)
+        appc_volumes = {
+            appc_volume['name']: appc_volume
+            for appc_volume in manifest.get('volumes', ())
+        }
+        for volume in self.volumes:
+            appc_volume = appc_volumes.get(volume.name)
+            if appc_volume is None:
+                raise ValueError('no pod volume: %s' % volume.name)
+            if appc_volume['kind'] != 'host':
+                raise ValueError('non-host volume: %s' % volume.name)
+            if 'source' in appc_volume:
+                raise ValueError('volume source was set: %s' % volume.name)
+            appc_volume['source'] = str(volume_root_path / volume.name)
+
+        return manifest
 
     def __str__(self):
         return '%s:%s' % (self.name, self.version)
@@ -284,7 +302,7 @@ class Image:
     def __init__(self, pod, image_data):
         ensure_names(self.PROP_NAMES, image_data)
 
-        self.id = image_data.get('id')
+        self.id = image_data['id']
 
         path = image_data.get('path')
         self.path = pod.path.parent / path if path else None
@@ -311,17 +329,28 @@ class Image:
 
 class Volume:
 
-    PROP_NAMES = frozenset(('volume', 'data'))
+    PROP_NAMES = frozenset((
+        'name',
+        'user',
+        'group',
+        'data',
+    ))
 
     def __init__(self, pod, volume_data):
         ensure_names(self.PROP_NAMES, volume_data)
 
-        self.volume = volume_data['volume']
-        if not AC_NAME_PATTERN.fullmatch(self.volume):
-            raise ValueError('invalid volume name: %s' % self.volume)
+        self.name = volume_data['name']
+        if not AC_NAME_PATTERN.fullmatch(self.name):
+            raise ValueError('invalid volume name: %s' % self.name)
 
-        data = volume_data['data']
-        if is_uri(data):
+        self.user = volume_data.get('user', 'root')
+        self.group = volume_data.get('group', 'root')
+
+        data = volume_data.get('data')
+        if data is None:
+            self.path = None
+            self.uri = None
+        elif is_uri(data):
             self.path = None
             self.uri = data
         else:

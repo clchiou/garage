@@ -4,13 +4,12 @@ __all__ = [
     'COMMANDS',
 ]
 
-import getpass
+import json
 import logging
 import os.path
 import urllib.parse
 from contextlib import ExitStack
 from pathlib import Path
-from subprocess import PIPE, Popen
 from tempfile import TemporaryDirectory
 
 from ops import scripting
@@ -78,7 +77,7 @@ def deploy_fetch(pod):
 
     for image in pod.images:
 
-        if image.id and match_image_id(image.id, image_ids):
+        if match_image_id(image.id, image_ids):
             LOG.debug('skip fetching image %s', image.id)
             continue
 
@@ -127,6 +126,19 @@ def deploy_install(repo, pod):
     # Install pod.json.
     scripting.execute(['sudo', 'cp', pod.path, config_path / pod.POD_JSON])
 
+    # Generate Appc pod manifest.
+    scripting.tee(
+        config_path / pod.POD_MANIFEST_JSON,
+        lambda output: (
+            output.write(
+                json.dumps(pod.make_manifest(repo), indent=4, sort_keys=True)
+                .encode('ascii')
+            ),
+            output.write(b'\n'),
+        ),
+        sudo=True,
+    )
+
     # Install systemd unit files.
     units_dir = config_path / pod.UNITS_DIR
     scripting.execute(['sudo', 'mkdir', '--parents', units_dir])
@@ -152,7 +164,7 @@ def deploy_create_volumes(repo, pod):
 
     for volume in pod.volumes:
 
-        volume_path = volume_root_path / volume.volume
+        volume_path = volume_root_path / volume.name
         if volume_path.exists():
             LOG.warning('volume exists: %s', volume_path)
             continue
@@ -161,12 +173,14 @@ def deploy_create_volumes(repo, pod):
         scripting.execute([
             'sudo',
             'chown',
-            '{whoami}:{whoami}'.format(whoami=getpass.getuser()),
+            '{user}:{group}'.format(user=volume.user, group=volume.group),
             volume_path,
         ])
 
+        # Create initial contents of volume.
+        if not volume.path and not volume.uri:
+            continue
         with ExitStack() as stack:
-
             if volume.path:
                 tarball_path = volume.path
             else:
@@ -176,7 +190,6 @@ def deploy_create_volumes(repo, pod):
                     Path(urllib.parse.urlparse(volume.uri).path).name
                 )
                 scripting.wget(volume.uri, tarball_path)
-
             scripting.tar_extract(tarball_path, sudo=True, tar_extra_args=[
                 # This is the default for root, but better be explicit.
                 '--preserve-permissions',
@@ -221,22 +234,12 @@ def deploy_enable(repo, pod):
 
 
 def systemd_make_rkt_dropin(repo, pod, unit):
-    if scripting.DRY_RUN:
-        return
     scripting.execute(['sudo', 'mkdir', '--parents', unit.dropin_path])
-    _make_dropin(
+    scripting.tee(
         unit.dropin_path / '10-pod-manifest.conf',
         lambda output: _write_pod_manifest_dropin(repo, pod, output),
+        sudo=True,
     )
-
-
-def _make_dropin(dropin_path, writer):
-    with Popen(['sudo', 'tee', str(dropin_path)], stdin=PIPE) as tee:
-        writer(tee.stdin)
-        tee.stdin.close()
-        retcode = tee.wait()
-        if retcode != 0:
-            raise RuntimeError('tee %s: rc=%d', dropin_path, retcode)
 
 
 def _write_pod_manifest_dropin(repo, pod, output):
@@ -244,7 +247,7 @@ def _write_pod_manifest_dropin(repo, pod, output):
     output.write(
         ('[Service]\n'
          'Environment="POD_MANIFEST={pod_manifest}"\n')
-        .format(pod_manifest=str(config_path / pod.POD_JSON))
+        .format(pod_manifest=str(config_path / pod.POD_MANIFEST_JSON))
         .encode('ascii')
     )
 
@@ -347,14 +350,15 @@ def cleanup(args):
 def add_arguments(parser):
     basics.add_arguments(parser)
     parser.add_argument(
-        'pod', help="""either a pod manifest or 'name:version'""")
+        'pod', help="""either a pod file or 'name:version'""")
 
 
 deploy.add_arguments = lambda parser: (
     add_arguments(parser),
     parser.add_argument(
         '--redeploy', action='store_true',
-        help="""instruct a re-deploy of this pod""")
+        help="""instruct a re-deploy of this pod"""
+    ),
 )
 
 
@@ -362,7 +366,8 @@ undeploy.add_arguments = lambda parser: (
     add_arguments(parser),
     parser.add_argument(
         '--remove', action='store_true',
-        help="""remove pod data""")
+        help="""remove pod data"""
+    ),
 )
 
 
@@ -370,7 +375,8 @@ cleanup.add_arguments = lambda parser: (
     basics.add_arguments(parser),
     parser.add_argument(
         '--keep', type=int, default=1,
-        help="""keep latest N versions (default to %(default)s)""")
+        help="""keep latest N versions (default to %(default)s)"""
+    ),
 )
 
 

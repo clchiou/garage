@@ -8,13 +8,14 @@ __all__ = [
     'remove_tree',
     'systemctl',
     'tar_extract',
+    'tee',
     'wget',
 ]
 
 import getpass
 import logging
 from functools import partial
-from subprocess import call, check_call, check_output
+from subprocess import PIPE, Popen, call, check_call, check_output
 
 
 LOG = logging.getLogger(__name__)
@@ -111,6 +112,28 @@ def tar_extract(tarball_path, *, sudo=False, tar_extra_args=(), **kwargs):
     cmd.extend(tar_extra_args)
 
     return execute(cmd, **kwargs)
+
+
+def tee(output_path, writer, *, sudo=False):
+    cmd = ['tee', str(output_path)]
+    if sudo:
+        cmd.insert(0, 'sudo')
+    if LOG.isEnabledFor(logging.DEBUG):
+        LOG.debug('execute: %s', ' '.join(cmd))
+    if DRY_RUN:
+        return
+    with Popen(cmd, stdin=PIPE) as proc:
+        retcode = 0
+        try:
+            writer(proc.stdin)
+            proc.stdin.close()
+        except Exception:
+            proc.kill()
+            raise
+        finally:
+            retcode = proc.wait()
+        if retcode != 0:
+            raise RuntimeError('tee %s: rc=%d', output_path, retcode)
 
 
 def wget(uri, output_path, *, sudo=False, **kwargs):

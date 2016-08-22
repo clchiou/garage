@@ -4,6 +4,9 @@ __all__ = [
     'COMMANDS',
 ]
 
+import json
+import sys
+
 from ops.apps.models import PodRepo
 
 
@@ -31,6 +34,27 @@ def list_pods(args):
 list_pods.add_arguments = add_arguments
 
 
+def make_manifest(args):
+    """Generate Appc pod manifest."""
+    repo = PodRepo(args.config_path, args.data_path)
+    pod = repo.find_pod(args.pod)
+    sys.stdout.write(json.dumps(
+        pod.make_manifest(repo),
+        indent=4,
+        sort_keys=True,
+    ))
+    sys.stdout.write('\n')
+
+
+make_manifest.add_arguments = lambda parser: (
+    add_arguments(parser),
+    parser.add_argument(
+        'pod', help="""either a pod file or 'name:version'"""
+    ),
+)
+
+
 COMMANDS = [
     list_pods,
+    make_manifest,
 ]
