@@ -126,15 +126,20 @@ def deploy_install(repo, pod):
     # Install pod.json.
     scripting.execute(['sudo', 'cp', pod.path, config_path / pod.POD_JSON])
 
-    # Generate Appc pod manifest.
+    # Providers of deployment-time information.
     volume_root_path = repo.get_volume_path(pod)
     get_volume_path = lambda volume: volume_root_path / volume.name
+
+    # Generate Appc pod manifest.
     scripting.tee(
         config_path / pod.POD_MANIFEST_JSON,
         lambda output: (
             output.write(
                 json.dumps(
-                    pod.make_manifest(get_volume_path),
+                    pod.make_manifest(
+                        get_volume_path=get_volume_path,
+                        get_host_port=None,  # TODO: Implement port allocator.
+                    ),
                     indent=4,
                     sort_keys=True,
                 )

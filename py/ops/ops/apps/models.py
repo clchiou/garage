@@ -179,7 +179,11 @@ class Pod:
 
         self.manifest = pod_data['manifest']
 
-    def make_manifest(self, get_volume_path):
+    def make_manifest(
+            self, *,
+            # Providers of deployment-time information.
+            get_volume_path,
+            get_host_port):
 
         # Make a copy before modifying it.
         manifest = copy.deepcopy(self.manifest)
@@ -198,6 +202,24 @@ class Pod:
             if 'source' in appc_volume:
                 raise ValueError('volume source was set: %s' % volume.name)
             appc_volume['source'] = str(get_volume_path(volume))
+
+        # Collect port names from apps.
+        port_names = set()
+        for app in manifest['apps']:
+            for port in app.get('app', {}).get('ports', ()):
+                port_names.add(port['name'])
+        # Insert host ports.
+        if port_names:
+            ports = manifest.setdefault('ports', [])
+            defined_port_names = frozenset(port['name'] for port in ports)
+            for port_name in sorted(port_names):
+                if port_name in defined_port_names:
+                    LOG.debug('skip already-defined port: %s', port_name)
+                    continue
+                ports.append({
+                    'name': port_name,
+                    'hostPort': int(get_host_port(port_name)),
+                })
 
         return manifest
 

@@ -37,6 +37,7 @@ list_pods.add_arguments = add_arguments
 
 def make_manifest(args):
     """Generate Appc pod manifest (mostly for testing)."""
+
     repo = PodRepo(args.config_path, args.data_path)
     pod = repo.find_pod(args.pod)
 
@@ -44,7 +45,23 @@ def make_manifest(args):
     for volume_pair in args.volume or ():
         name, path = volume_pair.split('=', maxsplit=1)
         volume_paths[name] = Path(path).resolve()
-    get_volume_path = lambda volume: volume_paths[volume.name]
+
+    def get_volume_path(volume):
+        try:
+            return volume_paths[volume.name]
+        except KeyError:
+            raise ValueError('volume not found: %s' % volume.name) from None
+
+    host_ports = {}
+    for port_pair in args.port or ():
+        name, port = port_pair.split('=', maxsplit=1)
+        host_ports[name] = int(port)
+
+    def get_host_port(port_name):
+        try:
+            return host_ports[port_name]
+        except KeyError:
+            raise ValueError('port not found: %s' % port_name) from None
 
     if args.output:
         output = open(args.output, 'w')
@@ -52,7 +69,10 @@ def make_manifest(args):
         output = sys.stdout
     try:
         output.write(json.dumps(
-            pod.make_manifest(get_volume_path),
+            pod.make_manifest(
+                get_volume_path=get_volume_path,
+                get_host_port=get_host_port,
+            ),
             indent=4,
             sort_keys=True,
         ))
@@ -67,6 +87,9 @@ make_manifest.add_arguments = lambda parser: (
     parser.add_argument(
         '--volume', action='append',
         help="""set volume of format: volume=/path/of/volume"""),
+    parser.add_argument(
+        '--port', action='append',
+        help="""set host port of format: port_name=port_number"""),
     parser.add_argument(
         '--output', help="""set output path (default to stdout)"""),
     parser.add_argument(
