@@ -127,11 +127,17 @@ def deploy_install(repo, pod):
     scripting.execute(['sudo', 'cp', pod.path, config_path / pod.POD_JSON])
 
     # Generate Appc pod manifest.
+    volume_root_path = repo.get_volume_path(pod)
+    get_volume_path = lambda volume: volume_root_path / volume.name
     scripting.tee(
         config_path / pod.POD_MANIFEST_JSON,
         lambda output: (
             output.write(
-                json.dumps(pod.make_manifest(repo), indent=4, sort_keys=True)
+                json.dumps(
+                    pod.make_manifest(get_volume_path),
+                    indent=4,
+                    sort_keys=True,
+                )
                 .encode('ascii')
             ),
             output.write(b'\n'),

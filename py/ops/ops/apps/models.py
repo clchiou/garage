@@ -179,12 +179,12 @@ class Pod:
 
         self.manifest = pod_data['manifest']
 
-    def make_manifest(self, repo):
+    def make_manifest(self, get_volume_path):
+
         # Make a copy before modifying it.
         manifest = copy.deepcopy(self.manifest)
 
         # Insert volume source path.
-        volume_root_path = repo.get_volume_path(self)
         appc_volumes = {
             appc_volume['name']: appc_volume
             for appc_volume in manifest.get('volumes', ())
@@ -197,7 +197,7 @@ class Pod:
                 raise ValueError('non-host volume: %s' % volume.name)
             if 'source' in appc_volume:
                 raise ValueError('volume source was set: %s' % volume.name)
-            appc_volume['source'] = str(volume_root_path / volume.name)
+            appc_volume['source'] = str(get_volume_path(volume))
 
         return manifest
 
