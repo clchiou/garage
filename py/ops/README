@@ -81,9 +81,9 @@ numbers).
                 # Required.
                 "name": "volume-name",
 
-                # Optional: Default to "root".
-                "user": "nobody",
-                "group": "nobody",
+                # Optional: Default to "nobody".
+                "user": "root",
+                "group": "root",
 
                 # Optional: Initial contents of the volume, which could
                 # be either path or URI.

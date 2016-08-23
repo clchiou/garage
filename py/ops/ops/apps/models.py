@@ -343,8 +343,8 @@ class Volume:
         if not AC_NAME_PATTERN.fullmatch(self.name):
             raise ValueError('invalid volume name: %s' % self.name)
 
-        self.user = volume_data.get('user', 'root')
-        self.group = volume_data.get('group', 'root')
+        self.user = volume_data.get('user', 'nobody')
+        self.group = volume_data.get('group', 'nobody')
 
         data = volume_data.get('data')
         if data is None:
