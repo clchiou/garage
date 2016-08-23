@@ -19,9 +19,6 @@ __all__ = [
     'define_package_common',
     # Helpers for the build image/pod phases.
     'build_appc_image',
-    'render_appc_manifest',
-    'render_files',
-    'render_template',
     'tapeout_files',
     'tapeout_libraries',
     'write_json',
@@ -339,47 +336,6 @@ def tapeout_libraries(parameters, lib_dir, libnames):
     libs = list(itertools.chain.from_iterable(
         lib_dir.glob('%s*' % name) for name in libnames))
     tapeout_files(parameters, libs)
-
-
-def render_appc_manifest(parameters, manifest_label, template_vars=None):
-    """Helper for creating appc image manifest."""
-    render_template(
-        parameters,
-        to_path(manifest_label),
-        parameters['//base:manifest'],
-        template_vars=template_vars,
-    )
-
-
-def render_files(parameters, label_path_pairs, template_vars=None):
-    """Helper for render multiple templates."""
-    for label, path in label_path_pairs:
-        render_template(parameters, to_path(label), path, template_vars)
-
-
-def render_template(
-        parameters, template_path, output_path, template_vars=None):
-    LOG.info('render %s', template_path)
-
-    python = parameters['//host/cpython:python']
-    if not python.is_file():
-        raise FileNotFoundError(str(python))
-
-    render = parameters['//base:root'] / 'shipyard/scripts/render-template'
-    if not render.is_file():
-        raise FileNotFoundError(str(render))
-
-    cmd = [python, render]
-    if template_vars:
-        for name, value in template_vars.items():
-            cmd.append('--json-value')
-            cmd.append(name)
-            cmd.append(json.dumps(value))
-    cmd.append('--output')
-    cmd.append(output_path.absolute())
-    cmd.append(template_path.relative_to(Path.home()))
-
-    execute(cmd, cwd=Path.home())
 
 
 def write_json(json_object, output_path):
