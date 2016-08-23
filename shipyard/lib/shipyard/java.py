@@ -1,16 +1,36 @@
 """Templates for building Java packages."""
 
 __all__ = [
+    # Helpers
+    'make_manifest',
+    # Templates
     'define_package',
 ]
 
 from foreman import define_rule
 
 from . import (
+    combine_dicts,
     ensure_file,
     execute,
     rsync,
 )
+
+
+def make_manifest(parameters, base_manifest):
+    return combine_dicts(
+        base_manifest,
+        {
+            'app': {
+                'exec': [
+                    str(parameters['//java/java:java_root'] / 'jre/bin/java'),
+                ],
+                'user': 'nobody',
+                'group': 'nobody',
+                'workingDirectory': '/',
+            },
+        },
+    )
 
 
 def define_package(

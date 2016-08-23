@@ -22,19 +22,40 @@ py.define_package(
 )
 
 
+def make_image_manifest(parameters, base_manifest):
+    manifest = py.make_manifest(parameters, base_manifest)
+    app = manifest['app']
+    app['exec'].extend(['-m', 'echod', '--port', '8000'])
+    app['ports'] = [
+        {
+            'name': 'http',
+            'protocol': 'tcp',
+            'port': 8000,
+            'count': 1,
+            'socketActivated': False,
+        },
+    ]
+    return manifest
+
+
 pod.define_pod(pod.Pod(
     name='echod',
-    template_files=[
-        '//base:templates/pod.json',
+    systemd_units=[
+        pod.SystemdUnit(
+            unit_file='files/echod.service',
+            start=True,
+        ),
     ],
-    make_template_vars=lambda ps: {'unit_files': ['echod.service']},
-    files=[
-        'files/echod.service',
+    apps=[
+        pod.App(
+            name='echod',
+            image_name='echod',
+        ),
     ],
     images=[
         pod.Image(
             name='echod',
-            manifest='//py/cpython:templates/manifest',
+            make_manifest=make_image_manifest,
             depends=[
                 'tapeout',
                 '//base:tapeout',

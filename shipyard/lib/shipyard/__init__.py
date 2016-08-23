@@ -24,6 +24,9 @@ __all__ = [
     'render_template',
     'tapeout_files',
     'tapeout_libraries',
+    'write_json',
+    # More helpers.
+    'combine_dicts',
 ]
 
 import hashlib
@@ -377,3 +380,21 @@ def render_template(
     cmd.append(template_path.relative_to(Path.home()))
 
     execute(cmd, cwd=Path.home())
+
+
+def write_json(json_object, output_path):
+    with output_path.open('w') as output_file:
+        output_file.write(json.dumps(json_object, indent=4, sort_keys=True))
+        output_file.write('\n')
+
+
+### More helpers.
+
+
+def combine_dicts(*member_dicts, exclude_keys=()):
+    combined_dict = {}
+    for member_dict in member_dicts:
+        combined_dict.update(member_dict)
+    for key in exclude_keys:
+        combined_dict.pop(key, None)
+    return combined_dict

@@ -2,6 +2,7 @@
 
 from foreman import define_rule
 from shipyard import (
+    combine_dicts,
     pod,
     tapeout_files,
     tapeout_libraries,
@@ -18,14 +19,40 @@ from shipyard import (
      ]),
  ))
  .depend('//cc/nghttp2:tapeout')
- .depend('//host/mako:install')
  .reverse_depend('//base:tapeout')
 )
 
 
 pod.define_image(pod.Image(
     name='nghttpx',
-    manifest='templates/manifest',
+    make_manifest=lambda ps, base_manifest: combine_dicts(
+        base_manifest,
+        {
+            'app': {
+                'exec': [
+                    '/usr/local/bin/nghttpx',
+                ],
+                'user': 'nobody',
+                'group': 'nobody',
+                'environment': [
+                    {
+                        'name': 'LD_LIBRARY_PATH',
+                        'value': '/usr/local/lib'
+                    },
+                ],
+                'workingDirectory': '/',
+                'ports': [
+                    {
+                        'name': 'http',
+                        'protocol': 'tcp',
+                        'port': 8000,
+                        'count': 1,
+                        'socketActivated': False,
+                    },
+                ],
+            },
+        },
+    ),
     depends=[
         'tapeout',
     ],

@@ -2,6 +2,8 @@
 
 __all__ = [
     'Pod',
+    'SystemdUnit',
+    'App',
     'Image',
     'Volume',
     'define_image',
@@ -10,43 +12,63 @@ __all__ = [
 
 from collections import namedtuple
 from functools import partial
-from pathlib import Path
 
 from foreman import define_parameter, define_rule, to_path
 from shipyard import (
+    combine_dicts,
     build_appc_image,
-    render_appc_manifest,
-    render_files,
     rsync,
+    write_json,
 )
 
 
 Pod = partial(
     namedtuple('Pod', [
         'name',
-        'template_files',
-        'make_template_vars',
-        'files',
+        'systemd_units',
+        'make_manifest',
+        'apps',
         'images',
         'volumes',
         'depends',  # Dependencies for the build_pod rule.
+        'files',
     ]),
-    template_files=(),
-    make_template_vars=lambda parameters: None,
-    files=(),
+    make_manifest=None,
     volumes=(),
     depends=(),
+    files=(),
+)
+
+
+SystemdUnit = partial(
+    namedtuple('SystemdUnit', [
+        'unit_file',
+        'start',
+        'instances',
+    ]),
+    start=False,
+    instances=None,
+)
+
+
+App = partial(
+    namedtuple('App', [
+        'name',
+        'image_name',
+        'volume_names',
+        'read_only_rootfs',
+    ]),
+    volume_names=(),
+    read_only_rootfs=True,
 )
 
 
 Image = partial(
     namedtuple('Image', [
         'name',
-        'manifest',
-        'make_template_vars',
+        'make_manifest',
         'depends',  # Dependencies for the build_image rule.
     ]),
-    make_template_vars=lambda parameters: None,
     depends=(),
 )
 
@@ -55,13 +77,16 @@ Volume = partial(
     namedtuple('Volume', [
         'name',
         'path',
+        'user',
+        'group',
         'data',
         'read_only',
     ]),
+    user='nobody',
+    group='nobody',
     data=None,
     read_only=True,
 )
-
 
 
 def define_image(image):
@@ -74,30 +99,43 @@ def _define_image(rule_name, image):
         define_rule(rule_name)
         .with_build(partial(_build_image, image=image))
         .depend('//base:tapeout')
-        .depend('//host/mako:install')
     )
     for depend in image.depends:
         rule.depend(depend)
 
 
 def _build_image(parameters, image):
-    template_vars = {
-        'name': image.name,
-    }
-    template_vars.update(image.make_template_vars(parameters) or {})
-    render_appc_manifest(parameters, image.manifest, template_vars)
+    write_json(
+        image.make_manifest(parameters, make_base_image_manifest(image)),
+        parameters['//base:manifest'],
+    )
     build_appc_image(
         parameters['//base:image'],
         parameters['//base:output'] / image.name,
     )
 
 
+def make_base_image_manifest(image):
+    return {
+        'acKind': 'ImageManifest',
+        'acVersion': '0.8.6',
+        'labels': [
+            {
+                'name': 'os',
+                'value': 'linux',
+            },
+            {
+                'name': 'arch',
+                'value': 'amd64',
+            },
+        ],
+        'name': image.name,
+    }
+
+
 def define_pod(pod):
     """Generate build_pod/POD and build_pod/POD/IMAGE rules."""
-    (
-        define_parameter('version/%s' % pod.name)
-        .with_type(int)
-    )
+    define_parameter('version/%s' % pod.name).with_type(int)
 
     for image in pod.images:
         _define_image('build_pod/%s/%s' % (pod.name, image.name), image)
@@ -108,7 +146,6 @@ def define_pod(pod):
     rule = (
         define_rule('build_pod/%s' % pod.name)
         .with_build(partial(_build_pod, pod=pod))
-        .depend('//host/mako:install')
     )
     for depend in pod.depends:
         rule.depend(depend)
@@ -116,30 +153,123 @@ def define_pod(pod):
 
 def _build_pod(parameters, pod):
 
-    template_vars = {
+    # Look-up tables.
+    image_ids = {
+        image.name: ('sha512-%s' %
+                     ((parameters['//base:output'] / image.name / 'sha512')
+                      .read_text()
+                      .strip()))
+        for image in pod.images
+    }
+    images = {image.name: image for image in pod.images}
+    volumes = {volume.name: volume for volume in pod.volumes}
+
+    def make_image_manifest(app):
+        image_manifest = images[app.image_name].make_manifest(
+            parameters,
+            make_base_image_manifest(images[app.image_name]),
+        )
+        # Add 'mountPoints' to 'app' object.
+        image_manifest['app'] = combine_dicts(
+            image_manifest['app'],
+            {
+                'mountPoints': [
+                    {
+                        'volume': volume_name,
+                        'path': volumes[volume_name].path,
+                        'readOnly': volumes[volume_name].read_only,
+                    }
+                    for volume_name in app.volume_names
+                ],
+            },
+        )
+        return image_manifest
+
+    pod_manifest = {
+        'acVersion': '0.8.6',
+        'acKind': 'PodManifest',
+        'apps': [
+            combine_dicts(
+                # Embed 'app' object from image manifest.
+                {
+                    'app': make_image_manifest(app)['app'],
+                },
+                {
+                    'name': app.name,
+                    'image': {
+                        'name': app.image_name,
+                        'id': image_ids[app.image_name],
+                    },
+                    'readOnlyRootFS': app.read_only_rootfs,
+                    'mounts': [
+                        {
+                            'volume': volume_name,
+                            'path': volumes[volume_name].path,
+                        }
+                        for volume_name in app.volume_names
+                    ],
+                },
+            )
+            for app in pod.apps
+        ],
+        'volumes': [
+            {
+                'name': volume.name,
+                'kind': 'host',
+                # 'source' will be provided by ops scripts.
+                'readOnly': volume.read_only,
+                'recursive': True,
+            }
+            for volume in pod.volumes
+        ],
+    }
+    if pod.make_manifest:
+        pod_manifest = pod.make_manifest(parameters, pod_manifest)
+
+    # Generate pod object for the ops scripts.
+    pod_json_object = {
         'name': pod.name,
         'version': parameters['version/%s' % pod.name],
-        'images': {
-            image.name: {
-                'sha512': ((parameters['//base:output'] /
-                            image.name / 'sha512')
-                           .read_text()
-                           .strip()),
+        'systemd-units': [
+            combine_dicts(
+                {
+                    'unit-file': to_path(unit.unit_file).name,
+                    'start': unit.start,
+                },
+                {
+                    'instances': unit.instances,
+                } if unit.instances else {},
+            )
+            for unit in pod.systemd_units
+        ],
+        'images': [
+            {
+                'id': image_ids[image.name],
                 'path': '%s/image.aci' % image.name,
             }
             for image in pod.images
-        },
-        'volumes': [volume._asdict() for volume in pod.volumes],
-    }
-    template_vars.update(pod.make_template_vars(parameters) or {})
-
-    render_files(
-        parameters,
-        label_path_pairs=[
-            (label, parameters['//base:output'] / Path(label).name)
-            for label in pod.template_files
         ],
-        template_vars=template_vars,
+        'volumes': [
+            combine_dicts(
+                {
+                    'name': volume.name,
+                    'user': volume.user,
+                    'group': volume.group,
+                },
+                {
+                    'data': volume.data,
+                } if volume.data else {},
+            )
+            for volume in pod.volumes
+        ],
+        'manifest': pod_manifest,
+    }
+
+    write_json(pod_json_object, parameters['//base:output'] / 'pod.json')
+
+    rsync(
+        [to_path(unit.unit_file) for unit in pod.systemd_units],
+        parameters['//base:output'],
     )
 
     rsync(

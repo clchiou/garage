@@ -1,24 +1,47 @@
-from shipyard import pod
+from shipyard import pod, py
 
 
 WWW_PATH = '/var/www'
 
 
+def make_image_manifest(parameters, base_manifest):
+    manifest = py.make_manifest(parameters, base_manifest)
+    app = manifest['app']
+    app['exec'].extend(['-m', 'http.server', '8000'])
+    app['workingDirectory'] = WWW_PATH
+    app['ports'] = [
+        {
+            'name': 'http',
+            'protocol': 'tcp',
+            'port': 8000,
+            'count': 1,
+            'socketActivated': False,
+        },
+    ]
+    return manifest
+
+
 pod.define_pod(pod.Pod(
     name='httpd',
-    template_files=[
-        '//base:templates/pod.json',
+    systemd_units=[
+        pod.SystemdUnit(
+            unit_file='files/httpd.service',
+            start=True,
+        ),
     ],
-    make_template_vars=lambda ps: {'unit_files': ['httpd.service']},
-    files=[
-        'files/httpd.service',
-        'files/data.tgz',
+    apps=[
+        pod.App(
+            name='httpd',
+            image_name='httpd',
+            volume_names=[
+                'www',
+            ],
+        ),
     ],
     images=[
         pod.Image(
             name='httpd',
-            manifest='//py/cpython:templates/manifest',
-            make_template_vars=lambda ps: {'working_directory': WWW_PATH},
+            make_manifest=make_image_manifest,
             depends=[
                 '//base:tapeout',
                 '//py/cpython:tapeout',
@@ -31,5 +54,8 @@ pod.define_pod(pod.Pod(
             path=WWW_PATH,
             data='data.tgz',
         ),
+    ],
+    files=[
+        'files/data.tgz',
     ],
 ))
