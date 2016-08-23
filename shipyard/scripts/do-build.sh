@@ -6,7 +6,7 @@ set -o errexit -o nounset -o pipefail
 
 main() {
   if [[ -z "${1:-}" ]]; then
-    echo "Usage: $(basename "${0}") {all|third-party|echod|httpd|nghttpx} --builder BUILDER --preserve-container --output OUTPUT ..."
+    echo "Usage: $(basename "${0}") {all|third-party|cpython|echod|httpd|nghttpx} --builder BUILDER --preserve-container --output OUTPUT ..."
     exit 1
   fi
 
@@ -41,6 +41,8 @@ main() {
     BUILDER_ARGS+=("${THIRD_PARTY[@]}")
   elif [[ "${1}" = "third-party" ]]; then
     BUILDER_ARGS+=("${THIRD_PARTY[@]}")
+  elif [[ "${1}" = "cpython" ]]; then
+    BUILDER_ARGS+=(//py/cpython:build_image/cpython)
   elif [[ "${1}" = "echod" ]]; then
     # Build the main image (also named echod) of the echod pod.
     BUILDER_ARGS+=(//py/garage/examples/echod:build_pod/echod/echod)

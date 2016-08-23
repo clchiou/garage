@@ -8,6 +8,7 @@ from foreman import define_parameter, define_rule, decorate_rule
 from shipyard import (
     execute,
     install_packages,
+    pod,
     rsync,
     tapeout_libraries,
 )
@@ -166,3 +167,10 @@ def tapeout(parameters):
 def install_cython(parameters):
     """Install (latest) Cython."""
     py.pip_install(parameters, 'cython')
+
+
+pod.define_image(pod.Image(
+    name='cpython',
+    make_manifest=py.make_manifest,
+    depends=['tapeout'],
+))
