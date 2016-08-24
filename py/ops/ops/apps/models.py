@@ -212,7 +212,7 @@ class Pod:
 
         # Collect port names from apps.
         port_names = set()
-        for app in manifest['apps']:
+        for app in manifest.get('apps', ()):
             for port in app.get('app', {}).get('ports', ()):
                 port_names.add(port['name'])
         # Insert host ports.
