@@ -137,12 +137,13 @@ def tee(output_path, writer, *, sudo=False):
 
 
 def wget(uri, output_path, *, sudo=False, **kwargs):
-    cmd = [
-        'wget',
-        '--no-verbose',  # No progress bar.
+    cmd = ['wget']
+    if not LOG.isEnabledFor(logging.DEBUG):
+        cmd.append('--no-verbose')  # No progress bar.
+    cmd.extend([
         '--output-document', output_path,
         uri,
-    ]
+    ])
     if sudo:
         cmd.insert(0, 'sudo')
     return execute(cmd, **kwargs)

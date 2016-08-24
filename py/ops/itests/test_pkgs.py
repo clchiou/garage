@@ -21,7 +21,9 @@ class PkgsTest(Fixture):
         # Ensure rkt is not installed.
         self.assertEqual(1, call(['which', 'rkt']))
 
-        check_call(['python3', '-m', 'ops.pkgs', 'install', 'rkt:1.12.0'])
+        check_call([
+            'python3', '-m', 'ops.pkgs', 'install', '--verbose', 'rkt:1.12.0',
+        ])
 
         output = check_output(['rkt', 'version'])
         self.assertTrue(b'rkt Version: 1.12.0' in output, repr(output))
