@@ -48,7 +48,7 @@ main() {
     BUILDER_ARGS+=(//py/garage/examples/echod:build_pod/echod/echod)
   elif [[ "${1}" = "httpd" ]]; then
     # Build the main image (also named httpd) of the httpd pod.
-    BUILDER_ARGS+=(//py/cpython/examples/httpd:build_pod/httpd/httpd)
+    BUILDER_ARGS+=(//py/cpython/httpd:build_pod/httpd/httpd)
   elif [[ "${1}" = "nghttpx" ]]; then
     BUILDER_ARGS+=(//cc/nghttp2/nghttpx:build_image/nghttpx)
   else

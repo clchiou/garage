@@ -1,7 +1,9 @@
-from shipyard import pod, py
+from foreman import decorate_rule, to_path
+from shipyard import pod, py, tar_create
 
 
 WWW_PATH = '/var/www'
+WWW_DATA = 'data.tar.gz'
 
 
 def make_image_manifest(parameters, base_manifest):
@@ -21,11 +23,21 @@ def make_image_manifest(parameters, base_manifest):
     return manifest
 
 
+@decorate_rule('//base:build')
+def build_data(parameters):
+    tar_create(
+        to_path('index.html').parent,
+        ['index.html'],
+        parameters['//base:output'] / WWW_DATA,
+        tar_extra_flags=['--gzip'],
+    )
+
+
 pod.define_pod(pod.Pod(
     name='httpd',
     systemd_units=[
         pod.SystemdUnit(
-            unit_file='files/httpd.service',
+            unit_file='httpd.service',
             start=True,
         ),
     ],
@@ -52,10 +64,10 @@ pod.define_pod(pod.Pod(
         pod.Volume(
             name='www',
             path=WWW_PATH,
-            data='data.tgz',
+            data=WWW_DATA,
         ),
     ],
-    files=[
-        'files/data.tgz',
+    depends=[
+        'build_data',
     ],
 ))

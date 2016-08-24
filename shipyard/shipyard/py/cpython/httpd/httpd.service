@@ -1,0 +1,8 @@
+[Unit]
+Description=httpd
+
+[Service]
+Slice=machine.slice
+ExecStart=/usr/bin/rkt run --pod-manifest ${POD_MANIFEST}
+KillMode=mixed
+Restart=always

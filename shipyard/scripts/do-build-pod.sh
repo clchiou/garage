@@ -24,11 +24,11 @@ main() {
     )
   elif [[ "${1}" = "httpd" ]]; then
     BUILDER_ARGS+=(\
-      --parameter "//py/cpython/examples/httpd:version/httpd=${VERSION}"
+      --parameter "//py/cpython/httpd:version/httpd=${VERSION}"
     )
     RULES+=(\
-      //py/cpython/examples/httpd:build_pod/httpd/httpd
-      //py/cpython/examples/httpd:build_pod/httpd
+      //py/cpython/httpd:build_pod/httpd/httpd
+      //py/cpython/httpd:build_pod/httpd
     )
   else
     echo "unknown application pod: ${1}"
