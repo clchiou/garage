@@ -15,11 +15,15 @@
     "volumes": [
         {
             "name": "volume-1",
-            "data": "image.aci"
+            "data": "image.aci",
+            "user": "plumber",
+            "group": "plumber"
         },
         {
             "name": "volume-2",
-            "data": "image.aci"
+            "data": "image.aci",
+            "user": "plumber",
+            "group": "plumber"
         }
     ],
     "manifest": {

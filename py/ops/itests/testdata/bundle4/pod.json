@@ -9,7 +9,9 @@
     "volumes": [
         {
             "name": "volume-1",
-            "data": "http://localhost:8080/bundle3/image.aci"
+            "data": "http://localhost:8080/bundle3/image.aci",
+            "user": "plumber",
+            "group": "plumber"
         }
     ],
     "manifest": {
