@@ -49,12 +49,11 @@ from shipyard import (
 )
 
 
-(define_parameter('update')
- .with_doc("""Whether to update OS package index.""")
- .with_type(bool)
- .with_parse(lambda update: update.lower() == 'true')
- .with_default(True)
-)
+@decorate_rule
+def upgrade_system(parameters):
+    """Upgrade system packages - you should run this in full builds."""
+    execute(['sudo', 'apt-get', 'update'])
+    execute(['sudo', 'apt-get', '--yes', 'upgrade'])
 
 
 # NOTE: All `build` rule should depend on this rule.
@@ -74,10 +73,6 @@ def build(parameters):
     ensure_directory(parameters['build'] / 'py')
     ensure_directory(parameters['image'])
     ensure_directory(parameters['rootfs'])
-
-    if parameters['update']:
-        execute(['sudo', 'apt-get', 'update'])
-        execute(['sudo', 'apt-get', '--yes', 'upgrade'])
 
     execute([
         'sudo', 'apt-get', 'install', '--yes',
