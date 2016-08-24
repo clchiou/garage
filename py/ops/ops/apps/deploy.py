@@ -23,6 +23,11 @@ LOG = logging.getLogger(__name__)
 
 def deploy(args):
     """Deploy a pod."""
+    with ExitStack() as rollback:
+        return _deploy(args, rollback)
+
+
+def _deploy(args, rollback):
 
     repo = PodRepo(args.config_path, args.data_path)
     pod = repo.find_pod(args.pod)
@@ -31,6 +36,7 @@ def deploy(args):
     # If this pod has not been deployed before (i.e., not a redeploy),
     # we don't skip deploy_fetch, etc.
     if not args.redeploy:
+        rollback.callback(undeploy_remove, repo, pod)
         deploy_fetch(pod)
         deploy_install(repo, pod)
         deploy_create_volumes(repo, pod)
@@ -46,12 +52,19 @@ def deploy(args):
     #
     current = repo.get_current_pod(pod)
     if current is not None:
+        # Don't add rollback for these two operations; we don't want to
+        # automatically revert to the previous deployment on failure, at
+        # least not for now.
         undeploy_disable(repo, current)
         undeploy_stop(current)
 
+    rollback.callback(undeploy_disable, repo, pod)
     deploy_enable(repo, pod)
+
+    rollback.callback(undeploy_stop, pod)
     deploy_start(pod)
 
+    rollback.pop_all()  # Clear rollback stack on success.
     return 0
 
 
@@ -277,8 +290,8 @@ def undeploy(args):
     repo = PodRepo(args.config_path, args.data_path)
     pod = repo.find_pod(args.pod)
     LOG.info('%s - undeploy', pod)
-    undeploy_disable(repo, pod)
     undeploy_stop(pod)
+    undeploy_disable(repo, pod)
     if args.remove:
         undeploy_remove(repo, pod)
     return 0
