@@ -11,6 +11,8 @@ import re
 import urllib.parse
 from pathlib import Path
 
+from ops.scripting import FileLock
+
 
 LOG = logging.getLogger(__name__)
 
@@ -24,21 +26,26 @@ class PodRepo:
 
        Directory structure:
 
-         * ${CONFIGS}/pods/${NAME}/${VERSION}
+         * /var/lib/ops/apps/lock
+           File lock of the pod repo.
+
+         * /etc/ops/apps/pods/${NAME}/${VERSION}
            Directory for a pod's config files.
 
-         * ${CONFIGS}/current/${NAME}
+         * /etc/ops/apps/current/${NAME}
            Symlink to the currently deployed pod.
 
-         * ${VOLUMES}/volumes/${NAME}/${VERSION}
+         * /var/lib/ops/apps/volumes/${NAME}/${VERSION}
            Directory for a pod's data volumes.
     """
 
     def __init__(self, config_path, data_path):
         config_path = Path(config_path).absolute()
+        data_path = Path(data_path).absolute()
+        self.lock = FileLock(data_path / 'lock')
         self._pods = config_path / 'pods'
         self._current = config_path / 'current'
-        self._volumes = Path(data_path).absolute() / 'volumes'
+        self._volumes = data_path / 'volumes'
 
     # Most methods should expect Pod object in their arguments except
     # these few methods below.

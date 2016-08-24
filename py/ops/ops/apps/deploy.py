@@ -9,6 +9,7 @@ import logging
 import os.path
 import urllib.parse
 from contextlib import ExitStack
+from functools import wraps
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -21,15 +22,29 @@ from ops.scripting import systemctl
 LOG = logging.getLogger(__name__)
 
 
-def deploy(args):
+def acquire_lock(command):
+    @wraps(command)
+    def wrapper(args):
+        repo = PodRepo(args.config_path, args.data_path)
+        if not repo.lock.acquire(blocking=False):
+            LOG.info('repo is locked: %s', repo.lock.path)
+            return 1
+        try:
+            return command(args, repo)
+        finally:
+            repo.lock.release()
+    return wrapper
+
+
+@acquire_lock
+def deploy(args, repo):
     """Deploy a pod."""
     with ExitStack() as rollback:
-        return _deploy(args, rollback)
+        return _deploy(args, repo, rollback)
 
 
-def _deploy(args, rollback):
+def _deploy(args, repo, rollback):
 
-    repo = PodRepo(args.config_path, args.data_path)
     pod = repo.find_pod(args.pod)
     LOG.info('%s - deploy', pod)
 
@@ -285,9 +300,9 @@ def deploy_start(pod):
                 systemctl.is_active(name)
 
 
-def undeploy(args):
+@acquire_lock
+def undeploy(args, repo):
     """Undeploy a pod."""
-    repo = PodRepo(args.config_path, args.data_path)
     pod = repo.find_pod(args.pod)
     LOG.info('%s - undeploy', pod)
     undeploy_stop(pod)
@@ -351,9 +366,9 @@ def undeploy_remove(repo, pod):
     scripting.remove_tree(repo.get_volume_path(pod))
 
 
-def cleanup(args):
+@acquire_lock
+def cleanup(args, repo):
     """Clean up pods that are not currently deployed."""
-    repo = PodRepo(args.config_path, args.data_path)
     for pod_name in repo.get_pod_names():
         LOG.info('%s - cleanup', pod_name)
         version = repo.get_current_version_from_name(pod_name)
