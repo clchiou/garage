@@ -42,7 +42,7 @@ pod.define_pod(pod.Pod(
     name='echod',
     systemd_units=[
         pod.SystemdUnit(
-            unit_file='files/echod.service',
+            unit_file='echod.service',
             start=True,
         ),
     ],

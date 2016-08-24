@@ -3,6 +3,6 @@ Description=echod
 
 [Service]
 Slice=machine.slice
-ExecStart=/usr/bin/rkt run --net=host $IMAGE_echod -- -m echod
+ExecStart=/usr/bin/rkt run --pod-manifest ${POD_MANIFEST}
 KillMode=mixed
 Restart=always
