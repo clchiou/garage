@@ -10,6 +10,7 @@ __all__ = [
     'git_clone',
     'rsync',
     'run_commands',
+    'tar_create',
     'tar_extract',
     'wget',
     # OS Package helpers.
@@ -159,6 +160,27 @@ def rsync(srcs, dst, *,
         cmd.extend(['--exclude', exclude])
     cmd.extend(srcs)
     cmd.append(dst)
+    execute(cmd)
+
+
+def tar_create(src_dir, srcs, tarball_path, *, sudo=False, tar_extra_flags=()):
+    """Create a tarball."""
+    src_dir = Path(src_dir)
+    cmd = [
+        'tar',
+        '--create',
+        '--file', Path(tarball_path).absolute(),
+        '--directory', src_dir,
+    ]
+    cmd.extend(tar_extra_flags)
+    if sudo:
+        cmd.insert(0, 'sudo')
+    for src in srcs:
+        src = Path(src)
+        if src.is_absolute():
+            src = src.relative_to(src_dir)
+        cmd.append(src)
+    LOG.info('create %s', tarball_path)
     execute(cmd)
 
 
