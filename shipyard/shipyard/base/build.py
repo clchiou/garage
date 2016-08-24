@@ -98,3 +98,4 @@ def tapeout(parameters):
     rsync([to_path('etc')], rootfs, sudo=True)
     rsync(libs, rootfs, relative=True, sudo=True)
     execute(['sudo', 'chown', '--recursive', 'root:root', rootfs / 'etc'])
+    execute(['sudo', 'chmod', '--recursive', 'go-w', rootfs / 'etc'])
