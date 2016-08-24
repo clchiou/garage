@@ -9,6 +9,7 @@ import json
 import logging
 import re
 import urllib.parse
+from collections import namedtuple
 from pathlib import Path
 
 from ops.scripting import FileLock
@@ -80,6 +81,23 @@ class PodRepo:
             pod_name, version = path_or_name.rsplit(':', 1)
             return self._get_pod(pod_name, version)
 
+    def get_ports(self):
+        """Return an index of port allocations."""
+        pods_and_manifests = []
+        for name in self.get_pod_names():
+            for version in self._iter_pod_versions(name):
+                manifest_path = (
+                    self._get_config_path(name, version) /
+                    Pod.POD_MANIFEST_JSON
+                )
+                if manifest_path.exists():
+                    pods_and_manifests.append((
+                        name,
+                        version,
+                        json.loads(manifest_path.read_text()),
+                    ))
+        return Ports(pods_and_manifests)
+
     # Below are "normal" methods that expect an Pod object.
 
     def iter_pods(self, pod, exclude_self=False):
@@ -128,6 +146,84 @@ class PodRepo:
 
     def _get_config_path(self, pod_name, version):
         return self._pods / pod_name / str(version)
+
+
+class Ports:
+    """Index of port number allocations.
+
+       Port numbers of this range [30000, 32768) are reserved for
+       allocation at deployment time.  It is guaranteed that allocated
+       port numbers are unique among current and non-current pods (but
+       not removed pods) so that reverting a pod would not result in
+       port number conflicts with other pods.
+
+       On the other hand, port numbers out of this range are expected to
+       be assigned statically in pod manifests - they might conflict if
+       not planned and coordinated carefully.
+    """
+
+    PORT_MIN = 30000
+    PORT_MAX = 32768
+
+    Port = namedtuple('Port', [
+        'pod_name',
+        'pod_version',
+        'name',
+        'port',
+    ])
+
+    def __init__(self, pods_and_manifests):
+        """Build index from generated Appc manifest of deployed pods,
+           not from the "abstract" manifest object of pod objects.
+        """
+        self._static_ports = []
+        self._index = {}
+        for pod_name, pod_version, manifest in pods_and_manifests:
+            for port_data in manifest.get('ports', ()):
+                port = self.Port(
+                    pod_name=pod_name,
+                    pod_version=pod_version,
+                    name=port_data['name'],
+                    port=int(port_data['hostPort']),
+                )
+                if not self.PORT_MIN <= port.port < self.PORT_MAX:
+                    self._static_ports.append(port)
+                else:
+                    if port.port in self._index:
+                        raise ValueError('duplicated port: {}'.format(port))
+                    self._index[port.port] = port
+        self._last_port = max(self._index) if self._index else -1
+
+    def __iter__(self):
+        yield from self._static_ports
+        for port in sorted(self._index):
+            yield self._index[port]
+
+    def next_available_port(self):
+        """Return next unallocated port number."""
+        if self._last_port < self.PORT_MIN:
+            return self.PORT_MIN
+        elif self._last_port < self.PORT_MAX - 1:
+            return self._last_port + 1
+        else:
+            return self._scan_port_numbers()
+
+    def _scan_port_numbers(self):
+        """Find next available port the slow way."""
+        for port_number in range(self.PORT_MIN, self.PORT_MAX):
+            if port_number not in self._index:
+                return port_number
+        raise RuntimeError('no port available within range: %d ~ %d' %
+                           (self.PORT_MIN, self.PORT_MAX))
+
+    def register(self, port):
+        """Claim a port as allocated."""
+        if not self.PORT_MIN <= port.port < self.PORT_MAX:
+            raise ValueError('not in reserved port range: {}'.format(port))
+        if port.port in self._index:
+            raise ValueError('port has been allocated: {}'.format(port))
+        self._index[port.port] = port
+        self._last_port = max(self._last_port, port.port)
 
 
 class Pod:

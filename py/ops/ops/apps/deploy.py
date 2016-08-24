@@ -16,7 +16,6 @@ from tempfile import TemporaryDirectory
 from ops import scripting
 from ops.apps import basics
 from ops.apps.models import PodRepo
-from ops.scripting import systemctl
 
 
 LOG = logging.getLogger(__name__)
@@ -26,13 +25,14 @@ def acquire_lock(command):
     @wraps(command)
     def wrapper(args):
         repo = PodRepo(args.config_path, args.data_path)
-        if not repo.lock.acquire(blocking=False):
+        if not scripting.DRY_RUN and not repo.lock.acquire(blocking=False):
             LOG.info('repo is locked: %s', repo.lock.path)
             return 1
         try:
             return command(args, repo)
         finally:
-            repo.lock.release()
+            if not scripting.DRY_RUN:
+                repo.lock.release()
     return wrapper
 
 
@@ -83,8 +83,11 @@ def _deploy(args, repo, rollback):
     return 0
 
 
-# NOTE: deploy_fetch + deploy_install + deploy_create_volumes and
-# undeploy_remove are inverse operations to each other.
+# Note that
+#   deploy_fetch + deploy_install + deploy_create_volumes
+# and
+#   undeploy_remove
+# are inverse operations to each other.
 
 
 def deploy_fetch(pod):
@@ -154,9 +157,22 @@ def deploy_install(repo, pod):
     # Install pod.json.
     scripting.execute(['sudo', 'cp', pod.path, config_path / pod.POD_JSON])
 
-    # Providers of deployment-time information.
+    # Deployment-time volume allocation.
     volume_root_path = repo.get_volume_path(pod)
     get_volume_path = lambda volume: volume_root_path / volume.name
+
+    # Deployment-time port allocation.
+    ports = repo.get_ports()
+    def get_host_port(port_name):
+        port_number = ports.next_available_port()
+        LOG.info('%s - allocate port %d for %s', pod, port_number, port_name)
+        ports.register(ports.Port(
+            pod_name=pod.name,
+            pod_version=pod.version,
+            name=port_name,
+            port=port_number,
+        ))
+        return port_number
 
     # Generate Appc pod manifest.
     scripting.tee(
@@ -166,7 +182,7 @@ def deploy_install(repo, pod):
                 json.dumps(
                     pod.make_manifest(
                         get_volume_path=get_volume_path,
-                        get_host_port=None,  # TODO: Implement port allocator.
+                        get_host_port=get_host_port,
                     ),
                     indent=4,
                     sort_keys=True,
@@ -256,8 +272,8 @@ def deploy_enable(repo, pod):
         scripting.execute(['sudo', 'cp', unit_path, unit.unit_path])
         systemd_make_rkt_dropin(repo, pod, unit)
         for name in unit.unit_names:
-            systemctl.enable(name)
-            systemctl.is_enabled(name)
+            scripting.systemctl.enable(name)
+            scripting.systemctl.is_enabled(name)
 
     # Mark this pod as the current one.
     scripting.execute(['sudo', 'mkdir', '--parents', current_path.parent])
@@ -296,8 +312,8 @@ def deploy_start(pod):
     for unit in pod.systemd_units:
         if unit.start:
             for name in unit.unit_names:
-                systemctl.start(name)
-                systemctl.is_active(name)
+                scripting.systemctl.start(name)
+                scripting.systemctl.is_active(name)
 
 
 @acquire_lock
@@ -320,13 +336,13 @@ def undeploy_disable(repo, pod):
         # Disable unit.
         if unit.instances:
             for instance in unit.instances:
-                if systemctl.is_enabled(instance, check=False) == 0:
-                    systemctl.disable(instance)
+                if scripting.systemctl.is_enabled(instance, check=False) == 0:
+                    scripting.systemctl.disable(instance)
                 else:
                     LOG.warning('unit is not enabled: %s', instance)
         else:
-            if systemctl.is_enabled(unit.name, check=False) == 0:
-                systemctl.disable(unit.name)
+            if scripting.systemctl.is_enabled(unit.name, check=False) == 0:
+                scripting.systemctl.disable(unit.name)
             else:
                 LOG.warning('unit is not enabled: %s', unit.name)
 
@@ -344,8 +360,8 @@ def undeploy_stop(pod):
     for unit in pod.systemd_units:
         if unit.start:
             for name in unit.unit_names:
-                if systemctl.is_active(name, check=False) == 0:
-                    systemctl.stop(name)
+                if scripting.systemctl.is_active(name, check=False) == 0:
+                    scripting.systemctl.stop(name)
                 else:
                     LOG.warning('unit is not active: %s', name)
 
@@ -353,16 +369,18 @@ def undeploy_stop(pod):
 def undeploy_remove(repo, pod):
     LOG.info('%s - remove configs and images', pod)
 
+    # Undo deploy_fetch.
     for image in pod.images:
-        if not image.id:
-            continue
         retcode = scripting.execute(
             ['rkt', 'image', 'rm', image.id], check=False)
         if retcode:
             LOG.warning('cannot safely remove image: %s (rc=%d)',
                         image.id, retcode)
 
+    # Undo deploy_install.
     scripting.remove_tree(repo.get_config_path(pod))
+
+    # Undo deploy_create_volumes.
     scripting.remove_tree(repo.get_volume_path(pod))
 
 

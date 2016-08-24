@@ -27,6 +27,7 @@ main() {
     itests.test_pkgs \
     itests.test_apps \
     itests.test_apps_http \
+    itests.test_apps_ports \
 
   # Removes the container only when success so that you may examine the
   # contents when fail.

@@ -24,7 +24,7 @@ def add_arguments(parser):
 
 def list_pods(args):
     """List pod names."""
-    # This is a read-only; for now we don't acquire lock for it.
+    # This is read-only; for now we don't acquire lock for it.
     repo = PodRepo(args.config_path, args.data_path)
     for name in repo.get_pod_names():
         version = repo.get_current_version_from_name(name)
@@ -36,10 +36,23 @@ def list_pods(args):
 list_pods.add_arguments = add_arguments
 
 
+def list_ports(args):
+    """List allocated ports."""
+    # This is read-only; for now we don't acquire lock for it.
+    repo = PodRepo(args.config_path, args.data_path)
+    for port in repo.get_ports():
+        print('%s:%d %s %d' %
+              (port.pod_name, port.pod_version, port.name, port.port))
+    return 0
+
+
+list_ports.add_arguments = add_arguments
+
+
 def make_manifest(args):
     """Generate Appc pod manifest (mostly for testing)."""
 
-    # This is a read-only; for now we don't acquire lock for it.
+    # This is read-only; for now we don't acquire lock for it.
 
     repo = PodRepo(args.config_path, args.data_path)
     pod = repo.find_pod(args.pod)
@@ -103,5 +116,6 @@ make_manifest.add_arguments = lambda parser: (
 
 COMMANDS = [
     list_pods,
+    list_ports,
     make_manifest,
 ]

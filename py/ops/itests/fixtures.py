@@ -70,6 +70,14 @@ class Fixture(unittest.TestCase):
         output = output.decode('ascii').split('\n')
         return list(filter(None, map(str.strip, output)))
 
+    def list_ports(self):
+        output = check_output(
+            ['python3', '-m', 'ops.apps', 'list-ports', '-v'],
+            cwd=str(self.root_path),
+        )
+        output = output.decode('ascii').split('\n')
+        return list(filter(None, map(str.strip, output)))
+
     def list_images(self):
         output = check_output(
             ['rkt', 'image', 'list', '--fields=id', '--full', '--no-legend'])

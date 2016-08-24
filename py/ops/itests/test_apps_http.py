@@ -56,6 +56,10 @@ class AppsHttpTest(Fixture):
             '/etc/systemd/system/test-http-pod-volume-1001.service',
         )
 
+    def test_0002_undeploy_pod(self):
+        self.undeploy(self.testdata_path / 'bundle4', remove=True)
+        self.assertEqual([], self.list_pods())
+
 
 if __name__ == '__main__':
     unittest.main()

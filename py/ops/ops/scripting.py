@@ -106,8 +106,9 @@ def tar_extract(tarball_path, *, sudo=False, tar_extra_args=(), **kwargs):
 
     output = execute(['file', tarball_path], return_output=True)
     if not output:
-        raise RuntimeError('command `file` no output: %s' % tarball_path)
-    if b'gzip compressed data' in output:
+        if not DRY_RUN:
+            raise RuntimeError('command `file` no output: %s' % tarball_path)
+    elif b'gzip compressed data' in output:
         cmd.append('--gzip')
     elif b'bzip2 compressed data' in output:
         cmd.append('--bzip2')
