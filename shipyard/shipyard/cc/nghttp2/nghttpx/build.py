@@ -33,7 +33,7 @@ pod.define_image(pod.Image(
                     '/usr/local/bin/nghttpx',
                 ],
                 'user': 'nobody',
-                'group': 'nobody',
+                'group': 'nogroup',
                 'environment': [
                     {
                         'name': 'LD_LIBRARY_PATH',

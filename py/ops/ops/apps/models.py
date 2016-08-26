@@ -469,7 +469,7 @@ class Volume:
             raise ValueError('invalid volume name: %s' % self.name)
 
         self.user = volume_data.get('user', 'nobody')
-        self.group = volume_data.get('group', 'nobody')
+        self.group = volume_data.get('group', 'nogroup')
 
         data = volume_data.get('data')
         if data is None:

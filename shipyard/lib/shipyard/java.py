@@ -26,7 +26,7 @@ def make_manifest(parameters, base_manifest):
                     str(parameters['//java/java:java_root'] / 'jre/bin/java'),
                 ],
                 'user': 'nobody',
-                'group': 'nobody',
+                'group': 'nogroup',
                 'workingDirectory': '/',
             },
         },

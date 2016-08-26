@@ -83,7 +83,7 @@ Volume = partial(
         'read_only',
     ]),
     user='nobody',
-    group='nobody',
+    group='nogroup',
     data=None,
     read_only=True,
 )

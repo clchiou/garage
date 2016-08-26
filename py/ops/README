@@ -81,7 +81,7 @@ numbers).
                 # Required.
                 "name": "volume-name",
 
-                # Optional: Default to "nobody".
+                # Optional: Default to "nobody" and "nogroup".
                 "user": "root",
                 "group": "root",
 

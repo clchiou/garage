@@ -80,7 +80,7 @@ def make_manifest(_, base_manifest):
                     '/usr/local/bin/python3',
                 ],
                 'user': 'nobody',
-                'group': 'nobody',
+                'group': 'nogroup',
                 'environment': [
                     {
                         'name': 'LD_LIBRARY_PATH',
