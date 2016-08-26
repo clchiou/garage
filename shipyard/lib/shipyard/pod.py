@@ -59,7 +59,7 @@ App = partial(
         'read_only_rootfs',
     ]),
     volume_names=(),
-    read_only_rootfs=True,
+    read_only_rootfs=False,
 )
 
 
