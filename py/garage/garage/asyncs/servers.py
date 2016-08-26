@@ -2,7 +2,7 @@
 
 __all__ = [
     'MAKE_SERVER',
-    'GRACEFUL_SHUTDOWN',
+    'SHUTDOWN',
     'LOOP',
     'prepare',
     # Server helpers.
@@ -27,8 +27,8 @@ MAKE_SERVER = __name__ + ':make_server'
 SERVER_MAKERS = __name__ + ':server_makers'
 
 
-GRACEFUL_SHUTDOWN = __name__ + ':graceful_shutdown'
-GRACEFUL_SHUTDOWN_CALLBACKS = __name__ + ':graceful_shutdown_callbacks'
+SHUTDOWN = __name__ + ':shutdown'
+SHUTDOWN_CALLBACKS = __name__ + ':shutdown_callbacks'
 
 
 LOOP = __name__ + ':loop'
@@ -51,8 +51,8 @@ def prepare(*, prog=None, description, comps, verbose=1):
     # Overcome the limitation that startup requires >0 writes.
     next_startup.set(MAKE_SERVER, None)
     next_startup(collect_make_server)
-    next_startup.set(GRACEFUL_SHUTDOWN, None)
-    next_startup(collect_graceful_shutdown)
+    next_startup.set(SHUTDOWN, None)
+    next_startup(collect_shutdown)
 
     # First-stage startup
     components.bind(LoggingComponent(verbose=verbose))
@@ -77,8 +77,7 @@ def collect_make_server(server_makers: [MAKE_SERVER]) -> SERVER_MAKERS:
     return list(filter(None, server_makers))
 
 
-def collect_graceful_shutdown(callbacks: [GRACEFUL_SHUTDOWN]) \
-        -> GRACEFUL_SHUTDOWN_CALLBACKS:
+def collect_shutdown(callbacks: [SHUTDOWN]) -> SHUTDOWN_CALLBACKS:
     return dict(filter(None, callbacks))
 
 
@@ -93,7 +92,7 @@ def main(args):
         LOG.info('start servers: pid=%d', os.getpid())
         servers = make_servers(
             varz[SERVER_MAKERS],
-            varz[GRACEFUL_SHUTDOWN_CALLBACKS],
+            varz[SHUTDOWN_CALLBACKS],
             loop,
         )
 
@@ -110,7 +109,7 @@ def main(args):
             okay &= stop_servers(pending, timeout=10, loop=loop)
 
         except KeyboardInterrupt:
-            LOG.info('shutdown')
+            LOG.info('graceful shutdown')
             okay &= stop_servers(servers, timeout=2, loop=loop)
 
         finally:
@@ -126,15 +125,14 @@ def make_servers(server_makers, callback_table, loop):
     for make_server in server_makers:
         server = make_server()
         servers.append(server)
-        # By default, use server.stop to request graceful shutdown.
+        # By default, use server.stop to request shutdown.
         callbacks.append(callback_table.get(make_server, server.stop))
-    loop.add_signal_handler(
-        signal.SIGQUIT, request_graceful_shutdown, callbacks)
+    loop.add_signal_handler(signal.SIGTERM, request_shutdown, callbacks)
     return servers
 
 
-def request_graceful_shutdown(callbacks):
-    LOG.info('graceful shutdown')
+def request_shutdown(callbacks):
+    LOG.info('shutdown')
     for callback in callbacks:
         callback()
 
