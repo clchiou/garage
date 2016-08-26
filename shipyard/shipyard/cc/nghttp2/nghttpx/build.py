@@ -1,6 +1,6 @@
 """Build nghttp2 from source - nghttpx."""
 
-from foreman import define_rule
+from foreman import define_parameter, define_rule
 from shipyard import (
     combine_dicts,
     pod,
@@ -23,15 +23,14 @@ from shipyard import (
 )
 
 
-pod.define_image(pod.Image(
-    name='nghttpx',
-    make_manifest=lambda ps, base_manifest: combine_dicts(
+def make_image_manifest(_, base_manifest, *, exec_args=None, ports=None):
+    if not ports:
+        ports = [{'name': 'http', 'protocol': 'tcp', 'port': 8000}]
+    return combine_dicts(
         base_manifest,
         {
             'app': {
-                'exec': [
-                    '/usr/local/bin/nghttpx',
-                ],
+                'exec': ['/usr/local/bin/nghttpx'] + list(exec_args or ()),
                 'user': 'nobody',
                 'group': 'nogroup',
                 'environment': [
@@ -41,19 +40,22 @@ pod.define_image(pod.Image(
                     },
                 ],
                 'workingDirectory': '/',
-                'ports': [
-                    {
-                        'name': 'http',
-                        'protocol': 'tcp',
-                        'port': 8000,
-                        'count': 1,
-                        'socketActivated': False,
-                    },
-                ],
+                'ports': ports,
             },
         },
-    ),
+    )
+
+
+pod.define_image(pod.Image(
+    name='nghttpx',
+    make_manifest=make_image_manifest,
     depends=[
         'tapeout',
     ],
 ))
+
+
+(define_parameter('make_image_manifest')
+ .with_doc("""Expose make_image_manifest for nghttpx user.""")
+ .with_default(make_image_manifest)
+)
