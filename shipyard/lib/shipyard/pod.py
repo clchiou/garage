@@ -196,13 +196,9 @@ def _build_pod(parameters, *, pod_label):
         'version': parameters['version/%s' % pod.name],
         'systemd-units': [
             combine_dicts(
-                {
-                    'unit-file': to_path(unit.unit_file).name,
-                    'start': unit.start,
-                },
-                {
-                    'instances': unit.instances,
-                } if unit.instances else {},
+                {'unit-file': to_path(unit.unit_file).name},
+                {'start': True} if unit.start else {},
+                {'instances': unit.instances} if unit.instances else {},
             )
             for unit in pod.systemd_units
         ],
