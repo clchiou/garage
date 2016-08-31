@@ -5,16 +5,10 @@
 set -o errexit -o nounset -o pipefail
 
 main() {
-  if ! which python3 > /dev/null; then
-    echo "install python3"
-    sudo apt-get update
-    sudo apt-get install --yes python3
-  fi
-
   # ROOT is /path/to/garage.
   local ROOT="$(realpath "$(dirname "${BASH_SOURCE}")/../..")"
   if [[ ! -d "${ROOT}/.git" ]]; then
-    echo "not git repo: ${ROOT}"
+    echo "not git repo: ${ROOT}" 1>&2
     exit 1
   fi
 
@@ -23,7 +17,7 @@ main() {
 
   # With this `import shipyard` will import lib/shipyard.py.
   export PYTHONPATH="${SHIPYARD}/lib${PYTHONPATH:+:}${PYTHONPATH:-}"
-  echo "export PYTHONPATH=${PYTHONPATH}"
+  echo "export PYTHONPATH=${PYTHONPATH}" 1>&2
 
   # Make sure our --path is the first.
   local COMMAND="${1}"
