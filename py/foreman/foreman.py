@@ -37,6 +37,7 @@ import argparse
 import json
 import logging
 import sys
+import types
 from collections import ChainMap, OrderedDict, defaultdict
 from functools import total_ordering
 from pathlib import Path, PurePath, PurePosixPath
@@ -191,6 +192,7 @@ class Parameter:
         self.default = None
         self.derive = None
         self.parse = None
+        self.encode = None
         self.type = None
 
     def with_doc(self, doc):
@@ -207,6 +209,10 @@ class Parameter:
 
     def with_parse(self, parse):
         self.parse = parse
+        return self
+
+    def with_encode(self, encode):
+        self.encode = encode
         return self
 
     def with_type(self, type):
@@ -778,7 +784,10 @@ def command_list(args, loader):
                 ParameterValues(loader.parameters, {}, parameter.label.path))
         elif parameter.default is not None:
             contents['default'] = parameter.default
+        if parameter.encode and 'default' in contents:
+            contents['default'] = parameter.encode(contents['default'])
         contents['custom_parser'] = bool(parameter.parse)
+        contents['custom_encoder'] = bool(parameter.encode)
         contents['derived'] = bool(parameter.derive)
         if parameter.type is not None:
             contents['type'] = parameter.type.__name__
@@ -807,10 +816,14 @@ def command_list(args, loader):
             ])
         return contents
 
-    def encode_path(obj):
-        if not isinstance(obj, PurePath):
+    # Provide encoders for some common types.
+    def encode_object(obj):
+        if isinstance(obj, PurePath):
+            return str(obj)
+        elif isinstance(obj, types.FunctionType):
+            return '<function %s#%s>' % (obj.__module__, obj.__qualname__)
+        else:
             raise TypeError(repr(obj) + ' is not JSON serializable')
-        return str(obj)
 
     build_file_contents = OrderedDict()
     labels = loader.load_build_files(args.rule)
@@ -831,7 +844,7 @@ def command_list(args, loader):
     print(json.dumps(
         build_file_contents,
         indent=4,
-        default=encode_path,
+        default=encode_object,
     ))
 
     return 0
