@@ -49,13 +49,12 @@ The build phase is sequenced as:
     All other `tapeout` rules should reverse depend on this rule so that
     this will be the last executed `tapeout` rule.
 
-  * //your/app:build_pod/POD/IMAGE or //your/app:build_image/IMAGE
-    Build containerized application image, which could be just an image
-    or image(s) of a pod.  Unfortunately our build system cannot build
-    multiple images in one-pass because we use //base:tapeout as a joint
-    point.
+  * //your/app:build-image/IMAGE
+    Build containerized application image.  Unfortunately our build
+    system cannot build multiple images in one-pass because we use
+    //base:tapeout as a joint point.
 
-  * //your/app:build_pod/POD
+  * //your/app:build-pod/POD
     Bundle together configuration files and application image(s) into a
     pod (a tightly-coupled group of containers).
 

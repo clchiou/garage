@@ -17,7 +17,6 @@ import logging
 from foreman import define_parameter, define_rule
 
 from . import (
-    combine_dicts,
     copy_source,
     define_package_common,
     ensure_file,
@@ -71,30 +70,28 @@ def tapeout_package(parameters, package_name, patterns=()):
     rsync(dirs, parameters['//base:rootfs'], relative=True, sudo=True)
 
 
-def make_manifest(_, base_manifest):
-    return combine_dicts(
-        base_manifest,
-        {
-            'app': {
-                'exec': [
-                    '/usr/local/bin/python3',
-                ],
-                'user': 'nobody',
-                'group': 'nogroup',
-                'environment': [
-                    {
-                        'name': 'LD_LIBRARY_PATH',
-                        'value': '/usr/local/lib',
-                    },
-                    {
-                        'name': 'PYTHONIOENCODING',
-                        'value': 'UTF-8',
-                    }
-                ],
-                'workingDirectory': '/',
+def make_manifest(_, manifest):
+    """Make base Python image manifest."""
+    assert 'app' not in manifest
+    manifest['app'] = {
+        'exec': [
+            '/usr/local/bin/python3',
+        ],
+        'user': 'nobody',
+        'group': 'nogroup',
+        'environment': [
+            {
+                'name': 'LD_LIBRARY_PATH',
+                'value': '/usr/local/lib',
             },
-        },
-    )
+            {
+                'name': 'PYTHONIOENCODING',
+                'value': 'UTF-8',
+            }
+        ],
+        'workingDirectory': '/',
+    }
+    return manifest
 
 
 ### Templates

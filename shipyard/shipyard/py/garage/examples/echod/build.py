@@ -22,8 +22,8 @@ py.define_package(
 )
 
 
-def make_image_manifest(parameters, base_manifest):
-    manifest = py.make_manifest(parameters, base_manifest)
+def _make_image_manifest(parameters, manifest):
+    manifest = py.make_manifest(parameters, manifest)
     app = manifest['app']
     app['exec'].extend(['-m', 'echod', '--port', '8000'])
     app['ports'] = [
@@ -38,29 +38,26 @@ def make_image_manifest(parameters, base_manifest):
     return manifest
 
 
+pod.define_image(pod.Image(
+    name='echod',
+    make_manifest=_make_image_manifest,
+    depends=[
+        'tapeout',
+        '//base:tapeout',
+        '//py/cpython:tapeout',
+    ],
+))
+
+
 pod.define_pod(pod.Pod(
     name='echod',
     systemd_units=[
-        pod.SystemdUnit(
-            unit_file='echod.service',
-            start=True,
-        ),
+        pod.SystemdUnit(unit_file='echod.service'),
     ],
     apps=[
         pod.App(
             name='echod',
-            image_name='echod',
-        ),
-    ],
-    images=[
-        pod.Image(
-            name='echod',
-            make_manifest=make_image_manifest,
-            depends=[
-                'tapeout',
-                '//base:tapeout',
-                '//py/cpython:tapeout',
-            ],
+            image_label='image/echod',
         ),
     ],
 ))

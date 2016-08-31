@@ -6,8 +6,8 @@ WWW_PATH = '/var/www'
 WWW_DATA = 'data.tar.gz'
 
 
-def make_image_manifest(parameters, base_manifest):
-    manifest = py.make_manifest(parameters, base_manifest)
+def _make_image_manifest(parameters, manifest):
+    manifest = py.make_manifest(parameters, manifest)
     app = manifest['app']
     app['exec'].extend(['-m', 'http.server', '8000'])
     app['workingDirectory'] = WWW_PATH
@@ -23,6 +23,16 @@ def make_image_manifest(parameters, base_manifest):
     return manifest
 
 
+pod.define_image(pod.Image(
+    name='httpd',
+    make_manifest=_make_image_manifest,
+    depends=[
+        '//base:tapeout',
+        '//py/cpython:tapeout',
+    ],
+))
+
+
 @decorate_rule('//base:build')
 def build_data(parameters):
     tar_create(
@@ -36,27 +46,14 @@ def build_data(parameters):
 pod.define_pod(pod.Pod(
     name='httpd',
     systemd_units=[
-        pod.SystemdUnit(
-            unit_file='httpd.service',
-            start=True,
-        ),
+        pod.SystemdUnit(unit_file='httpd.service'),
     ],
     apps=[
         pod.App(
             name='httpd',
-            image_name='httpd',
+            image_label='image/httpd',
             volume_names=[
                 'www',
-            ],
-        ),
-    ],
-    images=[
-        pod.Image(
-            name='httpd',
-            make_manifest=make_image_manifest,
-            depends=[
-                '//base:tapeout',
-                '//py/cpython:tapeout',
             ],
         ),
     ],

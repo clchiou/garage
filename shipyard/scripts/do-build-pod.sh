@@ -19,16 +19,16 @@ main() {
       --parameter "//py/garage/examples/echod:version/echod=${VERSION}"
     )
     RULES+=(\
-      //py/garage/examples/echod:build_pod/echod/echod
-      //py/garage/examples/echod:build_pod/echod
+      //py/garage/examples/echod:build-image/echod
+      //py/garage/examples/echod:build-pod/echod
     )
   elif [[ "${1}" = "httpd" ]]; then
     BUILDER_ARGS+=(\
       --parameter "//py/cpython/httpd:version/httpd=${VERSION}"
     )
     RULES+=(\
-      //py/cpython/httpd:build_pod/httpd/httpd
-      //py/cpython/httpd:build_pod/httpd
+      //py/cpython/httpd:build-image/httpd
+      //py/cpython/httpd:build-pod/httpd
     )
   else
     echo "unknown application pod: ${1}"

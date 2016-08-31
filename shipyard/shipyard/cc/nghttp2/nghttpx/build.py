@@ -1,8 +1,7 @@
 """Build nghttp2 from source - nghttpx."""
 
-from foreman import define_parameter, define_rule
+from foreman import define_rule
 from shipyard import (
-    combine_dicts,
     pod,
     tapeout_files,
     tapeout_libraries,
@@ -23,27 +22,21 @@ from shipyard import (
 )
 
 
-def make_image_manifest(_, base_manifest, *, exec_args=None, ports=None):
-    if not ports:
-        ports = [{'name': 'http', 'protocol': 'tcp', 'port': 8000}]
-    return combine_dicts(
-        base_manifest,
-        {
-            'app': {
-                'exec': ['/usr/local/bin/nghttpx'] + list(exec_args or ()),
-                'user': 'nobody',
-                'group': 'nogroup',
-                'environment': [
-                    {
-                        'name': 'LD_LIBRARY_PATH',
-                        'value': '/usr/local/lib'
-                    },
-                ],
-                'workingDirectory': '/',
-                'ports': ports,
+def make_image_manifest(_, manifest):
+    assert 'app' not in manifest
+    manifest['app'] = {
+        'exec': ['/usr/local/bin/nghttpx'],
+        'user': 'nobody',
+        'group': 'nogroup',
+        'environment': [
+            {
+                'name': 'LD_LIBRARY_PATH',
+                'value': '/usr/local/lib'
             },
-        },
-    )
+        ],
+        'workingDirectory': '/',
+    }
+    return manifest
 
 
 pod.define_image(pod.Image(
@@ -53,9 +46,3 @@ pod.define_image(pod.Image(
         'tapeout',
     ],
 ))
-
-
-(define_parameter('make_image_manifest')
- .with_doc("""Expose make_image_manifest for nghttpx user.""")
- .with_default(make_image_manifest)
-)

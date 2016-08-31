@@ -42,15 +42,13 @@ main() {
   elif [[ "${1}" = "third-party" ]]; then
     BUILDER_ARGS+=("${THIRD_PARTY[@]}")
   elif [[ "${1}" = "cpython" ]]; then
-    BUILDER_ARGS+=(//py/cpython:build_image/cpython)
+    BUILDER_ARGS+=(//py/cpython:build-image/cpython)
   elif [[ "${1}" = "echod" ]]; then
-    # Build the main image (also named echod) of the echod pod.
-    BUILDER_ARGS+=(//py/garage/examples/echod:build_pod/echod/echod)
+    BUILDER_ARGS+=(//py/garage/examples/echod:build-image/echod)
   elif [[ "${1}" = "httpd" ]]; then
-    # Build the main image (also named httpd) of the httpd pod.
-    BUILDER_ARGS+=(//py/cpython/httpd:build_pod/httpd/httpd)
+    BUILDER_ARGS+=(//py/cpython/httpd:build-image/httpd)
   elif [[ "${1}" = "nghttpx" ]]; then
-    BUILDER_ARGS+=(//cc/nghttp2/nghttpx:build_image/nghttpx)
+    BUILDER_ARGS+=(//cc/nghttp2/nghttpx:build-image/nghttpx)
   else
     echo "unknown build target: ${1}"
     exit 1

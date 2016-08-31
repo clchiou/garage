@@ -10,27 +10,22 @@ __all__ = [
 from foreman import define_rule
 
 from . import (
-    combine_dicts,
     ensure_file,
     execute,
     rsync,
 )
 
 
-def make_manifest(parameters, base_manifest):
-    return combine_dicts(
-        base_manifest,
-        {
-            'app': {
-                'exec': [
-                    str(parameters['//java/java:java_root'] / 'jre/bin/java'),
-                ],
-                'user': 'nobody',
-                'group': 'nogroup',
-                'workingDirectory': '/',
-            },
-        },
-    )
+def make_manifest(parameters, manifest):
+    """Make base Java image manifest."""
+    assert 'app' not in manifest
+    manifest['app'] = {
+        'exec': [str(parameters['//java/java:java_root'] / 'jre/bin/java')],
+        'user': 'nobody',
+        'group': 'nogroup',
+        'workingDirectory': '/',
+    }
+    return manifest
 
 
 def define_package(
