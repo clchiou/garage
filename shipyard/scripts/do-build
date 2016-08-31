@@ -90,12 +90,14 @@ def get_foreman_args(args):
         except StopIteration:
             break
         if arg.startswith('--foreman='):
-            foreman_arg = arg[len('--foreman='):]
+            foreman_args.append(arg[len('--foreman='):])
         elif arg == '--foreman':
-            foreman_arg = next(args)
-        else:
-            continue
-        foreman_args.append(foreman_arg)
+            foreman_args.append(next(args))
+        elif arg.startswith('--path=') or arg.startswith('--parameter='):
+            foreman_args.append(arg)
+        elif arg == '--path' or arg == '--parameter':
+            foreman_args.append(arg)
+            foreman_args.append(next(args))
     return foreman_args
 
 
