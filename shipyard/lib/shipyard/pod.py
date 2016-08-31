@@ -159,6 +159,14 @@ def define_pod(pod):
     )
     for depend in pod.depends:
         rule.depend(depend)
+    # HACK: Make build-pod rule "virtually" depend on build-image rules
+    # so that build files are loaded, but build-image rules will not be
+    # executed.
+    for app in pod.apps:
+        rule.depend(
+            app.image_label.replace('image/', 'build-image/', 1),
+            when=lambda _: False,
+        )
 
 
 # For nicer-looking output.
