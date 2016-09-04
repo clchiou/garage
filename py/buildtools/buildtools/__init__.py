@@ -4,11 +4,14 @@ __all__ = [
     'register_subcommands',
     'make_copy_files',
     'make_fingerprint_files',
+    'make_execute_commands',
 ]
 
 import hashlib
 import os
 import os.path
+from subprocess import check_call
+
 from distutils import log
 from distutils.command.build import build
 from distutils.core import Command
@@ -21,6 +24,7 @@ def register_subcommands(command, *subcommands):
     command.sub_commands[0:0] = [
         (subcommand.__name__, None) for subcommand in subcommands
     ]
+    return subcommands
 
 
 def _copy_files_base(filenames, src_dir, dst_dir):
@@ -60,7 +64,10 @@ def _copy_files_base(filenames, src_dir, dst_dir):
     return copy_files_base
 
 
-def make_copy_files(*, filenames, src_dir=None, dst_dir=None):
+def make_copy_files(
+        *,
+        filenames, src_dir=None, dst_dir=None,
+        name=None):
     """Return a distutils Command class for copying files."""
 
     class copy_files(_copy_files_base(filenames, src_dir, dst_dir)):
@@ -73,10 +80,16 @@ def make_copy_files(*, filenames, src_dir=None, dst_dir=None):
                 dst_path = os.path.join(self.dst_dir, filename)
                 copy_file(src_path, dst_path, preserve_mode=False)
 
+    if name:
+        copy_files.__name__ = name
+
     return copy_files
 
 
-def make_fingerprint_files(*, filenames, src_dir=None, dst_dir=None):
+def make_fingerprint_files(
+        *,
+        filenames, src_dir=None, dst_dir=None,
+        name=None):
     """Fingerprint files (usually for generated web asset files)."""
 
     class fingerprint_files(_copy_files_base(filenames, src_dir, dst_dir)):
@@ -105,4 +118,38 @@ def make_fingerprint_files(*, filenames, src_dir=None, dst_dir=None):
                         os.unlink(path)
                         break
 
+    if name:
+        fingerprint_files.__name__ = name
+
     return fingerprint_files
+
+
+def make_execute_commands(
+        *,
+        commands,
+        name=None):
+    """Execute external commands."""
+
+    class execute_commands(Command):
+
+        COMMANDS = commands
+
+        description = "execute external commands"
+
+        user_options = []
+
+        def initialize_options(self):
+            pass
+
+        def finalize_options(self):
+            pass
+
+        def run(self):
+            for command in self.COMMANDS:
+                log.info('execute: %s', ' '.join(command))
+                check_call(command)
+
+    if name:
+        execute_commands.__name__ = name
+
+    return execute_commands

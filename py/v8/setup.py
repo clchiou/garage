@@ -8,15 +8,6 @@ from setuptools.extension import Extension
 import buildtools
 
 
-copy_files = buildtools.make_copy_files(
-    filenames=('icudtl.dat', 'natives_blob.bin', 'snapshot_blob.bin'),
-    dst_dir='v8/data',
-)
-
-
-buildtools.register_subcommands(build, copy_files)
-
-
 #
 # NOTE: You will need to add these to the build_ext command:
 #
@@ -27,7 +18,18 @@ setup(
     name = 'v8',
     license = 'MIT',
     cmdclass = {
-        'copy_files': copy_files,
+        cmd.__name__: cmd
+        for cmd in buildtools.register_subcommands(
+            build,
+            buildtools.make_copy_files(
+                filenames=[
+                    'icudtl.dat',
+                    'natives_blob.bin',
+                    'snapshot_blob.bin',
+                ],
+                dst_dir='v8/data',
+            ),
+        )
     },
     packages = ['v8'],
     ext_modules = cythonize(Extension(
