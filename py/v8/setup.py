@@ -1,45 +1,20 @@
 """Build V8 extension with Cython."""
 
-import os.path
 from Cython.Build import cythonize
 from distutils.command.build import build
-from distutils.core import Command
-from distutils.errors import DistutilsOptionError
-from distutils.file_util import copy_file
 from setuptools import setup
 from setuptools.extension import Extension
 
-
-class copy_v8_data(Command):
-
-    description = "copy v8 data blobs"
-
-    user_options = [
-        ('v8-out=', None,
-         "directory for v8 data blobs"),
-    ]
-
-    BLOBS = ('icudtl.dat', 'natives_blob.bin', 'snapshot_blob.bin')
-
-    def initialize_options(self):
-        self.v8_out = None
-
-    def finalize_options(self):
-        if self.v8_out is None:
-            raise DistutilsOptionError('--v8-out is required')
-        for blob in self.BLOBS:
-            blob_path = os.path.join(self.v8_out, blob)
-            if not os.path.exists(blob_path):
-                raise DistutilsOptionError('not a file: %s' % blob_path)
-
-    def run(self):
-        for blob in self.BLOBS:
-            src = os.path.join(self.v8_out, blob)
-            dst = os.path.join('v8/data', blob)
-            copy_file(src, dst, preserve_mode=False)
+import buildtools
 
 
-build.sub_commands.insert(0, ('copy_v8_data', None))
+copy_files = buildtools.make_copy_files(
+    filenames=('icudtl.dat', 'natives_blob.bin', 'snapshot_blob.bin'),
+    dst_dir='v8/data',
+)
+
+
+buildtools.register_subcommand(build, copy_files)
 
 
 #
@@ -52,7 +27,7 @@ setup(
     name = 'v8',
     license = 'MIT',
     cmdclass = {
-        'copy_v8_data': copy_v8_data,
+        'copy_files': copy_files,
     },
     packages = ['v8'],
     ext_modules = cythonize(Extension(

@@ -13,6 +13,7 @@ __all__ = [
 
 import itertools
 import logging
+import os
 
 from foreman import define_parameter, define_rule
 
@@ -45,7 +46,14 @@ def build_package(parameters, package_name, build_src, *, build_cmd=None):
         execute(cmd, cwd=build_src)
     site_packages = parameters['//py/cpython:modules'] / 'site-packages'
     if not list(site_packages.glob('%s*' % package_name)):
-        execute(['sudo', python, 'setup.py', 'install'], cwd=build_src)
+        # sudo does not preserve PYTHONPATH even with '--preserve-env'.
+        pythonpath = os.environ.get('PYTHONPATH')
+        if pythonpath:
+            cmd = ['sudo', 'PYTHONPATH=%s' % pythonpath]
+        else:
+            cmd = ['sudo']
+        cmd.extend([python, 'setup.py', 'install'])
+        execute(cmd, cwd=build_src)
 
 
 def pip_install(parameters, package_name, *, version=None, deps=None):

@@ -10,6 +10,7 @@ from shipyard import py
 
 @decorate_rule('//base:build',
                '//cc/v8:build',
+               '//host/buildtools:install',
                '//py/cpython:build',
                '//py/cpython:install_cython')
 def build(parameters):
@@ -36,7 +37,7 @@ def build(parameters):
         '{v8_out}/lib.target:{v8_out}/obj.target/src'.format(v8_out=v8_out))
 
     build_cmd = ['build']
-    build_cmd.extend(['copy_v8_data', '--v8-out', v8_out])
+    build_cmd.extend(['copy_files', '--src-dir', v8_out])
     build_cmd.extend([
         'build_ext',
         '--include-dirs', include_dirs,

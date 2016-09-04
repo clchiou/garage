@@ -50,12 +50,12 @@ LOG = logging.getLogger(__name__)
 ### Generic scripting helpers.
 
 
-def insert_path(path_element):
-    """Prepend path element to PATH environment variable."""
-    path = os.environ.get('PATH')
+def insert_path(path_element, *, path_variable='PATH'):
+    """Prepend path element to a PATH-like environment variable."""
+    path = os.environ.get(path_variable)
     path = '%s:%s' % (path_element, path) if path else str(path_element)
-    LOG.info('new PATH: %s', path)
-    os.environ['PATH'] = path
+    LOG.info('set %s: %s', path_variable, path)
+    os.environ[path_variable] = path
 
 
 def copy_source(src, build_src):
