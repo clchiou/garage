@@ -14,7 +14,7 @@ copy_files = buildtools.make_copy_files(
 )
 
 
-buildtools.register_subcommand(build, copy_files)
+buildtools.register_subcommands(build, copy_files)
 
 
 #
