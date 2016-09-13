@@ -5,6 +5,7 @@ __all__ = [
 ]
 
 import copy
+import enum
 import json
 import logging
 import re
@@ -20,6 +21,12 @@ LOG = logging.getLogger(__name__)
 
 # https://github.com/appc/spec/blob/master/spec/types.md#ac-name-type
 AC_NAME_PATTERN = re.compile(r'[a-z0-9]+(-[a-z0-9]+)*')
+
+
+class PodState(enum.Enum):
+    UNDEPLOYED = 'undeployed'
+    DEPLOYED = 'deployed'
+    CURRENT = 'current'
 
 
 class PodRepo:
@@ -80,6 +87,17 @@ class PodRepo:
         else:
             pod_name, version = path_or_name.rsplit(':', 1)
             return self._get_pod(pod_name, version)
+
+    def get_pod_state(self, name_version):
+        """Query repo for pod state."""
+        pod_name, version = name_version.rsplit(':', 1)
+        config_path = self._get_config_path(pod_name, version)
+        if not config_path.exists():
+            return PodState.UNDEPLOYED
+        elif int(version) != self.get_current_version_from_name(pod_name):
+            return PodState.DEPLOYED
+        else:
+            return PodState.CURRENT
 
     def get_ports(self):
         """Return an index of port allocations."""

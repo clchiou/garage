@@ -36,6 +36,22 @@ def list_pods(args):
 list_pods.add_arguments = add_arguments
 
 
+def get_pod_state(args):
+    """Get pod state."""
+    # This is read-only; for now we don't acquire lock for it.
+    repo = PodRepo(args.config_path, args.data_path)
+    print(repo.get_pod_state(args.pod_name).value)
+    return 0
+
+
+get_pod_state.add_arguments = lambda parser: (
+    add_arguments(parser),
+    parser.add_argument(
+        'pod_name', help="""pod name of format 'name:version'"""
+    ),
+)
+
+
 def list_ports(args):
     """List allocated ports."""
     # This is read-only; for now we don't acquire lock for it.
@@ -116,6 +132,7 @@ make_manifest.add_arguments = lambda parser: (
 
 COMMANDS = [
     list_pods,
+    get_pod_state,
     list_ports,
     make_manifest,
 ]

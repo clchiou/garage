@@ -70,6 +70,13 @@ class Fixture(unittest.TestCase):
         output = output.decode('ascii').split('\n')
         return list(filter(None, map(str.strip, output)))
 
+    def get_pod_state(self, pod_name):
+        output = check_output(
+            ['python3', '-m', 'ops.apps', 'get-pod-state', pod_name],
+            cwd=str(self.root_path),
+        )
+        return output.decode('ascii').strip()
+
     def list_ports(self):
         output = check_output(
             ['python3', '-m', 'ops.apps', 'list-ports', '-v'],
