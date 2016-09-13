@@ -2,6 +2,7 @@
 
 __all__ = [
     'PodRepo',
+    'Pod',
 ]
 
 import copy

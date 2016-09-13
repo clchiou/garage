@@ -8,7 +8,7 @@ import json
 import sys
 from pathlib import Path
 
-from ops.apps.models import PodRepo
+from ops.apps.models import PodRepo, Pod
 
 
 def add_arguments(parser):
@@ -37,7 +37,7 @@ list_pods.add_arguments = add_arguments
 
 
 def get_pod_state(args):
-    """Get pod state."""
+    """Read pod state from the pod repo."""
     # This is read-only; for now we don't acquire lock for it.
     repo = PodRepo(args.config_path, args.data_path)
     print(repo.get_pod_state(args.pod_tag).value)
@@ -49,6 +49,17 @@ get_pod_state.add_arguments = lambda parser: (
     parser.add_argument(
         'pod_tag', help="""pod tag 'name:version'"""
     ),
+)
+
+
+def get_pod_tag(args):
+    """Read pod tag from a pod file."""
+    print(Pod.load_json(args.pod_file))
+    return 0
+
+
+get_pod_tag.add_arguments = lambda parser: (
+    parser.add_argument('pod_file', help="""path to a pod file"""),
 )
 
 
@@ -133,6 +144,7 @@ make_manifest.add_arguments = lambda parser: (
 COMMANDS = [
     list_pods,
     get_pod_state,
+    get_pod_tag,
     list_ports,
     make_manifest,
 ]
