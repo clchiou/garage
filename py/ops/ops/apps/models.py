@@ -80,17 +80,17 @@ class PodRepo:
             return None
         return int(link.resolve().name)
 
-    def find_pod(self, path_or_name):
-        """Load a pod with either a path or a 'name:version' string."""
-        if Path(path_or_name).exists():
-            return Pod.load_json(path_or_name)
+    def find_pod(self, path_or_tag):
+        """Load a pod with either a path or a tag string."""
+        if Path(path_or_tag).exists():
+            return Pod.load_json(path_or_tag)
         else:
-            pod_name, version = path_or_name.rsplit(':', 1)
+            pod_name, version = path_or_tag.rsplit(':', 1)
             return self._get_pod(pod_name, version)
 
-    def get_pod_state(self, name_version):
+    def get_pod_state(self, pod_tag):
         """Query repo for pod state."""
-        pod_name, version = name_version.rsplit(':', 1)
+        pod_name, version = pod_tag.rsplit(':', 1)
         config_path = self._get_config_path(pod_name, version)
         if not config_path.exists():
             return PodState.UNDEPLOYED

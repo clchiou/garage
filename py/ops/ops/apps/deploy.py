@@ -407,7 +407,7 @@ def cleanup(args, repo):
 def add_arguments(parser):
     basics.add_arguments(parser)
     parser.add_argument(
-        'pod', help="""either a pod file or 'name:version'""")
+        'pod', help="""either a pod file or a pod tag 'name:version'""")
 
 
 deploy.add_arguments = lambda parser: (

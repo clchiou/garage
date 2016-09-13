@@ -23,7 +23,7 @@ def add_arguments(parser):
 
 
 def list_pods(args):
-    """List pod names."""
+    """List deployed pods."""
     # This is read-only; for now we don't acquire lock for it.
     repo = PodRepo(args.config_path, args.data_path)
     for name in repo.get_pod_names():
@@ -40,14 +40,14 @@ def get_pod_state(args):
     """Get pod state."""
     # This is read-only; for now we don't acquire lock for it.
     repo = PodRepo(args.config_path, args.data_path)
-    print(repo.get_pod_state(args.pod_name).value)
+    print(repo.get_pod_state(args.pod_tag).value)
     return 0
 
 
 get_pod_state.add_arguments = lambda parser: (
     add_arguments(parser),
     parser.add_argument(
-        'pod_name', help="""pod name of format 'name:version'"""
+        'pod_tag', help="""pod tag 'name:version'"""
     ),
 )
 
@@ -125,7 +125,7 @@ make_manifest.add_arguments = lambda parser: (
     parser.add_argument(
         '--output', help="""set output path (default to stdout)"""),
     parser.add_argument(
-        'pod', help="""either a pod file or 'name:version'"""
+        'pod', help="""either a pod file or a pod tag 'name:version'"""
     ),
 )
 
