@@ -1,6 +1,7 @@
 """Manage packages that will not be installed from OS package manager."""
 
 import argparse
+import hashlib
 import logging
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -22,7 +23,7 @@ SYSTEM_DIR = '/usr/lib/systemd/system'
 TMPFILES_D = '/usr/lib/tmpfiles.d'
 
 
-def rkt_install(version, tarball_path=None):
+def rkt_install(version, *, sha512, tarball_path=None):
     if Path('/usr/bin/rkt').exists():
         LOG.warning('attempt to overwrite /usr/bin/rkt')
 
@@ -55,6 +56,8 @@ def rkt_install(version, tarball_path=None):
             tarball_path = Path(working_dir) / 'rkt.tar.gz'
         if not tarball_path.exists():
             scripting.wget(RKT_URI.format(version=version), tarball_path)
+        if compute_sha512(tarball_path) != sha512:
+            raise RuntimeError('mismatch checksum: %s' % tarball_path)
         scripting.tar_extract(
             tarball_path,
             tar_extra_args=['--strip-components', '1'],
@@ -100,6 +103,8 @@ def command_install_add_arguments(parser):
         '--tarball', help="""use local tarball file for package""")
     parser.add_argument(
         'package', help="""package name of the form 'name:version'""")
+    parser.add_argument(
+        'sha512', help="""SHA-512 checksum of the package file""")
 
 
 def command_install(parser, args):
@@ -119,6 +124,17 @@ def command_install(parser, args):
         raise RuntimeError('no installer for package: %s' % name)
 
     LOG.info('install: %s', args.package)
-    installer(version, tarball_path=tarball_path)
+    installer(version, sha512=args.sha512, tarball_path=tarball_path)
 
     return 0
+
+
+def compute_sha512(tarball_path):
+    tarball_checksum = hashlib.sha512()
+    with tarball_path.open('rb') as tarball_file:
+        while True:
+            data = tarball_file.read(4096)
+            if not data:
+                break
+            tarball_checksum.update(data)
+    return tarball_checksum.hexdigest()
