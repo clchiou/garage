@@ -98,10 +98,8 @@ class Fixture(unittest.TestCase):
                 return True
         return False
 
-    def deploy(self, target, *, redeploy=False):
+    def deploy(self, target):
         cmd = ['python3', '-m', 'ops.apps', 'deploy', '-v', str(target)]
-        if redeploy:
-            cmd.append('--redeploy')
         check_call(cmd, cwd=str(self.root_path))
 
     def undeploy(self, target, *, remove):

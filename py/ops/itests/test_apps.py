@@ -26,6 +26,9 @@ class AppsTest(Fixture):
     def test_0001_deploy_empty_bundle(self):
         self.assertNoPod1001()
         self.deploy(self.testdata_path / 'bundle1')
+        # Re-deploy the current pod is a no-op.
+        self.deploy(self.testdata_path / 'bundle1')
+        self.deploy(self.testdata_path / 'bundle1')
         self.assertPod1001()
         self.assertEqual(
             ['test-pod:1001 *'],
@@ -64,7 +67,7 @@ class AppsTest(Fixture):
 
     def test_0004_redeploy_v1002(self):
         self.assertNoPod1002Etc()
-        self.deploy('test-pod:1002', redeploy=True)
+        self.deploy('test-pod:1002')
         self.assertPod1002()
         self.assertNoPod1001Etc()
         self.assertNoPod1003Etc()
@@ -78,7 +81,7 @@ class AppsTest(Fixture):
 
     def test_0005_redeploy_v1001(self):
         self.assertNoPod1001Etc()
-        self.deploy('test-pod:1001', redeploy=True)
+        self.deploy('test-pod:1001')
         self.assertNoPod1002Etc()
         self.assertNoPod1003Etc()
         self.assertEqual(
@@ -92,7 +95,7 @@ class AppsTest(Fixture):
     def test_0006_redeploy_v1003(self):
         self.assertNoPod1002Etc()
         self.assertNoPod1003Etc()
-        self.deploy('test-pod:1003', redeploy=True)
+        self.deploy('test-pod:1003')
         self.assertNoPod1001Etc()
         self.assertNoPod1002Etc()
         self.assertPod1003()
@@ -105,7 +108,7 @@ class AppsTest(Fixture):
         self.assertEqual('current', self.get_pod_state('test-pod:1003'))
 
     def test_0007_redeploy_v1003_again(self):
-        self.deploy('test-pod:1003', redeploy=True)
+        self.deploy('test-pod:1003')
         self.assertNoPod1001Etc()
         self.assertNoPod1002Etc()
         self.assertPod1003()
@@ -142,7 +145,7 @@ class AppsTest(Fixture):
         self.assertEqual('undeployed', self.get_pod_state('test-pod:1003'))
 
     def test_0009_redeploy_v1002(self):
-        self.deploy('test-pod:1002', redeploy=True)
+        self.deploy('test-pod:1002')
         self.assertPod1002()
         self.assertEqual(
             ['test-pod:1001', 'test-pod:1002 *'],

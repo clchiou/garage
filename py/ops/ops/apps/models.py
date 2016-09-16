@@ -24,12 +24,6 @@ LOG = logging.getLogger(__name__)
 AC_NAME_PATTERN = re.compile(r'[a-z0-9]+(-[a-z0-9]+)*')
 
 
-class PodState(enum.Enum):
-    UNDEPLOYED = 'undeployed'
-    DEPLOYED = 'deployed'
-    CURRENT = 'current'
-
-
 class PodRepo:
     """The central repository of pods.
 
@@ -151,11 +145,11 @@ class PodRepo:
     def _get_pod_state(self, pod_name, version):
         config_path = self._get_config_path(pod_name, version)
         if not config_path.exists():
-            return PodState.UNDEPLOYED
+            return Pod.State.UNDEPLOYED
         elif version != self.get_current_version_from_name(pod_name):
-            return PodState.DEPLOYED
+            return Pod.State.DEPLOYED
         else:
-            return PodState.CURRENT
+            return Pod.State.CURRENT
 
     def _iter_pod_versions(self, pod_name):
         path = self._pods / pod_name
@@ -252,6 +246,11 @@ class Ports:
 
 
 class Pod:
+
+    class State(enum.Enum):
+        UNDEPLOYED = 'undeployed'
+        DEPLOYED = 'deployed'
+        CURRENT = 'current'
 
     # ${CONFIGS}/pods/${NAME}/${VERSION}/{pod.json,pod-manifest.json}
     POD_JSON = 'pod.json'

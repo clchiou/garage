@@ -48,9 +48,14 @@ def _deploy(args, repo, rollback):
     pod = repo.find_pod(args.pod)
     LOG.info('%s - deploy', pod)
 
-    # If this pod has not been deployed before (i.e., not a redeploy),
-    # we don't skip deploy_fetch, etc.
-    if not args.redeploy:
+    pod_state = repo.get_pod_state(pod)
+    if pod_state is pod.State.CURRENT:
+        LOG.info('%s - pod is current', pod)
+        return 0
+    elif pod_state is pod.State.DEPLOYED:
+        pass
+    else:
+        assert pod_state is pod.State.UNDEPLOYED  # Sanity check.
         rollback.callback(undeploy_remove, repo, pod)
         deploy_fetch(pod)
         deploy_install(repo, pod)
@@ -410,13 +415,7 @@ def add_arguments(parser):
         'pod', help="""either a pod file or a pod tag 'name:version'""")
 
 
-deploy.add_arguments = lambda parser: (
-    add_arguments(parser),
-    parser.add_argument(
-        '--redeploy', action='store_true',
-        help="""instruct a re-deploy of this pod"""
-    ),
-)
+deploy.add_arguments = add_arguments
 
 
 undeploy.add_arguments = lambda parser: (

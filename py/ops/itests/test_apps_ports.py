@@ -67,7 +67,7 @@ class AppsPortsTest(Fixture):
         )
 
     def test_0003_redeploy_v1001(self):
-        self.deploy('test-ports-pod:1001', redeploy=True)
+        self.deploy('test-ports-pod:1001')
         self.assertEqual(
             [
                 'test-ports-pod:1001 *',
