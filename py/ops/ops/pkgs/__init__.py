@@ -56,7 +56,7 @@ def rkt_install(version, *, sha512, tarball_path=None):
             tarball_path = Path(working_dir) / 'rkt.tar.gz'
         if not tarball_path.exists():
             scripting.wget(RKT_URI.format(version=version), tarball_path)
-        if compute_sha512(tarball_path) != sha512:
+        if not scripting.DRY_RUN and compute_sha512(tarball_path) != sha512:
             raise RuntimeError('mismatch checksum: %s' % tarball_path)
         scripting.tar_extract(
             tarball_path,
