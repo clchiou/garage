@@ -40,7 +40,7 @@ def get_pod_state(args):
     """Read pod state from the pod repo."""
     # This is read-only; for now we don't acquire lock for it.
     repo = PodRepo(args.config_path, args.data_path)
-    print(repo.get_pod_state(args.pod_tag).value)
+    print(repo.get_pod_state_from_tag(args.pod_tag).value)
     return 0
 
 

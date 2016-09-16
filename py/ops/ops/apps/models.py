@@ -87,18 +87,12 @@ class PodRepo:
             return Pod.load_json(path_or_tag)
         else:
             pod_name, version = path_or_tag.rsplit(':', 1)
-            return self._get_pod(pod_name, version)
+            return self._get_pod(pod_name, int(version))
 
-    def get_pod_state(self, pod_tag):
+    def get_pod_state_from_tag(self, pod_tag):
         """Query repo for pod state."""
         pod_name, version = pod_tag.rsplit(':', 1)
-        config_path = self._get_config_path(pod_name, version)
-        if not config_path.exists():
-            return PodState.UNDEPLOYED
-        elif int(version) != self.get_current_version_from_name(pod_name):
-            return PodState.DEPLOYED
-        else:
-            return PodState.CURRENT
+        return self._get_pod_state(pod_name, int(version))
 
     def get_ports(self):
         """Return an index of port allocations."""
@@ -137,6 +131,9 @@ class PodRepo:
         else:
             return self._get_pod(pod.name, version)
 
+    def get_pod_state(self, pod):
+        return self._get_pod_state(pod.name, pod.version)
+
     def get_current_path(self, pod):
         return self._get_current_path(pod.name)
 
@@ -150,6 +147,15 @@ class PodRepo:
     def _get_pod(self, pod_name, version):
         path = self._get_config_path(pod_name, version)
         return Pod.load_json(path)
+
+    def _get_pod_state(self, pod_name, version):
+        config_path = self._get_config_path(pod_name, version)
+        if not config_path.exists():
+            return PodState.UNDEPLOYED
+        elif version != self.get_current_version_from_name(pod_name):
+            return PodState.DEPLOYED
+        else:
+            return PodState.CURRENT
 
     def _iter_pod_versions(self, pod_name):
         path = self._pods / pod_name
