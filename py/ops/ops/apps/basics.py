@@ -8,18 +8,13 @@ import json
 import sys
 from pathlib import Path
 
-from ops.apps.models import PodRepo, Pod
-
-
-def add_arguments(parser):
-    parser.add_argument(
-        '--config-path', metavar='PATH', default='/etc/ops/apps',
-        help="""path the root directory of container group configs
-                (default to %(default)s)""")
-    parser.add_argument(
-        '--data-path', metavar='PATH', default='/var/lib/ops/apps',
-        help="""path the root directory of container group data
-                (default to %(default)s)""")
+from ops.apps.models import (
+    PodRepo,
+    Pod,
+    add_arguments,
+    require_repo_lock,
+)
+from ops.apps import scripting
 
 
 def list_pods(args):

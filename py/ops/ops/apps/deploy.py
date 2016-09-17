@@ -9,34 +9,17 @@ import logging
 import os.path
 import urllib.parse
 from contextlib import ExitStack
-from functools import wraps
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from ops import scripting
-from ops.apps import basics
-from ops.apps.models import PodRepo
+from ops.apps import models
 
 
 LOG = logging.getLogger(__name__)
 
 
-def acquire_lock(command):
-    @wraps(command)
-    def wrapper(args):
-        repo = PodRepo(args.config_path, args.data_path)
-        if not scripting.DRY_RUN and not repo.lock.acquire(blocking=False):
-            LOG.info('repo is locked: %s', repo.lock.path)
-            return 1
-        try:
-            return command(args, repo)
-        finally:
-            if not scripting.DRY_RUN:
-                repo.lock.release()
-    return wrapper
-
-
-@acquire_lock
+@models.require_repo_lock
 def deploy(args, repo):
     """Deploy a pod."""
     with ExitStack() as rollback:
@@ -321,7 +304,7 @@ def deploy_start(pod):
                 scripting.systemctl.is_active(name)
 
 
-@acquire_lock
+@models.require_repo_lock
 def undeploy(args, repo):
     """Undeploy a pod."""
     pod = repo.find_pod(args.pod)
@@ -389,7 +372,7 @@ def undeploy_remove(repo, pod):
     scripting.remove_tree(repo.get_volume_path(pod))
 
 
-@acquire_lock
+@models.require_repo_lock
 def cleanup(args, repo):
     """Clean up pods that are not currently deployed."""
     for pod_name in repo.get_pod_names():
@@ -410,7 +393,7 @@ def cleanup(args, repo):
 
 
 def add_arguments(parser):
-    basics.add_arguments(parser)
+    models.add_arguments(parser)
     parser.add_argument(
         'pod', help="""either a pod file or a pod tag 'name:version'""")
 
@@ -428,7 +411,7 @@ undeploy.add_arguments = lambda parser: (
 
 
 cleanup.add_arguments = lambda parser: (
-    basics.add_arguments(parser),
+    models.add_arguments(parser),
     parser.add_argument(
         '--keep', type=int, default=1,
         help="""keep latest N versions (default to %(default)s)"""

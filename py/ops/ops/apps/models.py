@@ -3,6 +3,8 @@
 __all__ = [
     'PodRepo',
     'Pod',
+    'add_arguments',
+    'require_repo_lock',
 ]
 
 import copy
@@ -12,9 +14,10 @@ import logging
 import re
 import urllib.parse
 from collections import namedtuple
+from functools import wraps
 from pathlib import Path
 
-from ops.scripting import FileLock
+from ops import scripting
 
 
 LOG = logging.getLogger(__name__)
@@ -22,6 +25,32 @@ LOG = logging.getLogger(__name__)
 
 # https://github.com/appc/spec/blob/master/spec/types.md#ac-name-type
 AC_NAME_PATTERN = re.compile(r'[a-z0-9]+(-[a-z0-9]+)*')
+
+
+def add_arguments(parser):
+    parser.add_argument(
+        '--config-path', metavar='PATH', default='/etc/ops/apps',
+        help="""path the root directory of container group configs
+                (default to %(default)s)""")
+    parser.add_argument(
+        '--data-path', metavar='PATH', default='/var/lib/ops/apps',
+        help="""path the root directory of container group data
+                (default to %(default)s)""")
+
+
+def require_repo_lock(command):
+    @wraps(command)
+    def wrapper(args):
+        repo = PodRepo(args.config_path, args.data_path)
+        if not scripting.DRY_RUN and not repo.lock.acquire(blocking=False):
+            LOG.info('repo is locked: %s', repo.lock.path)
+            return 1
+        try:
+            return command(args, repo)
+        finally:
+            if not scripting.DRY_RUN:
+                repo.lock.release()
+    return wrapper
 
 
 class PodRepo:
@@ -45,7 +74,7 @@ class PodRepo:
     def __init__(self, config_path, data_path):
         config_path = Path(config_path).absolute()
         data_path = Path(data_path).absolute()
-        self.lock = FileLock(data_path / 'lock')
+        self.lock = scripting.FileLock(data_path / 'lock')
         self._pods = config_path / 'pods'
         self._current = config_path / 'current'
         self._volumes = data_path / 'volumes'
