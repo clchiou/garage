@@ -117,6 +117,11 @@ class PodRepo:
         pod_name, version = pod_tag.rsplit(':', 1)
         return self._get_pod_state(pod_name, int(version))
 
+    def get_annotations_path_from_tag(self, pod_tag):
+        pod_name, version = pod_tag.rsplit(':', 1)
+        return (self._get_config_path(pod_name, int(version)) /
+                Pod.ANNOTATIONS_JSON)
+
     def get_ports(self):
         """Return an index of port allocations."""
         pods_and_manifests = []
@@ -281,9 +286,10 @@ class Pod:
         DEPLOYED = 'deployed'
         CURRENT = 'current'
 
-    # ${CONFIGS}/pods/${NAME}/${VERSION}/{pod.json,pod-manifest.json}
+    # ${CONFIGS}/pods/${NAME}/${VERSION}/...
     POD_JSON = 'pod.json'
     POD_MANIFEST_JSON = 'pod-manifest.json'
+    ANNOTATIONS_JSON = 'annotations.json'
 
     # ${CONFIGS}/pods/${NAME}/${VERSION}/units/${UNIT_FILE}
     UNITS_DIR = 'units'

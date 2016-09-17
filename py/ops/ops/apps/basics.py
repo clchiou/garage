@@ -71,6 +71,64 @@ def list_ports(args):
 list_ports.add_arguments = add_arguments
 
 
+# Annotation is a small map of deployment-time or runtime metadata.
+
+
+@require_repo_lock
+def get_pod_annotation(args, repo):
+    """Read pod annotation."""
+    if repo.get_pod_state_from_tag(args.pod_tag) is Pod.State.UNDEPLOYED:
+        raise RuntimeError('pod is not deployed yet: %s' % args.pod_tag)
+    annotations_path = repo.get_annotations_path_from_tag(args.pod_tag)
+    try:
+        value = json.loads(annotations_path.read_text())[args.key]
+    except (FileNotFoundError, KeyError):
+        if not args.default:
+            raise
+        value = args.default
+    print(value)
+    return 0
+
+
+get_pod_annotation.add_arguments = lambda parser: (
+    add_arguments(parser),
+    parser.add_argument(
+        '--default',
+        help="""default value if annotation key is not found""",
+    ),
+    parser.add_argument('pod_tag', help="""pod tag 'name:version'"""),
+    parser.add_argument('key', help="""annotation name"""),
+)
+
+
+@require_repo_lock
+def annotate_pod(args, repo):
+    """Write pod annotation."""
+    if repo.get_pod_state_from_tag(args.pod_tag) is Pod.State.UNDEPLOYED:
+        raise RuntimeError('pod is not deployed yet: %s' % args.pod_tag)
+    annotations_path = repo.get_annotations_path_from_tag(args.pod_tag)
+    if annotations_path.exists():
+        annotations = json.loads(annotations_path.read_text())
+        annotations[args.key] = args.value
+    else:
+        annotations = {args.key: args.value}
+    annotations_bytes = json.dumps(annotations).encode('ascii')
+    scripting.tee(
+        annotations_path,
+        lambda output: output.write(annotations_bytes),
+        sudo=True,
+    )
+    return 0
+
+
+annotate_pod.add_arguments = lambda parser: (
+    add_arguments(parser),
+    parser.add_argument('pod_tag', help="""pod tag 'name:version'"""),
+    parser.add_argument('key', help="""annotation name"""),
+    parser.add_argument('value', help="""annotation value"""),
+)
+
+
 def make_manifest(args):
     """Generate Appc pod manifest (mostly for testing)."""
 
@@ -137,9 +195,15 @@ make_manifest.add_arguments = lambda parser: (
 
 
 COMMANDS = [
+    # Enumerate things
     list_pods,
+    list_ports,
+    # Read pod info
     get_pod_state,
     get_pod_tag,
-    list_ports,
+    # Pod annotation
+    get_pod_annotation,
+    annotate_pod,
+    # Pod manifest
     make_manifest,
 ]

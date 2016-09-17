@@ -77,6 +77,18 @@ class Fixture(unittest.TestCase):
         )
         return output.decode('ascii').strip()
 
+    def get_pod_annotation(self, pod_name, key):
+        output = check_output(
+            ['python3', '-m', 'ops.apps', 'get-pod-annotation', pod_name, key],
+            cwd=str(self.root_path),
+        )
+        return output.decode('ascii').strip()
+
+    def annotate_pod(self, pod_name, key, value):
+        cmd = ['python3', '-m', 'ops.apps', 'annotate-pod',
+                pod_name, key, value]
+        check_call(cmd, cwd=str(self.root_path))
+
     def list_ports(self):
         output = check_output(
             ['python3', '-m', 'ops.apps', 'list-ports', '-v'],
