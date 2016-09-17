@@ -140,10 +140,10 @@ def deploy_install(repo, pod):
             # them again.
             return
         raise RuntimeError('attempt to overwrite dir: %s' % config_path)
-    scripting.execute(['sudo', 'mkdir', '--parents', config_path])
+    scripting.execute(['mkdir', '--parents', config_path], sudo=True)
 
     # Install pod.json.
-    scripting.execute(['sudo', 'cp', pod.path, config_path / pod.POD_JSON])
+    scripting.execute(['cp', pod.path, config_path / pod.POD_JSON], sudo=True)
 
     # Deployment-time volume allocation.
     volume_root_path = repo.get_volume_path(pod)
@@ -184,14 +184,14 @@ def deploy_install(repo, pod):
 
     # Install systemd unit files.
     units_dir = config_path / pod.UNITS_DIR
-    scripting.execute(['sudo', 'mkdir', '--parents', units_dir])
+    scripting.execute(['mkdir', '--parents', units_dir], sudo=True)
     for unit in pod.systemd_units:
         unit_path = units_dir / unit.name
         if unit_path.exists():
             LOG.warning('unit exists: %s', unit_path)
             continue
         if unit.path:
-            scripting.execute(['sudo', 'cp', unit.path, unit_path])
+            scripting.execute(['cp', unit.path, unit_path], sudo=True)
         else:
             assert unit.uri
             scripting.wget(unit.uri, unit_path, sudo=True)
@@ -212,13 +212,13 @@ def deploy_create_volumes(repo, pod):
             LOG.warning('volume exists: %s', volume_path)
             continue
 
-        scripting.execute(['sudo', 'mkdir', '--parents', volume_path])
-        scripting.execute([
-            'sudo',
+        scripting.execute(['mkdir', '--parents', volume_path], sudo=True)
+        cmd = [
             'chown',
             '{user}:{group}'.format(user=volume.user, group=volume.group),
             volume_path,
-        ])
+        ]
+        scripting.execute(cmd, sudo=True)
 
         # Create initial contents of volume.
         if not volume.path and not volume.uri:
@@ -257,27 +257,28 @@ def deploy_enable(repo, pod):
         # Don't use `systemctl link` because it usually doesn't behave
         # as you expected :(
         unit_path = config_path / pod.UNITS_DIR / unit.name
-        scripting.execute(['sudo', 'cp', unit_path, unit.unit_path])
+        scripting.execute(['cp', unit_path, unit.unit_path], sudo=True)
         systemd_make_rkt_dropin(repo, pod, unit)
         for name in unit.unit_names:
             scripting.systemctl.enable(name)
             scripting.systemctl.is_enabled(name)
 
     # Mark this pod as the current one.
-    scripting.execute(['sudo', 'mkdir', '--parents', current_path.parent])
-    scripting.execute([
-        'sudo', 'ln', '--symbolic',
+    scripting.execute(['mkdir', '--parents', current_path.parent], sudo=True)
+    cmd = [
+        'ln', '--symbolic',
         # Unfortunately Path.relative_to doesn't work in this case.
         os.path.relpath(
             str(repo.get_config_path(pod)),
             str(current_path.parent),
         ),
         current_path,
-    ])
+    ]
+    scripting.execute(cmd, sudo=True)
 
 
 def systemd_make_rkt_dropin(repo, pod, unit):
-    scripting.execute(['sudo', 'mkdir', '--parents', unit.dropin_path])
+    scripting.execute(['mkdir', '--parents', unit.dropin_path], sudo=True)
     scripting.tee(
         unit.dropin_path / '10-pod-manifest.conf',
         lambda output: _write_pod_manifest_dropin(repo, pod, output),

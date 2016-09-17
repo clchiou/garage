@@ -29,26 +29,26 @@ def rkt_install(version, *, sha512, tarball_path=None):
 
     cmds = [
         # Don't install api and metadata service for now.
-        ['sudo', 'mkdir', '--parents', SYSTEM_DIR],
-        ['sudo', 'cp', 'init/systemd/rkt-gc.service', SYSTEM_DIR],
-        ['sudo', 'cp', 'init/systemd/rkt-gc.timer', SYSTEM_DIR],
+        ['mkdir', '--parents', SYSTEM_DIR],
+        ['cp', 'init/systemd/rkt-gc.service', SYSTEM_DIR],
+        ['cp', 'init/systemd/rkt-gc.timer', SYSTEM_DIR],
 
-        ['sudo', 'mkdir', '--parents', TMPFILES_D],
-        ['sudo', 'cp', 'init/systemd/tmpfiles.d/rkt.conf', TMPFILES_D],
+        ['mkdir', '--parents', TMPFILES_D],
+        ['cp', 'init/systemd/tmpfiles.d/rkt.conf', TMPFILES_D],
 
-        ['sudo', './scripts/setup-data-dir.sh'],
+        ['./scripts/setup-data-dir.sh'],
 
-        ['sudo', './rkt', 'trust',
+        ['./rkt', 'trust',
          '--trust-keys-from-https',
          '--prefix', RKT_STAGE1_PREFIX],
 
-        ['sudo', './rkt', 'fetch', '%s:%s' % (RKT_STAGE1_PREFIX, version)],
+        ['./rkt', 'fetch', '%s:%s' % (RKT_STAGE1_PREFIX, version)],
 
         # Install rkt only if everything is okay.
-        ['sudo', 'cp', 'rkt', '/usr/bin'],
+        ['cp', 'rkt', '/usr/bin'],
 
-        ['sudo', 'systemctl', 'enable', 'rkt-gc.timer'],
-        ['sudo', 'systemctl', 'start', 'rkt-gc.timer'],
+        ['systemctl', 'enable', 'rkt-gc.timer'],
+        ['systemctl', 'start', 'rkt-gc.timer'],
     ]
 
     with TemporaryDirectory() as working_dir:
@@ -63,7 +63,7 @@ def rkt_install(version, *, sha512, tarball_path=None):
             tar_extra_args=['--strip-components', '1'],
             cwd=working_dir,
         )
-        scripting.execute_many(cmds, cwd=working_dir)
+        scripting.execute_many(cmds, sudo=True, cwd=working_dir)
 
 
 ### Main function.

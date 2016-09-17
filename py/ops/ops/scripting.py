@@ -30,6 +30,9 @@ LOG_FORMAT = '%(asctime)s %(levelname)s %(name)s: %(message)s'
 DRY_RUN = False
 
 
+SUDO = 'sudo'
+
+
 def ensure_not_root():
     if getpass.getuser() == 'root':
         raise RuntimeError('run by root')
@@ -42,6 +45,9 @@ def add_arguments(parser):
     parser.add_argument(
         '--dry-run', action='store_true',
         help="""do not actually run commands""")
+    parser.add_argument(
+        '--no-root', action='store_true',
+        help="""do not run commands with root privilege""")
 
 
 def process_arguments(_, args):
@@ -52,13 +58,18 @@ def process_arguments(_, args):
     logging.basicConfig(level=level, format=LOG_FORMAT)
     global DRY_RUN
     DRY_RUN = bool(args.dry_run)
+    global SUDO
+    if args.no_root:
+        SUDO = 'env'  # Replace sudo with no-op.
 
 
 ### Scripting helpers.
 
 
-def execute(cmd, *, cwd=None, return_output=False, check=True):
+def execute(cmd, *, sudo=False, cwd=None, return_output=False, check=True):
     cmd = list(map(str, cmd))
+    if sudo:
+        cmd.insert(0, SUDO)
     cwd = str(cwd) if cwd is not None else None
     if LOG.isEnabledFor(logging.DEBUG):
         LOG.debug('execute: %s # cwd = %s', ' '.join(cmd), cwd)
@@ -73,20 +84,18 @@ def execute(cmd, *, cwd=None, return_output=False, check=True):
     return caller(cmd, cwd=cwd)
 
 
-def execute_many(cmds, *, cwd=None):
+def execute_many(cmds, *, sudo=False, cwd=None):
     for cmd in cmds:
-        execute(cmd, cwd=cwd)
+        execute(cmd, sudo=sudo, cwd=cwd)
 
 
 def remove_tree(path):
-    execute(['sudo', 'rm', '--force', '--recursive', path])
+    execute(['rm', '--force', '--recursive', path], sudo=True)
 
 
 def systemctl(command, name, *, sudo=True, **kwargs):
     cmd = ['systemctl', '--quiet', command, name]
-    if sudo:
-        cmd.insert(0, 'sudo')
-    return execute(cmd, **kwargs)
+    return execute(cmd, sudo=sudo, **kwargs)
 
 
 systemctl.enable = partial(systemctl, 'enable')
@@ -101,8 +110,6 @@ systemctl.is_active = partial(systemctl, 'is-active', sudo=False)
 
 def tar_extract(tarball_path, *, sudo=False, tar_extra_args=(), **kwargs):
     cmd = ['tar', '--extract', '--file', tarball_path]
-    if sudo:
-        cmd.insert(0, 'sudo')
 
     output = execute(['file', tarball_path], return_output=True)
     if not output:
@@ -117,13 +124,13 @@ def tar_extract(tarball_path, *, sudo=False, tar_extra_args=(), **kwargs):
 
     cmd.extend(tar_extra_args)
 
-    return execute(cmd, **kwargs)
+    return execute(cmd, sudo=sudo, **kwargs)
 
 
 def tee(output_path, writer, *, sudo=False):
     cmd = ['tee', str(output_path)]
     if sudo:
-        cmd.insert(0, 'sudo')
+        cmd.insert(0, SUDO)
     if LOG.isEnabledFor(logging.DEBUG):
         LOG.debug('execute: %s', ' '.join(cmd))
     if DRY_RUN:
@@ -142,7 +149,7 @@ def tee(output_path, writer, *, sudo=False):
             raise RuntimeError('tee %s: rc=%d', output_path, retcode)
 
 
-def wget(uri, output_path, *, sudo=False, **kwargs):
+def wget(uri, output_path, **kwargs):
     cmd = ['wget']
     if not LOG.isEnabledFor(logging.DEBUG):
         cmd.append('--no-verbose')  # No progress bar.
@@ -150,8 +157,6 @@ def wget(uri, output_path, *, sudo=False, **kwargs):
         '--output-document', output_path,
         uri,
     ])
-    if sudo:
-        cmd.insert(0, 'sudo')
     return execute(cmd, **kwargs)
 
 
@@ -168,8 +173,8 @@ class FileLock:
     def acquire(self, blocking=True):
 
         if not self.path.exists():
-            execute(['sudo', 'mkdir', '--parents', self.path.parent])
-            execute(['sudo', 'touch', self.path])
+            execute(['mkdir', '--parents', self.path.parent], sudo=True)
+            execute(['touch', self.path], sudo=True)
 
         if self._lock_fd is None:
             fd = os.open(str(self.path), os.O_RDONLY)
