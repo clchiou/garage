@@ -23,7 +23,7 @@ class AppsTest(Fixture):
         self.assertEqual('undeployed', self.get_pod_state('test-pod:1002'))
         self.assertEqual('undeployed', self.get_pod_state('test-pod:1003'))
 
-    def test_0001_deploy_empty_bundle(self):
+    def test_0100_deploy_empty_bundle(self):
         self.assertNoPod1001()
         self.deploy(self.testdata_path / 'bundle1')
         # Re-deploy the current pod is a no-op.
@@ -44,7 +44,7 @@ class AppsTest(Fixture):
             self.get_pod_annotation('test-pod:1001', 'key-1'),
         )
 
-    def test_0002_deploy_replicated_bundle(self):
+    def test_0200_deploy_replicated_bundle(self):
         self.assertNoPod1002()
         self.deploy(self.testdata_path / 'bundle2')
         self.assertPod1002()
@@ -62,7 +62,7 @@ class AppsTest(Fixture):
             self.get_pod_annotation('test-pod:1001', 'key-1'),
         )
 
-    def test_0003_deploy_bundle_with_images_and_volumes(self):
+    def test_0300_deploy_bundle_with_images_and_volumes(self):
         self.assertNoPod1003()
         self.deploy(self.testdata_path / 'bundle3')
         self.assertPod1003()
@@ -76,7 +76,7 @@ class AppsTest(Fixture):
         self.assertEqual('deployed', self.get_pod_state('test-pod:1002'))
         self.assertEqual('current', self.get_pod_state('test-pod:1003'))
 
-    def test_0004_redeploy_v1002(self):
+    def test_0400_redeploy_v1002(self):
         self.assertNoPod1002Etc()
         self.deploy('test-pod:1002')
         self.assertPod1002()
@@ -90,7 +90,7 @@ class AppsTest(Fixture):
         self.assertEqual('current', self.get_pod_state('test-pod:1002'))
         self.assertEqual('deployed', self.get_pod_state('test-pod:1003'))
 
-    def test_0005_redeploy_v1001(self):
+    def test_0500_redeploy_v1001(self):
         self.assertNoPod1001Etc()
         self.deploy('test-pod:1001')
         self.assertNoPod1002Etc()
@@ -103,7 +103,7 @@ class AppsTest(Fixture):
         self.assertEqual('deployed', self.get_pod_state('test-pod:1002'))
         self.assertEqual('deployed', self.get_pod_state('test-pod:1003'))
 
-    def test_0006_redeploy_v1003(self):
+    def test_0600_redeploy_v1003(self):
         self.assertNoPod1002Etc()
         self.assertNoPod1003Etc()
         self.deploy('test-pod:1003')
@@ -118,7 +118,7 @@ class AppsTest(Fixture):
         self.assertEqual('deployed', self.get_pod_state('test-pod:1002'))
         self.assertEqual('current', self.get_pod_state('test-pod:1003'))
 
-    def test_0007_redeploy_v1003_again(self):
+    def test_0700_redeploy_v1003_again(self):
         self.deploy('test-pod:1003')
         self.assertNoPod1001Etc()
         self.assertNoPod1002Etc()
@@ -131,9 +131,12 @@ class AppsTest(Fixture):
         self.assertEqual('deployed', self.get_pod_state('test-pod:1002'))
         self.assertEqual('current', self.get_pod_state('test-pod:1003'))
 
-    def test_0008_undeploy(self):
+    def test_0800_undeploy(self):
         self.assertPod1003()
 
+        self.undeploy('test-pod:1003', remove=False)
+        # Undeploy the same pod is okay (if not removed).
+        self.undeploy('test-pod:1003', remove=False)
         self.undeploy('test-pod:1003', remove=False)
         self.assertPod1003Configs()
         self.assertNoPod1003Etc()
@@ -145,6 +148,12 @@ class AppsTest(Fixture):
         self.assertEqual('deployed', self.get_pod_state('test-pod:1002'))
         self.assertEqual('deployed', self.get_pod_state('test-pod:1003'))
 
+    def test_0801_overwrite_volume2_v1003(self):
+        self.assertPod1003Configs()
+        self.overwrite_volumes(self.testdata_path / 'bundle3')
+        self.assertPod1003Configs()
+
+    def test_0802_undeploy_remove(self):
         self.undeploy('test-pod:1003', remove=True)
         self.assertNoPod1003()
         self.assertEqual(
@@ -155,7 +164,7 @@ class AppsTest(Fixture):
         self.assertEqual('deployed', self.get_pod_state('test-pod:1002'))
         self.assertEqual('undeployed', self.get_pod_state('test-pod:1003'))
 
-    def test_0009_redeploy_v1002(self):
+    def test_0900_redeploy_v1002(self):
         self.deploy('test-pod:1002')
         self.assertPod1002()
         self.assertEqual(
@@ -166,7 +175,7 @@ class AppsTest(Fixture):
         self.assertEqual('current', self.get_pod_state('test-pod:1002'))
         self.assertEqual('undeployed', self.get_pod_state('test-pod:1003'))
 
-    def test_0010_undeploy_all(self):
+    def test_1000_undeploy_all(self):
         self.undeploy('test-pod:1001', remove=True)
         self.undeploy('test-pod:1002', remove=True)
         self.assertNoPod1001()
