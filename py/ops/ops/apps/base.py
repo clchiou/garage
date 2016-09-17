@@ -1,4 +1,4 @@
-"""Basic commands."""
+"""Base set of commands."""
 
 __all__ = [
     'COMMANDS',
@@ -8,19 +8,14 @@ import json
 import sys
 from pathlib import Path
 
-from ops.apps.models import (
-    PodRepo,
-    Pod,
-    add_arguments,
-    require_repo_lock,
-)
-from ops.apps import scripting
+from ops import scripting
+from . import models
 
 
 def list_pods(args):
     """List deployed pods."""
     # This is read-only; for now we don't acquire lock for it.
-    repo = PodRepo(args.config_path, args.data_path)
+    repo = models.PodRepo(args.config_path, args.data_path)
     for name in repo.get_pod_names():
         version = repo.get_current_version_from_name(name)
         for pod in repo.iter_pods_from_name(name):
@@ -28,19 +23,19 @@ def list_pods(args):
     return 0
 
 
-list_pods.add_arguments = add_arguments
+list_pods.add_arguments = models.add_arguments
 
 
 def get_pod_state(args):
     """Read pod state from the pod repo."""
     # This is read-only; for now we don't acquire lock for it.
-    repo = PodRepo(args.config_path, args.data_path)
+    repo = models.PodRepo(args.config_path, args.data_path)
     print(repo.get_pod_state_from_tag(args.pod_tag).value)
     return 0
 
 
 get_pod_state.add_arguments = lambda parser: (
-    add_arguments(parser),
+    models.add_arguments(parser),
     parser.add_argument(
         'pod_tag', help="""pod tag 'name:version'"""
     ),
@@ -49,7 +44,7 @@ get_pod_state.add_arguments = lambda parser: (
 
 def get_pod_tag(args):
     """Read pod tag from a pod file."""
-    print(Pod.load_json(args.pod_file))
+    print(models.Pod.load_json(args.pod_file))
     return 0
 
 
@@ -61,23 +56,24 @@ get_pod_tag.add_arguments = lambda parser: (
 def list_ports(args):
     """List allocated ports."""
     # This is read-only; for now we don't acquire lock for it.
-    repo = PodRepo(args.config_path, args.data_path)
+    repo = models.PodRepo(args.config_path, args.data_path)
     for port in repo.get_ports():
         print('%s:%d %s %d' %
               (port.pod_name, port.pod_version, port.name, port.port))
     return 0
 
 
-list_ports.add_arguments = add_arguments
+list_ports.add_arguments = models.add_arguments
 
 
 # Annotation is a small map of deployment-time or runtime metadata.
 
 
-@require_repo_lock
+@models.require_repo_lock
 def get_pod_annotation(args, repo):
     """Read pod annotation."""
-    if repo.get_pod_state_from_tag(args.pod_tag) is Pod.State.UNDEPLOYED:
+    pod_state = repo.get_pod_state_from_tag(args.pod_tag)
+    if pod_state is models.Pod.State.UNDEPLOYED:
         raise RuntimeError('pod is not deployed yet: %s' % args.pod_tag)
     annotations_path = repo.get_annotations_path_from_tag(args.pod_tag)
     try:
@@ -91,7 +87,7 @@ def get_pod_annotation(args, repo):
 
 
 get_pod_annotation.add_arguments = lambda parser: (
-    add_arguments(parser),
+    models.add_arguments(parser),
     parser.add_argument(
         '--default',
         help="""default value if annotation key is not found""",
@@ -101,10 +97,11 @@ get_pod_annotation.add_arguments = lambda parser: (
 )
 
 
-@require_repo_lock
+@models.require_repo_lock
 def annotate_pod(args, repo):
     """Write pod annotation."""
-    if repo.get_pod_state_from_tag(args.pod_tag) is Pod.State.UNDEPLOYED:
+    pod_state = repo.get_pod_state_from_tag(args.pod_tag)
+    if pod_state is models.Pod.State.UNDEPLOYED:
         raise RuntimeError('pod is not deployed yet: %s' % args.pod_tag)
     annotations_path = repo.get_annotations_path_from_tag(args.pod_tag)
     if annotations_path.exists():
@@ -122,7 +119,7 @@ def annotate_pod(args, repo):
 
 
 annotate_pod.add_arguments = lambda parser: (
-    add_arguments(parser),
+    models.add_arguments(parser),
     parser.add_argument('pod_tag', help="""pod tag 'name:version'"""),
     parser.add_argument('key', help="""annotation name"""),
     parser.add_argument('value', help="""annotation value"""),
@@ -134,7 +131,7 @@ def make_manifest(args):
 
     # This is read-only; for now we don't acquire lock for it.
 
-    repo = PodRepo(args.config_path, args.data_path)
+    repo = models.PodRepo(args.config_path, args.data_path)
     pod = repo.find_pod(args.pod)
 
     volume_paths = {}
@@ -179,7 +176,7 @@ def make_manifest(args):
 
 
 make_manifest.add_arguments = lambda parser: (
-    add_arguments(parser),
+    models.add_arguments(parser),
     parser.add_argument(
         '--volume', action='append',
         help="""set volume of format: volume=/path/of/volume"""),

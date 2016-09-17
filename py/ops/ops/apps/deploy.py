@@ -13,7 +13,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from ops import scripting
-from ops.apps import models
+from . import models
 
 
 LOG = logging.getLogger(__name__)

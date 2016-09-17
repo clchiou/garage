@@ -3,8 +3,7 @@
 import argparse
 
 from ops import scripting
-from ops.apps import basics
-from ops.apps import deploy
+from . import base, deploy, volumes
 
 
 def main(argv):
@@ -16,7 +15,7 @@ def main(argv):
     subparsers.dest = 'command'
     subparsers.required = True
 
-    for commands in (basics.COMMANDS, deploy.COMMANDS):
+    for commands in (base.COMMANDS, deploy.COMMANDS, volumes.COMMANDS):
         for command in commands:
             add_command(subparsers, command)
 
