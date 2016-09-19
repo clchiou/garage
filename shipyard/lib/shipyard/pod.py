@@ -15,7 +15,7 @@ from functools import partial
 
 from foreman import define_parameter, define_rule, to_path
 from shipyard import (
-    combine_dicts,
+    build_dict,
     build_appc_image,
     rsync,
     write_json,
@@ -203,11 +203,11 @@ def _build_pod(parameters, *, pod_label):
         'name': pod.name,
         'version': parameters['version/%s' % pod.name],
         'systemd-units': [
-            combine_dicts(
-                {'unit-file': to_path(unit.unit_file).name},
-                {'start': True} if unit.start else {},
-                {'instances': unit.instances} if unit.instances else {},
-            )
+            (build_dict()
+             .set('unit-file', to_path(unit.unit_file).name)
+             .if_(unit.start).set('start', True).end_if()
+             .if_(unit.instances).set('instances', unit.instances).end_if()
+             .dict)
             for unit in pod.systemd_units
         ],
         'images': [
@@ -218,16 +218,12 @@ def _build_pod(parameters, *, pod_label):
             for image_id, image_name in unique_images
         ],
         'volumes': [
-            combine_dicts(
-                {
-                    'name': volume.name,
-                    'user': volume.user,
-                    'group': volume.group,
-                },
-                {
-                    'data': volume.data,
-                } if volume.data else {},
-            )
+            (build_dict()
+             .set('name', volume.name)
+             .set('user', volume.user)
+             .set('group', volume.group)
+             .if_(volume.data).set('data', volume.data).end_if()
+             .dict)
             for volume in pod.volumes
         ],
         'manifest': _make_pod_manifest(parameters, pod, image_ids),

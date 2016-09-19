@@ -24,7 +24,7 @@ __all__ = [
     'tapeout_libraries',
     'write_json',
     # More helpers.
-    'combine_dicts',
+    'build_dict',
 ]
 
 import hashlib
@@ -369,10 +369,81 @@ def write_json(json_object, output_path):
 ### More helpers.
 
 
-def combine_dicts(*member_dicts, exclude_keys=()):
-    combined_dict = {}
-    for member_dict in member_dicts:
-        combined_dict.update(member_dict)
-    for key in exclude_keys:
-        combined_dict.pop(key, None)
-    return combined_dict
+class build_dict:
+    """A _stateful_ fluent dict builder."""
+
+    # Does not support nested if-block at the moment.
+
+    def __init__(self, data=None):
+        # Because we want to modify `data` in place.
+        self.dict = data if data is not None else {}
+
+        self._if_block_state = None
+        self._cond = None
+        self._branch_taken = False
+
+    def if_(self, cond):
+        assert self._if_block_state is None
+        self._if_block_state = 'if'
+        self._cond = cond
+        if self._cond:
+            self._branch_taken = True
+        return self
+
+    def elif_(self, cond):
+        assert self._if_block_state == 'if'
+        if self._branch_taken:
+            self._cond = False
+        else:
+            self._cond = cond
+            if self._cond:
+                self._branch_taken = True
+        return self
+
+    def else_(self):
+        assert self._if_block_state == 'if'
+        self._if_block_state = 'else'
+        if self._branch_taken:
+            self._cond = False
+        else:
+            self._cond = True
+            self._branch_taken = True
+        return self
+
+    def end_if(self):
+        assert self._if_block_state in ('if', 'else')
+        self._if_block_state = None
+        self._cond = None
+        self._branch_taken = False
+        return self
+
+    # setter methods
+
+    def _cond_true(self):
+        return self._if_block_state is None or self._cond
+
+    def ensure(self, predicate):
+        if self._cond_true():
+            if not predicate(self.dict):
+                raise AssertionError
+        return self
+
+    def set(self, key, value):
+        if self._cond_true():
+            self.dict[key] = value
+        return self
+
+    def setdefault(self, key, default):
+        if self._cond_true():
+            self.dict.setdefault(key, default)
+        return self
+
+    def apply(self, key, func):
+        if self._cond_true():
+            func(self.dict[key])
+        return self
+
+    def update(self, key, func):
+        if self._cond_true():
+            self.dict[key] = func(self.dict[key])
+        return self
