@@ -14,6 +14,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--dry-run', action='store_true',
                         help="""do not really launch builders""")
+    parser.add_argument('--version',
+                        help="""set build version""")
     parser.add_argument('rule',
                         help="""set build rule""")
     parser.add_argument('args', nargs=argparse.REMAINDER,
@@ -60,7 +62,10 @@ def main():
     pod_data = get_pod_data(build_data, pod_path, pod_name)
     build_image_rules = get_build_image_rules(pod_data, pod_path)
 
-    version = int(datetime.datetime.now().timestamp())
+    if args.version is not None:
+        version = int(args.version)
+    else:
+        version = int(datetime.datetime.now().timestamp())
 
     # Start the build!
     for build_image_rule in build_image_rules:
