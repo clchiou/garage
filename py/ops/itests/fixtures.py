@@ -107,8 +107,3 @@ class Fixture(unittest.TestCase):
         if remove:
             cmd.append('--remove')
         check_call(cmd, cwd=str(self.root_path))
-
-    def overwrite_volumes(self, target):
-        cmd = ['python3', '-m', 'ops.apps',
-               'overwrite-volumes', '-v', str(target)]
-        check_call(cmd, cwd=str(self.root_path))

@@ -197,7 +197,7 @@ def deploy_install(repo, pod):
             scripting.wget(unit.uri, unit_path, sudo=True)
 
 
-def deploy_create_volumes(repo, pod, *, warn_on_existing_volumes=True):
+def deploy_create_volumes(repo, pod):
     """Create data volumes."""
     LOG.info('%s - create data volumes', pod)
     if not pod.volumes:
@@ -209,8 +209,7 @@ def deploy_create_volumes(repo, pod, *, warn_on_existing_volumes=True):
 
         volume_path = volume_root_path / volume.name
         if volume_path.exists():
-            if warn_on_existing_volumes:
-                LOG.warning('volume exists: %s', volume_path)
+            LOG.warning('volume exists: %s', volume_path)
             continue
 
         scripting.execute(['mkdir', '--parents', volume_path], sudo=True)

@@ -137,12 +137,6 @@ class AppsTest(Fixture):
         self.assertEqual('deployed', self.get_pod_state('test-pod:1002'))
         self.assertEqual('deployed', self.get_pod_state('test-pod:1003'))
 
-    def test_0801_overwrite_volume2_v1003(self):
-        self.assertPod1003Configs()
-        self.overwrite_volumes(self.testdata_path / 'bundle3')
-        self.assertPod1003Configs()
-
-    def test_0802_undeploy_remove(self):
         self.undeploy('test-pod:1003', remove=True)
         self.assertNoPod1003()
         self.assertEqual(
