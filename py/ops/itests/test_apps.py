@@ -38,12 +38,6 @@ class AppsTest(Fixture):
         self.assertEqual('undeployed', self.get_pod_state('test-pod:1002'))
         self.assertEqual('undeployed', self.get_pod_state('test-pod:1003'))
 
-        self.annotate_pod('test-pod:1001', 'key-1', 'value-1')
-        self.assertEqual(
-            'value-1',
-            self.get_pod_annotation('test-pod:1001', 'key-1'),
-        )
-
     def test_0200_deploy_replicated_bundle(self):
         self.assertNoPod1002()
         self.deploy(self.testdata_path / 'bundle2')
@@ -56,11 +50,6 @@ class AppsTest(Fixture):
         self.assertEqual('deployed', self.get_pod_state('test-pod:1001'))
         self.assertEqual('current', self.get_pod_state('test-pod:1002'))
         self.assertEqual('undeployed', self.get_pod_state('test-pod:1003'))
-
-        self.assertEqual(
-            'value-1',
-            self.get_pod_annotation('test-pod:1001', 'key-1'),
-        )
 
     def test_0300_deploy_bundle_with_images_and_volumes(self):
         self.assertNoPod1003()
