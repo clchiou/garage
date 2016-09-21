@@ -2,6 +2,7 @@
 
 __all__ = [
     'register_subcommands',
+    'make_bdist_zipapp',
     'make_copy_files',
     'make_fingerprint_files',
     'make_execute_commands',
@@ -10,12 +11,18 @@ __all__ = [
 import hashlib
 import os
 import os.path
+import stat
+import tempfile
 from subprocess import check_call
 
 from distutils import log
 from distutils.command.build import build
 from distutils.core import Command
-from distutils.errors import DistutilsOptionError
+from distutils.dir_util import ensure_relative
+from distutils.errors import (
+    DistutilsOptionError,
+    DistutilsPlatformError,
+)
 from distutils.file_util import copy_file
 
 
@@ -25,6 +32,93 @@ def register_subcommands(command, *subcommands):
         (subcommand.__name__, None) for subcommand in subcommands
     ]
     return subcommands
+
+
+def make_bdist_zipapp(*, python='/usr/bin/env python3', main=None):
+
+    class bdist_zipapp(Command):
+
+        PYTHON = python
+
+        MAIN = main
+        MAIN_TEMPLATE = (
+            '# -*- coding: utf-8 -*-\n'
+            'import {module}\n'
+            '{module}.{func}()\n'
+        )
+
+        description = "create a zipapp built distribution"
+
+        user_options = [
+            ('python=', None, "python interpreter to use"),
+            ('main=', None, "main function of the zipapp"),
+            ('output=', None, "output zipapp path"),
+        ]
+
+        def initialize_options(self):
+            self.python = self.PYTHON
+            self.main = self.MAIN
+            self.output = None
+
+        def finalize_options(self):
+            if self.python is None:
+                raise DistutilsOptionError('--python is required')
+            if self.main is None:
+                raise DistutilsOptionError('--main is required')
+            if self.output is None:
+                raise DistutilsOptionError('--output is required')
+
+        def run(self):
+            if self.distribution.has_ext_modules():
+                raise DistutilsPlatformError(
+                    'not sure if we could make zipapp with ext module')
+            with tempfile.TemporaryDirectory() as build_dir:
+                self._run(build_dir)
+
+        def _run(self, build_dir):
+            self.run_command('build')
+
+            log.info('installing to %s' % build_dir)
+            install = self.reinitialize_command(
+                'install',
+                reinit_subcommands=1,
+            )
+            install.root = build_dir
+
+            # Install lib and data but ignore headers, scripts, and egg
+            # info at the moment.
+            if self.distribution.has_pure_modules():
+                self.run_command('install_lib')
+            if self.distribution.has_data_files():
+                self.run_command('install_data')
+
+            install_lib = self.distribution.get_command_obj('install_lib')
+            install_dir = install_lib.install_dir
+
+            main_path = os.path.join(install_dir, '__main__.py')
+            module, func = self.main.rsplit(':', maxsplit=1)
+            log.info('generating %s' % main_path)
+            with open(main_path, 'w') as main_file:
+                main_file.write(self.MAIN_TEMPLATE.format(
+                    module=module,
+                    func=func,
+                ))
+
+            log.info('generating %s' % self.output)
+            with open(self.output, 'wb') as output_file:
+                output_file.write(b'#!%s\n' % self.python.encode('utf-8'))
+                output_file.flush() # Make sure `zip` outputs after me.
+                check_call(
+                    ['zip', '-r', '-', '.'],
+                    stdout=output_file,
+                    cwd=install_dir,
+                )
+
+            # chmod a+x
+            mode = os.stat(self.output).st_mode
+            os.chmod(self.output, stat.S_IMODE(mode) | 0o111)
+
+    return bdist_zipapp
 
 
 def _copy_files_base(filenames, src_dir, dst_dir):
