@@ -1,8 +1,7 @@
 __all__ = [
-    'add_arguments',
     'ensure_not_root',
-    'process_arguments',
-    # Scripting helpers.
+    'make_entity_main',
+    # Scripting helpers
     'execute',
     'execute_many',
     'remove_tree',
@@ -10,16 +9,18 @@ __all__ = [
     'tar_extract',
     'tee',
     'wget',
-    # Helper classes.
+    # Helper classes
     'FileLock',
 ]
 
+import argparse
 import errno
 import fcntl
 import getpass
 import logging
 import os
 from functools import partial
+from pathlib import Path
 from subprocess import PIPE, Popen, call, check_call, check_output
 
 
@@ -28,8 +29,7 @@ LOG_FORMAT = '%(asctime)s %(levelname)s %(name)s: %(message)s'
 
 
 DRY_RUN = False
-
-
+LOCK_FILE = 'lock'
 SUDO = 'sudo'
 
 
@@ -38,19 +38,54 @@ def ensure_not_root():
         raise RuntimeError('run by root')
 
 
-def add_arguments(parser):
+def make_entity_main(prog, description, commands):
+    def main(argv):
+        parser = argparse.ArgumentParser(prog=prog, description=description)
+        command_parsers = parser.add_subparsers(help="""commands""")
+        # http://bugs.python.org/issue9253
+        command_parsers.dest = 'command'
+        command_parsers.required = True
+        for command in commands:
+            _add_command_to(command, command_parsers)
+        args = parser.parse_args(argv[1:])
+        _process_arguments(args)
+        if DRY_RUN:
+            return args.command(args)
+        else:
+            with FileLock(Path(args.ops_data) / LOCK_FILE):
+                return args.command(args)
+    return main
+
+
+def _add_command_to(command, command_parsers):
+    name = getattr(command, 'name', command.__name__.replace('_', '-'))
+    coommand_parser = command_parsers.add_parser(
+        name,
+        help=getattr(command, 'help', command.__doc__),
+        description=command.__doc__,
+    )
+    coommand_parser.set_defaults(command=command)
+    _add_arguments_to(coommand_parser)
+    if hasattr(command, 'add_arguments_to'):
+        command.add_arguments_to(coommand_parser)
+
+
+def _add_arguments_to(parser):
     parser.add_argument(
         '-v', '--verbose', action='count', default=0,
         help="""verbose output""")
     parser.add_argument(
         '--dry-run', action='store_true',
-        help="""do not actually run commands""")
+        help="""do not run commands""")
     parser.add_argument(
         '--no-root', action='store_true',
-        help="""do not run commands with root privilege""")
+        help="""run commands without root privilege (mostly for testing)""")
+    parser.add_argument(
+        '--ops-data', metavar='PATH', default='/var/lib/ops',
+        help="""path the data directory (default to %(default)s)""")
 
 
-def process_arguments(_, args):
+def _process_arguments(args):
     if args.verbose > 0:
         level = logging.DEBUG
     else:

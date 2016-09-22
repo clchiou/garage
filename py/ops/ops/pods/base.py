@@ -1,77 +1,68 @@
 """Base set of commands."""
 
 __all__ = [
-    'COMMANDS',
+    'list_pods',
+    'is_deployed',
+    'read_tag',
+    'make_manifest',
 ]
 
 import json
 import sys
 from pathlib import Path
 
-from . import models
+from ops.pods import models
+from ops.pods import repos
 
 
 def list_pods(args):
     """List deployed pods."""
-    # This is read-only; for now we don't acquire lock for it.
-    repo = models.PodRepo(args.config_path, args.data_path)
-    for name in repo.get_pod_names():
-        version = repo.get_current_version_from_name(name)
+    repo = repos.Repo(args.ops_data)
+    for name in repo.get_all_pod_names():
         for pod in repo.iter_pods_from_name(name):
-            print('%s%s' % (pod, ' *' if pod.version == version else ''))
+            print(pod)
     return 0
 
 
-list_pods.add_arguments = models.add_arguments
+list_pods.name = 'list'
+list_pods.help = 'list deployed pods'
 
 
-def get_pod_state(args):
-    """Read pod state from the pod repo."""
-    # This is read-only; for now we don't acquire lock for it.
-    repo = models.PodRepo(args.config_path, args.data_path)
-    print(repo.get_pod_state_from_tag(args.pod_tag).value)
-    return 0
+def is_deployed(args):
+    """Check if pod is deployed."""
+    repo = repos.Repo(args.ops_data)
+    if repo.is_pod_deployed(args.tag):
+        return 0
+    else:
+        return 1
 
 
-get_pod_state.add_arguments = lambda parser: (
-    models.add_arguments(parser),
-    parser.add_argument(
-        'pod_tag', help="""pod tag 'name:version'"""
-    ),
+is_deployed.help = 'check if pod is deployed'
+is_deployed.add_arguments_to = lambda parser: (
+    parser.add_argument('tag', help="""pod tag of the form 'name:version'"""),
 )
 
 
-def get_pod_tag(args):
-    """Read pod tag from a pod file."""
+def read_tag(args):
+    """Read pod tag from pod file."""
     print(models.Pod.load_json(args.pod_file))
     return 0
 
 
-get_pod_tag.add_arguments = lambda parser: (
-    parser.add_argument('pod_file', help="""path to a pod file"""),
+read_tag.help = 'read pod tag from pod file'
+read_tag.add_arguments_to = lambda parser: (
+    parser.add_argument('pod_file', help="""path to pod file"""),
 )
-
-
-def list_ports(args):
-    """List allocated ports."""
-    # This is read-only; for now we don't acquire lock for it.
-    repo = models.PodRepo(args.config_path, args.data_path)
-    for port in repo.get_ports():
-        print('%s:%d %s %d' %
-              (port.pod_name, port.pod_version, port.name, port.port))
-    return 0
-
-
-list_ports.add_arguments = models.add_arguments
 
 
 def make_manifest(args):
     """Generate Appc pod manifest (mostly for testing)."""
 
-    # This is read-only; for now we don't acquire lock for it.
-
-    repo = models.PodRepo(args.config_path, args.data_path)
-    pod = repo.find_pod(args.pod)
+    repo = repos.Repo(args.ops_data)
+    if Path(args.pod).exists():
+        pod = models.Pod.load_json(args.pod)
+    else:
+        pod = repo.get_pod_from_tag(args.pod)
 
     volume_paths = {}
     for volume_pair in args.volume or ():
@@ -114,8 +105,8 @@ def make_manifest(args):
             output.close()
 
 
-make_manifest.add_arguments = lambda parser: (
-    models.add_arguments(parser),
+make_manifest.help = 'generate appc pod manifest'
+make_manifest.add_arguments_to = lambda parser: (
     parser.add_argument(
         '--volume', action='append',
         help="""set volume of format: volume=/path/of/volume"""),
@@ -125,18 +116,6 @@ make_manifest.add_arguments = lambda parser: (
     parser.add_argument(
         '--output', help="""set output path (default to stdout)"""),
     parser.add_argument(
-        'pod', help="""either a pod file or a pod tag 'name:version'"""
+        'pod', help="""either pod file or a 'name:version' tag"""
     ),
 )
-
-
-COMMANDS = [
-    # Enumerate things
-    list_pods,
-    list_ports,
-    # Read pod info
-    get_pod_state,
-    get_pod_tag,
-    # Pod manifest
-    make_manifest,
-]

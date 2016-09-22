@@ -6,7 +6,7 @@ from .fixtures import Fixture
 
 
 @Fixture.inside_container
-class AppsPortsTest(Fixture):
+class PodsPortsTest(Fixture):
 
     @classmethod
     def setUpClass(cls):
@@ -30,13 +30,8 @@ class AppsPortsTest(Fixture):
         self.assertEqual([], self.list_ports())
 
     def test_0001_deploy_v1001(self):
-        self.deploy(self.testdata_path / 'test_apps_ports/1001.json')
-        self.assertEqual(
-            [
-                'test-ports-pod:1001 *',
-            ],
-            self.list_pods(),
-        )
+        self.deploy(self.testdata_path / 'test_pods_ports/1001.json')
+        self.assertEqual(['test-ports-pod:1001'], self.list_pods())
         self.assertEqual(
             [
                 'test-ports-pod:1001 http 8000',
@@ -47,15 +42,9 @@ class AppsPortsTest(Fixture):
             self.list_ports(),
         )
 
-    def test_0002_undeploy_v1001(self):
-        self.undeploy(self.testdata_path / 'test_apps_ports/1001.json',
-                      remove=False)
-        self.assertEqual(
-            [
-                'test-ports-pod:1001',
-            ],
-            self.list_pods(),
-        )
+    def test_0002_stop_v1001(self):
+        self.stop('test-ports-pod:1001')
+        self.assertEqual(['test-ports-pod:1001'], self.list_pods())
         self.assertEqual(
             [
                 'test-ports-pod:1001 http 8000',
@@ -66,14 +55,9 @@ class AppsPortsTest(Fixture):
             self.list_ports(),
         )
 
-    def test_0003_redeploy_v1001(self):
-        self.deploy('test-ports-pod:1001')
-        self.assertEqual(
-            [
-                'test-ports-pod:1001 *',
-            ],
-            self.list_pods(),
-        )
+    def test_0003_restart_v1001(self):
+        self.start('test-ports-pod:1001')
+        self.assertEqual(['test-ports-pod:1001'], self.list_pods())
         self.assertEqual(
             [
                 'test-ports-pod:1001 http 8000',
@@ -85,11 +69,11 @@ class AppsPortsTest(Fixture):
         )
 
     def test_0004_deploy_v1002(self):
-        self.deploy(self.testdata_path / 'test_apps_ports/1002.json')
+        self.deploy(self.testdata_path / 'test_pods_ports/1002.json')
         self.assertEqual(
             [
                 'test-ports-pod:1001',
-                'test-ports-pod:1002 *',
+                'test-ports-pod:1002',
             ],
             self.list_pods(),
         )
@@ -107,15 +91,10 @@ class AppsPortsTest(Fixture):
             self.list_ports(),
         )
 
-    def test_0005_undeploy_remove_v1001(self):
-        self.undeploy(self.testdata_path / 'test_apps_ports/1001.json',
-                      remove=True)
-        self.assertEqual(
-            [
-                'test-ports-pod:1002 *',
-            ],
-            self.list_pods(),
-        )
+    def test_0005_undeploy_v1001(self):
+        self.stop('test-ports-pod:1001')
+        self.undeploy('test-ports-pod:1001')
+        self.assertEqual(['test-ports-pod:1002'], self.list_pods())
         self.assertEqual(
             [
                 'test-ports-pod:1002 http 8000',
@@ -126,11 +105,11 @@ class AppsPortsTest(Fixture):
             self.list_ports(),
         )
 
-    def test_0006_deploy_v1001(self):
-        self.deploy(self.testdata_path / 'test_apps_ports/1001.json')
+    def test_0006_redeploy_v1001(self):
+        self.deploy(self.testdata_path / 'test_pods_ports/1001.json')
         self.assertEqual(
             [
-                'test-ports-pod:1001 *',
+                'test-ports-pod:1001',
                 'test-ports-pod:1002',
             ],
             self.list_pods(),
@@ -149,9 +128,11 @@ class AppsPortsTest(Fixture):
             self.list_ports(),
         )
 
-    def test_0007_undeploy_remove_all(self):
-        self.undeploy('test-ports-pod:1001', remove=True)
-        self.undeploy('test-ports-pod:1002', remove=True)
+    def test_0007_undeploy_all(self):
+        self.stop('test-ports-pod:1001')
+        self.undeploy('test-ports-pod:1001')
+        self.stop('test-ports-pod:1002')
+        self.undeploy('test-ports-pod:1002')
         self.assertEqual([], self.list_pods())
         self.assertEqual([], self.list_ports())
 

@@ -7,7 +7,7 @@ __all__ = [
 import getpass
 import unittest
 from pathlib import Path
-from subprocess import check_call, check_output
+from subprocess import call, check_call, check_output
 
 
 class Fixture(unittest.TestCase):
@@ -60,26 +60,23 @@ class Fixture(unittest.TestCase):
     def assertEqualContents(self, expect, actual):
         self.assertEqual(Path(expect).read_text(), Path(actual).read_text())
 
-    # ops.apps commands and other helpers.
+    # `ops pods` commands and other helpers.
 
     def list_pods(self):
         output = check_output(
-            ['python3', '-m', 'ops.apps', 'list-pods', '-v'],
+            ['python3', '-m', 'ops', 'pods', 'list', '-v'],
             cwd=str(self.root_path),
         )
         output = output.decode('ascii').split('\n')
         return list(filter(None, map(str.strip, output)))
 
-    def get_pod_state(self, pod_name):
-        output = check_output(
-            ['python3', '-m', 'ops.apps', 'get-pod-state', pod_name],
-            cwd=str(self.root_path),
-        )
-        return output.decode('ascii').strip()
+    def is_deployed(self, pod_name):
+        cmd = ['python3', '-m', 'ops', 'pods', 'is-deployed', '-v', pod_name]
+        return call(cmd, cwd=str(self.root_path)) == 0
 
     def list_ports(self):
         output = check_output(
-            ['python3', '-m', 'ops.apps', 'list-ports', '-v'],
+            ['python3', '-m', 'ops', 'ports', 'list', '-v'],
             cwd=str(self.root_path),
         )
         output = output.decode('ascii').split('\n')
@@ -98,12 +95,18 @@ class Fixture(unittest.TestCase):
                 return True
         return False
 
-    def deploy(self, target):
-        cmd = ['python3', '-m', 'ops.apps', 'deploy', '-v', str(target)]
+    def deploy(self, pod_file):
+        cmd = ['python3', '-m', 'ops', 'pods', 'deploy', '-v', str(pod_file)]
         check_call(cmd, cwd=str(self.root_path))
 
-    def undeploy(self, target, *, remove):
-        cmd = ['python3', '-m', 'ops.apps', 'undeploy', '-v', str(target)]
-        if remove:
-            cmd.append('--remove')
+    def start(self, tag):
+        cmd = ['python3', '-m', 'ops', 'pods', 'start', '-v', tag]
+        check_call(cmd, cwd=str(self.root_path))
+
+    def stop(self, tag):
+        cmd = ['python3', '-m', 'ops', 'pods', 'stop', '-v', tag]
+        check_call(cmd, cwd=str(self.root_path))
+
+    def undeploy(self, pod_file):
+        cmd = ['python3', '-m', 'ops', 'pods', 'undeploy', '-v', str(pod_file)]
         check_call(cmd, cwd=str(self.root_path))

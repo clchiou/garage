@@ -16,7 +16,7 @@ main() {
 
   set -o xtrace
 
-  # Make sure test_pkgs is the first so that all runtime dependencies
+  # Make sure test_deps is the first so that all runtime dependencies
   # are installed before the rest of the tests are executed.
   docker run \
     --name "${NAME}" \
@@ -24,10 +24,10 @@ main() {
     --workdir "/home/plumber/ops" \
     "${1}" \
     python3 -m unittest --verbose --failfast \
-    itests.test_pkgs \
-    itests.test_apps \
-    itests.test_apps_http \
-    itests.test_apps_ports \
+    itests.test_deps \
+    itests.test_pods \
+    itests.test_pods_http \
+    itests.test_pods_ports \
 
   # Removes the container only when success so that you may examine the
   # contents when fail.

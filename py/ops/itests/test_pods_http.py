@@ -6,7 +6,7 @@ from .fixtures import Fixture
 
 
 @Fixture.inside_container
-class AppsHttpTest(Fixture):
+class PodsHttpTest(Fixture):
 
     @classmethod
     def setUpClass(cls):
@@ -30,8 +30,8 @@ class AppsHttpTest(Fixture):
 
     def test_0001_deploy_pod(self):
         dir_paths = [
-            '/etc/ops/apps/pods/test-http-pod/1001',
-            '/var/lib/ops/apps/volumes/test-http-pod/1001/volume-1',
+            '/var/lib/ops/v1/pods/test-http-pod/1001',
+            '/var/lib/ops/v1/pods/test-http-pod/1001/volumes/volume-1',
         ]
         services = [
             '/etc/systemd/system/test-http-pod-volume-1001.service',
@@ -44,6 +44,7 @@ class AppsHttpTest(Fixture):
             self.assertNotDir(dir_path)
 
         self.deploy(self.testdata_path / 'bundle4')
+        self.start('test-http-pod:1001')
 
         for service in services:
             self.assertFile(service)
@@ -57,7 +58,8 @@ class AppsHttpTest(Fixture):
         )
 
     def test_0002_undeploy_pod(self):
-        self.undeploy(self.testdata_path / 'bundle4', remove=True)
+        self.stop('test-http-pod:1001')
+        self.undeploy('test-http-pod:1001')
         self.assertEqual([], self.list_pods())
 
 

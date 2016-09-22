@@ -1,74 +1,26 @@
 """Deployment commands."""
 
 __all__ = [
-    'COMMANDS',
+    'deploy',
+    'start',
+    'stop',
+    'undeploy',
+    'cleanup',
 ]
 
 import json
 import logging
-import os.path
 import urllib.parse
 from contextlib import ExitStack
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from ops import scripting
-from . import models
+from ops.pods import models
+from ops.pods import repos
 
 
 LOG = logging.getLogger(__name__)
-
-
-@models.require_repo_lock
-def deploy(args, repo):
-    """Deploy a pod."""
-    with ExitStack() as rollback:
-        return _deploy(args, repo, rollback)
-
-
-def _deploy(args, repo, rollback):
-
-    pod = repo.find_pod(args.pod)
-    LOG.info('%s - deploy', pod)
-
-    pod_state = repo.get_pod_state(pod)
-    if pod_state is pod.State.CURRENT:
-        LOG.info('%s - pod is current', pod)
-        return 0
-    elif pod_state is pod.State.DEPLOYED:
-        pass
-    else:
-        assert pod_state is pod.State.UNDEPLOYED  # Sanity check.
-        rollback.callback(undeploy_remove, repo, pod)
-        deploy_fetch(pod)
-        deploy_install(repo, pod)
-        deploy_create_volumes(repo, pod)
-
-    # There should be only one active version of this pod.
-    # Note that:
-    #
-    #   * We do this right before start to reduce the service down time.
-    #
-    #   * We do not remove them so that you may redeploy quickly if this
-    #     version fails.  The downside is, you will have to clean up the
-    #     non-active versions periodically.
-    #
-    current = repo.get_current_pod(pod)
-    if current is not None:
-        # Don't add rollback for these two operations; we don't want to
-        # automatically revert to the previous deployment on failure, at
-        # least not for now.
-        undeploy_disable(repo, current)
-        undeploy_stop(current)
-
-    rollback.callback(undeploy_disable, repo, pod)
-    deploy_enable(repo, pod)
-
-    rollback.callback(undeploy_stop, pod)
-    deploy_start(pod)
-
-    rollback.pop_all()  # Clear rollback stack on success.
-    return 0
 
 
 # Note that
@@ -76,6 +28,9 @@ def _deploy(args, repo, rollback):
 # and
 #   undeploy_remove
 # are inverse operations to each other.
+
+
+### Deploy
 
 
 def deploy_fetch(pod):
@@ -128,25 +83,19 @@ def match_image_id(target_id, image_ids):
 
 
 def deploy_install(repo, pod):
-    """Install config files so that you may later redeploy from here."""
-    LOG.info('%s - install configs', pod)
+    """Install config files."""
+    LOG.info('%s - install', pod)
 
-    bundle_path = pod.path.parent
-    config_path = repo.get_config_path(pod)
-    if config_path.exists():
-        if config_path.samefile(bundle_path):
-            # If you are here, it means that you are deploying from
-            # installed config files, and you don't need to reinstall
-            # them again.
-            return
-        raise RuntimeError('attempt to overwrite dir: %s' % config_path)
-    scripting.execute(['mkdir', '--parents', config_path], sudo=True)
+    pod_dir = repo.get_pod_dir(pod)
+    if pod_dir.exists():
+        raise RuntimeError('attempt to overwrite dir: %s' % pod_dir)
+    scripting.execute(['mkdir', '--parents', pod_dir], sudo=True)
 
     # Install pod.json.
-    scripting.execute(['cp', pod.path, config_path / pod.POD_JSON], sudo=True)
+    scripting.execute(['cp', pod.path, pod_dir / pod.POD_JSON], sudo=True)
 
     # Deployment-time volume allocation.
-    volume_root_path = repo.get_volume_path(pod)
+    volume_root_path = pod_dir / pod.VOLUMES_DIR
     get_volume_path = lambda volume: volume_root_path / volume.name
 
     # Deployment-time port allocation.
@@ -164,7 +113,7 @@ def deploy_install(repo, pod):
 
     # Generate Appc pod manifest.
     scripting.tee(
-        config_path / pod.POD_MANIFEST_JSON,
+        pod_dir / pod.POD_MANIFEST_JSON,
         lambda output: (
             output.write(
                 json.dumps(
@@ -183,13 +132,12 @@ def deploy_install(repo, pod):
     )
 
     # Install systemd unit files.
-    units_dir = config_path / pod.UNITS_DIR
+    units_dir = pod_dir / pod.UNITS_DIR
     scripting.execute(['mkdir', '--parents', units_dir], sudo=True)
     for unit in pod.systemd_units:
         unit_path = units_dir / unit.name
         if unit_path.exists():
-            LOG.warning('unit exists: %s', unit_path)
-            continue
+            raise RuntimeError('unit exists: %s' % unit_path)
         if unit.path:
             scripting.execute(['cp', unit.path, unit_path], sudo=True)
         else:
@@ -203,14 +151,14 @@ def deploy_create_volumes(repo, pod):
     if not pod.volumes:
         return
 
-    volume_root_path = repo.get_volume_path(pod)
+    volume_root_path = repo.get_pod_dir(pod) / pod.VOLUMES_DIR
+    scripting.execute(['mkdir', '--parents', volume_root_path], sudo=True)
 
     for volume in pod.volumes:
 
         volume_path = volume_root_path / volume.name
         if volume_path.exists():
-            LOG.warning('volume exists: %s', volume_path)
-            continue
+            raise RuntimeError('volume exists: %s' % volume_path)
 
         scripting.execute(['mkdir', '--parents', volume_path], sudo=True)
         cmd = [
@@ -246,35 +194,17 @@ def deploy_enable(repo, pod):
     """
     LOG.info('%s - enable pod', pod)
 
-    # Check if there is a pod currently enabled.
-    current_path = repo.get_current_path(pod)
-    if current_path.exists():
-        raise RuntimeError('attempt to overwrite: %s' % current_path)
-
     # Enable systemd units.
-    config_path = repo.get_config_path(pod)
+    pod_dir = repo.get_pod_dir(pod)
     for unit in pod.systemd_units:
         # Don't use `systemctl link` because it usually doesn't behave
         # as you expected :(
-        unit_path = config_path / pod.UNITS_DIR / unit.name
+        unit_path = pod_dir / pod.UNITS_DIR / unit.name
         scripting.execute(['cp', unit_path, unit.unit_path], sudo=True)
         systemd_make_rkt_dropin(repo, pod, unit)
         for name in unit.unit_names:
             scripting.systemctl.enable(name)
             scripting.systemctl.is_enabled(name)
-
-    # Mark this pod as the current one.
-    scripting.execute(['mkdir', '--parents', current_path.parent], sudo=True)
-    cmd = [
-        'ln', '--symbolic',
-        # Unfortunately Path.relative_to doesn't work in this case.
-        os.path.relpath(
-            str(repo.get_config_path(pod)),
-            str(current_path.parent),
-        ),
-        current_path,
-    ]
-    scripting.execute(cmd, sudo=True)
 
 
 def systemd_make_rkt_dropin(repo, pod, unit):
@@ -287,11 +217,11 @@ def systemd_make_rkt_dropin(repo, pod, unit):
 
 
 def _write_pod_manifest_dropin(repo, pod, output):
-    config_path = repo.get_config_path(pod)
+    pod_dir = repo.get_pod_dir(pod)
     output.write(
         ('[Service]\n'
          'Environment="POD_MANIFEST={pod_manifest}"\n')
-        .format(pod_manifest=str(config_path / pod.POD_MANIFEST_JSON))
+        .format(pod_manifest=str(pod_dir / pod.POD_MANIFEST_JSON))
         .encode('ascii')
     )
 
@@ -305,19 +235,10 @@ def deploy_start(pod):
                 scripting.systemctl.is_active(name)
 
 
-@models.require_repo_lock
-def undeploy(args, repo):
-    """Undeploy a pod."""
-    pod = repo.find_pod(args.pod)
-    LOG.info('%s - undeploy', pod)
-    undeploy_stop(pod)
-    undeploy_disable(repo, pod)
-    if args.remove:
-        undeploy_remove(repo, pod)
-    return 0
+### Undeploy
 
 
-def undeploy_disable(repo, pod):
+def undeploy_disable(pod):
     LOG.info('%s - disable pod', pod)
 
     for unit in pod.systemd_units:
@@ -339,10 +260,6 @@ def undeploy_disable(repo, pod):
         scripting.remove_tree(unit.unit_path)
         scripting.remove_tree(unit.dropin_path)
 
-    # Unmark this pod as the current one.
-    if repo.get_current_version(pod) == pod.version:
-        scripting.remove_tree(repo.get_current_path(pod))
-
 
 def undeploy_stop(pod):
     LOG.info('%s - stop pod', pod)
@@ -356,7 +273,7 @@ def undeploy_stop(pod):
 
 
 def undeploy_remove(repo, pod):
-    LOG.info('%s - remove configs and images', pod)
+    LOG.info('%s - remove pod', pod)
 
     # Undo deploy_fetch.
     for image in pod.images:
@@ -366,62 +283,126 @@ def undeploy_remove(repo, pod):
             LOG.warning('cannot safely remove image: %s (rc=%d)',
                         image.id, retcode)
 
-    # Undo deploy_install.
-    scripting.remove_tree(repo.get_config_path(pod))
+    # Undo deploy_install and deploy_create_volumes.
+    scripting.remove_tree(repo.get_pod_dir(pod))
 
-    # Undo deploy_create_volumes.
-    scripting.remove_tree(repo.get_volume_path(pod))
+    pod_parent_dir = repo.get_pod_parent_dir(pod)
+    try:
+        next(pod_parent_dir.iterdir())
+    except StopIteration:
+        scripting.execute(['rmdir', pod_parent_dir], sudo=True)
 
 
-@models.require_repo_lock
+### Commands
+
+
+def deploy(args):
+    """Deploy a pod from a bundle."""
+    repo = repos.Repo(args.ops_data)
+    pod = models.Pod.load_json(args.pod_file)
+    if repo.is_pod_deployed(pod):
+        LOG.info('%s - pod has been deployed', pod)
+        return 0
+    LOG.info('%s - deploy', pod)
+    try:
+        deploy_fetch(pod)
+        deploy_install(repo, pod)
+        deploy_create_volumes(repo, pod)
+    except Exception:
+        undeploy_remove(repo, pod)
+        raise
+    return 0
+
+
+deploy.help = 'deploy pod'
+deploy.add_arguments_to = lambda parser: (
+    parser.add_argument('pod_file', help="""path to pod file"""),
+)
+
+
+def start(args):
+    repo = repos.Repo(args.ops_data)
+    if not repo.is_pod_deployed(args.tag):
+        LOG.error('%s - pod is not deployed', args.tag)
+        return 1
+    pod = repo.get_pod_from_tag(args.tag)
+    LOG.info('%s - start', pod)
+    try:
+        deploy_enable(repo, pod)
+        deploy_start(pod)
+    except Exception:
+        undeploy_stop(pod)
+        undeploy_disable(pod)
+        raise
+    return 0
+
+
+start.help = 'start pod'
+start.add_arguments_to = lambda parser: (
+    parser.add_argument('tag', help="""pod tag of the form 'name:version'"""),
+)
+
+
+def stop(args):
+    """Stop a deployed pod."""
+    repo = repos.Repo(args.ops_data)
+    if not repo.is_pod_deployed(args.tag):
+        LOG.warning('%s - pod is not deployed', args.tag)
+        return 0
+    pod = repo.get_pod_from_tag(args.tag)
+    LOG.info('%s - stop', pod)
+    undeploy_stop(pod)
+    undeploy_disable(pod)
+    return 0
+
+
+stop.help = 'stop pod'
+stop.add_arguments_to = lambda parser: (
+    parser.add_argument('tag', help="""pod tag of the form 'name:version'"""),
+)
+
+
+def undeploy(args):
+    """Undeploy a deployed pod."""
+    repo = repos.Repo(args.ops_data)
+    if not repo.is_pod_deployed(args.tag):
+        LOG.warning('%s - pod is not deployed', args.tag)
+        return 0
+    pod = repo.get_pod_from_tag(args.tag)
+    LOG.info('%s - undeploy', pod)
+    undeploy_stop(pod)
+    undeploy_disable(pod)
+    undeploy_remove(repo, pod)
+    return 0
+
+
+undeploy.help = 'undeploy pod'
+undeploy.add_arguments_to = lambda parser: (
+    parser.add_argument('tag', help="""pod tag of the form 'name:version'"""),
+)
+
+
 def cleanup(args, repo):
-    """Clean up pods that are not currently deployed."""
-    for pod_name in repo.get_pod_names():
+    """Clean up deployed pods."""
+    repo = repos.Repo(args.ops_data)
+    for pod_name in repo.get_all_pod_names():
         LOG.info('%s - cleanup', pod_name)
-        version = repo.get_current_version_from_name(pod_name)
         pods = list(repo.iter_pods_from_name(pod_name))
         num_removed = len(pods) - args.keep
         for pod in pods:
-            if pod.version == version:
-                continue  # Don't clean up the currently deployed one.
             if num_removed <= 0:
                 break
-            undeploy_disable(repo, pod)
             undeploy_stop(pod)
+            undeploy_disable(pod)
             undeploy_remove(repo, pod)
             num_removed -= 1
     return 0
 
 
-def add_arguments(parser):
-    models.add_arguments(parser)
+cleanup.help = 'clean up pods'
+cleanup.add_arguments_to = lambda parser: (
     parser.add_argument(
-        'pod', help="""either a pod file or a pod tag 'name:version'""")
-
-
-deploy.add_arguments = add_arguments
-
-
-undeploy.add_arguments = lambda parser: (
-    add_arguments(parser),
-    parser.add_argument(
-        '--remove', action='store_true',
-        help="""remove pod data"""
+        '--keep', type=int, default=7,
+        help="""keep latest number of versions (default to %(default)s)"""
     ),
 )
-
-
-cleanup.add_arguments = lambda parser: (
-    models.add_arguments(parser),
-    parser.add_argument(
-        '--keep', type=int, default=1,
-        help="""keep latest N versions (default to %(default)s)"""
-    ),
-)
-
-
-COMMANDS = [
-    deploy,
-    undeploy,
-    cleanup,
-]
