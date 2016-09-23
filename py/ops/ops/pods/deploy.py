@@ -229,10 +229,9 @@ def _write_pod_manifest_dropin(repo, pod, output):
 def deploy_start(pod):
     LOG.info('%s - start pod', pod)
     for unit in pod.systemd_units:
-        if unit.start:
-            for name in unit.unit_names:
-                scripting.systemctl.start(name)
-                scripting.systemctl.is_active(name)
+        for name in unit.unit_names:
+            scripting.systemctl.start(name)
+            scripting.systemctl.is_active(name)
 
 
 ### Undeploy
@@ -264,12 +263,11 @@ def undeploy_disable(pod):
 def undeploy_stop(pod):
     LOG.info('%s - stop pod', pod)
     for unit in pod.systemd_units:
-        if unit.start:
-            for name in unit.unit_names:
-                if scripting.systemctl.is_active(name, check=False) == 0:
-                    scripting.systemctl.stop(name)
-                else:
-                    LOG.warning('unit is not active: %s', name)
+        for name in unit.unit_names:
+            if scripting.systemctl.is_active(name, check=False) == 0:
+                scripting.systemctl.stop(name)
+            else:
+                LOG.warning('unit is not active: %s', name)
 
 
 def undeploy_remove(repo, pod):

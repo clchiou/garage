@@ -44,10 +44,8 @@ Pod = partial(
 SystemdUnit = partial(
     namedtuple('SystemdUnit', [
         'unit_file',
-        'start',
         'instances',
     ]),
-    start=False,
     instances=None,
 )
 
@@ -205,7 +203,6 @@ def _build_pod(parameters, *, pod_label):
         'systemd-units': [
             (build_dict()
              .set('unit-file', to_path(unit.unit_file).name)
-             .if_(unit.start).set('start', True).end_if()
              .if_(unit.instances).set('instances', unit.instances).end_if()
              .dict)
             for unit in pod.systemd_units

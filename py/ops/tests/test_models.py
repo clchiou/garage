@@ -48,7 +48,6 @@ class ModelsTest(unittest.TestCase):
                 },
                 {
                     'unit-file': 'sample.timer',
-                    'start': True,
                 },
                 {
                     'unit-file': 'example.service',
@@ -74,7 +73,6 @@ class ModelsTest(unittest.TestCase):
             dict(
                 path=Path(__file__).parent / 'example.service',
                 name='xy-example-1001.service',
-                start=False,
                 instances=(),
                 unit_path=Path('/etc/systemd/system/xy-example-1001.service'),
                 dropin_path=Path(
@@ -86,7 +84,6 @@ class ModelsTest(unittest.TestCase):
             dict(
                 path=Path(__file__).parent / 'sample.timer',
                 name='xy-sample-1001.timer',
-                start=True,
                 instances=(),
             ),
             pod.systemd_units[1],

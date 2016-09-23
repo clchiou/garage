@@ -40,9 +40,6 @@ numbers).
                 # an URI.
                 "unit-file": "path/to/unit-file",
 
-                # Optional, default to false.
-                "start": true,
-
                 # Optional: Instances of a templated unit, which could
                 # be either as an array or as the number of instances.
                 "instances": [8080, 8081, 8082],

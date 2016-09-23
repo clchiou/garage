@@ -130,7 +130,6 @@ class SystemdUnit:
 
     PROP_NAMES = frozenset((
         'unit-file',
-        'start',
         'instances',
     ))
 
@@ -154,8 +153,6 @@ class SystemdUnit:
         else:
             self.path = pod.path.parent / unit_file
             self.uri = None
-
-        self.start = unit_data.get('start', False)
 
         if self.uri:
             path = Path(urllib.parse.urlparse(self.uri).path)
