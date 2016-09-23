@@ -27,4 +27,5 @@ main = scripting.make_entity_main(
     commands=[
         list_ports,
     ],
+    use_ops_data=True,
 )

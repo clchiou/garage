@@ -127,4 +127,5 @@ main = scripting.make_entity_main(
     commands=[
         install,
     ],
+    use_ops_data=False,
 )

@@ -14,12 +14,11 @@ main = scripting.make_entity_main(
     commands=[
         base.list_pods,
         base.is_deployed,
-        base.read_tag,
-        base.make_manifest,
         deploy.deploy,
         deploy.start,
         deploy.stop,
         deploy.undeploy,
         deploy.cleanup,
     ],
+    use_ops_data=True,
 )

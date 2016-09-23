@@ -8,6 +8,7 @@ from ops import (
     deps,
     pods,
     ports,
+    utils,
     scripting,
 )
 
@@ -37,6 +38,10 @@ def main():
     (entity_parsers
      .add_parser('ports', help="""network ports""")
      .set_defaults(entity=ports.main)
+    )
+    (entity_parsers
+     .add_parser('utils', help="""non-locking utilities""")
+     .set_defaults(entity=utils.main)
     )
 
     args = parser.parse_args(sys.argv[1:2])

@@ -38,7 +38,7 @@ def ensure_not_root():
         raise RuntimeError('run by root')
 
 
-def make_entity_main(prog, description, commands):
+def make_entity_main(prog, description, commands, use_ops_data):
     def main(argv):
         parser = argparse.ArgumentParser(prog=prog, description=description)
         command_parsers = parser.add_subparsers(help="""commands""")
@@ -46,10 +46,10 @@ def make_entity_main(prog, description, commands):
         command_parsers.dest = 'command'
         command_parsers.required = True
         for command in commands:
-            _add_command_to(command, command_parsers)
+            _add_command_to(command, command_parsers, use_ops_data)
         args = parser.parse_args(argv[1:])
         _process_arguments(args)
-        if DRY_RUN:
+        if DRY_RUN or not use_ops_data:
             return args.command(args)
         else:
             with FileLock(Path(args.ops_data) / LOCK_FILE):
@@ -57,7 +57,7 @@ def make_entity_main(prog, description, commands):
     return main
 
 
-def _add_command_to(command, command_parsers):
+def _add_command_to(command, command_parsers, use_ops_data):
     name = getattr(command, 'name', command.__name__.replace('_', '-'))
     coommand_parser = command_parsers.add_parser(
         name,
@@ -65,12 +65,12 @@ def _add_command_to(command, command_parsers):
         description=command.__doc__,
     )
     coommand_parser.set_defaults(command=command)
-    _add_arguments_to(coommand_parser)
+    _add_arguments_to(coommand_parser, use_ops_data)
     if hasattr(command, 'add_arguments_to'):
         command.add_arguments_to(coommand_parser)
 
 
-def _add_arguments_to(parser):
+def _add_arguments_to(parser, use_ops_data):
     parser.add_argument(
         '-v', '--verbose', action='count', default=0,
         help="""verbose output""")
@@ -80,9 +80,10 @@ def _add_arguments_to(parser):
     parser.add_argument(
         '--no-root', action='store_true',
         help="""run commands without root privilege (mostly for testing)""")
-    parser.add_argument(
-        '--ops-data', metavar='PATH', default='/var/lib/ops',
-        help="""path the data directory (default to %(default)s)""")
+    if use_ops_data:
+        parser.add_argument(
+            '--ops-data', metavar='PATH', default='/var/lib/ops',
+            help="""path the data directory (default to %(default)s)""")
 
 
 def _process_arguments(args):
