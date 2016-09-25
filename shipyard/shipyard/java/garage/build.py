@@ -14,7 +14,7 @@ def make_manifest(parameters, manifest):
 
 
 pod.define_image(pod.Image(
-    name='garage',
+    label_name='garage',
     make_manifest=make_manifest,
     depends=[
         '//base:tapeout',

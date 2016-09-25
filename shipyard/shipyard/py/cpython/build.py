@@ -170,7 +170,7 @@ def install_cython(parameters):
 
 
 pod.define_image(pod.Image(
-    name='cpython',
+    label_name='cpython',
     make_manifest=py.make_manifest,
     depends=['tapeout'],
 ))

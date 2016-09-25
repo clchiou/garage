@@ -24,7 +24,7 @@ def _make_image_manifest(parameters, manifest):
 
 
 pod.define_image(pod.Image(
-    name='httpd',
+    label_name='httpd',
     make_manifest=_make_image_manifest,
     depends=[
         '//base:tapeout',
@@ -44,7 +44,7 @@ def build_data(parameters):
 
 
 pod.define_pod(pod.Pod(
-    name='httpd',
+    label_name='httpd',
     systemd_units=[
         pod.SystemdUnit(unit_file='httpd.service'),
     ],

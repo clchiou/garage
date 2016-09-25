@@ -40,7 +40,7 @@ def make_image_manifest(_, manifest):
 
 
 pod.define_image(pod.Image(
-    name='nghttpx',
+    label_name='nghttpx',
     make_manifest=make_image_manifest,
     depends=[
         'tapeout',

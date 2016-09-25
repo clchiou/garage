@@ -39,7 +39,7 @@ def _make_image_manifest(parameters, manifest):
 
 
 pod.define_image(pod.Image(
-    name='echod',
+    label_name='echod',
     make_manifest=_make_image_manifest,
     depends=[
         'tapeout',
@@ -50,7 +50,7 @@ pod.define_image(pod.Image(
 
 
 pod.define_pod(pod.Pod(
-    name='echod',
+    label_name='echod',
     systemd_units=[
         pod.SystemdUnit(unit_file='echod.service'),
     ],

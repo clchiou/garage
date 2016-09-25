@@ -24,7 +24,8 @@ from shipyard import (
 
 Pod = partial(
     namedtuple('Pod', [
-        'name',
+        'label_name',
+        'pod_name',  # Default to label_name.
         'systemd_units',
         'make_manifest',
         'apps',
@@ -32,6 +33,7 @@ Pod = partial(
         'depends',  # Dependencies for the build-pod rule.
         'files',
     ]),
+    pod_name=None,
     systemd_units=(),
     make_manifest=None,
     apps=(),
@@ -66,10 +68,12 @@ App = partial(
 
 Image = partial(
     namedtuple('Image', [
-        'name',
+        'label_name',
+        'image_name',  # Default to label_name.
         'make_manifest',
         'depends',  # Dependencies for the build-image rule.
     ]),
+    image_name=None,
     make_manifest=None,
     depends=(),
 )
@@ -94,7 +98,7 @@ Volume = partial(
 def define_image(image):
     """Generate image/IMAGE parameter and build-image/IMAGE rule."""
 
-    image_label = 'image/%s' % image.name
+    image_label = 'image/%s' % image.label_name
     (
         define_parameter(image_label)
         .with_default(image)
@@ -102,7 +106,7 @@ def define_image(image):
     )
 
     rule = (
-        define_rule('build-image/%s' % image.name)
+        define_rule('build-image/%s' % image.label_name)
         .with_build(partial(_build_image, image_label=image_label))
         .depend('//base:tapeout')
     )
@@ -118,7 +122,7 @@ def _build_image(parameters, *, image_label):
     )
     build_appc_image(
         parameters['//base:image'],
-        parameters['//base:output'] / image.name,
+        parameters['//base:output'] / image.label_name,
     )
 
 
@@ -136,7 +140,7 @@ def _make_image_manifest(parameters, image):
                 'value': 'amd64',
             },
         ],
-        'name': image.name,
+        'name': image.image_name or image.label_name,
     }
     if image.make_manifest:
         manifest = image.make_manifest(parameters, manifest)
@@ -146,13 +150,13 @@ def _make_image_manifest(parameters, image):
 def define_pod(pod):
     """Generate pod/POD parameter and build-pod/POD rules."""
 
-    define_parameter('version/%s' % pod.name).with_type(int)
+    define_parameter('version/%s' % pod.label_name).with_type(int)
 
-    pod_label = 'pod/%s' % pod.name
+    pod_label = 'pod/%s' % pod.label_name
     define_parameter(pod_label).with_default(pod).with_encode(_encode_pod)
 
     rule = (
-        define_rule('build-pod/%s' % pod.name)
+        define_rule('build-pod/%s' % pod.label_name)
         .with_build(partial(_build_pod, pod_label=pod_label))
     )
     for depend in pod.depends:
@@ -189,17 +193,17 @@ def _build_pod(parameters, *, pod_label):
         for app in pod.apps
     }
 
-    # Construct a list of unique `(id, name)` pairs.
+    # Construct a list of unique `(id, label_name)` pairs.
     unique_images = set(
-        (image_ids[app.image_label], parameters[app.image_label].name)
+        (image_ids[app.image_label], parameters[app.image_label].label_name)
         for app in pod.apps
     )
     unique_images = sorted(unique_images)
 
     # Generate pod object for the ops scripts.
     pod_json_object = {
-        'name': pod.name,
-        'version': parameters['version/%s' % pod.name],
+        'name': pod.pod_name or pod.label_name,
+        'version': parameters['version/%s' % pod.label_name],
         'systemd-units': [
             (build_dict()
              .set('unit-file', to_path(unit.unit_file).name)
@@ -210,9 +214,9 @@ def _build_pod(parameters, *, pod_label):
         'images': [
             {
                 'id': image_id,
-                'path': '%s/image.aci' % image_name,
+                'path': '%s/image.aci' % label_name,
             }
-            for image_id, image_name in unique_images
+            for image_id, label_name in unique_images
         ],
         'volumes': [
             (build_dict()
@@ -252,7 +256,10 @@ def _make_pod_manifest(parameters, pod, image_ids):
             {
                 'name': app.name,
                 'image': {
-                    'name': parameters[app.image_label].name,
+                    'name': (
+                        parameters[app.image_label].image_name or
+                        parameters[app.image_label].label_name
+                    ),
                     'id': image_ids[app.image_label],
                 },
                 'app': _make_app_object(parameters, app, volumes),
@@ -301,5 +308,5 @@ def _make_app_object(parameters, app, volumes):
 
 
 def _read_id(parameters, image):
-    path = parameters['//base:output'] / image.name / 'sha512'
+    path = parameters['//base:output'] / image.label_name / 'sha512'
     return 'sha512-%s' % path.read_text().strip()
