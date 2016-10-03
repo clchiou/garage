@@ -2,6 +2,7 @@
 
 __all__ = [
     'register_subcommands',
+    'read_pkg_config',
     'make_bdist_zipapp',
     'make_copy_files',
     'make_fingerprint_files',
@@ -13,8 +14,9 @@ import os
 import os.path
 import stat
 import tempfile
-from subprocess import check_call
+from subprocess import check_call, check_output
 
+from collections import namedtuple
 from distutils import log
 from distutils.command.build import build
 from distutils.core import Command
@@ -32,6 +34,36 @@ def register_subcommands(command, *subcommands):
         (subcommand.__name__, None) for subcommand in subcommands
     ]
     return subcommands
+
+
+PackageConfig = namedtuple(
+    'PackageConfig',
+    'include_dirs library_dirs libraries extra_compile_args',
+)
+
+
+def read_pkg_config(packages):
+    cmd = ['pkg-config', '--cflags', '--libs']
+    cmd.extend(packages)
+    args = check_output(cmd).decode('ascii').split()
+    pkg_config = {
+        'include_dirs': [],
+        'library_dirs': [],
+        'libraries': [],
+        'extra_compile_args': [],
+    }
+    for arg in args:
+        if arg.startswith('-I'):
+            pkg_config['include_dirs'].append(arg[len('-I'):])
+        elif arg.startswith('-L'):
+            pkg_config['library_dirs'].append(arg[len('-L'):])
+        elif arg.startswith('-l'):
+            pkg_config['libraries'].append(arg[len('-l'):])
+        else:
+            pkg_config['extra_compile_args'].append(arg)
+    return PackageConfig(**{
+        field: sorted(set(value)) for field, value in pkg_config.items()
+    })
 
 
 def make_bdist_zipapp(*, python='/usr/bin/env python3', main=None):
