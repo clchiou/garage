@@ -1,0 +1,3 @@
+capnptools/schema.capnp.*
+capnptools/schema.cpp
+capnptools/schema.*.so
