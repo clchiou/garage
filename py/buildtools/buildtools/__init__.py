@@ -2,6 +2,7 @@
 
 __all__ = [
     'register_subcommands',
+    'add_cplusplus_suffix',
     'read_pkg_config',
     'make_bdist_zipapp',
     'make_copy_files',
@@ -18,6 +19,7 @@ from subprocess import check_call, check_output
 
 from collections import namedtuple
 from distutils import log
+from distutils import unixccompiler
 from distutils.command.build import build
 from distutils.core import Command
 from distutils.dir_util import ensure_relative
@@ -34,6 +36,12 @@ def register_subcommands(command, *subcommands):
         (subcommand.__name__, None) for subcommand in subcommands
     ]
     return subcommands
+
+
+def add_cplusplus_suffix(suffix):
+    if not suffix.startswith('.'):
+        raise ValueError('suffix is not started with ".": %s' % suffix)
+    unixccompiler.UnixCCompiler.src_extensions.append(suffix)
 
 
 PackageConfig = namedtuple(
