@@ -6,6 +6,7 @@ __all__ = [
     'make_path',
 ]
 
+import warnings
 from collections import OrderedDict, namedtuple
 from pathlib import Path
 from subprocess import check_output
@@ -43,7 +44,7 @@ def find_schemas(imports, import_paths):
     import_paths = [Path(p).absolute() for p in import_paths]
     for import_path in import_paths:
         if not import_path.is_dir():
-            raise FileNotFoundError('not a directory: %s' % import_path)
+            warnings.warn('not a directory: %s' % import_path)
 
     schemas = OrderedDict()
 
