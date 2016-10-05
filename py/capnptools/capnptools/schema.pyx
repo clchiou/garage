@@ -19,6 +19,19 @@ cdef extern from 'schema.capnp.h' namespace 'capnp::schema':
 
         uint64_t getId() except +
 
+    cdef cppclass _Value 'capnp::schema::Value::Reader':
+
+        bool isText() except +
+        bool hasText() except +
+        const char* getText 'getText().cStr'() except +
+
+    cdef cppclass _Annotation 'capnp::schema::Annotation::Reader':
+
+        uint64_t getId() except +
+
+        bool hasValue() except +
+        _Value getValue() except +
+
 
 cdef extern from 'capnp/list.h' namespace 'capnp':
 
@@ -30,6 +43,15 @@ cdef extern from 'capnp/list.h' namespace 'capnp':
     cdef cppclass List_NestedNode 'capnp::List<capnp::schema::Node::NestedNode>::Reader':
         Iterator_NestedNode begin()
         Iterator_NestedNode end()
+
+    cdef cppclass Iterator_Annotation 'capnp::List<capnp::schema::Annotation>::Reader::Iterator':
+        bool operator!=(Iterator_Annotation&)
+        Iterator_Annotation& operator++()
+        _Annotation operator*()
+
+    cdef cppclass List_Annotation 'capnp::List<capnp::schema::Annotation>::Reader':
+        Iterator_Annotation begin()
+        Iterator_Annotation end()
 
     cdef cppclass Iterator_Field 'capnp::List<capnp::schema::Field>::Reader::Iterator':
         bool operator!=(Iterator_Field&)
@@ -76,6 +98,9 @@ cdef extern from 'schema.capnp.h' namespace 'capnp::schema':
         _Group getGroup() except +
 
     cdef cppclass _Struct 'capnp::schema::Node::Struct::Reader':
+
+        bool getIsGroup() except +
+
         bool hasFields() except +
         List_Field getFields() except +
 
@@ -91,6 +116,9 @@ cdef extern from 'schema.capnp.h' namespace 'capnp::schema':
         bool hasType() except +
         _Type getType() except +
 
+        bool hasValue() except +
+        _Value getValue() except +
+
     cdef cppclass _Node 'capnp::schema::Node::Reader':
 
         uint64_t getId() except +
@@ -105,6 +133,9 @@ cdef extern from 'schema.capnp.h' namespace 'capnp::schema':
         bool hasNestedNodes() except +
         List_NestedNode getNestedNodes() except +
 
+        bool hasAnnotations() except +
+        List_Annotation getAnnotations() except +
+
         bool isFile() except +
 
         bool isStruct() except +
@@ -118,6 +149,9 @@ cdef extern from 'schema.capnp.h' namespace 'capnp::schema':
         _Const getConst() except +
 
     cdef cppclass _Import 'capnp::schema::CodeGeneratorRequest::RequestedFile::Import::Reader':
+
+        uint64_t getId() except +
+
         bool hasName() except +
         const char* getName 'getName().cStr'() except +
 
@@ -301,6 +335,7 @@ cdef class Node:
 
     cdef str _display_name
     cdef tuple _nested_nodes
+    cdef tuple _annotations
     cdef tuple _fields
     cdef tuple _enumerants
     cdef Const _const
@@ -311,6 +346,7 @@ cdef class Node:
 
         self._display_name = None
         self._nested_nodes = None
+        self._annotations = None
         self._fields = None
         self._enumerants = None
         self._const = None
@@ -325,11 +361,16 @@ cdef class Node:
                 nested_node._asdict()
                 for nested_node in self.nested_nodes or ()
             ],
+            'annotations': [
+                annotation._asdict()
+                for annotation in self.annotations or ()
+            ],
         }
         if self.is_file():
             data['file'] = None
         elif self.is_struct():
             data['struct'] = {
+                'is_group': self.is_group(),
                 'fields': [
                     field._asdict()
                     for field in self.fields or ()
@@ -382,11 +423,32 @@ cdef class Node:
             inc(begin)
         return tuple(nested_nodes)
 
+    @property
+    def annotations(self):
+        if self._annotations is None and self._node.hasAnnotations():
+            self._annotations = self._get_annotations()
+        return self._annotations
+
+    def _get_annotations(self):
+        cdef List_Annotation _annotations = self._node.getAnnotations()
+        cdef Iterator_Annotation begin = _annotations.begin()
+        cdef Iterator_Annotation end = _annotations.end()
+        cdef _Annotation _annotation
+        annotations = []
+        while begin != end:
+            _annotation = deref(begin)
+            annotations.append(Annotation(self._root, PyCapsule_New(&_annotation, NULL, NULL)))
+            inc(begin)
+        return tuple(annotations)
+
     def is_file(self):
         return self._node.isFile()
 
     def is_struct(self):
         return self._node.isStruct()
+
+    def is_group(self):
+        return self._node.isStruct() and self._node.getStruct().getIsGroup()
 
     @property
     def fields(self):
@@ -469,6 +531,38 @@ cdef class NestedNode:
     @property
     def id(self):
         return self._nested_node.getId()
+
+
+cdef class Annotation:
+
+    cdef CodeGeneratorRequest _root
+    cdef _Annotation _annotation
+
+    cdef Value _value
+
+    def __cinit__(self, CodeGeneratorRequest root, object annotation):
+        self._root = root
+        self._annotation = deref(<_Annotation*>PyCapsule_GetPointer(annotation, NULL))
+
+        self._value = None
+
+    def _asdict(self):
+        return {
+            'id': self.id,
+            'value': self.value._asdict(),
+        }
+
+    @property
+    def id(self):
+        return self._annotation.getId()
+
+    @property
+    def value(self):
+        cdef _Value _value
+        if self._value is None and self._annotation.hasValue():
+            _value = self._annotation.getValue()
+            self._value = Value(self._root, PyCapsule_New(&_value, NULL, NULL))
+        return self._value
 
 
 cdef class Field:
@@ -569,17 +663,19 @@ cdef class Const:
     cdef _Const _const
 
     cdef Type _type
+    cdef Value _value
 
     def __cinit__(self, CodeGeneratorRequest root, object const):
         self._root = root
         self._const = deref(<_Const*>PyCapsule_GetPointer(const, NULL))
 
         self._type = None
+        self._value = None
 
     def _asdict(self):
         return {
             'type': self.type._asdict(),
-            # Do not handle const.value at the moment.
+            'value': self.value._asdict(),
         }
 
     @property
@@ -589,6 +685,14 @@ cdef class Const:
             _type = self._const.getType()
             self._type = Type(self._root, PyCapsule_New(&_type, NULL, NULL))
         return self._type
+
+    @property
+    def value(self):
+        cdef _Value _value
+        if self._value is None and self._const.hasValue():
+            _value = self._const.getValue()
+            self._value = Value(self._root, PyCapsule_New(&_value, NULL, NULL))
+        return self._value
 
 
 cdef class Type:
@@ -640,6 +744,37 @@ cdef class Type:
             return self._type.getStructTypeId()
         else:
             return None
+
+
+cdef class Value:
+
+    cdef CodeGeneratorRequest _root
+    cdef _Value _value
+
+    cdef _text
+
+    def __cinit__(self, CodeGeneratorRequest root, object value):
+        self._root = root
+        self._value = deref(<_Value*>PyCapsule_GetPointer(value, NULL))
+
+        self._text = None
+
+    def _asdict(self):
+        data = {}
+        if self._value.isText():
+            data['text'] = self.text
+        return data
+
+    def is_text(self):
+        return self._value.isText()
+
+    @property
+    def text(self):
+        cdef bytes text_bytes
+        if self._text is None and self._value.isText() and self._value.hasText():
+            text_bytes = <bytes>self._value.getText()
+            self._text = text_bytes.decode('utf8')
+        return self._text
 
 
 cdef class RequestedFile:
@@ -715,6 +850,10 @@ cdef class Import:
         return {
             'name': self.name,
         }
+
+    @property
+    def id(self):
+        return self._import.getId()
 
     @property
     def name(self):
