@@ -81,4 +81,12 @@ setup(
         libraries = PKG_CONFIG.libraries,
         extra_compile_args = ['-std=c++11'] + PKG_CONFIG.extra_compile_args,
     )),
+    package_data = {
+        'capnptools': [
+            'templates/*',
+        ],
+    },
+    install_requires = [
+        'mako',
+    ],
 )
