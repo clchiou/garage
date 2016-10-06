@@ -67,6 +67,27 @@ cdef extern from 'schema.capnp.h' namespace 'capnp::schema':
 
     cdef cppclass _Type 'capnp::schema::Type::Reader':
 
+        bool isVoid() except +
+
+        bool isBool() except +
+
+        bool isInt8() except +
+        bool isInt16() except +
+        bool isInt32() except +
+        bool isInt64() except +
+
+        bool isUint8() except +
+        bool isUint16() except +
+        bool isUint32() except +
+        bool isUint64() except +
+
+        bool isFloat32() except +
+        bool isFloat64() except +
+
+        bool isText() except +
+
+        bool isData() except +
+
         bool isList() except +
         bool hasElementType 'getList().hasElementType'() except +
         _Type getElementType 'getList().getElementType'() except +
@@ -718,6 +739,65 @@ cdef class Type:
             data['type_id'] = self.type_id
         # Do not handle AnyPointer at the moment.
         return data
+
+    def is_void(self):
+        return self._type.isVoid()
+
+    def is_primitive(self):
+        return (
+            self._type.isBool() or
+
+            self._type.isInt8() or
+            self._type.isInt16() or
+            self._type.isInt32() or
+            self._type.isInt64() or
+
+            self._type.isUint8() or
+            self._type.isUint16() or
+            self._type.isUint32() or
+            self._type.isUint64() or
+
+            self._type.isFloat32() or
+            self._type.isFloat64()
+        )
+
+    @property
+    def primitive_type_name(self):
+
+        if self._type.isBool():
+            return 'bool'
+
+        elif self._type.isInt8():
+            return 'int8_t'
+        elif self._type.isInt16():
+            return 'int16_t'
+        elif self._type.isInt32():
+            return 'int32_t'
+        elif self._type.isInt64():
+            return 'int64_t'
+
+        elif self._type.isUint8():
+            return 'uint8_t'
+        elif self._type.isUint16():
+            return 'uint16_t'
+        elif self._type.isUint32():
+            return 'uint32_t'
+        elif self._type.isUint64():
+            return 'uint64_t'
+
+        elif self._type.isFloat32():
+            return 'float'
+        elif self._type.isFloat64():
+            return 'double'
+
+        else:
+            return None
+
+    def is_text(self):
+        return self._type.isText()
+
+    def is_data(self):
+        return self._type.isData()
 
     def is_list(self):
         return self._type.isList()

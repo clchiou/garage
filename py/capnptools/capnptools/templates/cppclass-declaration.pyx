@@ -1,10 +1,16 @@
 # ${display_name}
 cdef extern from '${cc_header}':
-    cdef cppclass ${context.get('py_namespace', '')}__${py_class}__Reader '${context.get('cc_namespace', '')}::${cc_class}::Reader':
-        % for method in context.get('reader_methods', ['pass']):
-        ${method}
+    cdef cppclass ${cython_classname}__Reader '${cc_classname}::Reader':
+        % for function in context.get('cc_reader_member_functions', ()):
+        ${function.return_type} ${function.name}(${', '.join(function.parameters)}) ${function.suffix}
         % endfor
-    cdef cppclass ${context.get('py_namespace', '')}__${py_class}__Builder '${context.get('cc_namespace', '')}::${cc_class}::Builder':
-        % for method in context.get('builder_methods', ['pass']):
-        ${method}
+        % if not context.get('cc_reader_member_functions'):
+        pass
+        % endif
+    cdef cppclass ${cython_classname}__Builder '${cc_classname}::Builder':
+        % for function in context.get('cc_builder_member_functions', ()):
+        ${function.return_type} ${function.name}(${', '.join(function.parameters)}) ${function.suffix}
         % endfor
+        % if not context.get('cc_builder_member_functions'):
+        pass
+        % endif
