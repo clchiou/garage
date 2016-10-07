@@ -28,7 +28,11 @@ class NodeTable:
         self._cc_reader_member_functions_table = {}
         self._cc_builder_member_functions_table = {}
 
-        self._enum_members_table = {}
+        self._members_table = {}
+
+        # Other collected info.
+
+        self._list_types = []
 
     def __iter__(self):
         return iter(self._nodes)
@@ -92,7 +96,14 @@ class NodeTable:
     set_cc_builder_member_functions = partialmethod(
         _set_attachment, '_cc_builder_member_functions_table', Node.is_struct)
 
-    get_enum_members = partialmethod(
-        _get_attachment, '_enum_members_table', Node.is_enum)
-    set_enum_members = partialmethod(
-        _set_attachment, '_enum_members_table', Node.is_enum)
+    get_members = partialmethod(
+        _get_attachment, '_members_table', is_struct_or_enum)
+    set_members = partialmethod(
+        _set_attachment, '_members_table', is_struct_or_enum)
+
+    def add_list_type(self, list_type):
+        if list_type not in self._list_types:
+            self._list_types.append(list_type)
+
+    def iter_list_types(self):
+        return iter(self._list_types)
