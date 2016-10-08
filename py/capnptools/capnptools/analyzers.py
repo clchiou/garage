@@ -64,7 +64,7 @@ class Member:
             self.is_data = False
             self.is_list = False
             self.is_enum = False
-            self.is_struct = False
+            self.is_struct = True
 
             self.izzer = None
             self.hazzer = None

@@ -1,6 +1,8 @@
 # Generated at ${now.isoformat()} - DO NOT EDIT!
 
 import enum
+from collections import OrderedDict
+
 from cpython.pycapsule cimport PyCapsule_New, PyCapsule_GetPointer
 from cython.operator cimport dereference, preincrement
 from libc.stdint cimport int8_t, int16_t, int32_t, int64_t, uint8_t, uint16_t, uint32_t, uint64_t
