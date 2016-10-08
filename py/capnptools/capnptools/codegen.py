@@ -26,7 +26,7 @@ def generate_cython(node_table, node_ids, pyx_file):
     pyx_file.write(templates.get_template('preamble.pyx').render(
         now=datetime.datetime.now(),
         node_table=node_table,
-        list_types=node_table.iter_list_types(),
+        list_types=node_table.list_types,
     ))
     pyx_file.write('\n')
 
@@ -52,6 +52,34 @@ def generate_cython(node_table, node_ids, pyx_file):
             raise AssertionError
 
         pyx_file.write('\n')
+
+    # Generate list wrapper classes.
+
+    list_wrapper = templates.get_template('list-wrapper.pyx')
+    for list_type in node_table.list_types:
+        for level in range(1, list_type.level + 1):
+            pyx_file.write(list_wrapper.render(
+                node_table=node_table,
+                list_type=list_type,
+                level=level,
+                cython_classname=list_type.get_cython_classname(
+                    node_table,
+                    level,
+                ),
+                element_cython_classname=list_type.get_cython_classname(
+                    node_table,
+                    level - 1,
+                ),
+                python_classname=list_type.get_python_classname(
+                    node_table,
+                    level,
+                ),
+                element_python_classname=list_type.get_python_classname(
+                    node_table,
+                    level - 1,
+                ),
+            ))
+            pyx_file.write('\n')
 
     # Generate extension classes.
 

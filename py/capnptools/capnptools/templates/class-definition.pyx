@@ -17,7 +17,7 @@ cdef class ${python_classname}:
     % elif member.is_data:
     cdef bytes _cache_${member.name}
     % elif member.is_list:
-    cdef tuple _cache_${member.name}
+    cdef object _cache_${member.name}
     % elif member.is_struct:
     cdef ${member.type_name} _cache_${member.name}
     % endif
@@ -42,14 +42,11 @@ cdef class ${python_classname}:
         % else:
         value = self.${member.name}
         if value is not None:
-##      Primitive/text/data/enum
+##          Primitive/text/data/enum
             % if member.is_primitive or member.is_text or member.is_data or member.is_enum:
             data['${member.name}'] = value
-##      List
-            % elif member.is_list:
-            data['${member.name}'] = None  # List
-##      Struct
-            % elif member.is_struct:
+##          List or struct
+            % elif member.is_list or member.is_struct:
             data['${member.name}'] = value._asdict()
             % endif
         % endif
@@ -98,14 +95,11 @@ cdef class ${python_classname}:
             self._cache_${member.name} = value
             % endif
         return self._cache_${member.name}
-##      List
-        % elif member.is_list:
-        return None  # List
 ##      Enum
         % elif member.is_enum:
         return ${member.type_name}(<int>self._data.${member.getter}())
-##      Struct
-        % elif member.is_struct:
+##      List or struct
+        % elif member.is_list or member.is_struct:
         cdef ${member.cython_type_name}__Reader value
         if self._cache_${member.name} is None:
             value = self._data.${member.getter}()

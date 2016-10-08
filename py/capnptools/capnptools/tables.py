@@ -32,7 +32,7 @@ class NodeTable:
 
         # Other collected info.
 
-        self._list_types = []
+        self.list_types = []
 
     def __iter__(self):
         return iter(self._nodes)
@@ -102,8 +102,5 @@ class NodeTable:
         _set_attachment, '_members_table', is_struct_or_enum)
 
     def add_list_type(self, list_type):
-        if list_type not in self._list_types:
-            self._list_types.append(list_type)
-
-    def iter_list_types(self):
-        return iter(self._list_types)
+        if list_type not in self.list_types:
+            self.list_types.append(list_type)

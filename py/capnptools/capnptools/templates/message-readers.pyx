@@ -21,11 +21,11 @@ cdef class MessageReader:
         self._reader = reader
 
     def __dealloc__(self):
-        if self._reader:
+        if self._reader != NULL:
             del self._reader
 
     def get_root(self, message_type):
-        if not self._reader:
+        if self._reader == NULL:
             raise RuntimeError('reader was not initialized')
         % for node in struct_nodes:
         cdef ${node_table.get_cython_classname(node.id)}__Reader ${node_table.get_cython_classname(node.id)}_value

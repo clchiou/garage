@@ -107,36 +107,61 @@ class ListType:
     def __hash__(self):
         return hash((self.level, self.base_type))
 
-    def get_cc_classname(self, node_table):
-        if self.base_type[0] == 'v':
+    def _is_kind(self, kind):
+        return self.base_type[0] == kind
+
+    is_void = property(lambda self: self._is_kind('v'))
+    is_primitive = property(lambda self: self._is_kind('p'))
+    is_text = property(lambda self: self._is_kind('t'))
+    is_data = property(lambda self: self._is_kind('d'))
+    is_enum = property(lambda self: self._is_kind('e'))
+    is_struct = property(lambda self: self._is_kind('s'))
+
+    def get_cc_classname(self, node_table, level):
+        if self.is_void:
             type_name = 'capnp::Void'
-        elif self.base_type[0] == 'p':
+        elif self.is_primitive:
             type_name = self.base_type[1]
-        elif self.base_type[0] == 't':
+        elif self.is_text:
             type_name = 'capnp::Text'
-        elif self.base_type[0] == 'd':
+        elif self.is_data:
             type_name = 'capnp::Data'
-        elif self.base_type[0] in ('e', 's'):
+        elif self.is_enum or self.is_struct:
             type_name = node_table.get_cc_classname(self.base_type[1])
         else:
             raise AssertionError
-        return ('%s%s%s' %
-                ('capnp::List<' * self.level, type_name, '>' * self.level))
+        if level == 0:
+            return '%s%s%s' % ('capnp::List<' * level, type_name, '>' * level)
+        else:
+            return type_name
 
-    def get_cython_classname(self, node_table):
-        if self.base_type[0] == 'v':
-            type_name = 'capnp__Void'
-        elif self.base_type[0] == 'p':
-            type_name = self.base_type[1]
-        elif self.base_type[0] == 't':
-            type_name = 'capnp__Text'
-        elif self.base_type[0] == 'd':
-            type_name = 'capnp__Data'
-        elif self.base_type[0] in ('e', 's'):
-            type_name = node_table.get_cython_classname(self.base_type[1])
+    def _get_classname(self, get_name):
+        if self.is_void:
+            return 'capnp__Void'
+        elif self.is_primitive:
+            return self.base_type[1]
+        elif self.is_text:
+            return 'capnp__Text'
+        elif self.is_data:
+            return 'capnp__Data'
+        elif self.is_enum or self.is_struct:
+            return get_name(self.base_type[1])
         else:
             raise AssertionError
-        return '%s%s' % ('List__' * self.level, type_name)
+
+    def get_cython_classname(self, node_table, level):
+        type_name = self._get_classname(node_table.get_cython_classname)
+        if level > 0:
+            return '_cc__%s%s' % ('List__' * level, type_name)
+        else:
+            return type_name
+
+    def get_python_classname(self, node_table, level):
+        type_name = self._get_classname(node_table.get_python_classname)
+        if level > 0:
+            return '%s%s' % ('List__' * level, type_name)
+        else:
+            return type_name
 
 
 def analyze_nodes(node_table, node_ids):
@@ -425,8 +450,15 @@ def make_type_name(node_table, type_, use_python_classname):
     elif type_.is_data():
         return 'capnp__Data'
     elif type_.is_list():
-        return 'List__%s' % make_type_name(
-            node_table, type_.element_type, use_python_classname)
+        level = 0
+        while type_.is_list():
+            type_ = type_.element_type
+            level += 1
+        name = make_type_name(node_table, type_, use_python_classname)
+        name = '%s%s' % ('List__' * level, name)
+        if not use_python_classname:
+            name = '_cc__%s' % name
+        return name
     elif type_.is_enum():
         if use_python_classname:
             return node_table.get_python_classname(type_.type_id)
