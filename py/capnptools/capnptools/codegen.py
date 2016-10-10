@@ -90,10 +90,16 @@ def generate_cython(node_table, node_ids, pyx_file):
         node = node_table[node_id]
 
         if node.is_struct():
-            pyx_file.write(class_template.render(**node_data[node_id]))
+            pyx_file.write(class_template.render(
+                node_table=node_table,
+                **node_data[node_id],
+            ))
 
         elif node.is_enum():
-            pyx_file.write(enum_template.render(**node_data[node_id]))
+            pyx_file.write(enum_template.render(
+                node_table=node_table,
+                **node_data[node_id],
+            ))
 
         elif node.is_const():
             # 'const' is not processed at the moment.
@@ -137,6 +143,7 @@ def prepare(node_table, node):
         ),
     }
     getters = [
+        ('nested_types', node_table.get_nested_types, False),
         ('cc_classname', node_table.get_cc_classname, True),
         ('cython_classname', node_table.get_cython_classname, True),
         ('python_classname', node_table.get_python_classname, True),

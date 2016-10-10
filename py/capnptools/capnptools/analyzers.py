@@ -177,8 +177,22 @@ def analyze_nodes(node_table, node_ids):
 
         if node.is_struct() or node.is_enum():
 
+            nested_types = []
+            for nested_node in node.nested_nodes or ():
+                child = node_table[nested_node.id]
+                if child.is_struct() or child.is_enum():
+                    nested_types.append((nested_node.name, nested_node.id))
+            node_table.set_nested_types(node_id, nested_types)
+
             cc_namespace = find_cc_namespace(node_table, node)
             comps = get_class_name_components(node_table, node)
+            for comp in comps:
+                if '__' in comp:
+                    warnings.warn(
+                        '"__" could cause name conflicts: %s' % comps)
+                    break
+            node_table.set_classname_comps(node_id, list(comps))
+
             comps.reverse()
             classname = '::'.join(comps)
             if cc_namespace:

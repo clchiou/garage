@@ -21,6 +21,9 @@ class NodeTable:
 
         self._filenames = {}
 
+        self._nested_types_table = {}
+
+        self._classname_comps_table = {}
         self._cc_classnames = {}
         self._cython_classnames = {}
         self._python_classnames = {}
@@ -70,6 +73,16 @@ class NodeTable:
 
     get_filename = partialmethod(_get_attachment, '_filenames', Node.is_file)
     set_filename = partialmethod(_set_attachment, '_filenames', Node.is_file)
+
+    get_nested_types = partialmethod(
+        _get_attachment, '_nested_types_table', is_struct_or_enum)
+    set_nested_types = partialmethod(
+        _set_attachment, '_nested_types_table', is_struct_or_enum)
+
+    get_classname_comps = partialmethod(
+        _get_attachment, '_classname_comps_table', is_struct_or_enum)
+    set_classname_comps = partialmethod(
+        _set_attachment, '_classname_comps_table', is_struct_or_enum)
 
     get_cc_classname = partialmethod(
         _get_attachment, '_cc_classnames', is_struct_or_enum)

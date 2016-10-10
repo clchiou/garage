@@ -64,8 +64,12 @@ cdef class ${python_classname}__Builder:
     % endfor
 
 cdef class ${python_classname}:
+    % if context.get('nested_types'):
 
-    Builder = ${python_classname}__Builder
+    % for nested_type_name, nested_type_id in nested_types:
+    ${nested_type_name} = ${node_table.get_python_classname(nested_type_id)}
+    % endfor
+    % endif
 
 ##  Hold a reference to the _resource to make sure that it is released
 ##  after this object (_resource could be either a MessageReader or a

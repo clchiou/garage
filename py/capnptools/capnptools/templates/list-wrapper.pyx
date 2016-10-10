@@ -119,8 +119,6 @@ class ${python_classname}__Builder(_ext__${python_classname}__Builder, MutableSe
 ## like to make it inherit from `collections.Sequence`.
 cdef class _ext__${python_classname}:
 
-    Builder = ${python_classname}__Builder
-
 ##  Hold a reference to the _resource to make sure that it is released
 ##  after this object (_resource could be either a MessageReader or a
 ##  builder object).
