@@ -4,10 +4,14 @@ __all__ = [
     'find_schemas',
     'make_compile_command',
     'make_path',
+    'make_post_cythonize_fix',
 ]
 
+import re
 import warnings
 from collections import OrderedDict, namedtuple
+from distutils import log
+from distutils.core import Command
 from pathlib import Path
 from subprocess import check_output
 
@@ -136,3 +140,67 @@ def _parse_schema_file(import_path, schema_path, import_paths):
     cmd.append('--output=-')
     cmd.append(str(schema_path))
     return CodeGeneratorRequest(check_output(cmd))
+
+
+def make_post_cythonize_fix(cpp_src_paths):
+    """Fix generated .cpp files (we need this fix to workaround Cython's
+       limitation that it cannot allocate C++ object on stack if it does
+       not have default constructor).
+    """
+
+    class post_cythonize_fix(Command):
+
+        CPP_SRC_PATHS = cpp_src_paths
+
+        PATTERN_CONS = re.compile(
+            r'([a-zA-Z0-9_]+(?:::[a-zA-Z0-9_]+)*::Builder)\(\)')
+
+        PATTERN_VAR = re.compile(
+            r'([a-zA-Z0-9_]+(?:::[a-zA-Z0-9_]+)*::Builder)(\s+__pyx_[a-zA-Z0-9_]+)')
+
+        description = "apply post-cythonize fix"
+
+        user_options = []
+
+        def initialize_options(self):
+            pass
+
+        def finalize_options(self):
+            pass
+
+        def run(self):
+            for cpp_src_path in self.CPP_SRC_PATHS:
+                log.info('apply post-Cythonize fix to: %s', cpp_src_path)
+                orig_path = cpp_src_path.with_name(cpp_src_path.name + '.orig')
+                cpp_src_path.rename(orig_path)
+                with orig_path.open('r') as cpp_src:
+                    with cpp_src_path.open('w') as output:
+                        for line in cpp_src:
+                            output.write(self._post_cythonize_fix(line))
+
+        def _post_cythonize_fix(self, line):
+
+            match = self.PATTERN_CONS.search(line)
+            if match:
+                type_ = match.group(1)
+                if not type_.startswith('capnp'):
+                    return '%s%s(nullptr)%s' % (
+                        line[:match.start()],
+                        type_,
+                        line[match.end():],
+                    )
+
+            match = self.PATTERN_VAR.search(line)
+            if match:
+                type_ = match.group(1)
+                if not type_.startswith('capnp'):
+                    return '%s%s%s(nullptr)%s' % (
+                        line[:match.start()],
+                        type_,
+                        match.group(2),
+                        line[match.end():],
+                    )
+
+            return line
+
+    return post_cythonize_fix
