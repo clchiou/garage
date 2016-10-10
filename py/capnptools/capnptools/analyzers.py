@@ -13,7 +13,6 @@ Function = namedtuple('Function', [
     'name',
     'return_type',
     'parameters',
-    'suffix',
 ])
 
 
@@ -37,6 +36,8 @@ class Member:
             self.cython_type_name = make_type_name(
                 node_table, field.type, False)
 
+            self.is_group = False
+
             self.is_void = field.type.is_void()
             self.is_primitive = field.type.is_primitive()
             self.is_text = field.type.is_text()
@@ -57,6 +58,8 @@ class Member:
             self.type_name = node_table.get_python_classname(field.type_id)
             self.cython_type_name = node_table.get_cython_classname(
                 field.type_id)
+
+            self.is_group = True
 
             self.is_void = False
             self.is_primitive = False
@@ -112,6 +115,7 @@ class ListType:
 
     is_void = property(lambda self: self._is_kind('v'))
     is_primitive = property(lambda self: self._is_kind('p'))
+    is_blob = property(lambda self: self.is_text or self.is_data)
     is_text = property(lambda self: self._is_kind('t'))
     is_data = property(lambda self: self._is_kind('d'))
     is_enum = property(lambda self: self._is_kind('e'))
@@ -293,6 +297,13 @@ def analyze_struct(node_table, struct_node):
     cc_reader = []
     cc_builder = []
 
+    cc_builder.append(Function(
+        name='asReader',
+        return_type=\
+            '%s__Reader' % node_table.get_cython_classname(struct_node.id),
+        parameters=(),
+    ))
+
     for field in struct_node.fields or ():
 
         name = camel_case_to_upper(field.name)
@@ -301,10 +312,6 @@ def analyze_struct(node_table, struct_node):
         getter = 'get%s' % name
         setter = 'set%s' % name
         initer = 'init%s' % name
-
-        # NOTE: At the moment, Cython does not accept 'const except +'
-        # in member function declaration, but 'const' suffix doesn't
-        # really provide any value to Cython anyway.
 
         if field.is_slot():
 
@@ -319,13 +326,11 @@ def analyze_struct(node_table, struct_node):
                     name=izzer,
                     return_type='bool',
                     parameters=(),
-                    suffix='except +',
                 ))
                 cc_builder.append(Function(
                     name=izzer,
                     return_type='bool',
                     parameters=(),
-                    suffix='except +',
                 ))
 
             # hazzer
@@ -334,13 +339,11 @@ def analyze_struct(node_table, struct_node):
                     name=hazzer,
                     return_type='bool',
                     parameters=(),
-                    suffix='except +',
                 ))
                 cc_builder.append(Function(
                     name=hazzer,
                     return_type='bool',
                     parameters=(),
-                    suffix='except +',
                 ))
 
             # getter
@@ -349,13 +352,11 @@ def analyze_struct(node_table, struct_node):
                     name=getter,
                     return_type=reader_field_type_name,
                     parameters=(),
-                    suffix='except +',
                 ))
                 cc_builder.append(Function(
                     name=getter,
                     return_type=builder_field_type_name,
                     parameters=(),
-                    suffix='except +',
                 ))
 
             # setter
@@ -363,18 +364,22 @@ def analyze_struct(node_table, struct_node):
                 name=setter,
                 return_type='void',
                 parameters=(
-                    [] if field.type.is_void() else [builder_field_type_name]
+                    [] if field.type.is_void() else [reader_field_type_name]
                 ),
-                suffix='except +',
             ))
 
             # initer
-            if is_pointer(field.type):
+            if is_blob(field.type) or field.type.is_list():
+                cc_builder.append(Function(
+                    name=initer,
+                    return_type=builder_field_type_name,
+                    parameters=['unsigned int'],
+                ))
+            elif is_pointer(field.type):
                 cc_builder.append(Function(
                     name=initer,
                     return_type=builder_field_type_name,
                     parameters=(),
-                    suffix='except +',
                 ))
 
         else:
@@ -388,7 +393,6 @@ def analyze_struct(node_table, struct_node):
                     node_table.get_cython_classname(field.type_id)
                 ),
                 parameters=(),
-                suffix='except +',
             ))
             cc_builder.append(Function(
                 name=getter,
@@ -397,7 +401,6 @@ def analyze_struct(node_table, struct_node):
                     node_table.get_cython_classname(field.type_id)
                 ),
                 parameters=(),
-                suffix='except +',
             ))
 
             # initer
@@ -408,7 +411,6 @@ def analyze_struct(node_table, struct_node):
                     node_table.get_cython_classname(field.type_id)
                 ),
                 parameters=(),
-                suffix='except +',
             ))
 
     if cc_reader:
@@ -424,6 +426,10 @@ def is_pointer(type_):
         type_.is_list() or
         type_.is_struct()
     )
+
+
+def is_blob(type_):
+    return type_.is_text() or type_.is_data()
 
 
 def make_reader_type_name(node_table, type_, use_python_classname):

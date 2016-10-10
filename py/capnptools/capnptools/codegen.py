@@ -104,14 +104,21 @@ def generate_cython(node_table, node_ids, pyx_file):
 
         pyx_file.write('\n')
 
-    # Generate message readers.
+    # Generate message readers and builders.
 
     struct_nodes = []
     for node_id in node_ids:
         node = node_table[node_id]
         if node.is_struct():
             struct_nodes.append(node)
+
     pyx_file.write(templates.get_template('message-readers.pyx').render(
+        node_table=node_table,
+        struct_nodes=struct_nodes,
+    ))
+    pyx_file.write('\n')
+
+    pyx_file.write(templates.get_template('message-builders.pyx').render(
         node_table=node_table,
         struct_nodes=struct_nodes,
     ))
