@@ -185,15 +185,23 @@ def analyze_nodes(node_table, node_ids):
             node_table.set_nested_types(node_id, nested_types)
 
             cc_namespace = find_cc_namespace(node_table, node)
+
             comps = get_class_name_components(node_table, node)
+            comps.reverse()
             for comp in comps:
                 if '__' in comp:
                     warnings.warn(
                         '"__" could cause name conflicts: %s' % comps)
                     break
-            node_table.set_classname_comps(node_id, list(comps))
 
-            comps.reverse()
+            if cc_namespace:
+                classname_comps = cc_namespace.split('::')
+            else:
+                classname_comps = []
+            classname_comps.extend(comps)
+            assert classname_comps
+            node_table.set_classname_comps(node_id, classname_comps)
+
             classname = '::'.join(comps)
             if cc_namespace:
                 classname = '%s::%s' % (cc_namespace, classname)

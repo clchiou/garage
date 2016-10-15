@@ -5,6 +5,7 @@ __all__ = [
 ]
 
 import datetime
+from collections import defaultdict
 from pathlib import Path
 
 from mako.lookup import TemplateLookup
@@ -129,6 +130,26 @@ def generate_cython(node_table, node_ids, pyx_file):
         struct_nodes=struct_nodes,
     ))
     pyx_file.write('\n')
+
+    # Generate module loader.
+
+    modules = defaultdict(list)
+    for node_id in node_ids:
+        # Filter out non-top-level nodes.
+        node = node_table[node_id]
+        if not (node.is_struct() or node.is_enum()):
+            continue
+        if not node_table[node.scope_id].is_file():
+            continue
+        comps = node_table.get_classname_comps(node.id)
+        assert comps
+        module_name = '.'.join(comps[:-1])
+        modules[module_name].append(node)
+
+    pyx_file.write(templates.get_template('loader.pyx').render(
+        node_table=node_table,
+        modules=modules,
+    ))
 
 
 def prepare(node_table, node):

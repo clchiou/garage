@@ -1,6 +1,14 @@
 # Generated at ${now.isoformat()} - DO NOT EDIT!
 
+__all__ = [
+    'FlatArrayMessageReader',
+    'StreamFdMessageReader',
+    'MallocMessageBuilder',
+]
+
 import enum
+import sys
+import types
 from collections import OrderedDict, Sequence, MutableSequence
 
 from cpython.pycapsule cimport PyCapsule_New, PyCapsule_GetPointer
