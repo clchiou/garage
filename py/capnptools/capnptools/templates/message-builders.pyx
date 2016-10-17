@@ -6,6 +6,12 @@ cdef extern from "<capnp/message.h>":
     cdef cppclass capnp__MallocMessageBuilder 'capnp::MallocMessageBuilder':
         pass
 
+cdef extern from "<capnp/serialize.h>":
+    void capnp__writeMessageToFd 'capnp::writeMessageToFd'(int fd, capnp__MessageBuilder& builder) except +
+
+cdef extern from "<capnp/serialize-packed.h>":
+    void capnp__writePackedMessageToFd 'capnp::writePackedMessageToFd'(int fd, capnp__MessageBuilder& builder) except +
+
 cdef class MessageBuilder:
 
     cdef capnp__MessageBuilder *_builder
@@ -28,6 +34,12 @@ cdef class MessageBuilder:
             return ${node_table.get_python_classname(node.id)}__Builder(self, PyCapsule_New(&${node_table.get_cython_classname(node.id)}_value, NULL, NULL))
         % endfor
         raise TypeError('unknown message type: %r' % message_type)
+
+    cdef write_to(self, int fd):
+        capnp__writeMessageToFd(fd, dereference(self._builder))
+
+    cdef write_packed_to(self, int fd):
+        capnp__writePackedMessageToFd(fd, dereference(self._builder))
 
 cdef class MallocMessageBuilder(MessageBuilder):
 
