@@ -10,6 +10,10 @@ cdef extern from "<capnp/serialize.h>":
     cdef cppclass capnp__StreamFdMessageReader 'capnp::StreamFdMessageReader':
         capnp__StreamFdMessageReader(int fd) except +
 
+cdef extern from "<capnp/serialize-packed.h>":
+    cdef cppclass capnp__PackedFdMessageReader 'capnp::PackedFdMessageReader':
+        capnp__PackedFdMessageReader(int fd) except +
+
 cdef class MessageReader:
 
     cdef capnp__MessageReader *_reader
@@ -50,3 +54,9 @@ cdef class StreamFdMessageReader(MessageReader):
 
     def __cinit__(self, int fd):
         self.own_reader(<capnp__MessageReader*>new capnp__StreamFdMessageReader(fd))
+
+
+cdef class PackedFdMessageReader(MessageReader):
+
+    def __cinit__(self, int fd):
+        self.own_reader(<capnp__MessageReader*>new capnp__PackedFdMessageReader(fd))

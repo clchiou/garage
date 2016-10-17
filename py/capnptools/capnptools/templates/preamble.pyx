@@ -3,6 +3,7 @@
 __all__ = [
     'FlatArrayMessageReader',
     'StreamFdMessageReader',
+    'PackedFdMessageReader',
     'MallocMessageBuilder',
 ]
 
