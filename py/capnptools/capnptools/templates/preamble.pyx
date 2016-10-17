@@ -27,6 +27,14 @@ cdef extern from "<kj/array.h>":
     cdef cppclass kj__ArrayPtr 'kj::ArrayPtr<const capnp::word>':
         kj__ArrayPtr(const capnp__word* begin, size_t size) except +
 
+cdef extern from "<kj/string.h>":
+    cdef cppclass kj__String 'kj::String':
+        const char* cStr() except +
+
+cdef extern from "<kj/string-tree.h>":
+    cdef cppclass kj__StringTree 'kj::StringTree':
+        kj__String flatten() except +
+
 cdef extern from "<capnp/blob.h>":
     cdef cppclass capnp__Text__Reader 'capnp::Text::Reader':
         capnp__Text__Reader() except +

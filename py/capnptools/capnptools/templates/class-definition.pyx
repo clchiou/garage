@@ -23,6 +23,8 @@ cdef class ${python_classname}__Builder:
         % endif
         % endfor
 
+<%include file="class-definition-repr.pyx"/>\
+
 <%include file="class-definition-as-dict.pyx"/>\
 
     def _as_reader(self):
@@ -98,6 +100,8 @@ cdef class ${python_classname}:
         self._cache_${member.name} = None
         % endif
         % endfor
+
+<%include file="class-definition-repr.pyx"/>\
 
 <%include file="class-definition-as-dict.pyx"/>\
 ##
