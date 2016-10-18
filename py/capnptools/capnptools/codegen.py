@@ -145,6 +145,9 @@ def generate_cython(node_table, node_ids, pyx_file):
         assert comps
         module_name = '.'.join(comps[:-1])
         modules[module_name].append(node)
+        for i in range(1, len(comps) - 1):
+            parent_module_name = '.'.join(comps[:i])
+            modules.setdefault(parent_module_name, [])
 
     pyx_file.write(templates.get_template('loader.pyx').render(
         node_table=node_table,
