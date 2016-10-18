@@ -3,7 +3,6 @@
 __all__ = [
     'register_subcommands',
     'add_cplusplus_suffix',
-    'find_include_dirs',
     'read_pkg_config',
     'make_bdist_zipapp',
     'make_copy_files',
@@ -43,24 +42,8 @@ def register_subcommands(command, *subcommands):
 def add_cplusplus_suffix(suffix):
     if not suffix.startswith('.'):
         raise ValueError('suffix is not started with ".": %s' % suffix)
-    unixccompiler.UnixCCompiler.src_extensions.append(suffix)
-
-
-def find_include_dirs(argv=None):
-    if argv is None:
-        argv = sys.argv
-    include_dirs = []
-    for i, arg in enumerate(argv):
-        if arg == '-I' or arg == '--include-dirs':
-            dirs = argv[i + 1]
-        elif arg.startswith('-I'):
-            dirs = arg[len('-I'):]
-        elif arg.startswith('--include-dirs='):
-            dirs = arg[len('--include-dirs='):]
-        else:
-            continue
-        include_dirs.extend(dirs.split(':'))
-    return include_dirs
+    if suffix not in unixccompiler.UnixCCompiler.src_extensions:
+        unixccompiler.UnixCCompiler.src_extensions.append(suffix)
 
 
 PackageConfig = namedtuple(
