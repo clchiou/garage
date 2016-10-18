@@ -47,6 +47,7 @@ def build_package(parameters, package_name, build_src, *, build_cmd=None):
     site_packages = parameters['//py/cpython:modules'] / 'site-packages'
     if not list(site_packages.glob('%s*' % package_name)):
         # sudo does not preserve PYTHONPATH even with '--preserve-env'.
+        # Run `sudo sudo -V` for the list of preserved variables.
         pythonpath = os.environ.get('PYTHONPATH')
         if pythonpath:
             cmd = ['sudo', 'PYTHONPATH=%s' % pythonpath]

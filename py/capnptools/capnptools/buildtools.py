@@ -1,19 +1,20 @@
 """Helpers for building Cap'n Proto schema files."""
 
 __all__ = [
-    'find_schemas',
-    'make_compile_command',
-    'make_path',
+    'compile_schemas',
     'make_post_cythonize_fix',
 ]
 
+import os
 import re
 import warnings
 from collections import OrderedDict, namedtuple
 from distutils import log
 from distutils.core import Command
 from pathlib import Path
-from subprocess import check_output
+from subprocess import check_call, check_output
+
+import buildtools
 
 from .schema import CodeGeneratorRequest
 
@@ -38,7 +39,66 @@ STANDARD_IMPORTS = frozenset((
 ))
 
 
-def find_schemas(imports, import_paths):
+def compile_schemas(imports, output_dir):
+
+    # capnp generates files with .c++ suffix.
+    buildtools.add_cplusplus_suffix('.c++')
+
+    #
+    # Unfortunately setup.py does not have a nice way to pass import
+    # paths to us in all scenarios.
+    #
+    # * Adding new command-line arguments (e.g., --capnp-import-path)
+    #   would not be recognized by distutils (unless you remove them
+    #   before distutils starts parsing command-line arguments).
+    #
+    # * Using existing command-line arguments (like --include-dirs) does
+    #   not work because you do not always invoke the associated command
+    #   (which is build_ext in this case).
+    #
+    # * Adding new environment variable (e.g., CAPNP_IMPORT_PATH) does
+    #   not work because sudo does not preserve non-whitelisted
+    #   environment variables.  This problem arises when you run:
+    #
+    #       sudo python setup.py install
+    #
+    # Which leaves us to the only option to use PYTHONPATH for passing
+    # import paths.  This works with sudo because my build tools
+    # explicitly make sudo preserve PYTHONPATH.
+    #
+    import_paths = os.environ.get('PYTHONPATH', [])
+    if import_paths:
+        import_paths = import_paths.split(':')
+    schemas = _find_schemas(imports, import_paths)
+
+    if not Path(output_dir).is_dir():
+        _execute(['mkdir', '--parents', output_dir])
+
+    # Run `capnp compile` before Cython runs.
+    sources = []
+    for schema in schemas.values():
+        output_path = _make_path(output_dir, schema, '.c++')
+        if (not output_path.is_file() or
+                _mtime_lt(output_path, schema.import_path)):
+            _compile(schema, import_paths, 'c++', output_dir)
+        sources.append(str(output_path))
+    for import_ in imports:
+        schema = schemas[import_]
+        # capnpc-pyx generates "schema.pyx", not "schema.capnp.pyx".
+        output_path = _make_path(output_dir, schema).with_suffix('.pyx')
+        if (not output_path.is_file() or
+                _mtime_lt(output_path, schema.import_path)):
+            _compile(schema, import_paths, 'pyx', output_dir)
+        sources.append(str(output_path))
+
+    return sources
+
+
+def _mtime_lt(path1, path2):
+    return path1.lstat().st_mtime < path2.lstat().st_mtime
+
+
+def _find_schemas(imports, import_paths):
     """Find all imported Cap'n Proto schema files."""
 
     for import_ in imports:
@@ -83,8 +143,8 @@ def find_schemas(imports, import_paths):
     return schemas
 
 
-def make_compile_command(schema, import_paths, language, output_dir=None):
-    """Return a shell command compiling the schema."""
+def _compile(schema, import_paths, language, output_dir=None):
+    """Compile the schema."""
     cmd = ['capnp', 'compile']
     for import_path in import_paths:
         cmd.append('--import-path=%s' % Path(import_path).absolute())
@@ -94,10 +154,17 @@ def make_compile_command(schema, import_paths, language, output_dir=None):
     else:
         cmd.append('--output=%s' % language)
     cmd.append(str(schema.path))
-    return cmd
+    _execute(cmd)
 
 
-def make_path(dir_path, schema, with_added_suffix=None):
+def _execute(cmd):
+    # Use print() rather than distutils.log.info() because this is
+    # called before log is configured.
+    print('execute: %s' % ' '.join(cmd))
+    check_call(cmd)
+
+
+def _make_path(dir_path, schema, with_added_suffix=None):
     assert schema.import_[0] == '/' and schema.import_[1] != '/'
     path = Path(dir_path) / schema.import_[1:]
     if with_added_suffix:
@@ -150,13 +217,13 @@ def make_post_cythonize_fix(cpp_src_paths):
 
     class post_cythonize_fix(Command):
 
-        CPP_SRC_PATHS = cpp_src_paths
+        CPP_SRC_PATHS = list(map(Path, cpp_src_paths))
 
         PATTERN_CONS = re.compile(
-            r'([a-zA-Z0-9_]+(?:::[a-zA-Z0-9_]+)*::Builder)\(\)')
+            r'([a-zA-Z0-9_]+(?:::[a-zA-Z0-9_]+)*::Builder)\(\);')
 
         PATTERN_VAR = re.compile(
-            r'([a-zA-Z0-9_]+(?:::[a-zA-Z0-9_]+)*::Builder)(\s+__pyx_[a-zA-Z0-9_]+)')
+            r'([a-zA-Z0-9_]+(?:::[a-zA-Z0-9_]+)*::Builder)(\s+__pyx_[a-zA-Z0-9_]+);')
 
         description = "apply post-cythonize fix"
 
@@ -184,7 +251,7 @@ def make_post_cythonize_fix(cpp_src_paths):
             if match:
                 type_ = match.group(1)
                 if not type_.startswith('capnp'):
-                    return '%s%s(nullptr)%s' % (
+                    return '%s%s(nullptr);%s' % (
                         line[:match.start()],
                         type_,
                         line[match.end():],
@@ -194,7 +261,7 @@ def make_post_cythonize_fix(cpp_src_paths):
             if match:
                 type_ = match.group(1)
                 if not type_.startswith('capnp'):
-                    return '%s%s%s(nullptr)%s' % (
+                    return '%s%s%s(nullptr);%s' % (
                         line[:match.start()],
                         type_,
                         match.group(2),
