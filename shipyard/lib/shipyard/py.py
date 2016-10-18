@@ -111,12 +111,16 @@ def define_package(
         derive_src_path,
         derive_build_src_path,
         build_rule_deps=(),
-        tapeout_rule_deps=()):
+        tapeout_rule_deps=(),
+        make_build_cmd=None):
 
     define_package_common(
         derive_src_path=derive_src_path,
         derive_build_src_path=derive_build_src_path,
     )
+
+    if make_build_cmd is None:
+        make_build_cmd = lambda _: None
 
     build_rule = (
         define_rule('build')
@@ -124,7 +128,10 @@ def define_package(
         .with_build(lambda ps: (
             copy_source(ps['src'], ps['build_src']),
             ensure_file(ps['build_src'] / 'setup.py'),
-            build_package(ps, package_name, ps['build_src']),
+            build_package(
+                ps, package_name, ps['build_src'],
+                build_cmd=make_build_cmd(ps),
+            ),
         ))
         .depend('//base:build')
         .depend('//py/cpython:build')
