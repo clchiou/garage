@@ -46,7 +46,7 @@ class Member:
             self.is_enum = field.type.is_enum()
             self.is_struct = field.type.is_struct()
 
-            self.izzer = izzer  if struct_node.is_group() else None
+            self.izzer = izzer if struct_node.is_group() else None
             self.hazzer = hazzer if is_pointer(field.type) else None
             self.getter = getter if not self.is_void else None
             self.setter = setter

@@ -48,7 +48,7 @@ cdef class ${python_classname}__Builder:
 <%include file="class-definition-setter.pyx" args="member=member"/>\
     % endif
 ##  _init_X()
-    % if member.is_group:
+    % if member.is_struct:
 
     def _init_${member.name}(self):
         cdef ${member.cython_type_name}__Builder value = self._data.${member.initer}()
