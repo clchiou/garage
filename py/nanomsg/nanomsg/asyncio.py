@@ -7,7 +7,6 @@ import asyncio
 from . import SocketBase
 from . import errors
 from .constants import AF_SP
-from .constants import Error
 from .constants import NN_DONTWAIT
 from .errors import Closed
 
@@ -43,8 +42,8 @@ class Socket(SocketBase):
         self._sndfd_manager = FileDescriptorManager(
             self.options.sndfd,
             self._sndfd_ready.set,
-            self._loop.add_writer,
-            self._loop.remove_writer,
+            self._loop.add_reader,
+            self._loop.remove_reader,
         )
         self._rcvfd_manager = FileDescriptorManager(
             self.options.rcvfd,
