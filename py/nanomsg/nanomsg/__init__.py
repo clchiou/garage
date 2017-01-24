@@ -297,6 +297,12 @@ class EndpointBase:
     def __exit__(self, *_):
         self.shutdown()
 
+    async def __aenter__(self):
+        return self.__enter__()
+
+    async def __aexit__(self, *exc_info):
+        return self.__exit__(*exc_info)  # XXX: Would this block?
+
     def shutdown(self):
         if self.socket.fd is None:
             self.endpoint_id = None
