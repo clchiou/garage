@@ -1,46 +1,38 @@
 """Supervisor tree example."""
 
-import asyncio
 import logging
 
-from garage.asyncs.futures import awaiting, on_exit, each_completed, one_of
-from garage.asyncs.processes import process
+import curio
+
 from garage.asyncs.queues import Closed, Queue
 
 
-@process
-async def supervisor(exit):
+async def supervisor():
     print('supervisor start')
     queue = Queue()
-    async with awaiting(consumer(queue)) as consumer_, \
-               awaiting(producer(queue)) as producer_, \
-               on_exit(consumer_.stop), \
-               on_exit(producer_.stop):
-        async for task in each_completed([consumer_, producer_], [exit]):
-            await task
+    tasks = [
+        await curio.spawn(consumer(queue)),
+        await curio.spawn(producer(queue)),
+    ]
+    async for task in curio.wait(tasks):
+        await task.join()
     print('supervisor stop')
 
 
-@process
-async def producer(exit, queue):
-    async def put(item):
-        await one_of([queue.put(item)], [exit])
+async def producer(queue):
     print('producer start')
     message = list('Hello world!')
     while message:
-        await put(message.pop(0))
+        await queue.put(message.pop(0))
     queue.close()
     print('producer stop')
 
 
-@process
-async def consumer(exit, queue):
-    async def get():
-        return await one_of([queue.get()], [exit])
+async def consumer(queue):
     print('consumer start')
     try:
         while True:
-            print('consume', repr(await get()))
+            print('consume', repr(await queue.get()))
     except Closed:
         pass
     finally:
@@ -50,16 +42,10 @@ async def consumer(exit, queue):
 def main():
     logging.basicConfig(level=logging.DEBUG)
     print('main start')
-    supervisor_ = supervisor()
-    loop = asyncio.get_event_loop()
     try:
-        loop.run_until_complete(supervisor_)
+        curio.run(supervisor())
     except KeyboardInterrupt:
-        pass
-    finally:
-        supervisor_.stop()
-        loop.run_until_complete(supervisor_)
-        loop.close()
+        print('main quit')
     print('main stop')
 
 
