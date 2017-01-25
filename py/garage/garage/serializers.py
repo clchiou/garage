@@ -1,7 +1,7 @@
 """
-Schema for object trees that may translate an object tree to composition
-of dict and list (this operation is called lower) and translate it back
-to object tree (which is called higher).
+You define schemas for your Python objects and we will decompose an
+object into dicts and lists (this operation is called "lower"), or
+compose an object from dicts and lists (called "upper").
 
 You may use this as an intermediate layer between your domain object and
 network presentation (say, JSON).

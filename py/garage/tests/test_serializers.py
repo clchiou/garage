@@ -1,9 +1,9 @@
 import unittest
 
-from garage.asyncs.messaging.objtrees import *
+from garage.serializers import *
 
 
-class ObjtreesTest(unittest.TestCase):
+class SerializersTest(unittest.TestCase):
 
     def test_primitive(self):
         Int = Primitive.of_type(int)
