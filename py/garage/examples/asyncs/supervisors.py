@@ -4,18 +4,18 @@ import logging
 
 import curio
 
+from garage.asyncs import TaskStack
 from garage.asyncs.queues import Closed, Queue
 
 
 async def supervisor():
     print('supervisor start')
-    queue = Queue()
-    tasks = [
-        await curio.spawn(consumer(queue)),
-        await curio.spawn(producer(queue)),
-    ]
-    async for task in curio.wait(tasks):
-        await task.join()
+    async with TaskStack() as stack:
+        queue = Queue()
+        await stack.spawn(consumer(queue)),
+        await stack.spawn(producer(queue)),
+        async for task in curio.wait(stack):
+            await task.join()
     print('supervisor stop')
 
 
