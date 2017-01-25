@@ -1,6 +1,6 @@
 import unittest
 
-import asyncio
+import curio
 
 from garage.asyncs import queues
 from garage.asyncs.utils import synchronous
@@ -52,7 +52,7 @@ class QueueTest(unittest.TestCase):
     async def test_raising_closed(self):
 
         num_expects = 4
-        flag = asyncio.Event()
+        flag = curio.Event()
         queue = queues.Queue()
 
         async def expect_closed():
@@ -60,19 +60,31 @@ class QueueTest(unittest.TestCase):
             with self.assertRaises(queues.Closed):
                 num_expects -= 1
                 if num_expects == 0:
-                    flag.set()
+                    await flag.set()
                 await queue.get()
 
         async def call_close():
             await flag.wait()
             queue.close()
 
-        fs = [asyncio.ensure_future(call_close())]
+        tasks = [await curio.spawn(call_close())]
         for _ in range(num_expects):
-            fs.append(asyncio.ensure_future(expect_closed()))
+            tasks.append(await curio.spawn(expect_closed()))
 
-        for fut in asyncio.as_completed(fs):
-            await fut
+        async for task in curio.wait(tasks):
+            await task.join()
+
+    @synchronous
+    async def test_until_closed(self):
+
+        queue = queues.Queue()
+        with self.assertRaises(curio.TaskTimeout):
+            async with curio.timeout_after(0.1):
+                await queue.until_closed()
+
+        queue.close()
+        with self.assertRaises(queues.Closed):
+            await queue.until_closed()
 
 
 class ZeroQueueTest(unittest.TestCase):
