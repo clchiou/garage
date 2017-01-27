@@ -41,7 +41,13 @@ async def spawn(coro, **kwargs):
                ...
     """
 
-    def decorated(throw, type_, *args):
+    def wrapped_send(send, arg):
+        try:
+            return send(arg)
+        except TaskCancelled as e:
+            raise curio.TaskCancelled from e
+
+    def wrapped_throw(throw, type_, *args):
         assert not args
         if type_ is curio.TaskCancelled or type(type_) is curio.TaskCancelled:
             # Raise asyncs.TaskCancelled in task's coroutine but raise
@@ -54,7 +60,9 @@ async def spawn(coro, **kwargs):
             return throw(type_, *args)
 
     task = await curio.spawn(coro, **kwargs)
-    task._throw = partial(decorated, task._throw)
+    task._send = partial(wrapped_send, task._send)
+    task._throw = partial(wrapped_throw, task._throw)
+
     return task
 
 

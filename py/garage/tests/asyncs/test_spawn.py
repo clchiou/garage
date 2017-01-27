@@ -1,5 +1,7 @@
 import unittest
 
+import signal
+
 import curio
 
 from garage import asyncs
@@ -15,6 +17,20 @@ class SpawnTest(unittest.TestCase):
             try:
                 await curio.sleep(100)
             except Exception as e:
+                self.fail('asyncs.TaskCancelled is not raised: %r' % e)
+
+        task = await asyncs.spawn(coro())
+        self.assertTrue(await task.cancel())
+        with self.assertRaises(curio.TaskError):
+            await task.join()
+        self.assertEqual('CANCELLED', task.state)
+
+    @synchronous
+    async def test_wrapper(self):
+
+        async def coro():
+            async with curio.SignalSet(signal.SIGINT) as sigset:
+                await sigset.wait()
                 self.fail('asyncs.TaskCancelled is not raised: %r' % e)
 
         task = await asyncs.spawn(coro())
