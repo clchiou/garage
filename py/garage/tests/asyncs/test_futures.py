@@ -2,7 +2,7 @@ import unittest
 
 import curio
 
-from garage.asyncs.futures import CancelledError, FutureError, Future, State
+from garage.asyncs.futures import CancelledError, Future, State
 from garage.asyncs.utils import synchronous
 
 
@@ -34,11 +34,16 @@ class FuturesTest(unittest.TestCase):
         exc = ValueError('test exception')
         await p.set_exception(exc)
 
+        # Note: we can't use assertRaises here because for some reason
+        # it clears stack frame of the task, and that will cause CPython
+        # to raise a RuntimeError with message:
+        #   cannot reuse already awaited coroutine
+        # See Objects/genobject.c for more details.
         try:
             await f.get_result()
             self.fail('get_result() did not raise')
-        except FutureError as e:
-            self.assertTrue(isinstance(e.__cause__, ValueError))
+        except ValueError as e:
+            self.assertEqual(exc, e)
         self.assertEqual(exc, await f.get_exception())
 
     @synchronous

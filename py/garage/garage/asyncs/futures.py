@@ -12,7 +12,6 @@ Future objects to model the caller-callee relationship.
 
 __all__ = [
     'CancelledError',
-    'FutureError',
     'Future',
 ]
 
@@ -23,12 +22,6 @@ import curio
 
 class CancelledError(Exception):
     """The Future was cancelled."""
-
-
-# This error class is for working around an issue below.
-# TODO: Remove this class if we could fix the issue.
-class FutureError(Exception):
-    """Promise calls set_exception()."""
 
 
 # The API is designed that you most likely don't need to check specific
@@ -108,13 +101,7 @@ class Future:
         if self.state is State.CANCELLED:
             raise CancelledError
         elif self._exception is not None:
-            # I don't fully understand why, but it seems that when
-            # self._exception is coming from an awaited coroutine, in
-            # some cases curio.Kernel will try to re-use it in the same
-            # coroutine and cause RuntimeError.  So we can't raise
-            # self._exception` here, but have to wrap it in FutureError
-            # exception.
-            raise FutureError() from self._exception
+            raise self._exception
         else:
             return self._result
 

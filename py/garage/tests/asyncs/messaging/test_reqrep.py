@@ -8,7 +8,7 @@ from nanomsg.curio import Socket
 import nanomsg as nn
 
 from garage.asyncs import TaskStack
-from garage.asyncs.futures import Future, FutureError, State
+from garage.asyncs.futures import Future, State
 from garage.asyncs.messaging import reqrep
 from garage.asyncs.queues import Queue, ZeroQueue
 from garage.asyncs.utils import synchronous
@@ -90,8 +90,8 @@ class ReqrepTest(unittest.TestCase):
             try:
                 await response_future.get_result()
                 self.fail('get_result() did not raise')
-            except FutureError as exc:
-                self.assertTrue(isinstance(exc.__cause__, curio.TaskTimeout))
+            except curio.TaskTimeout:
+                pass
 
     @synchronous
     async def test_server_timeout(self):
