@@ -2,7 +2,7 @@ import unittest
 
 import curio
 
-from garage.asyncs.futures import CancelledError, Future, State
+from garage.asyncs.futures import CancelledError, FutureError, Future, State
 from garage.asyncs.utils import synchronous
 
 
@@ -34,8 +34,11 @@ class FuturesTest(unittest.TestCase):
         exc = ValueError('test exception')
         await p.set_exception(exc)
 
-        with self.assertRaisesRegex(ValueError, 'test exception'):
+        try:
             await f.get_result()
+            self.fail('get_result() did not raise')
+        except FutureError as e:
+            self.assertTrue(isinstance(e.__cause__, ValueError))
         self.assertEqual(exc, await f.get_exception())
 
     @synchronous
