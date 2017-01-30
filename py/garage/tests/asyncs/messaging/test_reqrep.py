@@ -1,11 +1,16 @@
 import unittest
 
-import asyncio
 import random
 
-from garage.asyncs import queues
-from garage.asyncs.futures import each_completed
+import curio
+
+from nanomsg.curio import Socket
+import nanomsg as nn
+
+from garage.asyncs import TaskStack
+from garage.asyncs.futures import Future, FutureError, State
 from garage.asyncs.messaging import reqrep
+from garage.asyncs.queues import Queue, ZeroQueue
 from garage.asyncs.utils import synchronous
 
 
@@ -18,147 +23,94 @@ class ReqrepTest(unittest.TestCase):
         self.url = URL_BASE + str(random.randint(0, 65536))
 
     @synchronous
-    async def test_stop_client(self):
-        rq = queues.Queue()
-        client = asyncio.ensure_future(reqrep.client(self.url, rq))
+    async def test_cancel_client(self):
+        async with TaskStack() as stack, Socket(protocol=nn.NN_REQ) as socket:
+            socket.connect(self.url)
+            queue = Queue()
+            client_task = await stack.spawn(reqrep.client(socket, queue))
 
-        response_fut = asyncio.Future()
-        await rq.put((b'', response_fut))
+            response_future = Future()
+            await queue.put((b'', response_future.make_promise()))
 
-        client.stop()
-        await client
+            await client_task.cancel()
 
-        self.assertTrue(client.done())
-        self.assertFalse(response_fut.cancelled())
-
-        response_fut.cancel()
+            self.assertTrue(response_future.state is State.PENDING)
+            self.assertEqual('CANCELLED', client_task.state)
 
     @synchronous
-    async def test_stop_server(self):
+    async def test_cancel_server(self):
+        async with TaskStack() as stack, Socket(protocol=nn.NN_REP) as socket:
+            socket.bind(self.url)
+            queue = ZeroQueue()
+            server_task = await stack.spawn(reqrep.server(socket, queue))
 
-        flag = asyncio.Event()
+            await server_task.cancel()
 
-        async def run_client():
-            client_rq = queues.Queue()
-            client = asyncio.ensure_future(reqrep.client(self.url, client_rq))
-            client_response_fut = asyncio.Future()
-            await client_rq.put((b'hello world', client_response_fut))
-
-            await flag.wait()
-
-            client.stop()
-            await client
-
-            self.assertFalse(client_response_fut.done())
-            self.assertFalse(client_response_fut.cancelled())
-            client_response_fut.cancel()
-
-        async def run_server():
-            server_rq = queues.Queue()
-            server = asyncio.ensure_future(reqrep.server(self.url, server_rq))
-
-            request, response_fut = await server_rq.get()
-            self.assertEqual(b'hello world', request)
-
-            flag.set()
-
-            server.stop()
-            await server
-            self.assertTrue(response_fut.cancelled())
-
-        async for task in each_completed([run_client(), run_server()]):
-            await task
+            self.assertEqual('CANCELLED', server_task.state)
 
     @synchronous
     async def test_end_to_end(self):
-        client_rq = queues.Queue()
-        client = reqrep.client(self.url, client_rq)
-        server_rq = queues.Queue()
-        server = reqrep.server(self.url, server_rq)
+        async with TaskStack() as stack, \
+                   Socket(protocol=nn.NN_REQ) as client_socket, \
+                   Socket(protocol=nn.NN_REP) as server_socket:
 
-        client_request = b'hello'
-        client_response_fut = asyncio.Future()
-        await client_rq.put((client_request, client_response_fut))
+            client_socket.connect(self.url)
+            client_queue = Queue()
+            client_task = await stack.spawn(
+                reqrep.client(client_socket, client_queue))
 
-        server_request, server_response_fut = await server_rq.get()
-        self.assertEqual(client_request, server_request)
+            server_socket.bind(self.url)
+            server_queue = Queue()
+            server_task = await stack.spawn(
+                reqrep.server(server_socket, server_queue))
 
-        expect = b'world'
-        server_response_fut.set_result(expect)
-        self.assertEqual(expect, await client_response_fut)
+            client_request = b'hello'
+            client_response_future = Future()
+            await client_queue.put(
+                (client_request, client_response_future.make_promise()))
 
-        client.stop()
-        await client
+            server_request, server_response_promise = await server_queue.get()
+            self.assertEqual(client_request, server_request)
 
-        server.stop()
-        await server
+            expect = b'world'
+            await server_response_promise.set_result(expect)
+            self.assertEqual(expect, await client_response_future.get_result())
 
     @synchronous
     async def test_client_timeout(self):
-        client_rq = queues.Queue()
-        client = reqrep.client(self.url, client_rq, timeout=0.01)
+        async with TaskStack() as stack, Socket(protocol=nn.NN_REQ) as socket:
+            socket.connect(self.url)
+            queue = Queue()
+            client_task = await stack.spawn(
+                reqrep.client(socket, queue, timeout=0.01))
 
-        response_fut = asyncio.Future()
-        await client_rq.put((b'', response_fut))
+            response_future = Future()
+            await queue.put((b'', response_future.make_promise()))
 
-        with self.assertRaises(asyncio.TimeoutError):
-            await response_fut
-
-        client.stop()
-        await client
+            try:
+                await response_future.get_result()
+                self.fail('get_result() did not raise')
+            except FutureError as exc:
+                self.assertTrue(isinstance(exc.__cause__, curio.TaskTimeout))
 
     @synchronous
     async def test_server_timeout(self):
-        client_rq = queues.Queue()
-        client = reqrep.client(self.url, client_rq)
-        client_response_fut = asyncio.Future()
-        await client_rq.put((b'hello world', client_response_fut))
+        async with TaskStack() as stack, Socket(protocol=nn.NN_REP) as socket:
+            socket.bind(self.url)
+            queue = Queue()
+            server_task = await stack.spawn(
+                reqrep.server(socket, queue, timeout=0.01))
 
-        server_rq = queues.Queue()
-        server = reqrep.server(
-            self.url,
-            server_rq,
-            timeout=0.01,
-            timeout_response=b'timeout',
-        )
+            async with Socket(protocol=nn.NN_REQ) as client_socket:
+                client_socket.connect(self.url)
+                await client_socket.send(b'')
 
-        request, response_fut = await server_rq.get()
-        self.assertEqual(b'hello world', request)
-
-        self.assertEqual(b'timeout', await client_response_fut)
-        self.assertTrue(response_fut.cancelled())
-
-        client.stop()
-        await client
-
-        server.stop()
-        await server
-
-    @synchronous
-    async def test_server_timeout_crash(self):
-        client_rq = queues.Queue()
-        client = reqrep.client(self.url, client_rq)
-        client_response_fut = asyncio.Future()
-        await client_rq.put((b'hello world', client_response_fut))
-
-        server_rq = queues.Queue()
-        server = reqrep.server(
-            self.url,
-            server_rq,
-            timeout=0.01,
-        )
-
-        request, response_fut = await server_rq.get()
-        self.assertEqual(b'hello world', request)
-
-        with self.assertRaises(asyncio.TimeoutError):
-            await server
-        self.assertTrue(response_fut.cancelled())
-
-        client_response_fut.cancel()
-
-        client.stop()
-        await client
+                try:
+                    await server_task.join()
+                    self.fail('join() did not raise')
+                except curio.TaskError as exc:
+                    self.assertTrue(
+                        isinstance(exc.__cause__, curio.TaskTimeout))
 
 
 if __name__ == '__main__':
