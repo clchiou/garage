@@ -72,6 +72,12 @@ class Future:
         self._exception = None
         self.state = State.PENDING
 
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *_):
+        await self.cancel()
+
     def make_promise(self):
         # Future won't reference to Promise to avoid cyclic reference.
         return Future.Promise(self)
