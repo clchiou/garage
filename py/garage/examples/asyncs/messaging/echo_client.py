@@ -40,7 +40,7 @@ class ClientComponent(components.Component):
 async def echo_client(port, message):
     request = message.encode('utf8')
     LOG.info('connect to local TCP port: %d', port)
-    async with TaskStack() as stack, Socket(protocol=nn.NN_REQ) as socket:
+    async with Socket(protocol=nn.NN_REQ) as socket, TaskStack() as stack:
         socket.connect('tcp://127.0.0.1:%d' % port)
         queue = Queue()
         await stack.spawn(reqrep.client(socket, queue))

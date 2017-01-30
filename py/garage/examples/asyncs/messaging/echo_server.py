@@ -35,7 +35,7 @@ class ServerComponent(components.Component):
 
 async def echo_server(port):
     LOG.info('serving at local TCP port: %d', port)
-    async with TaskStack() as stack, Socket(protocol=nn.NN_REP) as socket:
+    async with Socket(protocol=nn.NN_REP) as socket, TaskStack() as stack:
         socket.bind('tcp://127.0.0.1:%d' % port)
         queue = Queue()
         await stack.spawn(reqrep.server(socket, queue))

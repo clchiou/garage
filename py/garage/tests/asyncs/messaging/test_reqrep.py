@@ -24,7 +24,7 @@ class ReqrepTest(unittest.TestCase):
 
     @synchronous
     async def test_cancel_client(self):
-        async with TaskStack() as stack, Socket(protocol=nn.NN_REQ) as socket:
+        async with Socket(protocol=nn.NN_REQ) as socket, TaskStack() as stack:
             socket.connect(self.url)
             queue = Queue()
             client_task = await stack.spawn(reqrep.client(socket, queue))
@@ -39,7 +39,7 @@ class ReqrepTest(unittest.TestCase):
 
     @synchronous
     async def test_cancel_server(self):
-        async with TaskStack() as stack, Socket(protocol=nn.NN_REP) as socket:
+        async with Socket(protocol=nn.NN_REP) as socket, TaskStack() as stack:
             socket.bind(self.url)
             queue = ZeroQueue()
             server_task = await stack.spawn(reqrep.server(socket, queue))
@@ -50,9 +50,9 @@ class ReqrepTest(unittest.TestCase):
 
     @synchronous
     async def test_end_to_end(self):
-        async with TaskStack() as stack, \
-                   Socket(protocol=nn.NN_REQ) as client_socket, \
-                   Socket(protocol=nn.NN_REP) as server_socket:
+        async with Socket(protocol=nn.NN_REQ) as client_socket, \
+                   Socket(protocol=nn.NN_REP) as server_socket, \
+                   TaskStack() as stack:
 
             client_socket.connect(self.url)
             client_queue = Queue()
@@ -78,7 +78,7 @@ class ReqrepTest(unittest.TestCase):
 
     @synchronous
     async def test_client_timeout(self):
-        async with TaskStack() as stack, Socket(protocol=nn.NN_REQ) as socket:
+        async with Socket(protocol=nn.NN_REQ) as socket, TaskStack() as stack:
             socket.connect(self.url)
             queue = Queue()
             client_task = await stack.spawn(
@@ -95,7 +95,7 @@ class ReqrepTest(unittest.TestCase):
 
     @synchronous
     async def test_server_timeout(self):
-        async with TaskStack() as stack, Socket(protocol=nn.NN_REP) as socket:
+        async with Socket(protocol=nn.NN_REP) as socket, TaskStack() as stack:
             socket.bind(self.url)
             queue = Queue()
             server_task = await stack.spawn(
