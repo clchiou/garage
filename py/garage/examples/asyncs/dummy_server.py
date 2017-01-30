@@ -1,7 +1,6 @@
 """A server that does nothing."""
 
 import logging
-import signal
 import sys
 
 import curio
@@ -33,21 +32,11 @@ async def main_server():
         LOG.info('main_server: exit')
 
 
-async def signal_handler():
-    try:
-        async with curio.SignalSet(signal.SIGINT) as sigset:
-            sig = await sigset.wait()
-            LOG.info('receive signal: %s', sig)
-    finally:
-        LOG.info('signal_handler: exit')
-
-
 def main(argv):
     prepare(
         description=__doc__,
         comps=[
             ServerComponent(main_server),
-            ServerComponent(signal_handler),
         ],
     )
     return components.main(argv)
