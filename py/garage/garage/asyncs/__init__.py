@@ -41,29 +41,31 @@ async def spawn(coro, **kwargs):
                ...
     """
 
-    def wrapped_send(send, arg):
-        try:
-            return send(arg)
-        except TaskCancelled as e:
-            raise curio.TaskCancelled from e
-
-    def wrapped_throw(throw, type_, *args):
-        assert not args
-        if type_ is curio.TaskCancelled or type(type_) is curio.TaskCancelled:
-            # Raise asyncs.TaskCancelled in task's coroutine but raise
-            # curio.TaskCancelled in the curio main loop.
-            try:
-                return throw(TaskCancelled)
-            except TaskCancelled as e:
-                raise type_ from e
-        else:
-            return throw(type_, *args)
-
     task = await curio.spawn(coro, **kwargs)
-    task._send = partial(wrapped_send, task._send)
-    task._throw = partial(wrapped_throw, task._throw)
+    task._send = partial(_send, task._send)
+    task._throw = partial(_throw, task._throw)
 
     return task
+
+
+def _send(send, arg):
+    try:
+        return send(arg)
+    except TaskCancelled as e:
+        raise curio.TaskCancelled from e
+
+
+def _throw(throw, type_, *args):
+    assert not args
+    if type_ is curio.TaskCancelled or type(type_) is curio.TaskCancelled:
+        # Raise asyncs.TaskCancelled in task's coroutine but raise
+        # curio.TaskCancelled in the curio main loop.
+        try:
+            return throw(TaskCancelled)
+        except TaskCancelled as e:
+            raise type_ from e
+    else:
+        return throw(type_, *args)
 
 
 class TaskStack:
