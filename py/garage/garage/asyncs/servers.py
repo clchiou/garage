@@ -1,6 +1,7 @@
 """A simple root of supervisor tree and a generic container."""
 
 ___all__ = [
+    'GRACEFUL_EXIT',
     'SERVER_MAKER',
     'prepare',
 ]
@@ -20,6 +21,9 @@ from garage.startups.logging import LoggingComponent
 from startup import Startup, startup
 
 
+GRACEFUL_EXIT = __name__ + ':graceful_exit'
+
+
 SERVER_MAKER = __name__ + ':server_maker'
 SERVER_MAKERS = __name__ + ':server_makers'
 
@@ -37,6 +41,8 @@ def prepare(*, prog=None, description, comps, verbose=1):
     next_startup = Startup()
     parser.set_defaults(next_startup=next_startup)
 
+    next_startup.set(GRACEFUL_EXIT, curio.Event())
+
     # Overcome the limitation that startup requires >0 writes.
     next_startup.set(SERVER_MAKER, None)
     next_startup(collect_server_maker)
@@ -45,7 +51,7 @@ def prepare(*, prog=None, description, comps, verbose=1):
     components.bind(LoggingComponent(verbose=verbose))
 
     # Second-stage startup
-    for comp in components.find_closure(*comps):
+    for comp in components.find_closure(*comps, ignore=[GRACEFUL_EXIT]):
         components.bind(comp, next_startup=next_startup)
 
 
@@ -60,14 +66,14 @@ def collect_server_maker(server_makers: [SERVER_MAKER]) -> SERVER_MAKERS:
 
 
 # The root node of the supervisor tree
-async def init(server_makers):
+async def init(graceful_exit, server_makers):
     okay = NOT_OKAY
     async with asyncs.TaskStack() as servers:
         LOG.info('start servers: pid=%d', os.getpid())
         for server_maker in server_makers:
             await servers.spawn(server_maker())
         # Also spawn default signal handler
-        await servers.spawn(signal_handler())
+        await servers.spawn(signal_handler(graceful_exit))
         # Now let's wait for the servers...
         async with curio.wait(servers) as wait_servers:
             # When one server exits, normally or not, we bring down all
@@ -84,16 +90,27 @@ async def init(server_makers):
     return okay
 
 
-async def signal_handler():
+async def signal_handler(graceful_exit):
     """Exit on SIGINT."""
-    async with curio.SignalSet(signal.SIGINT) as sigset:
-        LOG.info('receive signal: %s', await sigset.wait())
+    async with curio.SignalSet(signal.SIGINT, signal.SIGTERM) as sigset:
+        while True:
+            sig = await sigset.wait()
+            LOG.info('receive signal: %s', sig)
+            if sig is signal.SIGINT:
+                await graceful_exit.set()
+            elif sig is signal.SIGTERM:
+                return
+            else:
+                raise AssertionError('unknown signal: %s' % sig)
 
 
 def main(args):
     with ExitStack() as exit_stack:
         next_startup = args.next_startup
         next_startup.set(components.EXIT_STACK, exit_stack)
-        server_makers = next_startup.call()[SERVER_MAKERS]
-        okay = curio.run(init(server_makers))
+        varz = next_startup.call()
+        graceful_exit = varz[GRACEFUL_EXIT]
+        server_makers = varz[SERVER_MAKERS]
+        del varz
+        okay = curio.run(init(graceful_exit, server_makers))
         return 0 if okay else 1
