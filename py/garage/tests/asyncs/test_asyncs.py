@@ -41,6 +41,60 @@ class SpawnTest(unittest.TestCase):
         self.assertEqual('CANCELLED', task.state)
 
 
+class TaskSetTest(unittest.TestCase):
+
+    @synchronous
+    async def test_graceful_exit(self):
+
+        task_set = asyncs.TaskSet()
+
+        async def waiter():
+            results = set()
+            async for task in task_set:
+                results.add(await task.join())
+            return results
+
+        async def spawner():
+            await task_set.spawn(func(1))
+            await task_set.spawn(func(2))
+            await task_set.spawn(func(3))
+
+        async def func(x):
+            return x
+
+        waiter_task = await asyncs.spawn(waiter())
+        async with task_set:
+            spawner_task = await asyncs.spawn(spawner())
+            await spawner_task.join()
+            task_set.graceful_exit()
+            await waiter_task.join()
+
+        self.assertEqual({1, 2, 3}, await waiter_task.join())
+
+    @synchronous
+    async def test_abort(self):
+
+        task_set = asyncs.TaskSet()
+        tasks = []
+
+        async def spawner():
+            tasks.append(await task_set.spawn(func(1)))
+            tasks.append(await task_set.spawn(func(2)))
+            tasks.append(await task_set.spawn(func(3)))
+
+        async def func(x):
+            await curio.sleep(1)
+            return x
+
+        async with task_set:
+            spawner_task = await asyncs.spawn(spawner())
+            await spawner_task.join()
+
+        self.assertEqual('CANCELLED', tasks[0].state)
+        self.assertEqual('CANCELLED', tasks[1].state)
+        self.assertEqual('CANCELLED', tasks[2].state)
+
+
 class TaskStackTest(unittest.TestCase):
 
     @synchronous
