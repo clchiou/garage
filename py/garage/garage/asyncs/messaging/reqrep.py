@@ -5,8 +5,9 @@ __all__ = [
 
 import logging
 
+from curio import timeout_after
+
 from garage.asyncs.futures import Future
-from garage.asyncs.utils import timeout_after
 
 
 LOG = logging.getLogger(__name__)
