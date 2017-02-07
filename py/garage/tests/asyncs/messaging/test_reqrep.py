@@ -11,7 +11,8 @@ from garage.asyncs import TaskStack
 from garage.asyncs.futures import Future, State
 from garage.asyncs.messaging import reqrep
 from garage.asyncs.queues import Queue, ZeroQueue
-from garage.asyncs.utils import synchronous
+
+from tests.asyncs.utils import synchronous
 
 
 URL_BASE = 'inproc://test_reqrep/'

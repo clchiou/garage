@@ -3,7 +3,8 @@ import unittest
 import curio
 
 from garage.asyncs import queues
-from garage.asyncs.utils import synchronous
+
+from tests.asyncs.utils import synchronous
 
 
 class QueueTest(unittest.TestCase):

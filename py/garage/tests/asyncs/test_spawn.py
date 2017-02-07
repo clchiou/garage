@@ -5,7 +5,8 @@ import signal
 import curio
 
 from garage import asyncs
-from garage.asyncs.utils import synchronous
+
+from tests.asyncs.utils import synchronous
 
 
 class SpawnTest(unittest.TestCase):

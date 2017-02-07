@@ -3,7 +3,8 @@ import unittest
 import curio
 
 from garage.asyncs.futures import CancelledError, Future, State
-from garage.asyncs.utils import synchronous
+
+from tests.asyncs.utils import synchronous
 
 
 class FuturesTest(unittest.TestCase):
