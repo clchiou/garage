@@ -7,6 +7,7 @@ setup(
     license = 'MIT',
     packages = find_packages(exclude=['tests*']),
     extras_require = {
+        'asyncs': ['curio'],
         'components': ['startup'],
         'formatters': ['PyYAML'],
         'http.clients': ['lxml', 'requests'],
