@@ -22,6 +22,7 @@ from startup import Startup, startup
 
 
 GRACEFUL_EXIT = __name__ + ':graceful_exit'
+GRACEFUL_PERIOD = 5  # Unit: seconds
 
 
 SERVER_MAKER = __name__ + ':server_maker'
@@ -73,11 +74,11 @@ async def init(graceful_exit, server_makers):
         for server_maker in server_makers:
             await servers.spawn(server_maker())
         # Also spawn default signal handler
-        await servers.spawn(signal_handler(graceful_exit))
+        await servers.spawn(signal_handler(graceful_exit, GRACEFUL_PERIOD))
         # Now let's wait for the servers...
         async with curio.wait(servers) as wait_servers:
             # When one server exits, normally or not, we bring down all
-            # other servers.
+            # other servers
             server_task = await wait_servers.next_done()
             try:
                 await server_task.join()
@@ -86,22 +87,29 @@ async def init(graceful_exit, server_makers):
             except curio.TaskError:
                 LOG.exception('server crash: %r', server_task)
             LOG.info('stop servers')
+            # curio.wait() will cancel all the remaining tasks
     LOG.info('exit')
     return okay
 
 
-async def signal_handler(graceful_exit):
-    """Exit on SIGINT."""
+async def signal_handler(graceful_exit, graceful_period):
+    # Exploit the fact that when one of the server task exits, the init
+    # task will bring down all other server tasks
     async with curio.SignalSet(signal.SIGINT, signal.SIGTERM) as sigset:
-        while True:
+        sig = await sigset.wait()
+        LOG.info('receive signal: %s', sig)
+        if sig is signal.SIGINT:
+            LOG.info('notify graceful exit')
+            await graceful_exit.set()
+        elif sig is signal.SIGTERM:
+            return
+        else:
+            raise AssertionError('unknown signal: %s' % sig)
+        async with curio.ignore_after(graceful_period):
             sig = await sigset.wait()
-            LOG.info('receive signal: %s', sig)
-            if sig is signal.SIGINT:
-                await graceful_exit.set()
-            elif sig is signal.SIGTERM:
-                return
-            else:
-                raise AssertionError('unknown signal: %s' % sig)
+            LOG.info('receive signal again: %s', sig)
+            return
+        LOG.info('exceed graceful period %f', graceful_period)
 
 
 def main(args):
