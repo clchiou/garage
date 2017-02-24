@@ -232,4 +232,7 @@ def main(argv, startup=startup_):
     startup.set(ARGV, argv)
     startup(parse_argv)
     varz = startup.call()
-    return varz[MAIN](varz[ARGS])
+    main_ = varz[MAIN]
+    args = varz[ARGS]
+    del varz
+    return main_(args)
