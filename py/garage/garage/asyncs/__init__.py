@@ -2,6 +2,7 @@ __all__ = [
     'TaskCancelled',
     'TaskSet',
     'TaskStack',
+    'cancel_on_exit',
     'spawn',
 ]
 
@@ -15,6 +16,18 @@ from . import queues
 
 class TaskCancelled(BaseException):
     pass
+
+
+class cancel_on_exit:
+
+    def __init__(self, task):
+        self.task = task
+
+    async def __aenter__(self):
+        return self.task
+
+    async def __aexit__(self, *_):
+        await self.task.cancel()
 
 
 async def spawn(coro, **kwargs):
