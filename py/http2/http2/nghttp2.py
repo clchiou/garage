@@ -106,6 +106,9 @@ c_uint8_p = c_void_p
 ### Macro constants
 
 
+declare('NGHTTP2_PROTO_VERSION_ID', 'h2')
+
+
 declare('NGHTTP2_INITIAL_WINDOW_SIZE', (1 << 16) - 1)
 
 

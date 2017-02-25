@@ -1,15 +1,22 @@
 __all__ = [
-    'Method',
-    'PushPromise',
-    'Response',
-    'SessionError',
     'Session',
+    'SessionError',
+    'Stream',
+    # HTTP/2 entities
+    'Request',
+    'Response',
+    # HTTP/2 entity properties
+    'Method',
+    'Scheme',
+    'Status',
+    # Helpers
+    'configure_ssl_context',
     'get_library_version',
 ]
 
 # NOTE: We do not support deferred/resume at the moment.
 
-from http import HTTPStatus
+from http import HTTPStatus as Status  # Rename for consistency
 import ctypes
 import enum
 import functools
@@ -17,6 +24,7 @@ import io
 import logging
 
 from curio import socket
+from curio import ssl
 import curio
 
 from garage.asyncs import queues
@@ -38,6 +46,13 @@ def get_library_version():
         'version_str': version.version_str.decode('utf-8'),
         'proto_str': version.proto_str.decode('utf-8'),
     }
+
+
+def configure_ssl_context(ssl_context):
+    if ssl.HAS_ALPN:
+        ssl_context.set_alpn_protocols([NGHTTP2_PROTO_VERSION_ID])
+    if ssl.HAS_NPN:
+        ssl_context.set_npn_protocols([NGHTTP2_PROTO_VERSION_ID])
 
 
 class SessionError(Exception):
@@ -431,45 +446,40 @@ class Stream:
     """Represent HTTP/2 stream."""
 
     def __init__(self, session, stream_id):
+
         self._id = stream_id
         self._session = session  # Cyclic reference :(
-        self._done = False
+
+        self.request = None
         self._headers = []
         self._data_chunks = []
-        self._body = None
+
         self._response = None  # Own response
 
     def _on_header(self, name, values):
-        assert not self._done and self._session is not None
+        assert self._session is not None and self.request is None
         for value in values:
             self._headers.append((name, value))
 
     def _on_data(self, data):
-        assert not self._done and self._session is not None
+        assert self._session is not None and self.request is None
         self._data_chunks.append(data)
 
     def _on_request_done(self):
-        assert not self._done and self._session is not None
+        assert self._session is not None and self.request is None
         if self._data_chunks:
-            self._body = b''.join(self._data_chunks)
-            self._data_chunks = None
-        self._done = True
+            body = b''.join(self._data_chunks)
+        else:
+            body = None
+        self.request = Request._make(self._headers, body)
+        del self._headers
+        del self._data_chunks
 
     def _on_close(self, error_code):
         assert self._session is not None
         LOG.debug('session=%s, stream=%d: close due to %d',
                   self._session._id, self._id, error_code)
         self._session = None  # Break cycle
-
-    @property
-    def headers(self):
-        assert self._done
-        return self._headers
-
-    @property
-    def body(self):
-        assert self._done
-        return self._body
 
     # Non-blocking version of submit() that should be called in the
     # Session object's callback functions.
@@ -508,7 +518,7 @@ class Stream:
         self._submit_nowait(response)
         await self._session._sendall()
 
-    async def push(self, push_promise):
+    async def push(self, request, response):
         """Push resource to client.
 
            Note that this must be used before submit().
@@ -518,7 +528,7 @@ class Stream:
                   self._session._id, self._id)
 
         owners = []
-        nva, nvlen = push_promise._make_headers(self._session, owners)
+        nva, nvlen = request._make_headers(self._session, owners)
 
         promised_stream_id = nghttp2_submit_push_promise(
             self._session._session,
@@ -531,7 +541,7 @@ class Stream:
                   self._session._id, self._id, promised_stream_id)
 
         promised_stream = self._session._make_stream(promised_stream_id)
-        promised_stream._response = push_promise.response
+        promised_stream._response = response
 
         await self._session._sendall()
 
@@ -566,14 +576,40 @@ class Entity:
         return ctypes.cast(ctypes.byref(buffer), ctypes.c_void_p)
 
 
-class PushPromise(Entity):
+class Request(Entity):
 
-    def __init__(self, *, method=Method.GET, path, headers=None,
-                 response):
+    @classmethod
+    def _make(cls, headers, body):
+        kwargs = {}
+        extra_headers = []
+        for name, value in headers:
+            if name == b':method':
+                kwargs['method'] = Method(value)
+            elif name == b':scheme':
+                kwargs['scheme'] = Scheme(value)
+            elif name == b':authority':
+                kwargs['authority'] = value
+            elif name == b':path':
+                kwargs['path'] = value
+            else:
+                extra_headers.append((name, value))
+        if len(kwargs) != 4:
+            raise ValueError('miss HTTP/2 headers: %r' % headers)
+        return cls(headers=extra_headers, body=body, **kwargs)
+
+    def __init__(self, *,
+                 method=Method.GET,
+                 scheme=None,
+                 authority=None,
+                 path,
+                 headers=None,
+                 body=None):
         self.method = method
+        self.scheme = scheme
+        self.authority = authority
         self.path = path
         self.headers = headers or []
-        self.response = response
+        self.body = body
 
     def _get_num_headers(self):
         # Extra four for method, scheme, authority, and path
@@ -583,15 +619,15 @@ class PushPromise(Entity):
         assert session._scheme is not None
         assert session._host is not None
         yield (b':method', self.method.value)
-        yield (b':scheme', session._scheme.value)
-        yield (b':authority', session._host)
+        yield (b':scheme', (self.scheme or session._scheme).value)
+        yield (b':authority', self.authority or session._host)
         yield (b':path', self.path)
         yield from self.headers
 
 
 class Response(Entity):
 
-    def __init__(self, *, status=HTTPStatus.OK, headers=None, body=None):
+    def __init__(self, *, status=Status.OK, headers=None, body=None):
         self.status = status
         self.headers = headers or []
         self.body = body
