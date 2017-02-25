@@ -10,8 +10,8 @@ __all__ = [
     'Scheme',
     'Status',
     # Helpers
-    'configure_ssl_context',
     'get_library_version',
+    'make_ssl_context',
 ]
 
 # NOTE: We do not support deferred/resume at the moment.
@@ -48,11 +48,14 @@ def get_library_version():
     }
 
 
-def configure_ssl_context(ssl_context):
+def make_ssl_context(certfile, keyfile):
+    ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+    ssl_context.load_cert_chain(certfile, keyfile)
     if ssl.HAS_ALPN:
         ssl_context.set_alpn_protocols([NGHTTP2_PROTO_VERSION_ID])
     if ssl.HAS_NPN:
         ssl_context.set_npn_protocols([NGHTTP2_PROTO_VERSION_ID])
+    return ssl_context
 
 
 class SessionError(Exception):
