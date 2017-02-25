@@ -1,88 +1,75 @@
 """A simple HTTP/2 file server."""
 
-import asyncio
 import logging
-import sys
-from concurrent.futures.thread import ThreadPoolExecutor
-
 import os.path
 import urllib.parse
-from http import HTTPStatus
+import sys
 
-import http2.utils
-from http2 import HttpError, Protocol
+import curio
+import curio.io
 
+from garage import asyncs
+from garage.asyncs.utils import make_server_socket
 
-LOG = logging.getLogger(__name__)
-
-
-class Handler:
-
-    def __init__(self, root_path=os.path.curdir, *, loop=None):
-        self.root_path = root_path
-        self.executor = ThreadPoolExecutor(max_workers=8)
-        self.loop = loop or asyncio.get_event_loop()
-
-    async def __call__(self, request, response):
-        try:
-            path = request.headers.get(b':path')
-            if path is None:
-                raise HttpError(HTTPStatus.BAD_REQUEST)
-            path = urllib.parse.unquote(path.decode('ascii'))
-            assert path.startswith('/')
-
-            local_path = os.path.join(self.root_path, path[1:])
-            if not os.path.isfile(local_path):
-                raise HttpError(HTTPStatus.NOT_FOUND)
-
-            LOG.info('GET %s', path)
-            with open(local_path, 'rb') as data:
-                contents = await self.loop.run_in_executor(
-                    self.executor, data.read)
-
-            response.headers[b':status'] = b'200'
-            await response.write(contents)
-            response.close()
-
-        except HttpError:
-            raise
-        except Exception:
-            LOG.exception('error when processing request')
-            raise HttpError(HTTPStatus.INTERNAL_SERVER_ERROR)
+import http2
 
 
-def main(argv):
-    if len(argv) < 2 or argv[1] == '-h':
-        print('Usage: %s [-h] port [server.crt server.key]' % argv[0])
-        return 0
+async def serve(port, ssl_context=None):
+    async with await make_server_socket(('', port)) as server_sock:
+        while True:
+            sock, addr = await server_sock.accept()
+            if ssl_context:
+                sock = ssl_context.wrap_socket(sock, server_side=True)
+            logging.info('Connection from %s:%d', *addr)
+            await asyncs.spawn(handle(sock))
 
-    logging.basicConfig(level=logging.DEBUG)
 
-    if len(argv) >= 4:
-        ssl_context = http2.utils.make_ssl_context(argv[2], argv[3])
+async def handle(sock):
+    session = http2.Session(sock)
+    async with asyncs.join_on_normal_exit(await asyncs.spawn(session.serve())):
+        async for stream in session:
+            request = stream.request
+            if request.method is not http2.Method.GET:
+                await stream.submit(
+                    http2.Response(status=http2.Status.BAD_REQUEST))
+                return
+
+            path = urllib.parse.unquote(request.path.decode('ascii'))
+            logging.info('GET %s', path)
+            if not path.startswith('/'):
+                await stream.submit(
+                    http2.Response(status=http2.Status.BAD_REQUEST))
+                return
+            path = path[1:]
+
+            if not os.path.isfile(path):
+                await stream.submit(
+                    http2.Response(status=http2.Status.NOT_FOUND))
+                return
+
+            try:
+                async with curio.io.FileStream(open(path, 'rb')) as contents:
+                    body = await contents.readall()
+            except OSError:
+                logging.exception('Err when read %s', path)
+                await stream.submit(
+                    http2.Response(status=http2.Status.INTERNAL_SERVER_ERROR))
+                return
+
+            await stream.submit(http2.Response(body=body))
+
+
+def main():
+    if len(sys.argv) < 2:
+        print('Usage: %s port [server.crt server.key]' % sys.argv[0])
+        sys.exit(1)
+    if len(sys.argv) >= 4:
+        ssl_context = http2.make_ssl_context(sys.argv[2], sys.argv[3])
     else:
         ssl_context = None
-
-    loop = asyncio.get_event_loop()
-
-    handler = Handler()
-    server = loop.run_until_complete(loop.create_server(
-        lambda: Protocol(lambda: handler),
-        host='0.0.0.0', port=int(argv[1]), ssl=ssl_context,
-    ))
-
-    print('Serving on port %s' % argv[1])
-    try:
-        loop.run_forever()
-    except KeyboardInterrupt:
-        pass
-    finally:
-        server.close()
-        loop.run_until_complete(server.wait_closed())
-        loop.close()
-
-    return 0
+    curio.run(serve(int(sys.argv[1]), ssl_context))
 
 
 if __name__ == '__main__':
-    sys.exit(main(sys.argv))
+    logging.basicConfig(level=logging.DEBUG)
+    main()
