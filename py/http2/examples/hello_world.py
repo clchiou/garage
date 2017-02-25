@@ -10,7 +10,7 @@ import http2
 
 
 async def serve(port, ssl_context=None):
-    async with await make_server_socket(('', port)) as server_sock:
+    async with make_server_socket(('', port)) as server_sock:
         while True:
             sock, addr = await server_sock.accept()
             if ssl_context:
