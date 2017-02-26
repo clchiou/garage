@@ -15,9 +15,7 @@ from garage.asyncs.utils import make_server_socket, serve
 import http2
 
 
-async def handle(sock, addr, ssl_context=None):
-    if ssl_context:
-        sock = ssl_context.wrap_socket(sock, server_side=True)
+async def handle(sock, addr):
     session = http2.Session(sock)
     async with asyncs.cancelling(
             await asyncs.spawn(session.serve())) as server:
@@ -64,13 +62,15 @@ def main():
         print('Usage: %s port [server.crt server.key]' % sys.argv[0])
         sys.exit(1)
     if len(sys.argv) >= 4:
-        ssl_context = http2.make_ssl_context(sys.argv[2], sys.argv[3])
+        make_ssl_context = partial(
+            http2.make_ssl_context, sys.argv[2], sys.argv[3])
     else:
-        ssl_context = None
+        make_ssl_context = None
     curio.run(serve(
         curio.Event(),
         partial(make_server_socket, ('', int(sys.argv[1]))),
-        partial(handle, ssl_context=ssl_context),
+        handle,
+        make_ssl_context=make_ssl_context,
     ))
 
 
