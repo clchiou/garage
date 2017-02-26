@@ -56,9 +56,9 @@ async def serve(graceful_exit, make_server_socket, handle_client, *,
 
     async with \
             asyncs.TaskSet() as handlers, \
-            asyncs.cancel_on_exit(await asyncs.spawn(
+            asyncs.cancelling(await asyncs.spawn(
                 join_client_handlers(handlers))) as joiner, \
-            asyncs.cancel_on_exit(await asyncs.spawn(
+            asyncs.cancelling(await asyncs.spawn(
                 accept_clients(handlers))) as acceptor:
 
         task = await asyncs.select([graceful_exit.wait(), joiner, acceptor])

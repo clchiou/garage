@@ -19,7 +19,7 @@ async def handle(sock, addr, ssl_context=None):
     if ssl_context:
         sock = ssl_context.wrap_socket(sock, server_side=True)
     session = http2.Session(sock)
-    async with asyncs.cancel_on_exit(
+    async with asyncs.cancelling(
             await asyncs.spawn(session.serve())) as server:
         async for stream in session:
             request = stream.request

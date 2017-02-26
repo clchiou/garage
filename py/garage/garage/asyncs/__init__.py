@@ -2,7 +2,7 @@ __all__ = [
     'TaskCancelled',
     'TaskSet',
     'TaskStack',
-    'cancel_on_exit',
+    'cancelling',
     'select',
     'spawn',
 ]
@@ -20,7 +20,7 @@ class TaskCancelled(BaseException):
     pass
 
 
-class cancel_on_exit:
+class cancelling:
 
     def __init__(self, task):
         self.task = task
