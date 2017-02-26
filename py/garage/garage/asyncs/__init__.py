@@ -4,11 +4,13 @@ __all__ = [
     'TaskStack',
     'cancel_on_exit',
     'join_on_normal_exit',
+    'select',
     'spawn',
 ]
 
 from collections import OrderedDict, deque
 from functools import partial
+import inspect
 
 import curio
 
@@ -98,6 +100,24 @@ def _throw(throw, type_, *args):
             raise type_ from e
     else:
         return throw(type_, *args)
+
+
+async def select(coro_or_tasks, *, spawn=spawn):
+    """Wait on a list of coroutine or tasks and return the first done.
+
+       The advantage of select() over curio.wait() is that it accepts
+       coroutines and spawns new tasks for those coroutines.  But more
+       importantly, it cancels those (internal) tasks on return so that
+       the main loop won't be blocked on them on exit.
+    """
+    async with TaskStack(spawn=spawn) as stack:
+        tasks = []
+        for task in coro_or_tasks:
+            if not isinstance(task, curio.Task):
+                assert inspect.iscoroutine(task)
+                task = await stack.spawn(task)
+            tasks.append(task)
+        return await curio.wait(tasks).next_done()
 
 
 class TaskSet:
@@ -203,7 +223,7 @@ class TaskStack:
         self._tasks = deque()
         return self
 
-    async def __aexit__(self, *exc_info):
+    async def __aexit__(self, *_):
         assert self._tasks is not None
         tasks, self._tasks = self._tasks, None
         for task in reversed(tasks):
