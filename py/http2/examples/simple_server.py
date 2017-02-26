@@ -17,8 +17,7 @@ import http2
 
 async def handle(sock, addr):
     session = http2.Session(sock)
-    async with asyncs.cancelling(
-            await asyncs.spawn(session.serve())) as server:
+    async with await asyncs.cancelling.spawn(session.serve()) as server:
         async for stream in session:
             request = stream.request
             if request.method is not http2.Method.GET:

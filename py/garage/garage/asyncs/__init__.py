@@ -20,18 +20,6 @@ class TaskCancelled(BaseException):
     pass
 
 
-class cancelling:
-
-    def __init__(self, task):
-        self.task = task
-
-    async def __aenter__(self):
-        return self.task
-
-    async def __aexit__(self, *_):
-        await self.task.cancel()
-
-
 async def spawn(coro, **kwargs):
     """Call curio.spawn() and patch the task object so that when it is
        cancelled, asyncs.TaskCancelled is raised inside the coroutine.
@@ -84,6 +72,22 @@ def _throw(throw, type_, *args):
             raise type_ from e
     else:
         return throw(type_, *args)
+
+
+class cancelling:
+
+    @classmethod
+    async def spawn(cls, coro, *, spawn=spawn, **kwargs):
+        return cls(await spawn(coro, **kwargs))
+
+    def __init__(self, task):
+        self.task = task
+
+    async def __aenter__(self):
+        return self.task
+
+    async def __aexit__(self, *_):
+        await self.task.cancel()
 
 
 async def select(coro_or_tasks, *, spawn=spawn):
