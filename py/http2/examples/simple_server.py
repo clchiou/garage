@@ -41,7 +41,9 @@ async def handle(sock, addr, ssl_context=None):
                 return
 
             try:
+                # open() is blocking; an alternative is curio.aopen()
                 async with curio.io.FileStream(open(path, 'rb')) as contents:
+                    # Calling readall() is inefficient on large files
                     body = await contents.readall()
             except OSError:
                 logging.exception('Err when read %s', path)
