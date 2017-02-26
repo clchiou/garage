@@ -1,5 +1,6 @@
 """A simple HTTP/2 file server."""
 
+from functools import partial
 import logging
 import os.path
 import urllib.parse
@@ -9,22 +10,14 @@ import curio
 import curio.io
 
 from garage import asyncs
-from garage.asyncs.utils import make_server_socket
+from garage.asyncs.utils import make_server_socket, serve
 
 import http2
 
 
-async def serve(port, ssl_context=None):
-    async with make_server_socket(('', port)) as server_sock:
-        while True:
-            sock, addr = await server_sock.accept()
-            if ssl_context:
-                sock = ssl_context.wrap_socket(sock, server_side=True)
-            logging.info('Connection from %s:%d', *addr)
-            await asyncs.spawn(handle(sock))
-
-
-async def handle(sock):
+async def handle(sock, addr, ssl_context=None):
+    if ssl_context:
+        sock = ssl_context.wrap_socket(sock, server_side=True)
     session = http2.Session(sock)
     async with asyncs.join_on_normal_exit(await asyncs.spawn(session.serve())):
         async for stream in session:
@@ -67,7 +60,11 @@ def main():
         ssl_context = http2.make_ssl_context(sys.argv[2], sys.argv[3])
     else:
         ssl_context = None
-    curio.run(serve(int(sys.argv[1]), ssl_context))
+    curio.run(serve(
+        curio.Event(),
+        partial(make_server_socket, ('', int(sys.argv[1]))),
+        partial(handle, ssl_context=ssl_context),
+    ))
 
 
 if __name__ == '__main__':
