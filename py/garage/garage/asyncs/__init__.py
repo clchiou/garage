@@ -3,7 +3,6 @@ __all__ = [
     'TaskSet',
     'TaskStack',
     'cancel_on_exit',
-    'join_on_normal_exit',
     'select',
     'spawn',
 ]
@@ -31,21 +30,6 @@ class cancel_on_exit:
 
     async def __aexit__(self, *_):
         await self.task.cancel()
-
-
-class join_on_normal_exit:
-
-    def __init__(self, task):
-        self.task = task
-
-    async def __aenter__(self):
-        return self.task
-
-    async def __aexit__(self, exc_type, *_):
-        if exc_type:
-            await self.task.cancel()
-        else:
-            await self.task.join()
 
 
 async def spawn(coro, **kwargs):

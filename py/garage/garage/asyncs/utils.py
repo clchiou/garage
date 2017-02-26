@@ -56,7 +56,7 @@ async def serve(graceful_exit, make_server_socket, handle_client, *,
 
     async with \
             asyncs.TaskSet() as handlers, \
-            asyncs.join_on_normal_exit(await asyncs.spawn(
+            asyncs.cancel_on_exit(await asyncs.spawn(
                 join_client_handlers(handlers))) as joiner, \
             asyncs.cancel_on_exit(await asyncs.spawn(
                 accept_clients(handlers))) as acceptor:
@@ -70,3 +70,4 @@ async def serve(graceful_exit, make_server_socket, handle_client, *,
         logger.info('initiate graceful exit')
         await acceptor.cancel()
         handlers.graceful_exit()
+        await joiner.join()

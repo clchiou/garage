@@ -14,12 +14,14 @@ async def handle(sock, addr, ssl_context=None):
     if ssl_context:
         sock = ssl_context.wrap_socket(sock, server_side=True)
     session = http2.Session(sock)
-    async with asyncs.join_on_normal_exit(await asyncs.spawn(session.serve())):
+    async with asyncs.cancel_on_exit(
+            await asyncs.spawn(session.serve())) as server:
         async for stream in session:
             logging.info('Request: %s %r',
                          stream.request.method.name,
                          stream.request.path.decode('utf8'))
             await stream.submit(http2.Response(body=b'hello world'))
+        await server.join()
 
 
 def main():
