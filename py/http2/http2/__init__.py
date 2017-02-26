@@ -14,8 +14,6 @@ __all__ = [
     'make_ssl_context',
 ]
 
-# NOTE: We do not support deferred/resume at the moment.
-
 from http import HTTPStatus as Status  # Rename for consistency
 import ctypes
 import enum
@@ -191,6 +189,7 @@ class Session:
 
     async def _serve_tick(self):
         data = await self._sock.recv(self.INCOMING_BUFFER_SIZE)
+        LOG.debug('session=%s: recv %d bytes', self._id, len(data))
         if not data:
             LOG.info('session=%s: connection is closed', self._id)
             return False
@@ -238,7 +237,7 @@ class Session:
             nghttp2_session_server_new(
                 ctypes.byref(session),
                 callbacks,
-                ctypes.cast(ctypes.byref(user_data), ctypes.c_void_p),
+                _addrof(user_data),
             )
 
             return session, user_data
@@ -387,8 +386,10 @@ class Session:
             self, session, stream_id, buf, length, data_flags, source):
         self._debug('stream=%d', stream_id)
         source = source.contents
-        body_reader = ctypes.cast(source.ptr, py_object_p).contents.value
-        data = body_reader.read(length)
+        read = ctypes.cast(source.ptr, py_object_p).contents.value
+        data, error_code = read(length)
+        if error_code != 0:
+            return error_code
         num_read = len(data)
         if num_read:
             ctypes.memmove(buf, data, num_read)
@@ -491,29 +492,18 @@ class Stream:
         assert self._response is None or self._response is response
         LOG.debug('session=%s, stream=%d: submit response',
                   self._session._id, self._id)
-
         owners = []
         nva, nvlen = response._make_headers(self._session, owners)
-
-        if response.body:
-            provider = nghttp2_data_provider()
-            provider.read_callback = self._session._on_data_source_read
-            provider.source.ptr = response._make_body_reader_ptr()
-            provider_ptr = ctypes.byref(provider)
-        else:
-            provider_ptr = None
-
         try:
             nghttp2_submit_response(
                 self._session._session,
                 self._id,
                 nva, nvlen,
-                provider_ptr,
+                response._make_data_provider_ptr(),
             )
         except Nghttp2Error:
             self._session._rst_stream(self._id)
             raise
-
         self._response = response
 
     async def submit(self, response):
@@ -548,6 +538,76 @@ class Stream:
 
         await self._session._sendall()
 
+    class Buffer:
+        """Response body buffer."""
+
+        def __init__(self, stream):
+            self._stream = stream  # Cyclic reference :(
+            self._data_chunks = []
+            self._deferred = False
+            self._aborted = False
+            self._closed = False
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, *_):
+            if exc_type:
+                await self.abort()
+            else:
+                await self.close()
+
+        def _read(self, length):
+            if self._aborted:
+                return b'', NGHTTP2_ERR_TEMPORAL_CALLBACK_FAILURE
+            elif not self._data_chunks:
+                if self._closed:
+                    return b'', 0
+                else:
+                    self._deferred = True
+                    return b'', NGHTTP2_ERR_DEFERRED
+            elif length >= len(self._data_chunks[0]):
+                return bytes(self._data_chunks.pop(0)), 0
+            else:
+                data = self._data_chunks[0][:length]
+                self._data_chunks[0] = self._data_chunks[0][length:]
+                return bytes(data), 0
+
+        async def write(self, data):
+            assert not self._aborted and not self._closed
+            if data:
+                self._data_chunks.append(memoryview(data))
+                await self._send()
+            return len(data)
+
+        # Note that while Session.serve() will continue sending data to
+        # the client after buffer is aborted or closed, we still need to
+        # call self._send() in abort() and close() since Session.serve()
+        # could be blocked on socket.recv() and make no progress.
+
+        async def abort(self):
+            assert not self._aborted and not self._closed
+            self._aborted = True
+            await self._send()
+            self._stream = None  # Break cycle
+
+        async def close(self):
+            assert not self._aborted and not self._closed
+            self._closed = True
+            await self._send()
+            self._stream = None  # Break cycle
+
+        async def _send(self):
+            assert self._stream._session is not None
+            if self._deferred:
+                nghttp2_session_resume_data(
+                    self._stream._session._session, self._stream._id)
+                self._deferred = False
+            await self._stream._session._sendall()
+
+    def make_buffer(self):
+        return self.Buffer(self)
+
 
 class Entity:
 
@@ -576,7 +636,7 @@ class Entity:
     def _bytes_to_void_ptr(byte_string, owners):
         buffer = ctypes.create_string_buffer(byte_string, len(byte_string))
         owners.append(buffer)
-        return ctypes.cast(ctypes.byref(buffer), ctypes.c_void_p)
+        return _addrof(buffer)
 
 
 class Request(Entity):
@@ -634,7 +694,7 @@ class Response(Entity):
         self.status = status
         self.headers = headers or []
         self.body = body
-        self._body_reader = None  # Own py_object(io.BytesIO(self.body))
+        self._owners = []
 
     def _get_num_headers(self):
         # Extra one for status
@@ -644,8 +704,27 @@ class Response(Entity):
         yield (b':status', b'%d' % self.status)
         yield from self.headers
 
-    def _make_body_reader_ptr(self):
-        assert self.body
-        assert self._body_reader is None
-        self._body_reader = ctypes.py_object(io.BytesIO(self.body))
-        return ctypes.cast(ctypes.byref(self._body_reader), ctypes.c_void_p)
+    def _make_data_provider_ptr(self):
+        if not self.body:
+            return None
+
+        if isinstance(self.body, bytes):
+            buffer = io.BytesIO(self.body)
+            read = lambda length: (buffer.read(length), 0)
+        elif isinstance(self.body, Stream.Buffer):
+            read = self.body._read
+        else:
+            raise TypeError('body is neither bytes nor Buffer: %r' % self.body)
+
+        read = ctypes.py_object(read)
+        self._owners.append(read)
+
+        provider = nghttp2_data_provider()
+        provider.read_callback = Session._on_data_source_read
+        provider.source.ptr = _addrof(read)
+
+        return ctypes.byref(provider)
+
+
+def _addrof(obj):
+    return ctypes.cast(ctypes.byref(obj), ctypes.c_void_p)

@@ -117,6 +117,8 @@ declare('NGHTTP2_INITIAL_WINDOW_SIZE', (1 << 16) - 1)
 
 @declare_enum
 class nghttp2_error(IntEnum):
+    NGHTTP2_ERR_DEFERRED = -508
+    NGHTTP2_ERR_TEMPORAL_CALLBACK_FAILURE = -521
     NGHTTP2_ERR_CALLBACK_FAILURE = -902
 
 
@@ -394,6 +396,10 @@ declare_functions([
         POINTER(nghttp2_session),  # session
         c_uint8_p,  # data
         c_size_t,  # datalen
+    )),
+    ('nghttp2_session_resume_data', c_int, (
+        POINTER(nghttp2_session),  # session
+        c_int32,  # stream_id
     )),
     ('nghttp2_session_get_stream_remote_close', c_int, (
         POINTER(nghttp2_session),  # session

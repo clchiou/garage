@@ -41,17 +41,19 @@ async def handle(sock, addr, ssl_context=None):
                 return
 
             try:
-                # open() is blocking; an alternative is curio.aopen()
-                async with curio.io.FileStream(open(path, 'rb')) as contents:
-                    # Calling readall() is inefficient on large files
-                    body = await contents.readall()
+                # open() is blocking; an alternative is curio.aopen(),
+                # but it secretly uses thread behind the scene, which
+                # might be undesirable
+                async with curio.io.FileStream(open(path, 'rb')) as contents, \
+                           stream.make_buffer() as buffer:
+                    await stream.submit(http2.Response(body=buffer))
+                    while True:
+                        data = await contents.read(65536)
+                        if not data:
+                            break
+                        await buffer.write(data)
             except OSError:
-                logging.exception('Err when read %s', path)
-                await stream.submit(
-                    http2.Response(status=http2.Status.INTERNAL_SERVER_ERROR))
-                return
-
-            await stream.submit(http2.Response(body=body))
+                logging.exception('err when read %s', path)
 
 
 def main():
