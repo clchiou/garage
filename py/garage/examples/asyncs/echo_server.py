@@ -9,6 +9,7 @@ from curio import socket
 from garage import asyncs
 from garage import components
 from garage.asyncs.servers import GRACEFUL_EXIT, SERVER_MAKER, prepare
+from garage.asyncs.utils import make_server_socket, serve
 
 
 LOG = logging.getLogger(__name__)
@@ -27,43 +28,16 @@ class ServerComponent(components.Component):
             help="""set port (default to %(default)s)""")
 
     def make(self, require):
-        return partial(echo_server, require.graceful_exit, require.args.port)
+        return partial(
+            serve,
+            require.graceful_exit,
+            partial(make_server_socket, ('', require.args.port)),
+            handle,
+            logger=LOG,
+        )
 
 
-async def echo_server(graceful_exit, port):
-    async with asyncs.TaskStack() as stack, asyncs.TaskSet() as tasks:
-        listener_task = await stack.spawn(listener(port, tasks.spawn))
-        joiner_task = await stack.spawn(joiner(tasks))
-        await graceful_exit.wait()
-        LOG.info('initiate graceful exit')
-        await listener_task.cancel()
-        tasks.graceful_exit()
-        await joiner_task.join()
-
-
-async def listener(port, spawn):
-    async with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.bind(('127.0.0.1', port))
-        sock.listen(8)
-        LOG.info('serving at local TCP port: %d', port)
-        while True:
-            client_sock, client_addr = await sock.accept()
-            await spawn(handler(client_sock, client_addr))
-
-
-async def joiner(tasks):
-    async for task in tasks:
-        try:
-            await task.join()
-        except Exception:
-            LOG.exception('handler crash')
-        else:
-            LOG.info('handler exit normally')
-
-
-async def handler(client_sock, client_addr):
-    LOG.info('receive connection from: %s', client_addr)
+async def handle(client_sock, client_addr):
     async with client_sock:
         stream = client_sock.as_stream()
         async for line in stream:
