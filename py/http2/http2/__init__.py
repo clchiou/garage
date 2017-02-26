@@ -340,7 +340,7 @@ class Session:
         if frame.hd.type == NGHTTP2_PUSH_PROMISE:
             # For PUSH_PROMISE, send push response immediately
             stream = self._get_stream(frame.push_promise.promised_stream_id)
-            stream._submit_nowait(stream._response)
+            stream._submit_response_nowait(stream._response)
         return 0
 
     @declare_callback(nghttp2_on_frame_not_send_callback)
@@ -487,7 +487,7 @@ class Stream:
 
     # Non-blocking version of submit() that should be called in the
     # Session object's callback functions.
-    def _submit_nowait(self, response):
+    def _submit_response_nowait(self, response):
         assert self._session is not None
         assert self._response is None or self._response is response
         LOG.debug('session=%s, stream=%d: submit response',
@@ -506,12 +506,12 @@ class Stream:
             raise
         self._response = response
 
-    async def submit(self, response):
+    async def submit_response(self, response):
         """Send response to client."""
-        self._submit_nowait(response)
+        self._submit_response_nowait(response)
         await self._session._sendall()
 
-    async def push(self, request, response):
+    async def submit_push_promise(self, request, response):
         """Push resource to client.
 
            Note that this must be used before submit().
@@ -536,6 +536,11 @@ class Stream:
         promised_stream = self._session._make_stream(promised_stream_id)
         promised_stream._response = response
 
+        await self._session._sendall()
+
+    async def submit_rst_stream(self, error_code=NGHTTP2_INTERNAL_ERROR):
+        assert self._session is not None
+        self._session._rst_stream(self._id, error_code)
         await self._session._sendall()
 
     class Buffer:
@@ -598,7 +603,8 @@ class Stream:
             self._stream = None  # Break cycle
 
         async def _send(self):
-            assert self._stream._session is not None
+            if self._stream._session is None:
+                return  # This stream was closed
             if self._deferred:
                 nghttp2_session_resume_data(
                     self._stream._session._session, self._stream._id)

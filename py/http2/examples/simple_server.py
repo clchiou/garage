@@ -21,20 +21,20 @@ async def handle(sock, addr):
         async for stream in session:
             request = stream.request
             if request.method is not http2.Method.GET:
-                await stream.submit(
+                await stream.submit_response(
                     http2.Response(status=http2.Status.BAD_REQUEST))
                 return
 
             path = urllib.parse.unquote(request.path.decode('ascii'))
             logging.info('GET %s', path)
             if not path.startswith('/'):
-                await stream.submit(
+                await stream.submit_response(
                     http2.Response(status=http2.Status.BAD_REQUEST))
                 return
             path = path[1:]
 
             if not os.path.isfile(path):
-                await stream.submit(
+                await stream.submit_response(
                     http2.Response(status=http2.Status.NOT_FOUND))
                 return
 
@@ -44,7 +44,7 @@ async def handle(sock, addr):
                 # might be undesirable
                 async with curio.io.FileStream(open(path, 'rb')) as contents, \
                            stream.make_buffer() as buffer:
-                    await stream.submit(http2.Response(body=buffer))
+                    await stream.submit_response(http2.Response(body=buffer))
                     while True:
                         data = await contents.read(65536)
                         if not data:

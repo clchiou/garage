@@ -17,7 +17,7 @@ async def handle(sock, addr):
             logging.info('Request: %s %r',
                          stream.request.method.name,
                          stream.request.path.decode('utf8'))
-            await stream.submit(http2.Response(body=b'hello world'))
+            await stream.submit_response(http2.Response(body=b'hello world'))
         await server.join()
 
 
