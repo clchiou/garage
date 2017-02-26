@@ -87,12 +87,12 @@ def _throw(throw, type_, *args):
 
 
 async def select(coro_or_tasks, *, spawn=spawn):
-    """Wait on a list of coroutine or tasks and return the first done.
+    """Wait on a list of coroutine or task and return the first done.
 
        The advantage of select() over curio.wait() is that it accepts
-       coroutines and spawns new tasks for those coroutines.  But more
-       importantly, it cancels those (internal) tasks on return so that
-       the main loop won't be blocked on them on exit.
+       coroutines and spawns new tasks for those coroutines so that they
+       may be waited in parallel.  Also select() will clean up itself by
+       cancelling those internally-spawned tasks on its way out.
     """
     async with TaskStack(spawn=spawn) as stack:
         tasks = []
