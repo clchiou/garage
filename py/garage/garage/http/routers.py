@@ -1,12 +1,6 @@
-"""HTTP request routers.
-
-A router is a callable object that when called, maps a request to a
-handler object.
-"""
+"""HTTP request routers."""
 
 __all__ = [
-    'RouterHandler',
-    # Routers
     'ApiRouter',
     'PrefixRouter',
 ]
@@ -18,21 +12,10 @@ from collections import OrderedDict
 import http2
 
 from garage import asserts
-from garage.http.handlers import ClientError
+from garage.http.servers import ClientError
 
 
 LOG = logging.getLogger(__name__)
-
-
-class RouterHandler:
-    """Convert a router into a request handler."""
-
-    def __init__(self, router):
-        self.router = router
-
-    async def __call__(self, request):
-        handler = self.router(request)
-        return await handler(request)
 
 
 class ApiRouter:
@@ -77,8 +60,8 @@ class ApiRouter:
         asserts.precond(name not in self.handlers)
         self.handlers[name] = handler
 
-    def __call__(self, request):
-        path = request.path
+    async def __call__(self, stream):
+        path = stream.request.path
         if not path:
             raise ClientError(
                 http2.Status.BAD_REQUEST,
@@ -86,7 +69,7 @@ class ApiRouter:
             )
 
         try:
-            return self.route(path)
+            handler = self.route(path)
         except self.EndpointNotFound:
             raise ClientError(
                 http2.Status.NOT_FOUND,
@@ -103,6 +86,8 @@ class ApiRouter:
                 http2.Status.BAD_REQUEST,
                 internal_message='version is not supported: %s' % path,
             )
+
+        await handler(stream)
 
     PATTERN_ENDPOINT = re.compile(br'/(\d+)/([\w_\-.]+)')
 
@@ -150,18 +135,19 @@ class PrefixRouter:
         asserts.precond(method not in handlers)  # No overwrite
         handlers[method] = handler
 
-    def __call__(self, request):
-        if not request.method:
+    async def __call__(self, stream):
+        if not stream.request.method:
             raise ClientError(
                 http2.Status.BAD_REQUEST,
                 internal_message='empty method',
             )
-        if not request.path:
+        if not stream.request.path:
             raise ClientError(
                 http2.Status.BAD_REQUEST,
                 internal_message='empty path',
             )
-        return self.route(request.method, request.path)
+        handler = self.route(stream.request.method, stream.request.path)
+        await handler(stream)
 
     def route(self, method, path):
         try:
