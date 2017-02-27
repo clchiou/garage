@@ -340,7 +340,7 @@ class Session:
         if frame.hd.type == NGHTTP2_PUSH_PROMISE:
             # For PUSH_PROMISE, send push response immediately
             stream = self._get_stream(frame.push_promise.promised_stream_id)
-            stream._submit_response_nowait(stream._response)
+            stream._submit_response_nowait(stream.response)
         return 0
 
     @declare_callback(nghttp2_on_frame_not_send_callback)
@@ -458,7 +458,7 @@ class Stream:
         self._headers = []
         self._data_chunks = []
 
-        self._response = None  # Own response
+        self.response = None  # Own response
 
     def _on_header(self, name, values):
         assert self._session is not None and self.request is None
@@ -489,7 +489,7 @@ class Stream:
     # Session object's callback functions.
     def _submit_response_nowait(self, response):
         assert self._session is not None
-        assert self._response is None or self._response is response
+        assert self.response is None or self.response is response
         LOG.debug('session=%s, stream=%d: submit response',
                   self._session._id, self._id)
         owners = []
@@ -504,7 +504,7 @@ class Stream:
         except Nghttp2Error:
             self._session._rst_stream(self._id)
             raise
-        self._response = response
+        self.response = response
 
     async def submit_response(self, response):
         """Send response to client."""
@@ -534,7 +534,7 @@ class Stream:
                   self._session._id, self._id, promised_stream_id)
 
         promised_stream = self._session._make_stream(promised_stream_id)
-        promised_stream._response = response
+        promised_stream.response = response
 
         await self._session._sendall()
 
