@@ -10,9 +10,9 @@ import http2
 from garage import components
 from garage.asyncs.servers import GRACEFUL_EXIT, SERVER_MAKER, prepare
 from garage.asyncs.utils import make_server_socket, serve
+from garage.http.handlers import ApiEndpointHandler, ClientError
+from garage.http.routers import ApiRouter
 from garage.http.servers import Server
-from garage.http.handlers import ClientError, Endpoint
-from garage.http.routers import ApiRouter, RouterHandler
 
 
 LOG = logging.getLogger('calculator_server')
@@ -50,7 +50,7 @@ class ServerComponent(components.Component):
             make_ssl_context = None
 
         router = ApiRouter(name='calculator', version=1)
-        router.add_handler('add', Endpoint(
+        router.add_handler('add', ApiEndpointHandler(
             endpoint_add,
             make_response_headers=make_response_headers,
             decode=decode_request, encode=encode_response,
@@ -60,7 +60,7 @@ class ServerComponent(components.Component):
             serve,
             require.graceful_exit,
             partial(make_server_socket, ('', require.args.port)),
-            Server(RouterHandler(router)),
+            Server.make(router=router),
             make_ssl_context=make_ssl_context,
             logger=LOG,
         )

@@ -1,4 +1,8 @@
-"""HTTP request routers."""
+"""HTTP request routers.
+
+A router is a callable object that when called, maps a request to a
+handler object.
+"""
 
 __all__ = [
     'RouterHandler',
@@ -21,24 +25,14 @@ LOG = logging.getLogger(__name__)
 
 
 class RouterHandler:
-    """Router container act as a request handler."""
+    """Convert a router into a request handler."""
 
     def __init__(self, router):
         self.router = router
 
-    async def __call__(self, stream):
-        try:
-            handler = self.router(stream.request)
-        except ClientError as exc:
-            LOG.warning('router rejects request due to %s: %s',
-                        exc, self.router, exc_info=True)
-            await stream.submit_response(exc.as_response())
-        except Exception:
-            LOG.exception('router errs: %s', self.router)
-            await stream.submit_response(
-                http2.Response(status=http2.Status.INTERNAL_SERVER_ERROR))
-        else:
-            await handler(stream)
+    async def __call__(self, request):
+        handler = self.router(request)
+        return await handler(request)
 
 
 class ApiRouter:

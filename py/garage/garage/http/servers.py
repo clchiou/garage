@@ -1,4 +1,4 @@
-"""HTTP request handler container."""
+"""HTTP server."""
 
 __all__ = [
     'Server',
@@ -17,7 +17,16 @@ LOG = logging.getLogger(__name__)
 
 
 class Server:
-    """Generic request handler container."""
+    """Serve one client connection."""
+
+    @classmethod
+    def make(cls, *, handler=None, router=None, **kwargs):
+        assert (handler is None) != (router is None)
+        if router:
+            from . import routers
+            handler = routers.RouterHandler(router)
+        from . import handlers
+        return cls(handlers.HandlerContainer(handler), **kwargs)
 
     def __init__(self, handler, *, timeout=None):
         self.handler = handler
