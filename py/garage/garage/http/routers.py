@@ -1,34 +1,44 @@
-"""HTTP request routing schemes."""
+"""HTTP request routers."""
 
 __all__ = [
-    'HttpMethod',
+    'RouterHandler',
     # Routers
     'ApiRouter',
     'PrefixRouter',
 ]
 
-import enum
 import logging
 import re
 from collections import OrderedDict
-from http import HTTPStatus
+
+import http2
 
 from garage import asserts
-from http2 import HttpError
+from garage.http.handlers import ClientError
 
 
 LOG = logging.getLogger(__name__)
 
 
-class HttpMethod(enum.Enum):
-    GET = b'GET'
-    HEAD = b'HEAD'
-    POST = b'POST'
-    PUT = b'PUT'
+class RouterHandler:
+    """Router container act as a request handler."""
 
+    def __init__(self, router):
+        self.router = router
 
-__all__.extend(HttpMethod.__members__.keys())
-globals().update(HttpMethod.__members__)
+    async def __call__(self, stream):
+        try:
+            handler = self.router(stream.request)
+        except ClientError as exc:
+            LOG.warning('router rejects request due to %s: %s',
+                        exc, self.router, exc_info=True)
+            await stream.submit_response(exc.as_response())
+        except Exception:
+            LOG.exception('router errs: %s', self.router)
+            await stream.submit_response(
+                http2.Response(status=http2.Status.INTERNAL_SERVER_ERROR))
+        else:
+            await handler(stream)
 
 
 class ApiRouter:
@@ -44,15 +54,22 @@ class ApiRouter:
         pass
 
     def __init__(self, name, version):
-        LOG.info('create service %s version %d', name, version)
         self.name = name
         self.version = version
         self._root_path = None
         self.handlers = {}
 
+    def __repr__(self):
+        args = (
+            __name__, self.__class__.__qualname__,
+            self.name, self.version, self._root_path,
+            id(self),
+        )
+        return '<%s.%s<name=%r, version=%r, root_path=%r> at 0x%x>' % args
+
     @property
     def root_path(self):
-        return self._root_path.decode('ascii')
+        return self._root_path.decode('ascii') if self._root_path else None
 
     @root_path.setter
     def root_path(self, root_path):
@@ -61,34 +78,41 @@ class ApiRouter:
         self._root_path = root_path
 
     def add_handler(self, name, handler):
-        LOG.info('%s/%d: add handler %s', self.name, self.version, name)
+        LOG.info('%s/%d: add handler %r', self.name, self.version, name)
         name = name.encode('ascii')
         asserts.precond(name not in self.handlers)
         self.handlers[name] = handler
 
-    async def __call__(self, request, response):
-        path = request.headers.get(b':path')
-        if path is None:
-            raise HttpError(HTTPStatus.BAD_REQUEST)
+    def __call__(self, request):
+        path = request.path
+        if not path:
+            raise ClientError(
+                http2.Status.BAD_REQUEST,
+                internal_message='empty path',
+            )
 
         try:
-            handler = self.dispatch(path)
+            return self.route(path)
         except self.EndpointNotFound:
-            raise HttpError(HTTPStatus.NOT_FOUND) from None
-        except self.VersionNotSupported as e:
+            raise ClientError(
+                http2.Status.NOT_FOUND,
+                internal_message='no endpoint found: %s' % path,
+            )
+        except self.VersionNotSupported:
             # Returning 400 when a request's version is newer is weird,
             # but none of other 4xx or 5xx code makes more sense anyway.
             # Like, 403?  But, could we say we understand a request of
             # newer version (premise of a 403)?  At least when returning
             # 400, we are telling the client that he could modify the
             # request (down-version it) and send it again.
-            raise HttpError(HTTPStatus.BAD_REQUEST) from None
-
-        await handler(request, response)
+            raise ClientError(
+                http2.Status.BAD_REQUEST,
+                internal_message='version is not supported: %s' % path,
+            )
 
     PATTERN_ENDPOINT = re.compile(br'/(\d+)/([\w_\-.]+)')
 
-    def dispatch(self, path):
+    def route(self, path):
         if self._root_path:
             if not path.startswith(self._root_path):
                 raise self.EndpointNotFound(path)
@@ -113,38 +137,62 @@ class ApiRouter:
 class PrefixRouter:
     """Routing based on HTTP request method and path prefix."""
 
-    def __init__(self, *, name=None):
-        self.name = name or self.__class__.__name__
+    def __init__(self):
         # prefix -> method -> handler
         self.handlers = OrderedDict()
 
     def add_handler(self, method, prefix, handler):
-        asserts.precond(method in HttpMethod)
+        if isinstance(method, str):
+            method = method.encode('ascii')
+        if method not in http2.Method:
+            method = http2.Method(method)
+        LOG.info('%s: add handler: %s %r',
+                 self.__class__.__name__, method.name, prefix)
         if isinstance(prefix, str):
             prefix = prefix.encode('ascii')
         if prefix not in self.handlers:
             self.handlers[prefix] = {}
         handlers = self.handlers[prefix]
-        asserts.precond(method.value not in handlers)  # No overwrite.
-        handlers[method.value] = handler
+        asserts.precond(method not in handlers)  # No overwrite
+        handlers[method] = handler
 
-    async def __call__(self, request, response):
-        path = request.headers.get(b':path')
-        if path is None:
-            raise HttpError(HTTPStatus.BAD_REQUEST)
+    def __call__(self, request):
+        if not request.method:
+            raise ClientError(
+                http2.Status.BAD_REQUEST,
+                internal_message='empty method',
+            )
+        if not request.path:
+            raise ClientError(
+                http2.Status.BAD_REQUEST,
+                internal_message='empty path',
+            )
+        return self.route(request.method, request.path)
+
+    def route(self, method, path):
+        try:
+            method = http2.Method(method)
+        except ValueError:
+            raise ClientError(
+                http2.Status.BAD_REQUEST,
+                internal_message='incorrect method: %s' % method,
+            )
+
         for prefix, handlers in self.handlers.items():
             if path.startswith(prefix):
                 break
         else:
-            LOG.warning('%s: no matching path prefix: %r', self.name, path)
-            raise HttpError(HTTPStatus.NOT_FOUND)
-
-        method = request.headers.get(b':method')
-        handler = handlers.get(method)
-        if not handler:
-            raise HttpError(
-                HTTPStatus.METHOD_NOT_ALLOWED,
-                headers={b'allow': b', '.join(sorted(handlers))},
+            raise ClientError(
+                http2.Status.NOT_FOUND,
+                internal_message='no match path prefix: %s' % path,
             )
 
-        await handler(request, response)
+        try:
+            return handlers[method]
+        except KeyError:
+            allow = b', '.join(sorted(method.value for method in handlers))
+            raise ClientError(
+                http2.Status.METHOD_NOT_ALLOWED,
+                headers=[(b'allow', allow)],
+                internal_message='method not allowed: %s' % method,
+            )

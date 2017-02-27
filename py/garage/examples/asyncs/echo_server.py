@@ -4,9 +4,6 @@ from functools import partial
 import logging
 import sys
 
-from curio import socket
-
-from garage import asyncs
 from garage import components
 from garage.asyncs.servers import GRACEFUL_EXIT, SERVER_MAKER, prepare
 from garage.asyncs.utils import make_server_socket, serve

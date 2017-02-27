@@ -1,70 +1,63 @@
-"""Helpers for constructing HTTP request handlers."""
+"""HTTP request handlers."""
 
 __all__ = [
-    'ApiHandler',
-    'Handler',
+    'ClientError',
+    'Endpoint',
 ]
 
 import logging
-from http import HTTPStatus
 
-from garage.asyncs.futures import all_of
-from http2 import HttpError
+import http2
 
 
 LOG = logging.getLogger(__name__)
 
 
-class Handler:
-    """Generic handler container."""
+class ClientError(Exception):
+    """Represent HTTP 4xx status code."""
 
-    def __init__(self, handler):
-        self.handler = handler
-        self.policies = []
-        self.timeout = None
+    def __init__(self, status, *,
+                 headers=None,
+                 message='',
+                 internal_message=''):
+        assert 400 <= status < 500
+        super().__init__(internal_message or message)
+        self.status = status
+        self.headers = headers
+        self.message = message.encode('utf8')
 
-    def add_policy(self, policy):
-        self.policies.append(policy)
-
-    async def __call__(self, request, response):
-        try:
-            if self.policies:
-                await all_of(
-                    [policy(request.headers) for policy in self.policies],
-                    timeout=self.timeout,
-                )
-            await self.handler(request, response)
-        except HttpError:
-            raise
-        except Exception:
-            LOG.exception('handler err: %r', self.handler)
-            raise HttpError(HTTPStatus.INTERNAL_SERVER_ERROR) from None
+    def as_response(self):
+        return http2.Response(
+            status=self.status, headers=self.headers, body=self.message)
 
 
-class ApiHandler(Handler):
-    """Handler container for implementing API endpoint."""
+class Endpoint:
+    """Request handler container for implementing API endpoint."""
 
-    def __init__(self, endpoint):
-        super().__init__(self.__handler)
+    def __init__(self, endpoint, *,
+                 decode=lambda headers, data: data,
+                 encode=lambda headers, data: data,
+                 make_response_headers=lambda request_headers: ()):
         self.endpoint = endpoint
-        self.decode = self.encode = lambda _, data: data
-        # Rather that content_type, or should we introduce another kind
-        # of policy that is applied on response headers?
-        self.content_type = None
+        self.decode = decode
+        self.encode = encode
+        self.make_response_headers = make_response_headers
 
-    async def __handler(self, request, response):
-        output = self.encode(
-            request.headers,
-            await self.endpoint(
-                self.decode(
-                    request.headers,
-                    await request.body,
-                )
-            ),
-        )
-        response.headers[b':status'] = b'200'
-        response.headers[b'content-length'] = b'%d' % len(output)
-        if self.content_type:
-            response.headers[b'content-type'] = self.content_type
-        await response.write(output)
-        response.close()
+    async def __call__(self, stream):
+        try:
+            request = stream.request
+            input = self.decode(request.headers, request.body)
+            output = self.encode(request.headers, await self.endpoint(input))
+            headers = [(b'content-length', b'%d' % len(output))]
+            headers.extend(self.make_response_headers(request.headers))
+            response = http2.Response(headers=headers, body=output)
+        except ClientError as exc:
+            LOG.warning('endpoint rejects request due to %s: %s',
+                        exc, self.endpoint, exc_info=True)
+            await stream.submit_response(exc.as_response())
+        except Exception:
+            LOG.exception('endpoint errs: %s', self.endpoint)
+            await stream.submit_response(
+                http2.Response(status=http2.Status.INTERNAL_SERVER_ERROR))
+        else:
+            await stream.submit_response(response)
