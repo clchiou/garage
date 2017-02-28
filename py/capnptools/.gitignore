@@ -1,3 +1,4 @@
 capnptools/schema.capnp.*
 capnptools/schema.cpp
 capnptools/schema.*.so
+examples/examples/*.so
