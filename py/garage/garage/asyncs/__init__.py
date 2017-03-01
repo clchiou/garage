@@ -90,8 +90,12 @@ class cancelling:
         await self.task.cancel()
 
 
-async def select(coro_or_tasks, *, spawn=spawn):
+async def select(cases, *, spawn=spawn):
     """Wait on a list of coroutine or task and return the first done.
+
+       The cases parameter could be either a dict-like with a keys()
+       method or an iterable object.  If it's a dict-like object, the
+       keys are either a coroutine or a task.
 
        The advantage of select() over curio.wait() is that it accepts
        coroutines and spawns new tasks for those coroutines so that they
@@ -99,13 +103,19 @@ async def select(coro_or_tasks, *, spawn=spawn):
        cancelling those internally-spawned tasks on its way out.
     """
     async with TaskStack(spawn=spawn) as stack:
-        tasks = []
-        for task in coro_or_tasks:
-            if not isinstance(task, curio.Task):
-                assert inspect.iscoroutine(task)
-                task = await stack.spawn(task)
-            tasks.append(task)
-        return await curio.wait(tasks).next_done()
+        dict_like = hasattr(cases, 'keys')
+        tasks = {}
+        for coro_or_task in cases:
+            if inspect.iscoroutine(coro_or_task):
+                task = await stack.spawn(coro_or_task)
+            else:
+                task = coro_or_task
+            tasks[task] = dict_like and cases[coro_or_task]
+        done_task = await curio.wait(tasks).next_done()
+        if dict_like:
+            return done_task, tasks[done_task]
+        else:
+            return done_task
 
 
 class TaskSet:

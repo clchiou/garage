@@ -115,5 +115,36 @@ class TaskStackTest(unittest.TestCase):
         self.assertEqual([2, 1], results)
 
 
+class SelectTest(unittest.TestCase):
+
+    @synchronous
+    async def test_select(self):
+
+        async def f(x):
+            return x
+
+        task_1 = await asyncs.spawn(f('x'))
+        task_2 = await asyncs.spawn(f('x'))
+        task = await asyncs.select([task_1, task_2])
+        self.assertIn(task, [task_1, task_2])
+        self.assertTrue(task.terminated)
+        self.assertEqual('x', await task.join())
+
+        task_3 = await asyncs.spawn(f('p'))
+        task_4 = await asyncs.spawn(f('q'))
+        task, label = await asyncs.select({task_3: 'p', task_4: 'q'})
+        self.assertIn(task, [task_3, task_4])
+        self.assertTrue(task.terminated)
+        self.assertEqual(label, await task.join())
+
+        task = await asyncs.select([f('x'), f('x')])
+        self.assertTrue(task.terminated)
+        self.assertEqual('x', await task.join())
+
+        task, label = await asyncs.select({f('p'): 'p', f('q'): 'q'})
+        self.assertTrue(task.terminated)
+        self.assertEqual(label, await task.join())
+
+
 if __name__ == '__main__':
     unittest.main()
