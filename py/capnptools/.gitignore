@@ -1,4 +1,8 @@
 capnptools/schema.capnp.*
 capnptools/schema.cpp
 capnptools/schema.*.so
+examples/examples/*.capnp.*
+examples/examples/*.cpp
+examples/examples/*.cpp.orig
+examples/examples/*.pyx
 examples/examples/*.so

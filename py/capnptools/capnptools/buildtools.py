@@ -3,6 +3,7 @@
 __all__ = [
     'compile_schemas',
     'make_post_cythonize_fix',
+    'setup',
 ]
 
 import os
@@ -39,7 +40,9 @@ STANDARD_IMPORTS = frozenset((
 ))
 
 
-def compile_schemas(imports, output_dir):
+def compile_schemas(imports, output_dir, *, import_paths=None):
+
+    import_paths = import_paths or []
 
     # capnp generates files with .c++ suffix.
     buildtools.add_cplusplus_suffix('.c++')
@@ -66,9 +69,10 @@ def compile_schemas(imports, output_dir):
     # import paths.  This works with sudo because my build tools
     # explicitly make sudo preserve PYTHONPATH.
     #
-    import_paths = os.environ.get('PYTHONPATH', [])
-    if import_paths:
-        import_paths = import_paths.split(':')
+    pythonpath = os.environ.get('PYTHONPATH')
+    if pythonpath:
+        import_paths.extends(pythonpath.split(':'))
+
     schemas = _find_schemas(imports, import_paths)
 
     if not Path(output_dir).is_dir():
@@ -271,3 +275,62 @@ def make_post_cythonize_fix(cpp_src_paths):
             return line
 
     return post_cythonize_fix
+
+
+def setup(*,
+          capnp_extension_name,
+          capnp_imports,
+          capnp_import_paths=None,
+          capnp_output_dir=None,
+          **kwargs):
+    """Provide boilerplate for projects that only build schema files.
+
+       This is not flexible by design; if this does not fit into your
+       build requirements, you will have to call individual build
+       functions your own.
+    """
+
+    assert 'cmdclass' not in kwargs
+    assert 'ext_modules' not in kwargs
+
+    import distutils.command.build
+    import os.path
+
+    import Cython.Build
+    import setuptools
+    import setuptools.extension
+
+    capnp_output_dir = capnp_output_dir or os.path.abspath(os.path.curdir)
+
+    sources = compile_schemas(
+        imports=capnp_imports,
+        import_paths=capnp_import_paths,
+        output_dir=capnp_output_dir,
+    )
+
+    cpp_sources = [
+        str(src_path.with_suffix('.cpp'))
+        for src_path in map(Path, sources)
+        if src_path.suffix == '.pyx'
+    ]
+
+    pkg_config = buildtools.read_pkg_config(['capnp'])
+    pkg_config.extra_compile_args.insert(0, '-std=c++11')
+    pkg_config.include_dirs.append(capnp_output_dir)
+
+    return setuptools.setup(
+        cmdclass={
+            cmd.__name__: cmd
+            for cmd in buildtools.register_subcommands(
+                distutils.command.build.build,
+                make_post_cythonize_fix(cpp_sources),
+            )
+        },
+        ext_modules=Cython.Build.cythonize(setuptools.extension.Extension(
+            name=capnp_extension_name,
+            language='c++',
+            sources=sources,
+            **pkg_config._asdict(),
+        )),
+        **kwargs,
+    )
