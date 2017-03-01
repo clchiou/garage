@@ -87,7 +87,8 @@ class cancelling:
         return self.task
 
     async def __aexit__(self, *_):
-        await self.task.cancel()
+        if not self.task.terminated:
+            await self.task.cancel()
 
 
 async def select(cases, *, spawn=spawn):
@@ -154,7 +155,8 @@ class TaskSet:
         self.graceful_exit()
         tasks, self._pending_tasks = self._pending_tasks, None
         for task in reversed(tasks.keys()):
-            await task.cancel()
+            if not task.terminated:
+                await task.cancel()
 
     async def spawn(self, coro, **kwargs):
         if self._graceful_exit:
@@ -225,7 +227,8 @@ class TaskStack:
         assert self._tasks is not None
         tasks, self._tasks = self._tasks, None
         for task in reversed(tasks):
-            await task.cancel()
+            if not task.terminated:
+                await task.cancel()
 
     def __iter__(self):
         assert self._tasks is not None
