@@ -6,11 +6,13 @@ cdef extern from "<capnp/message.h>":
 
 cdef extern from "<capnp/serialize.h>":
     cdef cppclass capnp__FlatArrayMessageReader 'capnp::FlatArrayMessageReader':
-        capnp__FlatArrayMessageReader(kj__ArrayPtr array) except +
+        capnp__FlatArrayMessageReader(kj__ArrayPtr_word array) except +
     cdef cppclass capnp__StreamFdMessageReader 'capnp::StreamFdMessageReader':
         capnp__StreamFdMessageReader(int fd) except +
 
 cdef extern from "<capnp/serialize-packed.h>":
+    cdef cppclass capnp__PackedMessageReader 'capnp::PackedMessageReader':
+        capnp__PackedMessageReader(kj__ArrayInputStream& inputStream) except +
     cdef cppclass capnp__PackedFdMessageReader 'capnp::PackedFdMessageReader':
         capnp__PackedFdMessageReader(int fd) except +
 
@@ -48,13 +50,26 @@ cdef class FlatArrayMessageReader(MessageReader):
     def __cinit__(self, bytes array):
         self._array = array
         cdef const char* _array = self._array
-        self.own_reader(<capnp__MessageReader*>new capnp__FlatArrayMessageReader(kj__ArrayPtr(<capnp__word*>_array, len(self._array))))
+        self.own_reader(<capnp__MessageReader*>new capnp__FlatArrayMessageReader(kj__ArrayPtr_word(<capnp__word*>_array, len(self._array))))
+
+cdef class PackedArrayMessageReader(MessageReader):
+
+    cdef bytes _array
+    cdef kj__ArrayInputStream *_stream
+
+    def __cinit__(self, bytes array):
+        self._array = array
+        cdef const char* _array = self._array
+        self._stream = new kj__ArrayInputStream(kj__ArrayPtr_byte(<kj__byte*>_array, len(self._array)))
+        self.own_reader(<capnp__MessageReader*>new capnp__PackedMessageReader(dereference(self._stream)))
+
+    def __dealloc__(self):
+        del self._stream
 
 cdef class StreamFdMessageReader(MessageReader):
 
     def __cinit__(self, int fd):
         self.own_reader(<capnp__MessageReader*>new capnp__StreamFdMessageReader(fd))
-
 
 cdef class PackedFdMessageReader(MessageReader):
 

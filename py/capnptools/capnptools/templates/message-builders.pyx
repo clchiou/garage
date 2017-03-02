@@ -7,9 +7,11 @@ cdef extern from "<capnp/message.h>":
         pass
 
 cdef extern from "<capnp/serialize.h>":
+    void capnp__writeMessage 'capnp::writeMessage'(kj__VectorOutputStream& output, capnp__MessageBuilder& builder) except +
     void capnp__writeMessageToFd 'capnp::writeMessageToFd'(int fd, capnp__MessageBuilder& builder) except +
 
 cdef extern from "<capnp/serialize-packed.h>":
+    void capnp__writePackedMessage 'capnp::writePackedMessage'(kj__VectorOutputStream& output, capnp__MessageBuilder& builder) except +
     void capnp__writePackedMessageToFd 'capnp::writePackedMessageToFd'(int fd, capnp__MessageBuilder& builder) except +
 
 cdef class MessageBuilder:
@@ -35,10 +37,32 @@ cdef class MessageBuilder:
         % endfor
         raise TypeError('unknown message type: %r' % message_type)
 
+    def as_bytes(self):
+        if self._builder == NULL:
+            raise RuntimeError('builder was not initialized')
+        cdef kj__VectorOutputStream stream
+        capnp__writeMessage(stream, dereference(self._builder))
+        cdef kj__ArrayPtr_byte bytes_ = stream.getArray()
+        cdef bytes message = bytes_.begin()[:bytes_.size()]
+        return message
+
+    def as_packed_bytes(self):
+        if self._builder == NULL:
+            raise RuntimeError('builder was not initialized')
+        cdef kj__VectorOutputStream stream
+        capnp__writePackedMessage(stream, dereference(self._builder))
+        cdef kj__ArrayPtr_byte bytes_ = stream.getArray()
+        cdef bytes message = bytes_.begin()[:bytes_.size()]
+        return message
+
     def write_to(self, int fd):
+        if self._builder == NULL:
+            raise RuntimeError('builder was not initialized')
         capnp__writeMessageToFd(fd, dereference(self._builder))
 
     def write_packed_to(self, int fd):
+        if self._builder == NULL:
+            raise RuntimeError('builder was not initialized')
         capnp__writePackedMessageToFd(fd, dereference(self._builder))
 
 cdef class MallocMessageBuilder(MessageBuilder):

@@ -15,15 +15,22 @@ class BooksTest(unittest.TestCase):
 
     def test_builder(self):
 
-        book = books.MallocMessageBuilder().init_root(books.Book)
+        builder = books.MallocMessageBuilder()
+        book = builder.init_root(books.Book)
         book.title = self.BOOK['title']
         book.authors = self.BOOK['authors']
         self.assertEqual(self.BOOK, book._as_dict())
 
-        book = book._as_reader()
-        self.assertEqual(self.BOOK['title'], book.title)
-        self.assertEqual(self.BOOK['authors'], book.authors._as_dict())
-        self.assertEqual(self.BOOK, book._as_dict())
+        book_ro = book._as_reader()
+        self.assertEqual(self.BOOK, book_ro._as_dict())
+
+        reader = books.FlatArrayMessageReader(builder.as_bytes())
+        book_ro = reader.get_root(books.Book)
+        self.assertEqual(self.BOOK, book_ro._as_dict())
+
+        reader = books.PackedArrayMessageReader(builder.as_packed_bytes())
+        book_ro = reader.get_root(books.Book)
+        self.assertEqual(self.BOOK, book_ro._as_dict())
 
     def test_write(self):
 

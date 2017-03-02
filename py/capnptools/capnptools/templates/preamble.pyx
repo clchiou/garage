@@ -2,6 +2,7 @@
 
 __all__ = [
     'FlatArrayMessageReader',
+    'PackedArrayMessageReader',
     'StreamFdMessageReader',
     'PackedFdMessageReader',
     'MallocMessageBuilder',
@@ -17,15 +18,28 @@ from cython.operator cimport dereference
 from libc.stdint cimport int8_t, int16_t, int32_t, int64_t, uint8_t, uint16_t, uint32_t, uint64_t
 from libcpp cimport bool
 
+cdef extern from "<kj/common.h>":
+    cdef cppclass kj__byte 'kj::byte':
+        pass
+    cdef cppclass kj__ArrayPtr_byte 'kj::ArrayPtr<const kj::byte>':
+        kj__ArrayPtr_byte() except +
+        kj__ArrayPtr_byte(const kj__byte* begin, size_t size) except +
+        size_t size() except +
+        const unsigned char* begin() except +
+    cdef cppclass kj__ArrayPtr_word 'kj::ArrayPtr<const capnp::word>':
+        kj__ArrayPtr_word(const capnp__word* begin, size_t size) except +
+
+cdef extern from "<kj/io.h>":
+    cdef cppclass kj__ArrayInputStream 'kj::ArrayInputStream':
+        kj__ArrayInputStream(kj__ArrayPtr_byte array) except +
+    cdef cppclass kj__VectorOutputStream 'kj::VectorOutputStream':
+        kj__ArrayPtr_byte getArray() except +
+
 cdef extern from "<capnp/common.h>":
     cdef cppclass capnp__word 'capnp::word':
         pass
     cdef cppclass capnp__Void 'capnp::Void':
         pass
-
-cdef extern from "<kj/array.h>":
-    cdef cppclass kj__ArrayPtr 'kj::ArrayPtr<const capnp::word>':
-        kj__ArrayPtr(const capnp__word* begin, size_t size) except +
 
 cdef extern from "<kj/string.h>":
     cdef cppclass kj__String 'kj::String':

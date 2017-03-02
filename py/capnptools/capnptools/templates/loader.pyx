@@ -28,7 +28,7 @@ def _load(*, prefix='', readers_module, builders_module):
     % endfor
     % endif
     module = _load_module('%s%s%s' % (prefix, prefix and '.', readers_module))
-    % for classname in ('FlatArrayMessageReader', 'StreamFdMessageReader', 'PackedFdMessageReader'):
+    % for classname in ('FlatArrayMessageReader', 'PackedArrayMessageReader', 'StreamFdMessageReader', 'PackedFdMessageReader'):
     if not hasattr(module, '${classname}'):
         module.${classname} = ${classname}
     % endfor
