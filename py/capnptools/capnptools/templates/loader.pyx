@@ -28,12 +28,12 @@ def _load(*, prefix='', readers_module, builders_module):
     % endfor
     % endif
     module = _load_module('%s%s%s' % (prefix, prefix and '.', readers_module))
-    % for classname in ('FlatArrayMessageReader', 'PackedArrayMessageReader', 'StreamFdMessageReader', 'PackedFdMessageReader'):
+    % for classname in ('ArrayMessageReader', 'ArrayPackedMessageReader', 'FdMessageReader', 'FdPackedMessageReader'):
     if not hasattr(module, '${classname}'):
         module.${classname} = ${classname}
     % endfor
     module = _load_module('%s%s%s' % (prefix, prefix and '.', builders_module))
-    % for classname in ('MallocMessageBuilder',):
+    % for classname in ('MessageBuilder',):
     if not hasattr(module, '${classname}'):
-        module.MallocMessageBuilder = MallocMessageBuilder
+        module.${classname} = ${classname}
     % endfor

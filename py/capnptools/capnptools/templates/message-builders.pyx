@@ -14,7 +14,7 @@ cdef extern from "<capnp/serialize-packed.h>":
     void capnp__writePackedMessage 'capnp::writePackedMessage'(kj__VectorOutputStream& output, capnp__MessageBuilder& builder) except +
     void capnp__writePackedMessageToFd 'capnp::writePackedMessageToFd'(int fd, capnp__MessageBuilder& builder) except +
 
-cdef class MessageBuilder:
+cdef class MessageBuilderBase:
 
     cdef capnp__MessageBuilder *_builder
 
@@ -65,7 +65,7 @@ cdef class MessageBuilder:
             raise RuntimeError('builder was not initialized')
         capnp__writePackedMessageToFd(fd, dereference(self._builder))
 
-cdef class MallocMessageBuilder(MessageBuilder):
+cdef class MessageBuilder(MessageBuilderBase):
 
     cdef capnp__MallocMessageBuilder _maloc_builder
 

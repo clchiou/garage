@@ -2,7 +2,7 @@
 
 cdef class ${python_classname}__Builder:
 
-    cdef MessageBuilder _builder
+    cdef MessageBuilderBase _builder
     cdef ${cython_classname}__Builder _data
     % for member in members:
     % if member.is_list:
@@ -14,7 +14,7 @@ cdef class ${python_classname}__Builder:
     % endif
     % endfor
 
-    def __cinit__(self, MessageBuilder builder, object data):
+    def __cinit__(self, MessageBuilderBase builder, object data):
         self._builder = builder
         self._data = dereference(<${cython_classname}__Builder*>PyCapsule_GetPointer(data, NULL))
         % for member in members:
@@ -74,8 +74,8 @@ cdef class ${python_classname}:
     % endif
 
 ##  Hold a reference to the _resource to make sure that it is released
-##  after this object (_resource could be either a MessageReader or a
-##  builder object).
+##  after this object (_resource could be either a MessageReaderBase or
+##  a builder object).
     cdef object _resource
     cdef ${cython_classname}__Reader _data
     % for member in members:

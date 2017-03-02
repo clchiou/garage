@@ -1,11 +1,11 @@
 # Generated at ${now.isoformat()} - DO NOT EDIT!
 
 __all__ = [
-    'FlatArrayMessageReader',
-    'PackedArrayMessageReader',
-    'StreamFdMessageReader',
-    'PackedFdMessageReader',
-    'MallocMessageBuilder',
+    'ArrayMessageReader',
+    'ArrayPackedMessageReader',
+    'FdMessageReader',
+    'FdPackedMessageReader',
+    'MessageBuilder',
 ]
 
 import enum

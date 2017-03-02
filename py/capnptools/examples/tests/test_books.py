@@ -15,7 +15,7 @@ class BooksTest(unittest.TestCase):
 
     def test_builder(self):
 
-        builder = books.MallocMessageBuilder()
+        builder = books.MessageBuilder()
         book = builder.init_root(books.Book)
         book.title = self.BOOK['title']
         book.authors = self.BOOK['authors']
@@ -24,24 +24,24 @@ class BooksTest(unittest.TestCase):
         book_ro = book._as_reader()
         self.assertEqual(self.BOOK, book_ro._as_dict())
 
-        reader = books.FlatArrayMessageReader(builder.as_bytes())
+        reader = books.ArrayMessageReader(builder.as_bytes())
         book_ro = reader.get_root(books.Book)
         self.assertEqual(self.BOOK, book_ro._as_dict())
 
-        reader = books.PackedArrayMessageReader(builder.as_packed_bytes())
+        reader = books.ArrayPackedMessageReader(builder.as_packed_bytes())
         book_ro = reader.get_root(books.Book)
         self.assertEqual(self.BOOK, book_ro._as_dict())
 
     def test_write(self):
 
-        builder = books.MallocMessageBuilder()
+        builder = books.MessageBuilder()
         book = builder.init_root(books.Book)
         book.title = self.BOOK['title']
         book.authors = self.BOOK['authors']
 
         for read_cls, write_func in [
-                ('StreamFdMessageReader', 'write_to'),
-                ('PackedFdMessageReader', 'write_packed_to')]:
+                ('FdMessageReader', 'write_to'),
+                ('FdPackedMessageReader', 'write_packed_to')]:
 
             with self.subTest(read_cls=read_cls, write_func=write_func):
                 fd, path = tempfile.mkstemp()

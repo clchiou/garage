@@ -16,7 +16,7 @@ cdef extern from "<capnp/serialize-packed.h>":
     cdef cppclass capnp__PackedFdMessageReader 'capnp::PackedFdMessageReader':
         capnp__PackedFdMessageReader(int fd) except +
 
-cdef class MessageReader:
+cdef class MessageReaderBase:
 
     cdef capnp__MessageReader *_reader
 
@@ -43,7 +43,7 @@ cdef class MessageReader:
         % endfor
         raise TypeError('unknown message type: %r' % message_type)
 
-cdef class FlatArrayMessageReader(MessageReader):
+cdef class ArrayMessageReader(MessageReaderBase):
 
     cdef bytes _array
 
@@ -52,7 +52,7 @@ cdef class FlatArrayMessageReader(MessageReader):
         cdef const char* _array = self._array
         self.own_reader(<capnp__MessageReader*>new capnp__FlatArrayMessageReader(kj__ArrayPtr_word(<capnp__word*>_array, len(self._array))))
 
-cdef class PackedArrayMessageReader(MessageReader):
+cdef class ArrayPackedMessageReader(MessageReaderBase):
 
     cdef bytes _array
     cdef kj__ArrayInputStream *_stream
@@ -66,12 +66,12 @@ cdef class PackedArrayMessageReader(MessageReader):
     def __dealloc__(self):
         del self._stream
 
-cdef class StreamFdMessageReader(MessageReader):
+cdef class FdMessageReader(MessageReaderBase):
 
     def __cinit__(self, int fd):
         self.own_reader(<capnp__MessageReader*>new capnp__StreamFdMessageReader(fd))
 
-cdef class PackedFdMessageReader(MessageReader):
+cdef class FdPackedMessageReader(MessageReaderBase):
 
     def __cinit__(self, int fd):
         self.own_reader(<capnp__MessageReader*>new capnp__PackedFdMessageReader(fd))

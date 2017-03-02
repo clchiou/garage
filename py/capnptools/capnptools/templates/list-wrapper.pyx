@@ -2,10 +2,10 @@
 ## like to make it inherit from `collections.MutableSequence`.
 cdef class _ext__${python_classname}__Builder:
 
-    cdef MessageBuilder _builder
+    cdef MessageBuilderBase _builder
     cdef ${cython_classname}__Builder _data
 
-    def __cinit__(self, MessageBuilder builder, object data):
+    def __cinit__(self, MessageBuilderBase builder, object data):
         self._builder = builder
         self._data = dereference(<${cython_classname}__Builder*>PyCapsule_GetPointer(data, NULL))
 
@@ -120,8 +120,8 @@ class ${python_classname}__Builder(_ext__${python_classname}__Builder, MutableSe
 cdef class _ext__${python_classname}:
 
 ##  Hold a reference to the _resource to make sure that it is released
-##  after this object (_resource could be either a MessageReader or a
-##  builder object).
+##  after this object (_resource could be either a MessageReaderBase or
+##  a builder object).
     cdef object _resource
     cdef ${cython_classname}__Reader _data
 
