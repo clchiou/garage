@@ -35,10 +35,10 @@ cdef class MessageBuilder:
         % endfor
         raise TypeError('unknown message type: %r' % message_type)
 
-    cdef write_to(self, int fd):
+    def write_to(self, int fd):
         capnp__writeMessageToFd(fd, dereference(self._builder))
 
-    cdef write_packed_to(self, int fd):
+    def write_packed_to(self, int fd):
         capnp__writePackedMessageToFd(fd, dereference(self._builder))
 
 cdef class MallocMessageBuilder(MessageBuilder):
