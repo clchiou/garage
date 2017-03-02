@@ -1,4 +1,4 @@
-def _load(prefix=''):
+def _load(*, prefix='', readers_module, builders_module):
     % if modules:
     def _load_module(full_path):
         last_module = None
@@ -22,9 +22,18 @@ def _load(prefix=''):
     classname = comps[-1]
     module_name = '.'.join(comps[:-1])
 %>\
-    module.${classname} = ${node_table.get_python_classname(node.id)}
+    if not hasattr(module, '${classname}'):
+        module.${classname} = ${node_table.get_python_classname(node.id)}
     % endfor
     % endfor
-    % else:
-    pass
     % endif
+    module = _load_module('%s%s%s' % (prefix, prefix and '.', readers_module))
+    % for classname in ('FlatArrayMessageReader', 'StreamFdMessageReader', 'PackedFdMessageReader'):
+    if not hasattr(module, '${classname}'):
+        module.${classname} = ${classname}
+    % endfor
+    module = _load_module('%s%s%s' % (prefix, prefix and '.', builders_module))
+    % for classname in ('MallocMessageBuilder',):
+    if not hasattr(module, '${classname}'):
+        module.MallocMessageBuilder = MallocMessageBuilder
+    % endfor
