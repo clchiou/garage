@@ -2,16 +2,18 @@
 
 from functools import partial
 import logging
-import sys
+
+import curio
 
 from nanomsg.curio import Socket
 import nanomsg as nn
 
+from garage import cli
 from garage import components
 from garage.asyncs import TaskStack
 from garage.asyncs.messaging import reqrep
 from garage.asyncs.queues import Queue
-from garage.asyncs.servers import SERVER_MAKER, prepare
+from garage.startups.asyncs.servers import ServerContainerComponent
 
 
 LOG = logging.getLogger(__name__)
@@ -21,7 +23,7 @@ class ServerComponent(components.Component):
 
     require = components.ARGS
 
-    provide = SERVER_MAKER
+    provide = ServerContainerComponent.require.make_server
 
     def add_arguments(self, parser):
         group = parser.add_argument_group(__name__)
@@ -45,15 +47,12 @@ async def echo_server(port):
             await resposne_promise.set_result(request)
 
 
-def main(argv):
-    prepare(
-        description=__doc__,
-        comps=[
-            ServerComponent(),
-        ],
-    )
-    return components.main(argv)
+@cli.command('echo-server')
+@cli.component(ServerContainerComponent)
+@cli.component(ServerComponent)
+def main(serve: ServerContainerComponent.provide.serve):
+    return 0 if curio.run(serve()) else 1
 
 
 if __name__ == '__main__':
-    sys.exit(main(sys.argv))
+    main()

@@ -3,16 +3,21 @@
 from functools import partial
 import json
 import logging
-import sys
+
+import curio
 
 import http2
 
+from garage import cli
 from garage import components
-from garage.asyncs.servers import GRACEFUL_EXIT, SERVER_MAKER, prepare
 from garage.asyncs.utils import make_server_socket, serve
 from garage.http.handlers import ApiEndpointHandler
 from garage.http.routers import ApiRouter
 from garage.http.servers import ClientError, Server
+from garage.startups.asyncs.servers import (
+    GracefulExitComponent,
+    ServerContainerComponent,
+)
 
 
 LOG = logging.getLogger('calculator_server')
@@ -20,9 +25,9 @@ LOG = logging.getLogger('calculator_server')
 
 class ServerComponent(components.Component):
 
-    require = (components.ARGS, GRACEFUL_EXIT)
+    require = (components.ARGS, GracefulExitComponent.provide.graceful_exit)
 
-    provide = SERVER_MAKER
+    provide = ServerContainerComponent.require.make_server
 
     def add_arguments(self, parser):
         group = parser.add_argument_group(__name__)
@@ -98,15 +103,12 @@ async def endpoint_add(request):
         raise exc from cause
 
 
-def main(argv):
-    prepare(
-        description=__doc__,
-        comps=[
-            ServerComponent(),
-        ],
-    )
-    return components.main(argv)
+@cli.command('calculator-server')
+@cli.component(ServerContainerComponent)
+@cli.component(ServerComponent)
+def main(serve: ServerContainerComponent.provide.serve):
+    return 0 if curio.run(serve()) else 1
 
 
 if __name__ == '__main__':
-    sys.exit(main(sys.argv))
+    main()

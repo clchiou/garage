@@ -1,12 +1,17 @@
-"""Sample echo server."""
+"""Simple echo server."""
 
 from functools import partial
 import logging
-import sys
 
+import curio
+
+from garage import cli
 from garage import components
-from garage.asyncs.servers import GRACEFUL_EXIT, SERVER_MAKER, prepare
 from garage.asyncs.utils import make_server_socket, serve
+from garage.startups.asyncs.servers import (
+    GracefulExitComponent,
+    ServerContainerComponent,
+)
 
 
 LOG = logging.getLogger(__name__)
@@ -14,9 +19,9 @@ LOG = logging.getLogger(__name__)
 
 class ServerComponent(components.Component):
 
-    require = (components.ARGS, GRACEFUL_EXIT)
+    require = (components.ARGS, GracefulExitComponent.provide.graceful_exit)
 
-    provide = SERVER_MAKER
+    provide = ServerContainerComponent.require.make_server
 
     def add_arguments(self, parser):
         group = parser.add_argument_group(__name__)
@@ -42,15 +47,12 @@ async def handle(client_sock, client_addr):
     LOG.info('close connection to: %s', client_addr)
 
 
-def main(argv):
-    prepare(
-        description=__doc__,
-        comps=[
-            ServerComponent(),
-        ],
-    )
-    return components.main(argv)
+@cli.command('echo-server')
+@cli.component(ServerContainerComponent)
+@cli.component(ServerComponent)
+def main(serve: ServerContainerComponent.provide.serve):
+    return 0 if curio.run(serve()) else 1
 
 
 if __name__ == '__main__':
-    sys.exit(main(sys.argv))
+    main()

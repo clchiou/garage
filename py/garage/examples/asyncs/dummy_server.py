@@ -1,12 +1,12 @@
 """A server that does nothing."""
 
 import logging
-import sys
 
 import curio
 
+from garage import cli
 from garage import components
-from garage.asyncs.servers import SERVER_MAKER, prepare
+from garage.startups.asyncs.servers import ServerContainerComponent
 
 
 LOG = logging.getLogger(__name__)
@@ -14,16 +14,13 @@ LOG = logging.getLogger(__name__)
 
 class ServerComponent(components.Component):
 
-    provide = SERVER_MAKER
+    provide = ServerContainerComponent.require.make_server
 
-    def __init__(self, coro_func):
-        self.coro_func = coro_func
-
-    def make(self, _):
-        return self.coro_func
+    def make(self, require):
+        return dummy_server
 
 
-async def main_server():
+async def dummy_server():
     try:
         duration = 10
         LOG.info('sleep for %d seconds and then exit...', duration)
@@ -32,15 +29,12 @@ async def main_server():
         LOG.info('main_server: exit')
 
 
-def main(argv):
-    prepare(
-        description=__doc__,
-        comps=[
-            ServerComponent(main_server),
-        ],
-    )
-    return components.main(argv)
+@cli.command('dummy-server')
+@cli.component(ServerContainerComponent)
+@cli.component(ServerComponent)
+def main(serve: ServerContainerComponent.provide.serve):
+    return 0 if curio.run(serve()) else 1
 
 
 if __name__ == '__main__':
-    sys.exit(main(sys.argv))
+    main()
