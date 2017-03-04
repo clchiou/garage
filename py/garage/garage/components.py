@@ -49,12 +49,22 @@ from garage.collections import DictViewAttrs, unique
 LOG = logging.getLogger(__name__)
 
 
+class TaggedStr(str):
+    pass
+
+
 def fqname(module_name, name):
-    return '%s:%s' % (module_name, name)
+    # Handle `[NAME]`-style annotation
+    is_aggregation = isinstance(name, list) and len(name) == 1
+    if is_aggregation:
+        name = name[0]
+    fqname_ = TaggedStr('%s:%s' % (module_name, name))
+    fqname_.is_aggregation = is_aggregation
+    return fqname_
 
 
 def _is_fqname(name):
-    return ':' in name
+    return isinstance(name, TaggedStr) or ':' in name
 
 
 def _get_module_name(fqname_):
@@ -62,6 +72,9 @@ def _get_module_name(fqname_):
 
 
 def _get_name(maybe_fqname):
+    # Handle `[NAME]`-style annotation
+    if isinstance(maybe_fqname, list) and len(maybe_fqname) == 1:
+        maybe_fqname = maybe_fqname[0]
     return maybe_fqname[maybe_fqname.rfind(':')+1:]
 
 
@@ -136,7 +149,10 @@ def bind(component, startup=startup_, next_startup=None, parser_=PARSER):
             else:
                 name = _get_name(fqname_)
             asserts.precond(name not in annotations)
-            annotations[name] = fqname_
+            if isinstance(fqname_, TaggedStr) and fqname_.is_aggregation:
+                annotations[name] = [fqname_]
+            else:
+                annotations[name] = fqname_
 
         @functools.wraps(component.make)
         def make(**require):

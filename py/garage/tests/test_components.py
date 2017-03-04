@@ -20,11 +20,13 @@ class ComponentsTest(unittest.TestCase):
 
     def test_make_fqname_tuple(self):
         self.assertTupleEqual((), make_fqname_tuple('a.b.c'))
-        fqnames = make_fqname_tuple('a.b.c', 'x', 'y', 'd.e.f:z')
+        fqnames = make_fqname_tuple('a.b.c', ['x'], 'y', 'd.e.f:z')
         self.assertTupleEqual(('a.b.c:x', 'a.b.c:y', 'd.e.f:z'), fqnames)
         self.assertEqual('a.b.c:x', fqnames.x)
         self.assertEqual('a.b.c:y', fqnames.y)
         self.assertEqual('d.e.f:z', fqnames.z)
+        self.assertTrue(fqnames.x.is_aggregation)
+        self.assertFalse(fqnames.y.is_aggregation)
 
     def test_is_method_overridden(self):
         class Base:
@@ -75,6 +77,27 @@ class ComponentsTest(unittest.TestCase):
         bind(A(), startup)
         bind(B(), startup)
         self.assertDictEqual({':A': 'a', ':B': 'a'}, startup.call())
+
+    def test_bind(self):
+
+        class A(Component):
+            require = make_fqname_tuple('', ['a'])
+            provide = ':as'
+            def make(self, require):
+                return require.a
+
+        class B(Component):
+            provide = A.require.a
+            def __init__(self, msg):
+                self.msg = msg
+            def make(self, require):
+                return self.msg
+
+        startup = Startup()
+        bind(A(), startup)
+        bind(B('x'), startup)
+        bind(B('y'), startup)
+        self.assertDictEqual({':a': 'y', ':as': ['x', 'y']}, startup.call())
 
     def test_vars_as_namespace(self):
         varz = vars_as_namespace({'a': 1, 'x.y.z:b': 2})
