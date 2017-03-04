@@ -76,18 +76,17 @@ async def init(graceful_exit, server_makers):
         # Also spawn default signal handler
         await servers.spawn(signal_handler(graceful_exit, GRACEFUL_PERIOD))
         # Now let's wait for the servers...
-        async with curio.wait(servers) as wait_servers:
-            # When one server exits, normally or not, we bring down all
-            # other servers
-            server_task = await wait_servers.next_done()
-            try:
-                await server_task.join()
-                LOG.info('server exit: %r', server_task)
-                okay = OKAY
-            except curio.TaskError:
-                LOG.exception('server crash: %r', server_task)
-            LOG.info('stop servers')
-            # curio.wait() will cancel all the remaining tasks
+        server_task = await curio.wait(servers).next_done()
+        # When one server exits, normally or not, we bring down all
+        # other servers
+        try:
+            await server_task.join()
+            LOG.info('server exit: %r', server_task)
+            okay = OKAY
+        except curio.TaskError:
+            LOG.exception('server crash: %r', server_task)
+        LOG.info('stop servers')
+        # TaskStack will cancel all the remaining tasks
     LOG.info('exit')
     return okay
 
