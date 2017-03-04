@@ -6,7 +6,6 @@ from contextlib import ExitStack
 from startup import Startup, startup
 
 from garage import components
-from garage.startups.http import HttpComponent
 from garage.startups.logging import LoggingComponent
 from garage.startups.multiprocessing import Python2Component
 from garage.startups.threads.executors import ExecutorComponent
@@ -21,7 +20,6 @@ def main(argv):
 
     comps = (
         ExecutorComponent(),
-        HttpComponent(),
         LoggingComponent(),
         Python2Component(),
     )
