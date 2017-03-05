@@ -43,6 +43,7 @@ __all__ = [
     'BUILD',
     'ActorError',
     'Exit',
+    'OneShotActor',
     'Stub',
     'method',
     'build',
@@ -78,6 +79,62 @@ class ActorError(Exception):
 class Exit(Exception):
     """Raise this when an actor would like to to self-terminate."""
     pass
+
+
+class OneShotActor:
+    """A special kind of actor that processes one type of message and
+       processes one message only.
+    """
+
+    class Stub:
+
+        def __init__(self, future):
+            self._future = future
+
+        def kill(self, graceful=True):
+            self._future.cancel()
+
+        def get_future(self):
+            return self._future
+
+        def send_message(self, func, args, kwargs, block=True, timeout=None):
+            raise ActorError('OneShotActor does not take additional message')
+
+    def __init__(self, actor):
+        self.actor = actor
+
+    def __call__(self, *args, **kwargs):
+        if args and args[0] is BUILD:
+            name = kwargs.get('name')
+            set_pthread_name = kwargs.get('set_pthread_name')
+            args = kwargs.get('args', ())
+            kwargs = kwargs.get('kwargs', {})
+        else:
+            name = None
+            set_pthread_name = False
+        future = Future()
+        thread = threading.Thread(
+            target=self._run_actor,
+            name=name,
+            args=(weakref.ref(future), args, kwargs),
+            daemon=True,
+        )
+        thread.start()
+        # thread.ident is None if it has not been started
+        if set_pthread_name:
+            utils.set_pthread_name(thread, name)
+        # Let interface be consistent with full-blown actors
+        return self.Stub(future)
+
+    def _run_actor(self, future_ref, args, kwargs):
+        if not _deref(future_ref).set_running_or_notify_cancel():
+            return
+        try:
+            result = self.actor(*args, **kwargs)
+        except BaseException as exc:
+            _deref(future_ref).set_exception(exc)
+        else:
+            _deref(future_ref).set_result(result)
 
 
 def method(func):

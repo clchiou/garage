@@ -255,5 +255,16 @@ class ActorsTest(unittest.TestCase):
                     pass
 
 
+class OneShotActorTest(unittest.TestCase):
+
+    def test_one_off_actor(self):
+        summer = actors.OneShotActor(sum)
+        self.assertEqual(6, summer([1, 2, 3]).get_future().result())
+
+        summer = actors.OneShotActor(sum)
+        stub = summer(actors.BUILD, name='summer', args=([7, 8], ))
+        self.assertEqual(15, stub.get_future().result())
+
+
 if __name__ == '__main__':
     unittest.main()
