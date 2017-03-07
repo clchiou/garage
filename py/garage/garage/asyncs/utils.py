@@ -42,15 +42,14 @@ async def serve(graceful_exit, make_server_socket, handle_client, *,
         import logging
         logger = logging.getLogger(__name__)
 
-    ssl_context = make_ssl_context() if make_ssl_context else None
-
     async def accept_clients(handlers):
         async with make_server_socket() as server_socket:
+            if make_ssl_context:
+                server_socket = make_ssl_context().wrap_socket(
+                    server_socket, server_side=True)
             while True:
                 sock, addr = await server_socket.accept()
                 logger.info('serve client from: %r', addr)
-                if ssl_context:
-                    sock = ssl_context.wrap_socket(sock, server_side=True)
                 await handlers.spawn(handle_client(sock, addr))
 
     async def join_client_handlers(handlers):

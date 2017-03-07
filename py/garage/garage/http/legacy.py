@@ -44,8 +44,6 @@ def api_server(*,
         request_queue, request_timeout=None):
     """A naive JSON-RPC server."""
 
-    ssl_context = make_ssl_context() if make_ssl_context else None
-
     class Server(http.server.HTTPServer):
 
         def service_actions(self):
@@ -55,11 +53,6 @@ def api_server(*,
                 # service_actions() will result in deadlock.
                 assert hasattr(self, '_BaseServer__shutdown_request')
                 self._BaseServer__shutdown_request = True
-
-        if ssl_context:
-            def get_request(self):
-                sock, addr = self.socket.accept()
-                return ssl_context.wrap_socket(sock, server_side=True), addr
 
     class Handler(http.server.BaseHTTPRequestHandler):
 
@@ -124,6 +117,9 @@ def api_server(*,
 
     with Server(address, Handler) as server:
         LOG.info('serve HTTP on %s:%s', *server.socket.getsockname())
+        if make_ssl_context:
+            server.socket = make_ssl_context().wrap_socket(
+                server.socket, server_side=True)
         server.serve_forever()
 
     LOG.info('exit')
