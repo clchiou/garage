@@ -80,9 +80,9 @@ class Spider:
         self._uris = utils.AtomicSet()
         self._identities = utils.AtomicSet()
 
-        supervisor = supervisors.start_supervisor(
+        supervisor = supervisors.supervisor(
             num_spiders,
-            functools.partial(tasklets.start_tasklet, self._task_queue),
+            functools.partial(tasklets.tasklet, self._task_queue),
         )
         # Use this future to wait for completion of the crawling.
         self.future = supervisor.get_future()

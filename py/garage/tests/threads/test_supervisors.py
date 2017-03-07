@@ -48,7 +48,7 @@ class SupervisorsTest(unittest.TestCase):
             stub.start()
 
         stubs_copy = list(stubs)
-        supervisor = supervisors.start_supervisor(num_actors, stubs_copy.pop)
+        supervisor = supervisors.supervisor(num_actors, stubs_copy.pop)
 
         # Let LongRunning actors exit one by one...
         self.release_one_by_one(stubs, semaphore)
@@ -71,7 +71,7 @@ class SupervisorsTest(unittest.TestCase):
             else:
                 stub.start()
 
-        supervisor = supervisors.start_supervisor(
+        supervisor = supervisors.supervisor(
             num_actors, list(reversed(stubs)).pop)
 
         # Let LongRunning actors raise one by one...

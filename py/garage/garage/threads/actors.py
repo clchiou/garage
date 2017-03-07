@@ -86,6 +86,21 @@ class OneShotActor:
        processes one message only.
     """
 
+    @classmethod
+    def make(cls, actor):
+        actor_cls = cls(actor)
+        names = utils.generate_names(name=actor.__name__)
+        def maker(*args, **kwargs):
+            return build(
+                actor_cls,
+                name=next(names),
+                set_pthread_name=True,
+                args=args,
+                kwargs=kwargs,
+            )
+        maker.actor = actor
+        return maker
+
     class Stub:
 
         def __init__(self, future):

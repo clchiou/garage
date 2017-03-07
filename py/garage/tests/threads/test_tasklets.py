@@ -14,7 +14,7 @@ class TaskletsTest(unittest.TestCase):
 
         task_queue = utils.TaskQueue(queues.Queue())
         tasklet_stubs = [
-            tasklets.start_tasklet(task_queue) for _ in range(num_tasklets)
+            tasklets.tasklet(task_queue) for _ in range(num_tasklets)
         ]
 
         counter = utils.AtomicInt()

@@ -1,5 +1,5 @@
 __all__ = [
-    'start_supervisor',
+    'supervisor',
 ]
 
 import logging
@@ -7,23 +7,12 @@ from concurrent import futures
 
 from garage import asserts
 from garage.threads import actors
-from garage.threads import utils
 
 
 LOG = logging.getLogger(__name__)
 
 
-def start_supervisor(num_actors, start_new_actor):
-    return actors.build(supervisor,
-                        name=next(start_supervisor.names),
-                        set_pthread_name=True,
-                        args=(num_actors, start_new_actor))
-
-
-start_supervisor.names = utils.generate_names(name='supervisor')
-
-
-@actors.OneShotActor
+@actors.OneShotActor.make
 def supervisor(num_actors, start_new_actor):
     """A supervisor will always keep num_actors long-running actors
        alive at any time; however, if half of actors died, it dies, too.
