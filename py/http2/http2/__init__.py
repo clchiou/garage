@@ -46,9 +46,12 @@ def get_library_version():
     }
 
 
-def make_ssl_context(certfile, keyfile):
+def make_ssl_context(certfile, keyfile, *, client_authentication=False):
     ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
     ssl_context.load_cert_chain(certfile, keyfile)
+    if client_authentication:
+        ssl_context.verify_mode = ssl.CERT_REQUIRED
+        ssl_context.load_verify_locations(cafile=certfile)
     if ssl.HAS_ALPN:
         ssl_context.set_alpn_protocols([NGHTTP2_PROTO_VERSION_ID])
     if ssl.HAS_NPN:
@@ -188,7 +191,13 @@ class Session:
             await self._sock.close()
 
     async def _serve_tick(self):
-        data = await self._sock.recv(self.INCOMING_BUFFER_SIZE)
+        try:
+            data = await self._sock.recv(self.INCOMING_BUFFER_SIZE)
+        except ssl.SSLError:
+            LOG.exception(
+                'session=%s: there may be SSL authentication issue', self._id)
+            return False
+
         LOG.debug('session=%s: recv %d bytes', self._id, len(data))
         if not data:
             LOG.info('session=%s: connection is closed', self._id)

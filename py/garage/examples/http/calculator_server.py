@@ -38,6 +38,9 @@ class ServerComponent(components.Component):
             '--certificate', help="""set HTTP/2 server certificate""")
         group.add_argument(
             '--private-key', help="""set HTTP/2 server private key""")
+        group.add_argument(
+            '--client-authentication', action='store_true',
+            help="""enable client authentication""")
 
     def check_arguments(self, parser, args):
         if (args.certificate is None) != (args.private_key is None):
@@ -50,6 +53,7 @@ class ServerComponent(components.Component):
                 http2.make_ssl_context,
                 require.args.certificate,
                 require.args.private_key,
+                client_authentication=require.args.client_authentication,
             )
         else:
             make_ssl_context = None

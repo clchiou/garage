@@ -31,13 +31,19 @@ def api_handler(request_queue):
               help="""set HTTP server certificate""")
 @cli.argument('--private-key',
               help="""set HTTP server private key""")
+@cli.argument('--client-authentication', action='store_true',
+              help="""enable client authentication""")
 def hello_world(args: ARGS):
 
     request_queue = queues.Queue()
 
     if args.certificate and args.private_key:
         make_ssl_context = functools.partial(
-            legacy.make_ssl_context, args.certificate, args.private_key)
+            legacy.make_ssl_context,
+            args.certificate,
+            args.private_key,
+            client_authentication=args.client_authentication,
+        )
     else:
         make_ssl_context = None
 

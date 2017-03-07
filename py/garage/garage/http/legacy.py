@@ -26,9 +26,12 @@ from garage.threads import queues
 LOG = logging.getLogger(__name__)
 
 
-def make_ssl_context(certfile, keyfile):
+def make_ssl_context(certfile, keyfile, *, client_authentication=False):
     ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
     ssl_context.load_cert_chain(certfile, keyfile)
+    if client_authentication:
+        ssl_context.verify_mode = ssl.CERT_REQUIRED
+        ssl_context.load_verify_locations(cafile=certfile)
     if ssl.HAS_ALPN:
         ssl_context.set_alpn_protocols(['http/1.1'])
     if ssl.HAS_NPN:
