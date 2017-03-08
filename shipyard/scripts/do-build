@@ -2,42 +2,46 @@
 
 """Plan and launch builders (this script wraps the builder script)."""
 
+from pathlib import Path
 import argparse
 import datetime
 import json
-from pathlib import Path
-from subprocess import check_call, check_output
+import sys
+
+ROOT = Path(sys.argv[0] or '.').absolute().parent.parent.parent
+sys.path.append(str(ROOT / 'py' / 'garage'))
+sys.path.append(str(ROOT / 'py' / 'startup'))
+
+from garage import cli
+from garage import scripts
+from garage.components import ARGS
 
 
-def main():
-
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--dry-run', action='store_true',
-                        help="""do not really launch builders""")
-    parser.add_argument('--version',
-                        help="""set build version""")
-    parser.add_argument('rule',
-                        help="""set build rule""")
-    parser.add_argument('args', nargs=argparse.REMAINDER,
-                        help="""args to the builder script""")
-
-    args = parser.parse_args()
+@cli.command('do-build')
+@cli.argument(
+    '--dry-run', action='store_true', help='do not really launch builders')
+@cli.argument(
+    '--version', help='set build version')
+@cli.argument(
+    'rule', help='set build rule')
+@cli.argument(
+    'args', nargs=argparse.REMAINDER, help='add args to the builder script')
+def main(args: ARGS):
 
     self_path = Path(__file__)
-    builder_script = ensure_file(self_path.parent / 'builder')
-    foreman_script = ensure_file(self_path.parent / 'foreman.sh')
+    builder_script = scripts.ensure_file(self_path.parent / 'builder')
+    foreman_script = scripts.ensure_file(self_path.parent / 'foreman.sh')
 
     def build_rule(rule, *, extra_args=()):
         cmd = [str(builder_script), 'build', rule] + args.args
         cmd.extend(extra_args)
-        print('execute: %s' % ' '.join(cmd))
-        if not args.dry_run:
-            check_call(cmd)
+        scripts.execute(cmd)
 
     foreman_args = get_foreman_args(args.args)
     def foreman_list(rule):
         cmd = [str(foreman_script), 'list', rule] + foreman_args
-        return json.loads(check_output(cmd).decode('ascii'))
+        output = scripts.execute(cmd, capture_stdout=True)[1]
+        return json.loads(output.decode('ascii'))
 
     #
     # Make use of parameter name and build rule name conventions:
@@ -49,40 +53,37 @@ def main():
     #  version/POD
     #  build-pod/POD
     #
+    with scripts.dry_run(args.dry_run):
 
-    pod_path, build_pod_name = args.rule.rsplit(':', maxsplit=1)
-    if not build_pod_name.startswith('build-pod/'):
-        # Non-pod build rule - no planning required.
-        build_rule(args.rule)
-        return
+        pod_path, build_pod_name = args.rule.rsplit(':', maxsplit=1)
+        if not build_pod_name.startswith('build-pod/'):
+            # Non-pod build rule - no planning required.
+            build_rule(args.rule)
+            return 0
 
-    # Figure out images that we need to build for this image
-    build_data = foreman_list(args.rule)
-    pod_name = build_pod_name[len('build-pod/'):]
-    pod_data = get_pod_data(build_data, pod_path, pod_name)
-    build_image_rules = get_build_image_rules(pod_data, pod_path)
+        # Figure out images that we need to build for this image
+        build_data = foreman_list(args.rule)
+        pod_name = build_pod_name[len('build-pod/'):]
+        pod_data = get_pod_data(build_data, pod_path, pod_name)
+        build_image_rules = get_build_image_rules(pod_data, pod_path)
 
-    if args.version is not None:
-        version = int(args.version)
-    else:
-        version = int(datetime.datetime.now().timestamp())
+        if args.version is not None:
+            version = int(args.version)
+        else:
+            version = int(datetime.datetime.now().timestamp())
 
-    # Start the build!
-    for build_image_rule in build_image_rules:
-        image_name = build_image_rule[build_image_rule.rfind('/')+1:]
-        build_rule(build_image_rule, extra_args=[
-            '--build-name', 'build-%d-image-%s' % (version, image_name),
+        # Start the build!
+        for build_image_rule in build_image_rules:
+            image_name = build_image_rule[build_image_rule.rfind('/')+1:]
+            build_rule(build_image_rule, extra_args=[
+                '--build-name', 'build-%d-image-%s' % (version, image_name),
+            ])
+        build_rule(args.rule, extra_args=[
+            '--build-name', 'build-%d-pod-%s' % (version, pod_name),
+            '--parameter', '%s:version/%s=%d' % (pod_path, pod_name, version),
         ])
-    build_rule(args.rule, extra_args=[
-        '--build-name', 'build-%d-pod-%s' % (version, pod_name),
-        '--parameter', '%s:version/%s=%d' % (pod_path, pod_name, version),
-    ])
 
-
-def ensure_file(path):
-    if not path.is_file():
-        raise FileNotFoundError(path)
-    return path
+        return 0
 
 
 def get_foreman_args(args):

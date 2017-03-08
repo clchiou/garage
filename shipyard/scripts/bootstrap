@@ -11,6 +11,7 @@ DOCKERFILE = '''\
 FROM {base_image}
 
 RUN apt-get update \\
+ && apt-get full-upgrade \\
  && apt-get --yes install sudo \\
  && adduser --disabled-password --gecos "" plumber \\
  && echo "plumber ALL=(ALL:ALL) NOPASSWD: ALL" > /etc/sudoers.d/99-plumber \\
@@ -24,15 +25,14 @@ CMD ["/bin/bash"]
 
 def main():
     parser = ArgumentParser(description="""Make base builder Docker image.""")
-    parser.add_argument('--base-image', default='ubuntu:16.04',
-                        help="""set base image (default to %(default)s)""")
+    parser.add_argument(
+        '--base-image', required=True, help="""set base Docker image""")
     parser.add_argument('output', help="""set the tag of the builder image""")
     args = parser.parse_args()
     with TemporaryDirectory() as build_dir:
         build_dir = Path(build_dir)
-        # Path.write_text is defined in Python 3.5 :(
-        with (build_dir / 'Dockerfile').open('w') as dockerfile:
-            dockerfile.write(DOCKERFILE.format(base_image=args.base_image))
+        (build_dir / 'Dockerfile').write_text(
+            DOCKERFILE.format(base_image=args.base_image))
         cmd = ['docker', 'build', '--tag', args.output, str(build_dir)]
         print('execute: %s' % ' '.join(cmd))
         check_call(cmd)

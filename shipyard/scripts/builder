@@ -2,108 +2,103 @@
 
 """Launch build process in a container."""
 
-import datetime
-from argparse import ArgumentParser
 from pathlib import Path
-from subprocess import check_call
+import datetime
+import sys
+
+ROOT = Path(sys.argv[0] or '.').absolute().parent.parent.parent
+sys.path.append(str(ROOT / 'py' / 'garage'))
+sys.path.append(str(ROOT / 'py' / 'startup'))
+
+from garage import cli
+from garage import scripts
+from garage.components import ARGS
 
 
-def main():
-
-    parser = ArgumentParser(description=__doc__)
-
-    def add_common_args(parser):
-        parser.add_argument('--build-name',
-                            help="""set build container name""")
-        parser.add_argument('--builder', required=True,
-                            help="""set builder image""")
-        parser.add_argument('--volume', action='append',
-                            help="""add data volume""")
-        parser.add_argument('--preserve-container', action='store_true',
-                            help="""do not remove container on exit""")
-
-    def add_build_args(parser):
-        add_common_args(parser)
-        # While you could do "--foreman=--path=/some/path", for your
-        # convenience, we have denormalized "--path", "--parameter", and
-        # "rule" argument of foreman.
-        parser.add_argument('--path', action='append',
-                            help="""add foreman search path""")
-        parser.add_argument('--parameter', action='append',
-                            help="""add parameter to foreman""")
-        parser.add_argument('--foreman', action='append',
-                            help="""send argument to foreman""")
-        parser.add_argument('--output', required=True,
-                            help="""set output directory path""")
-        parser.add_argument('rule', nargs='+',
-                            help="""add build rule""")
-
-    subparsers = parser.add_subparsers(help="""sub-commands""")
-    # http://bugs.python.org/issue9253
-    subparsers.dest = 'container_type'
-    subparsers.required = True
-
-    parser_run = subparsers.add_parser(
-        'run', help="""run builder interactively""")
-    add_common_args(parser_run)
-    parser_run.set_defaults(build=False)
-
-    parser_build = subparsers.add_parser(
-        'build', help="""execute build rules""")
-    add_build_args(parser_build)
-    parser_build.set_defaults(build=True)
-
-    args = parser.parse_args()
-
-    build_name = args.build_name
-    if not build_name:
-        build_name = 'build-%d' % int(datetime.datetime.now().timestamp())
-
-    # Hard-code root directory of this repo.
-    root = Path(__file__).resolve().parent.parent.parent
-    if not (root / '.git').is_dir():
-        raise AssertionError('not garage root: %s' % root)
-
-    if args.build and args.output:
-        output = Path(args.output).resolve()
-    else:
-        output = None
-
-    cmd = ['docker', 'run']
-    cmd.extend(['--name', build_name])
-    if not args.build:
-        cmd.extend(['--interactive', '--tty'])
-
-    cmd.extend(['--volume', '%s:/home/plumber/garage:ro' % root])
-    for volume in args.volume or ():
-        cmd.extend(['--volume', volume])
-    if output:
-        cmd.extend(['--volume', '%s:/home/plumber/output:rw' % output])
-
-    cmd.append(args.builder)
-
-    if args.build:
-        foreman = '/home/plumber/garage/shipyard/scripts/foreman.sh'
-        cmd.extend([foreman, 'build'])
-        for path in args.path or ():
-            cmd.extend(['--path', path])
-        for parameter in args.parameter or ():
-            cmd.extend(['--parameter', parameter])
-        cmd.extend(args.foreman or ())
-        cmd.extend(args.rule)
-    else:
-        cmd.append('/bin/bash')
-
-    execute(cmd)
-
-    if not args.preserve_container:
-        # Don't remove builder on crash so that you may examine it.
-        execute(['docker', 'rm', build_name])
+add_common_args = cli.combine_decorators(
+    cli.argument(
+        '--build-name', help='set build container name'),
+    cli.argument(
+        '--builder', required=True, help='set builder image'),
+    cli.argument(
+        '--volume', action='append', help='add data volume'),
+    cli.argument(
+        '--preserve-container', action='store_true',
+        help='do not remove container on exit'),
+)
 
 
-def execute(cmd):
-    print('execute: %s' % ' '.join(cmd))
-    check_call(cmd)
+@cli.command(help='run builder interactively')
+@add_common_args
+def run(builder, cmd):
+    """Run an interactive session in a builder container."""
+    cmd.extend(['--interactive', '--tty', builder, '/bin/bash'])
+    scripts.execute(cmd)
+    return 0
+
+
+# While you could do `--foreman=--path=/some/path`, for convenience, we
+# denormalize --path, --parameter, and rule argument of foreman.
+@cli.command(help='execute build rules')
+@add_common_args
+@cli.argument(
+    '--path', action='append', help='add foreman search path')
+@cli.argument(
+    '--parameter', action='append', help='add parameter to foreman')
+@cli.argument(
+    '--foreman', action='append', help='send argument to foreman')
+@cli.argument(
+    '--output', required=True, help='set output directory path')
+@cli.argument(
+    'rule', nargs='+', help='add build rule')
+def build(args: ARGS, builder, cmd):
+    """Execute one or more build rules."""
+    output = Path(args.output).resolve()
+    cmd.extend([
+        '--volume', '%s:/home/plumber/output:rw' % output,
+        builder,
+        '/home/plumber/garage/shipyard/scripts/foreman.sh', 'build',
+    ])
+    for path in args.path or ():
+        cmd.extend(['--path', path])
+    for parameter in args.parameter or ():
+        cmd.extend(['--parameter', parameter])
+    cmd.extend(args.foreman or ())
+    cmd.extend(args.rule)
+    scripts.execute(cmd)
+    return 0
+
+
+@cli.command('builder')
+@cli.argument(
+    '--dry-run', action='store_true', help='do not really launch containers')
+@cli.sub_command_info('action', 'builder action')
+@cli.sub_command(run)
+@cli.sub_command(build)
+def main(args: ARGS):
+    with scripts.dry_run(args.dry_run):
+        # Construct build name
+        build_name = args.build_name
+        if not build_name:
+            build_name = 'build-%d' % int(datetime.datetime.now().timestamp())
+        # Hard-code root directory of this repo
+        root = Path(__file__).resolve().parent.parent.parent
+        if not (root / '.git').is_dir():
+            raise AssertionError('not garage root: %s' % root)
+        # Construct common part of the `docker run` command
+        cmd = [
+            'docker', 'run',
+            '--name', build_name,
+            '--volume', '%s:/home/plumber/garage:ro' % root,
+        ]
+        for volume in args.volume or ():
+            cmd.extend(['--volume', volume])
+        # Execute the action
+        rc = args.action(builder=args.builder, cmd=cmd)
+        if not args.preserve_container:
+            # Don't remove builder on crash so that you may examine it
+            scripts.execute(['docker', 'rm', build_name])
+        return rc
 
 
 if __name__ == '__main__':
