@@ -16,7 +16,7 @@ def list_books(args: ARGS):
 
 
 @cli.command(help='manage books')
-@cli.sub_command_group('action', 'actions')
+@cli.sub_command_info('action', 'actions')
 @cli.sub_command(list_books)
 def book(args: ARGS):
     """Manage books in this room."""
@@ -32,7 +32,7 @@ def search_books(args: ARGS):
 
 
 @cli.command(help='act on book shelf')
-@cli.sub_command_group('action', 'actions')
+@cli.sub_command_info('action', 'actions')
 @cli.sub_command(search_books)
 def shelf(args: ARGS):
     """Act on book shelf in this room."""
@@ -40,7 +40,7 @@ def shelf(args: ARGS):
 
 
 @cli.command()
-@cli.sub_command_group('entity', 'entities')
+@cli.sub_command_info('entity', 'entities')
 @cli.sub_command(book)
 @cli.sub_command(shelf)
 def example(args: ARGS):

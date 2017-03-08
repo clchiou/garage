@@ -11,8 +11,11 @@ __all__ = [
     'command',
     'argument',
     'component',
+    'sub_command_info',
     'sub_command',
     'verbosity',
+    # Helpers
+    'combine_decorators',
 ]
 
 import argparse
@@ -26,6 +29,14 @@ import garage.components
 
 
 DEFAULT_SUBCMDS_DEST = 'sub_command'
+
+
+def combine_decorators(*decorators):
+    return lambda entry_point: functools.reduce(
+        lambda entry_point, decorator: decorator(entry_point),
+        reversed(decorators),
+        entry_point,
+    )
 
 
 def make_decorator(make_method):
@@ -57,9 +68,9 @@ def component(comp):
 
 
 @make_decorator
-def sub_command_group(dest=DEFAULT_SUBCMDS_DEST, help=None):
+def sub_command_info(dest=DEFAULT_SUBCMDS_DEST, help=None):
     return functools.partial(
-        DecoratorChain.sub_command_group, dest=dest, help=help)
+        DecoratorChain.sub_command_info, dest=dest, help=help)
 
 
 @make_decorator
@@ -93,7 +104,7 @@ class DecoratorChain:
         self._components.append(comp)
         return self
 
-    def sub_command_group(self, dest, help):
+    def sub_command_info(self, dest, help):
         self._subcmds_dest = dest
         self._subcmds_help = help
         return self
@@ -159,10 +170,10 @@ class EntryPoint:
     def help(self):
         return self._help or self.description
 
-    def __call__(self):
+    def __call__(self, **kwargs):
         with contextlib.ExitStack() as exit_stack:
             self._prepare(startup, sys.argv, exit_stack)
-            rc = self.call_entry_point()
+            rc = self.call_entry_point(kwargs)
         sys.exit(rc)
 
     def _prepare(self, startup_, argv, exit_stack):
@@ -217,15 +228,18 @@ class EntryPoint:
         assert self._varz is None or self._varz is varz
         self._varz = varz
 
-    def call_entry_point(self):
+    def call_entry_point(self, kwargs):
         assert self._varz is not None
-        return self._entry_point(**{
+        injection = {
             arg: self._varz[var]
             for arg, var in self._entry_point.__annotations__.items()
             if arg != 'return'
-        })
+        }
+        # arguments in kwargs takes precedence over injected arguments
+        injection.update(kwargs)
+        return self._entry_point(**injection)
 
-    def call_sub_command_entry_point(self, subcmd):
+    def call_sub_command_entry_point(self, subcmd, **kwargs):
         assert self._varz is not None
         subcmd.set_varz(self._varz)  # Propagate varz
-        return subcmd.call_entry_point()
+        return subcmd.call_entry_point(kwargs)

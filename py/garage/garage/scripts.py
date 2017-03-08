@@ -114,7 +114,7 @@ def execute(args, *, check=True, capture_stdout=False, capture_stderr=False):
     context = _get_context()
 
     cwd = context.get(DIRECTORY)
-    if not os.path.isdir(cwd):
+    if cwd and not os.path.isdir(cwd):
         raise RuntimeError('not a directory: %r' % cwd)
 
     cmd = make_command(args)
@@ -124,7 +124,6 @@ def execute(args, *, check=True, capture_stdout=False, capture_stderr=False):
     if context.get(DRY_RUN):
         return
 
-    # subprocess.run is added in Python 3.5
     proc = subprocess.run(
         cmd,
         check=check,
@@ -263,6 +262,7 @@ def ensure_file(path):
     path = Path(path)
     if not path.is_file():
         raise FileNotFoundError('not a file: %s' % path)
+    return path
 
 
 def ensure_not_root():
