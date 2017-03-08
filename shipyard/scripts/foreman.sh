@@ -13,11 +13,13 @@ main() {
   fi
 
   local SHIPYARD="${ROOT}/shipyard"
-  local FOREMAN="${ROOT}/py/foreman/foreman.py"
+  local MORE_PYTHONPATH="${ROOT}/py/garage:${SHIPYARD}/lib"
 
   # With this `import shipyard` will import lib/shipyard.py.
-  export PYTHONPATH="${SHIPYARD}/lib${PYTHONPATH:+:}${PYTHONPATH:-}"
+  export PYTHONPATH="${PYTHONPATH:-}${PYTHONPATH:+:}${MORE_PYTHONPATH}"
   echo "export PYTHONPATH=${PYTHONPATH}" 1>&2
+
+  local FOREMAN="${ROOT}/py/foreman/foreman.py"
 
   # Make sure our --path is the first.
   local COMMAND="${1}"

@@ -6,7 +6,7 @@ set -o errexit -o nounset -o pipefail
 
 main() {
   local ROOT="$(realpath "$(dirname "${BASH_SOURCE}")/../..")"
-  local MORE_PYTHONPATH="${ROOT}/py/foreman:${ROOT}/shipyard/lib"
+  local MORE_PYTHONPATH="${ROOT}/py/foreman:${ROOT}/py/garage:${ROOT}/shipyard/lib"
 
   export PYTHONPATH="${PYTHONPATH:-}${PYTHONPATH:+:}${MORE_PYTHONPATH}"
   echo "export PYTHONPATH=${PYTHONPATH}"
