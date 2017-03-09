@@ -47,23 +47,23 @@ def main(args: ARGS):
     # Make use of parameter name and build rule name conventions:
     #
     #  image/IMAGE
-    #  build-image/IMAGE
+    #  build_image/IMAGE
     #
     #  pod/POD
     #  version/POD
-    #  build-pod/POD
+    #  build_pod/POD
     #
     with scripts.dry_run(args.dry_run):
 
         pod_path, build_pod_name = args.rule.rsplit(':', maxsplit=1)
-        if not build_pod_name.startswith('build-pod/'):
+        if not build_pod_name.startswith('build_pod/'):
             # Non-pod build rule - no planning required.
             build_rule(args.rule)
             return 0
 
         # Figure out images that we need to build for this image
         build_data = foreman_list(args.rule)
-        pod_name = build_pod_name[len('build-pod/'):]
+        pod_name = build_pod_name[len('build_pod/'):]
         pod_data = get_pod_data(build_data, pod_path, pod_name)
         build_image_rules = get_build_image_rules(pod_data, pod_path)
 
@@ -123,7 +123,7 @@ def get_build_image_rules(pod_data, pod_path):
         else:
             image_path = pod_path
             image_name = image_label
-        build_image_rules.append('%s:build-%s' % (image_path, image_name))
+        build_image_rules.append('%s:build_%s' % (image_path, image_name))
     return build_image_rules
 
 
