@@ -4,6 +4,7 @@ __all__ = [
     # Context manipulation
     'directory',
     'dry_run',
+    'recording_commands',
     'using_sudo',
     # Forming and running commands
     'execute',
@@ -11,6 +12,7 @@ __all__ = [
     # Commands
     'apt_get_install',
     'git_clone',
+    'mkdir',
     'rsync',
     'systemctl_disable',
     'systemctl_enable',
@@ -20,8 +22,10 @@ __all__ = [
     'systemctl_stop',
     'tar_create',
     'tar_extract',
+    'unzip',
     'wget',
     # Generic helpers
+    'ensure_directory',
     'ensure_file',
     'ensure_not_root',
     'insert_path',
@@ -48,6 +52,7 @@ LOCAL = threading.local()
 # Context entries
 DIRECTORY = 'directory'
 DRY_RUN = 'dry_run'
+RECORDING_COMMANDS = 'recording_commands'
 USING_SUDO = 'using_sudo'
 
 
@@ -64,11 +69,11 @@ def _get_context():
 
 
 @contextlib.contextmanager
-def _enter_context(cxt):
+def _enter_context(cxt, retval=None):
     stack = _get_stack()
     stack.append(stack[-1].new_child(cxt))
     try:
-        yield stack[-1]
+        yield retval
     finally:
         stack.pop()
 
@@ -84,6 +89,13 @@ def directory(path):
 def dry_run(dry_run_=True):
     """Do not actually run commands."""
     return _enter_context({DRY_RUN: dry_run_})
+
+
+def recording_commands():
+    """Record the commands executed (this cannot be nested)."""
+    assert RECORDING_COMMANDS not in _get_context()
+    records = []
+    return _enter_context({RECORDING_COMMANDS: records}, records)
 
 
 def using_sudo(using_sudo_=True, envs=None):
@@ -121,6 +133,10 @@ def execute(args, *, check=True, capture_stdout=False, capture_stderr=False):
     if LOG.isEnabledFor(logging.DEBUG):
         LOG.debug('execute: %s # cwd = %r', ' '.join(cmd), cwd)
 
+    records = context.get(RECORDING_COMMANDS)
+    if records is not None:
+        records.append(cmd)
+
     if context.get(DRY_RUN):
         return
 
@@ -142,14 +158,12 @@ def execute(args, *, check=True, capture_stdout=False, capture_stderr=False):
 
 
 def apt_get_install(pkgs):
-    LOG.info('apt_get_install: %s', pkgs)
     cmd = ['apt-get', 'install', '--yes']
     cmd.extend(pkgs)
     execute(cmd)
 
 
 def git_clone(repo, local_path=None, checkout=None):
-    LOG.info('git_clone: %s', repo)
     if local_path:
         local_path.mkdir(parents=True)
     with directory(local_path):
@@ -158,15 +172,17 @@ def git_clone(repo, local_path=None, checkout=None):
             cmd.append('.')
         execute(cmd)
         if checkout:
-            LOG.info('git_checkout: %s %s', repo, checkout)
             execute(['git', 'checkout', checkout])
+
+
+def mkdir(path):
+    execute(['mkdir', '--parents', path])
 
 
 def rsync(srcs, dst, *,
           delete=False,
           relative=False,
           includes=(), excludes=()):
-    LOG.info('rsync: %s -> %s', srcs, dst)
     if not srcs:
         LOG.warning('rsync: empty srcs: %r', srcs)
         return
@@ -201,7 +217,6 @@ systemctl_is_active = functools.partial(_systemctl, 'is-active')
 
 def tar_create(src_dir, srcs, tarball_path, tar_extra_flags=()):
     """Create a tarball."""
-    LOG.info('tar_create: %s', tarball_path)
     src_dir = Path(src_dir)
     cmd = [
         'tar',
@@ -220,7 +235,6 @@ def tar_create(src_dir, srcs, tarball_path, tar_extra_flags=()):
 
 def tar_extract(tarball_path, output_path=None):
     """Extract a tarball."""
-    LOG.info('tar_extract: %s', tarball_path)
     tarball_path = Path(tarball_path)
     name = tarball_path.name
     if name.endswith('.tar'):
@@ -241,8 +255,14 @@ def tar_extract(tarball_path, output_path=None):
     execute(cmd)
 
 
+def unzip(zip_path, output_path=None):
+    cmd = ['unzip', zip_path]
+    if output_path:
+        cmd.extend(['-d', output_path])
+    execute(cmd)
+
+
 def wget(uri, output_path=None, headers=()):
-    LOG.info('wget: %s', uri)
     cmd = ['wget']
     if not LOG.isEnabledFor(logging.DEBUG):
         cmd.append('--no-verbose')  # No progress bar
@@ -257,10 +277,18 @@ def wget(uri, output_path=None, headers=()):
 ### Generic helpers
 
 
-def ensure_file(path):
-    """Raise FileNotFoundError if path does not exist."""
+def ensure_directory(path):
+    """Raise FileNotFoundError if not a directory or does not exist."""
     path = Path(path)
-    if not path.is_file():
+    if not path.is_dir() and not _get_context().get(DRY_RUN):
+        raise FileNotFoundError('not a directory: %s' % path)
+    return path
+
+
+def ensure_file(path):
+    """Raise FileNotFoundError if not a file or does not exist."""
+    path = Path(path)
+    if not path.is_file() and not _get_context().get(DRY_RUN):
         raise FileNotFoundError('not a file: %s' % path)
     return path
 
