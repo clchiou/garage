@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Set up environment for pylint
+# Set up environment for python3
 
 source "$(dirname "${BASH_SOURCE}")/common.sh"
 
-exec pylint "${@}"
+exec python3 "${@}"
