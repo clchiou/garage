@@ -129,8 +129,6 @@ def execute(args, *, check=True, capture_stdout=False, capture_stderr=False):
     context = _get_context()
 
     cwd = context.get(DIRECTORY)
-    if cwd and not os.path.isdir(cwd):
-        raise RuntimeError('not a directory: %r' % cwd)
 
     cmd = make_command(args)
     if LOG.isEnabledFor(logging.DEBUG):
@@ -142,6 +140,10 @@ def execute(args, *, check=True, capture_stdout=False, capture_stderr=False):
 
     if context.get(DRY_RUN):
         return (0, None, None)
+
+    # Put check after DRY_RUN
+    if cwd and not os.path.isdir(cwd):
+        raise RuntimeError('not a directory: %r' % cwd)
 
     proc = subprocess.run(
         cmd,
