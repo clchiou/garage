@@ -418,7 +418,10 @@ class Loader:
         assert self.search_build_file is not None
         code = compile(
             build_file_path.read_text(), str(build_file_path), 'exec')
-        exec(code, {'__name__': str(label_path).replace('/', '.')})
+        exec(code, {
+            '__file__': str(build_file_path.absolute()),
+            '__name__': str(label_path).replace('/', '.'),
+        })
         # Validate parameters.
         for parameter in self.parameters.get_things(label_path):
             parameter.validate()
