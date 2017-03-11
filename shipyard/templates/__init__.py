@@ -25,31 +25,31 @@ ArchiveInfo = collections.namedtuple('ArchiveInfo', [
 ])
 
 
-def define_archive(*, uri, filename, output, derive_dst_path,
+def define_archive(name, *, uri, filename, output, derive_dst_path,
                    wget_headers=()):
     """Define an archive, including:
-       * archive_info and archive_destination parameter
-       * download rule
+       * NAME/archive_info and NAME/archive_destination parameter
+       * NAME/download rule
     """
 
-    (foreman.define_parameter('archive_info')
+    (foreman.define_parameter('%s/archive_info' % name)
      .with_doc('Archive info.')
      .with_type(ArchiveInfo)
      .with_parse(lambda info: ArchiveInfo(*info.split(',')))
      .with_default(ArchiveInfo(uri=uri, filename=filename, output=output)))
 
-    (foreman.define_parameter('archive_destination')
-     .with_doc('Local location for extracting archive.')
+    (foreman.define_parameter('%s/archive_destination' % name)
+     .with_doc('Local path for extracting archive into.')
      .with_type(Path)
      .with_derive(derive_dst_path))
 
-    @foreman.decorate_rule
+    @foreman.rule('%s/download' % name)
     def download(parameters):
         """Download and extract archive."""
 
-        archive_info = parameters['archive_info']
+        archive_info = parameters['%s/archive_info' % name]
 
-        destination = parameters['archive_destination']
+        destination = parameters['%s/archive_destination' % name]
         scripts.mkdir(destination)
 
         archive_path = destination / archive_info.filename
@@ -76,19 +76,18 @@ def define_archive(*, uri, filename, output, derive_dst_path,
     return download
 
 
-def define_package_common(*, derive_src_path, derive_build_src_path):
+def define_package_common(name, *, derive_src_path, derive_drydock_src_path):
     """Define common parts of a (first-party) package, including src and
-       build_src parameter.  This is most likely to be useful to other
+       drydock_src parameter.  This is most likely to be useful to other
        rule templates, not to your build rules.
     """
 
-    (foreman.define_parameter('src')
-     .with_doc('Location of the source code.')
+    (foreman.define_parameter('%s/src' % name)
+     .with_doc('Path to the package source code.')
      .with_type(Path)
      .with_derive(derive_src_path))
 
-    (foreman.define_parameter('build_src')
-     .with_doc('Location of the copied source code to build from '
-               '(we do out-of-tree builds).')
+    (foreman.define_parameter('%s/drydock_src' % name)
+     .with_doc('Path to the copy of source code to be built from.')
      .with_type(Path)
-     .with_derive(derive_build_src_path))
+     .with_derive(derive_drydock_src_path))
