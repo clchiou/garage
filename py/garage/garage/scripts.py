@@ -10,7 +10,9 @@ __all__ = [
     'execute',
     'make_command',
     # Commands
+    'apt_get_full_upgrade',
     'apt_get_install',
+    'apt_get_update',
     'git_clone',
     'mkdir',
     'rsync',
@@ -29,6 +31,7 @@ __all__ = [
     'ensure_file',
     'ensure_not_root',
     'insert_path',
+    'install_dependencies',
 ]
 
 from pathlib import Path
@@ -155,6 +158,14 @@ def execute(args, *, check=True, capture_stdout=False, capture_stderr=False):
 
 
 ### Commands
+
+
+def apt_get_update():
+    execute(['apt-get', 'update'])
+
+
+def apt_get_full_upgrade():
+    execute(['sudo', 'apt-get', '--yes', 'full-upgrade'])
 
 
 def apt_get_install(pkgs):
@@ -304,3 +315,15 @@ def insert_path(path, *, var='PATH'):
     paths = '%s:%s' % (path, paths) if paths else str(path)
     LOG.info('add %r to %s: %s', path, var, paths)
     os.environ[var] = paths
+
+
+def install_dependencies():
+    """Install command-line tools that we depend on (except systemd)."""
+    with using_sudo():
+        apt_get_install([
+            'git',
+            'rsync',
+            'tar',
+            'unzip',
+            'wget',
+        ])
