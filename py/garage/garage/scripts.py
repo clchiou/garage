@@ -141,7 +141,7 @@ def execute(args, *, check=True, capture_stdout=False, capture_stderr=False):
         records.append(cmd)
 
     if context.get(DRY_RUN):
-        return
+        return (0, None, None)
 
     proc = subprocess.run(
         cmd,
@@ -160,6 +160,16 @@ def execute(args, *, check=True, capture_stdout=False, capture_stderr=False):
 ### Commands
 
 
+# We depend on these Debian packages (excluding systemd).
+DEBIAN_PACKAGES = [
+    'git',
+    'rsync',
+    'tar',
+    'unzip',
+    'wget',
+]
+
+
 def apt_get_update():
     execute(['apt-get', 'update'])
 
@@ -169,6 +179,8 @@ def apt_get_full_upgrade():
 
 
 def apt_get_install(pkgs):
+    if not pkgs:
+        return
     cmd = ['apt-get', 'install', '--yes']
     cmd.extend(pkgs)
     execute(cmd)
@@ -318,12 +330,11 @@ def insert_path(path, *, var='PATH'):
 
 
 def install_dependencies():
-    """Install command-line tools that we depend on (except systemd)."""
+    """Install command-line tools that we depend on (excluding systemd)."""
+    missing_packages = []
+    for package in DEBIAN_PACKAGES:
+        cmd = ['dpkg-query', '--status', package]
+        if execute(cmd, check=False, capture_stdout=True)[0] != 0:
+            missing_packages.append(package)
     with using_sudo():
-        apt_get_install([
-            'git',
-            'rsync',
-            'tar',
-            'unzip',
-            'wget',
-        ])
+        apt_get_install(missing_packages)
