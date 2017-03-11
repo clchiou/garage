@@ -27,6 +27,7 @@ standard library.)
 
 __all__ = [
     'ForemanError',
+    'get_relpath',
     'define_parameter',
     'define_rule',
     'rule',
@@ -431,6 +432,11 @@ class Loader:
 
     # Methods that are called from build files.
 
+    def get_relpath(self):
+        if self.path is None:
+            raise RuntimeError('lack execution context')
+        return self.path
+
     def parse_label_name(self, name):
         if self.path is None:
             raise RuntimeError('lack execution context')
@@ -615,6 +621,11 @@ class ForemanError(Exception):
 
 
 LOADER = None
+
+
+def get_relpath():
+    """Return relative path of the current build file."""
+    return LOADER.get_relpath()
 
 
 def define_parameter(name):
