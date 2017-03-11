@@ -1,9 +1,15 @@
 ## Tips
 
-Development flows:
+* You may reduce developer build time with "cached" builders, which
+  are builder images that hold intermediate build artifacts:
 
-  * You may reduce developer build time with "cached" builders, which
-    are builder images that hold intermediate build artifacts.
+    ./scripts/builder build --preserve-container ...
+    docker commit -c 'CMD ["/bin/bash"]' BUILD_ID TAG
 
-      ./scripts/builder build --preserve-container ...
-      docker commit -c 'CMD ["/bin/bash"]' BUILD_ID TAG
+* You may reduce developer build time even further by disabling system
+  upgrade:
+
+    --parameter //base:skip_system_upgrade=true
+
+* There are meta build rules under `//meta`, which are a convenient way
+  to bulk-build groups of packages.
