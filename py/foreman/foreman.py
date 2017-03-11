@@ -29,7 +29,7 @@ __all__ = [
     'ForemanError',
     'define_parameter',
     'define_rule',
-    'decorate_rule',
+    'rule',
     'to_path',
 ]
 
@@ -428,11 +428,16 @@ class Loader:
 
     # Methods that are called from build files.
 
+    def parse_label_name(self, name):
+        if self.path is None:
+            raise RuntimeError('lack execution context')
+        return Label.parse_name(self.path, name)
+
     def define_parameter(self, name):
         """Define a build parameter."""
         if self.path is None:
             raise RuntimeError('lack execution context')
-        label = Label.parse_name(self.path, name)
+        label = self.parse_label_name(name)
         if label in self.parameters:
             raise ForemanError('overwrite parameter %s' % label)
         LOG.debug('define parameter %s', label)
@@ -443,7 +448,7 @@ class Loader:
         """Define a build rule."""
         if self.path is None:
             raise RuntimeError('lack execution context')
-        label = Label.parse_name(self.path, name)
+        label = self.parse_label_name(name)
         if label in self.rules:
             raise ForemanError('overwrite rule %s' % label)
         LOG.debug('define rule %s', label)
@@ -617,22 +622,71 @@ def define_rule(name):
     return LOADER.define_rule(name)
 
 
-def decorate_rule(*args):
-    """Helper for creating simple build rule."""
-    if len(args) == 1 and not isinstance(args[0], str):
-        build = args[0]
-        return (
-            define_rule(build.__name__)
-            .with_doc(build.__doc__)
-            .with_build(build)
-        )
-    else:
-        def wrapper(build):
-            rule = decorate_rule(build)
-            for dep in args:
-                rule.depend(dep)
-            return rule
-        return wrapper
+class rule:
+    """Decorator-chain style for creating build rules.
+
+       This is for creating build rule, and it does not represent build
+       rules (you are looking for the Rule class above).
+
+       You may define build rules in ways like:
+
+           @rule
+           def simple_rule(_):
+               pass
+
+           @rule('complex/rule/name')
+           @rule.depend('simeple_rule')
+           def build(_):
+               pass
+    """
+
+    # I abuse the class syntax here because it provides a cheap namespace.
+
+    def __new__(cls, name_or_func=None, **kwargs):
+        if name_or_func is None or isinstance(name_or_func, str):
+            return super().__new__(cls)
+        else:
+            return rule(name_or_func.__name__, **kwargs)(name_or_func)
+
+    def __init__(self, name=None, *, _depend=None, _reverse_depend=None):
+        assert name is None or isinstance(name, str)
+        self._name = name
+        self._depend = _depend
+        self._reverse_depend = _reverse_depend
+        self._applied = False
+
+    def __del__(self):
+        if not self._applied:
+            import warnings
+            warnings.warn('Decorator-chain is not applied to any rule object')
+
+    def __call__(self, rule_or_func):
+        if isinstance(rule_or_func, Rule):
+            rule_ = rule_or_func
+            if self._name:
+                rule_.label = LOADER.parse_label_name(self._name)
+        else:
+            rule_ = (
+                define_rule(self._name or rule_or_func.__name__)
+                .with_doc(rule_or_func.__doc__)
+                .with_build(rule_or_func)
+            )
+        if self._depend:
+            rule_.dependencies.insert(
+                0, Rule.Dependency(*self._depend))
+        if self._reverse_depend:
+            rule_.reverse_dependencies.insert(
+                0, Rule.Dependency(*self._reverse_depend))
+        self._applied = True
+        return rule_
+
+    @classmethod
+    def depend(cls, label, when=None, configs=None):
+        return cls(_depend=(label, when, configs))
+
+    @classmethod
+    def reverse_depend(cls, label, when=None, configs=None):
+        return cls(_reverse_depend=(label, when, configs))
 
 
 def to_path(label):
