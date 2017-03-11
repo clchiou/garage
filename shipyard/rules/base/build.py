@@ -25,8 +25,8 @@ from foreman import define_parameter, rule, to_path
  .with_default(Path.home() / 'output'))
 
 
-(define_parameter('skip_system_upgrade')
- .with_doc('Whether to skip system upgrade before build starts.')
+(define_parameter('skip_upgrading_system')
+ .with_doc('Whether to skip upgrading system before build starts.')
  .with_type(bool)
  .with_default(False)
  .with_parse(lambda v: v.lower() == 'true'))
@@ -48,20 +48,14 @@ from foreman import define_parameter, rule, to_path
 
 
 @rule
-def system_upgrade(parameters):
+def upgrade_system(parameters):
     """Upgrade system packages."""
     with scripts.using_sudo():
         scripts.apt_get_update()
         scripts.apt_get_full_upgrade()
 
 
-@rule.depend('system_upgrade', when=lambda ps: not ps['skip_system_upgrade'])
-def base(parameters):
-    """Prepare system for build process."""
-    scripts.install_dependencies()
-
-
-@rule.depend('base')
+@rule.depend('upgrade_system', when=lambda ps: not ps['skip_upgrading_system'])
 def build(parameters):
     """Prepare for the build process.
 
@@ -70,6 +64,8 @@ def build(parameters):
 
     # Sanity check
     scripts.ensure_directory(parameters['root'] / '.git')
+
+    scripts.install_dependencies()
 
     # Populate drydock
     for subdir in ('cc', 'host', 'java', 'py'):

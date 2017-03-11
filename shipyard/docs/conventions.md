@@ -15,3 +15,9 @@
 
     # Define `//some/package:sub-package-2/build`.
     define_package(name='sub-package-2')
+
+* First-party build rule template may take an optional argument `root`,
+  which, when provided, is a parameter name that overrides the default
+  parameter `//base:root`.
+
+* Build rule name should be a verb, like `build` or `upgrade`.

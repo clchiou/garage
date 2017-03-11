@@ -16,6 +16,23 @@ else:
 
 class TemplatesTest(PrepareForeman, unittest.TestCase):
 
+    def test_parse_common_args(self):
+
+        expect = []
+        actual = []
+
+        @templates.parse_common_args
+        def func(root: 'root', name: 'name'):
+            actual.append((root, name))
+
+        func(); expect.append(('//base:root', ''))
+        func(root=None, name=None); expect.append(('//base:root', ''))
+        func(root='', name=''); expect.append(('//base:root', ''))
+        func(root='x', name='y'); expect.append(('x', 'y/'))
+        func(root='x', name='z/'); expect.append(('x', 'z/'))
+
+        self.assertEqual(expect, actual)
+
     def test_define_archive(self):
         expect = {
             'uri': 'https://www.python.org/ftp/python/3.5.1/Python-3.5.1.tar.xz',
@@ -23,23 +40,18 @@ class TemplatesTest(PrepareForeman, unittest.TestCase):
             'output': Path('Python-3.5.1'),
         }
 
-        templates.define_archive(
-            'cpython', derive_dst_path=None, **expect)
+        templates.define_archive(name='cpython', **expect)
 
         label = foreman.Label.parse('//path/to/rules:cpython/archive_info')
         archive_info = self.loader.parameters[label].default
         self.assertEqual(expect, archive_info._asdict())
 
-        label = foreman.Label.parse(
-            '//path/to/rules:cpython/archive_destination')
-        self.assertIn(label, self.loader.parameters)
-
         label = foreman.Label.parse('//path/to/rules:cpython/download')
         download = self.loader.rules[label]
 
         parameters = {
+            '//base:drydock': Path('/somewhere'),
             'cpython/archive_info': archive_info,
-            'cpython/archive_destination': Path('/path/to/somethere'),
         }
         with scripts.dry_run(), scripts.recording_commands() as cmds:
             download.build(parameters)
@@ -50,14 +62,21 @@ class TemplatesTest(PrepareForeman, unittest.TestCase):
         self.assertEqual(['tar', '--extract'], cmds[2][0:2])
 
     def test_define_package_common(self):
-        templates.define_package_common(
-            'cpython', derive_src_path=1, derive_drydock_src_path=2)
+        copy_src = templates.define_package_common(name='cpython')
 
         label = foreman.Label.parse('//path/to/rules:cpython/src')
-        self.assertEqual(1, self.loader.parameters[label].derive)
+        self.assertIn(label, self.loader.parameters)
 
-        label = foreman.Label.parse('//path/to/rules:cpython/drydock_src')
-        self.assertEqual(2, self.loader.parameters[label].derive)
+        parameters = {
+            '//base:drydock': Path('/somewhere'),
+            'cpython/src': Path('/other/place'),
+        }
+        with scripts.dry_run(), scripts.recording_commands() as cmds:
+            copy_src.build(parameters)
+
+        # Match command sequence (probably very fragile)
+        self.assertEqual('mkdir', cmds[0][0])
+        self.assertEqual('rsync', cmds[1][0])
 
 
 if __name__ == '__main__':

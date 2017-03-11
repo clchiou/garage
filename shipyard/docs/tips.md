@@ -9,7 +9,7 @@
 * You may reduce developer build time even further by disabling system
   upgrade:
 
-    --parameter //base:skip_system_upgrade=true
+    --parameter //base:skip_upgrading_system=true
 
 * There are meta build rules under `//meta`, which are a convenient way
   to bulk-build groups of packages.
