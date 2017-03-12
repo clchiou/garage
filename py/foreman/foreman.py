@@ -40,7 +40,7 @@ import logging
 import sys
 import types
 from collections import ChainMap, OrderedDict, defaultdict
-from functools import total_ordering
+from functools import partial, total_ordering
 from pathlib import Path, PurePath, PurePosixPath
 
 
@@ -259,6 +259,7 @@ class Rule:
         self.dependencies = []
         self.from_reverse_dependencies = []
         self.reverse_dependencies = []
+        self.annotations = {}
 
     def with_doc(self, doc):
         self.doc = doc
@@ -266,6 +267,14 @@ class Rule:
 
     def with_build(self, build):
         self.build = build
+        return self
+
+    def with_annotation(self, name, value):
+        self.annotations[name] = value
+        return self
+
+    def without_annotation(self, name):
+        self.annotations.pop(name, None)
         return self
 
     def depend(self, label, when=None, configs=None):
@@ -632,11 +641,57 @@ def define_parameter(name):
     return LOADER.define_parameter(name)
 
 
+define_parameter.bool_typed = lambda name: (
+    define_parameter(name)
+    .with_type(bool)
+    .with_parse(lambda value: {'true': True, 'false': False}[value.lower()]))
+
+
+define_parameter.list_typed = lambda name: (
+    define_parameter(name)
+    .with_type(list)
+    .with_parse(lambda value: value.split(',')))
+
+
+define_parameter.namedtuple_typed = lambda namedtuple, name: (
+    define_parameter(name)
+    .with_type(namedtuple)
+    .with_parse(lambda value: namedtuple(*value.split(','))))
+
+
+define_parameter.path_typed = lambda name: (
+    define_parameter(name)
+    .with_type(Path))
+
+
 def define_rule(name):
     return LOADER.define_rule(name)
 
 
-class rule:
+def _decorate_rule(func_or_rule, *,
+                   # "Private" arguments
+                   _name=None,
+                   _annotation=None,
+                   _depend=None,
+                   _reverse_depend=None):
+    if isinstance(func_or_rule, Rule):
+        rule = func_or_rule
+        if _name:
+            rule.label = LOADER.parse_label_name(_name)
+    else:
+        rule = (define_rule(_name or func_or_rule.__name__)
+                .with_doc(func_or_rule.__doc__)
+                .with_build(func_or_rule))
+    if _annotation:
+        rule.with_annotation(*_annotation)
+    if _depend:
+        rule.dependencies.insert(0, _depend)
+    if _reverse_depend:
+        rule.reverse_dependencies.insert(0, _reverse_depend)
+    return rule
+
+
+def rule(arg):
     """Decorator-chain style for creating build rules.
 
        This is for creating build rule, and it does not represent build
@@ -653,54 +708,29 @@ class rule:
            def build(_):
                pass
     """
+    # arg's type is either str, func, or Rule
+    if isinstance(arg, str):
+        return partial(_decorate_rule, _name=arg)
+    else:
+        return _decorate_rule(arg)
 
-    # I abuse the class syntax here because it provides a cheap namespace.
 
-    def __new__(cls, name_or_func=None, **kwargs):
-        if name_or_func is None or isinstance(name_or_func, str):
-            return super().__new__(cls)
-        else:
-            return rule(name_or_func.__name__, **kwargs)(name_or_func)
+rule.annotate = lambda name, value: partial(
+    _decorate_rule,
+    _annotation=(name, value),
+)
 
-    def __init__(self, name=None, *, _depend=None, _reverse_depend=None):
-        assert name is None or isinstance(name, str)
-        self._name = name
-        self._depend = _depend
-        self._reverse_depend = _reverse_depend
-        self._applied = False
 
-    def __del__(self):
-        if not self._applied:
-            import warnings
-            warnings.warn('Decorator-chain is not applied to any rule object')
+rule.depend = lambda label, when=None, configs=None: partial(
+    _decorate_rule,
+    _depend=Rule.Dependency(label, when=when, configs=configs),
+)
 
-    def __call__(self, rule_or_func):
-        if isinstance(rule_or_func, Rule):
-            rule_ = rule_or_func
-            if self._name:
-                rule_.label = LOADER.parse_label_name(self._name)
-        else:
-            rule_ = (
-                define_rule(self._name or rule_or_func.__name__)
-                .with_doc(rule_or_func.__doc__)
-                .with_build(rule_or_func)
-            )
-        if self._depend:
-            rule_.dependencies.insert(
-                0, Rule.Dependency(*self._depend))
-        if self._reverse_depend:
-            rule_.reverse_dependencies.insert(
-                0, Rule.Dependency(*self._reverse_depend))
-        self._applied = True
-        return rule_
 
-    @classmethod
-    def depend(cls, label, when=None, configs=None):
-        return cls(_depend=(label, when, configs))
-
-    @classmethod
-    def reverse_depend(cls, label, when=None, configs=None):
-        return cls(_reverse_depend=(label, when, configs))
+rule.reverse_depend = lambda label, when=None, configs=None: partial(
+    _decorate_rule,
+    _reverse_depend=Rule.Dependency(label, when=when, configs=configs),
+)
 
 
 def to_path(label):
@@ -865,6 +895,10 @@ def command_list(args, loader):
         return OrderedDict([
             ('label', str(rule.label)),
             ('doc', rule.doc),
+            ('annotations', OrderedDict([
+                (name, rule.annotations[name])
+                for name in sorted(rule.annotations)
+            ])),
             ('dependencies',
              list(map(format_dependency, rule.dependencies))),
             ('reverse_dependencies',
