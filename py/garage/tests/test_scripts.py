@@ -2,6 +2,7 @@ import unittest
 
 from pathlib import Path
 import threading
+import subprocess
 
 from garage import scripts
 
@@ -45,6 +46,31 @@ class ScriptsTest(unittest.TestCase):
             t2.join()
 
         self.assertEqual({Path('p1'), Path('p2')}, data)
+
+    def test_execute(self):
+
+        self.assertEqual(
+            b'hello\n',
+            scripts.execute(['echo', 'hello'], capture_stdout=True).stdout,
+        )
+
+        with scripts.dry_run():
+            self.assertEqual(
+                b'',
+                scripts.execute(['echo', 'hello'], capture_stdout=True).stdout,
+            )
+
+        with scripts.redirecting(stdout=subprocess.PIPE):
+            self.assertEqual(
+                b'hello\n',
+                scripts.execute(['echo', 'hello']).stdout,
+            )
+
+        with scripts.redirecting(stdout=subprocess.DEVNULL):
+            self.assertEqual(
+                None,
+                scripts.execute(['echo', 'hello']).stdout,
+            )
 
 
 if __name__ == '__main__':

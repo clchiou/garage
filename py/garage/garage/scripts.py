@@ -6,6 +6,7 @@ __all__ = [
     'dry_run',
     'is_dry_run',
     'recording_commands',
+    'redirecting',
     'using_sudo',
     # Forming and running commands
     'execute',
@@ -61,6 +62,7 @@ LOCAL = threading.local()
 DIRECTORY = 'directory'
 DRY_RUN = 'dry_run'
 RECORDING_COMMANDS = 'recording_commands'
+REDIRECTING = 'redirecting'
 USING_SUDO = 'using_sudo'
 
 
@@ -111,6 +113,10 @@ def recording_commands():
     return _enter_context({RECORDING_COMMANDS: records}, records)
 
 
+def redirecting(*, stdout=None, stderr=None):
+    return _enter_context({REDIRECTING: {'stdout': stdout, 'stderr': stderr}})
+
+
 def using_sudo(using_sudo_=True, envs=None):
     """Run following commands with `sudo`."""
     if using_sudo_:
@@ -149,23 +155,22 @@ def execute(args, *, check=True, capture_stdout=False, capture_stderr=False):
         records.append(cmd)
 
     if context.get(DRY_RUN):
-        return (0, None, None)
+        # Fake a CompletedProcess object
+        return subprocess.CompletedProcess(cmd, 0, b'', b'')
 
     # Put check after DRY_RUN
     if cwd and not cwd.is_dir():
         raise RuntimeError('not a directory: %r' % cwd)
 
-    proc = subprocess.run(
+    redirect = context.get(REDIRECTING) or {}
+    stdout = subprocess.PIPE if capture_stdout else redirect.get('stdout')
+    stderr = subprocess.PIPE if capture_stderr else redirect.get('stderr')
+
+    return subprocess.run(
         cmd,
         check=check,
-        stdout=subprocess.PIPE if capture_stdout else None,
-        stderr=subprocess.PIPE if capture_stderr else None,
-        cwd=ensure_str(cwd),
-    )
-    return (
-        proc.returncode,
-        proc.stdout if capture_stdout else None,
-        proc.stderror if capture_stderr else None,
+        stdout=stdout, stderr=stderr,
+        cwd=ensure_str(cwd),  # PathLike will be added to Python 3.6
     )
 
 
@@ -194,9 +199,10 @@ def apt_get_install(packages, *, only_missing=True):
     if only_missing:
         missing = []
         for package in packages:
-            cmd = ['dpkg-query', '--status', package]
-            if execute(cmd, check=False, capture_stdout=True)[0] != 0:
-                missing.append(package)
+            with redirecting(stdout=subprocess.DEVNULL):
+                cmd = ['dpkg-query', '--status', package]
+                if execute(cmd, check=False).returncode != 0:
+                    missing.append(package)
         packages = missing
     if not packages:
         return
