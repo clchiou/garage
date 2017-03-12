@@ -20,7 +20,7 @@ def list_books(args: ARGS):
 @cli.sub_command(list_books)
 def book(args: ARGS):
     """Manage books in this room."""
-    args.action()
+    return args.action()
 
 
 @cli.command('search', help='search books')
@@ -36,7 +36,7 @@ def search_books(args: ARGS):
 @cli.sub_command(search_books)
 def shelf(args: ARGS):
     """Act on book shelf in this room."""
-    args.action()
+    return args.action()
 
 
 @cli.command()
@@ -44,7 +44,8 @@ def shelf(args: ARGS):
 @cli.sub_command(book)
 @cli.sub_command(shelf)
 def example(args: ARGS):
-    args.entity()
+    assert args.entity in (book, shelf)
+    return args.entity()
 
 
 if __name__ == '__main__':

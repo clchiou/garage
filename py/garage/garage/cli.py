@@ -110,7 +110,7 @@ class DecoratorChain:
         return self
 
     def sub_command(self, subcmd):
-        assert isinstance(subcmd, EntryPoint)
+        assert isinstance(subcmd, Command)
         self._subcmds.append(subcmd)
         return self
 
@@ -121,7 +121,7 @@ class DecoratorChain:
     def build(self, name=None, help=None):
         # Make copies (also remember that you add elements to these
         # lists in reverse order and so you have to reverse them here)
-        return EntryPoint(
+        cmd = Command(
             self._entry_point,
             name,
             help,
@@ -132,9 +132,14 @@ class DecoratorChain:
             list(reversed(self._subcmds)),
             self._verbosity,
         )
+        return functools.wraps(self._entry_point)(cmd)
 
 
-class EntryPoint:
+# The global context of the entire program
+CONTEXT = None
+
+
+class Command:
 
     def __init__(self,
                  entry_point,
@@ -155,7 +160,6 @@ class EntryPoint:
         self._subcmds_help = subcmds_help
         self._subcmds = subcmds
         self._verbosity = verbosity_
-        self._varz = None
 
     @property
     def prog(self):
@@ -171,13 +175,19 @@ class EntryPoint:
         return self._help or self.description
 
     def __call__(self, **kwargs):
-        with contextlib.ExitStack() as exit_stack:
-            self._prepare(startup, sys.argv, exit_stack)
-            rc = self.call_entry_point(kwargs)
-        sys.exit(rc)
+        global CONTEXT
+        if CONTEXT is None:
+            # Assume we are the main program entry point
+            with contextlib.ExitStack() as exit_stack:
+                CONTEXT = self._prepare(startup, sys.argv, exit_stack)
+                rc = self._main(kwargs)
+            sys.exit(rc)
+        else:
+            # Assume we are called from the main program entry point
+            return self._main(kwargs)
 
     def _prepare(self, startup_, argv, exit_stack):
-        """Prepare the context and call initialize()."""
+        """Prepare the context and call _initialize()."""
 
         parser = argparse.ArgumentParser(
             prog=self.prog, description=self.description)
@@ -187,8 +197,8 @@ class EntryPoint:
         startup_.set(garage.components.PARSER, parser)
         startup_(garage.components.parse_argv)
 
-        # Use set() to filter out duplicated components
-        comps = set(self.initialize(parser))
+        # Use a set to filter out duplicated components
+        comps = set(self._initialize(parser))
         if self._verbosity is not None:
             from garage.startups.logging import LoggingComponent
             comps.add(LoggingComponent(self._verbosity))
@@ -197,9 +207,9 @@ class EntryPoint:
         for comp in garage.components.find_closure(*comps):
             garage.components.bind(comp, startup=startup_)
 
-        self.set_varz(startup_.call())
+        return startup_.call()
 
-    def initialize(self, parser):
+    def _initialize(self, parser):
         """Initialize command and sub-commands recursively and return
            all components.
         """
@@ -216,30 +226,17 @@ class EntryPoint:
                     description=subcmd.description,
                     help=subcmd.help,
                 )
-                subparser.set_defaults(**{
-                    self._subcmds_dest: functools.partial(
-                        self.call_sub_command_entry_point, subcmd)
-                })
-                # Recursively call into subcmd.initialize()
-                yield from subcmd.initialize(subparser)
+                subparser.set_defaults(**{self._subcmds_dest: subcmd})
+                # Recursively call into subcmd._initialize()
+                yield from subcmd._initialize(subparser)
         yield from self._components
 
-    def set_varz(self, varz):
-        assert self._varz is None or self._varz is varz
-        self._varz = varz
-
-    def call_entry_point(self, kwargs):
-        assert self._varz is not None
-        injection = {
-            arg: self._varz[var]
+    def _main(self, kwargs):
+        injected_kwargs = {
+            arg: CONTEXT[var]
             for arg, var in self._entry_point.__annotations__.items()
             if arg != 'return'
         }
         # arguments in kwargs takes precedence over injected arguments
-        injection.update(kwargs)
-        return self._entry_point(**injection)
-
-    def call_sub_command_entry_point(self, subcmd, **kwargs):
-        assert self._varz is not None
-        subcmd.set_varz(self._varz)  # Propagate varz
-        return subcmd.call_entry_point(kwargs)
+        injected_kwargs.update(kwargs)
+        return self._entry_point(**injected_kwargs)
