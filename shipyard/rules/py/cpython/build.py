@@ -8,7 +8,8 @@ from foreman import define_parameter, get_relpath, rule
 
 from garage import scripts
 
-from templates import define_archive, tapeout_files
+from templates.common import define_archive
+from templates.utils import tapeout_files
 
 
 LOG = logging.getLogger(__name__)

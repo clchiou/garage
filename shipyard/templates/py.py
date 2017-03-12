@@ -11,7 +11,8 @@ from garage import scripts
 
 from foreman import get_relpath, rule
 
-from . import parse_common_args, define_package_common
+from .common import define_package_common
+from .utils import parse_common_args
 
 
 LOG = logging.getLogger(__name__)

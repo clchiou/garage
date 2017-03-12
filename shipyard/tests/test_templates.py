@@ -6,7 +6,7 @@ import foreman
 
 from garage import scripts
 
-import templates
+from templates import common, utils
 
 if __name__ == '__main__':
     from fixtures import PrepareForeman
@@ -21,7 +21,7 @@ class TemplatesTest(PrepareForeman, unittest.TestCase):
         expect = []
         actual = []
 
-        @templates.parse_common_args
+        @utils.parse_common_args
         def func(root: 'root', name: 'name'):
             actual.append((root, name))
 
@@ -41,7 +41,7 @@ class TemplatesTest(PrepareForeman, unittest.TestCase):
             'checksum': None,
         }
 
-        templates.define_archive(name='cpython', **expect)
+        common.define_archive(name='cpython', **expect)
 
         label = foreman.Label.parse('//path/to/rules:cpython/archive_info')
         archive_info = self.loader.parameters[label].default
@@ -63,7 +63,7 @@ class TemplatesTest(PrepareForeman, unittest.TestCase):
         self.assertEqual(['tar', '--extract'], cmds[2][0:2])
 
     def test_define_package_common(self):
-        copy_src = templates.define_package_common(name='cpython')
+        copy_src = common.define_package_common(name='cpython')
 
         label = foreman.Label.parse('//path/to/rules:cpython/src')
         self.assertIn(label, self.loader.parameters)
