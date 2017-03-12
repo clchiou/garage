@@ -38,6 +38,7 @@ class TemplatesTest(PrepareForeman, unittest.TestCase):
             'uri': 'https://www.python.org/ftp/python/3.5.1/Python-3.5.1.tar.xz',
             'filename': Path('Python-3.5.1.tar.xz'),
             'output': Path('Python-3.5.1'),
+            'checksum': None,
         }
 
         templates.define_archive(name='cpython', **expect)

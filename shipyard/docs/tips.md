@@ -6,10 +6,10 @@
     ./scripts/builder build --preserve-container ...
     docker commit -c 'CMD ["/bin/bash"]' BUILD_ID TAG
 
-* You may reduce developer build time even further by disabling system
-  upgrade:
+* You may reduce developer build time even further by disabling release
+  build:
 
-    --parameter //base:skip_upgrading_system=true
+    --parameter //base:release=false
 
 * There are meta build rules under `//meta`, which are a convenient way
   to bulk-build groups of packages.

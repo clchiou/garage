@@ -4,7 +4,7 @@
 
 source "$(dirname "${BASH_SOURCE}")/common.sh"
 
-if ! which python3; then
+if ! which python3 > /dev/null; then
   echo "$(basename "${BASH_SOURCE}"): install python3" 2>&1
   sudo apt-get update
   sudo apt-get install --yes python3

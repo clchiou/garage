@@ -6,7 +6,6 @@ __all__ = [
     # Helper function for writing templates
     'parse_common_args',
     'tapeout_files',
-    'tapeout_libraries',
 ]
 
 from pathlib import Path
@@ -63,12 +62,14 @@ ArchiveInfo = collections.namedtuple('ArchiveInfo', [
     'uri',       # URI to the archive
     'filename',  # Local filename for the downloaded archive
     'output',    # Local directory name of the extracted contents
+    'checksum',  # Archive file checksum
 ])
 
 
 @parse_common_args
 def define_archive(*, name: 'name',
                    uri, filename, output,
+                   checksum=None,
                    wget_headers=()):
     """Define an archive, including:
        * [NAME/]archive_info parameter
@@ -77,11 +78,11 @@ def define_archive(*, name: 'name',
 
     relpath = foreman.get_relpath()
 
-    (foreman.define_parameter(name + 'archive_info')
+    (foreman
+     .define_parameter.namedtuple_typed(ArchiveInfo, name + 'archive_info')
      .with_doc('Archive info.')
-     .with_type(ArchiveInfo)
-     .with_parse(lambda info: ArchiveInfo(*info.split(',')))
-     .with_default(ArchiveInfo(uri=uri, filename=filename, output=output)))
+     .with_default(ArchiveInfo(
+         uri=uri, filename=filename, output=output, checksum=checksum)))
 
     @foreman.rule(name + 'download')
     def download(parameters):
@@ -96,8 +97,9 @@ def define_archive(*, name: 'name',
         if not archive_path.exists():
             LOG.info('download archive: %s', archive_info.uri)
             scripts.wget(archive_info.uri, archive_path, headers=wget_headers)
-        # Just a sanity check
-        scripts.ensure_file(archive_path)
+            scripts.ensure_file(archive_path)
+            if archive_info.checksum:
+                scripts.ensure_checksum(archive_path, archive_info.checksum)
 
         output_path = drydock_src / archive_info.output
         if not output_path.exists():
@@ -106,8 +108,7 @@ def define_archive(*, name: 'name',
                 scripts.unzip(archive_path, drydock_src)
             else:
                 scripts.tar_extract(archive_path, drydock_src)
-        # Just a sanity check
-        scripts.ensure_directory(output_path)
+            scripts.ensure_directory(output_path)
 
     return download
 
@@ -160,15 +161,7 @@ def define_package_common(*, root: 'root', name: 'name'):
     return copy_src
 
 
-def tapeout_files(parameters, paths):
+def tapeout_files(parameters, paths, excludes=()):
     with scripts.using_sudo():
         rootfs = parameters['//base:drydock/rootfs']
-        scripts.rsync(paths, rootfs, relative=True)
-
-
-def tapeout_libraries(parameters, lib_dir, libnames):
-    lib_dir = Path(lib_dir)
-    libs = []
-    for libname in libnames:
-        libs.extend(lib_dir.glob('%s*' % libname))
-    tapeout_files(parameters, libs)
+        scripts.rsync(paths, rootfs, relative=True, excludes=excludes)

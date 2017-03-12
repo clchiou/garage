@@ -7,43 +7,35 @@ from garage import scripts
 from foreman import define_parameter, rule, to_path
 
 
-(define_parameter('root')
+(define_parameter.path_typed('root')
  .with_doc('Path to the root directory of this repository.')
- .with_type(Path)
  .with_default(Path(__file__).parent.parent.parent.parent))
 
 
-(define_parameter('drydock')
+(define_parameter.path_typed('drydock')
  .with_doc('Path to the directory for intermediate build artifacts.')
- .with_type(Path)
  .with_default(Path.home() / 'drydock'))
 
 
-(define_parameter('output')
+(define_parameter.path_typed('output')
  .with_doc('Path to the directory for final build artifacts.')
- .with_type(Path)
  .with_default(Path.home() / 'output'))
 
 
-(define_parameter('skip_upgrading_system')
- .with_doc('Whether to skip upgrading system before build starts.')
- .with_type(bool)
- .with_default(False)
- .with_parse(lambda v: v.lower() == 'true'))
+(define_parameter.bool_typed('release')
+ .with_doc('Enable release mode for builds.')
+ .with_default(True))
 
 
 # Handy derived parameters
-(define_parameter('drydock/image')
+(define_parameter.path_typed('drydock/image')
  .with_doc('Path to the directory of unarchived image contents.')
- .with_type(Path)
  .with_derive(lambda ps: ps['drydock'] / 'build'))
-(define_parameter('drydock/manifest')
+(define_parameter.path_typed('drydock/manifest')
  .with_doc('Path to the image manifest.')
- .with_type(Path)
  .with_derive(lambda ps: ps['drydock/image'] / 'manifest'))
-(define_parameter('drydock/rootfs')
+(define_parameter.path_typed('drydock/rootfs')
  .with_doc('Path to the image rootfs.')
- .with_type(Path)
  .with_derive(lambda ps: ps['drydock/image'] / 'rootfs'))
 
 
@@ -55,7 +47,7 @@ def upgrade_system(parameters):
         scripts.apt_get_full_upgrade()
 
 
-@rule.depend('upgrade_system', when=lambda ps: not ps['skip_upgrading_system'])
+@rule.depend('upgrade_system', when=lambda ps: ps['release'])
 def build(parameters):
     """Prepare for the build process.
 
@@ -80,10 +72,17 @@ def tapeout(parameters):
 
        NOTE: All `tapeout` rules should reverse depend on this rule.
     """
+    # Tapeout the entire /usr/lib/x86_64-linux-gnu might be an overkill,
+    # but it's kind hard to cherry-pick just what I need
+    libs = [
+        '/lib/x86_64-linux-gnu',
+        '/lib64',
+        '/usr/lib/x86_64-linux-gnu',
+        '/usr/local/lib',
+    ]
     rootfs = parameters['drydock/rootfs']
-    libs = ['/lib/x86_64-linux-gnu', '/lib64']
     with scripts.using_sudo():
-        scripts.rsync([to_path('etc')], rootfs)
         scripts.rsync(libs, rootfs, relative=True)
+        scripts.rsync([to_path('etc')], rootfs)
         scripts.execute(['chown', '--recursive', 'root:root', rootfs / 'etc'])
         scripts.execute(['chmod', '--recursive', 'go-w', rootfs / 'etc'])

@@ -11,7 +11,7 @@ from garage import scripts
 
 from foreman import get_relpath, rule
 
-from . import parse_common_args, define_package_common, tapeout_libraries
+from . import parse_common_args, define_package_common
 
 
 LOG = logging.getLogger(__name__)
@@ -87,7 +87,6 @@ def define_package(package, *,
 def define_pip_package(package, version, *,
                        name: 'name',
                        distro_packages=(),
-                       runtime_libs=(),
                        patterns=()):
     """Define a third-party Python package, including:
        * [NAME/]build rule
@@ -115,9 +114,6 @@ def define_pip_package(package, version, *,
     @rule.depend(name + 'build')
     def tapeout(parameters):
         """Copy Python package artifacts."""
-        if runtime_libs:
-            tapeout_libraries(
-                parameters, '/usr/lib/x86_64-linux-gnu', runtime_libs)
         _tapeout(parameters, package, patterns)
 
     return (build, tapeout)
