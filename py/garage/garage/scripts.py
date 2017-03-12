@@ -4,6 +4,7 @@ __all__ = [
     # Context manipulation
     'directory',
     'dry_run',
+    'is_dry_run',
     'recording_commands',
     'using_sudo',
     # Forming and running commands
@@ -27,9 +28,12 @@ __all__ = [
     'unzip',
     'wget',
     # Generic helpers
+    'ensure_checksum',
     'ensure_directory',
     'ensure_file',
     'ensure_not_root',
+    'ensure_path',
+    'ensure_str',
     'insert_path',
     'install_dependencies',
 ]
@@ -39,10 +43,11 @@ import collections
 import contextlib
 import getpass
 import functools
+import hashlib
 import logging
 import os
-import os.path
 import subprocess
+import sys
 import threading
 
 
@@ -84,7 +89,7 @@ def _enter_context(cxt, retval=None):
 def directory(path):
     """Use this directory for the following commands."""
     if path:
-        return _enter_context({DIRECTORY: path})
+        return _enter_context({DIRECTORY: ensure_path(path)})
     else:
         return _enter_context({})
 
@@ -92,6 +97,11 @@ def directory(path):
 def dry_run(dry_run_=True):
     """Do not actually run commands."""
     return _enter_context({DRY_RUN: dry_run_})
+
+
+def is_dry_run():
+    """Return True if dry-run is enabled in the current context."""
+    return _get_context().get(DRY_RUN)
 
 
 def recording_commands():
@@ -142,7 +152,7 @@ def execute(args, *, check=True, capture_stdout=False, capture_stderr=False):
         return (0, None, None)
 
     # Put check after DRY_RUN
-    if cwd and not os.path.isdir(cwd):
+    if cwd and not cwd.is_dir():
         raise RuntimeError('not a directory: %r' % cwd)
 
     proc = subprocess.run(
@@ -150,7 +160,7 @@ def execute(args, *, check=True, capture_stdout=False, capture_stderr=False):
         check=check,
         stdout=subprocess.PIPE if capture_stdout else None,
         stderr=subprocess.PIPE if capture_stderr else None,
-        cwd=cwd,
+        cwd=ensure_str(cwd),
     )
     return (
         proc.returncode,
@@ -180,11 +190,18 @@ def apt_get_full_upgrade():
     execute(['sudo', 'apt-get', '--yes', 'full-upgrade'])
 
 
-def apt_get_install(pkgs):
-    if not pkgs:
+def apt_get_install(packages, *, only_missing=True):
+    if only_missing:
+        missing = []
+        for package in packages:
+            cmd = ['dpkg-query', '--status', package]
+            if execute(cmd, check=False, capture_stdout=True)[0] != 0:
+                missing.append(package)
+        packages = missing
+    if not packages:
         return
     cmd = ['apt-get', 'install', '--yes']
-    cmd.extend(pkgs)
+    cmd.extend(packages)
     execute(cmd)
 
 
@@ -242,16 +259,16 @@ systemctl_is_active = functools.partial(_systemctl, 'is-active')
 
 def tar_create(src_dir, srcs, tarball_path, tar_extra_flags=()):
     """Create a tarball."""
-    src_dir = Path(src_dir)
+    src_dir = ensure_path(src_dir)
     cmd = [
         'tar',
         '--create',
-        '--file', Path(tarball_path).absolute(),
+        '--file', ensure_path(tarball_path).absolute(),
         '--directory', src_dir,
     ]
     cmd.extend(tar_extra_flags)
     for src in srcs:
-        src = Path(src)
+        src = ensure_path(src)
         if src.is_absolute():
             src = src.relative_to(src_dir)
         cmd.append(src)
@@ -260,7 +277,7 @@ def tar_create(src_dir, srcs, tarball_path, tar_extra_flags=()):
 
 def tar_extract(tarball_path, output_path=None):
     """Extract a tarball."""
-    tarball_path = Path(tarball_path)
+    tarball_path = ensure_path(tarball_path)
     name = tarball_path.name
     if name.endswith('.tar'):
         compress_flag = None
@@ -289,8 +306,9 @@ def unzip(zip_path, output_path=None):
 
 def wget(uri, output_path=None, headers=()):
     cmd = ['wget']
-    if not LOG.isEnabledFor(logging.DEBUG):
-        cmd.append('--no-verbose')  # No progress bar
+    if not sys.stdout.isatty():
+        # No progress bar when not interactive (it looks awful)
+        cmd.append('--no-verbose')
     if output_path:
         cmd.extend(['--output-document', output_path])
     for header in headers:
@@ -302,18 +320,58 @@ def wget(uri, output_path=None, headers=()):
 ### Generic helpers
 
 
+def ensure_path(path):
+    """Ensure `path` is an Path object (or None)."""
+    if path is None:
+        return path
+    if not isinstance(path, Path):
+        path = Path(path)
+    return path
+
+
+def ensure_str(obj):
+    """Ensure `obj` is a str object (or None)."""
+    return obj if obj is None else str(obj)
+
+
+SUPPORTED_HASH_ALGORITHMS = {
+    'md5': hashlib.md5,
+    'sha1': hashlib.sha1,
+    'sha512': hashlib.sha512,
+}
+
+
+def ensure_checksum(path, checksum):
+    """Raise AssertionError if file's checksum does not match."""
+    if is_dry_run():
+        return
+    hash_algorithm, hash_value = checksum.split('-', maxsplit=1)
+    hasher = SUPPORTED_HASH_ALGORITHMS[hash_algorithm.lower()]()
+    # I can't open(path, 'rb') because PathLike is added in Python 3.6
+    with ensure_path(path).open('rb') as input_file:
+        while True:
+            data = input_file.read(4096)
+            if not data:
+                break
+            hasher.update(data)
+    digest = hasher.hexdigest()
+    if digest != hash_value:
+        raise AssertionError(
+            'expect %s from %s but get %s' % (checksum, path, digest))
+
+
 def ensure_directory(path):
     """Raise FileNotFoundError if not a directory or does not exist."""
-    path = Path(path)
-    if not path.is_dir() and not _get_context().get(DRY_RUN):
+    path = ensure_path(path)
+    if not path.is_dir() and not is_dry_run():
         raise FileNotFoundError('not a directory: %s' % path)
     return path
 
 
 def ensure_file(path):
     """Raise FileNotFoundError if not a file or does not exist."""
-    path = Path(path)
-    if not path.is_file() and not _get_context().get(DRY_RUN):
+    path = ensure_path(path)
+    if not path.is_file() and not is_dry_run():
         raise FileNotFoundError('not a file: %s' % path)
     return path
 
@@ -333,10 +391,5 @@ def insert_path(path, *, var='PATH'):
 
 def install_dependencies():
     """Install command-line tools that we depend on (excluding systemd)."""
-    missing_packages = []
-    for package in DEBIAN_PACKAGES:
-        cmd = ['dpkg-query', '--status', package]
-        if execute(cmd, check=False, capture_stdout=True)[0] != 0:
-            missing_packages.append(package)
     with using_sudo():
-        apt_get_install(missing_packages)
+        apt_get_install(DEBIAN_PACKAGES)

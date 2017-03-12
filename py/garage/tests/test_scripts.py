@@ -1,11 +1,23 @@
 import unittest
 
+from pathlib import Path
 import threading
 
 from garage import scripts
 
 
 class ScriptsTest(unittest.TestCase):
+
+    def test_ensure_path(self):
+        self.assertEqual(Path('/a/b/c'), scripts.ensure_path(Path('/a/b/c')))
+        self.assertEqual(Path('/a/b/c'), scripts.ensure_path('/a/b/c'))
+        self.assertIsNone(scripts.ensure_path(None))
+
+    def test_ensure_str(self):
+        self.assertEqual('', scripts.ensure_str(''))
+        self.assertEqual('x', scripts.ensure_str('x'))
+        self.assertEqual('x', scripts.ensure_str(Path('x')))
+        self.assertIsNone(scripts.ensure_str(None))
 
     def test_make_command(self):
         self.assertEqual(['ls'], scripts.make_command(['ls']))
@@ -32,7 +44,7 @@ class ScriptsTest(unittest.TestCase):
             t1.join()
             t2.join()
 
-        self.assertEqual({'p1', 'p2'}, data)
+        self.assertEqual({Path('p1'), Path('p2')}, data)
 
 
 if __name__ == '__main__':
