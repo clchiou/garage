@@ -75,6 +75,9 @@ class ScriptsTest(unittest.TestCase):
 
     def test_pipeline(self):
 
+        # Empty commands list
+        scripts.pipeline([])
+
         result = []
 
         def process():
@@ -130,21 +133,27 @@ class ScriptsTest(unittest.TestCase):
 
     def test_gzip(self):
 
+        result = []
+
         def generate_data():
             output_fd = scripts.get_stdout()
             # os.write may write less than we ask...
             os.write(output_fd, b'hello')
 
-        data_out = os.pipe()
-        try:
-            scripts.pipeline(
-                [generate_data, scripts.gzip, scripts.gunzip],
-                pipe_output=data_out[1],
-            )
+        def receive_data():
+            input_fd = scripts.get_stdin()
             # os.read may read less than we ask...
-            self.assertEqual(b'hello', os.read(data_out[0], 32))
-        finally:
-            os.close(data_out[0])
+            result.append(os.read(input_fd, 32))
+
+        # pipeline accepts iterator
+        scripts.pipeline(iter([
+            generate_data,
+            scripts.gzip, scripts.gunzip,
+            scripts.gzip, scripts.gunzip,
+            scripts.gzip, scripts.gunzip,
+            receive_data,
+        ]))
+        self.assertEqual([b'hello'], result)
 
 
 if __name__ == '__main__':

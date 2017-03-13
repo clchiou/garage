@@ -202,14 +202,20 @@ def pipeline(commands, pipe_input=None, pipe_output=None):
        awkward...
     """
 
-    if pipe_input is not None and not isinstance(pipe_input, int):
-        pipe_input = pipe_input.fileno()
-    if pipe_output is not None and not isinstance(pipe_output, int):
-        pipe_output = pipe_output.fileno()
+    def close_file(obj):
+        if obj is None:
+            return
+        try:
+            if isinstance(obj, int):
+                os.close(obj)
+            else:
+                obj.close()  # Assume it's a file-like object
+        except OSError:
+            # Swallow the error!
+            LOG.debug('cannot close: %s', obj, exc_info=True)
 
     context = _get_context()
-    all_done = threading.Barrier(len(commands))
-    failed = threading.Event()
+    command_failed = threading.Event()
 
     def run_command(command, input_fd, output_fd):
         # Set context in the new thread
@@ -218,36 +224,64 @@ def pipeline(commands, pipe_input=None, pipe_output=None):
             with redirecting(stdin=input_fd, stdout=output_fd):
                 command()
         except Exception:
-            LOG.exception('command err')
-            failed.set()
+            LOG.exception('command err: %s', command)
+            command_failed.set()
         finally:
-            if input_fd is not None:
-                os.close(input_fd)
-            if output_fd is not None:
-                os.close(output_fd)
-            all_done.wait()
+            close_file(input_fd)
+            close_file(output_fd)
 
-    last_command = commands[-1]
-    runners = []
-    read_fd = pipe_input
-    for command in commands:
-        if command is last_command:
-            next_read_fd, write_fd = None, pipe_output
-        else:
-            next_read_fd, write_fd = os.pipe()
-        runner = threading.Thread(
-            target=run_command,
-            args=(command, read_fd, write_fd),
-        )
-        runner.start()
-        runners.append(runner)
-        read_fd = next_read_fd
+    iter_commands = iter(commands)
+    try:
+        next_command = next(iter_commands)
+    except StopIteration:
+        close_file(pipe_input)
+        close_file(pipe_output)
+        return
+
+    if pipe_input is not None and not isinstance(pipe_input, int):
+        pipe_input = pipe_input.fileno()
+    if pipe_output is not None and not isinstance(pipe_output, int):
+        pipe_output = pipe_output.fileno()
+    try:
+
+        runners = []
+        next_read_fd = pipe_input
+        last = False
+        while not last:
+
+            command = next_command
+            read_fd = next_read_fd
+
+            try:
+                next_command = next(iter_commands)
+            except StopIteration:
+                next_read_fd, write_fd = None, pipe_output
+                last = True
+            else:
+                next_read_fd, write_fd = os.pipe()
+
+            runner = threading.Thread(
+                target=run_command,
+                args=(command, read_fd, write_fd),
+            )
+            runner.start()
+            runners.append(runner)
+
+    except Exception:
+        # We might close these file twice (and result in an OSError with
+        # the "Bad file descriptor" error) when the run_command threads
+        # have already closed the files.  But since we can't know that
+        # for sure (those threads could crash and not close the files),
+        # let's close them here (and swallow the error).
+        close_file(pipe_input)
+        close_file(pipe_output)
+        raise
 
     for runner in runners:
         runner.join()
 
-    if failed.is_set():
-        raise RuntimeError('pipeline fail')
+    if command_failed.is_set():
+        raise RuntimeError('some commands of the pipeline failed')
 
 
 ### Commands
