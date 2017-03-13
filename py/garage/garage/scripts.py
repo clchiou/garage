@@ -19,6 +19,8 @@ __all__ = [
     'apt_get_install',
     'apt_get_update',
     'git_clone',
+    'gunzip',
+    'gzip',
     'mkdir',
     'rsync',
     'systemctl_disable',
@@ -200,8 +202,14 @@ def pipeline(commands, pipe_input=None, pipe_output=None):
        awkward...
     """
 
+    if pipe_input is not None and not isinstance(pipe_input, int):
+        pipe_input = pipe_input.fileno()
+    if pipe_output is not None and not isinstance(pipe_output, int):
+        pipe_output = pipe_output.fileno()
+
     context = _get_context()
     all_done = threading.Barrier(len(commands))
+    failed = threading.Event()
 
     def run_command(command, input_fd, output_fd):
         # Set context in the new thread
@@ -211,14 +219,13 @@ def pipeline(commands, pipe_input=None, pipe_output=None):
                 command()
         except Exception:
             LOG.exception('command err')
-            all_done.abort()
-            raise
+            failed.set()
         finally:
             if input_fd is not None:
                 os.close(input_fd)
             if output_fd is not None:
                 os.close(output_fd)
-        all_done.wait()
+            all_done.wait()
 
     last_command = commands[-1]
     runners = []
@@ -239,6 +246,9 @@ def pipeline(commands, pipe_input=None, pipe_output=None):
     for runner in runners:
         runner.join()
 
+    if failed.is_set():
+        raise RuntimeError('pipeline fail')
+
 
 ### Commands
 
@@ -246,6 +256,7 @@ def pipeline(commands, pipe_input=None, pipe_output=None):
 # We depend on these Debian packages (excluding systemd).
 DEBIAN_PACKAGES = [
     'git',
+    'gzip',
     'rsync',
     'tar',
     'unzip',
@@ -289,6 +300,20 @@ def git_clone(repo, local_path=None, checkout=None):
             execute(['git', 'checkout', checkout])
 
 
+def gunzip():
+    """Decompress from stdin and write to stdout."""
+    execute(['gunzip'])
+
+
+def gzip(speed=6):
+    """Compress from stdin and write to stdout.
+
+       `speed` sets the compression speed, from 1 to 9, where 1 is the
+       fastest (least compressed) and 9 the slowest (best compressed).
+    """
+    execute(['gzip', '-%d' % speed])
+
+
 def mkdir(path):
     execute(['mkdir', '--parents', path])
 
@@ -330,14 +355,20 @@ systemctl_is_active = functools.partial(_systemctl, 'is-active')
 
 
 def tar_create(src_dir, srcs, tarball_path, tar_extra_flags=()):
-    """Create a tarball."""
+    """Create a tarball.
+
+       If `tarball_path` is None, it will write to stdout.
+    """
     src_dir = ensure_path(src_dir)
     cmd = [
         'tar',
         '--create',
-        '--file', ensure_path(tarball_path).absolute(),
         '--directory', src_dir,
     ]
+    if tarball_path is None:
+        cmd.extend(['--file', '-'])
+    else:
+        cmd.extend(['--file', ensure_path(tarball_path).absolute()])
     cmd.extend(tar_extra_flags)
     for src in srcs:
         src = ensure_path(src)

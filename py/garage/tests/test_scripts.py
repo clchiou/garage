@@ -103,6 +103,14 @@ class ScriptsTest(unittest.TestCase):
 
         self.assertEqual(b'hello\n', b''.join(result))
 
+    def test_pipeline_failure(self):
+
+        def process():
+            raise Exception
+
+        with self.assertRaisesRegex(RuntimeError, 'pipeline fail'):
+            scripts.pipeline([process])
+
     def test_pipeline_preserve_context(self):
 
         result = []
@@ -119,6 +127,24 @@ class ScriptsTest(unittest.TestCase):
                 scripts.pipeline([process])
 
         self.assertEqual([False, True, False], result)
+
+    def test_gzip(self):
+
+        def generate_data():
+            output_fd = scripts.get_stdout()
+            # os.write may write less than we ask...
+            os.write(output_fd, b'hello')
+
+        data_out = os.pipe()
+        try:
+            scripts.pipeline(
+                [generate_data, scripts.gzip, scripts.gunzip],
+                pipe_output=data_out[1],
+            )
+            # os.read may read less than we ask...
+            self.assertEqual(b'hello', os.read(data_out[0], 32))
+        finally:
+            os.close(data_out[0])
 
 
 if __name__ == '__main__':
