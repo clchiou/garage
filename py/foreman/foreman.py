@@ -466,12 +466,16 @@ class Loader:
         """Define a build rule."""
         if self.path is None:
             raise RuntimeError('lack execution context')
-        label = self.parse_label_name(name)
-        if label in self.rules:
-            raise ForemanError('overwrite rule %s' % label)
-        LOG.debug('define rule %s', label)
-        rule = self.rules[label] = Rule(label)
+        rule = Rule(self.parse_label_name(name))
+        self.add_rule(rule)
         return rule
+
+    def add_rule(self, rule):
+        """Add a build rule object."""
+        if rule.label in self.rules:
+            raise ForemanError('overwrite rule %s' % rule.label)
+        LOG.debug('define rule %s', rule.label)
+        self.rules[rule.label] = rule
 
     def to_path(self, label):
         """Translate label to local path."""
@@ -670,6 +674,7 @@ def define_rule(name):
 
 def _decorate_rule(func_or_rule, *,
                    # "Private" arguments
+                   _define=False,
                    _name=None,
                    _annotation=None,
                    _depend=None,
@@ -679,7 +684,7 @@ def _decorate_rule(func_or_rule, *,
         if _name:
             rule.label = LOADER.parse_label_name(_name)
     else:
-        rule = (define_rule(_name or func_or_rule.__name__)
+        rule = (Rule(LOADER.parse_label_name(_name or func_or_rule.__name__))
                 .with_doc(func_or_rule.__doc__)
                 .with_build(func_or_rule))
     if _annotation:
@@ -688,6 +693,8 @@ def _decorate_rule(func_or_rule, *,
         rule.dependencies.insert(0, _depend)
     if _reverse_depend:
         rule.reverse_dependencies.insert(0, _reverse_depend)
+    if _define:
+        LOADER.add_rule(rule)
     return rule
 
 
@@ -710,9 +717,9 @@ def rule(arg):
     """
     # arg's type is either str, func, or Rule
     if isinstance(arg, str):
-        return partial(_decorate_rule, _name=arg)
+        return partial(_decorate_rule, _name=arg, _define=True)
     else:
-        return _decorate_rule(arg)
+        return _decorate_rule(arg, _define=True)
 
 
 rule.annotate = lambda name, value: partial(

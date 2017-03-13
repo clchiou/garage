@@ -29,10 +29,16 @@ class RuleDecoratorTest(unittest.TestCase):
             """Some more doc"""
             pass
 
+        @rule
         @rule.depend('some/rule/1', 'when', 'configs')
         @rule.reverse_depend('some_rule_2', 'when', 'configs')
         @rule.annotate('name', 'value')
         def some_rule_3(_):
+            pass
+
+        @rule('some/rule/4')
+        @rule.annotate('name', 'value')
+        def some_rule_4(_):
             pass
 
         rule_1 = self.loader.rules[Label.parse('//somewhere/pkg:some/rule/1')]
@@ -49,6 +55,12 @@ class RuleDecoratorTest(unittest.TestCase):
 
         rule_3 = self.loader.rules[Label.parse('//somewhere/pkg:some_rule_3')]
         self.assertIsNone(rule_3.doc)
+
+        # Make sure we can change rule.label later...
+        self.assertIn(
+            Label.parse('//somewhere/pkg:some/rule/4'), self.loader.rules)
+        self.assertNotIn(
+            Label.parse('//somewhere/pkg:some_rule_4'), self.loader.rules)
 
         self.assertEqual(1, len(rule_3.dependencies))
         self.assertEqual('some/rule/1', rule_3.dependencies[0].label)
