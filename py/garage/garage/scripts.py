@@ -4,6 +4,8 @@ __all__ = [
     # Context manipulation
     'directory',
     'dry_run',
+    'get_stdin',
+    'get_stdout',
     'is_dry_run',
     'recording_commands',
     'redirecting',
@@ -11,6 +13,7 @@ __all__ = [
     # Forming and running commands
     'execute',
     'make_command',
+    'pipeline',
     # Commands
     'apt_get_full_upgrade',
     'apt_get_install',
@@ -78,6 +81,10 @@ def _get_context():
     return _get_stack()[-1]
 
 
+def _set_context(context):
+    LOCAL.stack = [context]
+
+
 @contextlib.contextmanager
 def _enter_context(cxt, retval=None):
     stack = _get_stack()
@@ -103,7 +110,7 @@ def dry_run(dry_run_=True):
 
 def is_dry_run():
     """Return True if dry-run is enabled in the current context."""
-    return _get_context().get(DRY_RUN)
+    return _get_context().get(DRY_RUN, False)
 
 
 def recording_commands():
@@ -113,8 +120,19 @@ def recording_commands():
     return _enter_context({RECORDING_COMMANDS: records}, records)
 
 
-def redirecting(*, stdout=None, stderr=None):
-    return _enter_context({REDIRECTING: {'stdout': stdout, 'stderr': stderr}})
+def redirecting(*, stdin=None, stdout=None, stderr=None):
+    return _enter_context(
+        {REDIRECTING: {'stdin': stdin, 'stdout': stdout, 'stderr': stderr}})
+
+
+def get_stdin():
+    """Return the redirected stdin in the current context."""
+    return _get_context().get(REDIRECTING, {}).get('stdin')
+
+
+def get_stdout():
+    """Return the redirected stdout in the current context."""
+    return _get_context().get(REDIRECTING, {}).get('stdout')
 
 
 def using_sudo(using_sudo_=True, envs=None):
@@ -163,15 +181,63 @@ def execute(args, *, check=True, capture_stdout=False, capture_stderr=False):
         raise RuntimeError('not a directory: %r' % cwd)
 
     redirect = context.get(REDIRECTING) or {}
+    stdin = redirect.get('stdin')
     stdout = subprocess.PIPE if capture_stdout else redirect.get('stdout')
     stderr = subprocess.PIPE if capture_stderr else redirect.get('stderr')
 
     return subprocess.run(
         cmd,
         check=check,
-        stdout=stdout, stderr=stderr,
+        stdin=stdin, stdout=stdout, stderr=stderr,
         cwd=ensure_str(cwd),  # PathLike will be added to Python 3.6
     )
+
+
+def pipeline(commands, pipe_input=None, pipe_output=None):
+    """Execute commands in a pipeline.
+
+       Both the interface and the implementation of this function is
+       awkward...
+    """
+
+    context = _get_context()
+    all_done = threading.Barrier(len(commands))
+
+    def run_command(command, input_fd, output_fd):
+        # Set context in the new thread
+        _set_context(context)
+        try:
+            with redirecting(stdin=input_fd, stdout=output_fd):
+                command()
+        except Exception:
+            LOG.exception('command err')
+            all_done.abort()
+            raise
+        finally:
+            if input_fd is not None:
+                os.close(input_fd)
+            if output_fd is not None:
+                os.close(output_fd)
+        all_done.wait()
+
+    last_command = commands[-1]
+    runners = []
+    read_fd = pipe_input
+    for command in commands:
+        if command is last_command:
+            next_read_fd, write_fd = None, pipe_output
+        else:
+            next_read_fd, write_fd = os.pipe()
+        runner = threading.Thread(
+            target=run_command,
+            args=(command, read_fd, write_fd),
+        )
+        runner.start()
+        runners.append(runner)
+        read_fd = next_read_fd
+
+    for runner in runners:
+        runner.join()
 
 
 ### Commands

@@ -1,8 +1,9 @@
 import unittest
 
 from pathlib import Path
-import threading
+import os
 import subprocess
+import threading
 
 from garage import scripts
 
@@ -71,6 +72,53 @@ class ScriptsTest(unittest.TestCase):
                 None,
                 scripts.execute(['echo', 'hello']).stdout,
             )
+
+    def test_pipeline(self):
+
+        result = []
+
+        def process():
+            input_fd = scripts.get_stdin()
+            output_fd = scripts.get_stdout()
+            while True:
+                data = os.read(input_fd, 32)
+                result.append(data)
+                if not data:
+                    break
+                os.write(output_fd, data)
+
+        cmds = [
+            lambda: scripts.execute(['echo', 'hello']),
+            process,
+            lambda: scripts.execute(['cat']),
+        ]
+        read_fd, write_fd = os.pipe()
+        try:
+            scripts.pipeline(cmds, pipe_output=write_fd)
+            # os.read may return less than we ask...
+            self.assertEqual(b'hello\n', os.read(read_fd, 32))
+        finally:
+            os.close(read_fd)
+            # pipeline() closes write_fd
+
+        self.assertEqual(b'hello\n', b''.join(result))
+
+    def test_pipeline_preserve_context(self):
+
+        result = []
+
+        def process():
+            result.append(scripts.is_dry_run())
+
+        scripts.pipeline([process])
+
+        with scripts.dry_run():
+            scripts.pipeline([process])
+
+            with scripts.dry_run(False):
+                scripts.pipeline([process])
+
+        self.assertEqual([False, True, False], result)
 
 
 if __name__ == '__main__':
