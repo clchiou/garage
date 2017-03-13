@@ -3,6 +3,7 @@
 ___all__ = [
     'define_package',
     'define_pip_package',
+    'make_image_manifest',
 ]
 
 import logging
@@ -128,3 +129,27 @@ def _tapeout(parameters, package, patterns):
         dirs.extend(site_packages.glob(pattern))
     with scripts.using_sudo():
         scripts.rsync(dirs, parameters['//base:drydock/rootfs'], relative=True)
+
+
+def make_image_manifest(parameters, manifest):
+    """Add Python-specific entries to image manifest."""
+    assert 'app' not in manifest
+    manifest['app'] = {
+        'exec': [
+            '/usr/local/bin/python3',
+        ],
+        'user': 'nobody',
+        'group': 'nogroup',
+        'environment': [
+            {
+                'name': 'LD_LIBRARY_PATH',
+                'value': '/usr/local/lib',
+            },
+            {
+                'name': 'PYTHONIOENCODING',
+                'value': 'UTF-8',
+            }
+        ],
+        'workingDirectory': '/',
+    }
+    return manifest

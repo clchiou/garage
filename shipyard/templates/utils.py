@@ -3,9 +3,11 @@
 __all__ = [
     'parse_common_args',
     'tapeout_files',
+    'write_json_to',
 ]
 
 import functools
+import json
 
 from garage import scripts
 
@@ -50,3 +52,11 @@ def tapeout_files(parameters, paths, excludes=()):
     with scripts.using_sudo():
         rootfs = parameters['//base:drydock/rootfs']
         scripts.rsync(paths, rootfs, relative=True, excludes=excludes)
+
+
+def write_json_to(obj, path):
+    if scripts.is_dry_run():
+        return
+    with scripts.ensure_path(path).open('w') as json_file:
+        json_file.write(json.dumps(obj, indent=4, sort_keys=True))
+        json_file.write('\n')

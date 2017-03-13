@@ -28,15 +28,15 @@ from foreman import define_parameter, rule, to_path
 
 
 # Handy derived parameters
-(define_parameter.path_typed('drydock/image')
+(define_parameter.path_typed('drydock/build')
  .with_doc('Path to the directory of unarchived image contents.')
  .with_derive(lambda ps: ps['drydock'] / 'build'))
 (define_parameter.path_typed('drydock/manifest')
  .with_doc('Path to the image manifest.')
- .with_derive(lambda ps: ps['drydock/image'] / 'manifest'))
+ .with_derive(lambda ps: ps['drydock/build'] / 'manifest'))
 (define_parameter.path_typed('drydock/rootfs')
  .with_doc('Path to the image rootfs.')
- .with_derive(lambda ps: ps['drydock/image'] / 'rootfs'))
+ .with_derive(lambda ps: ps['drydock/build'] / 'rootfs'))
 
 
 @rule
@@ -47,6 +47,7 @@ def upgrade_system(parameters):
         scripts.apt_get_full_upgrade()
 
 
+@rule
 @rule.depend('upgrade_system', when=lambda ps: ps['release'])
 def build(parameters):
     """Prepare for the build process.
@@ -62,10 +63,11 @@ def build(parameters):
     # Populate drydock
     for subdir in ('cc', 'host', 'java', 'py'):
         scripts.mkdir(parameters['drydock'] / subdir)
-    scripts.mkdir(parameters['drydock/image'])
+    scripts.mkdir(parameters['drydock/build'])
     scripts.mkdir(parameters['drydock/rootfs'])
 
 
+@rule
 @rule.depend('build')
 def tapeout(parameters):
     """Tape-out the base system.

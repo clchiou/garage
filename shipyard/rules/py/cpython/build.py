@@ -8,6 +8,7 @@ from foreman import define_parameter, get_relpath, rule
 
 from garage import scripts
 
+from templates import app, py
 from templates.common import define_archive
 from templates.utils import tapeout_files
 
@@ -119,6 +120,7 @@ define_parameter.list_typed('configuration').with_default([
 ### Build rules
 
 
+@rule
 @rule.depend('//base:build')
 @rule.depend('download')
 def build(parameters):
@@ -150,6 +152,7 @@ def build(parameters):
                 scripts.execute(['make', 'install'])
 
 
+@rule
 @rule.depend('build')
 @rule.reverse_depend('//base:tapeout')
 def tapeout(parameters):
@@ -187,3 +190,12 @@ def tapeout(parameters):
     execs = parameters['prefix'] / 'bin'
     execs = list(execs.glob('python%s*' % parameters['version'].major))
     tapeout_files(parameters, execs)
+
+
+### Other build rules
+
+
+write_manifest, build_image = app.define_image(
+    'cpython', py.make_image_manifest)
+write_manifest.depend('tapeout')
+build_image.depend('tapeout')

@@ -16,6 +16,9 @@
     # Define `//some/package:sub-package-2/build`.
     define_package(name='sub-package-2')
 
+* Build rule template should return the build rule objects it creates so
+  that its caller has a chance to refine the rule objects.
+
 * First-party build rule template may take an optional argument `root`,
   which, when provided, is a parameter name that overrides the default
   parameter `//base:root`.
