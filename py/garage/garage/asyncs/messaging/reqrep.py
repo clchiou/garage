@@ -31,9 +31,9 @@ async def client(socket, request_queue, *, timeout=None):
             if response_promise.is_cancelled():
                 LOG.exception(
                     'client: err but request is cancelled: %r', request)
-            await response_promise.set_exception(exc)
+            response_promise.set_exception(exc)
         else:
-            await response_promise.set_result(response)
+            response_promise.set_result(response)
 
 
 async def server(socket, request_queue, *, timeout=None, error_handler=None):

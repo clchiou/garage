@@ -74,7 +74,7 @@ class ReqrepTest(unittest.TestCase):
             self.assertEqual(client_request, server_request)
 
             expect = b'world'
-            await server_response_promise.set_result(expect)
+            server_response_promise.set_result(expect)
             self.assertEqual(expect, await client_response_future.get_result())
 
     @synchronous

@@ -44,7 +44,7 @@ async def echo_server(port):
         while True:
             request, resposne_promise = await queue.get()
             LOG.info('receive request: %r', request)
-            await resposne_promise.set_result(request)
+            resposne_promise.set_result(request)
 
 
 @cli.command('echo-server')

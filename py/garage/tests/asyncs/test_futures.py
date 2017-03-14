@@ -17,14 +17,14 @@ class FuturesTest(unittest.TestCase):
         self.assertFalse(p.is_cancelled())
         self.assertIs(f.state, State.PENDING)
 
-        await p.set_result(1)
+        p.set_result(1)
 
         self.assertIs(f.state, State.FINISHED)
         self.assertEqual(1, await f.get_result())
         self.assertIsNone(await f.get_exception())
 
         with self.assertRaisesRegex(AssertionError, 'marked FINISHED'):
-            await p.set_result(1)
+            p.set_result(1)
 
     @synchronous
     async def test_exception(self):
@@ -33,7 +33,7 @@ class FuturesTest(unittest.TestCase):
         p = f.make_promise()
 
         exc = ValueError('test exception')
-        await p.set_exception(exc)
+        p.set_exception(exc)
 
         # Note: we can't use assertRaises here because for some reason
         # it clears stack frame of the task, and that will cause CPython
@@ -53,11 +53,11 @@ class FuturesTest(unittest.TestCase):
         f = Future()
         p = f.make_promise()
 
-        await f.cancel()
+        f.cancel()
 
         # Since Future is cancelled, calls to Promise are ignored.
-        await p.set_result(99)
-        await p.set_exception(ValueError())
+        p.set_result(99)
+        p.set_exception(ValueError())
 
         with self.assertRaises(CancelledError):
             await f.get_result()

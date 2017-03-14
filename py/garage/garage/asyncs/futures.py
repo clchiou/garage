@@ -33,10 +33,17 @@ class State(enum.Enum):
 
 
 class Future:
+    """Future object, which is for the caller-side of the contract."""
 
     # You should not construct Promise objects directly, and should call
     # Future.make_promise to get Promise objects.
     class Promise:
+        """Promise object, which is for the callee-side of the contract.
+
+           NOTE: Interface of the Promise object is not asynchronous;
+           meaning that you may use it outside of an event loop (say, in
+           a work thread performing blocking operations).
+        """
 
         def __init__(self, future):
             self._future = future
@@ -46,7 +53,7 @@ class Future:
         def is_cancelled(self):
             return self._future.state is State.CANCELLED
 
-        async def _set(self, result, exception):
+        def _set(self, result, exception):
             if self._future.state is State.CANCELLED:
                 return
             elif self._future.state is State.FINISHED:
@@ -57,13 +64,13 @@ class Future:
                 self._future._result = result
                 self._future._exception = exception
                 self._future.state = State.FINISHED
-                await self._future._end.set()
+                self._future._end.set()
 
-        async def set_result(self, result):
-            await self._set(result, None)
+        def set_result(self, result):
+            self._set(result, None)
 
-        async def set_exception(self, exception):
-            await self._set(None, exception)
+        def set_exception(self, exception):
+            self._set(None, exception)
 
     def __init__(self):
         self._end = curio.Event()  # Set when state is not PENDING
@@ -75,13 +82,13 @@ class Future:
         return self
 
     async def __aexit__(self, *_):
-        await self.cancel()
+        self.cancel()
 
     def make_promise(self):
         # Future won't reference to Promise to avoid cyclic reference.
         return Future.Promise(self)
 
-    async def cancel(self):
+    def cancel(self):
         """Notify the Promise holder that the Future holder is not
            interested in the result anymore.
 
@@ -89,7 +96,7 @@ class Future:
         """
         if self.state is State.PENDING:
             self.state = State.CANCELLED
-            await self._end.set()
+            self._end.set()
             return True
         else:
             assert self._end.is_set()
