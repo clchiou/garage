@@ -63,7 +63,8 @@ class TemplatesTest(PrepareForeman, unittest.TestCase):
         self.assertEqual(['tar', '--extract'], cmds[2][0:2])
 
     def test_define_package_common(self):
-        copy_src = common.define_package_common(name='cpython')
+        rules = common.define_package_common(name='cpython')
+        copy_src = rules.copy_src
 
         label = foreman.Label.parse('//path/to/rules:cpython/src')
         self.assertIn(label, self.loader.parameters)

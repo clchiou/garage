@@ -195,7 +195,6 @@ def tapeout(parameters):
 ### Other build rules
 
 
-write_manifest, build_image = app.define_image(
-    'cpython', py.make_image_manifest)
-write_manifest.depend('tapeout')
-build_image.depend('tapeout')
+rules = app.define_image('cpython', py.make_image_manifest)
+rules.write_manifest.depend('tapeout')
+rules.build_image.depend('tapeout')

@@ -6,6 +6,7 @@ ___all__ = [
     'make_image_manifest',
 ]
 
+from collections import namedtuple
 import logging
 
 from garage import scripts
@@ -17,6 +18,9 @@ from .utils import parse_common_args
 
 
 LOG = logging.getLogger(__name__)
+
+
+PackageRules = namedtuple('PackageRules', 'copy_src build tapeout')
 
 
 @parse_common_args
@@ -31,7 +35,7 @@ def define_package(package, *,
        * [NAME/]tapeout rule
     """
 
-    define_package_common(root=root, name=name)
+    common_rules = define_package_common(root=root, name=name)
 
     relpath = get_relpath()
 
@@ -82,7 +86,14 @@ def define_package(package, *,
     for dep in tapeout_deps:
         tapeout.depend(dep)
 
-    return (build, tapeout)
+    return PackageRules(
+        copy_src=common_rules.copy_src,
+        build=build,
+        tapeout=tapeout,
+    )
+
+
+PipPackageRules = namedtuple('PipPackageRules', 'build tapeout')
 
 
 @parse_common_args
@@ -118,7 +129,10 @@ def define_pip_package(package, version, *,
         """Copy Python package artifacts."""
         _tapeout(parameters, package, patterns)
 
-    return (build, tapeout)
+    return PipPackageRules(
+        build=build,
+        tapeout=tapeout,
+    )
 
 
 def _tapeout(parameters, package, patterns):

@@ -5,7 +5,7 @@ __all__ = [
     'define_package_common',
 ]
 
-import collections
+from collections import namedtuple
 import logging
 
 from foreman import define_parameter, get_relpath, rule
@@ -19,12 +19,15 @@ LOG = logging.getLogger(__name__)
 
 
 # Info of an archive (basically a URI to a tarball)
-ArchiveInfo = collections.namedtuple('ArchiveInfo', [
+ArchiveInfo = namedtuple('ArchiveInfo', [
     'uri',       # URI to the archive
     'filename',  # Local filename for the downloaded archive
     'output',    # Local directory name of the extracted contents
     'checksum',  # Archive file checksum
 ])
+
+
+ArchiveRules = namedtuple('ArchiveRules', 'download')
 
 
 @utils.parse_common_args
@@ -70,7 +73,10 @@ def define_archive(*, name: 'name',
                 scripts.tar_extract(archive_path, drydock_src)
             scripts.ensure_directory(output_path)
 
-    return download
+    return ArchiveRules(download=download)
+
+
+PackageCommonRules = namedtuple('PackageCommonRules', 'copy_src')
 
 
 EXCLUDES = [
@@ -117,4 +123,4 @@ def define_package_common(*, root: 'root', name: 'name'):
         srcs = ['%s/' % src]  # Appending '/' to src is an rsync trick
         scripts.rsync(srcs, drydock_src, delete=True, excludes=EXCLUDES)
 
-    return copy_src
+    return PackageCommonRules(copy_src=copy_src)

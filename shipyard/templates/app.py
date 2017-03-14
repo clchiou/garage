@@ -4,6 +4,7 @@ __all__ = [
     'define_image',
 ]
 
+from collections import namedtuple
 import hashlib
 import logging
 
@@ -15,6 +16,9 @@ from . import utils
 
 
 LOG = logging.getLogger(__name__)
+
+
+ImageRules = namedtuple('ImageRules', 'write_manifest build_image')
 
 
 def define_image(image_name, make_image_manifest=None):
@@ -81,7 +85,10 @@ def define_image(image_name, make_image_manifest=None):
         scripts.ensure_file(image_path)
         scripts.ensure_file(image_checksum_path)
 
-    return write_manifest, build_image
+    return ImageRules(
+        write_manifest=write_manifest,
+        build_image=build_image,
+    )
 
 
 def _compute_sha512(sha512_file_path):
