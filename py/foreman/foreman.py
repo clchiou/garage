@@ -651,6 +651,11 @@ define_parameter.bool_typed = lambda name: (
     .with_parse(lambda value: {'true': True, 'false': False}[value.lower()]))
 
 
+define_parameter.int_typed = lambda name: (
+    define_parameter(name)
+    .with_type(int))
+
+
 define_parameter.list_typed = lambda name: (
     define_parameter(name)
     .with_type(list)
