@@ -1,13 +1,15 @@
 import unittest
 
+from concurrent.futures import Future as _Future
+
 import curio
 
-from garage.asyncs.futures import CancelledError, Future, State
+from garage.asyncs.futures import CancelledError, Future, FutureAdapter, State
 
 from tests.asyncs.utils import synchronous
 
 
-class FuturesTest(unittest.TestCase):
+class FutureTest(unittest.TestCase):
 
     @synchronous
     async def test_result(self):
@@ -63,6 +65,46 @@ class FuturesTest(unittest.TestCase):
             await f.get_result()
         with self.assertRaises(CancelledError):
             await f.get_exception()
+
+
+class FutureAdapterTest(unittest.TestCase):
+
+    @synchronous
+    async def test_result(self):
+        f = FutureAdapter(_Future())
+
+        async with curio.ignore_after(0.01):
+            await f.get_result()
+            self.fail('result should not be available')
+
+        f._future.set_result(1)
+
+        self.assertEqual(1, await f.get_result())
+
+    @synchronous
+    async def test_exception(self):
+        f = FutureAdapter(_Future())
+        exc = ValueError('test exception')
+        f._future.set_exception(exc)
+        try:
+            await f.get_result()
+            self.fail('get_result() did not raise')
+        except ValueError as e:
+            self.assertEqual(exc, e)
+        self.assertEqual(exc, await f.get_exception())
+
+    @synchronous
+    async def test_cancel(self):
+        f = FutureAdapter(_Future())
+        self.assertTrue(f.cancel())
+        with self.assertRaises(CancelledError):
+            await f.get_result()
+        with self.assertRaises(CancelledError):
+            await f.get_exception()
+
+        f = FutureAdapter(_Future())
+        f._future.set_running_or_notify_cancel()
+        self.assertFalse(f.cancel())
 
 
 if __name__ == '__main__':

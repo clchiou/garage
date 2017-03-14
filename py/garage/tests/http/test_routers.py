@@ -1,7 +1,7 @@
 import unittest
 
-from garage.http.handlers import ClientError
 from garage.http.routers import ApiRouter, PrefixRouter
+from garage.http.servers import ClientError
 
 
 class RoutersTest(unittest.TestCase):

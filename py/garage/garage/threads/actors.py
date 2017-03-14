@@ -199,7 +199,7 @@ class _StubMeta(type):
     def make_stub_method(func):
         @functools.wraps(func)
         def stub_method(self, *args, **kwargs):
-            return Stub.send_message(self, func, args, kwargs)
+            return self.send_message(func, args, kwargs)
         return stub_method
 
 

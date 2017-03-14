@@ -13,15 +13,13 @@ Future objects to model the caller-callee relationship.
 __all__ = [
     'CancelledError',
     'Future',
+    'FutureAdapter',
 ]
 
+from concurrent.futures import CancelledError
 import enum
 
 import curio
-
-
-class CancelledError(Exception):
-    """The Future was cancelled."""
 
 
 # The API is designed that you most likely don't need to check specific
@@ -33,7 +31,12 @@ class State(enum.Enum):
 
 
 class Future:
-    """Future object, which is for the caller-side of the contract."""
+    """Future object, which is for the caller-side of the contract.
+
+       NOTE: This Future class' interface is different from
+       concurrent.futures.Future's.  For one, this is asynchronous, and
+       two, method names are not the same (result -> get_result).
+    """
 
     # You should not construct Promise objects directly, and should call
     # Future.make_promise to get Promise objects.
@@ -119,3 +122,31 @@ class Future:
             raise CancelledError
         else:
             return self._exception
+
+
+class FutureAdapter:
+    """An asynchronous interface adapter for a concurrent.futures.Future
+       objects.
+    """
+
+    def __init__(self, future):
+        self._future = future
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *_):
+        self.cancel()
+
+    def cancel(self):
+        return self._future.cancel()
+
+    async def get_result(self):
+        if not self._future.done():
+            await curio.traps._future_wait(self._future)
+        return self._future.result()
+
+    async def get_exception(self):
+        if not self._future.done():
+            await curio.traps._future_wait(self._future)
+        return self._future.exception()
