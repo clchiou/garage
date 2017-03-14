@@ -22,10 +22,9 @@ import enum
 import curio
 
 
-# The API is designed that you most likely don't need to check specific
-# Future.state.
 class State(enum.Enum):
     PENDING = 'PENDING'
+    RUNNING = 'RUNNING'
     CANCELLED = 'CANCELLED'
     FINISHED = 'FINISHED'
 
@@ -33,9 +32,9 @@ class State(enum.Enum):
 class Future:
     """Future object, which is for the caller-side of the contract.
 
-       NOTE: This Future class' interface is different from
-       concurrent.futures.Future's.  For one, this is asynchronous, and
-       two, method names are not the same (result -> get_result).
+       NOTE: The interface of Future class is still different from that
+       of concurrent.futures.Future, but we try to make them as close as
+       possible/practical.
     """
 
     # You should not construct Promise objects directly, and should call
@@ -53,21 +52,32 @@ class Future:
 
         # It's usually a good idea that you check whether the job has
         # been cancelled before starting it.
-        def is_cancelled(self):
-            return self._future.state is State.CANCELLED
+        def set_running_or_notify_cancel(self):
+            if self._future._state is State.CANCELLED:
+                return False
+            elif self._future._state is State.PENDING:
+                self._future._state = State.RUNNING
+                return True
+            else:
+                raise AssertionError(
+                    'Future is in unexpected state: %r' % self._future._state)
+
+        def cancelled(self):
+            return self._future.cancelled()
 
         def _set(self, result, exception):
-            if self._future.state is State.CANCELLED:
+            if self._future._state is State.CANCELLED:
                 return
-            elif self._future.state is State.FINISHED:
+            elif self._future._state is State.FINISHED:
                 raise AssertionError(
                     'Future has been marked FINISHED: %r' % self._future)
-            else:  # self._future.state is State.PENDING
-                assert not self._future._end.is_set()
+            else:
+                assert not self._future.done()
+                assert not self._future._done.is_set()
                 self._future._result = result
                 self._future._exception = exception
-                self._future.state = State.FINISHED
-                self._future._end.set()
+                self._future._state = State.FINISHED
+                self._future._done.set()
 
         def set_result(self, result):
             self._set(result, None)
@@ -76,10 +86,11 @@ class Future:
             self._set(None, exception)
 
     def __init__(self):
-        self._end = curio.Event()  # Set when state is not PENDING
+        # Set when state is transition to CANCELED or FINISHED
+        self._done = curio.Event()
+        self._state = State.PENDING
         self._result = None
         self._exception = None
-        self.state = State.PENDING
 
     async def __aenter__(self):
         return self
@@ -87,7 +98,16 @@ class Future:
     async def __aexit__(self, *_):
         self.cancel()
 
-    def make_promise(self):
+    def running(self):
+        return self._state is State.RUNNING
+
+    def cancelled(self):
+        return self._state is State.CANCELLED
+
+    def done(self):
+        return self._state in (State.CANCELLED, State.FINISHED)
+
+    def promise(self):
         # Future won't reference to Promise to avoid cyclic reference.
         return Future.Promise(self)
 
@@ -95,30 +115,36 @@ class Future:
         """Notify the Promise holder that the Future holder is not
            interested in the result anymore.
 
-           Return True if the future is actually cancelled.
+           Return True if the future is/was actually cancelled.
         """
-        if self.state is State.PENDING:
-            self.state = State.CANCELLED
-            self._end.set()
+        if self._state is State.PENDING:
+            self._state = State.CANCELLED
+            self._done.set()
+            return True
+        elif self._state is State.RUNNING:
+            return False
+        elif self._state is State.CANCELLED:
+            assert self._done.is_set()
             return True
         else:
-            assert self._end.is_set()
+            assert self._state is State.FINISHED
+            assert self._done.is_set()
             return False
 
-    async def get_result(self):
-        await self._end.wait()
-        assert self.state is not State.PENDING
-        if self.state is State.CANCELLED:
+    async def result(self):
+        await self._done.wait()
+        assert self.done()
+        if self._state is State.CANCELLED:
             raise CancelledError
         elif self._exception is not None:
             raise self._exception
         else:
             return self._result
 
-    async def get_exception(self):
-        await self._end.wait()
-        assert self.state is not State.PENDING
-        if self.state is State.CANCELLED:
+    async def exception(self):
+        await self._done.wait()
+        assert self.done()
+        if self._state is State.CANCELLED:
             raise CancelledError
         else:
             return self._exception
@@ -138,15 +164,24 @@ class FutureAdapter:
     async def __aexit__(self, *_):
         self.cancel()
 
+    def running(self):
+        return self._future.running()
+
+    def cancelled(self):
+        return self._future.cancelled()
+
+    def done(self):
+        return self._future.done()
+
     def cancel(self):
         return self._future.cancel()
 
-    async def get_result(self):
+    async def result(self):
         if not self._future.done():
             await curio.traps._future_wait(self._future)
         return self._future.result()
 
-    async def get_exception(self):
+    async def exception(self):
         if not self._future.done():
             await curio.traps._future_wait(self._future)
         return self._future.exception()

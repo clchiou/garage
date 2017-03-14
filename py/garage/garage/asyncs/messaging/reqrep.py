@@ -19,7 +19,7 @@ async def client(socket, request_queue, *, timeout=None):
     """
     while True:
         request, response_promise = await request_queue.get()
-        if response_promise.is_cancelled():
+        if not response_promise.set_running_or_notify_cancel():
             LOG.debug('client: drop request: %r', request)
             continue
         try:
@@ -28,7 +28,7 @@ async def client(socket, request_queue, *, timeout=None):
                 with await socket.recv() as message:
                     response = bytes(message.as_memoryview())
         except Exception as exc:
-            if response_promise.is_cancelled():
+            if response_promise.cancelled():
                 LOG.exception(
                     'client: err but request is cancelled: %r', request)
             response_promise.set_exception(exc)
@@ -51,9 +51,8 @@ async def server(socket, request_queue, *, timeout=None, error_handler=None):
             request = bytes(message.as_memoryview())
         try:
             async with timeout_after(timeout), Future() as response_future:
-                await request_queue.put(
-                    (request, response_future.make_promise()))
-                response = await response_future.get_result()
+                await request_queue.put((request, response_future.promise()))
+                response = await response_future.result()
         except Exception as exc:
             error_response = error_handler(request, exc)
             if error_response is None:

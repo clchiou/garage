@@ -4,7 +4,7 @@ from concurrent.futures import Future as _Future
 
 import curio
 
-from garage.asyncs.futures import CancelledError, Future, FutureAdapter, State
+from garage.asyncs.futures import CancelledError, Future, FutureAdapter
 
 from tests.asyncs.utils import synchronous
 
@@ -15,15 +15,16 @@ class FutureTest(unittest.TestCase):
     async def test_result(self):
 
         f = Future()
-        p = f.make_promise()
-        self.assertFalse(p.is_cancelled())
-        self.assertIs(f.state, State.PENDING)
+        p = f.promise()
+        self.assertFalse(f.running())
+        self.assertTrue(p.set_running_or_notify_cancel())
+        self.assertTrue(f.running())
 
         p.set_result(1)
 
-        self.assertIs(f.state, State.FINISHED)
-        self.assertEqual(1, await f.get_result())
-        self.assertIsNone(await f.get_exception())
+        self.assertTrue(f.done())
+        self.assertEqual(1, await f.result())
+        self.assertIsNone(await f.exception())
 
         with self.assertRaisesRegex(AssertionError, 'marked FINISHED'):
             p.set_result(1)
@@ -32,7 +33,7 @@ class FutureTest(unittest.TestCase):
     async def test_exception(self):
 
         f = Future()
-        p = f.make_promise()
+        p = f.promise()
 
         exc = ValueError('test exception')
         p.set_exception(exc)
@@ -43,28 +44,29 @@ class FutureTest(unittest.TestCase):
         #   cannot reuse already awaited coroutine
         # See Objects/genobject.c for more details.
         try:
-            await f.get_result()
+            await f.result()
             self.fail('get_result() did not raise')
         except ValueError as e:
             self.assertEqual(exc, e)
-        self.assertEqual(exc, await f.get_exception())
+        self.assertEqual(exc, await f.exception())
 
     @synchronous
     async def test_cancel(self):
 
         f = Future()
-        p = f.make_promise()
+        p = f.promise()
 
         f.cancel()
+        self.assertFalse(p.set_running_or_notify_cancel())
 
         # Since Future is cancelled, calls to Promise are ignored.
         p.set_result(99)
         p.set_exception(ValueError())
 
         with self.assertRaises(CancelledError):
-            await f.get_result()
+            await f.result()
         with self.assertRaises(CancelledError):
-            await f.get_exception()
+            await f.exception()
 
 
 class FutureAdapterTest(unittest.TestCase):
@@ -74,12 +76,12 @@ class FutureAdapterTest(unittest.TestCase):
         f = FutureAdapter(_Future())
 
         async with curio.ignore_after(0.01):
-            await f.get_result()
+            await f.result()
             self.fail('result should not be available')
 
         f._future.set_result(1)
 
-        self.assertEqual(1, await f.get_result())
+        self.assertEqual(1, await f.result())
 
     @synchronous
     async def test_exception(self):
@@ -87,20 +89,20 @@ class FutureAdapterTest(unittest.TestCase):
         exc = ValueError('test exception')
         f._future.set_exception(exc)
         try:
-            await f.get_result()
+            await f.result()
             self.fail('get_result() did not raise')
         except ValueError as e:
             self.assertEqual(exc, e)
-        self.assertEqual(exc, await f.get_exception())
+        self.assertEqual(exc, await f.exception())
 
     @synchronous
     async def test_cancel(self):
         f = FutureAdapter(_Future())
         self.assertTrue(f.cancel())
         with self.assertRaises(CancelledError):
-            await f.get_result()
+            await f.result()
         with self.assertRaises(CancelledError):
-            await f.get_exception()
+            await f.exception()
 
         f = FutureAdapter(_Future())
         f._future.set_running_or_notify_cancel()

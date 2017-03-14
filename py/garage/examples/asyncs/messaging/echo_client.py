@@ -47,8 +47,8 @@ async def echo_client(port, message):
         queue = Queue()
         await stack.spawn(reqrep.client(socket, queue))
         async with Future() as response_future:
-            await queue.put((request, response_future.make_promise()))
-            response = await response_future.get_result()
+            await queue.put((request, response_future.promise()))
+            response = await response_future.result()
         LOG.info('receive resposne: %r', response)
 
 

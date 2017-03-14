@@ -8,7 +8,7 @@ from nanomsg.curio import Socket
 import nanomsg as nn
 
 from garage.asyncs import TaskStack
-from garage.asyncs.futures import Future, State
+from garage.asyncs.futures import Future
 from garage.asyncs.messaging import reqrep
 from garage.asyncs.queues import Queue, ZeroQueue
 
@@ -31,11 +31,11 @@ class ReqrepTest(unittest.TestCase):
             client_task = await stack.spawn(reqrep.client(socket, queue))
 
             response_future = Future()
-            await queue.put((b'', response_future.make_promise()))
+            await queue.put((b'', response_future.promise()))
 
             await client_task.cancel()
 
-            self.assertTrue(response_future.state is State.PENDING)
+            self.assertTrue(response_future.running())
             self.assertEqual('CANCELLED', client_task.state)
 
     @synchronous
@@ -68,14 +68,14 @@ class ReqrepTest(unittest.TestCase):
             client_request = b'hello'
             client_response_future = Future()
             await client_queue.put(
-                (client_request, client_response_future.make_promise()))
+                (client_request, client_response_future.promise()))
 
             server_request, server_response_promise = await server_queue.get()
             self.assertEqual(client_request, server_request)
 
             expect = b'world'
             server_response_promise.set_result(expect)
-            self.assertEqual(expect, await client_response_future.get_result())
+            self.assertEqual(expect, await client_response_future.result())
 
     @synchronous
     async def test_client_timeout(self):
@@ -86,11 +86,11 @@ class ReqrepTest(unittest.TestCase):
                 reqrep.client(socket, queue, timeout=0.01))
 
             response_future = Future()
-            await queue.put((b'', response_future.make_promise()))
+            await queue.put((b'', response_future.promise()))
 
             try:
-                await response_future.get_result()
-                self.fail('get_result() did not raise')
+                await response_future.result()
+                self.fail('result() did not raise')
             except curio.TaskTimeout:
                 pass
 
