@@ -13,25 +13,7 @@ import collections
 import curio
 
 from garage import asserts
-
-
-class Closed(Exception):
-    """Exception raised at put() when the queue is closed, or at get()
-       when the queue is empty and closed.
-    """
-    pass
-
-
-class Empty(Exception):
-    """Exception raised at get_nowait() when queue is empty but not
-       closed.
-    """
-    pass
-
-
-class Full(Exception):
-    """Exception raised at put_nowait() when queue is full."""
-    pass
+from garage.threads.queues import Closed, Empty, Full
 
 
 class QueueBase:
