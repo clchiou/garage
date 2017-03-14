@@ -6,7 +6,6 @@ __all__ = [
 
 import hashlib
 import logging
-import os
 
 from garage import scripts
 
@@ -87,12 +86,12 @@ def define_image(image_name, make_image_manifest=None):
 
 def _compute_sha512(sha512_file_path):
     hasher = hashlib.sha512()
-    input_fd = scripts.get_stdin()
-    output_fd = scripts.get_stdout()
+    pipe_input = scripts.get_stdin()
+    pipe_output = scripts.get_stdout()
     while True:
-        data = os.read(input_fd, 4096)
+        data = pipe_input.read(4096)
         if not data:
             break
         hasher.update(data)
-        os.write(output_fd, data)
+        pipe_output.write(data)
     sha512_file_path.write_text('%s\n' % hasher.hexdigest())

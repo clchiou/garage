@@ -202,33 +202,43 @@ def pipeline(commands, pipe_input=None, pipe_output=None):
        awkward...
     """
 
-    def close_file(obj):
-        if obj is None:
+    def fdopen_maybe(fd_maybe, mode):
+        if isinstance(fd_maybe, int):
+            return os.fdopen(fd_maybe, mode)
+        else:
+            return fd_maybe
+
+    def close_file(file):
+        if file is None:
             return
         try:
-            if isinstance(obj, int):
-                os.close(obj)
-            else:
-                obj.close()  # Assume it's a file-like object
+            file.close()
         except OSError:
             # Swallow the error!
-            LOG.debug('cannot close: %s', obj, exc_info=True)
+            LOG.debug('cannot close: %s', file, exc_info=True)
+
+    def make_pipe():
+        read_fd, write_fd = os.pipe()
+        return os.fdopen(read_fd, 'rb'), os.fdopen(write_fd, 'wb')
 
     context = _get_context()
     command_failed = threading.Event()
 
-    def run_command(command, input_fd, output_fd):
+    def run_command(command, input_file, output_file):
         # Set context in the new thread
         _set_context(context)
         try:
-            with redirecting(stdin=input_fd, stdout=output_fd):
+            with redirecting(stdin=input_file, stdout=output_file):
                 command()
         except Exception:
             LOG.exception('command err: %s', command)
             command_failed.set()
         finally:
-            close_file(input_fd)
-            close_file(output_fd)
+            close_file(input_file)
+            close_file(output_file)
+
+    pipe_input = fdopen_maybe(pipe_input, 'rb')
+    pipe_output = fdopen_maybe(pipe_output, 'wb')
 
     iter_commands = iter(commands)
     try:
@@ -238,31 +248,27 @@ def pipeline(commands, pipe_input=None, pipe_output=None):
         close_file(pipe_output)
         return
 
-    if pipe_input is not None and not isinstance(pipe_input, int):
-        pipe_input = pipe_input.fileno()
-    if pipe_output is not None and not isinstance(pipe_output, int):
-        pipe_output = pipe_output.fileno()
     try:
 
         runners = []
-        next_read_fd = pipe_input
+        next_read_file = pipe_input
         last = False
         while not last:
 
             command = next_command
-            read_fd = next_read_fd
+            read_file = next_read_file
 
             try:
                 next_command = next(iter_commands)
             except StopIteration:
-                next_read_fd, write_fd = None, pipe_output
+                next_read_file, write_file = None, pipe_output
                 last = True
             else:
-                next_read_fd, write_fd = os.pipe()
+                next_read_file, write_file = make_pipe()
 
             runner = threading.Thread(
                 target=run_command,
-                args=(command, read_fd, write_fd),
+                args=(command, read_file, write_file),
             )
             runner.start()
             runners.append(runner)

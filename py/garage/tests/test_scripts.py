@@ -80,19 +80,19 @@ class ScriptsTest(unittest.TestCase):
 
         result = []
 
-        def process():
-            input_fd = scripts.get_stdin()
-            output_fd = scripts.get_stdout()
+        def pass_through():
+            input_file = scripts.get_stdin()
+            output_file = scripts.get_stdout()
             while True:
-                data = os.read(input_fd, 32)
+                data = input_file.read()
                 result.append(data)
                 if not data:
                     break
-                os.write(output_fd, data)
+                output_file.write(data)
 
         cmds = [
             lambda: scripts.execute(['echo', 'hello']),
-            process,
+            pass_through,
             lambda: scripts.execute(['cat']),
         ]
         read_fd, write_fd = os.pipe()
@@ -136,14 +136,10 @@ class ScriptsTest(unittest.TestCase):
         result = []
 
         def generate_data():
-            output_fd = scripts.get_stdout()
-            # os.write may write less than we ask...
-            os.write(output_fd, b'hello')
+            scripts.get_stdout().write(b'hello')
 
         def receive_data():
-            input_fd = scripts.get_stdin()
-            # os.read may read less than we ask...
-            result.append(os.read(input_fd, 32))
+            result.append(scripts.get_stdin().read())
 
         # pipeline accepts iterator
         scripts.pipeline(iter([
