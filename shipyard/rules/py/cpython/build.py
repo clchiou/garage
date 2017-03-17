@@ -8,7 +8,7 @@ from foreman import define_parameter, get_relpath, rule
 
 from garage import scripts
 
-from templates import app
+from templates import apps
 from templates.common import define_archive
 from templates.utils import tapeout_files
 
@@ -195,10 +195,10 @@ def tapeout(parameters):
 ### Other build rules
 
 
-@app.derive_app_parameter
+@apps.derive_app_parameter
 def python_app(parameters):
     """Default App object for Python-based container image."""
-    return app.App(
+    return apps.App(
         name='cpython',
         exec=[str(parameters['python'])],
         environment={
@@ -208,6 +208,6 @@ def python_app(parameters):
     )
 
 
-rules = app.define_image(app.Image('cpython', 'python_app'))
+rules = apps.define_image(apps.Image('cpython', 'python_app'))
 rules.write_manifest.depend('tapeout')
 rules.build_image.depend('tapeout')

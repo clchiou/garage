@@ -1,6 +1,6 @@
 import unittest
 
-from templates import app
+from templates import apps
 
 if __name__ == '__main__':
     from fixtures import PrepareForeman
@@ -10,20 +10,20 @@ else:
 
 class AppTest(PrepareForeman, unittest.TestCase):
 
-    TEST_IMAGE = app.Image(
+    TEST_IMAGE = apps.Image(
         name='example.com/worker',
-        app=app.App(
+        app=apps.App(
             name='worker',
             exec=['/bin/bash'],
             environment={
                 'PATH': '/bin:/usr/bin',
             },
             volumes=[
-                app.Volume(
+                apps.Volume(
                     name='data',
                     path='/var/data',
                 ),
-                app.Volume(
+                apps.Volume(
                     name='log',
                     path='/var/log',
                     read_only=False,
@@ -76,7 +76,7 @@ class AppTest(PrepareForeman, unittest.TestCase):
         'app': APP_ENTRY,
     }
 
-    TEST_POD = app.Pod(
+    TEST_POD = apps.Pod(
         name='application',
         images=[TEST_IMAGE],
     )
