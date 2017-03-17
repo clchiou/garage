@@ -8,7 +8,7 @@ from foreman import define_parameter, get_relpath, rule
 
 from garage import scripts
 
-from templates import app, py
+from templates import app
 from templates.common import define_archive
 from templates.utils import tapeout_files
 
@@ -195,6 +195,19 @@ def tapeout(parameters):
 ### Other build rules
 
 
-rules = app.define_image('cpython', py.make_image_manifest)
+@app.derive_app_parameter
+def python_app(parameters):
+    """Default App object for Python-based container image."""
+    return app.App(
+        name='cpython',
+        exec=[str(parameters['python'])],
+        environment={
+            'LD_LIBRARY_PATH': str(parameters['prefix'] / 'lib'),
+            'PYTHONIOENCODING': 'UTF-8',
+        },
+    )
+
+
+rules = app.define_image(app.Image('cpython', 'python_app'))
 rules.write_manifest.depend('tapeout')
 rules.build_image.depend('tapeout')
