@@ -1,6 +1,7 @@
 """Collections of objects and collection helper functions."""
 
 __all__ = [
+    'DictBuilder',
     'DictViewAttrs',
     'LoadingDict',
     'Symbols',
@@ -56,6 +57,81 @@ def collect_pairs(iterable):
 def group(iterable, key=None):
     """Group elements by key, preserving order."""
     return list(collect(iterable, key=key).values())
+
+
+class DictBuilder:
+    """A fluent-style builder of dict object."""
+
+    # It does not support nested if-block at the moment
+
+    def __init__(self, data=None):
+        # Don't make a copy because we want to modify it in place
+        self.dict = data if data is not None else {}
+
+        # Use finite state machine to parse non-nested if-elif-else
+        self._state = None
+        # True if we have chosen one of the if-elif-else branch
+        self._branch_chosen = False
+        # True if we should execute this instruction
+        self._predicate = True
+
+    def if_(self, condition):
+        assert self._state is None
+        self._state = 'if'
+        self._branch_chosen = self._predicate = condition
+        return self
+
+    def elif_(self, condition):
+        assert self._state == 'if'
+        if self._branch_chosen:
+            self._predicate = False
+        else:
+            self._branch_chosen = self._predicate = condition
+        return self
+
+    def else_(self):
+        assert self._state == 'if'
+        self._state = 'else'
+        if self._branch_chosen:
+            self._predicate = False
+        else:
+            self._branch_chosen = self._predicate = True
+        return self
+
+    def end(self):
+        assert self._state in ('if', 'else')
+        self._state = None
+        self._branch_chosen = False
+        self._predicate = True
+        return self
+
+    # Setter methods
+
+    def assert_(self, assertion):
+        if self._predicate:
+            if not assertion(self.dict):
+                raise AssertionError
+        return self
+
+    def setitem(self, key, value):
+        if self._predicate:
+            self.dict[key] = value
+        return self
+
+    def setdefault(self, key, default):
+        if self._predicate:
+            self.dict.setdefault(key, default)
+        return self
+
+    def call(self, key, func):
+        if self._predicate:
+            func(self.dict[key])
+        return self
+
+    def call_and_update(self, key, func):
+        if self._predicate:
+            self.dict[key] = func(self.dict[key])
+        return self
 
 
 class LoadingDict(UserDict):

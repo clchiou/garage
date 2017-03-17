@@ -13,6 +13,56 @@ class CollectionsTest(unittest.TestCase):
         self.assertEqual('value', ldict['k2'])
         self.assertDictEqual({'k1': 'k1', 'k2': 'value'}, ldict.data)
 
+    def test_dict_builder_write_in_place(self):
+        data = {}
+        DictBuilder(data).setitem('x', 1)
+        self.assertEqual({'x': 1}, data)
+
+    def test_dict_builder_if_elif_else(self):
+        self.assertEqual(
+            {'w': 1, 'x': 2, 'y': 3, 'z': 4},
+            (DictBuilder()
+             # w
+             .if_(True)   .setitem('w', 1)
+             .elif_(True) .setitem('w', 2)
+             .elif_(True) .setitem('w', 3)
+             .else_()     .setitem('w', 4)
+             .end()
+             # x
+             .if_(False)  .setitem('x', 1)
+             .elif_(True) .setitem('x', 2)
+             .elif_(True) .setitem('x', 3)
+             .else_()     .setitem('x', 4)
+             .end()
+             # y
+             .if_(False)  .setitem('y', 1)
+             .elif_(False).setitem('y', 2)
+             .elif_(True) .setitem('y', 3)
+             .else_()     .setitem('y', 4)
+             .end()
+             # z
+             .if_(False)  .setitem('z', 1)
+             .elif_(False).setitem('z', 2)
+             .elif_(False).setitem('z', 3)
+             .else_()     .setitem('z', 4)
+             .end()
+             .dict),
+        )
+
+        with self.assertRaises(AssertionError):
+            DictBuilder().elif_(True)
+        with self.assertRaises(AssertionError):
+            DictBuilder().else_()
+        with self.assertRaises(AssertionError):
+            DictBuilder().end()
+
+        with self.assertRaises(AssertionError):
+            DictBuilder().if_(True).if_(True)
+        with self.assertRaises(AssertionError):
+            DictBuilder().if_(True).elif_(True).if_(True)
+        with self.assertRaises(AssertionError):
+            DictBuilder().if_(True).else_().elif_(True)
+
     def test_dict_as_attrs(self):
         attrs = DictViewAttrs({'y': 1})
 
