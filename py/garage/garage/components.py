@@ -43,7 +43,7 @@ from collections import namedtuple
 from startup import startup as startup_
 
 from garage import asserts
-from garage.collections import DictViewAttrs, unique
+from garage.collections import unique
 
 
 LOG = logging.getLogger(__name__)
@@ -156,7 +156,7 @@ def bind(component, startup=startup_, next_startup=None, parser_=PARSER):
 
         @functools.wraps(component.make)
         def make(**require):
-            return component.make(DictViewAttrs(require))
+            return component.make(types.SimpleNamespace(**require))
         next_startup.add_func(make, annotations)
 
 
@@ -237,7 +237,7 @@ def vars_as_namespace(varz, aliases=None):
         if name in ndict:
             raise ValueError('overwrite name: %r' % name)
         ndict[name] = value
-    return DictViewAttrs(ndict)
+    return types.SimpleNamespace(**ndict)
 
 
 def parse_argv(parser: PARSER, argv: ARGV, _: PARSE) -> ARGS:

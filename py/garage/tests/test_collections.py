@@ -63,21 +63,6 @@ class CollectionsTest(unittest.TestCase):
         with self.assertRaises(AssertionError):
             DictBuilder().if_(True).else_().elif_(True)
 
-    def test_dict_as_attrs(self):
-        attrs = DictViewAttrs({'y': 1})
-
-        self.assertEqual(1, attrs.y)
-        self.assertFalse(hasattr(attrs, 'x'))
-
-        attrs.x = 2
-        self.assertEqual(2, attrs.x)
-
-        del attrs.y
-        self.assertFalse(hasattr(attrs, 'y'))
-
-        attrs.z = 3
-        self.assertListEqual(['x', 'z'], list(sorted((attrs))))
-
     def test_symbols(self):
         symbols = Symbols('a', 'b', ('c', 3), d=4)
         self.assertEqual('a', symbols.a)
