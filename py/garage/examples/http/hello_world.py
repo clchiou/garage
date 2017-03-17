@@ -55,7 +55,7 @@ def hello_world(args: ARGS):
     )
     handler = api_handler(request_queue)
 
-    futs = [server.get_future(), handler.get_future()]
+    futs = [server._get_future(), handler._get_future()]
     try:
         for fut in futures.as_completed(futs):
             fut.result()

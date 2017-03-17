@@ -85,7 +85,7 @@ class Spider:
             functools.partial(tasklets.tasklet, self._task_queue),
         )
         # Use this future to wait for completion of the crawling.
-        self.future = supervisor.get_future()
+        self.future = supervisor._get_future()
 
     def crawl(self, request, estimate=None):
         """Enqueue a request for later processing."""

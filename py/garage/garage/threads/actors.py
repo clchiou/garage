@@ -106,13 +106,13 @@ class OneShotActor:
         def __init__(self, future):
             self._future = future
 
-        def kill(self, graceful=True):
+        def _kill(self, graceful=True):
             self._future.cancel()
 
-        def get_future(self):
+        def _get_future(self):
             return self._future
 
-        def send_message(self, func, args, kwargs, block=True, timeout=None):
+        def _send_message(self, func, args, kwargs, block=True, timeout=None):
             raise ActorError('OneShotActor does not take additional message')
 
     def __init__(self, actor):
@@ -167,15 +167,19 @@ class _StubMeta(type):
         if actor:
             stub_methods = _StubMeta.make_stub_methods(actor)
             for stub_method_name in stub_methods:
+                if stub_method_name.startswith('_'):
+                    raise ActorError(
+                        'stub method name starts with "_": %s.%s' %
+                        (name, stub_method_name))
                 if stub_method_name in namespace:
                     raise ActorError(
                         'stub method should not override %s.%s' %
                         (name, stub_method_name))
                 namespace[stub_method_name] = stub_methods[stub_method_name]
-        cls = super().__new__(mcs, name, bases, namespace)
+        stub_cls = super().__new__(mcs, name, bases, namespace)
         if actor:
-            Stub.ACTORS[cls] = actor
-        return cls
+            Stub.ACTORS[stub_cls] = actor
+        return stub_cls
 
     def __init__(cls, name, bases, namespace, **_):
         super().__init__(name, bases, namespace)
@@ -199,7 +203,7 @@ class _StubMeta(type):
     def make_stub_method(func):
         @functools.wraps(func)
         def stub_method(self, *args, **kwargs):
-            return self.send_message(func, args, kwargs)
+            return self._send_message(func, args, kwargs)
         return stub_method
 
 
@@ -264,8 +268,8 @@ class Stub(metaclass=_StubMeta):
     def __init__(self, *args, **kwargs):
         """Start the actor thread, and then block on actor object's
            __init__ and re-raise the exception if it fails."""
-        cls = Stub.ACTORS.get(type(self))
-        if not cls:
+        actor_cls = Stub.ACTORS.get(type(self))
+        if not actor_cls:
             raise ActorError(
                 '%s is not a stub of an actor' % type(self).__qualname__)
         if args and args[0] is BUILD:
@@ -290,14 +294,15 @@ class Stub(metaclass=_StubMeta):
         thread.start()
         # Since we can't return a future here, we have to wait on the
         # result of actor's __init__() call for any exception that might
-        # be raised inside it.
-        Stub.send_message(self, cls, args, kwargs).result()
+        # be raised inside it.  (By the way, use Stub._send_message here
+        # to ensure that we won't call sub-class' _send_message.)
+        Stub._send_message(self, actor_cls, args, kwargs).result()
         # If this stub is not referenced, kill the actor gracefully.
         weakref.finalize(self, self.__msg_queue.close)
         if set_pthread_name:
             utils.set_pthread_name(thread, name)
 
-    def kill(self, graceful=True):
+    def _kill(self, graceful=True):
         """Set the kill flag of the actor thread.
 
            If graceful is True (the default), the actor will be dead
@@ -313,7 +318,7 @@ class Stub(metaclass=_StubMeta):
         for msg in self.__msg_queue.close(graceful=graceful):
             _deref(msg.future_ref).cancel()
 
-    def get_future(self):
+    def _get_future(self):
         """Return the future object that represents actor's liveness.
 
            Note: Cancelling this future object is not going to kill this
@@ -321,7 +326,7 @@ class Stub(metaclass=_StubMeta):
         """
         return self.__future
 
-    def send_message(self, func, args, kwargs, block=True, timeout=None):
+    def _send_message(self, func, args, kwargs, block=True, timeout=None):
         """Enqueue a message into actor's message queue."""
         try:
             future = Future()

@@ -109,16 +109,27 @@ class D(actors.Stub, actor=_D):
 
 class ActorsTest(unittest.TestCase):
 
+    def test_actor_method_name(self):
+
+        class _X:
+            @actors.method
+            def _x(self):
+                pass
+
+        with self.assertRaisesRegex(actors.ActorError, r'starts with "_"'):
+            class X(actors.Stub, actor=_X):
+                pass
+
     def test_actors(self):
         greeter = Greeter('John')
         self.assertEqual('Hello John', greeter.greet().result())
         self.assertEqual('Hello Paul', greeter.greet('Paul').result())
-        self.assertFalse(greeter.get_future().done())
+        self.assertFalse(greeter._get_future().done())
 
         greeter = Greeter()
         self.assertEqual('Hello world', greeter.greet().result())
         self.assertEqual('Hello Jean', greeter.greet('Jean').result())
-        self.assertFalse(greeter.get_future().done())
+        self.assertFalse(greeter._get_future().done())
 
         greeter = actors.build(Greeter, capacity=1, args=('Jean',))
         self.assertEqual('Hello Jean', greeter.greet().result())
@@ -127,7 +138,7 @@ class ActorsTest(unittest.TestCase):
         future = bomb.explode()
         with self.assertRaisesRegex(Explosion, r'Boom!'):
             future.result()
-        self.assertTrue(bomb.get_future().done())
+        self.assertTrue(bomb._get_future().done())
         with self.assertRaisesRegex(
                 actors.ActorError, r'actor has been killed'):
             bomb.explode()
@@ -137,7 +148,7 @@ class ActorsTest(unittest.TestCase):
         future = bomb.explode()
         with self.assertRaisesRegex(Explosion, r'Boom!'):
             future.result()
-        self.assertTrue(bomb.get_future().done())
+        self.assertTrue(bomb._get_future().done())
 
     def test_inject(self):
         GreeterWithInject.extra_args = ('John',)
@@ -166,12 +177,12 @@ class ActorsTest(unittest.TestCase):
         self.assertTrue(event.wait(timeout=0.1))
 
     def test_weakref_2(self):
-        future_ref = weakref.ref(Greeter().get_future())
+        future_ref = weakref.ref(Greeter()._get_future())
         self.assertIsNone(future_ref())
 
     def test_finalize(self):
         greeter = Greeter()
-        future = greeter.get_future()
+        future = greeter._get_future()
         del greeter
         self.assertIsNone(future.result(timeout=0.1))
 
@@ -199,34 +210,34 @@ class ActorsTest(unittest.TestCase):
         # Unblock it.
         event.set()
 
-        self.assertFalse(blocker.get_future().done())
+        self.assertFalse(blocker._get_future().done())
         with self.assertRaises(actors.Exit):
             exit_fut.result()
-        self.assertTrue(blocker.get_future().done())
+        self.assertTrue(blocker._get_future().done())
         self.assertTrue(side_effect_fut.cancelled())
 
     def test_kill(self):
         for graceful in (True, False):
             greeter = Greeter()
-            self.assertFalse(greeter.get_future().done())
+            self.assertFalse(greeter._get_future().done())
             self.assertEqual('Hello world', greeter.greet().result())
 
-            greeter.kill(graceful=graceful)
+            greeter._kill(graceful=graceful)
 
             with self.assertRaisesRegex(
                     actors.ActorError, r'actor has been killed'):
                 greeter.greet()
 
-            greeter.get_future().result(timeout=1)
-            self.assertTrue(greeter.get_future().done())
+            greeter._get_future().result(timeout=1)
+            self.assertTrue(greeter._get_future().done())
 
         blocker = Blocker()
         barrier = threading.Barrier(2)
         event = threading.Event()
         blocker.wait(barrier, event)
         barrier.wait()
-        blocker.kill(graceful=False)
-        self.assertFalse(blocker.get_future().done())
+        blocker._kill(graceful=False)
+        self.assertFalse(blocker._get_future().done())
         self.assertFalse(blocker._Stub__msg_queue)
 
     def test_mro(self):
@@ -259,11 +270,11 @@ class OneShotActorTest(unittest.TestCase):
 
     def test_one_off_actor(self):
         summer = actors.OneShotActor(sum)
-        self.assertEqual(6, summer([1, 2, 3]).get_future().result())
+        self.assertEqual(6, summer([1, 2, 3])._get_future().result())
 
         summer = actors.OneShotActor(sum)
         stub = summer(actors.BUILD, name='summer', args=([7, 8], ))
-        self.assertEqual(15, stub.get_future().result())
+        self.assertEqual(15, stub._get_future().result())
 
 
 if __name__ == '__main__':

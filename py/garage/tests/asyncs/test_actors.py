@@ -28,9 +28,9 @@ class ActorsTest(unittest.TestCase):
         async with curio.timeout_after(0.01):
             self.assertEqual('hello', await stub.hello().result())
 
-        stub.kill()
+        stub._kill()
         async with curio.timeout_after(0.01):
-            await stub.get_future().result()
+            await stub._get_future().result()
 
 
 if __name__ == '__main__':

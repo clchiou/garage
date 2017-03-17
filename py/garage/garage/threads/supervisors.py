@@ -31,7 +31,7 @@ def supervisor(num_actors, start_new_actor):
             # Start actors to meet the target.
             for _ in range(target - len(actor_futures)):
                 stub = start_new_actor()
-                actor_futures[stub.get_future()] = stub
+                actor_futures[stub._get_future()] = stub
                 LOG.info('supervise actor %s', stub.name)
 
         done_actor_futures = futures.wait(

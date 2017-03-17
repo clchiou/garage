@@ -29,8 +29,8 @@ class LongRunning(actors.Stub, actor=_LongRunning):
 
 def make_dead_actor(event):
     stub = LongRunning(event)
-    stub.kill()
-    stub.get_future().result()  # Wait until it's dead.
+    stub._kill()
+    stub._get_future().result()  # Wait until it's dead.
     return stub
 
 
@@ -53,8 +53,8 @@ class SupervisorsTest(unittest.TestCase):
         # Let LongRunning actors exit one by one...
         self.release_one_by_one(stubs, semaphore)
 
-        self.assertIsNone(supervisor.get_future().result())
-        self.assertTrue(supervisor.get_future().done())
+        self.assertIsNone(supervisor._get_future().result())
+        self.assertTrue(supervisor._get_future().done())
 
         # Exhaust all actors...
         self.assertListEqual([], stubs_copy)
@@ -78,11 +78,11 @@ class SupervisorsTest(unittest.TestCase):
         self.release_one_by_one(stubs, semaphore)
 
         with self.assertRaisesRegex(RuntimeError, 'actors have crashed'):
-            supervisor.get_future().result()
-        self.assertTrue(supervisor.get_future().done())
+            supervisor._get_future().result()
+        self.assertTrue(supervisor._get_future().done())
 
     def release_one_by_one(self, stubs, semaphore):
-        alive_stubs = {stub.get_future(): stub for stub in stubs}
+        alive_stubs = {stub._get_future(): stub for stub in stubs}
         while alive_stubs:
             semaphore.release()
             done_futures = futures.wait(

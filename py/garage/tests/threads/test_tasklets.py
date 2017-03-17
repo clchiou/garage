@@ -22,8 +22,8 @@ class TaskletsTest(unittest.TestCase):
             task_queue.put(lambda: counter.get_and_add(1))
 
         for stub in tasklet_stubs:
-            self.assertIsNone(stub.get_future().result())
-            self.assertTrue(stub.get_future().done())
+            self.assertIsNone(stub._get_future().result())
+            self.assertTrue(stub._get_future().done())
 
         self.assertEqual(expected_counter_value, counter.get_and_set(0))
 
