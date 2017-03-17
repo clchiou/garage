@@ -301,7 +301,9 @@ class Volume(ModelObject):
         ('read_only', None),
     ]
 
-    def __init__(self, name, path, *,
+    def __init__(self, *,
+                 name,
+                 path,
                  user='nobody', group='nogroup',
                  data=None,
                  read_only=True):
@@ -401,9 +403,10 @@ class Image(ModelObject):
         ('read_only_rootfs', None),
     ]
 
-    def __init__(self, app, *,
+    def __init__(self, *,
                  id=None,
                  name=None,
+                 app,
                  read_only_rootfs=True):
         self._id = id
         self._name = name
@@ -475,7 +478,7 @@ class SystemdUnit(ModelObject):
         ('instances', None),
     ]
 
-    def __init__(self, unit_file, *, instances=None):
+    def __init__(self, *, unit_file, instances=None):
         self.unit_file = unit_file
         self.instances = instances
 
