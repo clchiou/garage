@@ -10,26 +10,28 @@ else:
 
 class AppTest(PrepareForeman, unittest.TestCase):
 
+    TEST_APP = apps.App(
+        name='worker',
+        exec=['/bin/bash'],
+        environment={
+            'PATH': '/bin:/usr/bin',
+        },
+        volumes=[
+            apps.Volume(
+                name='data',
+                path='/var/data',
+            ),
+            apps.Volume(
+                name='log',
+                path='/var/log',
+                read_only=False,
+            ),
+        ],
+    )
+
     TEST_IMAGE = apps.Image(
         name='example.com/worker',
-        app=apps.App(
-            name='worker',
-            exec=['/bin/bash'],
-            environment={
-                'PATH': '/bin:/usr/bin',
-            },
-            volumes=[
-                apps.Volume(
-                    name='data',
-                    path='/var/data',
-                ),
-                apps.Volume(
-                    name='log',
-                    path='/var/log',
-                    read_only=False,
-                ),
-            ],
-        ),
+        app=TEST_APP,
     )
 
     TEST_IMAGE._id = 'sha512-...'
@@ -137,6 +139,19 @@ class AppTest(PrepareForeman, unittest.TestCase):
         ],
         'manifest': POD_MANIFEST,
     }
+
+    def test_model_object_methods(self):
+        dict_1 = apps.App.to_dict(self.TEST_APP)
+        dict_2 = apps.App.to_dict(apps.App.from_dict(dict_1))
+        self.assertEqual(dict_1, dict_2)
+
+        dict_1 = apps.Image.to_dict(self.TEST_IMAGE)
+        dict_2 = apps.Image.to_dict(apps.Image.from_dict(dict_1))
+        self.assertEqual(dict_1, dict_2)
+
+        dict_1 = apps.Pod.to_dict(self.TEST_POD)
+        dict_2 = apps.Pod.to_dict(apps.Pod.from_dict(dict_1))
+        self.assertEqual(dict_1, dict_2)
 
     def test_image(self):
         self.assertEqual(self.IMAGE_MANIFEST, self.TEST_IMAGE.image_manifest)

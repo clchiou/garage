@@ -195,11 +195,10 @@ def tapeout(parameters):
 ### Other build rules
 
 
-@apps.derive_app_parameter
+@apps.define_app.from_specifier
 def python_app(parameters):
-    """Default App object for Python-based container image."""
+    """Default App object for Python container image."""
     return apps.App(
-        name='cpython',
         exec=[str(parameters['python'])],
         environment={
             'LD_LIBRARY_PATH': str(parameters['prefix'] / 'lib'),
@@ -208,6 +207,12 @@ def python_app(parameters):
     )
 
 
-rules = apps.define_image(apps.Image('cpython', 'python_app'))
-rules.write_manifest.depend('tapeout')
-rules.build_image.depend('tapeout')
+@apps.define_image.from_specifier
+def python_image(parameters):
+    """Default Python container image."""
+    return apps.Image(app=parameters['python_app'])
+
+
+python_image.specify_image.depend('python_app/specify_app')
+python_image.write_manifest.depend('tapeout')
+python_image.build_image.depend('tapeout')
