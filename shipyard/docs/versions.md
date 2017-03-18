@@ -10,8 +10,8 @@ http2					x	master
 lxml				x		3.7.3
 mako			x			1.0.6
   markupsafe		x
-nanomsg		x	x			1.0.0
-nghttp2		x				v1.11.1
+nanomsg		x	x			b7fd165c20f2fa86192a19e3db2bed46bfadd025 (not far from 1.0.0)
+nghttp2		x				v1.20.0
 pyyaml				x		3.12
 requests		x			2.13.0
 sqlalchemy			x		1.1.6
