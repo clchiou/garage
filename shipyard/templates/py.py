@@ -108,7 +108,8 @@ def define_source_package(package, *,
             LOG.info('install %s', package)
             # sudo does not preserve PYTHONPATH even with '--preserve-env'.
             # Run `sudo sudo -V` for the list of preserved variables.
-            with scripts.using_sudo(envs=['PYTHONPATH']):
+            with scripts.directory(drydock_src), \
+                 scripts.using_sudo(envs=['PYTHONPATH']):
                 scripts.execute([python, 'setup.py', 'install'])
 
     @rule(name + 'tapeout')
