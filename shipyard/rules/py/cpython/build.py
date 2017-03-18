@@ -45,7 +45,6 @@ define_parameter.list_typed('configuration').with_default([
     '--with-system-expat',
     '--with-system-ffi',
     '--with-system-libmpdec',
-    '--without-ensurepip',
 ])
 
 

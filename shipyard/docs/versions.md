@@ -3,17 +3,17 @@
 Currently we have build files for these packages:
 
 		C/C++	PP	PC	CY	REV
-cpython		x				3.5.1
+cpython		x				3.6.1rc1
 garage			x			master
 http2					x	master
-lxml				x		3.6.0
-mako			x			1.0.4
+lxml				x		3.7.3
+mako			x			1.0.6
   markupsafe		x
 nanomsg		x	x			1.0.0
 nghttp2		x				v1.11.1
-pyyaml				x		3.11
-requests		x			2.10.0
-sqlalchemy			x		1.0.13
+pyyaml				x		3.12
+requests		x			2.13.0
+sqlalchemy			x		1.1.6
 startup			x			master
 v8		x			x	5.4.310
   depot_tools           x
