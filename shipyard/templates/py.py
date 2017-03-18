@@ -12,29 +12,28 @@ from garage import scripts
 
 from foreman import get_relpath, rule
 
-from .common import define_package_common
+from .common import define_copy_src
 from .utils import parse_common_args
 
 
 LOG = logging.getLogger(__name__)
 
 
-PackageRules = namedtuple('PackageRules', 'copy_src build tapeout')
+PackageRules = namedtuple('PackageRules', 'copy_src build unittest tapeout')
 
 
 @parse_common_args
 def define_package(package, *,
                    root: 'root', name: 'name',
-                   build_deps=(),
-                   tapeout_deps=(),
                    make_build_cmd=None):
     """Define a first-party Python package, including:
        * [NAME/]copy_src rule
        * [NAME/]build rule
+       * [NAME/]unittest rule
        * [NAME/]tapeout rule
     """
 
-    common_rules = define_package_common(root=root, name=name)
+    copy_src_rules = define_copy_src(root=root, name=name)
 
     relpath = get_relpath()
 
@@ -71,23 +70,29 @@ def define_package(package, *,
             with scripts.using_sudo(envs=['PYTHONPATH']):
                 scripts.execute([python, 'setup.py', 'install'])
 
-    for dep in build_deps:
-        build.depend(dep)
+    @rule(name + 'unittest')
+    @rule.depend(name + 'build')
+    def unittest(parameters):
+        drydock_src = parameters['//base:drydock'] / relpath
+        scripts.ensure_file(drydock_src / 'setup.py')
+        python = parameters['//py/cpython:python']
+        with scripts.directory(drydock_src):
+            LOG.info('unittest %s', package)
+            scripts.execute([python, '-m', 'unittest'])
 
     @rule(name + 'tapeout')
     @rule.reverse_depend('//base:tapeout')
     @rule.reverse_depend('//py/cpython:tapeout')
     @rule.depend(name + 'build')
+    @rule.depend(name + 'unittest', when=lambda ps: ps['//base:release'])
     def tapeout(parameters):
         """Copy Python package build artifacts."""
         _tapeout(parameters, package, ())
 
-    for dep in tapeout_deps:
-        tapeout.depend(dep)
-
     return PackageRules(
-        copy_src=common_rules.copy_src,
+        copy_src=copy_src_rules.copy_src,
         build=build,
+        unittest=unittest,
         tapeout=tapeout,
     )
 

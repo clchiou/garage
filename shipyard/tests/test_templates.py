@@ -62,16 +62,13 @@ class TemplatesTest(PrepareForeman, unittest.TestCase):
         self.assertEqual('wget', cmds[1][0])
         self.assertEqual(['tar', '--extract'], cmds[2][0:2])
 
-    def test_define_package_common(self):
-        rules = common.define_package_common(name='cpython')
+    def test_define_copy_src(self):
+        rules = common.define_copy_src(name='cpython')
         copy_src = rules.copy_src
 
-        label = foreman.Label.parse('//path/to/rules:cpython/src')
-        self.assertIn(label, self.loader.parameters)
-
         parameters = {
-            '//base:drydock': Path('/somewhere'),
-            'cpython/src': Path('/other/place'),
+            '//base:root': Path('/somewhere/root'),
+            '//base:drydock': Path('/somewhere/drydock'),
         }
         with scripts.dry_run(), scripts.recording_commands() as cmds:
             copy_src.build(parameters)

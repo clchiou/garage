@@ -2,7 +2,7 @@
 
 __all__ = [
     'define_archive',
-    'define_package_common',
+    'define_copy_src',
 ]
 
 from collections import namedtuple
@@ -76,7 +76,7 @@ def define_archive(*, name: 'name',
     return ArchiveRules(download=download)
 
 
-PackageCommonRules = namedtuple('PackageCommonRules', 'copy_src')
+CopySrcRules = namedtuple('CopySrcRules', 'copy_src')
 
 
 EXCLUDES = [
@@ -98,10 +98,8 @@ EXCLUDES = [
 
 
 @utils.parse_common_args
-def define_package_common(*, root: 'root', name: 'name'):
-    """Define common parts of a (first-party) package, including:
-       * [NAME/]src and [NAME/]drydock_src parameter
-       * [NAME/]copy_src rule
+def define_copy_src(*, root: 'root', name: 'name'):
+    """Define [NAME/]copy_src rule.
 
        This is most likely to be useful to other rule templates, not to
        your build rules.
@@ -109,18 +107,14 @@ def define_package_common(*, root: 'root', name: 'name'):
 
     relpath = get_relpath()
 
-    (define_parameter.path_typed(name + 'src')
-     .with_doc('Path to the package source code.')
-     .with_derive(lambda ps: ps[root] / relpath))
-
     @rule(name + 'copy_src')
     def copy_src(parameters):
         """Copy src into drydock_src (and then you will build from there)."""
-        src = parameters[name + 'src']
+        src = parameters[root] / relpath
         drydock_src = parameters['//base:drydock'] / relpath
         LOG.info('copy source: %s -> %s', src, drydock_src)
         scripts.mkdir(drydock_src)
         srcs = ['%s/' % src]  # Appending '/' to src is an rsync trick
         scripts.rsync(srcs, drydock_src, delete=True, excludes=EXCLUDES)
 
-    return PackageCommonRules(copy_src=copy_src)
+    return CopySrcRules(copy_src=copy_src)
