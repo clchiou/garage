@@ -3,6 +3,7 @@
 __all__ = [
     'define_archive',
     'define_copy_src',
+    'define_git_repo',
 ]
 
 from collections import namedtuple
@@ -118,3 +119,35 @@ def define_copy_src(*, root: 'root', name: 'name'):
         scripts.rsync(srcs, drydock_src, delete=True, excludes=EXCLUDES)
 
     return CopySrcRules(copy_src=copy_src)
+
+
+GitRepoInfo = namedtuple('GitRepoInfo', 'repo treeish')
+
+
+GitRepoRules = namedtuple('GitRepoRules', 'git_clone')
+
+
+@utils.parse_common_args
+def define_git_repo(*, name: 'name',
+                    repo, treeish=None):
+    """Define [NAME/]git_clone rule."""
+
+    (define_parameter.namedtuple_typed(GitRepoInfo, name + 'git_repo')
+     .with_default(GitRepoInfo(repo=repo, treeish=treeish)))
+
+    relpath = get_relpath()
+
+    @rule(name + 'git_clone')
+    def git_clone(parameters):
+        """Clone and checkout git repo."""
+        drydock_src = parameters['//base:drydock'] / relpath
+        if not drydock_src.exists():
+            LOG.info('clone into: %s', drydock_src)
+            git_repo = parameters[name + 'git_repo']
+            scripts.git_clone(
+                repo=git_repo.repo,
+                local_path=drydock_src,
+                checkout=git_repo.treeish,
+            )
+
+    return GitRepoRules(git_clone=git_clone)

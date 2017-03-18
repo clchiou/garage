@@ -4,6 +4,7 @@ Currently we have build files for these packages:
 
 		C/C++	PP	PC	CY	REV
 cpython		x				3.6.1rc1
+curio			x			0.7
 garage			x			master
 http2					x	master
 lxml				x		3.7.3

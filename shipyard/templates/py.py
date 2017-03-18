@@ -3,6 +3,7 @@
 ___all__ = [
     'define_package',
     'define_pip_package',
+    'define_source_package',
 ]
 
 from collections import namedtuple
@@ -35,12 +36,52 @@ def define_package(package, *,
 
     copy_src_rules = define_copy_src(root=root, name=name)
 
+    source_package_rules = define_source_package(
+        package, name=name, make_build_cmd=make_build_cmd)
+
+    relpath = get_relpath()
+
+    @rule(name + 'unittest')
+    @rule.depend(name + 'build')
+    def unittest(parameters):
+        drydock_src = parameters['//base:drydock'] / relpath
+        scripts.ensure_file(drydock_src / 'setup.py')
+        python = parameters['//py/cpython:python']
+        with scripts.directory(drydock_src):
+            LOG.info('unittest %s', package)
+            scripts.execute([python, '-m', 'unittest'])
+
+    source_package_rules.build.depend(name + 'copy_src')
+    source_package_rules.tapeout.depend(
+        name + 'unittest', when=lambda ps: ps['//base:release'])
+
+    return PackageRules(
+        copy_src=copy_src_rules.copy_src,
+        build=source_package_rules.build,
+        unittest=unittest,
+        tapeout=source_package_rules.tapeout,
+    )
+
+
+SourcePackageRules = namedtuple('SourcePackageRules', 'build tapeout')
+
+
+@parse_common_args
+def define_source_package(package, *,
+                          name: 'name',
+                          make_build_cmd=None):
+    """Define a Python source package, including:
+       * [NAME/]build rule
+       * [NAME/]tapeout rule
+
+       You will need to ensure that source code is copied to drydock.
+    """
+
     relpath = get_relpath()
 
     @rule(name + 'build')
     @rule.depend('//base:build')
     @rule.depend('//py/cpython:build')
-    @rule.depend(name + 'copy_src')
     def build(parameters):
         """Build Python package."""
 
@@ -70,29 +111,16 @@ def define_package(package, *,
             with scripts.using_sudo(envs=['PYTHONPATH']):
                 scripts.execute([python, 'setup.py', 'install'])
 
-    @rule(name + 'unittest')
-    @rule.depend(name + 'build')
-    def unittest(parameters):
-        drydock_src = parameters['//base:drydock'] / relpath
-        scripts.ensure_file(drydock_src / 'setup.py')
-        python = parameters['//py/cpython:python']
-        with scripts.directory(drydock_src):
-            LOG.info('unittest %s', package)
-            scripts.execute([python, '-m', 'unittest'])
-
     @rule(name + 'tapeout')
     @rule.reverse_depend('//base:tapeout')
     @rule.reverse_depend('//py/cpython:tapeout')
     @rule.depend(name + 'build')
-    @rule.depend(name + 'unittest', when=lambda ps: ps['//base:release'])
     def tapeout(parameters):
         """Copy Python package build artifacts."""
         _tapeout(parameters, package, ())
 
-    return PackageRules(
-        copy_src=copy_src_rules.copy_src,
+    return SourcePackageRules(
         build=build,
-        unittest=unittest,
         tapeout=tapeout,
     )
 
