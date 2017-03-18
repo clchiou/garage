@@ -1,5 +1,12 @@
 """Check whether dependent packages are available."""
 
+import subprocess
+
+
+python2_available = (
+    subprocess.run(['which', 'python2'], stdout=subprocess.DEVNULL
+    ).returncode == 0)
+
 
 try:
     import curio

@@ -1,5 +1,7 @@
 import unittest
 
+from tests.availability import python2_available
+
 import subprocess
 
 from garage.multiprocessing import RpcConnectionError
@@ -19,6 +21,7 @@ def func_2(a, b, c):
 '''
 
 
+@unittest.skipUnless(python2_available, 'python2 unavailable')
 class PythonTest(unittest.TestCase):
 
     def test_python(self):
