@@ -1,28 +1,30 @@
 import unittest
 
-import curio
+from tests.availability import curio_available
 
-from garage.threads import actors
-from garage.asyncs.actors import AsyncStub
+if curio_available:
+    import curio
+    from garage.threads import actors
+    from garage.asyncs.actors import AsyncStub
 
 from tests.asyncs.utils import synchronous
 
 
-class _Actor:
-
-    @actors.method
-    def hello(self):
-        return 'hello'
-
-
-class Actor(AsyncStub, actor=_Actor):
-    pass
-
-
+@unittest.skipUnless(curio_available, 'curio unavailable')
 class ActorsTest(unittest.TestCase):
 
     @synchronous
     async def test_actor(self):
+
+        class _Actor:
+
+            @actors.method
+            def hello(self):
+                return 'hello'
+
+        class Actor(AsyncStub, actor=_Actor):
+            pass
+
         stub = Actor()
 
         async with curio.timeout_after(0.01):

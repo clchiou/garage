@@ -1,9 +1,13 @@
 import unittest
 
-from garage.http.routers import ApiRouter, PrefixRouter
-from garage.http.servers import ClientError
+from tests.availability import http2_available
+
+if http2_available:
+    from garage.http.routers import ApiRouter, PrefixRouter
+    from garage.http.servers import ClientError
 
 
+@unittest.skipUnless(http2_available, 'http2 unavailable')
 class RoutersTest(unittest.TestCase):
 
     def test_api_router(self):

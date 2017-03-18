@@ -1,14 +1,17 @@
 import unittest
 
+from tests.availability import curio_available
+
 from concurrent.futures import Future as _Future
 
-import curio
-
-from garage.asyncs.futures import CancelledError, Future, FutureAdapter
+if curio_available:
+    import curio
+    from garage.asyncs.futures import CancelledError, Future, FutureAdapter
 
 from tests.asyncs.utils import synchronous
 
 
+@unittest.skipUnless(curio_available, 'curio unavailable')
 class FutureTest(unittest.TestCase):
 
     @synchronous
@@ -69,6 +72,7 @@ class FutureTest(unittest.TestCase):
             await f.exception()
 
 
+@unittest.skipUnless(curio_available, 'curio unavailable')
 class FutureAdapterTest(unittest.TestCase):
 
     @synchronous

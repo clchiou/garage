@@ -1,38 +1,34 @@
 import unittest
 
+from tests.availability import lxml_available, requests_available
+
 import contextlib
 import pathlib
 import socketserver
 
-from garage import spiders
-from garage.threads import queues
+if requests_available:
 
-import tests.http.server
+    from garage import spiders
+    from garage.threads import queues
+    import tests.http.server
 
-try:
-    import lxml.etree
-except ImportError:
-    skip_dom_parsing = True
-else:
-    skip_dom_parsing = False
+    class TestParser(spiders.Parser):
 
+        def __init__(self):
+            self.logs = []
 
-class TestParser(spiders.Parser):
+        def is_outside(self, uri, from_document=None):
+            return not uri.startswith('http://localhost:8000')
 
-    def __init__(self):
-        self.logs = []
-
-    def is_outside(self, uri, from_document=None):
-        return not uri.startswith('http://localhost:8000')
-
-    def parse(self, req, rep):
-        self.logs.append(req)
-        return spiders.Document(identity=req.uri, links=[
-            ('http://localhost:8000/%s' % link.get('href'), None)
-            for link in rep.dom().xpath('//a')
-        ])
+        def parse(self, req, rep):
+            self.logs.append(req)
+            return spiders.Document(identity=req.uri, links=[
+                ('http://localhost:8000/%s' % link.get('href'), None)
+                for link in rep.dom().xpath('//a')
+            ])
 
 
+@unittest.skipUnless(requests_available, 'requests unavailable')
 class SpidersTest(unittest.TestCase):
 
     data_dirpath = pathlib.Path(__file__).with_name('test_spiders_testdata')
@@ -46,7 +42,7 @@ class SpidersTest(unittest.TestCase):
     def tearDown(self):
         socketserver.TCPServer.allow_reuse_address = False
 
-    @unittest.skipIf(skip_dom_parsing, 'lxml.etree is not installed')
+    @unittest.skipUnless(lxml_available, 'lxml unavailable')
     def test_spider(self):
         with contextlib.ExitStack() as stack:
             stack.enter_context(
@@ -73,6 +69,7 @@ class SpidersTest(unittest.TestCase):
             )
 
 
+@unittest.skipUnless(requests_available, 'requests unavailable')
 class TaskTest(unittest.TestCase):
 
     def test_task(self):

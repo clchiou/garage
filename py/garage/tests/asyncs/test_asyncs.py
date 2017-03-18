@@ -1,14 +1,17 @@
 import unittest
 
+from tests.availability import curio_available
+
 import signal
 
-import curio
-
-from garage import asyncs
+if curio_available:
+    import curio
+    from garage import asyncs
 
 from tests.asyncs.utils import synchronous
 
 
+@unittest.skipUnless(curio_available, 'curio unavailable')
 class SpawnTest(unittest.TestCase):
 
     @synchronous
@@ -41,6 +44,7 @@ class SpawnTest(unittest.TestCase):
         self.assertEqual('CANCELLED', task.state)
 
 
+@unittest.skipUnless(curio_available, 'curio unavailable')
 class TaskSetTest(unittest.TestCase):
 
     @synchronous
@@ -95,6 +99,7 @@ class TaskSetTest(unittest.TestCase):
         self.assertEqual('CANCELLED', tasks[2].state)
 
 
+@unittest.skipUnless(curio_available, 'curio unavailable')
 class TaskStackTest(unittest.TestCase):
 
     @synchronous
@@ -115,6 +120,7 @@ class TaskStackTest(unittest.TestCase):
         self.assertEqual([2, 1], results)
 
 
+@unittest.skipUnless(curio_available, 'curio unavailable')
 class SelectTest(unittest.TestCase):
 
     @synchronous

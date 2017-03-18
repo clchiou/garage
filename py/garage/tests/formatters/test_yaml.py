@@ -1,15 +1,17 @@
 import unittest
 
+from tests.availability import yaml_available
+
 import collections
 import datetime
 import enum
 
-import yaml
-
-from garage.formatters.yaml import represent_datetime
-from garage.formatters.yaml import represent_enum
-from garage.formatters.yaml import represent_mapping
-from garage.timezones import TimeZone
+if yaml_available:
+    import yaml
+    from garage.formatters.yaml import represent_datetime
+    from garage.formatters.yaml import represent_enum
+    from garage.formatters.yaml import represent_mapping
+    from garage.timezones import TimeZone
 
 from tests.utils import make_sorted_ordered_dict
 
@@ -24,6 +26,7 @@ class SomeEnums(enum.Enum):
     C = ('hello', 'world')
 
 
+@unittest.skipUnless(yaml_available, 'yaml unavailable')
 class YamlTest(unittest.TestCase):
 
     def setUp(self):

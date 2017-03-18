@@ -1,13 +1,15 @@
 import unittest
 
-import requests
+from tests.availability import requests_available
 
-from garage.http import clients
-from garage.http import policies
+if requests_available:
+    import requests
+    from garage.http import clients
+    from garage.http import policies
+    from tests.http.mocks import *
 
-from tests.http.mocks import *
 
-
+@unittest.skipUnless(requests_available, 'requests unavailable')
 class ClientTest(unittest.TestCase):
 
     def test_client(self):

@@ -1,16 +1,17 @@
 import unittest
 
+from tests.availability import curio_available, nanomsg_available
+
 import random
 
-import curio
-
-from nanomsg.curio import Socket
-import nanomsg as nn
-
-from garage.asyncs import TaskStack
-from garage.asyncs.futures import Future
-from garage.asyncs.messaging import reqrep
-from garage.asyncs.queues import Queue, ZeroQueue
+if curio_available and nanomsg_available:
+    import curio
+    from nanomsg.curio import Socket
+    import nanomsg as nn
+    from garage.asyncs import TaskStack
+    from garage.asyncs.futures import Future
+    from garage.asyncs.messaging import reqrep
+    from garage.asyncs.queues import Queue, ZeroQueue
 
 from tests.asyncs.utils import synchronous
 
@@ -18,6 +19,8 @@ from tests.asyncs.utils import synchronous
 URL_BASE = 'inproc://test_reqrep/'
 
 
+@unittest.skipUnless(
+    curio_available and nanomsg_available, 'curio or nanomsg unavailable')
 class ReqrepTest(unittest.TestCase):
 
     def setUp(self):

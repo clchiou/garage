@@ -1,12 +1,15 @@
 import unittest
 
-import curio
+from tests.availability import curio_available
 
-from garage.asyncs import queues
+if curio_available:
+    import curio
+    from garage.asyncs import queues
 
 from tests.asyncs.utils import synchronous
 
 
+@unittest.skipUnless(curio_available, 'curio unavailable')
 class QueueTest(unittest.TestCase):
 
     @synchronous
@@ -88,6 +91,7 @@ class QueueTest(unittest.TestCase):
             await queue.until_closed()
 
 
+@unittest.skipUnless(curio_available, 'curio unavailable')
 class ZeroQueueTest(unittest.TestCase):
 
     @synchronous

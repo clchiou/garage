@@ -1,5 +1,7 @@
 import unittest
 
+from tests.availability import lxml_available, requests_available
+
 import contextlib
 import filecmp
 import pathlib
@@ -8,20 +10,14 @@ import sys
 import tempfile
 from concurrent import futures
 
-from garage.http import clients
-from garage.http import utils
-
-from tests.http.mocks import *
-from tests.http.server import *
-
-try:
-    import lxml.etree
-except ImportError:
-    skip_dom_parsing = True
-else:
-    skip_dom_parsing = False
+if requests_available:
+    from garage.http import clients
+    from garage.http import utils
+    from tests.http.mocks import *
+    from tests.http.server import *
 
 
+@unittest.skipUnless(requests_available, 'requests unavailable')
 class DownloadTest(unittest.TestCase):
 
     data_dirpath = pathlib.Path(__file__).with_name('data')
@@ -199,9 +195,10 @@ class DownloadTest(unittest.TestCase):
         return filecmp.cmp(str(expect), str(actual), shallow=False)
 
 
+@unittest.skipUnless(requests_available, 'requests unavailable')
 class FormTest(unittest.TestCase):
 
-    @unittest.skipIf(skip_dom_parsing, 'lxml.etree is not installed')
+    @unittest.skipUnless(lxml_available, 'lxml unavailable')
     def test_form(self):
         req_to_rep = {
             ('GET', 'http://uri_1/'): (

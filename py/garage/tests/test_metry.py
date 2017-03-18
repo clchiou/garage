@@ -5,7 +5,7 @@ import logging
 from garage import metry
 from garage.metry.reporters.logging import LogReporter
 
-from .utils import Any
+from tests.utils import Any
 
 
 class MetryTest(unittest.TestCase):

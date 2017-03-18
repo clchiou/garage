@@ -4,7 +4,10 @@ __all__ = [
 
 from functools import wraps
 
-import curio
+try:
+    import curio
+except ImportError:
+    curio = None
 
 
 def synchronous(coro_func):

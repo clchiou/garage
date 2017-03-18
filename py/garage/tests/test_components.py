@@ -1,17 +1,20 @@
 import unittest
 
-from startup import Startup
+from tests.availability import startup_available
 
-from garage.components import (
-    Component,
-    bind,
-    make_fqname_tuple,
-    vars_as_namespace,
-    _get_name,
-    _is_method_overridden,
-)
+if startup_available:
+    from startup import Startup
+    from garage.components import (
+        Component,
+        bind,
+        make_fqname_tuple,
+        vars_as_namespace,
+        _get_name,
+        _is_method_overridden,
+    )
 
 
+@unittest.skipUnless(startup_available, 'startup unavailable')
 class ComponentsTest(unittest.TestCase):
 
     def test_get_name(self):
