@@ -141,7 +141,6 @@ PipPackageRules = namedtuple('PipPackageRules', 'build tapeout')
 @parse_common_args
 def define_pip_package(package, version, *,
                        name: 'name',
-                       distro_packages=(),
                        patterns=()):
     """Define a third-party Python package, including:
        * [NAME/]build rule
@@ -157,7 +156,6 @@ def define_pip_package(package, version, *,
         site_packages = parameters['//py/cpython:modules'] / 'site-packages'
         if not list(site_packages.glob('%s*' % package)):
             with scripts.using_sudo():
-                scripts.apt_get_install(distro_packages)
                 scripts.execute([
                     parameters['//py/cpython:pip'], 'install',
                     '%s==%s' % (package, version),

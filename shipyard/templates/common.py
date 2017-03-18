@@ -3,6 +3,7 @@
 __all__ = [
     'define_archive',
     'define_copy_src',
+    'define_distro_packages',
     'define_git_repo',
 ]
 
@@ -119,6 +120,26 @@ def define_copy_src(*, root: 'root', name: 'name'):
         scripts.rsync(srcs, drydock_src, delete=True, excludes=EXCLUDES)
 
     return CopySrcRules(copy_src=copy_src)
+
+
+DistroPackagesRules = namedtuple('DistroPackagesRules', 'install_packages')
+
+
+@utils.parse_common_args
+def define_distro_packages(packages, *, name: 'name'):
+    """Define [NAME/]install_packages."""
+
+    (define_parameter
+     .list_typed(name + 'distro_packages')
+     .with_default(packages))
+
+    @rule(name + 'install_packages')
+    def install_packages(parameters):
+        """Install deb packages."""
+        with scripts.using_sudo():
+            scripts.apt_get_install(parameters[name + 'distro_packages'])
+
+    return DistroPackagesRules(install_packages=install_packages)
 
 
 GitRepoInfo = namedtuple('GitRepoInfo', 'repo treeish')

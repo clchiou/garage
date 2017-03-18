@@ -9,7 +9,7 @@ from foreman import define_parameter, get_relpath, rule
 from garage import scripts
 
 from templates import apps
-from templates.common import define_archive
+from templates.common import define_archive, define_distro_packages
 from templates.utils import tapeout_files
 
 
@@ -53,49 +53,46 @@ define_parameter.list_typed('configuration').with_default([
 
 # This list is derived from running `apt-get build-dep python3.6` on
 # Ubuntu 16.10 (not all packages are included)
-(define_parameter
- .list_typed('distro_packages')
- .with_doc('Build-time Debian packages.')
- .with_default([
-     # Build tool
-     'autoconf',
-     'automake',
-     'autotools-dev',
-     'binutils',
-     'cpp',
-     'g++',
-     'gcc',
-     'libtool',
-     'm4',
-     'make',
-     'pkg-config',
-     # Libraries
-     'libatomic1',
-     'libc6-dev',
-     'libmpc3',
-     'libmpdec-dev',
-     'libmpfr4',
-     'libmpx2',
-     'libsigsegv2',
-     # Compression
-     'libbz2-dev',
-     'liblzma-dev',
-     'zlib1g-dev',
-     # Console
-     'libncursesw5-dev',
-     'libreadline-dev',
-     # Database
-     'libdb-dev',
-     'libgdbm-dev',
-     'libsqlite3-dev',
-     # FFI
-     'libffi-dev',
-     # Network
-     'libssl-dev',
-     # XML
-     'libexpat1-dev',
-     'libxml2',  # Do we really need this?
- ]))
+define_distro_packages([
+    # Build tool
+    'autoconf',
+    'automake',
+    'autotools-dev',
+    'binutils',
+    'cpp',
+    'g++',
+    'gcc',
+    'libtool',
+    'm4',
+    'make',
+    'pkg-config',
+    # Libraries
+    'libatomic1',
+    'libc6-dev',
+    'libmpc3',
+    'libmpdec-dev',
+    'libmpfr4',
+    'libmpx2',
+    'libsigsegv2',
+    # Compression
+    'libbz2-dev',
+    'liblzma-dev',
+    'zlib1g-dev',
+    # Console
+    'libncursesw5-dev',
+    'libreadline-dev',
+    # Database
+    'libdb-dev',
+    'libgdbm-dev',
+    'libsqlite3-dev',
+    # FFI
+    'libffi-dev',
+    # Network
+    'libssl-dev',
+    # XML
+    'libexpat1-dev',
+    'libxml2',  # Do we really need this?
+])
 
 
 ### Build artifacts
@@ -121,13 +118,10 @@ define_parameter.list_typed('configuration').with_default([
 
 @rule
 @rule.depend('//base:build')
+@rule.depend('install_packages')
 @rule.depend('download')
 def build(parameters):
     """Build CPython from source."""
-
-    with scripts.using_sudo():
-        scripts.apt_get_install(parameters['distro_packages'])
-
     drydock_src = (parameters['//base:drydock'] / get_relpath() /
                    parameters['archive_info'].output)
     with scripts.directory(drydock_src):
@@ -214,4 +208,3 @@ def python_image(parameters):
 
 python_image.specify_image.depend('python_app/specify_app')
 python_image.write_manifest.depend('tapeout')
-python_image.build_image.depend('tapeout')
