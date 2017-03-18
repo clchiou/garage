@@ -49,7 +49,16 @@ def define_package(package, *,
         python = parameters['//py/cpython:python']
         with scripts.directory(drydock_src):
             LOG.info('unittest %s', package)
-            scripts.execute([python, '-m', 'unittest'])
+            scripts.execute([
+                python, '-m', 'unittest', 'discover',
+                # Set start directory to `tests` so that unittest will
+                # not try to execute source modules (because some source
+                # modules may have missed dependencies and are not
+                # importable)
+                '--start-directory', 'tests',
+                # Without this some imports won't work (why?)
+                '--top-level-directory', '.',
+            ])
 
     source_package_rules.build.depend(name + 'copy_src')
     source_package_rules.tapeout.depend(
