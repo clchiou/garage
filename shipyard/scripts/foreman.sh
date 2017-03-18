@@ -11,7 +11,14 @@ if ! which python3 > /dev/null; then
 fi
 
 # Make sure our --path is the first.
-readonly COMMAND="${1}"
+readonly COMMAND="${1:-}"
+
+if [ -z "${COMMAND}" ]; then
+  set -o xtrace
+  exec "${ROOT}/py/foreman/foreman.py" "${@}"
+fi
+
 shift
+
 set -o xtrace
 exec "${ROOT}/py/foreman/foreman.py" "${COMMAND}" --path "${ROOT}/shipyard/rules" "${@}"
