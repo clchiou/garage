@@ -5,6 +5,8 @@ from foreman import define_rule
 
 (define_rule('all')
  .with_doc('Build all packages.')
+ .depend('//py/garage:build')
+ .depend('//py/startup:build')
  .depend('third-party')
 )
 
