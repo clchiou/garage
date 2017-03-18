@@ -9,5 +9,6 @@ if [[ ! -d "${ROOT}/.git" ]]; then
   exit 1
 fi
 
-export PYTHONPATH="${PYTHONPATH:-}${PYTHONPATH:+:}${ROOT}/py/foreman:${ROOT}/py/garage:${ROOT}/py/startup:${ROOT}/shipyard"
+# Put shipyard at first so that `import tests` would import ours
+export PYTHONPATH="${PYTHONPATH:-}${PYTHONPATH:+:}${ROOT}/shipyard:${ROOT}/py/foreman:${ROOT}/py/garage:${ROOT}/py/startup"
 echo "export PYTHONPATH=${PYTHONPATH}" 1>&2

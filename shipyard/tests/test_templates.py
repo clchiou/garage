@@ -8,10 +8,7 @@ from garage import scripts
 
 from templates import common, utils
 
-if __name__ == '__main__':
-    from fixtures import PrepareForeman
-else:
-    from .fixtures import PrepareForeman
+from tests.fixtures import PrepareForeman
 
 
 class TemplatesTest(PrepareForeman, unittest.TestCase):

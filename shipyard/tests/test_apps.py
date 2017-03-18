@@ -2,10 +2,7 @@ import unittest
 
 from templates import apps
 
-if __name__ == '__main__':
-    from fixtures import PrepareForeman
-else:
-    from .fixtures import PrepareForeman
+from tests.fixtures import PrepareForeman
 
 
 class AppTest(PrepareForeman, unittest.TestCase):
