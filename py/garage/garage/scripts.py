@@ -338,6 +338,8 @@ def git_clone(repo, local_path=None, checkout=None):
         execute(cmd)
         if checkout:
             execute(['git', 'checkout', checkout])
+        if (local_path / '.gitmodules').exists():
+            execute(['git', 'submodule', 'update', '--init', '--recursive'])
 
 
 def gunzip():
