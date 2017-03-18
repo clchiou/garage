@@ -103,7 +103,8 @@ class OneShotActor:
 
     class Stub:
 
-        def __init__(self, future):
+        def __init__(self, name, future):
+            self.name = name  # Useful in logging.
             self._future = future
 
         def _kill(self, graceful=True):
@@ -139,7 +140,7 @@ class OneShotActor:
         if set_pthread_name:
             utils.set_pthread_name(thread, name)
         # Let interface be consistent with full-blown actors
-        return self.Stub(future)
+        return self.Stub(thread.name, future)
 
     def _run_actor(self, future_ref, args, kwargs):
         if not _deref(future_ref).set_running_or_notify_cancel():
