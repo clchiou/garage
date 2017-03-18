@@ -315,7 +315,7 @@ def apt_get_full_upgrade():
 def apt_get_install(packages, *, only_missing=True):
     if only_missing:
         missing = []
-        with redirecting(stdout=subprocess.DEVNULL):
+        with redirecting(stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL):
             for package in packages:
                 cmd = ['dpkg-query', '--status', package]
                 if execute(cmd, check=False).returncode != 0:
