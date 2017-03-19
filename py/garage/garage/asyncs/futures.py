@@ -52,6 +52,44 @@ class Future:
         def __init__(self, future):
             self._future = future
 
+        #
+        # Use context manager to express promise holder's intent to:
+        #   * Start working on the job
+        #   * Capture exception automatically
+        #
+        # The usage is usually like:
+        #   try:
+        #       with promise:
+        #           promise.set_result(...)
+        #   except futures.CancelledError:
+        #       pass
+        #   except Exception:
+        #       ...  # Log error
+        #
+
+        async def __aenter__(self):
+            return self.__enter__()
+
+        async def __aexit__(self, *args):
+            return self.__exit__(*args)
+
+        def __enter__(self):
+            if not self.set_running_or_notify_cancel():
+                raise CancelledError
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            # This is subtly annoying: If after set_result() and before
+            # leaving the block, an exception is raised, it will not be
+            # captured because the promise has been fulfilled already.
+            # Anyway, if you always do promise.set_result() at the very
+            # end, you should be fine.
+            if exc_type and not self._future.done():
+                self.set_exception(exc)
+                # Although the exception is captured, to be consistent
+                # on all code paths we will not suppress the exception,
+                # i.e., don't return True here
+
         # It's usually a good idea that you check whether the job has
         # been cancelled before starting it.
         def set_running_or_notify_cancel(self):
@@ -93,6 +131,9 @@ class Future:
         self._state = State.PENDING
         self._result = None
         self._exception = None
+
+    # Use the context manager to express that the future holder doesn't
+    # care about the result once he leaves this block
 
     async def __aenter__(self):
         return self

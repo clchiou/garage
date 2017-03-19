@@ -71,6 +71,36 @@ class FutureTest(unittest.TestCase):
         with self.assertRaises(CancelledError):
             await f.exception()
 
+    @synchronous
+    async def test_future_context_manager(self):
+        f = Future()
+        self.assertFalse(f.cancelled())
+        async with f:
+            pass
+        self.assertTrue(f.cancelled())
+
+    @synchronous
+    async def test_promise_context_manager(self):
+
+        f = Future()
+        with f.promise() as p:
+            self.assertFalse(f.cancel())  # Too late
+            p.set_result(1)
+        self.assertEqual(1, await f.result())
+
+        f = Future()
+        f.cancel()
+        with self.assertRaises(CancelledError):
+            with f.promise():
+                pass
+
+        f = Future()
+        exc = ValueError()
+        with self.assertRaises(ValueError):
+            with f.promise():
+                raise exc
+        self.assertEqual(exc, await f.exception())
+
 
 @unittest.skipUnless(curio_available, 'curio unavailable')
 class FutureAdapterTest(unittest.TestCase):
