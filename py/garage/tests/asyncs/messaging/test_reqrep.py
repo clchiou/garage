@@ -39,7 +39,7 @@ class ReqrepTest(unittest.TestCase):
             await client_task.cancel()
 
             self.assertTrue(response_future.running())
-            self.assertEqual('CANCELLED', client_task.state)
+            self.assertTrue(client_task.cancelled)
 
     @synchronous
     async def test_cancel_server(self):
@@ -50,7 +50,7 @@ class ReqrepTest(unittest.TestCase):
 
             await server_task.cancel()
 
-            self.assertEqual('CANCELLED', server_task.state)
+            self.assertTrue(server_task.cancelled)
 
     @synchronous
     async def test_end_to_end(self):
@@ -102,19 +102,20 @@ class ReqrepTest(unittest.TestCase):
         async with Socket(protocol=nn.NN_REP) as socket, TaskStack() as stack:
             socket.bind(self.url)
             queue = Queue()
-            server_task = await stack.spawn(
-                reqrep.server(socket, queue, timeout=0.01))
+
+            # Wrap server() so that curio.debug.logcrash() won't clutter
+            # test output (and confuse people)
+            async def run_server():
+                with self.assertRaises(curio.TaskTimeout):
+                    await reqrep.server(socket, queue, timeout=0.01)
+
+            server_task = await stack.spawn(run_server())
 
             async with Socket(protocol=nn.NN_REQ) as client_socket:
                 client_socket.connect(self.url)
                 await client_socket.send(b'')
 
-                try:
-                    await server_task.join()
-                    self.fail('join() did not raise')
-                except curio.TaskError as exc:
-                    self.assertTrue(
-                        isinstance(exc.__cause__, curio.TaskTimeout))
+                await server_task.join()
 
 
 if __name__ == '__main__':

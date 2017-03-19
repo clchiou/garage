@@ -75,7 +75,7 @@ class QueueTest(unittest.TestCase):
         for _ in range(num_expects):
             tasks.append(await curio.spawn(expect_closed()))
 
-        async for task in curio.wait(tasks):
+        async for task in curio.TaskGroup(tasks):
             await task.join()
 
     @synchronous

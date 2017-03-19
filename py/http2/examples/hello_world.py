@@ -31,7 +31,7 @@ def main():
     else:
         make_ssl_context = None
     curio.run(serve(
-        curio.Event(),
+        asyncs.Event(),
         partial(make_server_socket, ('', int(sys.argv[1]))),
         handle,
         make_ssl_context=make_ssl_context,

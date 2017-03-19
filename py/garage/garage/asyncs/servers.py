@@ -27,7 +27,7 @@ async def serve(graceful_exit, graceful_period, make_server_funcs):
         # Also spawn default signal handler
         await servers.spawn(signal_handler(graceful_exit, graceful_period))
         # Now let's wait for the servers...
-        server_task = await curio.wait(servers).next_done()
+        server_task = await asyncs.select(servers)
         # When one server exits, normally or not, we bring down all
         # other servers
         try:
@@ -45,18 +45,18 @@ async def serve(graceful_exit, graceful_period, make_server_funcs):
 async def signal_handler(graceful_exit, graceful_period):
     # Exploit the fact that when one of the server task exits, the init
     # task will bring down all other server tasks
-    async with curio.SignalSet(signal.SIGINT, signal.SIGTERM) as sigset:
-        sig = await sigset.wait()
+    async with curio.SignalQueue(signal.SIGINT, signal.SIGTERM) as sigqueue:
+        sig = await sigqueue.get()
         LOG.info('receive signal: %s', sig)
-        if sig is signal.SIGINT:
+        if sig == signal.SIGINT:
             LOG.info('notify graceful exit')
-            await graceful_exit.set()
-        elif sig is signal.SIGTERM:
+            graceful_exit.set()
+        elif sig == signal.SIGTERM:
             return
         else:
             raise AssertionError('unknown signal: %s' % sig)
         async with curio.ignore_after(graceful_period):
-            sig = await sigset.wait()
+            sig = await sigqueue.get()
             LOG.info('receive signal again: %s', sig)
             return
         LOG.info('exceed graceful period %f', graceful_period)

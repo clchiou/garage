@@ -1,4 +1,5 @@
 __all__ = [
+    'Event',
     'TaskCancelled',
     'TaskSet',
     'TaskStack',
@@ -14,6 +15,7 @@ import inspect
 import curio
 
 from . import queues
+from .base import Event  # Create an alias to base.Event
 
 
 class TaskCancelled(BaseException):
@@ -87,8 +89,7 @@ class cancelling:
         return self.task
 
     async def __aexit__(self, *_):
-        if not self.task.terminated:
-            await self.task.cancel()
+        await self.task.cancel()
 
 
 async def select(cases, *, spawn=spawn):
@@ -98,7 +99,7 @@ async def select(cases, *, spawn=spawn):
        method or an iterable object.  If it's a dict-like object, the
        keys are either a coroutine or a task.
 
-       The advantage of select() over curio.wait() is that it accepts
+       The advantage of select() over curio.TaskGroup is that it accepts
        coroutines and spawns new tasks for those coroutines so that they
        may be waited in parallel.  Also select() will clean up itself by
        cancelling those internally-spawned tasks on its way out.
@@ -112,7 +113,10 @@ async def select(cases, *, spawn=spawn):
             else:
                 task = coro_or_task
             tasks[task] = dict_like and cases[coro_or_task]
-        done_task = await curio.wait(tasks).next_done()
+        # XXX A Task object cannot belong to more than one TaskGroup; as
+        # a result, if one of the task in the `cases` is spawning from a
+        # TaskGroup, curio.TaskGroup() will raise an AssertionError.
+        done_task = await curio.TaskGroup(tasks).next_done()
         if dict_like:
             return done_task, tasks[done_task]
         else:
@@ -120,9 +124,7 @@ async def select(cases, *, spawn=spawn):
 
 
 class TaskSet:
-    """This class is similar to curio.wait, but you may add tasks to it
-       even after it starts waiting.
-    """
+    """Similar to curio.TaskGroup, but use asyncs.spawn by default."""
 
     #
     # State transition:
@@ -135,6 +137,19 @@ class TaskSet:
     # CLOSING   ==     self._graceful_exit and self._pending_tasks is not None
     # CLOSED    ==     self._graceful_exit and not self._pending_tasks
     #
+
+    class TaskGroupAdapter:
+
+        def __init__(self, task_set):
+            self.__task_set = task_set
+
+        # Callback from curio.Task
+        async def _task_done(self, task):
+            self.__task_set._on_task_done(task)
+
+        # Callback from curio.Task
+        def _task_discard(self, task):
+            pass  # Nothing here
 
     def __init__(self, *, spawn=spawn):
         self._pending_tasks = OrderedDict()  # For implementing OrderedSet
@@ -155,31 +170,30 @@ class TaskSet:
         self.graceful_exit()
         tasks, self._pending_tasks = self._pending_tasks, None
         for task in reversed(tasks.keys()):
-            if not task.terminated:
-                await task.cancel()
+            await task.cancel()
 
     async def spawn(self, coro, **kwargs):
         if self._graceful_exit:
             raise AssertionError('%s is closing' % self)
         task = await self._spawn(coro, **kwargs)
+        assert not task._taskgroup
+        assert not task._ignore_result
         self._pending_tasks[task] = None  # Dummy value
-        await curio.spawn(self._join_task(task))
+        task._taskgroup = self.TaskGroupAdapter(self)
         return task
 
-    async def _join_task(self, task):
-        try:
-            await task.join()
-        except Exception:
-            pass
+    def _on_task_done(self, task):
         if self._pending_tasks:
             self._pending_tasks.pop(task)
         # When we are aborting (bypassing graceful_exit()), there could
         # be tasks being done after we closed the _done_tasks queue (for
         # this to happen, we only need two tasks being done after
-        # __aexit__ returns, and then the first task's _join_task closes
+        # __aexit__ returns, and then the first task's _on_task_done closes
         # the _done_tasks queue (because _pending_tasks is None) and the
-        # second task's _join_task sees a closed _done_tasks queue)
+        # second task's _on_task_done sees a closed _done_tasks queue)
         if not self._done_tasks.is_closed():
+            # Call put_nowait() so that we won't be blocked by put()
+            # (is being blocked here a problem?)
             self._done_tasks.put_nowait(task)
         # We may close the _done_tasks queue when it's CLOSED state
         if self._graceful_exit and not self._pending_tasks:
@@ -210,7 +224,7 @@ class TaskStack:
 
        (By default, use asyncs.spawn rather than curio.spawn.)
 
-       Note: curio.wait does not cancel tasks in reverse order but
+       Note: curio.TaskGroup does not cancel tasks in reverse order but
        TaskStack does.
     """
 
@@ -227,8 +241,7 @@ class TaskStack:
         assert self._tasks is not None
         tasks, self._tasks = self._tasks, None
         for task in reversed(tasks):
-            if not task.terminated:
-                await task.cancel()
+            await task.cancel()
 
     def __iter__(self):
         assert self._tasks is not None

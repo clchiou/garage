@@ -10,10 +10,10 @@ __all__ = [
 
 import collections
 
-import curio
-
 from garage import asserts
 from garage.threads.queues import Closed, Empty, Full
+
+from . import base
 
 
 class QueueBase:
@@ -41,12 +41,12 @@ class QueueBase:
 
     def __init__(self, capacity=0):
         self.__capacity = capacity
-        self.__closed = curio.Event()
+        self.__closed = base.Event()
         # Use Event rather than Condition so that close() could be
         # non-async; the drawback is that every time we will wake up all
         # waiters (with Condition you may just notify one).
-        self.__has_item = curio.Event()
-        self.__has_vacancy = curio.Event()
+        self.__has_item = base.Event()
+        self.__has_vacancy = base.Event()
         self.__has_vacancy.set()
         # Call subclass method last
         self.__queue = self._make(self.__capacity)
@@ -152,7 +152,7 @@ class ZeroQueue:
     """A queue with zero capacity."""
 
     def __init__(self):
-        self._closed = curio.Event()
+        self._closed = base.Event()
 
     def __bool__(self):
         return False

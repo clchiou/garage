@@ -5,10 +5,8 @@ __all__ = [
 
 import functools
 
-import curio
-
 from garage import components
-from garage.asyncs import servers
+from garage.asyncs import Event, servers
 
 
 class GracefulExitComponent(components.Component):
@@ -27,7 +25,7 @@ class GracefulExitComponent(components.Component):
                  """)
 
     def make(self, require):
-        return curio.Event()
+        return Event()
 
 
 class ServerContainerComponent(components.Component):

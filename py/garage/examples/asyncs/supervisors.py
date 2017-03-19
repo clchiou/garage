@@ -14,7 +14,7 @@ async def supervisor():
         queue = Queue()
         await stack.spawn(consumer(queue)),
         await stack.spawn(producer(queue)),
-        async for task in curio.wait(stack):
+        async for task in curio.TaskGroup(stack):
             await task.join()
     print('supervisor stop')
 

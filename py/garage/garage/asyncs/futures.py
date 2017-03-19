@@ -19,7 +19,9 @@ __all__ = [
 from concurrent.futures import CancelledError
 import enum
 
-import curio
+import curio.traps
+
+from . import base
 
 
 class State(enum.Enum):
@@ -87,7 +89,7 @@ class Future:
 
     def __init__(self):
         # Set when state is transition to CANCELED or FINISHED
-        self._done = curio.Event()
+        self._done = base.Event()
         self._state = State.PENDING
         self._result = None
         self._exception = None

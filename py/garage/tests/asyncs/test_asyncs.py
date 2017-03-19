@@ -27,21 +27,22 @@ class SpawnTest(unittest.TestCase):
         self.assertTrue(await task.cancel())
         with self.assertRaises(curio.TaskError):
             await task.join()
-        self.assertEqual('CANCELLED', task.state)
+        self.assertTrue(task.cancelled)
+        self.assertTrue(task.terminated)
 
     @synchronous
     async def test_wrapper(self):
 
         async def coro():
-            async with curio.SignalSet(signal.SIGINT) as sigset:
-                await sigset.wait()
-                self.fail('asyncs.TaskCancelled is not raised: %r' % e)
+            await curio.Event().wait()
+            self.fail('asyncs.TaskCancelled is not raised: %r' % e)
 
         task = await asyncs.spawn(coro())
         self.assertTrue(await task.cancel())
         with self.assertRaises(curio.TaskError):
             await task.join()
-        self.assertEqual('CANCELLED', task.state)
+        self.assertTrue(task.cancelled)
+        self.assertTrue(task.terminated)
 
 
 @unittest.skipUnless(curio_available, 'curio unavailable')
@@ -94,9 +95,9 @@ class TaskSetTest(unittest.TestCase):
             spawner_task = await asyncs.spawn(spawner())
             await spawner_task.join()
 
-        self.assertEqual('CANCELLED', tasks[0].state)
-        self.assertEqual('CANCELLED', tasks[1].state)
-        self.assertEqual('CANCELLED', tasks[2].state)
+        for task in tasks:
+            self.assertTrue(task.cancelled)
+            self.assertTrue(task.terminated)
 
 
 @unittest.skipUnless(curio_available, 'curio unavailable')
