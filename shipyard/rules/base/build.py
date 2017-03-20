@@ -74,17 +74,20 @@ def tapeout(parameters):
 
        NOTE: All `tapeout` rules should reverse depend on this rule.
     """
-    # Tapeout the entire /usr/lib/x86_64-linux-gnu might be an overkill,
-    # but it's kind hard to cherry-pick just what I need
-    libs = [
-        '/lib/x86_64-linux-gnu',
-        '/lib64',
-        '/usr/lib/x86_64-linux-gnu',
-        '/usr/local/lib',
-    ]
-    rootfs = parameters['drydock/rootfs']
     with scripts.using_sudo():
-        scripts.rsync(libs, rootfs, relative=True)
+        rootfs = parameters['drydock/rootfs']
         scripts.rsync([to_path('etc')], rootfs)
+        scripts.rsync(['/lib/x86_64-linux-gnu', '/lib64'],
+                      rootfs, relative=True)
+        # Tapeout the entire /usr/lib/x86_64-linux-gnu might be an
+        # overkill, but it's kind hard to cherry-pick just what I need
+        scripts.rsync(['/usr/lib/x86_64-linux-gnu'],
+                      rootfs, relative=True,
+                      excludes=['/usr/lib/x86_64-linux-gnu/perl*'])
+        # Tapeout only shared libraries under /usr/local/lib, which
+        # excludes Python modules (if you also want to tapeout /usr/lib,
+        # remember to only tapeout shared libraries under it)
+        scripts.rsync(Path('/usr/local/lib').glob('lib*.so*'),
+                      rootfs, relative=True)
         scripts.execute(['chown', '--recursive', 'root:root', rootfs / 'etc'])
         scripts.execute(['chmod', '--recursive', 'go-w', rootfs / 'etc'])
