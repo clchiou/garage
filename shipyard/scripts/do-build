@@ -28,62 +28,90 @@ from garage.components import ARGS
     'args', nargs=argparse.REMAINDER, help='add args to the builder script')
 def main(args: ARGS):
 
-    self_path = Path(__file__)
-    builder_script = scripts.ensure_file(self_path.parent / 'builder')
-    foreman_script = scripts.ensure_file(self_path.parent / 'foreman.sh')
+    shipyard = Path(__file__).absolute().parent.parent
 
-    def build_rule(rule, *, extra_args=()):
-        cmd = [str(builder_script), 'build', rule] + args.args
-        cmd.extend(extra_args)
-        scripts.execute(cmd)
+    def build_rule(label, *, extra_args=()):
+        with scripts.directory(shipyard), scripts.dry_run(args.dry_run):
+            cmd = ['scripts/builder', 'build', label]
+            cmd.extend(args.args)
+            cmd.extend(extra_args)
+            scripts.execute(cmd)
 
     foreman_args = get_foreman_args(args.args)
-    def foreman_list(rule):
-        cmd = [str(foreman_script), 'list', rule] + foreman_args
-        output = scripts.execute(cmd, capture_stdout=True)[1]
-        return json.loads(output.decode('ascii'))
+    def foreman_list(label):
+        with scripts.directory(shipyard):
+            cmd = ['scripts/foreman.sh', 'list', label]
+            cmd.extend(foreman_args)
+            output = scripts.execute(cmd, capture_stdout=True).stdout
+            return json.loads(output.decode('utf8'))
 
-    #
-    # Make use of parameter name and build rule name conventions:
-    #
-    #  image/IMAGE
-    #  build_image/IMAGE
-    #
-    #  pod/POD
-    #  version/POD
-    #  build_pod/POD
-    #
-    with scripts.dry_run(args.dry_run):
-
-        pod_path, build_pod_name = args.rule.rsplit(':', maxsplit=1)
-        if not build_pod_name.startswith('build_pod/'):
-            # Non-pod build rule - no planning required.
-            build_rule(args.rule)
-            return 0
-
-        # Figure out images that we need to build for this image
-        build_data = foreman_list(args.rule)
-        pod_name = build_pod_name[len('build_pod/'):]
-        pod_data = get_pod_data(build_data, pod_path, pod_name)
-        build_image_rules = get_build_image_rules(pod_data, pod_path)
-
-        if args.version is not None:
-            version = int(args.version)
+    build_data = foreman_list(args.rule)
+    def get_thing(kind, label):
+        index = label.find(':')
+        if index != -1:
+            label_path = label[:index]
         else:
-            version = int(datetime.datetime.now().timestamp())
+            # Assume label is relative to args.rule
+            label_path = args.rule[:args.rule.index(':')]
+            label = '%s:%s' % (label_path, label)
+        for thing in build_data[label_path][kind]:
+            if thing['label'] == label:
+                return thing
+        raise KeyError(label)
 
-        # Start the build!
-        for build_image_rule in build_image_rules:
-            image_name = build_image_rule[build_image_rule.rfind('/')+1:]
-            build_rule(build_image_rule, extra_args=[
-                '--build-name', 'build-%d-image-%s' % (version, image_name),
-            ])
-        build_rule(args.rule, extra_args=[
-            '--build-name', 'build-%d-pod-%s' % (version, pod_name),
-            '--parameter', '%s:version/%s=%d' % (pod_path, pod_name, version),
+    get_rule = lambda label: get_thing('rules', label)
+    get_parameter = lambda label: get_thing('parameters', label)
+
+    # Figure out what kind of rule we are building
+    main_rule = get_rule(args.rule)
+    if main_rule['annotations'].get('rule-type') != 'build_pod':
+        # It's not a pod build rule - no planning required
+        build_rule(main_rule['label'])
+        return 0
+
+    # We are building a pod; let's find all build_image rules
+
+    for dep in main_rule['all_dependencies']:
+        dep_rule = get_rule(dep['label'])
+        if dep_rule['annotations'].get('rule-type') == 'specify_pod':
+            break
+    else:
+        raise ValueError('no specify_pod rule for %s' % args.rule)
+    specify_pod_rule = dep_rule
+
+    build_image_rules = []
+    for dep in specify_pod_rule['all_dependencies']:
+        dep_rule = get_rule(dep['label'])
+        if dep_rule['annotations'].get('rule-type') == 'specify_image':
+            rule = get_rule(dep_rule['annotations']['build-image-rule'])
+            build_image_rules.append(rule)
+
+    # Find the version parameter and determine the version
+
+    version_label = main_rule['annotations']['version-parameter']
+    version_label = get_parameter(version_label)
+    version_label = version_label['label']
+
+    if args.version is not None:
+        version = int(args.version)
+    else:
+        version = int(datetime.datetime.now().timestamp())
+
+    # Start the build!
+
+    for rule in build_image_rules:
+        image_name = rule['annotations']['image-name']
+        build_rule(rule['label'], extra_args=[
+            '--build-name', 'build-%d-image-%s' % (version, image_name),
         ])
 
-        return 0
+    pod_name = main_rule['annotations']['pod-name']
+    build_rule(main_rule['label'], extra_args=[
+        '--build-name', 'build-%d-pod-%s' % (version, pod_name),
+        '--parameter', '%s=%d' % (version_label, version),
+    ])
+
+    return 0
 
 
 def get_foreman_args(args):
@@ -105,26 +133,6 @@ def get_foreman_args(args):
             foreman_args.append(arg)
             foreman_args.append(next(args))
     return foreman_args
-
-
-def get_pod_data(build_data, pod_path, pod_name):
-    for parameter_data in build_data[pod_path]['parameters']:
-        if parameter_data['label'].endswith(':pod/%s' % pod_name):
-            return parameter_data
-    raise ValueError('cannot find pod data for %s:%s' % (pod_path, pod_name))
-
-
-def get_build_image_rules(pod_data, pod_path):
-    build_image_rules = []
-    for app_data in pod_data['default']['apps']:
-        image_label = app_data['image_label']
-        if image_label.startswith('//'):
-            image_path, image_name = image_label.rsplit(':', maxsplit=1)
-        else:
-            image_path = pod_path
-            image_name = image_label
-        build_image_rules.append('%s:build_%s' % (image_path, image_name))
-    return build_image_rules
 
 
 if __name__ == '__main__':

@@ -115,6 +115,7 @@ def define_image(name, specifier):
     @rule.depend('//base:tapeout')
     @rule.depend(name + '/write_manifest')
     @rule.annotate('rule-type', 'build_image')  # For do-build tool
+    @rule.annotate('image-name', name)
     def build_image(parameters):
         """Build Appc container image."""
 
@@ -173,7 +174,7 @@ def _compute_sha512(sha512_file_path):
     sha512_file_path.write_text('%s\n' % hasher.hexdigest())
 
 
-PodRules = namedtuple('PodRules', 'specify build_pod')
+PodRules = namedtuple('PodRules', 'specify_pod build_pod')
 
 
 def define_pod(name, specifier):
@@ -189,13 +190,14 @@ def define_pod(name, specifier):
 
     @rule(name + '/specify_pod')
     @rule.annotate('rule-type', 'specify_pod')  # For do-build tool
-    @rule.annotate('build-pod-rule', name + '/build_pod')
     def specify_pod(parameters):
         execute_specifier(parameters, name, parameter_pod, specifier)
 
     @rule(name + '/build_pod')
     @rule.depend(name + '/specify_pod')
     @rule.annotate('rule-type', 'build_pod')  # For do-build tool
+    @rule.annotate('pod-name', name)
+    @rule.annotate('version-parameter', name + '/version')
     def build_pod(parameters):
         """Write out pod-related data files."""
 
