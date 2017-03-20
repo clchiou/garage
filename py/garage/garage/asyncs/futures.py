@@ -84,11 +84,19 @@ class Future:
             # captured because the promise has been fulfilled already.
             # Anyway, if you always do promise.set_result() at the very
             # end, you should be fine.
-            if exc_type and not self._future.done():
-                self.set_exception(exc)
-                # Although the exception is captured, to be consistent
-                # on all code paths we will not suppress the exception,
-                # i.e., don't return True here
+            if exc_type:
+                if (not self._future.done() and
+                        # We should only capture "true" errors
+                        (not issubclass(exc_type, BaseException) or
+                         issubclass(exc_type, Exception))):
+                    self.set_exception(exc)
+                    # Although the exception is captured, to be consistent
+                    # on all code paths we will not suppress the exception,
+                    # i.e., don't return True here
+            else:
+                if not self._future.done():
+                    import warnings
+                    warnings.warn('promise has not been fulfilled: %r' % self)
 
         # It's usually a good idea that you check whether the job has
         # been cancelled before starting it.

@@ -64,7 +64,7 @@ def _send(send, arg):
 
 
 def _throw(throw, type_, *args):
-    assert not args
+    assert not args  # I assume curio doesn't pass any other args
     if type_ is curio.TaskCancelled or type(type_) is curio.TaskCancelled:
         # Raise asyncs.TaskCancelled in task's coroutine but raise
         # curio.TaskCancelled in the curio main loop.

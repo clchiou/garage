@@ -3,9 +3,11 @@ import unittest
 from tests.availability import curio_available
 
 from concurrent.futures import Future as _Future
+import warnings
 
 if curio_available:
     import curio
+    from garage import asyncs
     from garage.asyncs.futures import CancelledError, Future, FutureAdapter
 
 from tests.asyncs.utils import synchronous
@@ -100,6 +102,26 @@ class FutureTest(unittest.TestCase):
             with f.promise():
                 raise exc
         self.assertEqual(exc, await f.exception())
+
+        async def func(p, started):
+            with p:
+                started.set()
+                await asyncs.Event().wait()
+
+        f = Future()
+        started = asyncs.Event()
+        task = await asyncs.spawn(func(f.promise(), started))
+        await started.wait()
+        await task.cancel()
+        self.assertFalse(f.done())
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter('always')
+            f = Future()
+            with f.promise():
+                pass
+        self.assertTrue(1, len(w))
+        self.assertIn('promise has not been fulfilled', str(w[0].message))
 
 
 @unittest.skipUnless(curio_available, 'curio unavailable')
