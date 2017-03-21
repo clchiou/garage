@@ -67,6 +67,7 @@ def define_app(name, specifier):
     parameter_app = App.define_parameter(name)
 
     @rule(name + '/specify_app')
+    @rule.depend('//base:build')
     def specify_app(parameters):
         execute_specifier(parameters, name, parameter_app, specifier)
 
@@ -94,6 +95,7 @@ def define_image(name, specifier):
     parameter_image = Image.define_parameter(name)
 
     @rule(name + '/specify_image')
+    @rule.depend('//base:build')
     @rule.annotate('rule-type', 'specify_image')  # For do-build tool
     @rule.annotate('build-image-rule', name + '/build_image')
     def specify_image(parameters):
@@ -112,7 +114,6 @@ def define_image(name, specifier):
         )
 
     @rule(name + '/build_image')
-    @rule.depend('//base:tapeout')
     @rule.depend(name + '/write_manifest')
     @rule.annotate('rule-type', 'build_image')  # For do-build tool
     @rule.annotate('image-name', name)
@@ -189,6 +190,7 @@ def define_pod(name, specifier):
     define_parameter.int_typed(name + '/version')
 
     @rule(name + '/specify_pod')
+    @rule.depend('//base:build')
     @rule.annotate('rule-type', 'specify_pod')  # For do-build tool
     def specify_pod(parameters):
         execute_specifier(parameters, name, parameter_pod, specifier)

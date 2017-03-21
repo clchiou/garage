@@ -122,9 +122,9 @@ def define_source_package(package, *,
                 scripts.execute([python, 'setup.py', 'install'])
 
     @rule(name + 'tapeout')
+    @rule.depend(name + 'build')
     @rule.reverse_depend('//base:tapeout')
     @rule.reverse_depend('//py/cpython:tapeout')
-    @rule.depend(name + 'build')
     def tapeout(parameters):
         """Copy Python package build artifacts."""
         _tapeout(parameters, package, ())
@@ -162,9 +162,9 @@ def define_pip_package(package, version, *,
                 ])
 
     @rule(name + 'tapeout')
+    @rule.depend(name + 'build')
     @rule.reverse_depend('//base:tapeout')
     @rule.reverse_depend('//py/cpython:tapeout')
-    @rule.depend(name + 'build')
     def tapeout(parameters):
         """Copy Python package artifacts."""
         _tapeout(parameters, package, patterns)

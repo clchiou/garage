@@ -16,6 +16,9 @@
     # Define `//some/package:sub-package-2/build`.
     define_package(name='sub-package-2')
 
+* All build rules should transitively depend on `//base:build` (except
+  `//base:build` itself of course).
+
 * Build rule template should return the build rule objects it creates so
   that its caller has a chance to refine the rule objects.
 

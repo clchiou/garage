@@ -50,6 +50,7 @@ def define_archive(*, name: 'name',
          uri=uri, filename=filename, output=output, checksum=checksum)))
 
     @rule(name + 'download')
+    @rule.depend('//base:build')
     def download(parameters):
         """Download and extract archive."""
 
@@ -110,6 +111,7 @@ def define_copy_src(*, root: 'root', name: 'name'):
     relpath = get_relpath()
 
     @rule(name + 'copy_src')
+    @rule.depend('//base:build')
     def copy_src(parameters):
         """Copy src into drydock_src (and then you will build from there)."""
         src = parameters[root] / relpath
@@ -134,6 +136,7 @@ def define_distro_packages(packages, *, name: 'name'):
      .with_default(packages))
 
     @rule(name + 'install_packages')
+    @rule.depend('//base:build')
     def install_packages(parameters):
         """Install deb packages."""
         with scripts.using_sudo():
@@ -159,6 +162,7 @@ def define_git_repo(*, name: 'name',
     relpath = get_relpath()
 
     @rule(name + 'git_clone')
+    @rule.depend('//base:build')
     def git_clone(parameters):
         """Clone and checkout git repo."""
         drydock_src = parameters['//base:drydock'] / relpath
