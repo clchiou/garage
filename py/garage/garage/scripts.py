@@ -35,6 +35,7 @@ __all__ = [
     'wget',
     # Generic helpers
     'ensure_checksum',
+    'ensure_contents',
     'ensure_directory',
     'ensure_file',
     'ensure_not_root',
@@ -479,6 +480,13 @@ def ensure_str(obj):
     return obj if obj is None else str(obj)
 
 
+def ensure_contents(path, contents):
+    """Write contents to file."""
+    if is_dry_run():
+        return
+    ensure_path(path).write_text(contents)
+
+
 SUPPORTED_HASH_ALGORITHMS = {
     'md5': hashlib.md5,
     'sha1': hashlib.sha1,
@@ -522,7 +530,7 @@ def ensure_file(path):
 
 
 def ensure_not_root():
-    if getpass.getuser() == 'root':
+    if getpass.getuser() == 'root' and not is_dry_run():
         raise RuntimeError('script is ran by root')
 
 
@@ -531,7 +539,8 @@ def insert_path(path, *, var='PATH'):
     paths = os.environ.get(var)
     paths = '%s:%s' % (path, paths) if paths else str(path)
     LOG.info('add %r to %s: %s', path, var, paths)
-    os.environ[var] = paths
+    if not is_dry_run():
+        os.environ[var] = paths
 
 
 def install_dependencies():
