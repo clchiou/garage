@@ -5,6 +5,7 @@ Currently we have build files for these packages:
 ```
                     CC  PP  PC  CY  REV
 first party
+  buildtools            x
   garage                x
   http2                 x
   nanomsg               x
@@ -13,6 +14,7 @@ first party
 thrid party
   cpython           x               3.6.1rc1
   curio                 x           0.7
+  cython                        x   0.25.2
   lxml                      x       3.7.3
   mako                  x           1.0.6
     markupsafe          x
@@ -21,8 +23,8 @@ thrid party
   pyyaml                    x       3.12
   requests              x           2.13.0
   sqlalchemy                x       1.1.6
-  v8                x               5.4.310
-    depot_tools         x
+  v8                x               5.9.61
+    depot_tools         x           master
 
 CC = C/C++
 PP = Pure Python (maybe using ctypes)

@@ -101,7 +101,7 @@ EXCLUDES = [
 
 
 @utils.parse_common_args
-def define_copy_src(*, root: 'root', name: 'name'):
+def define_copy_src(*, root: 'root', name: 'name', src_relpath=None):
     """Define [NAME/]copy_src rule.
 
        This is most likely to be useful to other rule templates, not to
@@ -114,7 +114,7 @@ def define_copy_src(*, root: 'root', name: 'name'):
     @rule.depend('//base:build')
     def copy_src(parameters):
         """Copy src into drydock_src (and then you will build from there)."""
-        src = parameters[root] / relpath
+        src = parameters[root] / (src_relpath or relpath)
         drydock_src = parameters['//base:drydock'] / relpath
         LOG.info('copy source: %s -> %s', src, drydock_src)
         scripts.mkdir(drydock_src)
