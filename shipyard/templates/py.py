@@ -8,6 +8,7 @@ ___all__ = [
 
 from collections import namedtuple
 import logging
+import tempfile
 
 from garage import scripts
 
@@ -44,21 +45,19 @@ def define_package(package, *,
     @rule(name + 'unittest')
     @rule.depend(name + 'build')
     def unittest(parameters):
+        # Running unit tests in place (i.e., in drydock_src directory)
+        # will sometimes be interfered by the source code; so let's run
+        # unit tests in a temporary directory instead.
         drydock_src = parameters['//base:drydock'] / relpath
-        scripts.ensure_file(drydock_src / 'setup.py')
+        tests = drydock_src / 'tests'
+        if not tests.exists():
+            LOG.info('no unittest for: %s', package)
+            return
         python = parameters['//py/cpython:python']
-        with scripts.directory(drydock_src):
+        with tempfile.TemporaryDirectory() as temp, scripts.directory(temp):
             LOG.info('unittest %s', package)
-            scripts.execute([
-                python, '-m', 'unittest', 'discover',
-                # Set start directory to `tests` so that unittest will
-                # not try to execute source modules (because some source
-                # modules may have missed dependencies and are not
-                # importable)
-                '--start-directory', 'tests',
-                # Without this some imports won't work (why?)
-                '--top-level-directory', '.',
-            ])
+            scripts.symlink(tests, scripts.ensure_path(temp) / 'tests')
+            scripts.execute([python, '-m', 'unittest'])
 
     source_package_rules.build.depend(name + 'copy_src')
     source_package_rules.tapeout.depend(

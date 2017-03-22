@@ -28,4 +28,4 @@ def install(parameters):
     if not Path('/usr/bin/node').exists():
         scripts.ensure_file('/usr/bin/nodejs')
         with scripts.using_sudo(), scripts.directory('/usr/bin'):
-            scripts.execute(['ln', '--symbolic', 'nodejs', 'node'])
+            scripts.symlink('nodejs', 'node')
