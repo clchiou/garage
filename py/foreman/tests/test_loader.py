@@ -39,6 +39,8 @@ class LoaderTest(unittest.TestCase):
             foreman.LOADER.load_build_files(['//pkg1/pkg2:rule_x'])
         finally:
             loader, foreman.LOADER = foreman.LOADER, loader
+        self.assertIsNone(foreman.LOADER)
+        self.assertIsNone(loader.path)
 
         loader.resolve_reverse_dependencies([
             # Add reverse dependencies from this rule.
@@ -87,6 +89,8 @@ class LoaderTest(unittest.TestCase):
             foreman.LOADER.load_build_files(['//pkg1:pkg3'])
         finally:
             loader, foreman.LOADER = foreman.LOADER, loader
+        self.assertIsNone(foreman.LOADER)
+        self.assertIsNone(loader.path)
 
         loader.resolve_reverse_dependencies([
             # Add reverse dependencies from this rule.
@@ -112,6 +116,8 @@ class LoaderTest(unittest.TestCase):
             foreman.LOADER.load_build_files(['//pkg-rdeps:joint-rule-2'])
         finally:
             loader, foreman.LOADER = foreman.LOADER, loader
+        self.assertIsNone(foreman.LOADER)
+        self.assertIsNone(loader.path)
 
         loader.resolve_reverse_dependencies([
             '//pkg-rdeps:joint-rule-2',

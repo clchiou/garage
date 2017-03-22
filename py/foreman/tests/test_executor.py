@@ -1,5 +1,7 @@
 import unittest
 
+import types
+
 from foreman import (
 
     Label,
@@ -56,6 +58,7 @@ class ParameterValuesTest(unittest.TestCase):
             parameters,
             {label2: 'hello'},
             Label.parse('//y:y').path,
+            types.SimpleNamespace(path=None),
         )
         self.assertEqual(10, ps['//x:p0'])
         self.assertEqual(12, ps['//x:p1'])

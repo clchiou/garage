@@ -542,7 +542,8 @@ class Executor:
         if self.build_ids.check_and_add(rule, environment):
             return
 
-        values = ParameterValues(self.parameters, environment, rule.label.path)
+        values = ParameterValues(
+            self.parameters, environment, rule.label.path, self.loader)
 
         for dep in rule.all_dependencies:
 
@@ -599,10 +600,11 @@ class BuildIds:
 class ParameterValues:
     """"A "view" of parameters and environment dict."""
 
-    def __init__(self, parameters, environment, implicit_path):
+    def __init__(self, parameters, environment, implicit_path, loader):
         self.parameters = parameters
         self.environment = environment
         self.implicit_path = implicit_path
+        self.loader = loader
 
     def __contains__(self, label):
         return label in self.parameters
@@ -615,12 +617,15 @@ class ParameterValues:
         if label in self.environment:
             return parameter.ensure_type(self.environment[label])
         elif parameter.derive:
-            # Create a ParameterValues with different implicit_path.
-            return parameter.ensure_type(parameter.derive(ParameterValues(
-                self.parameters,
-                self.environment,
-                parameter.label.path,
-            )))
+            with Context(self.loader, parameter.label.path):
+                # Create a ParameterValues with different implicit_path.
+                value = parameter.derive(ParameterValues(
+                    self.parameters,
+                    self.environment,
+                    parameter.label.path,
+                    self.loader,
+                ))
+            return parameter.ensure_type(value)
         else:
             return parameter.default
 
@@ -633,6 +638,13 @@ class ForemanError(Exception):
     pass
 
 
+#
+# LOADER is the only global variable, which is used in both:
+#   * build file loading phase
+#   * build rule executing phase
+# And it serves as a context in both phases (it's not simply a loader
+# anymore).
+#
 LOADER = None
 
 
@@ -890,8 +902,10 @@ def command_list(args, loader):
         contents['label'] = str(parameter.label)
         contents['doc'] = parameter.doc
         if parameter.derive is not None:
-            contents['default'] = parameter.derive(
-                ParameterValues(loader.parameters, {}, parameter.label.path))
+            with Context(loader, parameter.label.path):
+                contents['default'] = parameter.derive(
+                    ParameterValues(
+                        loader.parameters, {}, parameter.label.path, loader))
         elif parameter.default is not None:
             contents['default'] = parameter.default
         if parameter.encode and 'default' in contents:
