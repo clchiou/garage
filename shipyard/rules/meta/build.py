@@ -22,6 +22,7 @@ from foreman import define_rule
  .depend('//cc/v8:build')
  .depend('//host/cython:install')
  .depend('//host/depot_tools:install')
+ .depend('//host/node:install')
  .depend('//py/cpython:build')
  .depend('//py/curio:build')
  .depend('//py/lxml:build')
