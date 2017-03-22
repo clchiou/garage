@@ -24,7 +24,8 @@ common.define_distro_packages([
 # Help //py/v8 find out where build artifacts are
 (define_parameter.path_typed('output')
  .with_doc('Path to V8 build output directory.')
- .with_derive(lambda ps: ps['//base:drydock'] / 'cc/v8/out.gn/x64.release'))
+ .with_derive(
+     lambda ps: ps['//base:drydock'] / get_relpath() / 'out.gn/x64.release'))
 
 
 ARGS_GN_FORMAT = '''\
