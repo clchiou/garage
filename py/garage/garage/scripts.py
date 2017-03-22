@@ -23,6 +23,7 @@ __all__ = [
     'gzip',
     'mkdir',
     'rsync',
+    'symlink',
     'systemctl_disable',
     'systemctl_enable',
     'systemctl_is_active',
@@ -380,6 +381,10 @@ def rsync(srcs, dst, *,
     cmd.extend(srcs)
     cmd.append(dst)
     execute(cmd)
+
+
+def symlink(target, link_name):
+    execute(['ln', '--symbolic', target, link_name])
 
 
 def _systemctl(command, name):
