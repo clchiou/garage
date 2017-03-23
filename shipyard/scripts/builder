@@ -48,14 +48,15 @@ def run(builder, cmd):
 @cli.argument(
     '--foreman', action='append', help='send argument to foreman')
 @cli.argument(
-    '--output', required=True, help='set output directory path')
+    '--output', help='set output directory path')
 @cli.argument(
     'rule', nargs='+', help='add build rule')
 def build(args: ARGS, builder, cmd):
     """Execute one or more build rules."""
-    output = Path(args.output).resolve()
+    if args.output:
+        output = Path(args.output).resolve()
+        cmd.extend(['--volume', '%s:/home/plumber/output:rw' % output])
     cmd.extend([
-        '--volume', '%s:/home/plumber/output:rw' % output,
         builder,
         '/home/plumber/garage/shipyard/scripts/foreman.sh', 'build',
     ])
