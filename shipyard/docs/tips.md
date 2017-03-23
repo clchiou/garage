@@ -6,6 +6,8 @@
     ./scripts/builder build --preserve-container ...
     docker commit -c 'CMD ["/bin/bash"]' BUILD_ID TAG
 
+  These steps are automated in `scripts/make-builder.sh`.
+
 * You may reduce developer build time even further by disabling release
   build:
 
