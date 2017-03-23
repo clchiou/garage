@@ -76,7 +76,8 @@ def read_pkg_config(packages):
     })
 
 
-def make_bdist_zipapp(*, python='/usr/bin/env python3', main=None):
+def make_bdist_zipapp(*, python='/usr/bin/env python3',
+                      main_optional=False, main=None):
 
     class bdist_zipapp(Command):
 
@@ -105,7 +106,7 @@ def make_bdist_zipapp(*, python='/usr/bin/env python3', main=None):
         def finalize_options(self):
             if self.python is None:
                 raise DistutilsOptionError('--python is required')
-            if self.main is None:
+            if self.main is None and not main_optional:
                 raise DistutilsOptionError('--main is required')
             if self.output is None:
                 raise DistutilsOptionError('--output is required')
@@ -137,24 +138,33 @@ def make_bdist_zipapp(*, python='/usr/bin/env python3', main=None):
             install_lib = self.distribution.get_command_obj('install_lib')
             install_dir = install_lib.install_dir
 
-            main_path = os.path.join(install_dir, '__main__.py')
-            module, func = self.main.rsplit(':', maxsplit=1)
-            log.info('generating %s' % main_path)
-            with open(main_path, 'w') as main_file:
-                main_file.write(self.MAIN_TEMPLATE.format(
-                    module=module,
-                    func=func,
-                ))
+            if self.main is not None:
+                main_path = os.path.join(install_dir, '__main__.py')
+                module, func = self.main.rsplit(':', maxsplit=1)
+                log.info('generating %s' % main_path)
+                with open(main_path, 'w') as main_file:
+                    main_file.write(self.MAIN_TEMPLATE.format(
+                        module=module,
+                        func=func,
+                    ))
 
-            log.info('generating %s' % self.output)
-            with open(self.output, 'wb') as output_file:
-                output_file.write(b'#!%s\n' % self.python.encode('utf-8'))
-                output_file.flush() # Make sure `zip` outputs after me.
+            if os.path.exists(self.output):
+                log.info('appending %s' % self.output)
                 check_call(
-                    ['zip', '-r', '-', '.'],
-                    stdout=output_file,
+                    ['zip', '--grow', '-r', os.path.abspath(self.output), '.'],
                     cwd=install_dir,
                 )
+            else:
+                log.info('generating %s' % self.output)
+                with open(self.output, 'wb') as output_file:
+                    output_file.write(b'#!%s\n' % self.python.encode('utf-8'))
+                    # flush() to ensure `zip` contents is after me
+                    output_file.flush()
+                    check_call(
+                        ['zip', '-r', '-', '.'],
+                        stdout=output_file,
+                        cwd=install_dir,
+                    )
 
             # chmod a+x
             mode = os.stat(self.output).st_mode
