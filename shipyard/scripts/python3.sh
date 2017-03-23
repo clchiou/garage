@@ -2,6 +2,6 @@
 
 # Set up environment for python3
 
-source "$(dirname "${BASH_SOURCE}")/common.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 
 exec python3 "${@}"
