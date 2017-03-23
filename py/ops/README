@@ -1,30 +1,30 @@
-ops - Low-Level Operation Scripts
+ops - Operations Tool
 
-ops is a collection of scripts executed on the remote machines, most
-commonly by configuration management tools.
+ops is a collection of scripts executed on local and remote machines.
+You add functionalities to ops when all of the following conditions are
+true:
 
-You add more scripts to here only when both of the following are met:
+  * Such functionality cannot be executed from inside a container.
 
-  * It is not possible to be done within a container.
+  * Implementing such functionality in configuration management system
+    is clumsy.
 
-  * Implementing in configuration management tools is clumsy.
+In addition, you should:
 
-Otherwise you should keep these ops scripts at minimum, meaning:
-
-  * If you are in situations where ops scripts need to be executed as a
-    daemon, something probably went wrong.
-
-  * The ops scripts should only depend on Python 3 standard library (so
-    that it is easy to deploy these scripts to the remote machine).
+  * Make ops depend only on Python 3 standard library so that deploying
+    ops to remote machines will be easy (you may simply create an zip
+    archive and copy that archive to the remote machines).
 
 
 === Pod (Container Group)
 
-Containers are (un-)deployed in a tightly-coupled group, which would
-usually be called a "pod".  A pod is declared by deployment info plus an
-"abstract" Appc pod manifest (which ops scripts will provide concrete
-deployment-time data, like the physical location of volumes or host port
-numbers).
+Containers are deployed in a tightly-coupled group called "pod".  A pod
+is described by ops tool -specific metadata and an "abstract" Appc pod
+manifest, which ops will insert "realized" deployment-time data into.
+The deployment-time includes, for example, filesystem path of volumes
+and allocated port numbers.
+
+Here is an example of the pod description:
 
     {
         # Required.
@@ -68,11 +68,11 @@ numbers).
         #
         # Each volume entry here must have a corresponding host-kind
         # volume entry in the pod manifest of which "source" attribute
-        # must not be set and will be provided by ops scripts.
+        # must not be set and will be inserted by ops tool.
         #
         # They are _NOT_ shared across versions of pod, though; if you
         # want to share stateful data across versions of pod, you
-        # probably should things like RDBMS.
+        # probably should use things like RDBMS.
         "volumes": [
             {
                 # Required.
@@ -89,9 +89,9 @@ numbers).
             ...
         ],
 
-        # Required: Embedded "abstract" Appc pod manifest.
+        # Required: The "abstract" Appc pod manifest.
         "manifest": {
-            "acVersion": "0.8.6",
+            "acVersion": "0.8.10",
             "acKind": "PodManifest",
             ...
         }
@@ -99,10 +99,10 @@ numbers).
 
 
 To deploy, you create a deployment bundle, copy that bundle to the
-target machine, and then run the ops scripts on the bundle.  You may
-remove the bundle after deployment.  A bundle includes:
+target machine, and then run the ops tool on the bundle.  You may remove
+the bundle after deployment.  A bundle includes:
 
-  * A JSON file defines a container group (usually named "pod.json").
+  * A JSON file "pod.json" describes the pod.
 
   * All required build artifacts: images, unit files, etc.  (Note that
     we said that the "path" of an image is relative to pod.json.)
