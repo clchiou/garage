@@ -69,7 +69,19 @@ def build(parameters):
     output = drydock_src / 'out.gn/x64.release'
     if not (output / 'args.gn').exists():
         scripts.mkdir(output)
-        release = 'true' if parameters['//base:release'] else 'false'
+        #
+        # TODO: Fix release build
+        # 2017-03-23: I encountered two issues during release build:
+        #
+        # * LLVMgold.so was not downloaded by the build tool; I solved
+        #   this by manually running:
+        #   GYP_DEFINES='cfi_vptr=1' v8/gypfiles/download_gold_plugin.py
+        #
+        # * Build crashed when generating sanpshot_blob.bin with:
+        #   python ../../tools/run.py ./mksnapshot --startup_src gen/snapshot.cc --random-seed 314159265 --startup_blob snapshot_blob.bin
+        #
+        #release = 'true' if parameters['//base:release'] else 'false'
+        release = 'false'
         scripts.ensure_contents(
             output / 'args.gn', ARGS_GN_FORMAT.format(release=release))
         with scripts.directory(drydock_src):
