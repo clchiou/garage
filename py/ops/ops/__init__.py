@@ -4,8 +4,7 @@ import logging
 from garage import cli, scripts
 from garage.components import ARGS
 
-from .deps import deps
-from .repos import Repo
+from . import deps, locks, repos
 
 
 logging.getLogger(__name__).addHandler(logging.NullHandler())
@@ -14,7 +13,7 @@ logging.getLogger(__name__).addHandler(logging.NullHandler())
 @cli.command('list', help='list allocated ports')
 def list_ports(args: ARGS):
     """List ports allocated to deployed pods."""
-    for port in Repo(args.root).get_ports():
+    for port in repos.Repo(args.root).get_ports():
         print('%s:%d %s %d' %
               (port.pod_name, port.pod_version, port.name, port.port))
     return 0
@@ -35,10 +34,23 @@ def ports(args: ARGS):
     help='set root directory of repos (default %(default)s)'
 )
 @cli.sub_command_info('entity', 'system entity to be operated on')
-@cli.sub_command(deps)
+@cli.sub_command(deps.deps)
 @cli.sub_command(ports)
 def main(args: ARGS):
     """Operations tool."""
     with scripts.dry_run(args.dry_run):
         scripts.ensure_not_root()
-        return args.entity()
+        if getattr(args, 'no_locking_required', False):
+            lock = None
+        else:
+            lock = locks.FileLock(repos.Repo.get_lock_path(args.root))
+        if not lock or lock.acquire():
+            try:
+                return args.entity()
+            finally:
+                if lock:
+                    lock.release()
+        else:
+            logger = logging.getLogger(__name__)
+            logger.error('cannot lock repo: %s', args.root)
+            return 1

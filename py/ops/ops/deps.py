@@ -106,6 +106,7 @@ def install(args: ARGS):
 
 
 @cli.command(help='manage external dependencies')
+@cli.defaults(no_locking_required=True)
 @cli.sub_command_info('operation', 'operation on external dependencies')
 @cli.sub_command(list_)
 @cli.sub_command(install)

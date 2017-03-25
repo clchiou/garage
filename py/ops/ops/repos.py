@@ -29,6 +29,10 @@ class Repo:
     def get_repo_dir(root_dir):
         return root_dir / ('v%d' % VERSION)
 
+    @classmethod
+    def get_lock_path(cls, root_dir):
+        return cls.get_repo_dir(root_dir) / 'lock'
+
     def __init__(self, root_dir):
         self._pods = self.get_repo_dir(root_dir) / 'pods'
 
