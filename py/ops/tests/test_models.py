@@ -34,7 +34,7 @@ class ModelsTest(unittest.TestCase):
             dict(
                 path=pod_path,
                 name='xy',
-                version=1001,
+                version='1001',
                 systemd_units=(),
                 images=(),
                 volumes=(),

@@ -92,7 +92,7 @@ class Pod(ModelObject):
         self.path = pod_path
 
         self.name = pod_data['name']
-        self.version = pod_data['version']
+        self.version = str(pod_data['version'])
 
         self.systemd_units = tuple(
             SystemdUnit(data, self)

@@ -1,6 +1,6 @@
 import unittest
 
-from ops.pods import repos
+from ops import repos
 
 
 class ReposTest(unittest.TestCase):

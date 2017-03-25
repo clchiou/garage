@@ -13,6 +13,8 @@ the layout is:
 
 * `pod.json` describes everything about the pod.
 
+* `pod-manifest.json` is the generated Appc pod manifest.
+
 * `images/${NAME}.aci` are Appc images.
 
 * `systemd/...` are systemd unit files.
