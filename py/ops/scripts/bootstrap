@@ -6,29 +6,37 @@ from subprocess import check_call
 from tempfile import TemporaryDirectory
 
 
-# 1. Add group rkt to user plumber (for rkt).
-# 2. Install runtime dependencies of the ops package.
+# 1. Install minimum runtime dependencies of the ops package
+# 2. Add user plumber and grant him password-less sudo
+# 3. Add group rkt and rkt-admin to user plumber
 DOCKERFILE = '''\
 FROM {base_image}
 
-RUN sudo groupadd --force --system rkt-admin \\
- && sudo groupadd --force --system rkt \\
- && sudo usermod --append --groups rkt-admin,rkt plumber \\
- && sudo apt-get install --yes python3 wget
+RUN apt-get update \\
+ && apt-get install --yes python3 sudo wget \\
+ && adduser --disabled-password --gecos "" plumber \\
+ && echo "plumber ALL=(ALL:ALL) NOPASSWD: ALL" > /etc/sudoers.d/99-plumber \\
+ && chmod 440 /etc/sudoers.d/99-plumber \\
+ && groupadd --force --system rkt-admin \\
+ && groupadd --force --system rkt \\
+ && usermod --append --groups rkt-admin,rkt plumber
+
+USER plumber
+WORKDIR /home/plumber
+CMD ["/bin/bash"]
 '''
 
 
 def main():
     parser = ArgumentParser(description="""Make tester Docker image.""")
-    parser.add_argument('--base-image', required=True,
-                        help="""set base image""")
+    parser.add_argument(
+        '--base-image', required=True, help="""set base Docker image""")
     parser.add_argument('output', help="""set the tag of the tester image""")
     args = parser.parse_args()
     with TemporaryDirectory() as build_dir:
         build_dir = Path(build_dir)
-        # Path.write_text is defined in Python 3.5 :(
-        with (build_dir / 'Dockerfile').open('w') as dockerfile:
-            dockerfile.write(DOCKERFILE.format(base_image=args.base_image))
+        (build_dir / 'Dockerfile').write_text(
+            DOCKERFILE.format(base_image=args.base_image))
         cmd = ['docker', 'build', '--tag', args.output, str(build_dir)]
         print('execute: %s' % ' '.join(cmd))
         check_call(cmd)

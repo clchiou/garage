@@ -10,7 +10,7 @@ from pathlib import Path
 from subprocess import call, check_call, check_output
 
 
-class Fixture(unittest.TestCase):
+class Fixture:
 
     @staticmethod
     def inside_container(cls):
@@ -19,7 +19,7 @@ class Fixture(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        # Make sure we are inside a container.
+        # Make sure we are inside a container
         assert getpass.getuser() == 'plumber'
 
         # Ensure paths.
@@ -29,12 +29,12 @@ class Fixture(unittest.TestCase):
         assert cls.testdata_path.is_dir()
 
         # Install the fake systemctl because you can't run systemd in a
-        # Docker container (can you?).
+        # Docker container (can you?)
         check_call(['sudo', 'cp', '/bin/echo', '/usr/local/bin/systemctl'])
 
     @classmethod
     def tearDownClass(cls):
-        # Uninstall the fake systemctl.
+        # Uninstall the fake systemctl
         check_call(['sudo', 'rm', '/usr/local/bin/systemctl'])
 
     # Helper methods.

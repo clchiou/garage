@@ -1,2 +1,1 @@
-from . import main
-main()
+from . import main; main()
