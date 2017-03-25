@@ -9,6 +9,8 @@ path to a new version of repo layout.
 Every pod is stored in `${REPO}/pods/${NAME}/${VERSION}` and inside it
 the layout is:
 
+* `lock` is the lock file of this repository.
+
 * `pod.json` describes everything about the pod.
 
 * `images/${NAME}.aci` are Appc images.

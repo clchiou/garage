@@ -8,7 +8,6 @@ and allocated port numbers.
 
 Here is an example of the pod description:
 
-    ```
     {
         # Required.
         "name": "example-pod",
@@ -22,6 +21,9 @@ Here is an example of the pod description:
                 # Required: Location of the unit file, either a path or
                 # an URI.
                 "unit-file": "path/to/unit-file",
+
+                # Optional: Location of signature, either path or URI.
+                "signature": "path/to/unit-file.asc",
 
                 # Optional: Instances of a templated unit, which could
                 # be either as an array or as the number of instances.
@@ -37,9 +39,9 @@ Here is an example of the pod description:
                 # https://github.com/appc/spec/blob/master/spec/types.md#image-id-type
                 "id": "sha512-XXX",
 
-                # Either "uri" or "path" must be set ("uri" could be
-                # without scheme).
-                "path": "path/to/image.aci",
+                # Required: Location of the image file, either a path or
+                # an URI.
+                "image": "path/to/image.aci",
 
                 # Optional: Location of signature, either path or URI.
                 "signature": "path/to/image.aci.asc",
@@ -68,6 +70,9 @@ Here is an example of the pod description:
                 # Optional: Initial contents of the volume, which could
                 # be either path or URI.
                 "data": "path/to/data.tar.gz",
+
+                # Optional: Location of signature, either path or URI.
+                "signature": "path/to/data.tar.gz.asc",
             },
             ...
         ],
@@ -79,4 +84,3 @@ Here is an example of the pod description:
             ...
         }
     }
-    ```
