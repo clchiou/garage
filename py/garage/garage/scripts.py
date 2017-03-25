@@ -426,7 +426,7 @@ def tar_create(src_dir, srcs, tarball_path, tar_extra_flags=()):
     execute(cmd)
 
 
-def tar_extract(tarball_path, output_path=None):
+def tar_extract(tarball_path, output_path=None, tar_extra_flags=()):
     """Extract a tarball."""
     tarball_path = ensure_path(tarball_path)
     name = tarball_path.name
@@ -445,6 +445,7 @@ def tar_extract(tarball_path, output_path=None):
         cmd.append(compress_flag)
     if output_path:
         cmd.extend(['--directory', output_path])
+    cmd.extend(tar_extra_flags)
     execute(cmd)
 
 
@@ -469,6 +470,11 @@ def wget(uri, output_path=None, headers=()):
 
 
 ### Generic helpers
+
+
+# TODO: These helper functions do not consult most context variables;
+# for example, directory() and using_sudo() do not affect them.  This
+# inconsistency should be fixed in the future.
 
 
 def ensure_path(path):
