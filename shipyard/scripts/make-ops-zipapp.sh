@@ -6,7 +6,7 @@
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 
 if [[ "${#}" -lt 1 ]]; then
-  show "usage: ${PROG} output"
+  show "usage: ${PROG} OUTPUT"
   exit 1
 fi
 
