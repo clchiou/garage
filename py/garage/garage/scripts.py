@@ -153,7 +153,7 @@ def make_command(args):
     context = _get_context()
     using_sudo_ = context.get(USING_SUDO)
     if using_sudo_:
-        sudo_args = ['sudo']
+        sudo_args = ['sudo', '--non-interactive']
         for name in using_sudo_['envs'] or ():
             value = os.environ.get(name)
             if value:

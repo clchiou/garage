@@ -24,7 +24,10 @@ class ScriptsTest(unittest.TestCase):
     def test_make_command(self):
         self.assertEqual(['ls'], scripts.make_command(['ls']))
         with scripts.using_sudo():
-            self.assertEqual(['sudo', 'ls'], scripts.make_command(['ls']))
+            self.assertEqual(
+                ['sudo', '--non-interactive', 'ls'],
+                scripts.make_command(['ls']),
+            )
             with scripts.using_sudo(False):
                 self.assertEqual(['ls'], scripts.make_command(['ls']))
 
