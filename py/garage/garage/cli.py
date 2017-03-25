@@ -63,6 +63,11 @@ def argument(*args, **kwargs):
 
 
 @make_decorator
+def defaults(**kwargs):
+    return functools.partial(DecoratorChain.defaults, kwargs=kwargs)
+
+
+@make_decorator
 def component(comp):
     return functools.partial(DecoratorChain.component, comp=comp)
 
@@ -90,6 +95,7 @@ class DecoratorChain:
     def __init__(self, entry_point):
         self._entry_point = entry_point
         self._arguments = []
+        self._defaults = None
         self._components = []
         self._subcmds_dest = DEFAULT_SUBCMDS_DEST
         self._subcmds_help = None
@@ -98,6 +104,10 @@ class DecoratorChain:
 
     def argument(self, args, kwargs):
         self._arguments.append((args, kwargs))
+        return self
+
+    def defaults(self, kwargs):
+        self._defaults = kwargs
         return self
 
     def component(self, comp):
@@ -126,6 +136,7 @@ class DecoratorChain:
             name,
             help,
             list(reversed(self._arguments)),
+            dict(self._defaults or {}),
             list(reversed(self._components)),
             self._subcmds_dest,
             self._subcmds_help,
@@ -146,6 +157,7 @@ class Command:
                  name,
                  help,
                  arguments,
+                 defaults,
                  components,
                  subcmds_dest,
                  subcmds_help,
@@ -155,6 +167,7 @@ class Command:
         self._name = name
         self._help = help
         self._arguments = arguments
+        self._defaults = defaults
         self._components = components
         self._subcmds_dest = subcmds_dest
         self._subcmds_help = subcmds_help
@@ -191,6 +204,7 @@ class Command:
 
         parser = argparse.ArgumentParser(
             prog=self.prog, description=self.description)
+        parser.set_defaults(**self._defaults)
 
         startup_.set(garage.components.ARGV, argv)
         startup_.set(garage.components.EXIT_STACK, exit_stack)
@@ -226,7 +240,10 @@ class Command:
                     description=subcmd.description,
                     help=subcmd.help,
                 )
-                subparser.set_defaults(**{self._subcmds_dest: subcmd})
+                subparser.set_defaults(
+                    **{self._subcmds_dest: subcmd},
+                    **subcmd._defaults,
+                )
                 # Recursively call into subcmd._initialize()
                 yield from subcmd._initialize(subparser)
         yield from self._components
