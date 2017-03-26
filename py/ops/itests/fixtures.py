@@ -30,7 +30,7 @@ class Fixture:
 
         # Install the fake systemctl because you can't run systemd in a
         # Docker container (can you?)
-        check_call(['sudo', 'cp', '/bin/echo', '/usr/local/bin/systemctl'])
+        check_call(['sudo', 'cp', '/bin/true', '/usr/local/bin/systemctl'])
 
     @classmethod
     def tearDownClass(cls):
@@ -62,21 +62,28 @@ class Fixture:
 
     # `ops pods` commands and other helpers.
 
+    OPS_CMD = ['python3', '-m', 'ops', '-v']
+
     def list_pods(self):
         output = check_output(
-            ['python3', '-m', 'ops', 'pods', 'list', '-v'],
+            self.OPS_CMD + ['pods', 'list'],
             cwd=str(self.root_path),
         )
         output = output.decode('ascii').split('\n')
         return list(filter(None, map(str.strip, output)))
 
-    def is_deployed(self, pod_name):
-        cmd = ['python3', '-m', 'ops', 'pods', 'is-deployed', '-v', pod_name]
+    def is_undeployed(self, pod_name):
+        cmd = self.OPS_CMD + ['pods', 'is-undeployed', pod_name]
         return call(cmd, cwd=str(self.root_path)) == 0
+
+    def is_deployed(self, pod_name):
+        # Because we mock out systemctl, pod state cannot be detected
+        # correctly
+        return not self.is_undeployed(pod_name)
 
     def list_ports(self):
         output = check_output(
-            ['python3', '-m', 'ops', 'ports', 'list', '-v'],
+            self.OPS_CMD + ['ports', 'list'],
             cwd=str(self.root_path),
         )
         output = output.decode('ascii').split('\n')
@@ -96,17 +103,19 @@ class Fixture:
         return False
 
     def deploy(self, pod_file):
-        cmd = ['python3', '-m', 'ops', 'pods', 'deploy', '-v', str(pod_file)]
+        cmd = self.OPS_CMD + ['pods', 'deploy', str(pod_file)]
         check_call(cmd, cwd=str(self.root_path))
 
     def start(self, tag):
-        cmd = ['python3', '-m', 'ops', 'pods', 'start', '-v', tag]
+        # Use `--force` because we mock out systemctl and thus pod state
+        # cannot be detected correctly
+        cmd = self.OPS_CMD + ['pods', 'start', '--force', tag]
         check_call(cmd, cwd=str(self.root_path))
 
     def stop(self, tag):
-        cmd = ['python3', '-m', 'ops', 'pods', 'stop', '-v', tag]
+        cmd = self.OPS_CMD + ['pods', 'stop', tag]
         check_call(cmd, cwd=str(self.root_path))
 
     def undeploy(self, pod_file):
-        cmd = ['python3', '-m', 'ops', 'pods', 'undeploy', '-v', str(pod_file)]
+        cmd = self.OPS_CMD + ['pods', 'undeploy', str(pod_file)]
         check_call(cmd, cwd=str(self.root_path))

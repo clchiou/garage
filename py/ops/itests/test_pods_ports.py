@@ -6,7 +6,7 @@ from .fixtures import Fixture
 
 
 @Fixture.inside_container
-class PodsPortsTest(Fixture):
+class PodsPortsTest(Fixture, unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):

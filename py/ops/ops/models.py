@@ -83,6 +83,16 @@ class ModelObject:
         if getattr(self, name + '_uri') and not self.checksum:
             LOG.warning('uri is not accompanied by checksum: %s', name)
 
+    def _suffix(self, name):
+        if getattr(self, name + '_path'):
+            path = getattr(self, name + '_path')
+        elif getattr(self, name + '_uri'):
+            uri = getattr(self, name + '_uri')
+            path = Path(urllib.parse.urlparse(uri).path)
+        else:
+            raise AssertionError
+        return ''.join(path.suffixes)
+
 
 class Pod(ModelObject):
 
@@ -252,6 +262,7 @@ class SystemdUnit(ModelObject):
     """
 
     FIELDS = {
+        'name': ModelObject.is_type_of(str),
         'unit-file': ModelObject.is_type_of(str),
         'checksum': ModelObject.is_type_of(str),
         'instances': ModelObject.is_type_of(int, list),
@@ -266,7 +277,7 @@ class SystemdUnit(ModelObject):
 
     # We encode pod information into unit name (and thus it will not be
     # the same as the name part of the unit file path in the pod.json)
-    UNIT_NAME_FORMAT = '{name}-{stem}-{version}{templated}{suffix}'
+    UNIT_NAME_FORMAT = '{pod_name}-{unit_name}-{version}{templated}{suffix}'
 
     def __init__(self, unit_data, pod):
 
@@ -281,8 +292,8 @@ class SystemdUnit(ModelObject):
             path = Path(urllib.parse.urlparse(self.unit_file_uri).path)
         else:
             path = self.unit_file_path
-        stem = path.stem
-        suffix = path.suffix
+
+        self.name = unit_data.get('name', path.stem)
 
         instances = self._instances = unit_data.get('instances', ())
         if isinstance(instances, int):
@@ -291,22 +302,22 @@ class SystemdUnit(ModelObject):
             instances = range(instances)
         self.instances = tuple(
             self.UNIT_NAME_FORMAT.format(
-                name=pod.name,
+                pod_name=pod.name,
+                unit_name=self.name,
                 version=pod.version,
                 templated='@%s' % instance,
-                stem=stem,
-                suffix=suffix,
+                suffix=path.suffix,
             )
             for instance in instances
         )
 
         templated = bool(self.instances)
         self.unit_name = self.UNIT_NAME_FORMAT.format(
-            name=pod.name,
+            pod_name=pod.name,
+            unit_name=self.name,
             version=pod.version,
             templated='@' if templated else '',
-            stem=stem,
-            suffix=suffix,
+            suffix=path.suffix,
         )
         self.unit_names = self.instances if templated else (self.unit_name,)
 
@@ -316,6 +327,7 @@ class SystemdUnit(ModelObject):
     def to_pod_data(self):
         return (
             DictBuilder()
+            .setitem('name', self.name)
             .setitem('unit-file', self._unit_file)
             .if_(self.checksum).setitem('checksum', self.checksum).end()
             .if_(self._instances).setitem('instances', self._instances).end()
@@ -366,7 +378,7 @@ class Image(ModelObject):
         new_name = self.id[:(7+16)]
         if self.image_path:
             self._image = os.path.join(
-                IMAGES, new_name + ''.join(self.image_path.suffixes))
+                IMAGES, new_name + self._suffix('image'))
             self.image_path = pod_path / self._image
         else:
             assert self.image_uri
@@ -418,19 +430,9 @@ class Volume(ModelObject):
     def morph_into_local_pod(self, pod_path):
         if self._data:
             self._data = os.path.join(
-                VOLUME_DATA, self.name + self.data_file_suffix)
+                VOLUME_DATA, self.name + self._suffix('data'))
             self.data_path = pod_path / self._data
             self.data_uri = None
-
-    @property
-    def data_file_suffix(self):
-        if self.data_path:
-            path = self.data_path
-        elif self.data_uri:
-            path = Path(urllib.parse.urlparse(self.data_uri).path)
-        else:
-            raise AssertionError
-        return ''.join(path.suffixes)
 
 
 URI_SCHEME_PATTERN = re.compile(r'(\w+)://')

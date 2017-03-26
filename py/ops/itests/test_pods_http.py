@@ -6,7 +6,7 @@ from .fixtures import Fixture
 
 
 @Fixture.inside_container
-class PodsHttpTest(Fixture):
+class PodsHttpTest(Fixture, unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):

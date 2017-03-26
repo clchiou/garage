@@ -1,13 +1,17 @@
 """Pod repository."""
 
 __all__ = [
+    'PodState',
     'Ports',
     'Repo',
 ]
 
+from collections import namedtuple
+import enum
 import json
 import logging
-from collections import namedtuple
+
+from garage import scripts
 
 from . import models
 
@@ -19,15 +23,26 @@ VERSION = 1
 LOG = logging.getLogger(__name__)
 
 
+class PodState(enum.Enum):
+    """
+    Pods go through this state transition:
+
+        +---deploy---+  +--start--+
+        |            v  |         v
+      UNDEPLOYED   DEPLOYED     STARTED
+        ^            |  ^         |
+        +--undeploy--+  +--stop---+
+    """
+    UNDEPLOYED = 'undeployed'
+    DEPLOYED = 'deployed'
+    STARTED = 'started'
+
+
 class Repo:
-
-    POD_JSON = 'pod.json'
-
-    POD_MANIFEST_JSON = 'pod-manifest.json'
 
     @staticmethod
     def get_repo_dir(root_dir):
-        return root_dir / ('v%d' % VERSION)
+        return root_dir.absolute() / ('v%d' % VERSION)
 
     @classmethod
     def get_lock_path(cls, root_dir):
@@ -52,8 +67,9 @@ class Repo:
     def _get_pod_dir(self, pod_name, version):
         return self._pods / pod_name / version
 
-    def _get_pod(self, pod_dir):
-        pod_data = json.loads((pod_dir / self.POD_JSON).read_text())
+    @staticmethod
+    def _get_pod(pod_dir):
+        pod_data = json.loads((pod_dir / models.POD_JSON).read_text())
         return models.Pod(pod_data, pod_dir)
 
     def get_pod_names(self):
@@ -69,16 +85,34 @@ class Repo:
 
     def get_pod_from_tag(self, tag):
         pod_name, version = tag.rsplit(':', 1)
-        return self._get_pod(self._get_pod_dir(pod_name, version))
+        pod_dir = self._get_pod_dir(pod_name, version)
+        scripts.ensure_directory(pod_dir)
+        return self._get_pod(pod_dir)
 
-    def is_pod_deployed(self, pod_or_tag):
+    def get_pod_state(self, pod_or_tag):
         if isinstance(pod_or_tag, str):
+            pod = None
             pod_name, version = pod_or_tag.rsplit(':', 1)
         else:
+            pod = pod_or_tag
             pod_name = pod_or_tag.name
             version = pod_or_tag.version
+
         pod_dir = self._get_pod_dir(pod_name, version)
-        return pod_dir.exists()
+        if not pod_dir.exists():
+            return PodState.UNDEPLOYED
+
+        if pod is None:
+            pod = self._get_pod(pod_dir)
+
+        all_active = True
+        for unit in pod.systemd_units:
+            for unit_name in unit.unit_names:
+                if not scripts.systemctl_is_active(unit_name):
+                    LOG.debug('unit is not active: %s', unit_name)
+                    all_active = False
+
+        return PodState.STARTED if all_active else PodState.DEPLOYED
 
     def get_pod_dir(self, pod):
         return self._get_pod_dir(pod.name, pod.version)
@@ -88,7 +122,7 @@ class Repo:
         pods_and_manifests = []
         for name in self.get_pod_names():
             for pod_dir in self._get_pod_dirs(name):
-                manifest_path = pod_dir / self.POD_MANIFEST_JSON
+                manifest_path = pod_dir / models.POD_MANIFEST_JSON
                 if manifest_path.exists():
                     version = pod_dir.name
                     pods_and_manifests.append((

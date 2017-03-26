@@ -4,7 +4,7 @@ import logging
 from garage import cli, scripts
 from garage.components import ARGS
 
-from . import deps, locks, repos
+from . import deps, locks, pods, repos
 
 
 logging.getLogger(__name__).addHandler(logging.NullHandler())
@@ -14,7 +14,7 @@ logging.getLogger(__name__).addHandler(logging.NullHandler())
 def list_ports(args: ARGS):
     """List ports allocated to deployed pods."""
     for port in repos.Repo(args.root).get_ports():
-        print('%s:%d %s %d' %
+        print('%s:%s %s %d' %
               (port.pod_name, port.pod_version, port.name, port.port))
     return 0
 
@@ -36,6 +36,7 @@ def ports(args: ARGS):
 @cli.sub_command_info('entity', 'system entity to be operated on')
 @cli.sub_command(deps.deps)
 @cli.sub_command(ports)
+@cli.sub_command(pods.pods)
 def main(args: ARGS):
     """Operations tool."""
     with scripts.dry_run(args.dry_run):

@@ -18,6 +18,10 @@ Here is an example of the pod description:
         # Optional: Series of systemd units.
         "systemd-units": [
             {
+                # Optional: This will be default to unit file name
+                # exclude the suffix part.
+                "name": "example",
+
                 # Required: Location of the unit file, either a path or
                 # an URI.
                 "unit-file": "path/to/unit-file",

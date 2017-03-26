@@ -111,11 +111,13 @@ class ModelsTest(unittest.TestCase):
                 'version': '1.0.1',
                 'systemd-units': [
                     {
+                        'name': 'foo',
                         'unit-file': 'systemd/example-foo-1.0.1@.service',
                         'checksum': 'sha512-123',
                         'instances': [1, 2, 3],
                     },
                     {
+                        'name': 'bar',
                         'unit-file': 'systemd/example-bar-1.0.1.service',
                         'checksum': 'sha512-456',
                     },

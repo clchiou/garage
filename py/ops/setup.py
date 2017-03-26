@@ -11,9 +11,8 @@ setup(
     },
     packages = [
         'ops',
-        'ops.pods',
     ],
     install_requires = [
-        'garage',
+        'garage[components]',
     ],
 )
