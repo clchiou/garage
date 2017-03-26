@@ -1,6 +1,7 @@
 import unittest
 
 from pathlib import Path
+import copy
 
 from ops import models
 
@@ -41,6 +42,141 @@ class ModelsTest(unittest.TestCase):
                 manifest={},
             ),
             pod,
+        )
+
+    def test_make_local_pod(self):
+        bundle_pod_path = Path('/path/to/bundle')
+        bundle_pod = models.Pod(
+            {
+                'name': 'example',
+                'version': '1.0.1',
+                'systemd-units': [
+                    {
+                        'unit-file': 'path/to/foo.service',
+                        'checksum': 'sha512-123',
+                        'instances': [1, 2, 3],
+                    },
+                    {
+                        'unit-file': 'http://host/path/to/bar.service?x=1',
+                        'checksum': 'sha512-456',
+                    },
+                ],
+                'images': [
+                    {
+                        'id': 'sha512-01234567890123456789',
+                        'image': 'path/to/image-1.aci',
+                        'signature': 'path/to/image-1.aci.asc',
+                    },
+                    {
+                        'id': 'sha512-abc',
+                        'image': 'http://host/path/to/image-2.aci',
+                    },
+                ],
+                'volumes': [
+                    {
+                        'name': 'volume-1',
+                        'user': 'plumber',
+                        'group': 'plumber',
+                        'data': 'path/to/data.tar.bz2',
+                        'checksum': 'sha512-def',
+                    },
+                    {
+                        'name': 'volume-2',
+                        'data': 'http://host/path/to/data.tar.gz?y=3',
+                        'checksum': 'sha512-ghi',
+                    },
+                ],
+                'manifest': {
+                    'some-key': 'some-value',
+                },
+            },
+            bundle_pod_path,
+        )
+
+        reloaded = models.Pod(
+            copy.deepcopy(bundle_pod.to_pod_data()),
+            bundle_pod_path,
+        )
+        self.assertEqual(bundle_pod.to_pod_data(), reloaded.to_pod_data())
+
+        pod_path = Path(__file__).parent
+        pod = bundle_pod.make_local_pod(pod_path)
+
+        # Make sure we did't alter the original in make_local_pod()
+        self.assertEqual(bundle_pod.to_pod_data(), reloaded.to_pod_data())
+
+        self.assertEqual(
+            {
+                'name': 'example',
+                'version': '1.0.1',
+                'systemd-units': [
+                    {
+                        'unit-file': 'systemd/example-foo-1.0.1@.service',
+                        'checksum': 'sha512-123',
+                        'instances': [1, 2, 3],
+                    },
+                    {
+                        'unit-file': 'systemd/example-bar-1.0.1.service',
+                        'checksum': 'sha512-456',
+                    },
+                ],
+                'images': [
+                    {
+                        'id': 'sha512-01234567890123456789',
+                        'image': 'images/sha512-0123456789012345.aci',
+                        'signature': 'images/sha512-0123456789012345.aci.asc',
+                    },
+                    {
+                        'id': 'sha512-abc',
+                        'image': 'http://host/path/to/image-2.aci',
+                    },
+                ],
+                'volumes': [
+                    {
+                        'name': 'volume-1',
+                        'user': 'plumber',
+                        'group': 'plumber',
+                        'data': 'volume-data/volume-1.tar.bz2',
+                        'checksum': 'sha512-def',
+                    },
+                    {
+                        'name': 'volume-2',
+                        'data': 'volume-data/volume-2.tar.gz',
+                        'checksum': 'sha512-ghi',
+                    },
+                ],
+                'manifest': {
+                    'some-key': 'some-value',
+                },
+            },
+            pod.to_pod_data(),
+        )
+
+        self.assertEqual(
+            pod_path / 'systemd/example-foo-1.0.1@.service',
+            pod.systemd_units[0].unit_file_path,
+        )
+        self.assertEqual(
+            pod_path / 'systemd/example-bar-1.0.1.service',
+            pod.systemd_units[1].unit_file_path,
+        )
+
+        self.assertEqual(
+            pod_path / 'images/sha512-0123456789012345.aci',
+            pod.images[0].image_path,
+        )
+        self.assertEqual(
+            pod_path / 'images/sha512-0123456789012345.aci.asc',
+            pod.images[0].signature,
+        )
+
+        self.assertEqual(
+            pod_path / 'volume-data/volume-1.tar.bz2',
+            pod.volumes[0].data_path,
+        )
+        self.assertEqual(
+            pod_path / 'volume-data/volume-2.tar.gz',
+            pod.volumes[1].data_path,
         )
 
     def test_systemd_unit(self):
@@ -139,18 +275,16 @@ class ModelsTest(unittest.TestCase):
         )
 
         with self.assertRaisesRegex(ValueError, 'invalid instances: 0'):
-            pod_data = {
-                'name': 'xy',
-                'version': '1001',
-                'systemd-units': [
-                    {
-                        'unit-file': 'example.service',
-                        'instances': 0,
-                    },
-                ],
-                'manifest': {},
-            }
-            pod = models.Pod(pod_data, pod_path)
+            models.SystemdUnit(
+                {'unit-file': 'example.service', 'instances': 0}, pod)
+
+        with self.assertRaisesRegex(ValueError, 'path is absolute'):
+            models.SystemdUnit(
+                {'unit-file': '/path/to/example.service'}, pod)
+
+        with self.assertRaisesRegex(ValueError, 'unsupported uri scheme'):
+            models.SystemdUnit(
+                {'unit-file': 'docker://host/example.service'}, pod)
 
     def test_image(self):
         pod_data = dict(
@@ -173,8 +307,7 @@ class ModelsTest(unittest.TestCase):
             dict(
                 image_path=None,
                 image_uri='http://localhost/image.aci',
-                signature_path=None,
-                signature_uri=None,
+                signature=None,
             ),
             pod.images[0],
         )
@@ -182,8 +315,7 @@ class ModelsTest(unittest.TestCase):
             dict(
                 image_path=None,
                 image_uri='docker://busybox',
-                signature_path=None,
-                signature_uri=None,
+                signature=None,
             ),
             pod.images[1],
         )
@@ -191,11 +323,16 @@ class ModelsTest(unittest.TestCase):
             dict(
                 image_path=pod_path / 'path/to/image.aci',
                 image_uri=None,
-                signature_path=pod_path / 'image.aci.asc',
-                signature_uri=None,
+                signature=pod_path / 'image.aci.asc',
             ),
             pod.images[2],
         )
+
+        with self.assertRaisesRegex(ValueError, 'path is absolute'):
+            models.Image({'id': '', 'image': '/xyz'}, pod)
+
+        with self.assertRaisesRegex(ValueError, 'unsupported uri scheme'):
+            models.Image({'id': '', 'image': 'ftp://xyz'}, pod)
 
     def test_volume(self):
         pod_data = dict(
@@ -212,6 +349,12 @@ class ModelsTest(unittest.TestCase):
             dict(name='x', data_path=pod_path / 'y'),
             pod.volumes[0],
         )
+
+        with self.assertRaisesRegex(ValueError, 'path is absolute'):
+            models.Volume({'name': 'xyz', 'data': '/xyz'}, pod)
+
+        with self.assertRaisesRegex(ValueError, 'unsupported uri scheme'):
+            models.Volume({'name': 'xyz', 'data': 'docker://xyz'}, pod)
 
     def assertObjectFields(self, expect, actual):
         for name, value in expect.items():

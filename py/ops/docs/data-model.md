@@ -22,8 +22,8 @@ Here is an example of the pod description:
                 # an URI.
                 "unit-file": "path/to/unit-file",
 
-                # Optional: Location of signature, either path or URI.
-                "signature": "path/to/unit-file.asc",
+                # Optional: Checksum of the unit file.
+                "checksum": "sha512-XXX",
 
                 # Optional: Instances of a templated unit, which could
                 # be either as an array or as the number of instances.
@@ -43,7 +43,7 @@ Here is an example of the pod description:
                 # an URI.
                 "image": "path/to/image.aci",
 
-                # Optional: Location of signature, either path or URI.
+                # Optional: Path to signature.
                 "signature": "path/to/image.aci.asc",
             },
             ...
@@ -71,8 +71,8 @@ Here is an example of the pod description:
                 # be either path or URI.
                 "data": "path/to/data.tar.gz",
 
-                # Optional: Location of signature, either path or URI.
-                "signature": "path/to/data.tar.gz.asc",
+                # Optional: Checksum of the data tarball.
+                "checksum": "sha512-XXX",
             },
             ...
         ],
