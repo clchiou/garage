@@ -18,10 +18,13 @@ __all__ = [
     'apt_get_full_upgrade',
     'apt_get_install',
     'apt_get_update',
+    'cp',
     'git_clone',
     'gunzip',
     'gzip',
     'mkdir',
+    'rm',
+    'rmdir',
     'rsync',
     'symlink',
     'systemctl_disable',
@@ -32,6 +35,7 @@ __all__ = [
     'systemctl_stop',
     'tar_create',
     'tar_extract',
+    'tee',
     'unzip',
     'wget',
     # Generic helpers
@@ -124,9 +128,11 @@ def recording_commands():
     return _enter_context({RECORDING_COMMANDS: records}, records)
 
 
-def redirecting(*, stdin=None, stdout=None, stderr=None):
-    return _enter_context(
-        {REDIRECTING: {'stdin': stdin, 'stdout': stdout, 'stderr': stderr}})
+def redirecting(**kwargs):
+    # Use kwargs to work around subprocess.run() checking if
+    # `"stdin" in kwargs`
+    assert set(kwargs).issubset({'input', 'stdin', 'stdout', 'stderr'})
+    return _enter_context({REDIRECTING: kwargs})
 
 
 def get_stdin():
@@ -184,16 +190,19 @@ def execute(args, *, check=True, capture_stdout=False, capture_stderr=False):
     if cwd and not cwd.is_dir():
         raise RuntimeError('not a directory: %r' % cwd)
 
+    # Use the `redirect` dict directly to work around subprocess.run()
+    # checking if `"stdin" in kwargs`
     redirect = context.get(REDIRECTING) or {}
-    stdin = redirect.get('stdin')
-    stdout = subprocess.PIPE if capture_stdout else redirect.get('stdout')
-    stderr = subprocess.PIPE if capture_stderr else redirect.get('stderr')
+    if capture_stdout:
+        redirect['stdout'] = subprocess.PIPE
+    if capture_stderr:
+        redirect['stderr'] = subprocess.PIPE
 
     return subprocess.run(
         cmd,
         check=check,
-        stdin=stdin, stdout=stdout, stderr=stderr,
         cwd=ensure_str(cwd),  # PathLike will be added to Python 3.6
+        **redirect,
     )
 
 
@@ -330,6 +339,10 @@ def apt_get_install(packages, *, only_missing=True):
     execute(cmd)
 
 
+def cp(src, dst):
+    execute(['cp', '--force', src, dst])
+
+
 def git_clone(repo, local_path=None, checkout=None):
     if local_path:
         local_path.mkdir(parents=True)
@@ -362,6 +375,18 @@ def mkdir(path):
     execute(['mkdir', '--parents', path])
 
 
+def rm(path, recursive=False):
+    cmd = ['rm', '--force']
+    if recursive:
+        cmd.append('--recursive')
+    cmd.append(path)
+    execute(cmd)
+
+
+def rmdir(path):
+    execute(['rmdir', '--ignore-fail-on-non-empty', path])
+
+
 def rsync(srcs, dst, *,
           delete=False,
           relative=False,
@@ -392,14 +417,19 @@ def _systemctl(command, name):
     return execute(cmd)
 
 
+def _systemctl_unit_state(command, name):
+    cmd = ['systemctl', '--quiet', command, name]
+    return execute(cmd, check=False).returncode == 0
+
+
 systemctl_enable = functools.partial(_systemctl, 'enable')
 systemctl_disable = functools.partial(_systemctl, 'disable')
-systemctl_is_enabled = functools.partial(_systemctl, 'is-enabled')
+systemctl_is_enabled = functools.partial(_systemctl_unit_state, 'is-enabled')
 
 
 systemctl_start = functools.partial(_systemctl, 'start')
 systemctl_stop = functools.partial(_systemctl, 'stop')
-systemctl_is_active = functools.partial(_systemctl, 'is-active')
+systemctl_is_active = functools.partial(_systemctl_unit_state, 'is-active')
 
 
 def tar_create(src_dir, srcs, tarball_path, tar_extra_flags=()):
@@ -447,6 +477,12 @@ def tar_extract(tarball_path, output_path=None, tar_extra_flags=()):
         cmd.extend(['--directory', output_path])
     cmd.extend(tar_extra_flags)
     execute(cmd)
+
+
+def tee(input, dst_path, suppress_stdout=True):
+    stdout = subprocess.DEVNULL if suppress_stdout else None
+    with redirecting(input=input, stdout=stdout):
+        execute(['tee', dst_path])
 
 
 def unzip(zip_path, output_path=None):
