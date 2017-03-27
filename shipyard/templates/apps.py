@@ -296,6 +296,9 @@ class Environment(ModelObject):
 
 class Volume(ModelObject):
 
+    # TODO: Accept URI as well as path
+    # TODO: Accept checksum, or calculate it from path
+
     FIELDS = [
         ('name', None),
         ('path', None),
@@ -400,6 +403,8 @@ class App(ModelObject):
 
 class Image(ModelObject):
 
+    # TODO: Accept docker://... URI
+
     FIELDS = [
         ('id', None),
         ('name', None),
@@ -435,9 +440,10 @@ class Image(ModelObject):
     @property
     def pod_object_entry(self):
         # image.aci is under OUTPUT/IMAGE_NAME
+        # TODO: Generate "signature" field
         return {
             'id': self.id,
-            'path': '%s/image.aci' % self.name,
+            'image': '%s/image.aci' % self.name,
         }
 
     @property
@@ -476,6 +482,9 @@ class Image(ModelObject):
 
 
 class SystemdUnit(ModelObject):
+
+    # TODO: Accept URI for unit_file
+    # TODO: Accept checksum, or calculate it from unit_file
 
     FIELDS = [
         ('unit_file', None),

@@ -8,7 +8,7 @@ import foreman
 class PrepareForeman:
 
     def setUp(self):
-        searcher = foreman.Searcher([Path('/path/to/rules')])
+        searcher = foreman.Searcher([Path(__file__).parent / 'testdata'])
         loader = foreman.LOADER = foreman.Loader(searcher)
         loader.path = Path('path/to/rules')
         self.__loader, foreman.LOADER = foreman.LOADER, loader

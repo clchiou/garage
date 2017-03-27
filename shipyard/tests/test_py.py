@@ -51,8 +51,8 @@ class PyTest(PrepareForeman, unittest.TestCase):
                 cmds[0][0:3],
                 cmds[1][0:1],
                 cmds[2][0:3],
-                cmds[3][2:5],
-                #cmds[4][0:1],  # Empty dirs so no call to rsync
+                cmds[3][3:6],
+                #cmds[4][3:4],  # Empty dirs so no call to rsync
             ),
         )
 
@@ -81,8 +81,8 @@ class PyTest(PrepareForeman, unittest.TestCase):
                 #['rsync']
             ),
             (
-                cmds[0][1:4],
-                #cmds[1][0:1],  # Empty dirs so no call to rsync
+                cmds[0][2:5],
+                #cmds[1][2:3],  # Empty dirs so no call to rsync
             ),
         )
 

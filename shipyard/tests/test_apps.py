@@ -75,9 +75,15 @@ class AppTest(PrepareForeman, unittest.TestCase):
         'app': APP_ENTRY,
     }
 
+    TEST_SYSTEMD_UNIT = apps.SystemdUnit(
+        unit_file='foo.service',
+        instances=[1, 2, 3],
+    )
+
     TEST_POD = apps.Pod(
         name='application',
         images=[TEST_IMAGE],
+        systemd_units=[TEST_SYSTEMD_UNIT],
     )
 
     TEST_POD._version = 1
@@ -115,11 +121,16 @@ class AppTest(PrepareForeman, unittest.TestCase):
     POD_OBJECT = {
         'name': 'application',
         'version': 1,
-        'systemd-units': [],
+        'systemd-units': [
+            {
+                'unit-file': 'foo.service',
+                'instances': [1, 2, 3],
+            },
+        ],
         'images': [
             {
                 'id': 'sha512-...',
-                'path': 'example.com/worker/image.aci',
+                'image': 'example.com/worker/image.aci',
             },
         ],
         'volumes': [
