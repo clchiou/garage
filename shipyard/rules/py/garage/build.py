@@ -1,4 +1,5 @@
 from templates import py
 
 
-py.define_package(package='garage')
+rules = py.define_package(package='garage')
+rules.build.depend('//host/buildtools:install')
