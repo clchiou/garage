@@ -7,6 +7,7 @@ from garage import scripts
 from templates import common
 
 
+# Find the current releases here: https://omahaproxy.appspot.com/
 (define_parameter('version')
  .with_doc('V8 version.')
  .with_type(str)
