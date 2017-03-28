@@ -37,11 +37,11 @@ def main(args: ARGS):
             cmd.extend(extra_args)
             scripts.execute(cmd)
 
-    foreman_args = get_foreman_args(args.args)
+    foreman_list_args = get_foreman_list_args(args.args)
     def foreman_list(label):
         with scripts.directory(shipyard):
             cmd = ['scripts/foreman.sh', 'list', label]
-            cmd.extend(foreman_args)
+            cmd.extend(foreman_list_args)
             output = scripts.execute(cmd, capture_stdout=True).stdout
             return json.loads(output.decode('utf8'))
 
@@ -114,7 +114,7 @@ def main(args: ARGS):
     return 0
 
 
-def get_foreman_args(args):
+def get_foreman_list_args(args):
     """Look for arguments to foreman."""
     foreman_args = []
     args = iter(args)
@@ -127,9 +127,9 @@ def get_foreman_args(args):
             foreman_args.append(arg[len('--foreman='):])
         elif arg == '--foreman':
             foreman_args.append(next(args))
-        elif arg.startswith('--path=') or arg.startswith('--parameter='):
+        elif arg.startswith('--path='):
             foreman_args.append(arg)
-        elif arg == '--path' or arg == '--parameter':
+        elif arg == '--path':
             foreman_args.append(arg)
             foreman_args.append(next(args))
     return foreman_args
