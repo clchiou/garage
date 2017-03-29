@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Bundle together ops tool and its dependencies in one zip app (using
 # this script is easier than doing it in a builder).

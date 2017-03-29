@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Make builder image
 #   * You usually use (cached) builder images to reduce dev build time
