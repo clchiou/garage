@@ -9,7 +9,8 @@ import logging
 from garage import cli, scripts
 from garage.components import ARGS
 
-from . import models, repos
+from ops import models
+from . import repos
 
 
 LOG = logging.getLogger(__name__)

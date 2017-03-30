@@ -1,6 +1,6 @@
 import unittest
 
-from ops import repos
+from ops.onboard import repos
 
 
 class ReposTest(unittest.TestCase):

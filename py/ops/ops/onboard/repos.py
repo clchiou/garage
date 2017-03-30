@@ -13,7 +13,7 @@ import logging
 
 from garage import scripts
 
-from . import models
+from ops import models
 
 
 # This is the version of the file layout

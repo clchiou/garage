@@ -60,9 +60,9 @@ class Fixture:
     def assertEqualContents(self, expect, actual):
         self.assertEqual(Path(expect).read_text(), Path(actual).read_text())
 
-    # `ops pods` commands and other helpers.
+    # `ops-onboard pods` commands and other helpers.
 
-    OPS_CMD = ['python3', '-m', 'ops', '-v']
+    OPS_CMD = ['python3', '-m', 'ops.onboard', '-v']
 
     def list_pods(self):
         output = check_output(
