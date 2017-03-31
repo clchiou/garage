@@ -57,36 +57,6 @@ BUILD_FILE = 'build.py'
 REMOVE = object()
 
 
-def patch_pathlib():
-    """Monkey patch pathlib for some functions available in Python 3.5,
-       but the implementations are different; so don't count this as a
-       backport.
-    """
-
-    if not hasattr(Path, 'home'):
-        import os.path
-        def home(cls):
-            return cls(os.path.expanduser('~'))
-        Path.home = classmethod(home)
-
-    if not hasattr(Path, 'read_text'):
-        def read_text(self, encoding=None, errors=None):
-            with self.open(encoding=encoding, errors=errors) as file:
-                return file.read()
-        Path.read_text = read_text
-
-    if not hasattr(Path, 'write_text'):
-        def write_text(self, data, encoding=None, errors=None):
-            if not isinstance(data, str):
-                raise TypeError('not str type: %s' % data.__class__.__name__)
-            with self.open('w', encoding=encoding, errors=errors) as file:
-                return file.write(data)
-        Path.write_text = write_text
-
-
-patch_pathlib()
-
-
 ### Core data model.
 
 
@@ -408,8 +378,9 @@ class Loader:
     def load_build_file(self, label_path, build_file_path):
         """Load, compile, and execute one build file."""
         assert self.search_build_file is not None
-        code = compile(
-            build_file_path.read_text(), str(build_file_path), 'exec')
+        with build_file_path.open() as build_file_file:
+            build_code = build_file_file.read()
+        code = compile(build_code, str(build_file_path), 'exec')
         exec(code, {
             '__file__': str(build_file_path.absolute()),
             '__name__': str(label_path).replace('/', '.'),
