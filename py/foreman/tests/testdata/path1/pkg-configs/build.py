@@ -1,4 +1,4 @@
-from foreman import define_parameter, define_rule
+from foreman import REMOVE, define_parameter, define_rule
 
 
 COUNT = 0
@@ -30,6 +30,7 @@ define_parameter('executed_rules').with_default([])
 (define_rule('rule-C')
  .depend('rule-D')
  .depend('rule-F')
+ .depend('rule-G', configs=REMOVE)
  .with_build(lambda ps: ps['executed_rules'].append(('rule-C', ps)))
 )
 
@@ -42,4 +43,7 @@ define_parameter('executed_rules').with_default([])
 )
 (define_rule('rule-F')
  .with_build(lambda ps: ps['executed_rules'].append(('rule-F', ps)))
+)
+(define_rule('rule-G')
+ .with_build(lambda ps: ps['executed_rules'].append(('rule-G', ps)))
 )

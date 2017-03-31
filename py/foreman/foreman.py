@@ -27,6 +27,7 @@ standard library.)
 
 __all__ = [
     'ForemanError',
+    'REMOVE',
     'get_relpath',
     'define_parameter',
     'define_rule',
@@ -49,6 +50,11 @@ LOG.addHandler(logging.NullHandler())
 
 
 BUILD_FILE = 'build.py'
+
+
+# Sentinel value indicating that the environment should be removed
+# TODO: Allow per-key removal
+REMOVE = object()
 
 
 def patch_pathlib():
@@ -314,7 +320,7 @@ class Rule:
     def _resolve_dep(dep, implicit_path):
         if not isinstance(dep.label, Label):
             dep.label = Label.parse(dep.label, implicit_path)
-        if dep.configs:
+        if dep.configs and dep.configs is not REMOVE:
             configs = {}
             for label, value in dep.configs.items():
                 if not isinstance(label, Label):
@@ -393,7 +399,7 @@ class Loader:
         # Make sure that build rules do not refer to undefined parameters.
         for rule in self.rules.values():
             for dep in rule.all_dependencies:
-                if dep.configs:
+                if dep.configs and dep.configs is not REMOVE:
                     for label in dep.configs:
                         if label not in self.parameters:
                             msg = 'parameter %s is undefined' % label
@@ -528,8 +534,11 @@ class Executor:
                 continue
 
             if dep.configs:
-                next_env = environment.new_child()
-                next_env.update(dep.configs)
+                if dep.configs is REMOVE:
+                    next_env = ChainMap()
+                else:
+                    next_env = environment.new_child()
+                    next_env.update(dep.configs)
             else:
                 next_env = environment
 
@@ -914,10 +923,13 @@ def command_list(args, loader):
         contents['label'] = str(dependency.label)
         contents['conditional'] = bool(dependency.when)
         if dependency.configs:
-            contents['configs'] = OrderedDict([
-                (str(label), dependency.configs[label])
-                for label in sorted(dependency.configs)
-            ])
+            if dependency.configs is REMOVE:
+                contents['configs'] = 'REMOVE'
+            else:
+                contents['configs'] = OrderedDict([
+                    (str(label), dependency.configs[label])
+                    for label in sorted(dependency.configs)
+                ])
         return contents
 
     # Provide encoders for some common types.

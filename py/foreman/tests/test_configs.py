@@ -38,6 +38,7 @@ class ConfigsTest(unittest.TestCase):
             ('rule-D', {1, 2}),
             ('rule-E', {1}),
             ('rule-F', {2}),
+            ('rule-G', {0}),
         ]
         for rule_name, xs in expect:
             self.assertEqual(
