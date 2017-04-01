@@ -21,6 +21,11 @@ setup(
         'ops.mob',
         'ops.onboard',
     ],
+    package_data = {
+        'ops.mob': [
+            'templates/*',
+        ],
+    },
     install_requires = [
         'garage[components]',
     ],
