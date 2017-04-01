@@ -20,13 +20,27 @@ HOST_KEYS = [
 ]
 
 
+# ECDSA requires less bits than RSA at same level of strength and
+# thus seems to be the best choice
+USER_KEY_ALGORITHM = 'ecdsa'
+USER_KEY_SIZE = 521
+
+
+def ssh_host_key_filename(algorithm):
+    return 'ssh_host_%s_key' % algorithm
+
+
+def ssh_user_key_filename(algorithm):
+    return 'id_' + algorithm
+
+
 @cli.command('gen-host-key', help='generate host keys')
 @cli.argument('output_dir', type=Path, help='set output directory')
 def generate_host_key(args: ARGS):
     """Generate SSH host keys with ssh-keygen."""
 
     key_paths = [
-        args.output_dir / ('ssh_host_%s_key' % algorithm)
+        args.output_dir / ssh_host_key_filename(algorithm)
         for algorithm, _ in HOST_KEYS
     ]
     okay = True
@@ -57,19 +71,15 @@ def generate_host_key(args: ARGS):
 @cli.argument('output_dir', type=Path, help='set output directory')
 def generate_user_key(args: ARGS):
     """Generate SSH key pair with ssh-keygen."""
-    # ECDSA requires less bits than RSA at same level of strength and
-    # thus seems to be the best choice
-    algorithm = 'ecdsa'
-    key_size = 521
-    key_path = args.output_dir / algorithm
+    key_path = args.output_dir / ssh_user_key_filename(USER_KEY_ALGORITHM)
     if key_path.exists():
         LOG.error('attempt to overwrite %s', key_path)
         return 1
     scripts.mkdir(args.output_dir)
     scripts.execute([
         'ssh-keygen',
-        '-t', algorithm,
-        '-b', key_size,
+        '-t', USER_KEY_ALGORITHM,
+        '-b', USER_KEY_SIZE,
         '-C', 'plumber@localhost',
         '-f', key_path,
     ])

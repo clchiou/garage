@@ -1,0 +1,25 @@
+#cloud-config
+
+manage_etc_hosts: true
+
+# Only useful for local virtual machine
+hostname: null
+fqdn: null
+
+ssh_keys: {}
+
+users:
+  # Create the administrative account `plumber`
+  - name: plumber
+    sudo: ['ALL = (ALL : ALL) NOPASSWD: ALL']
+    shell: /bin/bash
+    ssh-authorized-keys: []
+
+packages:
+  # Install Python2 for Ansible
+  - python
+
+runcmd:
+  # Enable the most basic firewall configuration
+  - ufw enable
+  - ufw allow OpenSSH

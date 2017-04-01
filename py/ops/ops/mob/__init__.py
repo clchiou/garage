@@ -7,13 +7,14 @@ __all__ = [
 from garage import cli, scripts
 from garage.components import ARGS
 
-from . import envs, keys
+from . import cloudinit, envs, keys
 
 
 @cli.command('ops-mob')
 @cli.argument('--dry-run', action='store_true', help='do not execute commands')
 @cli.sub_command_info('entity', 'system entity to be operated on')
 @cli.sub_command(envs.envs)
+@cli.sub_command(cloudinit.cloudinit)
 @cli.sub_command(keys.keys)
 def main(args: ARGS):
     """MOB operations tool."""
