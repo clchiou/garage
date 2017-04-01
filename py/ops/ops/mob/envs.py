@@ -140,8 +140,8 @@ def generate_user_data(args: ARGS):
     local_vm = config.get('local-vm')
     if local_vm:
         cloudinit_args['local_vm'] = (
-            local_vm['name'],
-            local_vm['name'] + '.local',
+            local_vm['hostname'],
+            local_vm['hostname'] + '.local',
             local_vm['network-interface'],
             local_vm['ip-address'],
         )
