@@ -125,6 +125,13 @@ def generate_user_data(args: ARGS):
         '#cloud-config\n\n' + user_data_yaml,
     )
 
+    if args.local_vm:
+        scripts.execute([
+            'cloud-localds', '--verbose',
+            args.output.with_suffix('.iso'),
+            args.output,
+        ])
+
     return 0
 
 
