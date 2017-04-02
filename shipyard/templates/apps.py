@@ -18,6 +18,7 @@ import functools
 import hashlib
 import json
 import logging
+import re
 
 from garage import scripts
 
@@ -40,14 +41,13 @@ def make_from_specifier(define_rules):
 
 def execute_specifier(parameters, name, specified_parameter, specifier):
     if specified_parameter.default is not None:
-        LOG.debug('use default for: %s', specified_parameter.label)
+        LOG.info('use default for: %s', specified_parameter.label)
         obj = specified_parameter.default
     else:
         obj = specified_parameter.default = specifier(parameters)
         if obj._name is None:
-            obj._name = name
-    if name != obj.name:
-        LOG.warning('name does not match: %r != %r', name, obj.name)
+            # AC name does not accept underscore character
+            obj.name = name.replace('_', '-')
 
 
 ### Build rule template
@@ -187,7 +187,7 @@ def define_pod(name, specifier):
 
     parameter_pod = Pod.define_parameter(name)
 
-    define_parameter.int_typed(name + '/version')
+    define_parameter(name + '/version')
 
     @rule(name + '/specify_pod')
     @rule.depend('//base:build')
@@ -229,6 +229,11 @@ define_pod.from_specifier = make_from_specifier(define_pod)
 
 
 ### Object model
+
+
+# https://github.com/appc/spec/blob/master/spec/types.md
+AC_IDENTIFIER_PATTERN = re.compile(r'[a-z0-9]+([-._~/][a-z0-9]+)*')
+AC_NAME_PATTERN = re.compile(r'[a-z0-9]+(-[a-z0-9]+)*')
 
 
 # Convention:
@@ -282,6 +287,18 @@ class ModelObject:
                 raise AssertionError
         return data
 
+    @staticmethod
+    def _ensure_ac_identifier(name):
+        if name is not None and not AC_IDENTIFIER_PATTERN.fullmatch(name):
+            raise ValueError('not valid AC identifier: %s' % name)
+        return name
+
+    @staticmethod
+    def _ensure_ac_name(name):
+        if name is not None and not AC_NAME_PATTERN.fullmatch(name):
+            raise ValueError('not valid AC name: %s' % name)
+        return name
+
 
 class Environment(ModelObject):
 
@@ -314,7 +331,7 @@ class Volume(ModelObject):
                  user='nobody', group='nogroup',
                  data=None,
                  read_only=True):
-        self.name = name
+        self.name = self._ensure_ac_name(name)
         self.path = path
         self.user = user
         self.group = group
@@ -370,7 +387,7 @@ class App(ModelObject):
                  working_directory='/',
                  environment=None,
                  volumes=()):
-        self._name = name
+        self._name = self._ensure_ac_name(name)
         self.exec = exec or []
         self.user = user
         self.group = group
@@ -382,6 +399,10 @@ class App(ModelObject):
     def name(self):
         assert self._name is not None
         return self._name
+
+    @name.setter
+    def name(self, new_name):
+        self._name = self._ensure_ac_name(new_name)
 
     @property
     def pod_manifest_entry(self):
@@ -418,7 +439,7 @@ class Image(ModelObject):
                  app,
                  read_only_rootfs=True):
         self._id = id
-        self._name = name
+        self._name = self._ensure_ac_identifier(name)
         self.app = app
         self.read_only_rootfs = read_only_rootfs
 
@@ -436,6 +457,10 @@ class Image(ModelObject):
     def name(self):
         assert self._name is not None
         return self._name
+
+    @name.setter
+    def name(self, new_name):
+        self._name = self._ensure_ac_identifier(new_name)
 
     @property
     def pod_object_entry(self):
@@ -523,7 +548,7 @@ class Pod(ModelObject):
                  version=None,
                  images=None,
                  systemd_units=None):
-        self._name = name
+        self._name = self._ensure_ac_name(name)
         self._version = version
         self.images = images or []
         self.systemd_units = systemd_units or []
@@ -533,6 +558,10 @@ class Pod(ModelObject):
     def name(self):
         assert self._name is not None
         return self._name
+
+    @name.setter
+    def name(self, new_name):
+        self._name = self._ensure_ac_name(new_name)
 
     @property
     def version(self):

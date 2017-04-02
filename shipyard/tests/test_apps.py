@@ -27,7 +27,7 @@ class AppTest(PrepareForeman, unittest.TestCase):
     )
 
     TEST_IMAGE = apps.Image(
-        name='example.com/worker',
+        name='example.com/worker-image',
         app=TEST_APP,
     )
 
@@ -61,7 +61,7 @@ class AppTest(PrepareForeman, unittest.TestCase):
     IMAGE_MANIFEST = {
         'acKind': 'ImageManifest',
         'acVersion': '0.8.10',
-        'name': 'example.com/worker',
+        'name': 'example.com/worker-image',
         'labels': [
             {
                 'name': 'arch',
@@ -95,7 +95,7 @@ class AppTest(PrepareForeman, unittest.TestCase):
             {
                 'name': 'worker',
                 'image': {
-                    'name': 'example.com/worker',
+                    'name': 'example.com/worker-image',
                     'id': 'sha512-...',
                 },
                 'app': APP_ENTRY,
@@ -130,7 +130,7 @@ class AppTest(PrepareForeman, unittest.TestCase):
         'images': [
             {
                 'id': 'sha512-...',
-                'image': 'example.com/worker/image.aci',
+                'image': 'example.com/worker-image/image.aci',
             },
         ],
         'volumes': [
