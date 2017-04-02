@@ -19,6 +19,7 @@ LOG = logging.getLogger(__name__)
 # systems are upgraded to Python 3.6
 Package = collections.namedtuple('Package', [
     'name',
+    # TODO: Support multiple versions
     'version',
     'uri',
     'checksum',
@@ -33,7 +34,7 @@ PACKAGES = {}
 def define_package(**kwargs):
     def decorate(install):
         package = Package(name=install.__name__, install=install, **kwargs)
-        PACKAGES['%s:%s' % (package.name, package.version)] = package
+        PACKAGES[package.name] = package
         return install
     return decorate
 
@@ -66,8 +67,9 @@ def rkt(package):
 @cli.command('list', help='list supported external packages')
 def list_():
     """List supported external packages."""
-    for package_nv in sorted(PACKAGES):
-        print(package_nv)
+    for package_name in sorted(PACKAGES):
+        package = PACKAGES[package_name]
+        print('%s:%s' % (package_name, package.version))
     return 0
 
 
@@ -77,9 +79,12 @@ def list_():
 def install(args: ARGS):
     """Install external package."""
 
-    package = PACKAGES.get(args.package)
+    package_name, package_version = args.package.split(':', maxsplit=1)
+    package = PACKAGES.get(package_name)
     if package is None:
         raise RuntimeError('unknown package: %s' % args.package)
+    if package_version != 'latest' and package_version != package.version:
+        raise RuntimeError('unsupported package version: %s' % args.package)
 
     with TemporaryDirectory() as staging_dir:
         staging_dir = Path(staging_dir)
