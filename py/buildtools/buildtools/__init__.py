@@ -150,10 +150,17 @@ def make_bdist_zipapp(*, python='/usr/bin/env python3',
 
             if os.path.exists(self.output):
                 log.info('appending %s' % self.output)
+                output = os.path.abspath(self.output)
+                # Sadly, if output file name is not suffixed with zip,
+                # zip secretly appends it for you.  And that is why we
+                # do this double-rename workaround :(
+                output_zip = output + '.zip'
+                os.rename(output, output_zip)
                 check_call(
-                    ['zip', '--grow', '-r', os.path.abspath(self.output), '.'],
+                    ['zip', '--grow', '-r', output_zip, '.'],
                     cwd=install_dir,
                 )
+                os.rename(output_zip, output)
             else:
                 log.info('generating %s' % self.output)
                 with open(self.output, 'wb') as output_file:

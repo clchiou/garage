@@ -40,6 +40,10 @@ popd
 
 # startup
 pushd "${ROOT}/py/startup"
-# startup/setup.py does not support bdist_zipapp at the moment
-zip --grow -r "${OUTPUT}" startup.py
+# Call `zip` here because startup/setup.py does not support bdist_zipapp
+# at the moment.  Also because zip insists to add '.zip' suffix, we need
+# this double-rename workaround :(
+mv "${OUTPUT}" "${OUTPUT}.zip"
+zip --grow -r "${OUTPUT}.zip" startup.py
+mv "${OUTPUT}.zip" "${OUTPUT}"
 popd
