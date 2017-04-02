@@ -407,7 +407,7 @@ def cleanup(args: ARGS, repo):
 
 
 @cli.command(help='manage pods')
-@cli.sub_command_info('operation', 'operation on external dependencies')
+@cli.sub_command_info('operation', 'operation on pods')
 @cli.sub_command(list_pods)
 @cli.sub_command(is_undeployed)
 @cli.sub_command(is_deployed)
