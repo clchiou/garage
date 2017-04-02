@@ -77,9 +77,10 @@ class Fixture:
         return call(cmd, cwd=str(self.root_path)) == 0
 
     def is_deployed(self, pod_name):
-        # Because we mock out systemctl, pod state cannot be detected
-        # correctly
-        return not self.is_undeployed(pod_name)
+        # By the way, because we mock out systemctl, pod state cannot be
+        # detected correctly
+        cmd = self.OPS_CMD + ['pods', 'is-deployed', pod_name]
+        return call(cmd, cwd=str(self.root_path)) == 0
 
     def list_ports(self):
         output = check_output(

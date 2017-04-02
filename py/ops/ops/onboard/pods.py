@@ -274,30 +274,22 @@ def list_pods(repo):
 @argument_tag
 def is_undeployed(args: ARGS, repo):
     """Check if a pod is undeployed."""
-    if repo.get_pod_state(args.tag) is repos.PodState.UNDEPLOYED:
-        return 0
-    else:
-        return 1
+    return _check_pod_state(repo, args.tag, (repos.PodState.UNDEPLOYED,))
 
 
-@cli.command('is-deployed', help='check if a pod is deployed')
+@cli.command('is-deployed', help='check if a pod is deployed or started')
 @argument_tag
 def is_deployed(args: ARGS, repo):
-    """Check if a pod is deployed."""
-    if repo.get_pod_state(args.tag) is repos.PodState.DEPLOYED:
-        return 0
-    else:
-        return 1
+    """Check if a pod is deployed or started."""
+    return _check_pod_state(
+        repo, args.tag, (repos.PodState.DEPLOYED, repos.PodState.STARTED))
 
 
 @cli.command('is-started', help='check if a pod is started')
 @argument_tag
 def is_started(args: ARGS, repo):
     """Check if a pod is started."""
-    if repo.get_pod_state(args.tag) is repos.PodState.STARTED:
-        return 0
-    else:
-        return 1
+    return _check_pod_state(repo, args.tag, (repos.PodState.STARTED,))
 
 
 @cli.command(help='deploy a pod')
@@ -432,6 +424,10 @@ def pods(args: ARGS):
 
 
 ### Helper functions
+
+
+def _check_pod_state(repo, tag, states):
+    return 0 if repo.get_pod_state(tag) in states else 1
 
 
 def _list_image_ids():
