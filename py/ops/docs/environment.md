@@ -31,6 +31,9 @@ assume the paths under an environment directory.
   * `keys/current`: symlink to the keys directory
   * `keys/YYYYMM`: keys directory
 * `openvpn/...`: OpenVPN credentials
+  * `openvpn/cadir`: easy-rsa working directory
+  * `openvpn/clients`: (generated) client credentials
+  * `openvpn/servers`: (generated) server credentials
 * `scripts/env.sh`: set up the environment
 * `pods/...`: deployment bundles of pods
 

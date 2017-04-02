@@ -13,7 +13,7 @@ import yaml
 from garage import cli, scripts
 from garage.components import ARGS
 
-from . import cloudinit, keys
+from . import cloudinit, keys, openvpn
 
 
 LOG = logging.getLogger(__name__)
@@ -26,6 +26,13 @@ OPS_ENV = os.environ.get('OPS_ENV')
 
 
 ENVS_DIR = 'envs'
+
+
+argument_env = cli.argument(
+    '--env', required=not OPS_ENV, default=OPS_ENV,
+    help='''choose an environment (default from OPS_ENV environment
+            variable, which is %(default)s)'''
+)
 
 
 @cli.command('list', help='list environments')
@@ -58,18 +65,21 @@ def generate(args: ARGS):
 
     generated_at = datetime.datetime.utcnow().isoformat()
 
+    # Use YYYYMM in some directory names
+    yyyymm = datetime.date.today().strftime('%Y%m')
+
     templates_dir = Path(__file__).parent / 'templates'
 
     env_dir = args.root / ENVS_DIR / args.env
     scripts.mkdir(env_dir)
 
+    # cloud-init (at the moment just an empty directory)
     scripts.mkdir(env_dir / 'cloud-init')
 
     # Generate SSH host and user keys
     scripts.mkdir(env_dir / 'keys')
     keys_current_dir = env_dir / 'keys' / 'current'
-    # Use YYYYMM for keys directory name
-    keys_dir = env_dir / 'keys' / datetime.date.today().strftime('%Y%m')
+    keys_dir = env_dir / 'keys' / yyyymm
     if keys_current_dir.exists():
         LOG.info('refuse to overwrite %s', keys_current_dir)
     elif keys_dir.exists():
@@ -86,6 +96,23 @@ def generate(args: ARGS):
             LOG.error('err when generating user key')
             return returncode
         scripts.symlink(keys_dir.name, keys_current_dir)
+
+    openvpn_dir = env_dir / 'openvpn'
+    scripts.mkdir(openvpn_dir)
+
+    cadir = openvpn_dir / 'cadir'
+    if cadir.exists():
+        LOG.info('refuse to overwrite %s', cadir)
+    else:
+        LOG.info('generate easy-rsa cadir')
+        scripts.execute(['make-cadir', cadir])
+
+    scripts.mkdir(openvpn_dir / 'clients')
+
+    scripts.mkdir(openvpn_dir / 'servers' / yyyymm)
+    servers_current_dir = openvpn_dir / 'servers' / 'current'
+    if not servers_current_dir.exists():
+        scripts.symlink(yyyymm, servers_current_dir)
 
     scripts_dir = env_dir / 'scripts'
     scripts.mkdir(scripts_dir)
@@ -108,11 +135,7 @@ def generate(args: ARGS):
 
 
 @cli.command('gen-user-data', help='generate cloud-init user data')
-@cli.argument(
-    '--env', required=not OPS_ENV, default=OPS_ENV,
-    help='''choose an environment (default from OPS_ENV environment
-            variable, which is %(default)s)'''
-)
+@argument_env
 @cli.argument('config', type=Path, help='set config file path')
 def generate_user_data(args: ARGS):
     """Generate cloud-init user data."""
@@ -148,8 +171,50 @@ def generate_user_data(args: ARGS):
 
     cloudinit_args['output'] = env_dir / 'cloud-init' / config['output']
 
-    return cloudinit.generate_user_data(
-        args=Namespace(**cloudinit_args, **args.__dict__))
+    return cloudinit.generate_user_data(args=Namespace(
+        **cloudinit_args,
+        **args.__dict__,
+    ))
+
+
+@cli.command('copy-client', help='copy generated openvpn client data')
+@argument_env
+@cli.argument('client', help='provide client name')
+def copy_client(args: ARGS):
+    """Copy generated OpenVPN client data to another directory."""
+    env_dir = args.root / ENVS_DIR / args.env
+    return openvpn.copy_client(args=Namespace(
+        cadir=env_dir / 'openvpn' / 'cadir',
+        target=env_dir / 'openvpn' / 'clients',
+        **args.__dict__,
+    ))
+
+
+@cli.command('copy-server', help='copy generated openvpn server data')
+@argument_env
+def copy_server(args: ARGS):
+    """Copy generated OpenVPN server data to another directory."""
+    env_dir = args.root / ENVS_DIR / args.env
+    return openvpn.copy_server(args=Namespace(
+        cadir=env_dir / 'openvpn' / 'cadir',
+        target=env_dir / 'openvpn' / 'servers' / 'current',
+        **args.__dict__,
+    ))
+
+
+@cli.command('make-ovpn', help='make .ovpn file')
+@argument_env
+@cli.argument('client', help='provide client name')
+def make_ovpn(args: ARGS):
+    """Make .ovpn file."""
+    env_dir = args.root / ENVS_DIR / args.env
+    clients = env_dir / 'openvpn' / 'clients'
+    return openvpn.make_ovpn(args=Namespace(
+        server_dir=env_dir / 'openvpn' / 'servers' / 'current',
+        client_dir=clients,
+        output=clients / (args.client + '.ovpn'),
+        **args.__dict__,
+    ))
 
 
 @cli.command(help='manage ops environments')
@@ -163,6 +228,9 @@ def generate_user_data(args: ARGS):
 @cli.sub_command(list_envs)
 @cli.sub_command(generate)
 @cli.sub_command(generate_user_data)
+@cli.sub_command(copy_client)
+@cli.sub_command(copy_server)
+@cli.sub_command(make_ovpn)
 def envs(args: ARGS):
     """Manage ops environments."""
     return args.operation()
