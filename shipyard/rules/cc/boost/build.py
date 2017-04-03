@@ -31,8 +31,7 @@ common.define_distro_packages(['g++', 'libstdc++-6-dev'])
     when=lambda ps: 'python' in (ps['libraries'] or ()),
     configs=REMOVE,
 )
-# This is a strange self-reverse-depend trick
-@rule.reverse_depend('config', configs=REMOVE)
+@rule.reverse_depend('build', configs=REMOVE)
 def config(parameters):
     """Configure Boost build."""
 
@@ -56,9 +55,10 @@ def config(parameters):
         scripts.ensure_contents(config_path, json.dumps(config))
 
 
+# NOTE: build should not depend on config since it does not know what
+# configurations to provide
 @rule
 @rule.depend('//base:build')
-@rule.depend('config')
 @rule.depend('download')
 @rule.depend('install_packages')
 def build(parameters):
