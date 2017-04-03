@@ -144,6 +144,20 @@ def build(parameters):
                 # will re-run `make run_profile_task`
                 scripts.execute(['make', 'install'])
 
+    # Custom-built Python sometimes creates "pythonX.Ym" rather than
+    # "pythonX.Y" header directory
+    header_dir = (
+        parameters['prefix'] / 'include' /
+        ('python%s.%s' % parameters['version'])
+    )
+    if not header_dir.exists():
+        alt_header_dir = header_dir.with_name(
+            'python%s.%sm' % parameters['version'])
+        scripts.ensure_directory(alt_header_dir)
+        LOG.info('symlink cpython headers')
+        with scripts.using_sudo():
+            scripts.symlink(alt_header_dir.name, header_dir)
+
 
 @rule
 @rule.depend('build')
