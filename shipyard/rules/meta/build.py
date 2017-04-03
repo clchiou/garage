@@ -17,6 +17,9 @@ from foreman import define_rule
 
 (define_rule('third-party')
  .with_doc('Build all third-party packages, including all host tools.')
+ # For now just build Boost.Python by default
+ .depend('//cc/boost:config', configs={'//cc/boost:libraries': ['python']})
+ .depend('//cc/boost:build')
  .depend('//cc/nanomsg:build')
  .depend('//cc/nghttp2:build')
  .depend('//cc/v8:build')
