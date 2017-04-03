@@ -52,7 +52,9 @@ LOG.addHandler(logging.NullHandler())
 BUILD_FILE = 'build.py'
 
 
-# Sentinel value indicating that the environment should be removed
+# Sentinel value indicating that environment variables from configured
+# dependencies should be removed (but parameter values from command-line
+# are not)
 # TODO: Allow per-key removal
 REMOVE = object()
 
@@ -506,7 +508,9 @@ class Executor:
 
             if dep.configs:
                 if dep.configs is REMOVE:
-                    next_env = ChainMap()
+                    # The last map is the parameters from command-line
+                    # and we should preserve it
+                    next_env = ChainMap(environment.maps[-1])
                 else:
                     next_env = environment.new_child()
                     next_env.update(dep.configs)
