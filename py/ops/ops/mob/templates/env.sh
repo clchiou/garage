@@ -12,12 +12,14 @@ deactivate() {{
   unset ANSIBLE_PRIVATE_KEY_FILE
   unset ANSIBLE_INVENTORY
 
+  unset OPS_ROOT
   unset OPS_ENV
 
   # Self destruct!
   unset -f deactivate
 }}
 
+export OPS_ROOT="{root}"
 export OPS_ENV="{env}"
 
 export ANSIBLE_PRIVATE_KEY_FILE="{private_key}"
