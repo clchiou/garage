@@ -3,136 +3,89 @@
 """Plan and launch builders (this script wraps the builder script)."""
 
 from pathlib import Path
-import argparse
 import datetime
-import json
 import sys
 
-ROOT = Path(sys.argv[0] or '.').absolute().parent.parent.parent
+ROOT = Path(__file__).absolute().parent.parent.parent
 sys.path.append(str(ROOT / 'py' / 'garage'))
 sys.path.append(str(ROOT / 'py' / 'startup'))
+sys.path.append(str(ROOT / 'shipyard'))
 
 from garage import cli
 from garage import scripts
 from garage.components import ARGS
 
+import shipyard
+
 
 @cli.command('do-build')
 @cli.argument(
     '--dry-run', action='store_true', help='do not really launch builders')
-@cli.argument(
-    '--version', help='set build version')
-@cli.argument(
-    'rule', help='set build rule')
-@cli.argument(
-    'args', nargs=argparse.REMAINDER, help='add args to the builder script')
+@cli.argument('--version', help='set build version')
+@shipyard.argument_foreman
+@shipyard.argument_builder
+@cli.argument('rule', help='set build rule')
 def main(args: ARGS):
+    rules = shipyard.RuleIndex(args)
+    rules.load_build_data(args.rule)
+    with scripts.dry_run(args.dry_run):
+        return do_build(args, rules)
 
-    shipyard = Path(__file__).absolute().parent.parent
 
-    def build_rule(label, *, extra_args=()):
-        with scripts.directory(shipyard), scripts.dry_run(args.dry_run):
-            cmd = ['scripts/builder', 'build', label]
-            cmd.extend(args.args)
-            cmd.extend(extra_args)
-            scripts.execute(cmd)
+def do_build(args, rules):
 
-    foreman_list_args = get_foreman_list_args(args.args)
-    def foreman_list(label):
-        with scripts.directory(shipyard):
-            cmd = ['scripts/foreman.sh', 'list', label]
-            cmd.extend(foreman_list_args)
-            output = scripts.execute(cmd, capture_stdout=True).stdout
-            return json.loads(output.decode('utf8'))
-
-    build_data = foreman_list(args.rule)
-    def get_thing(kind, label):
-        index = label.find(':')
-        if index != -1:
-            label_path = label[:index]
-        else:
-            # Assume label is relative to args.rule
-            label_path = args.rule[:args.rule.index(':')]
-            label = '%s:%s' % (label_path, label)
-        for thing in build_data[label_path][kind]:
-            if thing['label'] == label:
-                return thing
-        raise KeyError(label)
-
-    get_rule = lambda label: get_thing('rules', label)
-    get_parameter = lambda label: get_thing('parameters', label)
+    builder = shipyard.Builder(args)
 
     # Figure out what kind of rule we are building
-    main_rule = get_rule(args.rule)
-    if main_rule['annotations'].get('rule-type') != 'build_pod':
+    main_rule = rules.get_rule(args.rule)
+    if main_rule.annotations.get('rule-type') != 'build_pod':
         # It's not a pod build rule - no planning required
-        build_rule(main_rule['label'])
+        builder.build(main_rule.label)
         return 0
 
     # We are building a pod; let's find all build_image rules
 
-    for dep in main_rule['all_dependencies']:
-        dep_rule = get_rule(dep['label'])
-        if dep_rule['annotations'].get('rule-type') == 'specify_pod':
+    for dep in main_rule.all_dependencies:
+        dep_rule = rules.get_rule(dep.label)
+        if dep_rule.annotations.get('rule-type') == 'specify_pod':
             break
     else:
         raise ValueError('no specify_pod rule for %s' % args.rule)
     specify_pod_rule = dep_rule
 
     build_image_rules = []
-    for dep in specify_pod_rule['all_dependencies']:
-        dep_rule = get_rule(dep['label'])
-        if dep_rule['annotations'].get('rule-type') == 'specify_image':
-            rule = get_rule(dep_rule['annotations']['build-image-rule'])
+    for dep in specify_pod_rule.all_dependencies:
+        dep_rule = rules.get_rule(dep.label)
+        if dep_rule.annotations.get('rule-type') == 'specify_image':
+            rule = rules.get_rule(dep_rule.annotations['build-image-rule'])
             build_image_rules.append(rule)
 
     # Find the version parameter and determine the version
 
-    version_label = main_rule['annotations']['version-parameter']
-    version_label = get_parameter(version_label)
-    version_label = version_label['label']
+    version_label = main_rule.annotations['version-parameter']
+    version_label = rules.get_parameter(version_label)
+    version_label = version_label.label
 
     if args.version is not None:
-        version = int(args.version)
+        version = args.version
     else:
         version = int(datetime.datetime.now().timestamp())
 
     # Start the build!
 
     for rule in build_image_rules:
-        image_name = rule['annotations']['image-name']
-        build_rule(rule['label'], extra_args=[
+        image_name = rule.annotations['image-name']
+        builder.build(rule.label, extra_args=[
             '--build-name', 'build-%d-image-%s' % (version, image_name),
         ])
 
-    pod_name = main_rule['annotations']['pod-name']
-    build_rule(main_rule['label'], extra_args=[
+    pod_name = main_rule.annotations['pod-name']
+    builder.build(main_rule.label, extra_args=[
         '--build-name', 'build-%d-pod-%s' % (version, pod_name),
         '--parameter', '%s=%d' % (version_label, version),
     ])
 
     return 0
-
-
-def get_foreman_list_args(args):
-    """Look for arguments to foreman."""
-    foreman_args = []
-    args = iter(args)
-    while True:
-        try:
-            arg = next(args)
-        except StopIteration:
-            break
-        if arg.startswith('--foreman='):
-            foreman_args.append(arg[len('--foreman='):])
-        elif arg == '--foreman':
-            foreman_args.append(next(args))
-        elif arg.startswith('--path='):
-            foreman_args.append(arg)
-        elif arg == '--path':
-            foreman_args.append(arg)
-            foreman_args.append(next(args))
-    return foreman_args
 
 
 if __name__ == '__main__':

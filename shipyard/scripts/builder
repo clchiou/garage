@@ -6,7 +6,7 @@ from pathlib import Path
 import datetime
 import sys
 
-ROOT = Path(sys.argv[0] or '.').absolute().parent.parent.parent
+ROOT = Path(__file__).absolute().parent.parent.parent
 sys.path.append(str(ROOT / 'py' / 'garage'))
 sys.path.append(str(ROOT / 'py' / 'startup'))
 
@@ -15,7 +15,7 @@ from garage import scripts
 from garage.components import ARGS
 
 
-add_common_args = cli.combine_decorators(
+argument_common = cli.combine_decorators(
     cli.argument(
         '--build-name', help='set build container name'),
     cli.argument(
@@ -29,7 +29,7 @@ add_common_args = cli.combine_decorators(
 
 
 @cli.command(help='run builder interactively')
-@add_common_args
+@argument_common
 def run(builder, cmd):
     """Run an interactive session in a builder container."""
     cmd.extend(['--interactive', '--tty', builder, '/bin/bash'])
@@ -40,7 +40,7 @@ def run(builder, cmd):
 # While you could do `--foreman=--path=/some/path`, for convenience, we
 # denormalize --path, --parameter, and rule argument of foreman.
 @cli.command(help='execute build rules')
-@add_common_args
+@argument_common
 @cli.argument(
     '--path', action='append', help='add foreman search path')
 @cli.argument(
@@ -82,15 +82,12 @@ def main(args: ARGS):
         build_name = args.build_name
         if not build_name:
             build_name = 'build-%d' % int(datetime.datetime.now().timestamp())
-        # Hard-code root directory of this repo
-        root = Path(__file__).resolve().parent.parent.parent
-        if not (root / '.git').is_dir():
-            raise AssertionError('not garage root: %s' % root)
         # Construct common part of the `docker run` command
+        scripts.ensure_directory(ROOT / '.git')
         cmd = [
             'docker', 'run',
             '--name', build_name,
-            '--volume', '%s:/home/plumber/garage:ro' % root,
+            '--volume', '%s:/home/plumber/garage:ro' % ROOT,
         ]
         for volume in args.volume or ():
             cmd.extend(['--volume', volume])

@@ -9,6 +9,8 @@ Directory structure:
 
   * scripts
 
+  * shipyard: Script helpers (not for writing build rules)
+
   * templates: Build rule templates
 
   * tests: Unit tests for the build rule templates
