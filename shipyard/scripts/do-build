@@ -58,12 +58,14 @@ def do_build(args, rules):
     # Start the build!
 
     for rule in build_image_rules:
-        image_name = rule.annotations['image-name']
+        image_label = rule.annotations['image-parameter']
+        image_name = rules.get_parameter(image_label).default['name']
         builder.build(rule.label, extra_args=[
             '--build-name', 'build-%d-image-%s' % (version, image_name),
         ])
 
-    pod_name = main_rule.annotations['pod-name']
+    pod_label = main_rule.annotations['pod-parameter']
+    pod_name = rules.get_parameter(pod_label).default['name']
     builder.build(main_rule.label, extra_args=[
         '--build-name', 'build-%d-pod-%s' % (version, pod_name),
         '--parameter', '%s=%d' % (version_label, version),

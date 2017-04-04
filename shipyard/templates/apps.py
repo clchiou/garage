@@ -7,10 +7,10 @@ __all__ = [
     'Pod',
     'SystemdUnit',
     'Volume',
-    # Build rule template
-    'define_app',
-    'define_image',
-    'define_pod',
+    # Build rule template as decorator
+    'app_specifier',
+    'image_specifier',
+    'pod_specifier',
 ]
 
 from collections import OrderedDict, namedtuple
@@ -22,7 +22,7 @@ import re
 
 from garage import scripts
 
-from foreman import define_parameter, rule, to_path
+from foreman import define_parameter, define_rule, rule, to_path
 
 from . import utils
 
@@ -30,58 +30,86 @@ from . import utils
 LOG = logging.getLogger(__name__)
 
 
-def make_from_specifier(define_rules):
-    def decorator(name_or_func):
-        if isinstance(name_or_func, str):
-            return functools.partial(define_rules, name=name_or_func)
-        else:
-            return define_rules(name_or_func.__name__, name_or_func)
-    return decorator
-
-
-def execute_specifier(parameters, name, specified_parameter, specifier):
-    if specified_parameter.default is not None:
-        LOG.info('use default for: %s', specified_parameter.label)
-        obj = specified_parameter.default
-    else:
-        obj = specified_parameter.default = specifier(parameters)
-        if obj._name is None:
-            # AC name does not accept underscore character
-            obj.name = name.replace('_', '-')
-
-
 ### Build rule template
 
 
-# specify_* are a kind of rule that instead of generating build
-# artifacts, they produce application model objects and store them in
-# parameter space.
+#
+# We want the best of both worlds for application pod metadata:
+#
+# * Rules may declare dependencies, which is the only way to instruct
+#   foreman to load more build files, but rules are only executed at
+#   build time.
+#
+# * Parameters may not declare dependencies (not technically impossible,
+#   but this feature is somehow not implemented), but parameters can be
+#   evaluated anytime.
+#
+# These application pod metadata are parameters, which means we may
+# evaluate them anytime (this makes scripting easier because scripts
+# that parse metadata do not have to execute builds beforehand).
+#
+# In addition, we provide do-nothing "specify" rules for the purpose of
+# declaring parameter dependencies; if a parameter is defined in another
+# build file, you simply declare a dependency between the specify rules,
+# and foreman will load that build file.
+#
+# There is one more advantage of do-nothing specify rules: It makes
+# build_pod rules do not directly depend on build_image rules; and so
+# you (or build scripts) may build pods and images separately.
+#
+
+
+def specifier_decorator(decorator):
+    def wrapper(specifier_or_object_name):
+        if isinstance(specifier_or_object_name, str):
+            return functools.partial(
+                decorator,
+                object_name=specifier_or_object_name,
+            )
+        else:
+            return decorator(specifier_or_object_name)
+    return wrapper
+
+
+def with_object_name(specifier, object_name):
+    """Wrap a specifier and insert a default object name."""
+    if not object_name:
+        # AC name does not accept underscore character
+        object_name = specifier.__name__.replace('_', '-')
+    def wrapper(parameters):
+        obj = specifier(parameters)
+        if obj._name is None:
+            obj._name = object_name
+        return obj
+    return wrapper
 
 
 AppRules = namedtuple('AppRules', 'specify_app')
 
 
-def define_app(name, specifier):
+@specifier_decorator
+def app_specifier(specifier, object_name=None):
     """Define NAME/specify_app rule."""
 
-    parameter_app = App.define_parameter(name)
+    name = specifier.__name__ + '/'
 
-    @rule(name + '/specify_app')
-    @rule.depend('//base:build')
-    def specify_app(parameters):
-        execute_specifier(parameters, name, parameter_app, specifier)
+    (App.define_parameter(specifier.__name__)
+     .with_derive(with_object_name(specifier, object_name)))
+
+    specify_app = (
+        define_rule(name + 'specify_app')
+        .depend('//base:build')
+    )
 
     return AppRules(specify_app=specify_app)
-
-
-define_app.from_specifier = make_from_specifier(define_app)
 
 
 ImageRules = namedtuple(
     'ImageRules', 'specify_image write_manifest build_image')
 
 
-def define_image(name, specifier):
+@specifier_decorator
+def image_specifier(specifier, object_name=None):
     """Define these rules:
        * NAME/specify_image
        * NAME/write_manifest
@@ -92,35 +120,38 @@ def define_image(name, specifier):
 
     # TODO: Encrypt and/or sign the image
 
-    parameter_image = Image.define_parameter(name)
+    name = specifier.__name__ + '/'
 
-    @rule(name + '/specify_image')
-    @rule.depend('//base:build')
-    @rule.annotate('rule-type', 'specify_image')  # For do-build tool
-    @rule.annotate('build-image-rule', name + '/build_image')
-    def specify_image(parameters):
-        execute_specifier(parameters, name, parameter_image, specifier)
+    (Image.define_parameter(specifier.__name__)
+     .with_derive(with_object_name(specifier, object_name)))
 
-    @rule(name + '/write_manifest')
+    specify_image = (
+        define_rule(name + 'specify_image')
+        .depend('//base:build')
+        .with_annotation('rule-type', 'specify_image')  # For do-build tool
+        .with_annotation('build-image-rule', name + 'build_image')
+    )
+
+    @rule(name + 'write_manifest')
     @rule.depend('//base:tapeout')
-    @rule.depend(name + '/specify_image')
+    @rule.depend(name + 'specify_image')
     def write_manifest(parameters):
         """Create Appc image manifest file."""
         LOG.info('write appc image manifest: %s', name)
-        image = parameters[name]
+        image = parameters[specifier.__name__]
         utils.write_json_to(
             image.image_manifest,
             parameters['//base:drydock/manifest'],
         )
 
-    @rule(name + '/build_image')
-    @rule.depend(name + '/write_manifest')
+    @rule(name + 'build_image')
+    @rule.depend(name + 'write_manifest')
     @rule.annotate('rule-type', 'build_image')  # For do-build tool
-    @rule.annotate('image-name', name)
+    @rule.annotate('image-parameter', specifier.__name__)
     def build_image(parameters):
         """Build Appc container image."""
 
-        image = parameters[name]
+        image = parameters[specifier.__name__]
 
         output_dir = parameters['//base:output'] / image.name
         LOG.info('build appc image: %s', output_dir)
@@ -159,9 +190,6 @@ def define_image(name, specifier):
     )
 
 
-define_image.from_specifier = make_from_specifier(define_image)
-
-
 def _compute_sha512(sha512_file_path):
     hasher = hashlib.sha512()
     pipe_input = scripts.get_stdin()
@@ -178,33 +206,37 @@ def _compute_sha512(sha512_file_path):
 PodRules = namedtuple('PodRules', 'specify_pod build_pod')
 
 
-def define_pod(name, specifier):
+@specifier_decorator
+def pod_specifier(specifier, object_name=None):
     """Define NAME/build_pod rule.
 
        The output will be written to OUTPUT directory (note that images
        are written to OUTPUT/IMAGE_NAME).
     """
 
-    parameter_pod = Pod.define_parameter(name)
+    name = specifier.__name__ + '/'
 
-    define_parameter(name + '/version')
+    (Pod.define_parameter(specifier.__name__)
+     .with_derive(with_object_name(specifier, object_name)))
 
-    @rule(name + '/specify_pod')
-    @rule.depend('//base:build')
-    @rule.annotate('rule-type', 'specify_pod')  # For do-build tool
-    def specify_pod(parameters):
-        execute_specifier(parameters, name, parameter_pod, specifier)
+    define_parameter(name + 'version')
 
-    @rule(name + '/build_pod')
-    @rule.depend(name + '/specify_pod')
+    specify_pod = (
+        define_rule(name + 'specify_pod')
+        .depend('//base:build')
+        .with_annotation('rule-type', 'specify_pod')  # For do-build tool
+    )
+
+    @rule(name + 'build_pod')
+    @rule.depend(name + 'specify_pod')
     @rule.annotate('rule-type', 'build_pod')  # For do-build tool
-    @rule.annotate('pod-name', name)
-    @rule.annotate('version-parameter', name + '/version')
+    @rule.annotate('pod-parameter', specifier.__name__)
+    @rule.annotate('version-parameter', name + 'version')
     def build_pod(parameters):
         """Write out pod-related data files."""
 
-        pod = parameters[name]
-        pod._version = parameters[name + '/version']
+        pod = parameters[specifier.__name__]
+        pod._version = parameters[name + 'version']
         for image in pod.images:
             image.load_id(parameters)
 
@@ -223,9 +255,6 @@ def define_pod(name, specifier):
             )
 
     return PodRules(specify_pod=specify_pod, build_pod=build_pod)
-
-
-define_pod.from_specifier = make_from_specifier(define_pod)
 
 
 ### Object model
@@ -450,7 +479,8 @@ class Image(ModelObject):
 
     @property
     def id(self):
-        assert self._id is not None
+        if self._id is None:
+            LOG.warning('image has no id: %s', self.name)
         return self._id
 
     @property
@@ -565,7 +595,8 @@ class Pod(ModelObject):
 
     @property
     def version(self):
-        assert self._version is not None
+        if self._version is None:
+            LOG.warning('pod has no version: %s', self.name)
         return self._version
 
     @property

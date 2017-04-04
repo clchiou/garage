@@ -83,6 +83,7 @@ class RuleIndex:
         data = self._get_thing('parameters', label)
         return Parameter(
             label=data['label'],
+            default=data.get('default'),
         )
 
     def get_rule(self, label):
@@ -120,6 +121,7 @@ Dependency = namedtuple('Dependency', [
 
 Parameter = namedtuple('Parameter', [
     'label',
+    'default',
 ])
 
 

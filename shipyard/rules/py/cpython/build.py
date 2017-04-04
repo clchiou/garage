@@ -202,7 +202,7 @@ def tapeout(parameters):
 ### Other build rules
 
 
-@apps.define_app.from_specifier
+@apps.app_specifier
 def python_app(parameters):
     """Default App object for Python container image."""
     return apps.App(
@@ -214,7 +214,7 @@ def python_app(parameters):
     )
 
 
-@apps.define_image.from_specifier
+@apps.image_specifier
 def python_image(parameters):
     """Default Python container image."""
     return apps.Image(app=parameters['python_app'])
@@ -224,7 +224,7 @@ python_image.specify_image.depend('python_app/specify_app')
 python_image.write_manifest.depend('tapeout')
 
 
-@apps.define_pod.from_specifier
+@apps.pod_specifier
 def python_pod(parameters):
     """Trivial Python pod only useful for testing."""
     return apps.Pod(images=[parameters['python_image']])
