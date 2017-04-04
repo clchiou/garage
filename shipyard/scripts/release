@@ -1,0 +1,195 @@
+#!/usr/bin/env python3
+
+from pathlib import Path
+import logging
+import os
+import sys
+
+import yaml
+
+ROOT = Path(__file__).absolute().parent.parent.parent
+sys.path.append(str(ROOT / 'py' / 'garage'))
+sys.path.append(str(ROOT / 'py' / 'startup'))
+sys.path.append(str(ROOT / 'shipyard'))
+
+from garage import cli
+from garage import scripts
+from garage.components import ARGS
+
+import shipyard
+
+
+LOG = logging.getLogger(__name__)
+
+
+OPS_ROOT = scripts.ensure_path(os.environ.get('OPS_ROOT'))
+
+
+class ReleaseRepo:
+
+    def __init__(self, release_root, rules):
+        self.root = scripts.ensure_path(release_root)
+        self.rules = rules
+
+    def load_instruction(self, path):
+        path = scripts.ensure_path(path)
+        if path.exists():
+            if not path.is_absolute():
+                path = path.resolve()
+        else:
+            # I guess it's a path relative to `channels` directory?
+            path = self.root / 'channels' / path
+        if path.suffix != '.yaml':
+            LOG.warning('expect file suffix to be .yaml: %s', path)
+
+        try:
+            relpath = path.relative_to(self.root)
+        except ValueError:
+            channel = None
+            rule = None
+            version = None
+        else:
+            # relpath should be like:
+            #   channels/CHANNEL/LABEL_PATH/POD_NAME/VERSION.yaml
+            LOG.debug('try to infer instruction data from %s', relpath)
+            parts = relpath.parts
+            if parts[0] != 'channels':
+                raise ValueError('invalid relative path: %s', relpath)
+            channel = parts[1]
+            rule = '//%s:%s/build_pod' % ('/'.join(parts[2:-2]), parts[-2])
+            version = relpath.stem
+
+        data = yaml.load(path.read_text())
+        instruction = Instruction(
+            channel=data.get('channel', channel),
+            rule=data.get('rule', rule),
+            version=data.get('version', version),
+            images=data.get('images', {}),
+            volumes=data.get('volumes', {}),
+        )
+
+        if channel is not None and channel != instruction.channel:
+            LOG.warning('actual channel differs from the inferred: %s != %s',
+                        instruction.channel, channel)
+        if rule is not None and rule != instruction.rule:
+            LOG.warning('actual rule differs from the inferred: %s != %s',
+                        instruction.rule, rule)
+        if version is not None and version != instruction.version:
+            LOG.warning('actual version differs from the inferred: %s != %s',
+                        instruction.version, version)
+
+        self.rules.load_build_data(instruction.rule)
+
+        # Add default image versions
+        build_image_rules = shipyard.get_build_image_rules(
+            self.rules, self.rules.get_rule(instruction.rule))
+        for rule in build_image_rules:
+            instruction.images.setdefault(rule.label, instruction.version)
+
+        # Add default volume versions
+        for build_image_rule in build_image_rules:
+            specify_image_rule = shipyard.get_specify_image_rule(
+                self.rules, build_image_rule)
+            specify_app_rule = shipyard.get_specify_app_rule(
+                self.rules, specify_image_rule)
+            app_parameter = self.rules.get_parameter(
+                specify_app_rule.annotations['app-parameter'])
+            label_path = app_parameter.label.rsplit(':', maxsplit=1)[0]
+            for volume in app_parameter.default['volumes']:
+                label = '%s:%s' % (label_path, volume['name'])
+                instruction.volumes.setdefault(label, instruction.version)
+
+        return instruction
+
+
+class Instruction:
+
+    channel: str
+    rule: str
+    version: str
+    images: dict  # Map image label to version
+    volumes: dict  # Map (app label path, volume name) to version
+
+    def __init__(self, **kwargs):
+        for name, type_ in self.__annotations__.items():
+            if name not in kwargs:
+                raise ValueError('missing field: %r' % name)
+            value = kwargs[name]
+            if not isinstance(value, type_):
+                raise ValueError(
+                    '%r is not %s-typed: %r' % (name, type_.__name__, value))
+        unknown_names = set(kwargs).difference_update(self.__annotations__)
+        if unknown_names:
+            raise ValueError(
+                'unknown names: %s' % ', '.join(sroted(unknown_names)))
+        self.__dict__.update(kwargs)
+
+    def __str__(self):
+        return '<%s, %s, %s>' % (self.channel, self.rule, self.version)
+
+    def execute(self, builder):
+        pass  # TODO...
+
+
+@cli.command(help='build pods')
+@shipyard.argument_foreman
+@shipyard.argument_builder
+@cli.argument(
+    'instruction', type=Path, nargs='+',
+    help='provide path to release instruction file',
+)
+def build(args: ARGS):
+    """Execute release instructions and build pods."""
+
+    rules = shipyard.RuleIndex(args)
+    builder = shipyard.Builder(args)
+
+    repo = ReleaseRepo(args.release_root, rules)
+
+    # Load release instructions
+    instructions = []
+    build_ids = set()
+    for path in args.instruction:
+        LOG.info('load release instruction: %s', path)
+        instruction = repo.load_instruction(path)
+        # You should not build the same pod twice, by which I mean they
+        # have are in the same channel and have the same build rule and
+        # version (I don't consider parameters for now)
+        build_id = (
+            instruction.channel,
+            instruction.rule,
+            instruction.version,
+        )
+        if build_id in build_ids:
+            raise ValueError('duplicated instruction: %s' % instruction)
+        build_ids.add(build_id)
+        instructions.append(instruction)
+
+    # Execute release instructions
+    with scripts.dry_run(args.dry_run):
+        for instruction in instructions:
+            LOG.info('execute release instruction: %s', instruction)
+            instruction.execute(builder)
+
+    return 0
+
+
+@cli.command('release')
+@cli.argument('--dry-run', action='store_true', help='do not really build')
+@cli.argument(
+    '--release-root', type=Path,
+    required=not OPS_ROOT,
+    default=OPS_ROOT / 'releases' if OPS_ROOT else None,
+    help='''provide path to the release directory (default derived from
+            OPS_ROOT environment variable, which is %(default)s)
+         ''',
+)
+@cli.sub_command_info('action', 'release management action')
+@cli.sub_command(build)
+def main(args: ARGS):
+    """Release management tool."""
+    return args.action()
+
+
+if __name__ == '__main__':
+    main()

@@ -99,6 +99,8 @@ def app_specifier(specifier, object_name=None):
     specify_app = (
         define_rule(name + 'specify_app')
         .depend('//base:build')
+        .with_annotation('rule-type', 'specify_app')  # For do-build tool
+        .with_annotation('app-parameter', specifier.__name__)
     )
 
     return AppRules(specify_app=specify_app)
@@ -145,6 +147,7 @@ def image_specifier(specifier, object_name=None):
         )
 
     @rule(name + 'build_image')
+    @rule.depend(name + 'specify_image')  # For release tool
     @rule.depend(name + 'write_manifest')
     @rule.annotate('rule-type', 'build_image')  # For do-build tool
     @rule.annotate('image-parameter', specifier.__name__)

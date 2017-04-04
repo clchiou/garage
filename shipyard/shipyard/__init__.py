@@ -9,6 +9,9 @@ __all__ = [
     'argument_foreman',
     'argument_builder',
     'get_build_image_rules',
+    'get_specify_app_rule',
+    'get_specify_image_rule',
+    'get_specify_pod_rule',
 ]
 
 from collections import namedtuple
@@ -133,22 +136,41 @@ Rule = namedtuple('Rule', [
 
 
 def get_build_image_rules(rules, build_pod_rule):
-    if build_pod_rule.annotations.get('rule-type') != 'build_pod':
-        raise ValueError('not build_pod rule: %s' % build_pod_rule)
+    _ensure_rule_type(build_pod_rule, 'build_pod')
+    specify_pod_rule = get_specify_pod_rule(rules, build_pod_rule)
+    return [
+        rules.get_rule(dep_rule.annotations['build-image-rule'])
+        for dep_rule in _iter_specify_rules(rules, specify_pod_rule, 'image')
+    ]
 
-    for dep in build_pod_rule.all_dependencies:
+
+def get_specify_app_rule(rules, build_rule):
+    return _get_specify_rule(rules, build_rule, 'app')
+
+
+def get_specify_image_rule(rules, build_rule):
+    return _get_specify_rule(rules, build_rule, 'image')
+
+
+def get_specify_pod_rule(rules, build_rule):
+    return _get_specify_rule(rules, build_rule, 'pod')
+
+
+def _get_specify_rule(rules, build_rule, kind):
+    for dep in build_rule.all_dependencies:
         dep_rule = rules.get_rule(dep.label)
-        if dep_rule.annotations.get('rule-type') == 'specify_pod':
-            break
-    else:
-        raise ValueError('no specify_pod rule for %s' % build_pod_rule)
-    specify_pod_rule = dep_rule
+        if dep_rule.annotations.get('rule-type') == 'specify_' + kind:
+            return dep_rule
+    raise ValueError('no specify_%s rule for %s' % (kind, build_rule))
 
-    build_image_rules = []
-    for dep in specify_pod_rule.all_dependencies:
+
+def _iter_specify_rules(rules, build_rule, kind):
+    for dep in build_rule.all_dependencies:
         dep_rule = rules.get_rule(dep.label)
-        if dep_rule.annotations.get('rule-type') == 'specify_image':
-            rule = rules.get_rule(dep_rule.annotations['build-image-rule'])
-            build_image_rules.append(rule)
+        if dep_rule.annotations.get('rule-type') == 'specify_' + kind:
+            yield dep_rule
 
-    return build_image_rules
+
+def _ensure_rule_type(rule, rule_type):
+    if rule.annotations.get('rule-type') != rule_type:
+        raise ValueError('not a %s rule: %s' % (rule_type, rule))
