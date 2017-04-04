@@ -31,7 +31,6 @@ common.define_distro_packages(['g++', 'libstdc++-6-dev'])
     when=lambda ps: 'python' in (ps['libraries'] or ()),
     configs=REMOVE,
 )
-@rule.reverse_depend('build', configs=REMOVE)
 def config(parameters):
     """Configure Boost build."""
 
@@ -40,19 +39,19 @@ def config(parameters):
 
     config_path = drydock / 'config.json'
     if config_path.exists():
-        config = json.loads(config_path.read_text())
+        config_data = json.loads(config_path.read_text())
     else:
-        config = {}
+        config_data = {}
 
     more_libraries = parameters['libraries']
     if not more_libraries:
         return
 
-    libraries = sorted(config.get('libraries', ()))
+    libraries = sorted(config_data.get('libraries', ()))
     new_libraries = sorted(set(libraries).union(more_libraries))
     if new_libraries != libraries:
-        config['libraries'] = new_libraries
-        scripts.ensure_contents(config_path, json.dumps(config))
+        config_data['libraries'] = new_libraries
+        scripts.ensure_contents(config_path, json.dumps(config_data))
 
 
 # NOTE: build should not depend on config since it does not know what
@@ -68,11 +67,11 @@ def build(parameters):
 
     config_path = drydock / 'config.json'
     if config_path.exists():
-        config = json.loads(config_path.read_text())
+        config_data = json.loads(config_path.read_text())
     else:
-        config = {}
+        config_data = {}
 
-    libraries = config.get('libraries')
+    libraries = config_data.get('libraries')
     if not libraries:
         raise RuntimeError('no libraries to build')
 
