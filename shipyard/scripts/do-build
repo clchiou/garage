@@ -43,29 +43,13 @@ def do_build(args, rules):
         builder.build(main_rule.label)
         return 0
 
-    # We are building a pod; let's find all build_image rules
-
-    for dep in main_rule.all_dependencies:
-        dep_rule = rules.get_rule(dep.label)
-        if dep_rule.annotations.get('rule-type') == 'specify_pod':
-            break
-    else:
-        raise ValueError('no specify_pod rule for %s' % args.rule)
-    specify_pod_rule = dep_rule
-
-    build_image_rules = []
-    for dep in specify_pod_rule.all_dependencies:
-        dep_rule = rules.get_rule(dep.label)
-        if dep_rule.annotations.get('rule-type') == 'specify_image':
-            rule = rules.get_rule(dep_rule.annotations['build-image-rule'])
-            build_image_rules.append(rule)
+    # We are building a pod - let's find all build_image rules
+    build_image_rules = shipyard.get_build_image_rules(rules, main_rule)
 
     # Find the version parameter and determine the version
-
     version_label = main_rule.annotations['version-parameter']
     version_label = rules.get_parameter(version_label)
     version_label = version_label.label
-
     if args.version is not None:
         version = args.version
     else:

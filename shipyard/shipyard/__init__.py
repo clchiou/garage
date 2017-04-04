@@ -8,6 +8,7 @@ __all__ = [
     'RuleIndex',
     'argument_foreman',
     'argument_builder',
+    'get_build_image_rules',
 ]
 
 from collections import namedtuple
@@ -127,3 +128,25 @@ Rule = namedtuple('Rule', [
     'annotations',
     'all_dependencies',
 ])
+
+
+def get_build_image_rules(rules, build_pod_rule):
+    if build_pod_rule.annotations.get('rule-type') != 'build_pod':
+        raise ValueError('not build_pod rule: %s' % build_pod_rule)
+
+    for dep in build_pod_rule.all_dependencies:
+        dep_rule = rules.get_rule(dep.label)
+        if dep_rule.annotations.get('rule-type') == 'specify_pod':
+            break
+    else:
+        raise ValueError('no specify_pod rule for %s' % build_pod_rule)
+    specify_pod_rule = dep_rule
+
+    build_image_rules = []
+    for dep in specify_pod_rule.all_dependencies:
+        dep_rule = rules.get_rule(dep.label)
+        if dep_rule.annotations.get('rule-type') == 'specify_image':
+            rule = rules.get_rule(dep_rule.annotations['build-image-rule'])
+            build_image_rules.append(rule)
+
+    return build_image_rules
