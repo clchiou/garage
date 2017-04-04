@@ -43,7 +43,7 @@ The `envs gen-user-data` command reads a configuration file to generate
 a user data file.  The configuration file format is like this:
 
     # Required: Output file name of user data
-    output: name.yml
+    output: name.yaml
 
     # Optional: Configure local virtual machine
     local-vm:

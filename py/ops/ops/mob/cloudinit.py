@@ -52,7 +52,7 @@ def generate_user_data(args: ARGS):
 
     templates_dir = Path(__file__).parent / 'templates'
 
-    user_data = yaml.load((templates_dir / 'user-data.yml').read_text())
+    user_data = yaml.load((templates_dir / 'user-data.yaml').read_text())
 
     key_algorithms = frozenset(algo for algo, _ in keys.HOST_KEYS)
 
