@@ -340,8 +340,13 @@ def apt_get_install(packages, *, only_missing=True):
     execute(cmd)
 
 
-def cp(src, dst):
-    execute(['cp', '--force', src, dst])
+def cp(src, dst, *, preserve=('mode',)):
+    cmd = ['cp', '--force']
+    if preserve:
+        cmd.append('--preserve=%s' % ','.join(preserve))
+    cmd.append(src)
+    cmd.append(dst)
+    execute(cmd)
 
 
 def git_clone(repo, local_path=None, checkout=None):
