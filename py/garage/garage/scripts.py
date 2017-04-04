@@ -23,6 +23,7 @@ __all__ = [
     'gunzip',
     'gzip',
     'mkdir',
+    'mv',
     'rm',
     'rmdir',
     'rsync',
@@ -373,6 +374,15 @@ def gzip(speed=6):
 
 def mkdir(path):
     execute(['mkdir', '--parents', path])
+
+
+def mv(src, dst, *, treat_target_as_directory=True):
+    cmd = ['mv', '--force']
+    if not treat_target_as_directory:
+        cmd.append('--no-target-directory')
+    cmd.append(src)
+    cmd.append(dst)
+    execute(cmd)
 
 
 def rm(path, recursive=False):
