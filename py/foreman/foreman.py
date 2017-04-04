@@ -849,6 +849,12 @@ def command_build(args, loader):
             environment[parameter.label] = value
             LOG.debug('parameter %s is set to: %r', parameter.label, value)
 
+    # NOTE: It might not be clear but the semantics we implement here is
+    # similar to `make`.  The executor records the rules that have been
+    # executed and do not execute them twice.  And so no matter what
+    # order of rules you type on the command-line, it is always the same
+    # transitive closure of rules that will be executed (but the order
+    # of execution may be different).
     for rule_label in rule_labels:
         executor.execute(rule_label, environment)
 
