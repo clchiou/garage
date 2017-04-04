@@ -1,24 +1,24 @@
 import unittest
 
-from templates import apps
+from templates import pods
 
 from tests.fixtures import PrepareForeman
 
 
 class AppTest(PrepareForeman, unittest.TestCase):
 
-    TEST_APP = apps.App(
+    TEST_APP = pods.App(
         name='worker',
         exec=['/bin/bash'],
         environment={
             'PATH': '/bin:/usr/bin',
         },
         volumes=[
-            apps.Volume(
+            pods.Volume(
                 name='data',
                 path='/var/data',
             ),
-            apps.Volume(
+            pods.Volume(
                 name='log',
                 path='/var/log',
                 read_only=False,
@@ -26,7 +26,7 @@ class AppTest(PrepareForeman, unittest.TestCase):
         ],
     )
 
-    TEST_IMAGE = apps.Image(
+    TEST_IMAGE = pods.Image(
         name='example.com/worker-image',
         app=TEST_APP,
     )
@@ -75,12 +75,12 @@ class AppTest(PrepareForeman, unittest.TestCase):
         'app': APP_ENTRY,
     }
 
-    TEST_SYSTEMD_UNIT = apps.SystemdUnit(
+    TEST_SYSTEMD_UNIT = pods.SystemdUnit(
         unit_file='foo.service',
         instances=[1, 2, 3],
     )
 
-    TEST_POD = apps.Pod(
+    TEST_POD = pods.Pod(
         name='application',
         images=[TEST_IMAGE],
         systemd_units=[TEST_SYSTEMD_UNIT],
@@ -149,16 +149,16 @@ class AppTest(PrepareForeman, unittest.TestCase):
     }
 
     def test_model_object_methods(self):
-        dict_1 = apps.App.to_dict(self.TEST_APP)
-        dict_2 = apps.App.to_dict(apps.App.from_dict(dict_1))
+        dict_1 = pods.App.to_dict(self.TEST_APP)
+        dict_2 = pods.App.to_dict(pods.App.from_dict(dict_1))
         self.assertEqual(dict_1, dict_2)
 
-        dict_1 = apps.Image.to_dict(self.TEST_IMAGE)
-        dict_2 = apps.Image.to_dict(apps.Image.from_dict(dict_1))
+        dict_1 = pods.Image.to_dict(self.TEST_IMAGE)
+        dict_2 = pods.Image.to_dict(pods.Image.from_dict(dict_1))
         self.assertEqual(dict_1, dict_2)
 
-        dict_1 = apps.Pod.to_dict(self.TEST_POD)
-        dict_2 = apps.Pod.to_dict(apps.Pod.from_dict(dict_1))
+        dict_1 = pods.Pod.to_dict(self.TEST_POD)
+        dict_2 = pods.Pod.to_dict(pods.Pod.from_dict(dict_1))
         self.assertEqual(dict_1, dict_2)
 
     def test_image(self):

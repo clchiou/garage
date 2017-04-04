@@ -8,7 +8,7 @@ from foreman import define_parameter, get_relpath, rule
 
 from garage import scripts
 
-from templates import apps
+from templates import pods
 from templates.common import define_archive, define_distro_packages
 from templates.utils import tapeout_files
 
@@ -202,10 +202,10 @@ def tapeout(parameters):
 ### Other build rules
 
 
-@apps.app_specifier
+@pods.app_specifier
 def python_app(parameters):
     """Default App object for Python container image."""
-    return apps.App(
+    return pods.App(
         exec=[str(parameters['python'])],
         environment={
             'LD_LIBRARY_PATH': str(parameters['prefix'] / 'lib'),
@@ -214,20 +214,20 @@ def python_app(parameters):
     )
 
 
-@apps.image_specifier
+@pods.image_specifier
 def python_image(parameters):
     """Default Python container image."""
-    return apps.Image(app=parameters['python_app'])
+    return pods.Image(app=parameters['python_app'])
 
 
 python_image.specify_image.depend('python_app/specify_app')
 python_image.write_manifest.depend('tapeout')
 
 
-@apps.pod_specifier
+@pods.pod_specifier
 def python_pod(parameters):
     """Trivial Python pod only useful for testing."""
-    return apps.Pod(images=[parameters['python_image']])
+    return pods.Pod(images=[parameters['python_image']])
 
 
 python_pod.specify_pod.depend('python_image/specify_image')
