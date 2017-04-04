@@ -14,8 +14,8 @@ define_parameter('executed_rules').with_default([])
 
 
 (define_rule('rule-A')
- .depend('rule-B', configs={'x': 1})
- .depend('rule-C', configs={'x': 2})
+ .depend('rule-B', parameters={'x': 1})
+ .depend('rule-C', parameters={'x': 2})
  .with_build(lambda ps: ps['executed_rules'].append(('rule-A', ps)))
 )
 
@@ -30,7 +30,7 @@ define_parameter('executed_rules').with_default([])
 (define_rule('rule-C')
  .depend('rule-D')
  .depend('rule-F')
- .depend('rule-G', configs=REMOVE)
+ .depend('rule-G', parameters=REMOVE)
  .with_build(lambda ps: ps['executed_rules'].append(('rule-C', ps)))
 )
 

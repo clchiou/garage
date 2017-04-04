@@ -8,7 +8,7 @@ class RuleTest(unittest.TestCase):
     def test_rule(self):
         r = (
             Rule(Label.parse('//x:a'))
-            .depend('b', configs={
+            .depend('b', parameters={
                 'c': 1,
                 '//y:c': 2,
             })
@@ -22,10 +22,10 @@ class RuleTest(unittest.TestCase):
                 Label.parse('//x:c'): 1,
                 Label.parse('//y:c'): 2,
             },
-            r.dependencies[0].configs,
+            r.dependencies[0].parameters,
         )
         self.assertEqual(Label.parse('//y:c'), r.dependencies[1].label)
-        self.assertIsNone(r.dependencies[1].configs)
+        self.assertIsNone(r.dependencies[1].parameters)
 
 
 if __name__ == '__main__':

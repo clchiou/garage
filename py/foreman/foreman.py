@@ -52,7 +52,7 @@ LOG.addHandler(logging.NullHandler())
 BUILD_FILE = 'build.py'
 
 
-# Sentinel value indicating that environment variables from configured
+# Sentinel value indicating that environment variables from parametric
 # dependencies should be removed (but parameter values from command-line
 # are not)
 # TODO: Allow per-key removal
@@ -222,13 +222,13 @@ class Rule:
 
     class Dependency:
 
-        def __init__(self, label, when, configs):
+        def __init__(self, label, when, parameters):
             self.label = label
             self.when = when
-            self.configs = configs
+            self.parameters = parameters
 
         def with_label(self, label):
-            return Rule.Dependency(label, self.when, self.configs)
+            return Rule.Dependency(label, self.when, self.parameters)
 
     def __init__(self, label):
         self.label = label
@@ -255,8 +255,8 @@ class Rule:
         self.annotations.pop(name, None)
         return self
 
-    def depend(self, label, when=None, configs=None):
-        self.dependencies.append(Rule.Dependency(label, when, configs))
+    def depend(self, label, when=None, parameters=None):
+        self.dependencies.append(Rule.Dependency(label, when, parameters))
         return self
 
     # Reverse dependency is usually for implementing "join point" kind
@@ -269,8 +269,9 @@ class Rule:
     # that are pointed by the reverse dependency unless you request it
     # explicitly.
 
-    def reverse_depend(self, label, when=None, configs=None):
-        self.reverse_dependencies.append(Rule.Dependency(label, when, configs))
+    def reverse_depend(self, label, when=None, parameters=None):
+        self.reverse_dependencies.append(
+            Rule.Dependency(label, when, parameters))
         return self
 
     @property
@@ -292,13 +293,13 @@ class Rule:
     def _resolve_dep(dep, implicit_path):
         if not isinstance(dep.label, Label):
             dep.label = Label.parse(dep.label, implicit_path)
-        if dep.configs and dep.configs is not REMOVE:
-            configs = {}
-            for label, value in dep.configs.items():
+        if dep.parameters and dep.parameters is not REMOVE:
+            parameters = {}
+            for label, value in dep.parameters.items():
                 if not isinstance(label, Label):
                     label = Label.parse(label, implicit_path)
-                configs[label] = value
-            dep.configs = configs
+                parameters[label] = value
+            dep.parameters = parameters
 
 
 ### Build file loader.
@@ -371,8 +372,8 @@ class Loader:
         # Make sure that build rules do not refer to undefined parameters.
         for rule in self.rules.values():
             for dep in rule.all_dependencies:
-                if dep.configs and dep.configs is not REMOVE:
-                    for label in dep.configs:
+                if dep.parameters and dep.parameters is not REMOVE:
+                    for label in dep.parameters:
                         if label not in self.parameters:
                             msg = 'parameter %s is undefined' % label
                             raise ForemanError(msg)
@@ -506,14 +507,14 @@ class Executor:
             if dep.when and not dep.when(values):
                 continue
 
-            if dep.configs:
-                if dep.configs is REMOVE:
+            if dep.parameters:
+                if dep.parameters is REMOVE:
                     # The last map is the parameters from command-line
                     # and we should preserve it
                     next_env = ChainMap(environment.maps[-1])
                 else:
                     next_env = environment.new_child()
-                    next_env.update(dep.configs)
+                    next_env.update(dep.parameters)
             else:
                 next_env = environment
 
@@ -705,15 +706,15 @@ rule.annotate = lambda name, value: partial(
 )
 
 
-rule.depend = lambda label, when=None, configs=None: partial(
+rule.depend = lambda label, when=None, parameters=None: partial(
     _decorate_rule,
-    _depend=Rule.Dependency(label, when=when, configs=configs),
+    _depend=Rule.Dependency(label, when=when, parameters=parameters),
 )
 
 
-rule.reverse_depend = lambda label, when=None, configs=None: partial(
+rule.reverse_depend = lambda label, when=None, parameters=None: partial(
     _decorate_rule,
-    _reverse_depend=Rule.Dependency(label, when=when, configs=configs),
+    _reverse_depend=Rule.Dependency(label, when=when, parameters=parameters),
 )
 
 
@@ -903,13 +904,13 @@ def command_list(args, loader):
         contents = OrderedDict()
         contents['label'] = str(dependency.label)
         contents['conditional'] = bool(dependency.when)
-        if dependency.configs:
-            if dependency.configs is REMOVE:
-                contents['configs'] = 'REMOVE'
+        if dependency.parameters:
+            if dependency.parameters is REMOVE:
+                contents['parameters'] = 'REMOVE'
             else:
-                contents['configs'] = OrderedDict([
-                    (str(label), dependency.configs[label])
-                    for label in sorted(dependency.configs)
+                contents['parameters'] = OrderedDict([
+                    (str(label), dependency.parameters[label])
+                    for label in sorted(dependency.parameters)
                 ])
         return contents
 

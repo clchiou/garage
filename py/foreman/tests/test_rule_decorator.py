@@ -30,8 +30,8 @@ class RuleDecoratorTest(unittest.TestCase):
             pass
 
         @rule
-        @rule.depend('some/rule/1', 'when', 'configs')
-        @rule.reverse_depend('some_rule_2', 'when', 'configs')
+        @rule.depend('some/rule/1', 'when', 'parameters')
+        @rule.reverse_depend('some_rule_2', 'when', 'parameters')
         @rule.annotate('name', 'value')
         def some_rule_3(_):
             pass
@@ -65,12 +65,13 @@ class RuleDecoratorTest(unittest.TestCase):
         self.assertEqual(1, len(rule_3.dependencies))
         self.assertEqual('some/rule/1', rule_3.dependencies[0].label)
         self.assertEqual('when', rule_3.dependencies[0].when)
-        self.assertEqual('configs', rule_3.dependencies[0].configs)
+        self.assertEqual('parameters', rule_3.dependencies[0].parameters)
 
         self.assertEqual(1, len(rule_3.reverse_dependencies))
         self.assertEqual('some_rule_2', rule_3.reverse_dependencies[0].label)
         self.assertEqual('when', rule_3.reverse_dependencies[0].when)
-        self.assertEqual('configs', rule_3.reverse_dependencies[0].configs)
+        self.assertEqual(
+            'parameters', rule_3.reverse_dependencies[0].parameters)
 
         self.assertEqual({'name': 'value'}, rule_3.annotations)
 

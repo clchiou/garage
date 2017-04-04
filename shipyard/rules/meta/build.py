@@ -42,7 +42,7 @@ from foreman import define_rule
 # this way:
 #
 #     (define_rule('//meta:third-party')
-#      .depend('//cc/boost:config', configs={'//cc/boost:libraries': ['python']})
+#      .depend('//cc/boost:config', parameters={'//cc/boost:libraries': ['python']})
 #      .depend('//cc/boost:build'))
 #
 #     (define_rule('//cc/boost:config')
@@ -60,6 +60,6 @@ from foreman import define_rule
 # that //cc/boost:build() is executed after //cc/boost:config(libraries=python).
 #
 (define_rule('configure-boost')
- .depend('//cc/boost:config', configs={'//cc/boost:libraries': ['python']})
+ .depend('//cc/boost:config', parameters={'//cc/boost:libraries': ['python']})
  .reverse_depend('//cc/boost:build')
 )

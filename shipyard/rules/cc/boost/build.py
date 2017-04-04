@@ -25,11 +25,11 @@ common.define_distro_packages(['g++', 'libstdc++-6-dev'])
 
 
 @rule
-@rule.depend('//base:build', configs=REMOVE)
+@rule.depend('//base:build', parameters=REMOVE)
 @rule.depend(
     '//py/cpython:build',
     when=lambda ps: 'python' in (ps['libraries'] or ()),
-    configs=REMOVE,
+    parameters=REMOVE,
 )
 def config(parameters):
     """Configure Boost build."""
