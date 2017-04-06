@@ -340,7 +340,7 @@ def apt_get_install(packages, *, only_missing=True):
     execute(cmd)
 
 
-def cp(src, dst, *, recursive=False, preserve=('mode',)):
+def cp(src, dst, *, recursive=False, preserve=()):
     cmd = ['cp', '--force']
     if recursive:
         cmd.append('--recursive')
