@@ -25,10 +25,7 @@ you are deploying to lots of machines.
 #### Release channels
 
 We divide pods into separate channels to simplify and isolate how an
-environment gets its releases.  Also this lets us to make customizations
-per environment, like adding `--verbose` to pods in staging.  But note
-that in general, we prefer all channels sharing a common set of code and
-data files.  See `py/ops/docs/environment.md` for more on environments.
+environment gets its releases.
 
 #### Exception to the only-deploying-pods norm
 
@@ -49,26 +46,26 @@ All three of them are versioned, and we use symlink to make references
 among them.  The directory structure would be like:
 
 * `images/${LABEL_PATH}/${IMAGE_NAME}/${IMAGE_VERSION}/...`
-  + `sha512`: Checksum of image.aci **before** it is compressed.
+  + `sha512`: Checksum of `image.aci` **before** it is compressed.
   + `image.aci`
 
 * `volumes/${LABEL_PATH}/${VOLUME_NAME}/${VOLUME_VERSION}/...`
   + You put volume tarball files here (maybe plus metadata).
 
-* `channels/${CHANNEL}/${LABEL_PATH}/${POD_NAME}/${POD_VERSION}/...`:
+* `pods/${LABEL_PATH}/${POD_NAME}/${POD_VERSION}/...`
   + `pod.json`
   + It may have symlinks to images and volumes.
   + It may contain small data files.
 
-* `channels/${CHANNEL}/${LABEL_PATH}/${POD_NAME}/tip`:
-  Symlink to the latest pod.
+* `channels/${CHANNEL}/${LABEL_PATH}/${POD_NAME}`:
+  + Symlink to pod (represent the current version of this pod).
 
 
 ### Release process
 
 The process is pretty simple at the moment:
 1. Create an release instruction file.
-2. Run `scripts/release` script on it.
+2. Run `scripts/release build` script on it.
 
 In the instruction file, you optionally specify the version of images
 and volumes (both default to the pod version).  If image of that version
@@ -76,10 +73,8 @@ does not exist, the release tool will build it, but it is an error if
 volume of that version does not exist (since the release tool does not
 know how to create volumes).
 
-If you put instruction files below channels directories, release tool
-may infer metadata from path; for example, if its path is
-`channels/.../${POD_VERSION}.yaml`, release tool may infer channel, build
-rule, and version from path.
+If you put instruction files below pods directories, release tool may
+infer metadata encoded in path.
 
 NOTE: We record source code revisions in instruction files, but at the
 moment release tool does not check out specific revision prior to build.

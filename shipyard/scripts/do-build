@@ -7,6 +7,7 @@ import datetime
 import sys
 
 ROOT = Path(__file__).absolute().parent.parent.parent
+sys.path.append(str(ROOT / 'py' / 'foreman'))
 sys.path.append(str(ROOT / 'py' / 'garage'))
 sys.path.append(str(ROOT / 'py' / 'startup'))
 sys.path.append(str(ROOT / 'shipyard'))

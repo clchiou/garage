@@ -139,7 +139,7 @@ def image_specifier(specifier, object_name=None):
     @rule.depend(name + 'specify_image')
     def write_manifest(parameters):
         """Create Appc image manifest file."""
-        LOG.info('write appc image manifest: %s', name)
+        LOG.info('write appc image manifest: %s', specifier.__name__)
         image = parameters[specifier.__name__]
         utils.write_json_to(
             image.image_manifest,

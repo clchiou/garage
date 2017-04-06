@@ -1,16 +1,22 @@
 #!/usr/bin/env python3
 
 from pathlib import Path
+import datetime
 import logging
 import os
+import os.path
 import sys
+import tempfile
 
 import yaml
 
 ROOT = Path(__file__).absolute().parent.parent.parent
+sys.path.append(str(ROOT / 'py' / 'foreman'))
 sys.path.append(str(ROOT / 'py' / 'garage'))
 sys.path.append(str(ROOT / 'py' / 'startup'))
 sys.path.append(str(ROOT / 'shipyard'))
+
+from foreman import Label
 
 from garage import cli
 from garage import scripts
@@ -22,6 +28,7 @@ import shipyard
 LOG = logging.getLogger(__name__)
 
 
+# We search ${OPS_ROOT}/releases for releases by default
 OPS_ROOT = scripts.ensure_path(os.environ.get('OPS_ROOT'))
 
 
@@ -32,85 +39,137 @@ class ReleaseRepo:
         self.rules = rules
 
     def load_instruction(self, path):
+
+        path = self._check_path(path)
+        data = yaml.load(path.read_text())
+
+        rule, pod, version = self._parse_rpv(path, data)
+        self.rules.load_build_data(rule)
+        self._check_pod(rule, pod)
+
+        build_image_rules = shipyard.get_build_image_rules(
+            self.rules,
+            self.rules.get_rule(rule),
+        )
+
+        instruction = Instruction(
+            rule=rule,
+            pod=pod,
+            version=version,
+            images={
+                Label.parse(label, implicit_path=rule.path): version
+                for label, version in data.get('images', {}).items()
+            },
+            image_rules={},  # Set it in _add_default_images()
+            volumes={
+                Label.parse(label, implicit_path=rule.path): version
+                for label, version in data.get('volumes', {}).items()
+            },
+        )
+
+        self._add_default_images(instruction, build_image_rules)
+        self._add_default_volumes(instruction, build_image_rules)
+
+        return instruction
+
+    def _check_path(self, path):
         path = scripts.ensure_path(path)
         if path.exists():
             if not path.is_absolute():
                 path = path.resolve()
         else:
-            # I guess it's a path relative to `channels` directory?
-            path = self.root / 'channels' / path
+            # I guess it's a path relative to `pods` directory?
+            path = scripts.ensure_file(self.root / 'pods' / path)
         if path.suffix != '.yaml':
             LOG.warning('expect file suffix to be .yaml: %s', path)
+        return path
+
+    def _parse_rpv(self, path, data):
+        """Parse rule, pod, and version."""
 
         try:
             relpath = path.relative_to(self.root)
         except ValueError:
-            channel = None
-            rule = None
-            version = None
+            inferred_pod = None
+            inferred_version = None
         else:
             # relpath should be like:
-            #   channels/CHANNEL/LABEL_PATH/POD_NAME/VERSION.yaml
+            #   pods/LABEL_PATH/POD_NAME/VERSION.yaml
             LOG.debug('try to infer instruction data from %s', relpath)
             parts = relpath.parts
-            if parts[0] != 'channels':
+            if parts[0] != 'pods':
                 raise ValueError('invalid relative path: %s', relpath)
-            channel = parts[1]
-            rule = '//%s:%s/build_pod' % ('/'.join(parts[2:-2]), parts[-2])
-            version = relpath.stem
+            inferred_pod = '//%s:%s' % ('/'.join(parts[1:-2]), parts[-2])
+            inferred_version = relpath.stem
 
-        data = yaml.load(path.read_text())
-        instruction = Instruction(
-            channel=data.get('channel', channel),
-            rule=data.get('rule', rule),
-            version=data.get('version', version),
-            images=data.get('images', {}),
-            volumes=data.get('volumes', {}),
-        )
+        pod = data.get('pod', inferred_pod)
+        if not pod:
+            raise ValueError('instruction does not specify pod')
+        if inferred_pod and inferred_pod != pod:
+            LOG.warning('actual pod differs from the inferred: %s != %s',
+                        pod, inferred_pod)
+        pod = Label.parse(pod)
 
-        if channel is not None and channel != instruction.channel:
-            LOG.warning('actual channel differs from the inferred: %s != %s',
-                        instruction.channel, channel)
-        if rule is not None and rule != instruction.rule:
-            LOG.warning('actual rule differs from the inferred: %s != %s',
-                        instruction.rule, rule)
-        if version is not None and version != instruction.version:
+        version = data.get('version', inferred_version)
+        if not version:
+            raise ValueError('instruction does not specify version')
+        if inferred_version is not None and inferred_version != version:
             LOG.warning('actual version differs from the inferred: %s != %s',
-                        instruction.version, version)
+                        version, inferred_version)
 
-        self.rules.load_build_data(instruction.rule)
+        rule = data.get('rule')
+        if not rule:
+            raise ValueError('instruction does not specify rule')
+        rule = Label.parse(rule, implicit_path=pod.path)
 
-        # Add default image versions
-        build_image_rules = shipyard.get_build_image_rules(
-            self.rules, self.rules.get_rule(instruction.rule))
+        return rule, pod, version
+
+    def _check_pod(self, rule, pod):
+        pod2 = self.rules.get_rule(rule)
+        pod2 = pod2.annotations['pod-parameter']
+        pod2 = self.rules.get_parameter(pod2)
+        pod2 = Label.parse_name(rule.path, pod2.default['name'])
+        if pod2 != pod:
+            fmt = 'pod from build file differs from instruction: %s != %s'
+            raise ValueError(fmt % (pod2, pod))
+
+    def _add_default_images(self, instruction, build_image_rules):
         for rule in build_image_rules:
-            instruction.images.setdefault(rule.label, instruction.version)
+            image = rule.annotations['image-parameter']
+            image = self.rules.get_parameter(image)
+            image = Label.parse_name(rule.label.path, image.default['name'])
+            instruction.images.setdefault(image, instruction.version)
+            instruction.image_rules[image] = rule.label
 
-        # Add default volume versions
-        for build_image_rule in build_image_rules:
-            specify_image_rule = shipyard.get_specify_image_rule(
-                self.rules, build_image_rule)
+    def _add_default_volumes(self, instruction, build_image_rules):
+        for rule in build_image_rules:
             specify_app_rule = shipyard.get_specify_app_rule(
-                self.rules, specify_image_rule)
-            app_parameter = self.rules.get_parameter(
-                specify_app_rule.annotations['app-parameter'])
-            label_path = app_parameter.label.rsplit(':', maxsplit=1)[0]
-            for volume in app_parameter.default['volumes']:
-                label = '%s:%s' % (label_path, volume['name'])
-                instruction.volumes.setdefault(label, instruction.version)
-
-        return instruction
+                self.rules,
+                shipyard.get_specify_image_rule(
+                    self.rules,
+                    rule,
+                ),
+            )
+            app = specify_app_rule.annotations['app-parameter']
+            app = self.rules.get_parameter(app)
+            for volume in app.default['volumes']:
+                instruction.volumes.setdefault(
+                    Label.parse_name(app.label.path, volume['name']),
+                    instruction.version,
+                )
 
 
 class Instruction:
 
-    channel: str
-    rule: str
+    rule: Label
+    pod: Label  # (rule label path, pod name)
     version: str
-    images: dict  # Map image label to version
+    images: dict  # Map (image label path, image name) to version
+    image_rules: dict  # Map to build_image rules
     volumes: dict  # Map (app label path, volume name) to version
 
     def __init__(self, **kwargs):
+
         for name, type_ in self.__annotations__.items():
             if name not in kwargs:
                 raise ValueError('missing field: %r' % name)
@@ -118,17 +177,122 @@ class Instruction:
             if not isinstance(value, type_):
                 raise ValueError(
                     '%r is not %s-typed: %r' % (name, type_.__name__, value))
+
         unknown_names = set(kwargs).difference_update(self.__annotations__)
         if unknown_names:
             raise ValueError(
-                'unknown names: %s' % ', '.join(sroted(unknown_names)))
-        self.__dict__.update(kwargs)
+                'unknown names: %s' % ', '.join(sorted(unknown_names)))
+
+        self.rule = kwargs['rule']
+        self.pod = kwargs['pod']
+        self.version = kwargs['version']
+        self.images = kwargs['images']
+        self.image_rules = kwargs['image_rules']
+        self.volumes = kwargs['volumes']
 
     def __str__(self):
-        return '<%s, %s, %s>' % (self.channel, self.rule, self.version)
+        return '%s@%s' % (self.pod, self.version)
 
-    def execute(self, builder):
-        pass  # TODO...
+    def execute(self, repo, builder):
+
+        build_name = 'build-%d' % datetime.datetime.now().timestamp()
+
+        # Build pod if it is not present
+        if self._get_pod_path(repo).exists():
+            LOG.info('skip building pod: %s@%s', self.pod, self.version)
+            return True
+
+        # Check if all volumes are present
+        okay = True
+        for volume in sorted(self.volumes):
+            if not self._get_volume_path(repo, volume).exists():
+                volume_lv = '%s@%s' % (volume, self.volumes[volume])
+                LOG.error('volume does not exist: %s', volume_lv)
+                okay = False
+        if not okay:
+            return False
+
+        # Build images that are not present
+        for image in sorted(self.images):
+            self._build_image(repo, builder, build_name, image)
+
+        # Finally we build the pod
+        self._build_pod(repo, builder, build_name)
+
+        return True
+
+    def _get_pod_path(self, repo):
+        return (repo.root / 'pods' /
+                self.pod.path / self.pod.name / self.version)
+
+    def _get_image_path(self, repo, image):
+        return (repo.root / 'images' /
+                image.path / image.name / self.images[image])
+
+    def _get_volume_path(self, repo, volume):
+        return (repo.root / 'volumes' /
+                volume.path / volume.name / self.volumes[volume])
+
+    def _build_image(self, repo, builder, build_name, image):
+        image_lv = '%s@%s' % (image, self.images[image])
+        image_path = self._get_image_path(repo, image)
+        if image_path.exists():
+            LOG.info('skip building image: %s', image_lv)
+            return
+
+        LOG.info('build image %s', image_lv)
+        with tempfile.TemporaryDirectory() as build_dir:
+            builder.build(self.image_rules[image], extra_args=[
+                '--build-name', build_name,
+                '--output', build_dir,
+            ])
+            scripts.mkdir(image_path.parent)
+            scripts.cp(
+                Path(build_dir) / image.name, image_path,
+                recursive=True,
+            )
+
+    def _build_pod(self, repo, builder, build_name):
+        LOG.info('build image %s@%s', self.pod, self.version)
+        with tempfile.TemporaryDirectory() as build_dir:
+
+            # Builder is running in a container and so symlinks won't
+            # work; to work around this, we copy files to build_dir (and
+            # for now all we need to copy is `image-name/sha512`)
+            for image in self.images:
+                image_path = self._get_image_path(repo, image)
+                scripts.mkdir(build_dir / image.name)
+                scripts.cp(image_path / 'sha512', build_dir / image.name)
+
+            builder.build(self.rule, extra_args=[
+                '--build-name', build_name,
+                '--output', build_dir,
+            ])
+
+            # Undo the workaround
+            for image in self.images:
+                scripts.rm(build_dir / image.name, recursive=True)
+
+            pod_path = self._get_pod_path(repo)
+            scripts.mkdir(pod_path.parent)
+            scripts.cp(build_dir, pod_path, recursive=True)
+
+            # Create symlink to images
+            for image in self.images:
+                image_path = self._get_image_path(repo, image)
+                self._make_rel_symlink(image_path, pod_path / image.name)
+
+            # Create symlink to volumes
+            for volume in self.volumes:
+                volume_path = self._get_volume_path(repo, volume)
+                self._make_rel_symlink(volume_path, pod_path / volume.name)
+
+    @staticmethod
+    def _make_rel_symlink(target, link_name):
+        # Use os.path.relpath because Path.relative_to can't do it
+        relpath = os.path.relpath(target, link_name.parent)
+        with scripts.directory(link_name.parent):
+            scripts.symlink(relpath, link_name.name)
 
 
 @cli.command(help='build pods')
@@ -153,25 +317,23 @@ def build(args: ARGS):
         LOG.info('load release instruction: %s', path)
         instruction = repo.load_instruction(path)
         # You should not build the same pod twice, by which I mean they
-        # have are in the same channel and have the same build rule and
-        # version (I don't consider parameters for now)
-        build_id = (
-            instruction.channel,
-            instruction.rule,
-            instruction.version,
-        )
+        # have have the same build rule and version
+        build_id = (instruction.rule, instruction.version)
         if build_id in build_ids:
             raise ValueError('duplicated instruction: %s' % instruction)
         build_ids.add(build_id)
         instructions.append(instruction)
 
     # Execute release instructions
+    okay = True
     with scripts.dry_run(args.dry_run):
         for instruction in instructions:
             LOG.info('execute release instruction: %s', instruction)
-            instruction.execute(builder)
+            if not instruction.execute(repo, builder):
+                okay = False
+                break
 
-    return 0
+    return 0 if okay else 1
 
 
 @cli.command('release')

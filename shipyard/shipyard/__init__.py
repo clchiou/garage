@@ -18,6 +18,8 @@ from collections import namedtuple
 from pathlib import Path
 import json
 
+from foreman import Label
+
 from garage import cli
 from garage import scripts
 
@@ -61,7 +63,7 @@ class Builder:
         self.builder_args = args.builder_arg or ()
 
     def build(self, label, extra_args=()):
-        cmd = [self.builder, 'build', label]
+        cmd = [self.builder, 'build', str(label)]
         cmd.extend(self.builder_args)
         cmd.extend(extra_args)
         scripts.execute(cmd)
@@ -72,31 +74,34 @@ class RuleIndex:
     def __init__(self, args):
         self.foreman = scripts.ensure_file(args.foreman)
         self.foreman_args = args.foreman_arg or ()
-        self._rule = None
         self._build_data = None
+        self._label_path = None
 
     def load_build_data(self, rule):
-        cmd = [self.foreman, 'list', rule]
+        if isinstance(rule, str):
+            self._label_path = Label.parse(rule).path
+        else:
+            self._label_path = rule.path
+        cmd = [self.foreman, 'list', str(rule)]
         cmd.extend(self.foreman_args)
         stdout = scripts.execute(cmd, capture_stdout=True).stdout
         self._build_data = json.loads(stdout.decode('utf8'))
-        self._rule = rule
 
     def get_parameter(self, label):
         data = self._get_thing('parameters', label)
         return Parameter(
-            label=data['label'],
+            label=Label.parse(data['label']),
             default=data.get('default'),
         )
 
     def get_rule(self, label):
         data = self._get_thing('rules', label)
         return Rule(
-            label=data['label'],
+            label=Label.parse(data['label']),
             annotations=data['annotations'],
             all_dependencies=[
                 Dependency(
-                    label=dep['label'],
+                    label=Label.parse(dep['label']),
                 )
                 for dep in data['all_dependencies']
             ],
@@ -104,15 +109,11 @@ class RuleIndex:
 
     def _get_thing(self, kind, label):
         assert self._build_data is not None
-        index = label.find(':')
-        if index != -1:
-            label_path = label[:index]
-        else:
-            # Assume label is relative to self._rule
-            label_path = self._rule[:self._rule.index(':')]
-            label = '%s:%s' % (label_path, label)
-        for thing in self._build_data[label_path][kind]:
-            if thing['label'] == label:
+        if isinstance(label, str):
+            label = Label.parse(label, implicit_path=self._label_path)
+        label_str = str(label)
+        for thing in self._build_data['//%s' % label.path][kind]:
+            if thing['label'] == label_str:
                 return thing
         raise KeyError(label)
 
