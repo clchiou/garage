@@ -1,6 +1,7 @@
 __all__ = [
     'ReleaseRepo',
     'Instruction',
+    'execute_instructions',
 ]
 
 from pathlib import Path
@@ -26,13 +27,63 @@ class ReleaseRepo:
         self.root = scripts.ensure_path(release_root)
         self.rules = rules
 
-    def load_instruction(self, path):
+    def load_instructions(self, labels_versions):
 
-        path = self._check_path(path)
-        data = yaml.load(path.read_text())
+        data_list = []
+        rule_list = []
+        for label, version in labels_versions:
+            LOG.info('load release %s@%s', label, version)
+            # Don's use with_suffix('.yaml') because version may contain
+            # dots, e.g., 1.0.3
+            path = (self.root / 'pods' /
+                    label.path / label.name / (version + '.yaml'))
+            data = yaml.load(path.read_text())
+            rule = data.get('rule')
+            if not rule:
+                raise ValueError('instruction does not specify rule')
+            rule_list.append(Label.parse(rule, implicit_path=label.path))
+            data_list.append(data)
 
-        rule, pod, version = self._parse_rpv(path, data)
-        self.rules.load_build_data(rule)
+        self.rules.load_from_labels(rule_list)
+
+        instructions = []
+        for i, (label, version) in enumerate(labels_versions):
+            with self.rules.using_label_path(label):
+                instructions.append(self._make_instruction(
+                    data_list[i],
+                    rule_list[i],
+                    label,
+                    version,
+                ))
+        return instructions
+
+    def load_instruction_files(self, paths):
+
+        blobs = []
+        build_ids = set()
+        for path in paths:
+            LOG.info('load release instruction: %s', path)
+            path = self._check_path(path)
+            data = yaml.load(path.read_text())
+            rule, pod, version = self._parse_rpv(path, data)
+            blobs.append((data, rule, pod, version))
+            # You should not build the same pod twice
+            build_id = (pod, version)
+            if build_id in build_ids:
+                raise ValueError(
+                    'duplicated instruction: %s@%s' % (pod, version))
+            build_ids.add(build_id)
+
+        self.rules.load_from_labels(rule for _, rule, _, _ in blobs)
+
+        instructions = []
+        for blob in blobs:
+            with self.rules.using_label_path(blob[2]):
+                instructions.append(self._make_instruction(*blob))
+        return instructions
+
+    def _make_instruction(self, data, rule, pod, version):
+
         self._check_pod(rule, pod)
 
         build_image_rules = shipyard.get_build_image_rules(
@@ -145,6 +196,15 @@ class ReleaseRepo:
                     Label.parse_name(app.label.path, volume['name']),
                     instruction.version,
                 )
+
+
+def execute_instructions(instructions, repo, builder):
+    for instruction in instructions:
+        LOG.info('execute release instruction: %s', instruction)
+        with repo.rules.using_label_path(instruction.rule):
+            if not instruction.execute(repo, builder):
+                return False  # Fail early
+    return True
 
 
 class Instruction:

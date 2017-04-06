@@ -16,6 +16,7 @@ __all__ = [
 
 from collections import namedtuple
 from pathlib import Path
+import contextlib
 import json
 
 from foreman import Label
@@ -77,15 +78,26 @@ class RuleIndex:
         self._build_data = None
         self._label_path = None
 
-    def load_build_data(self, rule):
-        if isinstance(rule, str):
-            self._label_path = Label.parse(rule).path
-        else:
-            self._label_path = rule.path
-        cmd = [self.foreman, 'list', str(rule)]
+    def load_from_labels(self, labels):
+        """Load build data from labels."""
+        cmd = [self.foreman, 'list']
+        cmd.extend(map(str, labels))
         cmd.extend(self.foreman_args)
         stdout = scripts.execute(cmd, capture_stdout=True).stdout
         self._build_data = json.loads(stdout.decode('utf8'))
+
+    @contextlib.contextmanager
+    def using_label_path(self, label):
+        """Use label for implicit path."""
+        assert not self._label_path
+        if isinstance(label, str):
+            self._label_path = Label.parse(label).path
+        else:
+            self._label_path = label.path
+        try:
+            yield
+        finally:
+            self._label_path = None
 
     def get_parameter(self, label):
         data = self._get_thing('parameters', label)
