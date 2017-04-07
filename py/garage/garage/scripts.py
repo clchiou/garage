@@ -28,6 +28,7 @@ __all__ = [
     'rmdir',
     'rsync',
     'symlink',
+    'symlink_relative',
     'systemctl_disable',
     'systemctl_enable',
     'systemctl_is_active',
@@ -59,6 +60,7 @@ import functools
 import hashlib
 import logging
 import os
+import os.path
 import subprocess
 import sys
 import threading
@@ -427,6 +429,14 @@ def rsync(srcs, dst, *,
 
 def symlink(target, link_name):
     execute(['ln', '--symbolic', target, link_name])
+
+
+def symlink_relative(target, link_name):
+    # Use os.path.relpath because Path.relative_to can't derive this
+    # kind of relative path
+    relpath = os.path.relpath(target, link_name.parent)
+    with directory(link_name.parent):
+        symlink(relpath, link_name.name)
 
 
 def _systemctl(command, name):
