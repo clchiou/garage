@@ -6,6 +6,8 @@ import logging
 import os
 import sys
 
+import yaml
+
 ROOT = Path(__file__).absolute().parent.parent.parent
 sys.path.append(str(ROOT / 'py' / 'foreman'))
 sys.path.append(str(ROOT / 'py' / 'garage'))
@@ -17,6 +19,7 @@ from foreman import Label
 from garage import cli
 from garage import scripts
 from garage.components import ARGS
+from garage.formatters.yaml import represent_mapping
 
 import shipyard
 import shipyard.release
@@ -38,10 +41,74 @@ argument_podv = cli.argument(
 def parse_podv_list(podv_list):
     labels_versions = OrderedDict()  # As ordered set
     for label_version in podv_list:
-        label, version = label_version.rsplit('@', maxsplit=1)
-        label = Label.parse(label)
-        labels_versions[(label, version)] = None
+        labels_versions[parse_podv(label_version)] = None
     return list(labels_versions)
+
+
+def parse_podv(podv):
+    label, version = podv.rsplit('@', maxsplit=1)
+    label = Label.parse(label)
+    return label, version
+
+
+@cli.command('gen-inst', help='generate instruction file')
+@cli.argument(
+    '--repo', metavar=('SCM', 'PATH'), nargs=2, action='append',
+    help='add source repo to revision stamp (SCM: git, hg)',
+)
+@cli.argument(
+    'podv', help='set versioned pod label (format: "//label@version")',
+)
+@cli.argument(
+    'rule', help='set pod build rule',
+)
+def generate_instruction(args: ARGS):
+    """Generate instruction file."""
+
+    # Preserve order and human readability (PyYAML sucks in this regard)
+    yaml.SafeDumper.add_representer(OrderedDict, represent_mapping)
+
+    instruction_data = OrderedDict([
+        ('rule', args.rule),
+        ('revisions', []),
+    ])
+
+    revisions = instruction_data['revisions']
+    source_repos = [('git', ROOT)]
+    source_repos.extend(args.repo or ())
+    for scm, repo_path in source_repos:
+        repo_path = scripts.ensure_directory(repo_path)
+        if scm == 'git':
+            url, revision, dirty = shipyard.release.get_git_stamp(repo_path)
+        elif scm == 'hg':
+            url, revision, dirty = shipyard.release.get_hg_stamp(repo_path)
+        else:
+            raise RuntimeError('unsupported scm: %s' % scm)
+        LOG.info('stamp: %s %s %s%s', scm, url, '*' if dirty else '', revision)
+        revisions.append(OrderedDict([
+            ('scm', scm),
+            ('url', url),
+            ('revision', revision),
+            ('dirty', dirty),
+        ]))
+
+    instruction_data = yaml.safe_dump(
+        instruction_data,
+        default_flow_style=False,
+        explicit_start=True,
+        indent=2,
+    )
+
+    label, version = parse_podv(args.podv)
+    path = (args.release_root / 'pods' /
+            label.path / label.name / (version + '.yaml'))
+    if path.exists():
+        LOG.warning('overwrite %s', path)
+    with scripts.dry_run(args.dry_run):
+        scripts.mkdir(path.parent)
+        scripts.ensure_contents(path, instruction_data)
+
+    return 0
 
 
 @cli.command('build', help='build pods')
@@ -143,6 +210,7 @@ def bind(args: ARGS):
          ''',
 )
 @cli.sub_command_info('action', 'release management action')
+@cli.sub_command(generate_instruction)
 @cli.sub_command(build)
 @cli.sub_command(build_instructions)
 @cli.sub_command(bind)

@@ -2,6 +2,8 @@ __all__ = [
     'ReleaseRepo',
     'Instruction',
     'execute_instructions',
+    'get_git_stamp',
+    'get_hg_stamp',
 ]
 
 from pathlib import Path
@@ -333,3 +335,58 @@ class Instruction:
             for volume in self.volumes:
                 volume_path = self._get_volume_path(repo, volume)
                 scripts.symlink_relative(volume_path, pod_path / volume.name)
+
+
+def get_git_stamp(path):
+
+    with scripts.directory(path):
+
+        cmd = ['git', 'remote', '--verbose']
+        remotes = scripts.execute(cmd, capture_stdout=True).stdout
+        for remote in remotes.decode('utf8').split('\n'):
+            remote = remote.split()
+            if remote[0] == 'origin':
+                url = remote[1]
+                break
+        else:
+            raise RuntimeError('no remote origin for %s' % path)
+
+        cmd = ['git', 'log', '-1', '--format=format:%H']
+        revision = scripts.execute(cmd, capture_stdout=True).stdout
+        revision = revision.decode('ascii').strip()
+
+        dirty = False
+        cmd = ['git', 'status', '--porcelain']
+        status = scripts.execute(cmd, capture_stdout=True).stdout
+        for status_line in status.decode('utf8').split('\n'):
+            if not status_line.startswith('  '):
+                dirty = True
+                break
+
+    return url, revision, dirty
+
+
+def get_hg_stamp(path):
+
+    with scripts.directory(path):
+
+        cmd = ['hg', 'path']
+        remotes = scripts.execute(cmd, capture_stdout=True).stdout
+        for remote in remotes.decode('utf8').split('\n'):
+            remote = remote.split()
+            if remote[0] == 'default':
+                assert remote[1] == '='
+                url = remote[2]
+                break
+        else:
+            raise RuntimeError('no default remote for %s' % path)
+
+        cmd = ['hg', 'log', '--limit', '1', '--template', '{node}']
+        revision = scripts.execute(cmd, capture_stdout=True).stdout
+        revision = revision.decode('ascii').strip()
+
+        cmd = ['hg', 'status']
+        dirty = scripts.execute(cmd, capture_stdout=True).stdout
+        dirty = bool(dirty.strip())
+
+    return url, revision, dirty
