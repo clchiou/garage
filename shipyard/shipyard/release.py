@@ -7,7 +7,6 @@ __all__ = [
 from pathlib import Path
 import datetime
 import logging
-import os.path
 import tempfile
 import yaml
 
@@ -328,16 +327,9 @@ class Instruction:
             # Create symlink to images
             for image in self.images:
                 image_path = self._get_image_path(repo, image)
-                self._make_rel_symlink(image_path, pod_path / image.name)
+                scripts.symlink_relative(image_path, pod_path / image.name)
 
             # Create symlink to volumes
             for volume in self.volumes:
                 volume_path = self._get_volume_path(repo, volume)
-                self._make_rel_symlink(volume_path, pod_path / volume.name)
-
-    @staticmethod
-    def _make_rel_symlink(target, link_name):
-        # Use os.path.relpath because Path.relative_to can't do it
-        relpath = os.path.relpath(target, link_name.parent)
-        with scripts.directory(link_name.parent):
-            scripts.symlink(relpath, link_name.name)
+                scripts.symlink_relative(volume_path, pod_path / volume.name)

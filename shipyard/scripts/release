@@ -29,15 +29,25 @@ LOG = logging.getLogger(__name__)
 OPS_ROOT = scripts.ensure_path(os.environ.get('OPS_ROOT'))
 
 
+argument_podv = cli.argument(
+    'podv', nargs='+',
+    help='add versioned pod label to build (format: "//label@version")',
+)
+
+
+def parse_podv_list(podv_list):
+    labels_versions = OrderedDict()  # As ordered set
+    for label_version in podv_list:
+        label, version = label_version.rsplit('@', maxsplit=1)
+        label = Label.parse(label)
+        labels_versions[(label, version)] = None
+    return list(labels_versions)
+
+
 @cli.command('build', help='build pods')
 @shipyard.argument_foreman
 @shipyard.argument_builder
-@cli.argument(
-    'pod', nargs='+',
-    help='''provide versioned label of pods to build
-            (format: "//label@version")
-         ''',
-)
+@argument_podv
 def build(args: ARGS):
     """Build pods from versioned labels."""
 
@@ -45,14 +55,12 @@ def build(args: ARGS):
     builder = shipyard.Builder(args)
     repo = shipyard.release.ReleaseRepo(args.release_root, rules)
 
-    labels_versions = OrderedDict()  # As ordered set
-    for label_version in args.pod:
-        label, version = label_version.rsplit('@', maxsplit=1)
-        labels_versions[(Label.parse(label), version)] = None
-
+    labels_versions = parse_podv_list(args.podv)
     instructions = repo.load_instructions(labels_versions)
 
-    okay = shipyard.release.execute_instructions(instructions, repo, builder)
+    with scripts.dry_run(args.dry_run):
+        okay = shipyard.release.execute_instructions(
+            instructions, repo, builder)
     return 0 if okay else 1
 
 
@@ -72,8 +80,56 @@ def build_instructions(args: ARGS):
 
     instructions = repo.load_instruction_files(args.instruction)
 
-    okay = shipyard.release.execute_instructions(instructions, repo, builder)
+    with scripts.dry_run(args.dry_run):
+        okay = shipyard.release.execute_instructions(
+            instructions, repo, builder)
     return 0 if okay else 1
+
+
+@cli.command('bind', help='bind release channel to pod versions')
+@cli.argument('channel', help='set release channel to bind')
+@argument_podv
+def bind(args: ARGS):
+    """Bind release channel to a specific pod versions."""
+
+    channel_root = args.release_root / 'channels' / args.channel
+    pods_root = args.release_root / 'pods'
+
+    labels_versions = parse_podv_list(args.podv)
+
+    pod_paths = []
+    okay = True
+    for label, version in labels_versions:
+        pod_path = pods_root / label.path / label.name / version
+        pod_paths.append(pod_path)
+        if not pod_path.exists():
+            LOG.error('pod does not exist: %s@%s', label, version)
+            okay = False
+    if not okay:
+        return 1
+
+    with scripts.dry_run(args.dry_run):
+        for (label, next_version), pod_path in zip(labels_versions, pod_paths):
+            channel_pod_path = channel_root / label.path / label.name
+            if channel_pod_path.exists():
+                this_version = channel_pod_path.resolve().name
+                if this_version == next_version:
+                    LOG.info(
+                        'skip binding %s@%s again to channel %s',
+                        label, next_version, args.channel)
+                    continue
+                LOG.info(
+                    'rebind %s@%s to channel %s from version %s',
+                    label, next_version, args.channel, this_version)
+                scripts.rm(channel_pod_path)
+            else:
+                LOG.info(
+                    'bind %s@%s to channel %s',
+                    label, next_version, args.channel)
+            scripts.mkdir(channel_pod_path.parent)
+            scripts.symlink_relative(pod_path, channel_pod_path)
+
+    return 0
 
 
 @cli.command('release')
@@ -89,6 +145,7 @@ def build_instructions(args: ARGS):
 @cli.sub_command_info('action', 'release management action')
 @cli.sub_command(build)
 @cli.sub_command(build_instructions)
+@cli.sub_command(bind)
 def main(args: ARGS):
     """Release management tool."""
     return args.action()
