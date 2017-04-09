@@ -166,12 +166,12 @@ def generate_names(name_format='{name}-{serial:02d}', **kwargs):
         yield name_format.format(serial=serial.get_and_add(1), **kwargs)
 
 
-def make_get_thread_local(make):
+def make_get_thread_local(name, make):
     local = threading.local()
     def get_thread_local():
-        if not hasattr(local, 'obj'):
-            local.obj = make()
-        return local.obj
+        if not hasattr(local, name):
+            setattr(local, name, make())
+        return getattr(local, name)
     return get_thread_local
 
 
