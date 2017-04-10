@@ -3,6 +3,7 @@
 __all__ = [
     'DictBuilder',
     'LoadingDict',
+    'NamedTuple',
     'Symbols',
     'Trie',
     'collect',
@@ -143,6 +144,126 @@ class LoadingDict(UserDict):
         value = self.load(key)
         self[key] = value
         return value
+
+
+class NamedTupleMeta(type):
+    """This is similar to typing.NamedTupleMeta but supports base
+       classes (so that you may use mixin pattern).
+    """
+
+    def __new__(mcs, class_name, bases, namespace):
+
+        field_types = namespace.get('__annotations__', {})
+        field_types = OrderedDict(field_types.items())
+        namespace['__annotations__'] = field_types
+
+        field_names = tuple(field_types)
+        seen = set()
+        for name in field_names:
+            if name.startswith('_'):
+                raise ValueError(
+                    'field name starts with underscore: %s' % name)
+            if name in seen:
+                raise ValueError('duplicated field name: %s' % name)
+            seen.add(name)
+
+        defaults = []
+        defaults_dict = {}
+        for name in field_names:
+            if name in namespace:
+                value = namespace[name]
+                defaults.append(value)
+                defaults_dict[name] = value
+            elif defaults:
+                raise TypeError(
+                    'non-default field %s appears after default field(s) %s' %
+                    (name, list(defaults_dict.keys()))
+                )
+
+        def set_name(name, value):
+            """Set name in namespace and check for overwrites."""
+            if name in namespace:
+                import warnings
+                warnings.warn(
+                    '%s.%s is overwritten' % (class_name, name), stacklevel=3)
+            namespace[name] = value
+
+        set_name('__slots__', ())
+        set_name('_fields', field_names)
+        set_name('_field_defaults', defaults_dict)
+        set_name('_field_types', field_types)
+        set_name('__new__', mcs.make_new(class_name, field_names))
+
+        namespace['__new__'].__defaults__ = tuple(defaults)
+
+        # Provide a default __repr__
+        if '__repr__' not in namespace:
+            namespace['__repr__'] = mcs.make_repr(class_name, field_names)
+
+        # Replace annotation with property
+        for index, name in enumerate(field_names):
+            namespace[name] = property(
+                operator.itemgetter(index),
+                doc='Alias for field number %d' % index,
+            )
+
+        return super().__new__(mcs, class_name, bases, namespace)
+
+    @staticmethod
+    def make_new(class_name, field_names):
+        """Make a __new__ method for the new class."""
+        code = (
+            'def __new__(cls, {args}):\n'
+            '   """Create new instance of {class_name}({args})."""\n'
+            '   return tuple.__new__(cls, ({args}))\n'
+            .format(class_name=class_name, args=', '.join(field_names))
+        )
+        variables = {'__name__': class_name}
+        exec(code, variables)
+        return variables['__new__']
+
+    @staticmethod
+    def make_repr(class_name, field_names):
+        """Make a __repr__ method for the new class."""
+        field_formats = ('%s=%%r' % name for name in field_names)
+        repr_format = '%s(%s)' % (class_name, ', '.join(field_formats))
+        def __repr__(self):
+            """Return a nicely formatted representation string"""
+            return repr_format % self
+        return __repr__
+
+
+class NamedTuple(tuple, metaclass=NamedTupleMeta):
+
+    # NOTE: super()'s magic relies on the implicit __class__ variable,
+    # and thus, if you want to call super(), you must make sure that
+    # that method is defined in the right class.
+
+    @classmethod
+    def _make(cls, iterable):
+        """Make a new object from a sequence or iterable."""
+        obj = super().__new__(cls, iterable)
+        if len(obj) != len(cls._fields):
+            raise TypeError(
+                'expect %d arguments but get %d' %
+                (len(cls._fields), len(obj))
+            )
+        return obj
+
+    def _replace(self, **kwargs):
+        """Return a new object replacing specified fields with new values."""
+        obj = self._make(map(kwargs.pop, self._fields, self))
+        if kwargs:
+            raise ValueError('get unexpected field names: %s' % list(kwargs))
+        return obj
+
+    def _asdict(self):
+        """Return a new OrderedDict which maps field names to their values."""
+        return OrderedDict(zip(self._fields, self))
+
+    def __getnewargs__(self):
+        """Return self as a plain tuple (used by copy and pickle)."""
+        return tuple(self)
 
 
 class Symbols:

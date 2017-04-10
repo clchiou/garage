@@ -1,5 +1,7 @@
 import unittest
 
+import typing
+
 from garage.collections import *
 
 
@@ -62,6 +64,52 @@ class CollectionsTest(unittest.TestCase):
             DictBuilder().if_(True).elif_(True).if_(True)
         with self.assertRaises(AssertionError):
             DictBuilder().if_(True).else_().elif_(True)
+
+    # Use new annotation syntax available since Python 3.6
+    def test_named_tuple(self):
+
+        class Mixin:
+            def func(self):
+                pass
+
+        with self.assertRaisesRegex(ValueError, r'starts with underscore'):
+            class Foo(NamedTuple):
+                _x: int
+
+        with self.assertRaisesRegex(TypeError, r'non-default .* after'):
+            class Foo(NamedTuple):
+                x: int = 1
+                y: int
+
+        class Foo(Mixin, NamedTuple):
+            x: int
+            y: int = 1
+
+        # typing.NamedTuple drops all other base classes
+        class Foo2(Mixin, typing.NamedTuple):
+            x: int
+            y: int = 1
+
+        self.assertTrue(hasattr(Foo, 'func'))
+        self.assertEqual((Mixin, NamedTuple), Foo.__bases__)
+        self.assertFalse(hasattr(Foo2, 'func'))
+        self.assertEqual((tuple,), Foo2.__bases__)
+
+        self.assertEqual((42, 1), Foo(42))
+        self.assertEqual((42, 1), Foo(x=42))
+        self.assertEqual((42, 37), Foo(x=42, y=37))
+
+        foo = Foo(42)
+        self.assertTrue(isinstance(foo, Foo))
+        self.assertTrue(isinstance(foo, tuple))
+
+        self.assertEqual('Foo(x=42, y=1)', repr(foo))
+
+        self.assertEqual((7, 8), Foo._make([7, 8]))
+
+        self.assertEqual((42, 99), foo._replace(y=99))
+
+        self.assertEqual({'x': 42, 'y': 1}, dict(foo._asdict()))
 
     def test_symbols(self):
         symbols = Symbols('a', 'b', ('c', 3), d=4)

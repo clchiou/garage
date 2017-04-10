@@ -4,8 +4,9 @@ import subprocess
 
 
 python2_available = (
-    subprocess.run(['which', 'python2'], stdout=subprocess.DEVNULL
-    ).returncode == 0)
+    subprocess.run(['which', 'python2'], stdout=subprocess.DEVNULL)
+    .returncode == 0
+)
 
 
 try:
