@@ -111,6 +111,68 @@ class CollectionsTest(unittest.TestCase):
 
         self.assertEqual({'x': 42, 'y': 1}, dict(foo._asdict()))
 
+    def test_named_tuple_inheritance(self):
+
+        class Mixin1:
+
+            def func_mixin1(self):
+                return 'mixin1'
+
+            def func(self):
+                return 'mixin1'
+
+        class Mixin2:
+
+            def func_mixin2(self):
+                return 'mixin2'
+
+            def func(self):
+                return 'mixin2'
+
+        class Base(Mixin1, NamedTuple):
+
+            w: int = 1
+            x: int = 2
+
+            def func1(self):
+                return 'base'
+
+        class Derived(Mixin2, Base):
+
+            y: int = 3
+            z: int = 4
+
+            def func2(self):
+                return 'derived'
+
+        self.assertEqual(['w', 'x'], list(Base._fields))
+        self.assertEqual(['w', 'x', 'y', 'z'], list(Derived._fields))
+
+        self.assertEqual((1, 2, 3, 4), Derived())
+        self.assertEqual((4, 3, 2, 1), Derived(4, 3, 2, 1))
+
+        b = Base()
+        self.assertEqual('mixin1', b.func())
+        self.assertEqual('base', b.func1())
+        self.assertFalse(hasattr(b, 'func2'))
+        self.assertEqual('mixin1', b.func_mixin1())
+        self.assertFalse(hasattr(b, 'func_mixin2'))
+
+        d = Derived()
+        self.assertEqual('mixin2', d.func())
+        self.assertEqual('base', d.func1())
+        self.assertEqual('derived', d.func2())
+        self.assertEqual('mixin1', d.func_mixin1())
+        self.assertEqual('mixin2', d.func_mixin2())
+
+        with self.assertRaisesRegex(TypeError, r'multiple .* bases'):
+            class Derived2(Base, Derived):
+                pass
+
+        with self.assertRaisesRegex(ValueError, r'duplicated field name'):
+            class Derived3(Base):
+                w: int
+
     def test_symbols(self):
         symbols = Symbols('a', 'b', ('c', 3), d=4)
         self.assertEqual('a', symbols.a)

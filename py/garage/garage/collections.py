@@ -149,29 +149,44 @@ class LoadingDict(UserDict):
 class NamedTupleMeta(type):
     """This is similar to typing.NamedTupleMeta but supports base
        classes (so that you may use mixin pattern).
+
+       Note that, to adhere to Liskov Substitution Principle, you cannot
+       inherit from multiple subclass of NamedTuple.
     """
 
     def __new__(mcs, class_name, bases, namespace):
 
-        field_types = namespace.get('__annotations__', {})
-        field_types = OrderedDict(field_types.items())
-        namespace['__annotations__'] = field_types
+        field_types = OrderedDict()
+        base_class = None
+        for base in bases:
+            if hasattr(base, '_field_types'):
+                if base_class:
+                    raise TypeError(
+                        '%s inherits from multiple NamedTuple bases' %
+                        class_name
+                    )
+                base_class = base
+                field_types.update(base._field_types)
 
-        field_names = tuple(field_types)
-        seen = set()
-        for name in field_names:
+        for name, type_ in namespace.get('__annotations__', {}).items():
             if name.startswith('_'):
                 raise ValueError(
                     'field name starts with underscore: %s' % name)
-            if name in seen:
+            if name in field_types:
                 raise ValueError('duplicated field name: %s' % name)
-            seen.add(name)
+            field_types[name] = type_
+
+        field_names = tuple(field_types)
 
         defaults = []
         defaults_dict = {}
         for name in field_names:
             if name in namespace:
                 value = namespace[name]
+                defaults.append(value)
+                defaults_dict[name] = value
+            elif name in base_class._field_defaults:
+                value = base_class._field_defaults[name]
                 defaults.append(value)
                 defaults_dict[name] = value
             elif defaults:
