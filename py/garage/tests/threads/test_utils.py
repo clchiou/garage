@@ -2,6 +2,7 @@ import unittest
 
 import heapq
 import random
+import threading
 
 from garage.threads import queues
 from garage.threads import utils
@@ -136,6 +137,32 @@ class UtilsTest(unittest.TestCase):
         self.assertEqual('hello-0', next(names))
         self.assertEqual('hello-1', next(names))
         self.assertEqual('hello-2', next(names))
+
+    def test_make_get_thread_local(self):
+
+        # They should access the same 'x'
+        get_x_1 = utils.make_get_thread_local(
+            'x', lambda: threading.current_thread().ident)
+        get_x_2 = utils.make_get_thread_local(
+            'x', lambda: self.fail('this should not be called'))
+
+        def func(x_output):
+            x_output.append(get_x_1())
+            x_output.append(get_x_2())
+
+        t1_x = []
+        t1 = threading.Thread(target=func, args=(t1_x,))
+        t1.start()
+
+        t2_x = []
+        t2 = threading.Thread(target=func, args=(t2_x,))
+        t2.start()
+
+        t1.join()
+        t2.join()
+
+        self.assertEqual([t1.ident, t1.ident], t1_x)
+        self.assertEqual([t2.ident, t2.ident], t2_x)
 
 
 if __name__ == '__main__':

@@ -167,12 +167,16 @@ def generate_names(name_format='{name}-{serial:02d}', **kwargs):
 
 
 def make_get_thread_local(name, make):
-    local = threading.local()
     def get_thread_local():
+        local = make_get_thread_local.local
         if not hasattr(local, name):
             setattr(local, name, make())
         return getattr(local, name)
     return get_thread_local
+
+
+# Share thread local object globally
+make_get_thread_local.local = threading.local()
 
 
 # NOTE: This function is a hack; don't expect it to always work.
