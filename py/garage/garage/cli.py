@@ -209,6 +209,7 @@ class Command:
         startup_.set(garage.components.ARGV, argv)
         startup_.set(garage.components.EXIT_STACK, exit_stack)
         startup_.set(garage.components.PARSER, parser)
+        startup_(garage.components.check_args)
         startup_(garage.components.parse_argv)
 
         # Use a set to filter out duplicated components

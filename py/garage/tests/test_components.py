@@ -5,6 +5,10 @@ from tests.availability import startup_available
 if startup_available:
     from startup import Startup
     from garage.components import (
+        ARGS,
+        CHECK_ARGS,
+        PARSE,
+        PARSER,
         Component,
         bind,
         make_fqname_tuple,
@@ -79,7 +83,14 @@ class ComponentsTest(unittest.TestCase):
         startup = Startup()
         bind(A(), startup)
         bind(B(), startup)
-        self.assertDictEqual({':A': 'a', ':B': 'a'}, startup.call())
+        startup.set(ARGS, None)
+        startup.set(CHECK_ARGS, None)
+        startup.set(PARSER, None)
+        self.assertDictEqual(
+            {':A': 'a', ':B': 'a',
+             ARGS: None, CHECK_ARGS: None, PARSER: None},
+            startup.call(),
+        )
 
     def test_bind(self):
 
@@ -100,7 +111,53 @@ class ComponentsTest(unittest.TestCase):
         bind(A(), startup)
         bind(B('x'), startup)
         bind(B('y'), startup)
-        self.assertDictEqual({':a': 'y', ':as': ['x', 'y']}, startup.call())
+        startup.set(ARGS, None)
+        startup.set(CHECK_ARGS, None)
+        startup.set(PARSER, None)
+        self.assertDictEqual(
+            {':a': 'y', ':as': ['x', 'y'],
+             ARGS: None, CHECK_ARGS: None, PARSER: None},
+            startup.call(),
+        )
+
+    def test_resolved_order(self):
+
+        order = []
+
+        # Component A requires and provides nothing (and it is
+        # alphabetically before B and C).  We have to make sure that
+        # A.make is called after B.check_argument and C.add_arguments.
+
+        class A(Component):
+            def make(self, require):
+                order.append('A.make')
+
+        class B(Component):
+            def check_arguments(self, parser, args):
+                order.append('B.check_arguments')
+
+        class C(Component):
+            def add_arguments(self, parser):
+                order.append('C.add_arguments')
+
+        def parse_argv(_: PARSE) -> ARGS:
+            pass
+
+        def check_args(_: ARGS) -> CHECK_ARGS:
+            pass
+
+        startup = Startup()
+        bind(A(), startup)
+        bind(B(), startup)
+        bind(C(), startup)
+        startup.set(PARSER, None)
+        startup(check_args)
+        startup(parse_argv)
+        startup.call()
+        self.assertEqual(
+            ['C.add_arguments', 'B.check_arguments', 'A.make'],
+            order,
+        )
 
     def test_vars_as_namespace(self):
         varz = vars_as_namespace({'a': 1, 'x.y.z:b': 2})
