@@ -1,5 +1,3 @@
-"""Template of DbEngineComponent."""
-
 __all__ = [
     'make_db_engine_component',
 ]
@@ -12,10 +10,10 @@ from garage.startups.logging import LoggingComponent
 
 
 def make_db_engine_component(
-        *,
-        package_name,
-        argument_group,
-        argument_prefix):
+        *, package_name,
+        argument_group, argument_prefix,
+        check_same_thread=False):
+    """DbEngineComponent Generator."""
 
     DB_URL = '%s_db_url' % argument_prefix.replace('-', '_')
 
@@ -39,9 +37,13 @@ def make_db_engine_component(
         def make(self, require):
             db_url = getattr(require.args, DB_URL)
             echo = logging.getLogger().isEnabledFor(LoggingComponent.TRACE)
-            return garage.sql.sqlite.create_engine(db_url, echo=echo)
+            return garage.sql.sqlite.create_engine(
+                db_url,
+                check_same_thread=check_same_thread,
+                echo=echo,
+            )
 
-    # Hack for manipulating call order.
+    # Hack for manipulating call order
     DbEngineComponent.add_arguments.__module__ = package_name
     DbEngineComponent.check_arguments.__module__ = package_name
 
