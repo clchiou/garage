@@ -31,7 +31,7 @@ def make_db_engine_component(
 
         def check_arguments(self, parser, args):
             db_url = getattr(args, DB_URL)
-            if not db_url.startswith('sqlite'):
+            if not db_url.startswith('sqlite://'):
                 parser.error('only support sqlite at the moment: %s' % db_url)
 
         def make(self, require):
