@@ -17,7 +17,7 @@ class SqlUtilsTest(unittest.TestCase):
         utc1 = datetime(2000, 1, 2, 3, 4, 5, 6, TimeZone.UTC)
         cst = utc0.astimezone(TimeZone.CST)
 
-        for data in (101, 'a string', dt0, dt1, utc0, utc1, cst):
+        for data in (101, 'a string', dt0, dt1, utc0, utc1, cst, None):
             self.assertEqual(
                 data, tagged_data.loads(tagged_data.dumps(data)))
 

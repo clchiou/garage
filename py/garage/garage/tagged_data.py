@@ -21,7 +21,7 @@ from garage import asserts
 from garage.datetimes import format_iso8601, parse_iso8601
 
 
-_ELEMENT_TYPES = frozenset((int, float, str, datetime))
+_ELEMENT_TYPES = frozenset((int, float, str, datetime, type(None)))
 
 
 def dumps(obj, more_element_types=None):
@@ -56,18 +56,20 @@ def _dump_element(value, more_element_types):
                 float: 'f',
                 str: 's',
                 datetime: 'dt',
+                type(None): 'n',
             }[typ],
             {
                 int: str,
                 float: str,
                 str: str,
                 datetime: format_iso8601,
+                type(None): lambda _: None,
             }[typ](value),
         ]
     elif typ in more_element_types:
         dumper = more_element_types[typ]
         return ['x/%s' % typ.__name__, dumper(value)]
-    raise ValueError('cannot dump %r of type %r', value, typ)
+    raise ValueError('cannot dump %r of type %r' % (value, typ))
 
 
 def loads(json_str, more_element_types=None):
@@ -106,7 +108,13 @@ def _load(packed_obj, more_element_types):
 def _load_element(packed_value, more_element_types):
     asserts.precond(len(packed_value) == 2)
     loader_maps = [
-        {'i': int, 'f': float, 's': str, 'dt': parse_iso8601},
+        {
+            'i': int,
+            'f': float,
+            's': str,
+            'dt': parse_iso8601,
+            'n': lambda _: None,
+        },
         more_element_types,
     ]
     for loader_map in loader_maps:
