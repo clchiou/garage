@@ -305,6 +305,9 @@ class Symbols:
     def _asdict(self):
         return self.__symbols.copy()
 
+    def __getitem__(self, name):
+        return self.__symbols[name]
+
     def __getattr__(self, name):
         try:
             return self.__symbols[name]
