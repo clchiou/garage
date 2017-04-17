@@ -1,7 +1,9 @@
 """Collections of objects and collection helper functions."""
 
 __all__ = [
+    'BiDict',
     'DictBuilder',
+    'DictView',
     'LoadingDict',
     'NamedTuple',
     'Symbols',
@@ -14,7 +16,12 @@ __all__ = [
 ]
 
 import operator
-from collections import OrderedDict, UserDict
+from collections import (
+    Mapping,
+    MutableMapping,
+    OrderedDict,
+    UserDict,
+)
 
 
 def is_ordered(lst, key=None, strict=False):
@@ -57,6 +64,61 @@ def collect_pairs(iterable):
 def group(iterable, key=None):
     """Group elements by key, preserving order."""
     return list(collect(iterable, key=key).values())
+
+
+class DictView(Mapping):
+    """Read-only view of a dict-like object."""
+
+    def __init__(self, data):
+        self._data = data
+
+    def __repr__(self):
+        return repr(self._data)
+
+    def __bool__(self):
+        return bool(self._data)
+
+    def __getitem__(self, key):
+        return self._data[key]
+
+    def __iter__(self):
+        return iter(self._data)
+
+    def __len__(self):
+        return len(self._data)
+
+
+class BiDict(MutableMapping):
+    """Bidirectional dict."""
+
+    def __init__(self):
+        self._data = {}
+        self._inverse = {}
+        self.inverse = DictView(self._inverse)
+
+    def __repr__(self):
+        return repr(self._data)
+
+    def __bool__(self):
+        return bool(self._data)
+
+    def __getitem__(self, key):
+        return self._data[key]
+
+    def __setitem__(self, key, value):
+        if key in self._data:
+            self._inverse.pop(self._data[key])
+        self._data[key] = value
+        self._inverse[value] = key
+
+    def __delitem__(self, key):
+        self._inverse.pop(self._data.pop(key))
+
+    def __iter__(self):
+        return iter(self._data)
+
+    def __len__(self):
+        return len(self._data)
 
 
 class DictBuilder:

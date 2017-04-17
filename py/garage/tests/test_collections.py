@@ -7,6 +7,24 @@ from garage.collections import *
 
 class CollectionsTest(unittest.TestCase):
 
+    def test_bidict(self):
+        bidict = BiDict()
+        self.assertFalse(bidict)
+        self.assertFalse(bidict.inverse)
+
+        bidict['x'] = 1
+        self.assertIn(1, bidict.inverse)
+        self.assertNotIn(2, bidict.inverse)
+        self.assertEqual({1: 'x'}, dict(bidict.inverse))
+
+        bidict['x'] = 2
+        self.assertNotIn(1, bidict.inverse)
+        self.assertIn(2, bidict.inverse)
+        self.assertEqual({2: 'x'}, dict(bidict.inverse))
+
+        self.assertTrue(bidict)
+        self.assertTrue(bidict.inverse)
+
     def test_loading_dict(self):
         ldict = LoadingDict(lambda key: key)
         self.assertDictEqual({}, ldict.data)
