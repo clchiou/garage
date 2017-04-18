@@ -8,6 +8,7 @@
 #include <boost/python/bases.hpp>
 #include <boost/python/class_fwd.hpp>
 #include <boost/python/pointee.hpp>
+#include <boost/type_index.hpp>
 
 namespace capnp_python {
 
@@ -30,8 +31,20 @@ class ThrowingDtorHandler : public std::shared_ptr<T> {
     try {
       delete resource;
     } catch (const std::exception& exc) {
-      // TODO: Define a Python exception class
-      PyErr_SetString(PyExc_RuntimeError, exc.what());
+      // We are called by boost::python::objects::instance_dealloc, and
+      // it doesn't expect an exception to be thrown from here, i.e.,
+      // this is not wrapped inside boost::python::handle_exception; so
+      // if we let exception leave here, the whole Python process will
+      // be aborted.  On the other hand, we can't set a Python exception
+      // either (i.e., calling PyErr_SetString) because Python doesn't
+      // expect nor check if an exception is raised by tp_dealloc (plus
+      // if there is already an active exception, you will override it).
+      // The result is that this exception will be checked and raised at
+      // a later point, making it very confusing.  I guess the action we
+      // may take here is to log it, just like __del__.
+      PySys_WriteStderr(
+          "Exception thrown from a C++ destructor is ignored: %.200s - %.200s\n",
+          boost::typeindex::type_id<T>().pretty_name().c_str(), exc.what());
     }
   }
 };

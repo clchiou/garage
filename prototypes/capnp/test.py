@@ -1,22 +1,16 @@
-import traceback
+import contextlib
+import io
 
 import extension
 
 
-def func():
-    pass
-
-
 boom = extension.Boom()
-try:
-    # Call Boom's dtor.  You expect to get an exception here, but...
+
+error_message = io.StringIO()
+with contextlib.redirect_stderr(error_message):
     del boom
 
-    # You will actually get the exception until next statement (or
-    # PyEval_EvalFrameEx, to be exact), which is very confusing.
-    # Furthermore, it's not RuntimeError you expected, but SystemError.
-    func()
-except SystemError:
-    traceback.print_exc()
-else:
-    raise AssertionError('`del boom` did not raise')
+error_message = error_message.getvalue()
+assert error_message, error_message
+
+print('Error message from destructor: %r' % error_message)
