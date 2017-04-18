@@ -19,6 +19,11 @@ LOG = logging.getLogger(__name__)
 ### CPython build parameters
 
 
+(define_parameter.bool_typed('shared')
+ .with_doc('Enable building libpython.so (if you are embedding Python).')
+ .with_default(False))
+
+
 Version = namedtuple('Version', 'major minor')
 (define_parameter.namedtuple_typed(Version, 'version')
  .with_doc('CPython version.')
@@ -132,6 +137,8 @@ def build(parameters):
             cmd.extend(parameters['configuration'])
             if parameters['//base:release']:
                 cmd.extend(['--enable-optimizations', '--with-lto'])
+            if parameters['shared']:
+                cmd.append('--enable-shared')
             scripts.execute(cmd)
 
         if not (drydock_src / 'python').exists():
@@ -143,6 +150,8 @@ def build(parameters):
                 # (Probably a bug?) When optimizations are enabled, this
                 # will re-run `make run_profile_task`
                 scripts.execute(['make', 'install'])
+                if parameters['shared']:
+                    scripts.execute(['ldconfig'])
 
     # Custom-built Python sometimes creates "pythonX.Ym" rather than
     # "pythonX.Y" header directory
@@ -157,6 +166,20 @@ def build(parameters):
         LOG.info('symlink cpython headers')
         with scripts.using_sudo():
             scripts.symlink(alt_header_dir.name, header_dir)
+
+    # Same for libpython
+    if parameters['shared']:
+        libpython = (
+            parameters['prefix'] / 'lib' /
+            ('libpython%s.%s.so' % parameters['version'])
+        )
+        if not libpython.exists():
+            alt_libpython = libpython.with_name(
+                'libpython%s.%sm.so' % parameters['version'])
+            scripts.ensure_file(alt_libpython)
+            LOG.info('symlink cpython library')
+            with scripts.using_sudo():
+                scripts.symlink(alt_libpython.name, libpython)
 
 
 @rule
