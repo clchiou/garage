@@ -26,8 +26,7 @@ namespace capnp_python {
 struct ArrayPtrFromPythonBytes {
   ArrayPtrFromPythonBytes() {
     boost::python::converter::registry::push_back(
-        &convertible, &construct,
-        boost::python::type_id<kj::ArrayPtr<const capnp::word>>());
+        &convertible, &construct, boost::python::type_id<kj::ArrayPtr<const capnp::word>>());
   }
 
   static void* convertible(PyObject* object) {
@@ -37,20 +36,20 @@ struct ArrayPtrFromPythonBytes {
     return object;
   }
 
-  static void construct(
-      PyObject* object,
-      boost::python::converter::rvalue_from_python_stage1_data* data) {
+  static void construct(PyObject* object,
+                        boost::python::converter::rvalue_from_python_stage1_data* data) {
     void* buffer = PyBytes_AsString(object);
     if (!buffer) {
       boost::python::throw_error_already_set();
     }
     Py_ssize_t size = PyBytes_Size(object);
 
-    void* storage = ((boost::python::converter::rvalue_from_python_storage<
-                         kj::ArrayPtr<const capnp::word>>*)data)
-                        ->storage.bytes;
-    new (storage) kj::ArrayPtr<const capnp::word>(
-        static_cast<const capnp::word*>(buffer), static_cast<size_t>(size));
+    void* storage =
+        ((boost::python::converter::rvalue_from_python_storage<kj::ArrayPtr<const capnp::word>>*)
+             data)
+            ->storage.bytes;
+    new (storage) kj::ArrayPtr<const capnp::word>(static_cast<const capnp::word*>(buffer),
+                                                  static_cast<size_t>(size));
 
     data->convertible = storage;
   }
@@ -64,9 +63,7 @@ struct VoidToPythonNone {
 // Convert kj and capnp string-like object to Python str
 template <typename T>
 struct StringLikeToPythonStr {
-  static PyObject* convert(const T& str) {
-    return PyUnicode_FromString(str.cStr());
-  }
+  static PyObject* convert(const T& str) { return PyUnicode_FromString(str.cStr()); }
 };
 
 template <typename T>
@@ -84,9 +81,7 @@ struct StringTreeToPythonStr {
 template <typename T>
 struct MaybeToPython {
   static PyObject* convert(kj::Maybe<T> maybe) {
-    KJ_IF_MAYBE(ptr, maybe) {
-      return boost::python::incref(boost::python::object(*ptr).ptr());
-    }
+    KJ_IF_MAYBE(ptr, maybe) { return boost::python::incref(boost::python::object(*ptr).ptr()); }
     else {
       return Py_None;
     }
@@ -94,8 +89,7 @@ struct MaybeToPython {
 };
 
 template <typename T>
-using MaybeToPythonConverter =
-    boost::python::to_python_converter<kj::Maybe<T>, MaybeToPython<T>>;
+using MaybeToPythonConverter = boost::python::to_python_converter<kj::Maybe<T>, MaybeToPython<T>>;
 
 // Convert std::vector<T>-like object to Python tuple
 template <typename T>
@@ -107,8 +101,7 @@ struct VectorLikeToPythonTuple {
       boost::python::throw_error_already_set();
     }
     for (uint i = 0; i < size; i++) {
-      PyObject* element =
-          boost::python::incref(boost::python::object(vector[i]).ptr());
+      PyObject* element = boost::python::incref(boost::python::object(vector[i]).ptr());
       if (PyTuple_SetItem(tuple, i, element) != 0) {
         boost::python::decref(tuple);
         boost::python::throw_error_already_set();
@@ -202,12 +195,10 @@ void defineValueTypes(void) {
   // capnp/list.h
 
   VectorLikeToPythonTupleConverter<capnp::List<capnp::schema::Node>::Reader>();
+  VectorLikeToPythonTupleConverter<capnp::List<capnp::schema::Node::NestedNode>::Reader>();
+  VectorLikeToPythonTupleConverter<capnp::List<capnp::schema::Node::Annotation>::Reader>();
   VectorLikeToPythonTupleConverter<
-      capnp::List<capnp::schema::Node::NestedNode>::Reader>();
-  VectorLikeToPythonTupleConverter<
-      capnp::List<capnp::schema::Node::Annotation>::Reader>();
-  VectorLikeToPythonTupleConverter<capnp::List<
-      capnp::schema::CodeGeneratorRequest::RequestedFile>::Reader>();
+      capnp::List<capnp::schema::CodeGeneratorRequest::RequestedFile>::Reader>();
 
   // capnp/schema.h
 
@@ -244,15 +235,13 @@ void defineDynamicList(void) {
   ValueType<Reader>("Reader", boost::python::no_init)
       .def("getSchema", &Reader::getSchema)
       .def("__len__", &Reader::size)
-      .def("__getitem__",
-           Getitem<Reader, capnp::DynamicValue::Reader>::getitemConst);
+      .def("__getitem__", Getitem<Reader, capnp::DynamicValue::Reader>::getitemConst);
 
   using Builder = DynamicList::Builder;
   MakeCopyable<Builder>("Builder", boost::python::no_init)
       .def("getSchema", &Builder::getSchema)
       .def("__len__", &Builder::size)
-      .def("__getitem__",
-           Getitem<Builder, capnp::DynamicValue::Builder>::getitem)
+      .def("__getitem__", Getitem<Builder, capnp::DynamicValue::Builder>::getitem)
       .def("__setitem__", &Builder::set)
       .def("init", &Builder::init)
       // TODO: Test whether Boost.Python can handle std::initializer_list
@@ -266,15 +255,14 @@ void defineDynamicList(void) {
 
 void defineDynamicStruct(void) {
   using capnp::DynamicStruct;
-  boost::python::scope _ = boost::python::class_<DynamicStruct>(
-      "DynamicStruct", boost::python::no_init);
+  boost::python::scope _ =
+      boost::python::class_<DynamicStruct>("DynamicStruct", boost::python::no_init);
 
   using Reader = DynamicStruct::Reader;
   ValueType<Reader>("Reader", boost::python::no_init)
       .def("totalSize", &Reader::totalSize)
       .def("getSchema", &Reader::getSchema)
-      .DEF_MF_CONST(get, capnp::DynamicValue::Reader, Reader,
-                    capnp::StructSchema::Field)
+      .DEF_MF_CONST(get, capnp::DynamicValue::Reader, Reader, capnp::StructSchema::Field)
       .DEF_MF_CONST(has, bool, Reader, capnp::StructSchema::Field)
       .def("which", &Reader::which);
 
@@ -285,16 +273,12 @@ void defineDynamicStruct(void) {
   MakeCopyable<Builder>("Builder", boost::python::no_init)
       .def("totalSize", &Builder::totalSize)
       .def("getSchema", &Builder::getSchema)
-      .DEF_MF(get, capnp::DynamicValue::Builder, Builder,
-              capnp::StructSchema::Field)
+      .DEF_MF(get, capnp::DynamicValue::Builder, Builder, capnp::StructSchema::Field)
       .DEF_MF(has, bool, Builder, capnp::StructSchema::Field)
       .def("which", &Builder::which)
-      .DEF_MF(set, void, Builder, capnp::StructSchema::Field,
-              const capnp::DynamicValue::Reader&)
-      .DEF_MF(init, capnp::DynamicValue::Builder, Builder,
-              capnp::StructSchema::Field)
-      .DEF_MF(init, capnp::DynamicValue::Builder, Builder,
-              capnp::StructSchema::Field, uint)
+      .DEF_MF(set, void, Builder, capnp::StructSchema::Field, const capnp::DynamicValue::Reader&)
+      .DEF_MF(init, capnp::DynamicValue::Builder, Builder, capnp::StructSchema::Field)
+      .DEF_MF(init, capnp::DynamicValue::Builder, Builder, capnp::StructSchema::Field, uint)
       .DEF_MF(clear, void, Builder, capnp::StructSchema::Field)
       .def("asReader", &Builder::asReader);
 }
@@ -305,8 +289,8 @@ void defineDynamicStruct(void) {
 
 void defineDynamicValue(void) {
   using capnp::DynamicValue;
-  boost::python::scope _ = boost::python::class_<DynamicValue>(
-      "DynamicValue", boost::python::no_init);
+  boost::python::scope _ =
+      boost::python::class_<DynamicValue>("DynamicValue", boost::python::no_init);
 
 #define EV(FIELD) value(#FIELD, DynamicValue::FIELD)
   boost::python::enum_<DynamicValue::Type>("Type")
@@ -326,8 +310,7 @@ void defineDynamicValue(void) {
 #undef EV
 
   using Reader = DynamicValue::Reader;
-  boost::python::class_<Reader, ThrowingDtorHandler<Reader>>(
-      "Reader", boost::python::no_init)
+  boost::python::class_<Reader, ThrowingDtorHandler<Reader>>("Reader", boost::python::no_init)
       .def("asVoid", &Reader::as<capnp::Void>)
       .def("asBool", &Reader::as<bool>)
       .def("asInt", &Reader::as<int64_t>)
@@ -340,8 +323,7 @@ void defineDynamicValue(void) {
       .def("getType", &Reader::getType);
 
   using Builder = DynamicValue::Builder;
-  boost::python::class_<MakeCopyable<Builder>,
-                        ThrowingDtorHandler<MakeCopyable<Builder>>>(
+  boost::python::class_<MakeCopyable<Builder>, ThrowingDtorHandler<MakeCopyable<Builder>>>(
       "Builder", boost::python::no_init)
       .def("asVoid", &Builder::as<capnp::Void>)
       .def("asBool", &Builder::as<bool>)
@@ -393,8 +375,7 @@ void defineStructSchema(void) {
   using capnp::Schema;
   using capnp::StructSchema;
   boost::python::scope _ =
-      ValueType<StructSchema, boost::python::bases<Schema>>(
-          "StructSchema", boost::python::no_init)
+      ValueType<StructSchema, boost::python::bases<Schema>>("StructSchema", boost::python::no_init)
           .def("getFields", &StructSchema::getFields)
           .def("getUnionFields", &StructSchema::getUnionFields)
           .def("getNonUnionFields", &StructSchema::getNonUnionFields)
@@ -427,8 +408,7 @@ void defineEnumSchema(void) {
   using capnp::Schema;
   using capnp::EnumSchema;
   boost::python::scope _ =
-      ValueType<EnumSchema, boost::python::bases<Schema>>(
-          "EnumSchema", boost::python::no_init)
+      ValueType<EnumSchema, boost::python::bases<Schema>>("EnumSchema", boost::python::no_init)
           .def("getEnumerants", &EnumSchema::getEnumerants)
           .def("findEnumerantByName", &EnumSchema::findEnumerantByName);
 
@@ -460,15 +440,14 @@ void defineInterfaceSchema(void) {
   // signatures (and thus I am forced to explicitly specify them with
   // DEF_MF_CONST)
   boost::python::scope _ =
-      ValueType<InterfaceSchema, boost::python::bases<Schema>>(
-          "InterfaceSchema", boost::python::no_init)
+      ValueType<InterfaceSchema, boost::python::bases<Schema>>("InterfaceSchema",
+                                                               boost::python::no_init)
           .def("getMethods", &InterfaceSchema::getMethods)
-          .DEF_MF_CONST(findMethodByName, kj::Maybe<InterfaceSchema::Method>,
-                        InterfaceSchema, kj::StringPtr)
+          .DEF_MF_CONST(findMethodByName, kj::Maybe<InterfaceSchema::Method>, InterfaceSchema,
+                        kj::StringPtr)
           .def("getSuperclasses", &InterfaceSchema::getSuperclasses)
           .DEF_MF_CONST(extends, bool, InterfaceSchema, InterfaceSchema)
-          .DEF_MF_CONST(findSuperclass, kj::Maybe<InterfaceSchema>,
-                        InterfaceSchema, uint64_t);
+          .DEF_MF_CONST(findSuperclass, kj::Maybe<InterfaceSchema>, InterfaceSchema, uint64_t);
 
   MaybeToPythonConverter<InterfaceSchema>();
   MaybeToPythonConverter<InterfaceSchema::Method>();
@@ -496,8 +475,7 @@ void defineInterfaceSchemaMethod(void) {
 void defineConstSchema(void) {
   using capnp::Schema;
   using capnp::ConstSchema;
-  ValueType<ConstSchema, boost::python::bases<Schema>>("ConstSchema",
-                                                       boost::python::no_init)
+  ValueType<ConstSchema, boost::python::bases<Schema>>("ConstSchema", boost::python::no_init)
       .def("asDynamicValue", &ConstSchema::as<capnp::DynamicValue>)
       .def("getValueSchemaOffset", &ConstSchema::getValueSchemaOffset)
       .def("getType", &ConstSchema::getType);

@@ -25,8 +25,7 @@
 #define DEF_POINTER(FIELD) \
   def("has" #FIELD, &Reader::has##FIELD).def("get" #FIELD, &Reader::get##FIELD)
 
-#define DEF_UNION(FIELD) \
-  def("is" #FIELD, &Reader::is##FIELD).def("get" #FIELD, &Reader::get##FIELD)
+#define DEF_UNION(FIELD) def("is" #FIELD, &Reader::is##FIELD).def("get" #FIELD, &Reader::get##FIELD)
 
 #define ENUM_VALUE(FIELD) value(#FIELD, StructType::FIELD)
 
@@ -104,9 +103,7 @@ void defineNodeEnum(void) {
 }
 
 void defineNodeInterface(void) {
-  STRUCT(capnp::schema::Node, Interface)
-      .DEF_POINTER(Methods)
-      .DEF_POINTER(Superclasses);
+  STRUCT(capnp::schema::Node, Interface).DEF_POINTER(Methods).DEF_POINTER(Superclasses);
 }
 
 void defineNodeConst(void) {
@@ -149,8 +146,7 @@ void defineField(void) {
       .DEF_UNION(Group)
       .DEF_PRIMITIVE(Ordinal);
 
-  boost::python::enum_<StructType::Which>("Which").ENUM_VALUE(SLOT).ENUM_VALUE(
-      GROUP);
+  boost::python::enum_<StructType::Which>("Which").ENUM_VALUE(SLOT).ENUM_VALUE(GROUP);
 
   defineFieldSlot();
   defineFieldGroup();
@@ -175,9 +171,7 @@ void defineFieldOrdinal(void) {
       .DEF_UNION(Implicit)
       .DEF_UNION(Explicit);
 
-  boost::python::enum_<StructType::Which>("Which")
-      .ENUM_VALUE(IMPLICIT)
-      .ENUM_VALUE(EXPLICIT);
+  boost::python::enum_<StructType::Which>("Which").ENUM_VALUE(IMPLICIT).ENUM_VALUE(EXPLICIT);
 }
 
 //
@@ -289,9 +283,7 @@ void defineTypeStruct(void) {
 }
 
 void defineTypeInterface(void) {
-  STRUCT(capnp::schema::Type, Interface)
-      .DEF_PRIMITIVE(TypeId)
-      .DEF_POINTER(Brand);
+  STRUCT(capnp::schema::Type, Interface).DEF_PRIMITIVE(TypeId).DEF_POINTER(Brand);
 }
 
 void defineTypeAnyPointer(void) {
@@ -364,10 +356,7 @@ void defineValue(void) {
 //
 
 void defineAnnotation(void) {
-  STRUCT(capnp::schema, Annotation)
-      .DEF_PRIMITIVE(Id)
-      .DEF_POINTER(Brand)
-      .DEF_POINTER(Value);
+  STRUCT(capnp::schema, Annotation).DEF_PRIMITIVE(Id).DEF_POINTER(Brand).DEF_POINTER(Value);
 }
 
 //
@@ -378,9 +367,7 @@ void defineCodeGeneratorRequestRequestedFile(void);
 void defineCodeGeneratorRequestRequestedFileImport(void);
 
 void defineCodeGeneratorRequest(void) {
-  STRUCT(capnp::schema, CodeGeneratorRequest)
-      .DEF_POINTER(Nodes)
-      .DEF_POINTER(RequestedFiles);
+  STRUCT(capnp::schema, CodeGeneratorRequest).DEF_POINTER(Nodes).DEF_POINTER(RequestedFiles);
 
   defineCodeGeneratorRequestRequestedFile();
 }
@@ -404,8 +391,7 @@ void defineCodeGeneratorRequestRequestedFileImport(void) {
 
 void defineSchemaCapnp(void) {
   struct schema {};  // Dummy struct for namespace
-  boost::python::scope _ =
-      boost::python::class_<schema>("schema", boost::python::no_init);
+  boost::python::scope _ = boost::python::class_<schema>("schema", boost::python::no_init);
 
   defineNode();
   defineField();
