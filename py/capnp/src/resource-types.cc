@@ -1,5 +1,7 @@
 // Definition of resource types
 
+#include "hack.h"
+
 #include <boost/python/bases.hpp>
 #include <boost/python/class.hpp>
 #include <boost/python/def.hpp>

@@ -1,5 +1,7 @@
 // Definition for schema.capnp objects
 
+#include "hack.h"
+
 #include <boost/python/class.hpp>
 #include <boost/python/enum.hpp>
 #include <boost/python/scope.hpp>

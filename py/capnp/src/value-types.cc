@@ -1,5 +1,7 @@
 // Definition of value types
 
+#include "hack.h"
+
 #include <boost/python/bases.hpp>
 #include <boost/python/class.hpp>
 #include <boost/python/enum.hpp>
@@ -130,8 +132,7 @@ struct Getitem {
 //
 // Because some value types have universal copy constructor like this:
 //
-//   template <typename T, typename = kj::EnableIf<kind<FromBuilder<T>>() ==
-//   Kind::STRUCT>>
+//   template <typename T, typename = kj::EnableIf<kind<FromBuilder<T>>() == Kind::STRUCT>>
 //   inline Builder(T&& value): Builder(toDynamic(value)) {}
 //
 // They cannot be copy constructed from a const reference to another

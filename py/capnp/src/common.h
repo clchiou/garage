@@ -3,10 +3,12 @@
 
 #include <exception>
 #include <memory>
+#include <type_traits>
 
 #include <boost/noncopyable.hpp>
 #include <boost/python/bases.hpp>
 #include <boost/python/class_fwd.hpp>
+#include <boost/python/errors.hpp>
 #include <boost/python/pointee.hpp>
 #include <boost/type_index.hpp>
 
@@ -19,39 +21,66 @@ using AbstractType = boost::python::class_<T, Bases, boost::noncopyable>;
 // copyable); so we need shared_ptr with a custom deleter to expose
 // them to Boost.Python.
 template <typename T>
-class ThrowingDtorHandler : public std::shared_ptr<T> {
+class ThrowingDtorHandler {
  public:
   // Boost.Python pointer_holder class uses this constructor only
-  ThrowingDtorHandler(T* obj)
-      : std::shared_ptr<T>(obj, ThrowingDtorHandler::deleter) {}
+  ThrowingDtorHandler(T* ptr) : ptr_(ptr, ThrowingDtorHandler::deleter) {}
+
+  //
+  // This is called by boost::python::objects::instance_dealloc.  Since
+  // it doesn't expect an exception to be thrown (i.e., wrapping this is
+  // call inside boost::python::handle_exception), we cannot call
+  // throw_error_already_set, or the Python process will be terminated.
+  //
+  // On the other hand, we can't set a Python exception either (i.e.,
+  // calling PyErr_SetString) because Python doesn't expect nor check if
+  // an exception is raised by tp_dealloc (plus, if there is already an
+  // active exception, you will override it - although to be honest, I
+  // can't trigger this error case).  I guess the only action we may
+  // take here is to log it, just like __del__.
+  //
+  ~ThrowingDtorHandler() {
+    PyObject *type, *value, *traceback;
+    PyErr_Fetch(&type, &value, &traceback);
+    ptr_.reset();
+    if (PyErr_Occurred()) {
+      PySys_WriteStderr("Exception was thrown from destructor of %.200s\n",
+                        boost::typeindex::type_id<T>().pretty_name().c_str());
+      PyErr_Print();
+    }
+    PyErr_Restore(type, value, traceback);
+  }
+
+  // Give user the ability to call destructor explicitly and handle any
+  // exception it may throw
+  void _reset(void) {
+    ptr_.reset();
+    if (PyErr_Occurred()) {
+      boost::python::throw_error_already_set();
+    }
+  }
+
+  T* get() const noexcept { return ptr_.get(); }
+  T* operator->() const noexcept { return get(); }
+  typename std::add_lvalue_reference<T>::type operator*() const noexcept { return *get(); }
 
  private:
-  // Handle resource types' throwing destructor
-  static void deleter(T* resource) {
+  std::shared_ptr<T> ptr_;
+
+  // Handle resource types' throwing destructor.  Because shared_ptr's
+  // disposer is noexcept, if the exception leaves the deleter, the
+  // Python process will be terminated immediately.
+  static void deleter(T* resource) noexcept {
     try {
       delete resource;
     } catch (const std::exception& exc) {
-      // We are called by boost::python::objects::instance_dealloc, and
-      // it doesn't expect an exception to be thrown from here, i.e.,
-      // this is not wrapped inside boost::python::handle_exception; so
-      // if we let exception leave here, the whole Python process will
-      // be aborted.  On the other hand, we can't set a Python exception
-      // either (i.e., calling PyErr_SetString) because Python doesn't
-      // expect nor check if an exception is raised by tp_dealloc (plus
-      // if there is already an active exception, you will override it).
-      // The result is that this exception will be checked and raised at
-      // a later point, making it very confusing.  I guess the action we
-      // may take here is to log it, just like __del__.
-      PySys_WriteStderr(
-          "Exception thrown from a C++ destructor is ignored: %.200s - %.200s\n",
-          boost::typeindex::type_id<T>().pretty_name().c_str(), exc.what());
+      PyErr_SetString(PyExc_RuntimeError, exc.what());
     }
   }
 };
 
 template <typename T, typename Bases = boost::python::bases<>>
-using ResourceType =
-    boost::python::class_<T, Bases, ThrowingDtorHandler<T>, boost::noncopyable>;
+using ResourceType = boost::python::class_<T, Bases, ThrowingDtorHandler<T>, boost::noncopyable>;
 
 // At the moment we don't use smart pointer for value types
 template <typename T, typename Bases = boost::python::bases<>>
@@ -77,10 +106,8 @@ struct pointee<capnp_python::ThrowingDtorHandler<T>> {
 }  // namespace boost
 
 // Helper for selecting from overloaded (member) functions
-#define DEF_FUNC(NS, F, R, ARGS...) \
-  boost::python::def(#F, static_cast<R (*)(ARGS)>(NS::F))
+#define DEF_FUNC(NS, F, R, ARGS...) boost::python::def(#F, static_cast<R (*)(ARGS)>(NS::F))
 #define DEF_MF(M, R, T, ARGS...) def(#M, static_cast<R (T::*)(ARGS)>(&T::M))
-#define DEF_MF_CONST(M, R, T, ARGS...) \
-  def(#M, static_cast<R (T::*)(ARGS) const>(&T::M))
+#define DEF_MF_CONST(M, R, T, ARGS...) def(#M, static_cast<R (T::*)(ARGS) const>(&T::M))
 
 #endif  // CAPNP_PYTHON_COMMON_H_
