@@ -56,8 +56,8 @@ def memorize(method):
 
        Note: method's name _must_ be the same as the property name.
     """
-    asserts.precond(not isinstance(method, property))
-    asserts.precond(method.__name__ != '<lambda>')
+    asserts.not_type_of(method, property)
+    asserts.not_equal(method.__name__, '<lambda>')
     @functools.wraps(method)
     def wrapper(self):
         value = method(self)

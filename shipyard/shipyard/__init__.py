@@ -21,6 +21,7 @@ import json
 
 from foreman import Label
 
+from garage import asserts
 from garage import cli
 from garage import scripts
 
@@ -89,7 +90,7 @@ class RuleIndex:
     @contextlib.contextmanager
     def using_label_path(self, label):
         """Use label for implicit path."""
-        assert not self._label_path
+        asserts.none(self._label_path)
         if isinstance(label, str):
             self._label_path = Label.parse(label).path
         else:
@@ -120,7 +121,7 @@ class RuleIndex:
         )
 
     def _get_thing(self, kind, label):
-        assert self._build_data is not None
+        asserts.not_none(self._build_data)
         if isinstance(label, str):
             label = Label.parse(label, implicit_path=self._label_path)
         label_str = str(label)

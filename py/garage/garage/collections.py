@@ -23,6 +23,8 @@ from collections import (
     UserDict,
 )
 
+from garage import asserts
+
 
 def is_ordered(lst, key=None, strict=False):
     """True if input list is (strictly) ordered."""
@@ -138,13 +140,13 @@ class DictBuilder:
         self._predicate = True
 
     def if_(self, condition):
-        assert self._state is None
+        asserts.none(self._state)
         self._state = 'if'
         self._branch_chosen = self._predicate = condition
         return self
 
     def elif_(self, condition):
-        assert self._state == 'if'
+        asserts.precond(self._state == 'if')
         if self._branch_chosen:
             self._predicate = False
         else:
@@ -152,7 +154,7 @@ class DictBuilder:
         return self
 
     def else_(self):
-        assert self._state == 'if'
+        asserts.precond(self._state == 'if')
         self._state = 'else'
         if self._branch_chosen:
             self._predicate = False
@@ -161,7 +163,7 @@ class DictBuilder:
         return self
 
     def end(self):
-        assert self._state in ('if', 'else')
+        asserts.precond(self._state in ('if', 'else'))
         self._state = None
         self._branch_chosen = False
         self._predicate = True

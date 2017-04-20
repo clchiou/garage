@@ -58,6 +58,8 @@ import types
 import weakref
 from concurrent.futures import Future
 
+from garage import asserts
+
 from . import queues
 from . import utils
 
@@ -382,7 +384,7 @@ def _actor_message_loop(msg_queue, future_ref):
             _deref(msg.future_ref).cancel()
         _deref(future_ref).set_exception(exc)
     else:
-        assert msg_queue.is_closed()
+        asserts.precond(msg_queue.is_closed())
         _deref(future_ref).set_result(None)
     LOG.debug('exit')
 

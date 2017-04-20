@@ -108,13 +108,13 @@ class Component:
     provide = None
 
     def add_arguments(self, parser):
-        asserts.fail()
+        raise AssertionError
 
     def check_arguments(self, parser, args):
-        asserts.fail()
+        raise AssertionError
 
     def make(self, require):
-        asserts.fail()
+        raise AssertionError
 
 
 def bind(component, startup=startup_, next_startup=None, parser_=PARSER):

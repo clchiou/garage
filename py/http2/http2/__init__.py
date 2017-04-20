@@ -25,6 +25,7 @@ from curio import socket
 from curio import ssl
 import curio
 
+from garage import asserts
 from garage.asyncs import queues
 
 from .nghttp2 import *
@@ -259,7 +260,7 @@ class Session:
             return await self._sendall_impl()
 
     async def _sendall_impl(self):
-        assert self._session is not None
+        asserts.not_none(self._session)
 
         buffers = []
         total_length = 0
@@ -291,7 +292,7 @@ class Session:
                 try:
                     self = ctypes.cast(args[-1], py_object_p).contents.value
                     # Callbacks should not be nested
-                    assert self._current_callback is None
+                    asserts.none(self._current_callback)
                     self._current_callback = py_func.__name__
                     try:
                         return py_func(self, session, *args[:-1])
@@ -470,16 +471,19 @@ class Stream:
         self.response = None  # Own response
 
     def _on_header(self, name, values):
-        assert self._session is not None and self.request is None
+        asserts.not_none(self._session)
+        asserts.none(self.request)
         for value in values:
             self._headers.append((name, value))
 
     def _on_data(self, data):
-        assert self._session is not None and self.request is None
+        asserts.not_none(self._session)
+        asserts.none(self.request)
         self._data_chunks.append(data)
 
     def _on_request_done(self):
-        assert self._session is not None and self.request is None
+        asserts.not_none(self._session)
+        asserts.none(self.request)
         if self._data_chunks:
             body = b''.join(self._data_chunks)
         else:
@@ -489,7 +493,7 @@ class Stream:
         del self._data_chunks
 
     def _on_close(self, error_code):
-        assert self._session is not None
+        asserts.not_none(self._session)
         LOG.debug('session=%s, stream=%d: close due to %d',
                   self._session._id, self._id, error_code)
         self._session = None  # Break cycle
@@ -497,8 +501,8 @@ class Stream:
     # Non-blocking version of submit() that should be called in the
     # Session object's callback functions.
     def _submit_response_nowait(self, response):
-        assert self._session is not None
-        assert self.response is None or self.response is response
+        asserts.not_none(self._session)
+        asserts.precond(self.response is None or self.response is response)
         LOG.debug('session=%s, stream=%d: submit response',
                   self._session._id, self._id)
         owners = []
@@ -525,7 +529,7 @@ class Stream:
 
            Note that this must be used before submit().
         """
-        assert self._session is not None
+        asserts.not_none(self._session)
         LOG.debug('session=%s, stream=%d: submit push promise',
                   self._session._id, self._id)
 
@@ -548,7 +552,7 @@ class Stream:
         await self._session._sendall()
 
     async def submit_rst_stream(self, error_code=NGHTTP2_INTERNAL_ERROR):
-        assert self._session is not None
+        asserts.not_none(self._session)
         self._session._rst_stream(self._id, error_code)
         await self._session._sendall()
 
@@ -588,7 +592,7 @@ class Stream:
                 return bytes(data), 0
 
         async def write(self, data):
-            assert not self._aborted and not self._closed
+            asserts.precond(not self._aborted and not self._closed)
             if data:
                 self._data_chunks.append(memoryview(data))
                 await self._send()
@@ -600,13 +604,13 @@ class Stream:
         # could be blocked on socket.recv() and make no progress.
 
         async def abort(self):
-            assert not self._aborted and not self._closed
+            asserts.precond(not self._aborted and not self._closed)
             self._aborted = True
             await self._send()
             self._stream = None  # Break cycle
 
         async def close(self):
-            assert not self._aborted and not self._closed
+            asserts.precond(not self._aborted and not self._closed)
             self._closed = True
             await self._send()
             self._stream = None  # Break cycle
@@ -694,8 +698,8 @@ class Request(Entity):
         return 4 + len(self.headers)
 
     def _iter_headers(self, session):
-        assert session._scheme is not None
-        assert session._host is not None
+        asserts.not_none(session._scheme)
+        asserts.not_none(session._host)
         yield (b':method', self.method.value)
         yield (b':scheme', (self.scheme or session._scheme).value)
         yield (b':authority', self.authority or session._host)

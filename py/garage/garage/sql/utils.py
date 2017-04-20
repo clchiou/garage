@@ -14,7 +14,7 @@ def add_if_not_exists_clause(index, engine):
     # that I am unaware of, and here is a hack for sidestep that.
     stmt = str(CreateIndex(index).compile(engine))
     stmt = stmt.replace('CREATE INDEX', 'CREATE INDEX IF NOT EXISTS', 1)
-    asserts.postcond('IF NOT EXISTS' in stmt, stmt)
+    asserts.postcond('IF NOT EXISTS' in stmt, 'stmt=%s', stmt)
     return stmt
 
 

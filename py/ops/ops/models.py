@@ -12,6 +12,7 @@ import re
 import urllib.parse
 from pathlib import Path
 
+from garage import asserts
 from garage.collections import DictBuilder
 
 
@@ -381,7 +382,7 @@ class Image(ModelObject):
                 IMAGES, new_name + self._suffix('image'))
             self.image_path = pod_path / self._image
         else:
-            assert self.image_uri
+            asserts.true(self.image_uri)
         if self.signature:
             self._signature = os.path.join(
                 IMAGES, new_name + ''.join(self.signature.suffixes))

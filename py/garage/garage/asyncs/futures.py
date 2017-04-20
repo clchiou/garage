@@ -21,6 +21,8 @@ import enum
 
 import curio.traps
 
+from garage import asserts
+
 from . import base
 
 
@@ -116,16 +118,15 @@ class Future:
         def _set(self, result, exception):
             if self._future._state is State.CANCELLED:
                 return
-            elif self._future._state is State.FINISHED:
-                raise AssertionError(
-                    'Future has been marked FINISHED: %r' % self._future)
-            else:
-                assert not self._future.done()
-                assert not self._future._done.is_set()
-                self._future._result = result
-                self._future._exception = exception
-                self._future._state = State.FINISHED
-                self._future._done.set()
+            asserts.precond(
+                self._future._state is not State.FINISHED,
+                'Future has been marked FINISHED: %r', self._future)
+            asserts.precond(not self._future.done())
+            asserts.precond(not self._future._done.is_set())
+            self._future._result = result
+            self._future._exception = exception
+            self._future._state = State.FINISHED
+            self._future._done.set()
 
         def set_result(self, result):
             self._set(result, None)
@@ -175,16 +176,16 @@ class Future:
         elif self._state is State.RUNNING:
             return False
         elif self._state is State.CANCELLED:
-            assert self._done.is_set()
+            asserts.precond(self._done.is_set())
             return True
         else:
-            assert self._state is State.FINISHED
-            assert self._done.is_set()
+            asserts.precond(self._state is State.FINISHED)
+            asserts.precond(self._done.is_set())
             return False
 
     async def result(self):
         await self._done.wait()
-        assert self.done()
+        asserts.postcond(self.done())
         if self._state is State.CANCELLED:
             raise CancelledError
         elif self._exception is not None:
@@ -194,7 +195,7 @@ class Future:
 
     async def exception(self):
         await self._done.wait()
-        assert self.done()
+        asserts.postcond(self.done())
         if self._state is State.CANCELLED:
             raise CancelledError
         else:

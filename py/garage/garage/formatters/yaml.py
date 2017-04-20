@@ -12,9 +12,11 @@ import enum
 
 import yaml
 
+from garage import asserts
+
 
 def represent_datetime(dumper, value, datetime_format=None):
-    assert isinstance(value, datetime.datetime)
+    asserts.type_of(value, datetime.datetime)
     # NOTE: PyYaml implementation uses a regex for ISO-8601 string which
     # matches a ':' in timezone string :(
     if datetime_format is None:
@@ -25,7 +27,7 @@ def represent_datetime(dumper, value, datetime_format=None):
 
 
 def represent_enum(dumper, value):
-    assert isinstance(value, enum.Enum)
+    asserts.type_of(value, enum.Enum)
     value = value.value
     if isinstance(value, int):
         tag = 'tag:yaml.org,2002:int'
@@ -40,7 +42,7 @@ def represent_enum(dumper, value):
 
 def represent_mapping(dumper, value, flow_style=None):
     """Derived from BaseRepresenter.represent_mapping."""
-    assert isinstance(value, collections.Mapping)
+    asserts.type_of(value, collections.Mapping)
     pairs = []
     tag = 'tag:yaml.org,2002:map'
     node = yaml.MappingNode(tag, pairs, flow_style=flow_style)

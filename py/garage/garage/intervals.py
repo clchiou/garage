@@ -9,6 +9,8 @@ __all__ = [
 import re
 from enum import Enum
 
+from garage import asserts
+
 
 POS_INF = float('+inf')
 NEG_INF = float('-inf')
@@ -48,9 +50,9 @@ class IntervalMixin:
 class IntegerInterval(IntervalMixin):
 
     def __init__(self, left, left_type, right, right_type):
-        assert left <= right
-        assert isinstance(left_type, BoundType)
-        assert isinstance(right_type, BoundType)
+        asserts.precond(left <= right)
+        asserts.type_of(left_type, BoundType)
+        asserts.type_of(right_type, BoundType)
         self.left = left
         self.left_type = left_type
         self.right = right
@@ -97,7 +99,7 @@ class IntegerInterval(IntervalMixin):
 class JointInterval(IntervalMixin):
 
     def __init__(self, join, intervals):
-        assert join in (all, any)
+        asserts.precond(join in (all, any))
         self.join = join
         self.intervals = intervals
 

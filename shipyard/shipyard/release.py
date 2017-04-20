@@ -14,6 +14,7 @@ import yaml
 
 from foreman import Label
 
+from garage import asserts
 from garage import scripts
 
 import shipyard
@@ -375,7 +376,7 @@ def get_hg_stamp(path):
         for remote in remotes.decode('utf8').split('\n'):
             remote = remote.split()
             if remote[0] == 'default':
-                assert remote[1] == '='
+                asserts.equal(remote[1], '=')
                 url = remote[2]
                 break
         else:

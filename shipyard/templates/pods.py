@@ -20,6 +20,7 @@ import json
 import logging
 import re
 
+from garage import asserts
 from garage import scripts
 
 from foreman import define_parameter, define_rule, rule, to_path
@@ -429,7 +430,7 @@ class App(ModelObject):
 
     @property
     def name(self):
-        assert self._name is not None
+        asserts.not_none(self._name)
         return self._name
 
     @name.setter
@@ -488,7 +489,7 @@ class Image(ModelObject):
 
     @property
     def name(self):
-        assert self._name is not None
+        asserts.not_none(self._name)
         return self._name
 
     @name.setter
@@ -589,7 +590,7 @@ class Pod(ModelObject):
 
     @property
     def name(self):
-        assert self._name is not None
+        asserts.not_none(self._name)
         return self._name
 
     @name.setter

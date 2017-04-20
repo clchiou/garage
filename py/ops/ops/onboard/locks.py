@@ -6,6 +6,7 @@ import errno
 import fcntl
 import os
 
+from garage import asserts
 from garage import scripts
 
 
@@ -24,8 +25,7 @@ class FileLock:
         if scripts.is_dry_run():
             return True
 
-        if self.locked:
-            raise AssertionError('lock is acquired')
+        asserts.precond(not self.locked, 'expect lock not acquired')
 
         if not self._lock_file_path.exists():
             with scripts.using_sudo():
@@ -50,8 +50,7 @@ class FileLock:
         if scripts.is_dry_run():
             return
 
-        if not self.locked:
-            raise AssertionError('lock is not acquired')
+        asserts.precond(self.locked, 'expect lock acquired')
 
         fd, self._fd = self._fd, None
         try:

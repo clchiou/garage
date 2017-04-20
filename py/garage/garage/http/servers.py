@@ -11,6 +11,7 @@ import curio
 
 import http2
 
+from garage import asserts
 from garage import asyncs
 
 
@@ -24,7 +25,7 @@ class ClientError(Exception):
                  headers=None,
                  message='',
                  internal_message=''):
-        assert 400 <= status < 500
+        asserts.precond(400 <= status < 500)
         super().__init__(internal_message or message)
         self.status = status
         self.headers = headers

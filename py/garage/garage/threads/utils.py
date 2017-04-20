@@ -112,7 +112,7 @@ class Priority:
     """
 
     def __init__(self, priority):
-        asserts.precond(isinstance(priority, collections.Hashable))
+        asserts.type_of(priority, collections.Hashable)
         self._priority = priority
 
     def __str__(self):

@@ -65,6 +65,8 @@ import subprocess
 import sys
 import threading
 
+from garage import asserts
+
 
 LOG = logging.getLogger(__name__)
 
@@ -126,7 +128,7 @@ def is_dry_run():
 
 def recording_commands():
     """Record the commands executed (this cannot be nested)."""
-    assert RECORDING_COMMANDS not in _get_context()
+    asserts.precond(RECORDING_COMMANDS not in _get_context())
     records = []
     return _enter_context({RECORDING_COMMANDS: records}, records)
 
@@ -134,7 +136,8 @@ def recording_commands():
 def redirecting(**kwargs):
     # Use kwargs to work around subprocess.run() checking if
     # `"stdin" in kwargs`
-    assert set(kwargs).issubset({'input', 'stdin', 'stdout', 'stderr'})
+    asserts.precond(
+        set(kwargs).issubset({'input', 'stdin', 'stdout', 'stderr'}))
     return _enter_context({REDIRECTING: kwargs})
 
 
@@ -153,7 +156,7 @@ def using_sudo(using_sudo_=True, envs=None):
     if using_sudo_:
         return _enter_context({USING_SUDO: {'envs': envs}})
     else:
-        assert not envs, repr(envs)
+        asserts.precond(not envs, 'envs=%r', envs)
         return _enter_context({USING_SUDO: None})
 
 

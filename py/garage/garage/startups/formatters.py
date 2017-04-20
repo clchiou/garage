@@ -2,7 +2,6 @@ __all__ = [
     'FormatterComponent',
 ]
 
-from garage import asserts
 from garage import components
 from garage import formatters
 
@@ -26,5 +25,5 @@ class FormatterComponent(components.Component):
         elif args.output_format == 'yaml':
             return formatters.make_yaml_formatter()
         else:
-            asserts.fail('cannot recognize output format %r' %
-                         args.output_format)
+            raise ValueError(
+                'cannot recognize output format %r' % args.output_format)

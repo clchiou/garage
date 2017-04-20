@@ -14,6 +14,8 @@ import inspect
 
 import curio
 
+from garage import asserts
+
 from . import queues
 from .base import Event  # Create an alias to base.Event
 
@@ -64,7 +66,8 @@ def _send(send, arg):
 
 
 def _throw(throw, type_, *args):
-    assert not args  # I assume curio doesn't pass any other args
+    # I assume curio doesn't pass any other args
+    asserts.precond(not args, 'not expect args for throw(): %r', args)
     if type_ is curio.TaskCancelled or type(type_) is curio.TaskCancelled:
         # Raise asyncs.TaskCancelled in task's coroutine but raise
         # curio.TaskCancelled in the curio main loop.
@@ -173,11 +176,10 @@ class TaskSet:
             await task.cancel()
 
     async def spawn(self, coro, **kwargs):
-        if self._graceful_exit:
-            raise AssertionError('%s is closing' % self)
+        asserts.precond(not self._graceful_exit, '%s is closing', self)
         task = await self._spawn(coro, **kwargs)
-        assert not task._taskgroup
-        assert not task._ignore_result
+        asserts.postcond(not task._taskgroup)
+        asserts.postcond(not task._ignore_result)
         self._pending_tasks[task] = None  # Dummy value
         task._taskgroup = self.TaskGroupAdapter(self)
         return task
@@ -233,23 +235,23 @@ class TaskStack:
         self._spawn = spawn
 
     async def __aenter__(self):
-        assert self._tasks is None
+        asserts.none(self._tasks)
         self._tasks = deque()
         return self
 
     async def __aexit__(self, *_):
-        assert self._tasks is not None
+        asserts.not_none(self._tasks)
         tasks, self._tasks = self._tasks, None
         for task in reversed(tasks):
             await task.cancel()
 
     def __iter__(self):
-        assert self._tasks is not None
+        asserts.not_none(self._tasks)
         yield from self._tasks
 
     async def spawn(self, coro, **kwargs):
         """Spawn a new task and push it onto stack."""
-        assert self._tasks is not None
+        asserts.not_none(self._tasks)
         task = await self._spawn(coro, **kwargs)
         self._tasks.append(task)
         return task
