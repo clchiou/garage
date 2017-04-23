@@ -1,8 +1,6 @@
 __all__ = [
     'AtomicInt',
     'AtomicSet',
-    'ExclusiveAccessor',
-    'TaskQueue',
     'Priority',
     'generate_names',
     'make_get_thread_local',
@@ -15,8 +13,6 @@ import logging
 import threading
 
 from garage import asserts
-
-from . import queues
 
 
 LOG = logging.getLogger(__name__)
@@ -57,47 +53,6 @@ class AtomicSet:
             if not has_item:
                 self._items.add(item)
             return has_item
-
-
-class ExclusiveAccessor:
-
-    def __init__(self, resource, lock=None):
-        self._resource = resource
-        self._lock = lock or threading.RLock()
-
-    def __enter__(self):
-        self._lock.acquire()
-        return self._resource
-
-    def __exit__(self, *_):
-        self._lock.release()
-
-
-class TaskQueue(queues.ForwardingQueue):
-    """A one-time use task queue.
-
-       Tasks are in one of the three states in progression of their
-       lifetime:
-
-       * QUEUED: When a task is queued.
-
-       * PROCESSING: A worker is processing this task.
-
-       * PROCESSED: A worker is done processing this task, regardless
-         the task succeeded or failed.
-
-       After all tasks have been processed, the task queue will close
-       itself automatically (and thus it is one-time use only).
-
-       You may use this auto-close feature to wait for the completion of
-       all tasks.
-    """
-
-    def notify_task_processed(self):
-        """Notify the queue that a task has been processed."""
-        with self.lock:
-            if not self:
-                self.close()
 
 
 @functools.total_ordering

@@ -55,6 +55,7 @@ class SpidersTest(unittest.TestCase):
             parser = TestParser()
             spider = spiders.Spider(parser=parser)
             spider.crawl('http://localhost:8000/')
+            spider.start()
             spider.future.result()
 
             uris = set(req.uri for req in parser.logs)

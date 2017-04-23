@@ -75,16 +75,28 @@ class Spider:
                  client=None):
         self._parser = parser
         self._client = client or clients.Client()
-        self._task_queue = utils.TaskQueue(queues.PriorityQueue())
+        self._task_queue = tasklets.TaskQueue(queues.PriorityQueue())
         # XXX: Use a cache for these two sets?
         self._uris = utils.AtomicSet()
         self._identities = utils.AtomicSet()
 
+        self.num_spiders = num_spiders
+        self.future = None
+
+    def start(self):
+        """Start crawling the web.
+
+        We don't start crawling right after the spider is initialized
+        due to a task queue's design limitation that you should not put
+        new tasks into it after tasklets are started (the queue may have
+        been closed already).  I'm not saying you can't, but you might
+        encounter an queues.Closed error.
+        """
         supervisor = supervisors.supervisor(
-            num_spiders,
+            self.num_spiders,
             functools.partial(tasklets.tasklet, self._task_queue),
         )
-        # Use this future to wait for completion of the crawling.
+        # Use this future to wait for completion of the crawling
         self.future = supervisor._get_future()
 
     def crawl(self, request, estimate=None):
