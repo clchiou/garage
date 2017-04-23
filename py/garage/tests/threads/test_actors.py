@@ -198,6 +198,30 @@ class ActorsTest(unittest.TestCase):
         event.set()
         future.result()
 
+    def test_return(self):
+
+        actual = []
+
+        class _Foo:
+
+            @actors.method
+            def func1(self):
+                actual.append(1)
+                raise actors.Return(None, _Foo.func2)
+
+            @actors.method
+            def func2(self):
+                actual.append(2)
+                raise actors.Exit
+
+        class Foo(actors.Stub, actor=_Foo):
+            pass
+
+        foo = Foo()
+        foo.func1().result()
+        foo._get_future().result()
+        self.assertEqual([1, 2], actual)
+
     def test_exit(self):
         blocker = Blocker()
         event = threading.Event()

@@ -43,6 +43,7 @@ __all__ = [
     'BUILD',
     'ActorError',
     'Exit',
+    'Return',
     'OneShotActor',
     'Stub',
     'method',
@@ -75,12 +76,18 @@ _MAGIC = object()
 
 class ActorError(Exception):
     """A generic error of actors."""
-    pass
 
 
 class Exit(Exception):
-    """Raise this when an actor would like to to self-terminate."""
-    pass
+    """Raise this when an actor would like to self-terminate."""
+
+
+class Return(Exception):
+    """Request to append a message to the actor's own queue."""
+
+    def __init__(self, result, func, *args, **kwargs):
+        self.result = result
+        self.message_data = (func, args, kwargs)
 
 
 class OneShotActor:
@@ -423,6 +430,22 @@ def _actor_message_loop_impl(msg_queue, future_ref):
 
         try:
             result = msg.func(actor, *msg.args, **msg.kwargs)
+        except Return as ret:
+            _deref(msg.future_ref).set_result(ret.result)
+            try:
+                msg_queue.put(
+                    # Use `lambda: None` as a fake weakref
+                    _Message(lambda: None, *ret.message_data),
+                    # Do not block the message loop inside itself
+                    block=False,
+                )
+            except (queues.Closed, queues.Full) as exc:
+                # I am not sure if I should notify the original method
+                # caller about this error, nor if I should break this
+                # actor message loop.  For now let's just log the error
+                # and carry on.
+                LOG.error('cannot append message %r due to %r',
+                          ret.message_data, exc)
         except BaseException as exc:
             _deref(msg.future_ref).set_exception(exc)
             raise
