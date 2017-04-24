@@ -67,7 +67,7 @@ class TaskQueue(queues.ForwardingQueue):
                 self.close()
 
 
-@actors.OneShotActor.make
+@actors.OneShotActor.from_func
 def tasklet(task_queue):
     """A tasklet consumes task from a task queue, and it exits when the
     task queue is closed.

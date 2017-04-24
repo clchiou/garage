@@ -48,6 +48,7 @@ __all__ = [
     'Stub',
     'method',
     'build',
+    'make_maker',
     'inject',
 ]
 
@@ -92,28 +93,30 @@ class Return(Exception):
 
 class OneShotActor:
     """A special kind of actor that processes one type of message and
-       processes one message only.
+    processes one message only (but I would prefer not to use metaclass
+    in this simpler case).
     """
 
     @classmethod
-    def make(cls, actor):
-        actor_cls = cls(actor)
-        names = utils.generate_names(name=actor.__name__)
-        def maker(*args, **kwargs):
+    def from_func(cls, actor_func):
+        stub_maker = cls(actor_func)
+        names = utils.generate_names(name=actor_func.__name__)
+        def make(*args, **kwargs):
             return build(
-                actor_cls,
+                stub_maker,
                 name=next(names),
                 set_pthread_name=True,
                 args=args,
                 kwargs=kwargs,
             )
-        maker.actor = actor
-        return maker
+        # Create an alias to the exposed member
+        make.actor_func = stub_maker.actor_func
+        return make
 
     class Stub:
 
         def __init__(self, name, future):
-            self.name = name  # Useful in logging.
+            self.name = name  # Because Stub exposes this
             self._future = future
 
         def _kill(self, graceful=True):
@@ -125,8 +128,8 @@ class OneShotActor:
         def _send_message(self, func, args, kwargs, block=True, timeout=None):
             raise ActorError('OneShotActor does not take additional message')
 
-    def __init__(self, actor):
-        self.actor = actor
+    def __init__(self, actor_func):
+        self.actor_func = actor_func
 
     def __call__(self, *args, **kwargs):
         if args and args[0] is BUILD:
@@ -155,7 +158,7 @@ class OneShotActor:
         if not _deref(future_ref).set_running_or_notify_cancel():
             return
         try:
-            result = self.actor(*args, **kwargs)
+            result = self.actor_func(*args, **kwargs)
         except BaseException as exc:
             _deref(future_ref).set_exception(exc)
         else:
@@ -230,6 +233,23 @@ def build(stub_cls, *,
     )
 
 
+def make_maker(basename, capacity=0):
+    """Return a default classmethod `make` that wraps `build`."""
+
+    names = names = utils.generate_names(name=basename)
+
+    @classmethod
+    def make(cls, *args, **kwargs):
+        return build(
+            cls,
+            name=next(names), set_pthread_name=True,
+            capacity=capacity,
+            args=args, kwargs=kwargs,
+        )
+
+    return make
+
+
 def inject(args, kwargs, extra_args=None, extra_kwargs=None):
     """Inject additional args/kwargs into the args/kwargs that will be
        sent to the actor.
@@ -300,7 +320,7 @@ class Stub(metaclass=_StubMeta):
             args=(self.__msg_queue, weakref.ref(self.__future)),
             daemon=True,
         )
-        self.name = thread.name  # Useful in logging.
+        self.name = thread.name  # Useful for logging
         thread.start()
         # Since we can't return a future here, we have to wait on the
         # result of actor's __init__() call for any exception that might

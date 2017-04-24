@@ -96,7 +96,7 @@ class SupervisorsTest(unittest.TestCase):
     def test_supervisor_without_stub(self):
         for num_actors in range(1, 10):
             stubs = [make_dead_actor(None) for _ in range(num_actors)]
-            supervisors.supervisor.actor(num_actors, stubs.pop)
+            supervisors.supervisor.actor_func(num_actors, stubs.pop)
             self.assertListEqual([], stubs)
 
 

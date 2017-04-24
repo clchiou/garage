@@ -12,7 +12,7 @@ from garage.threads import actors
 LOG = logging.getLogger(__name__)
 
 
-@actors.OneShotActor.make
+@actors.OneShotActor.from_func
 def supervisor(num_actors, start_new_actor):
     """A supervisor will always keep num_actors long-running actors
        alive at any time; however, if half of actors died, it dies, too.

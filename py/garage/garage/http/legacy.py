@@ -40,7 +40,7 @@ def make_ssl_context(certfile, keyfile, *, client_authentication=False):
     return ssl_context
 
 
-@actors.OneShotActor.make
+@actors.OneShotActor.from_func
 def api_server(*,
         name=__name__, version='<?>',
         address,

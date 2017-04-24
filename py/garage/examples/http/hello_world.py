@@ -12,7 +12,7 @@ from garage.threads import actors
 from garage.threads import queues
 
 
-@actors.OneShotActor.make
+@actors.OneShotActor.from_func
 def api_handler(request_queue):
     try:
         while True:
