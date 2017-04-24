@@ -167,7 +167,7 @@ class ActorsTest(unittest.TestCase):
 
     def test_name(self):
         greeter = actors.build(Greeter, name='greeter-01')
-        self.assertEqual('greeter-01', greeter.name)
+        self.assertEqual('greeter-01', greeter._name)
 
     def test_weakref_1(self):
         blocker = Blocker()

@@ -116,7 +116,7 @@ class OneShotActor:
     class Stub:
 
         def __init__(self, name, future):
-            self.name = name  # Because Stub exposes this
+            self._name = name  # Because Stub exposes this
             self._future = future
 
         def _kill(self, graceful=True):
@@ -320,7 +320,7 @@ class Stub(metaclass=_StubMeta):
             args=(self.__msg_queue, weakref.ref(self.__future)),
             daemon=True,
         )
-        self.name = thread.name  # Useful for logging
+        self._name = thread.name  # Useful for logging
         thread.start()
         # Since we can't return a future here, we have to wait on the
         # result of actor's __init__() call for any exception that might

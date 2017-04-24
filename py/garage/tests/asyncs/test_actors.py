@@ -5,7 +5,7 @@ from tests.availability import curio_available
 if curio_available:
     import curio
     from garage.threads import actors
-    from garage.asyncs.actors import AsyncStub
+    from garage.asyncs.actors import StubAdapter
 
 from tests.asyncs.utils import synchronous
 
@@ -22,13 +22,16 @@ class ActorsTest(unittest.TestCase):
             def hello(self):
                 return 'hello'
 
-        class Actor(AsyncStub, actor=_Actor):
+        class Actor(actors.Stub, actor=_Actor):
             pass
 
-        stub = Actor()
+        stub = StubAdapter(actors.build(Actor, name='test-actor'))
 
         async with curio.timeout_after(0.01):
             self.assertEqual('hello', await stub.hello().result())
+
+        # Test adapter's simple foolproof detection
+        self.assertEqual('test-actor', stub._name)
 
         stub._kill()
         async with curio.timeout_after(0.01):
