@@ -12,8 +12,7 @@ if curio_available and nanomsg_available:
     from garage.asyncs.futures import Future
     from garage.asyncs.messaging import reqrep
     from garage.asyncs.queues import Queue, ZeroQueue
-
-from tests.asyncs.utils import synchronous
+    from garage.asyncs.utils import synchronous
 
 
 URL_BASE = 'inproc://test_reqrep/'

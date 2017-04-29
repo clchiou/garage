@@ -7,8 +7,7 @@ import types
 if curio_available:
     import curio
     import curio.traps
-
-from tests.asyncs.utils import synchronous
+    from garage.asyncs.utils import synchronous
 
 
 @unittest.skipUnless(curio_available, 'curio unavailable')

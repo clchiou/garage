@@ -9,8 +9,7 @@ if curio_available:
     import curio
     from garage import asyncs
     from garage.asyncs.futures import CancelledError, Future, FutureAdapter
-
-from tests.asyncs.utils import synchronous
+    from garage.asyncs.utils import synchronous
 
 
 @unittest.skipUnless(curio_available, 'curio unavailable')

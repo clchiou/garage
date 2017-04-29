@@ -1,9 +1,13 @@
 __all__ = [
     'make_server_socket',
     'serve',
+    'synchronous',
 ]
 
+from functools import wraps
+
 from curio import socket
+import curio
 
 from garage import asserts
 from garage import asyncs
@@ -77,3 +81,13 @@ async def serve(graceful_exit, make_server_socket, handle_client, *,
         await acceptor.cancel()
         handlers.graceful_exit()
         await joiner.join()
+
+
+def synchronous(coro_func):
+    """Transform the decorated coroutine function into a synchronous
+       function.
+    """
+    @wraps(coro_func)
+    def wrapper(*args, **kwargs):
+        return curio.run(coro_func(*args, **kwargs))
+    return wrapper
