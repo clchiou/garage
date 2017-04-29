@@ -64,6 +64,13 @@ class RoutersTest(unittest.TestCase):
         with self.assertRaisesRegex(ClientError, 'no match path prefix'):
             router.route(b'GET', b'/no-such-prefix')
 
+    def test_prefix_router_hidden(self):
+        router = PrefixRouter()
+        router.add_handler('GET', '/a', 'handler-1')
+        with self.assertRaisesRegex(
+                AssertionError, r'prefix b\'/a/b\' is hidden'):
+            router.add_handler('GET', '/a/b', 'handler-1')
+
 
 if __name__ == '__main__':
     unittest.main()

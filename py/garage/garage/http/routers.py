@@ -129,6 +129,12 @@ class PrefixRouter:
                  self.__class__.__name__, method.name, prefix)
         if isinstance(prefix, str):
             prefix = prefix.encode('ascii')
+        asserts.precond(
+            all(not prefix.startswith(p) or prefix == p
+                for p in self.handlers),
+            'prefix %r is hidden by one of the handler prefixes: %r',
+            prefix, self.handlers.keys()
+        )
         if prefix not in self.handlers:
             self.handlers[prefix] = {}
         handlers = self.handlers[prefix]
