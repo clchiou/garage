@@ -89,12 +89,17 @@ class Server:
                 LOG.exception('error pops out from handler runner: %r', runner)
 
     async def _run_handler(self, stream):
+        LOG.info('%s %s', stream.request.method.name, stream.request.path)
         try:
             async with curio.timeout_after(self.timeout):
                 await self.handler(stream)
         except HttpError as exc:
-            LOG.warning('request handler rejects request because %s: %r',
-                        exc, self.handler, exc_info=True)
+            if isinstance(exc, ClientError):
+                LOG.warning(
+                    'request handler rejects request because %s: %r',
+                    exc, self.handler, exc_info=True)
+            else:
+                LOG.exception('request handler errs: %r', self.handler)
             # If a response has been submitted, at this point all we can
             # do is rst_stream
             if stream.response:
