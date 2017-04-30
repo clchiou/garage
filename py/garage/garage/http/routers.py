@@ -179,6 +179,6 @@ class PrefixRouter:
             allow = b', '.join(sorted(method.value for method in handlers))
             raise ClientError(
                 http2.Status.METHOD_NOT_ALLOWED,
-                headers=[(b'allow', allow)],
+                headers=[(b'Allow', allow)],
                 internal_message='method not allowed: %s' % method,
             )

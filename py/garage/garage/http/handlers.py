@@ -3,13 +3,17 @@
 __all__ = [
     'ApiEndpointHandler',
     'UriPath',
+    'add_date_to_headers',
     'parse_request',
 ]
 
 from pathlib import PurePosixPath as UriPath
+import datetime
 import urllib.parse
 
 import http2
+
+from garage import asserts
 
 from . import servers
 
@@ -63,3 +67,41 @@ def parse_request(request) -> urllib.parse.SplitResult:
         return result._replace(path=UriPath(result.path))
     except Exception as exc:
         raise servers.ClientError(http2.Status.BAD_REQUEST) from exc
+
+
+def add_date_to_headers(headers):
+    """Add 'Date' field to headers without checking its presence.
+
+    This modifies headers *in place*.
+    """
+    headers.append((b'Date', _rfc_7231_date()))
+
+
+RFC_7231_FORMAT = \
+    '{day_name}, {day:02d} {month} {year:04d} {hour:02d}:{minute:02d}:{second:02d} GMT'
+RFC_7231_MONTHS = (
+    'Jan', 'Feb', 'Mar',
+    'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep',
+    'Oct', 'Nov', 'Dec',
+)
+RFC_7231_DAY_NAMES = (
+    'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun',
+)
+
+
+def _rfc_7231_date(now=None):
+    if not now:
+        now = datetime.datetime.utcnow()
+    # We can't handle non-UTC time zone at the moment.
+    asserts.none(now.tzinfo)
+    formatted = RFC_7231_FORMAT.format(
+        year=now.year,
+        month=RFC_7231_MONTHS[now.month - 1],
+        day_name=RFC_7231_DAY_NAMES[now.weekday()],
+        day=now.day,
+        hour=now.hour,
+        minute=now.minute,
+        second=now.second,
+    )
+    return formatted.encode('ascii')
