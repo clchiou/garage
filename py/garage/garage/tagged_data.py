@@ -84,7 +84,7 @@ def loads(json_str, more_element_types=None):
 
 
 def _load(packed_obj, more_element_types):
-    asserts.precond(packed_obj)
+    asserts.true(packed_obj)
     if packed_obj[0] == 'L':
         return tuple(
             _load(item, more_element_types)
@@ -106,7 +106,7 @@ def _load(packed_obj, more_element_types):
 
 
 def _load_element(packed_value, more_element_types):
-    asserts.precond(len(packed_value) == 2)
+    asserts.equal(len(packed_value), 2)
     loader_maps = [
         {
             'i': int,

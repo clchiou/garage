@@ -25,7 +25,7 @@ class ClientError(Exception):
                  headers=None,
                  message='',
                  internal_message=''):
-        asserts.precond(400 <= status < 500)
+        asserts.precond(400 <= status < 500, 'expect 4xx status: %s', status)
         super().__init__(internal_message or message)
         self.status = status
         self.headers = headers

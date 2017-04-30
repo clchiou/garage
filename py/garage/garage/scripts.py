@@ -128,7 +128,7 @@ def is_dry_run():
 
 def recording_commands():
     """Record the commands executed (this cannot be nested)."""
-    asserts.precond(RECORDING_COMMANDS not in _get_context())
+    asserts.not_in(RECORDING_COMMANDS, _get_context())
     records = []
     return _enter_context({RECORDING_COMMANDS: records}, records)
 
@@ -137,7 +137,9 @@ def redirecting(**kwargs):
     # Use kwargs to work around subprocess.run() checking if
     # `"stdin" in kwargs`
     asserts.precond(
-        set(kwargs).issubset({'input', 'stdin', 'stdout', 'stderr'}))
+        set(kwargs).issubset({'input', 'stdin', 'stdout', 'stderr'}),
+        'expect only input, stdin, stdout, and stderr in %r', kwargs,
+    )
     return _enter_context({REDIRECTING: kwargs})
 
 

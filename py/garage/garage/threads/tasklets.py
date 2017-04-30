@@ -43,9 +43,7 @@ class TaskQueue(queues.ForwardingQueue):
         self.__num_running_tasklets = 0
 
     def get_task(self):
-        asserts.precond(
-            self.__num_running_tasklets >= 0,
-            'num_running_tasklets: %d', self.__num_running_tasklets)
+        asserts.greater_or_equal(self.__num_running_tasklets, 0)
         with self.lock:
             task = self.get()
             self.__num_running_tasklets += 1
@@ -53,14 +51,10 @@ class TaskQueue(queues.ForwardingQueue):
 
     # idle = not running
     def notify_tasklet_idle(self):
-        asserts.precond(
-            self.__num_running_tasklets > 0,
-            'num_running_tasklets: %d', self.__num_running_tasklets)
+        asserts.greater(self.__num_running_tasklets, 0)
         with self.lock:
             self.__num_running_tasklets -= 1
-            asserts.postcond(
-                self.__num_running_tasklets >= 0,
-                'num_running_tasklets: %d', self.__num_running_tasklets)
+            asserts.greater_or_equal(self.__num_running_tasklets, 0)
             # We may close the queue when both conditions (no running
             # tasklets and no tasks) are met.
             if self.__num_running_tasklets == 0 and not self:

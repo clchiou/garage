@@ -55,7 +55,7 @@ def api_server(*,
                 # HACK: This is a non-blocking version of shutdown().
                 # We need this hack because calling self.shutdown() in
                 # service_actions() will result in deadlock.
-                asserts.precond(hasattr(self, '_BaseServer__shutdown_request'))
+                asserts.true(hasattr(self, '_BaseServer__shutdown_request'))
                 self._BaseServer__shutdown_request = True
 
     class Handler(http.server.BaseHTTPRequestHandler):

@@ -50,7 +50,7 @@ class IntervalMixin:
 class IntegerInterval(IntervalMixin):
 
     def __init__(self, left, left_type, right, right_type):
-        asserts.precond(left <= right)
+        asserts.less_or_equal(left, right)
         asserts.type_of(left_type, BoundType)
         asserts.type_of(right_type, BoundType)
         self.left = left
@@ -99,7 +99,7 @@ class IntegerInterval(IntervalMixin):
 class JointInterval(IntervalMixin):
 
     def __init__(self, join, intervals):
-        asserts.precond(join in (all, any))
+        asserts.in_(join, (all, any))
         self.join = join
         self.intervals = intervals
 

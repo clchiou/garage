@@ -146,7 +146,7 @@ class DictBuilder:
         return self
 
     def elif_(self, condition):
-        asserts.precond(self._state == 'if')
+        asserts.equal(self._state, 'if')
         if self._branch_chosen:
             self._predicate = False
         else:
@@ -154,7 +154,7 @@ class DictBuilder:
         return self
 
     def else_(self):
-        asserts.precond(self._state == 'if')
+        asserts.equal(self._state, 'if')
         self._state = 'else'
         if self._branch_chosen:
             self._predicate = False
@@ -163,7 +163,7 @@ class DictBuilder:
         return self
 
     def end(self):
-        asserts.precond(self._state in ('if', 'else'))
+        asserts.in_(self._state, ('if', 'else'))
         self._state = None
         self._branch_chosen = False
         self._predicate = True

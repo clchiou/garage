@@ -18,7 +18,7 @@ def supervisor(num_actors, start_new_actor):
        alive at any time; however, if half of actors died, it dies, too.
     """
     # TODO: Implement more re-start/exit strategy.
-    asserts.precond(num_actors > 0)
+    asserts.greater(num_actors, 0)
     LOG.info('start')
 
     actor_futures = {}

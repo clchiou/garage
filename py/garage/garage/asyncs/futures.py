@@ -118,11 +118,9 @@ class Future:
         def _set(self, result, exception):
             if self._future._state is State.CANCELLED:
                 return
-            asserts.precond(
-                self._future._state is not State.FINISHED,
-                'Future has been marked FINISHED: %r', self._future)
-            asserts.precond(not self._future.done())
-            asserts.precond(not self._future._done.is_set())
+            asserts.is_not(self._future._state, State.FINISHED)
+            asserts.false(self._future.done())
+            asserts.false(self._future._done.is_set())
             self._future._result = result
             self._future._exception = exception
             self._future._state = State.FINISHED
@@ -176,16 +174,16 @@ class Future:
         elif self._state is State.RUNNING:
             return False
         elif self._state is State.CANCELLED:
-            asserts.precond(self._done.is_set())
+            asserts.true(self._done.is_set())
             return True
         else:
-            asserts.precond(self._state is State.FINISHED)
-            asserts.precond(self._done.is_set())
+            asserts.is_(self._state, State.FINISHED)
+            asserts.true(self._done.is_set())
             return False
 
     async def result(self):
         await self._done.wait()
-        asserts.postcond(self.done())
+        asserts.true(self.done())
         if self._state is State.CANCELLED:
             raise CancelledError
         elif self._exception is not None:
@@ -195,7 +193,7 @@ class Future:
 
     async def exception(self):
         await self._done.wait()
-        asserts.postcond(self.done())
+        asserts.true(self.done())
         if self._state is State.CANCELLED:
             raise CancelledError
         else:

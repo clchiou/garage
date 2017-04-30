@@ -76,7 +76,7 @@ async def serve(graceful_exit, make_server_socket, handle_client, *,
             logger.error('server task is terminated: %r', task)
             return await task.join()
 
-        asserts.postcond(graceful_exit.is_set())
+        asserts.true(graceful_exit.is_set())
         logger.info('initiate graceful exit')
         await acceptor.cancel()
         handlers.graceful_exit()

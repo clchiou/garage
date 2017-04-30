@@ -30,7 +30,7 @@ class FutureTest(unittest.TestCase):
         self.assertEqual(1, await f.result())
         self.assertIsNone(await f.exception())
 
-        with self.assertRaisesRegex(AssertionError, 'marked FINISHED'):
+        with self.assertRaisesRegex(AssertionError, 'is not.*FINISHED'):
             p.set_result(1)
 
     @synchronous

@@ -57,7 +57,7 @@ class ApiRouter:
     def add_handler(self, name, handler):
         LOG.info('%s/%d: add handler %r', self.name, self.version, name)
         name = name.encode('ascii')
-        asserts.precond(name not in self.handlers)
+        asserts.not_in(name, self.handlers)
         self.handlers[name] = handler
 
     async def __call__(self, stream):
@@ -138,7 +138,7 @@ class PrefixRouter:
         if prefix not in self.handlers:
             self.handlers[prefix] = {}
         handlers = self.handlers[prefix]
-        asserts.precond(method not in handlers)  # No overwrite
+        asserts.not_in(method, handlers)  # No overwrite
         handlers[method] = handler
 
     async def __call__(self, stream):

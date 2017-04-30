@@ -178,8 +178,8 @@ class TaskSet:
     async def spawn(self, coro, **kwargs):
         asserts.precond(not self._graceful_exit, '%s is closing', self)
         task = await self._spawn(coro, **kwargs)
-        asserts.postcond(not task._taskgroup)
-        asserts.postcond(not task._ignore_result)
+        asserts.false(task._taskgroup)
+        asserts.false(task._ignore_result)
         self._pending_tasks[task] = None  # Dummy value
         task._taskgroup = self.TaskGroupAdapter(self)
         return task

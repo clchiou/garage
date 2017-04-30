@@ -45,13 +45,13 @@ class Record:
            present.
         """
         def __init__(self, *field_list):
-            asserts.precond(len(field_list) > 1)
+            asserts.greater(len(field_list), 1)
             self.field_list = field_list
 
     class Either:
         """Annotate an exclusive group of fields."""
         def __init__(self, *field_list):
-            asserts.precond(len(field_list) > 1)
+            asserts.greater(len(field_list), 1)
             self.field_list = field_list
 
     def __init__(self, *decls):

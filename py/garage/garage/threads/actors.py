@@ -411,7 +411,7 @@ def _actor_message_loop(msg_queue, future_ref):
             _deref(msg.future_ref).cancel()
         _deref(future_ref).set_exception(exc)
     else:
-        asserts.precond(msg_queue.is_closed())
+        asserts.true(msg_queue.is_closed())
         _deref(future_ref).set_result(None)
     LOG.debug('exit')
 

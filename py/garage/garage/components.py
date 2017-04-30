@@ -152,12 +152,12 @@ def bind(component, startup=startup_, next_startup=None, parser_=PARSER):
         if isinstance(require, str):
             require = (require,)
         for fqname_ in require:
-            asserts.precond(_is_fqname(fqname_))
+            asserts.true(_is_fqname(fqname_))
             if aliases and fqname_ in aliases:
                 name = aliases[fqname_]
             else:
                 name = _get_name(fqname_)
-            asserts.precond(name not in annotations)
+            asserts.not_in(name, annotations)
             if isinstance(fqname_, TaggedStr) and fqname_.is_aggregation:
                 annotations[name] = [fqname_]
             else:
