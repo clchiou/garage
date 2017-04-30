@@ -25,7 +25,7 @@ class FileLock:
         if scripts.is_dry_run():
             return True
 
-        asserts.precond(not self.locked, 'expect lock not acquired')
+        asserts.false(self.locked)
 
         if not self._lock_file_path.exists():
             with scripts.using_sudo():
@@ -50,7 +50,7 @@ class FileLock:
         if scripts.is_dry_run():
             return
 
-        asserts.precond(self.locked, 'expect lock acquired')
+        asserts.true(self.locked)
 
         fd, self._fd = self._fd, None
         try:

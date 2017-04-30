@@ -502,7 +502,7 @@ class Stream:
     # Session object's callback functions.
     def _submit_response_nowait(self, response):
         asserts.not_none(self._session)
-        asserts.precond(self.response is None or self.response is response)
+        asserts.in_(self.response, (None, response))
         LOG.debug('session=%s, stream=%d: submit response',
                   self._session._id, self._id)
         owners = []
@@ -592,7 +592,11 @@ class Stream:
                 return bytes(data), 0
 
         async def write(self, data):
-            asserts.precond(not self._aborted and not self._closed)
+            asserts.precond(
+                not self._aborted and not self._closed,
+                'expect Buffer state: not %r and not %r == True',
+                self._aborted, self._closed,
+            )
             if data:
                 self._data_chunks.append(memoryview(data))
                 await self._send()
@@ -604,13 +608,21 @@ class Stream:
         # could be blocked on socket.recv() and make no progress.
 
         async def abort(self):
-            asserts.precond(not self._aborted and not self._closed)
+            asserts.precond(
+                not self._aborted and not self._closed,
+                'expect Buffer state: not %r and not %r == True',
+                self._aborted, self._closed,
+            )
             self._aborted = True
             await self._send()
             self._stream = None  # Break cycle
 
         async def close(self):
-            asserts.precond(not self._aborted and not self._closed)
+            asserts.precond(
+                not self._aborted and not self._closed,
+                'expect Buffer state: not %r and not %r == True',
+                self._aborted, self._closed,
+            )
             self._closed = True
             await self._send()
             self._stream = None  # Break cycle

@@ -62,11 +62,13 @@ def deploy_copy(repo, bundle_pod):
 
         # Copy systemd unit files
         scripts.mkdir(local_pod.pod_systemd_path)
-        asserts.precond(
-            len(bundle_pod.systemd_units) == len(local_pod.systemd_units))
+        asserts.equal(
+            len(bundle_pod.systemd_units),
+            len(local_pod.systemd_units),
+        )
         pairs = zip(bundle_pod.systemd_units, local_pod.systemd_units)
         for bundle_unit, local_unit in pairs:
-            asserts.precond(bundle_unit.unit_name == local_unit.unit_name)
+            asserts.equal(bundle_unit.unit_name, local_unit.unit_name)
             _cp_or_wget(bundle_unit, 'unit_file', local_unit.unit_file_path)
             if local_unit.checksum:
                 scripts.ensure_checksum(
@@ -74,10 +76,10 @@ def deploy_copy(repo, bundle_pod):
 
         # Copy image files (but if it's URI, leave it to `rkt fetch`)
         scripts.mkdir(local_pod.pod_images_path)
-        asserts.precond(len(bundle_pod.images) == len(local_pod.images))
+        asserts.equal(len(bundle_pod.images), len(local_pod.images))
         pairs = zip(bundle_pod.images, local_pod.images)
         for bundle_image, local_image in pairs:
-            asserts.precond(bundle_image.id == local_image.id)
+            asserts.equal(bundle_image.id, local_image.id)
             if bundle_image.image_path:
                 scripts.cp(bundle_image.image_path, local_image.image_path)
             if bundle_image.signature:
@@ -85,10 +87,10 @@ def deploy_copy(repo, bundle_pod):
 
         # Copy volume data
         scripts.mkdir(local_pod.pod_volume_data_path)
-        asserts.precond(len(bundle_pod.volumes) == len(local_pod.volumes))
+        asserts.equal(len(bundle_pod.volumes), len(local_pod.volumes))
         pairs = zip(bundle_pod.volumes, local_pod.volumes)
         for bundle_volume, local_volume in pairs:
-            asserts.precond(bundle_volume.name == local_volume.name)
+            asserts.equal(bundle_volume.name, local_volume.name)
             _cp_or_wget(bundle_volume, 'data', local_volume.data_path)
             if local_volume.checksum:
                 scripts.ensure_checksum(
@@ -310,7 +312,7 @@ def deploy(args: ARGS, repo):
     if pod_state in (repos.PodState.DEPLOYED, repos.PodState.STARTED):
         LOG.info('%s - pod has been deployed', pod)
         return 0
-    asserts.postcond(pod_state is repos.PodState.UNDEPLOYED)
+    asserts.is_(pod_state, repos.PodState.UNDEPLOYED)
 
     LOG.info('%s - deploy', pod)
     try:
@@ -342,7 +344,11 @@ def start(args: ARGS, repo):
         LOG.info('%s - pod has been started', args.tag)
         if not args.force:
             return 0
-    asserts.postcond(args.force or pod_state is repos.PodState.DEPLOYED)
+    asserts.postcond(
+        args.force or pod_state is repos.PodState.DEPLOYED,
+        'expect pod_state %r is %r',
+        pod_state, repos.PodState.DEPLOYED,
+    )
 
     pod = repo.get_pod_from_tag(args.tag)
     LOG.info('%s - start', pod)

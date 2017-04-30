@@ -75,9 +75,9 @@ def generate_user_data(args: ARGS):
         })
 
     # Insert `ssh-authorized-keys` to account plumber
-    asserts.precond(len(user_data['users']) == 1)
+    asserts.equal(len(user_data['users']), 1)
     plumber = user_data['users'][0]
-    asserts.postcond(plumber['name'] == 'plumber')
+    asserts.equal(plumber['name'], 'plumber')
     public_keys = plumber['ssh-authorized-keys']
     for public_key in args.ssh_authorized_key:
         public_key = scripts.ensure_file(public_key)
