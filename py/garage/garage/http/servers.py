@@ -2,6 +2,7 @@
 
 __all__ = [
     'ClientError',
+    'ServerError',
     'Server',
 ]
 
@@ -18,14 +19,17 @@ from garage import asyncs
 LOG = logging.getLogger(__name__)
 
 
-class ClientError(Exception):
-    """Represent HTTP 4xx status code."""
+class HttpError(Exception):
 
-    def __init__(self, status, *,
-                 headers=None,
-                 message='',
-                 internal_message=''):
-        asserts.precond(400 <= status < 500, 'expect 4xx status: %s', status)
+    @staticmethod
+    def assert_status(status):
+        pass
+
+    def __init__(
+            self, status, *,
+            headers=None,
+            message='', internal_message=''):
+        self.assert_status(status)
         super().__init__(internal_message or message)
         self.status = status
         self.headers = headers
@@ -33,7 +37,26 @@ class ClientError(Exception):
 
     def as_response(self):
         return http2.Response(
-            status=self.status, headers=self.headers, body=self.message)
+            status=self.status,
+            headers=self.headers,
+            body=self.message,
+        )
+
+
+class ClientError(HttpError):
+    """Represent HTTP 4xx status code."""
+
+    @staticmethod
+    def assert_status(status):
+        asserts.precond(400 <= status < 500, 'expect 4xx status: %s', status)
+
+
+class ServerError(HttpError):
+    """Represent HTTP 5xx status code."""
+
+    @staticmethod
+    def assert_status(status):
+        asserts.precond(500 <= status < 600, 'expect 5xx status: %s', status)
 
 
 class Server:
@@ -69,7 +92,7 @@ class Server:
         try:
             async with curio.timeout_after(self.timeout):
                 await self.handler(stream)
-        except ClientError as exc:
+        except HttpError as exc:
             LOG.warning('request handler rejects request because %s: %r',
                         exc, self.handler, exc_info=True)
             # If a response has been submitted, at this point all we can
