@@ -52,7 +52,6 @@ def next_main(args):
     with ExitStack() as exit_stack:
         args.next_startup.set(components.ARGS, args)
         args.next_startup.set(components.EXIT_STACK, exit_stack)
-        args.next_startup(components.check_args)
         args.next_startup.call()
         logging.info('complete of command %s', args.cmd)
     return 0

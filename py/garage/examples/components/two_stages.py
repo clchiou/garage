@@ -30,7 +30,6 @@ def main(argv):
         with ExitStack() as exit_stack:
             component_startup.set(components.ARGS, args)
             component_startup.set(components.EXIT_STACK, exit_stack)
-            component_startup(components.check_args)
             component_startup.call()
             logging.info('complete')
         return 0

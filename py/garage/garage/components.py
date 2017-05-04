@@ -26,9 +26,9 @@ __all__ = [
     'PARSE',
     'PARSER',
     'Component',
+    'Fqname',
     'bind',
     'find_closure',
-    'fqname',
     'main',
     'make_fqname_tuple',
     'vars_as_namespace',
@@ -43,48 +43,57 @@ from collections import namedtuple
 from startup import startup as startup_
 
 from garage import asserts
-from garage.collections import unique
 
 
 LOG = logging.getLogger(__name__)
 
 
-class TaggedStr(str):
-    pass
+class Fqname(str):
+    """Represent a fully-qualified name."""
+
+    @classmethod
+    def parse(cls, fqname_str):
+        if isinstance(fqname_str, cls):
+            return fqname_str
+        asserts.type_of(fqname_str, str)
+        index = fqname_str.index(':')
+        return cls(fqname_str[:index], fqname_str[index+1:])
+
+    def __new__(cls, module_name, name):
+        asserts.type_of(module_name, str)
+
+        # Handle `[name]`-style annotation of name
+        read_all = isinstance(name, list) and len(name) == 1
+        if read_all:
+            name = name[0]
+        asserts.type_of(name, str)
+
+        self = super().__new__(cls, '%s:%s' % (module_name, name))
+        self.module_name = module_name
+        self.name = name
+        self._read_all = read_all
+        return self
+
+    def __repr__(self):
+        return 'Fqname(%r, %r)' % (self.module_name, self.name)
+
+    def as_annotation(self):
+        if self._read_all:
+            return [self]
+        else:
+            return self
+
+    def read_all(self):
+        return Fqname(self.module_name, [self.name])
 
 
-def fqname(module_name, name):
-    # Handle `[NAME]`-style annotation
-    is_aggregation = isinstance(name, list) and len(name) == 1
-    if is_aggregation:
-        name = name[0]
-    fqname_ = TaggedStr('%s:%s' % (module_name, name))
-    fqname_.is_aggregation = is_aggregation
-    return fqname_
-
-
-def _is_fqname(name):
-    return isinstance(name, TaggedStr) or ':' in name
-
-
-def _get_module_name(fqname_):
-    return fqname_[:fqname_.index(':')]
-
-
-def _get_name(maybe_fqname):
-    # Handle `[NAME]`-style annotation
-    if isinstance(maybe_fqname, list) and len(maybe_fqname) == 1:
-        maybe_fqname = maybe_fqname[0]
-    return maybe_fqname[maybe_fqname.rfind(':')+1:]
-
-
-ARGS = fqname(__name__, 'args')
-ARGV = fqname(__name__, 'argv')
-CHECK_ARGS = fqname(__name__, 'check_args')
-EXIT_STACK = fqname(__name__, 'exit_stack')
-MAIN = fqname(__name__, 'main')
-PARSE = fqname(__name__, 'parse')
-PARSER = fqname(__name__, 'parser')
+ARGS = Fqname(__name__, 'args')
+ARGV = Fqname(__name__, 'argv')
+CHECK_ARGS = Fqname(__name__, 'check_args')
+EXIT_STACK = Fqname(__name__, 'exit_stack')
+MAIN = Fqname(__name__, 'main')
+PARSE = Fqname(__name__, 'parse')
+PARSER = Fqname(__name__, 'parser')
 
 _SYMBOLS = (ARGS, ARGV, CHECK_ARGS, EXIT_STACK, MAIN, PARSE, PARSER)
 
@@ -92,139 +101,190 @@ _SYMBOLS = (ARGS, ARGV, CHECK_ARGS, EXIT_STACK, MAIN, PARSE, PARSER)
 def make_fqname_tuple(module_name, *maybe_fqnames):
     if not maybe_fqnames:
         return ()
-    names = [_get_name(name) for name in maybe_fqnames]
-    return namedtuple('fqnames', names)(*(
-        name if _is_fqname(name) else fqname(module_name, name)
+    fqnames = [
+        name if isinstance(name, Fqname) else Fqname(module_name, name)
         for name in maybe_fqnames
-    ))
+    ]
+    # Make a namedtuple so that you may access fqnames via just their
+    # name part
+    return namedtuple('fqnames', [fqname.name for fqname in fqnames])(*fqnames)
 
 
 class Component:
 
     require = ()
 
-    aliases = None
+    provide = ()
 
-    provide = None
+    order = None
 
     def add_arguments(self, parser):
-        raise AssertionError
+        pass
 
     def check_arguments(self, parser, args):
-        raise AssertionError
+        pass
 
     def make(self, require):
-        raise AssertionError
+        pass
+
+
+def _get_require_as_tuple(comp):
+    # Special case for just a Fqname
+    if isinstance(comp.require, Fqname):
+        return (comp.require,)
+    asserts.type_of(comp.require, tuple)
+    return comp.require
+
+
+def _get_provide_for_annotation(comp):
+    # Special case for just a Fqname
+    if isinstance(comp.provide, Fqname):
+        return comp.provide
+    asserts.type_of(comp.provide, tuple)
+    # Special case for one-element tuple: We de-tuple it so that your
+    # make() function could just return `x` instead of `(x,)`
+    if len(comp.provide) == 1:
+        return comp.provide[0]
+    return comp.provide
+
+
+def _get_provide_as_tuple(comp):
+    # Special case for just a Fqname
+    if isinstance(comp.provide, Fqname):
+        return (comp.provide,)
+    asserts.type_of(comp.provide, tuple)
+    return comp.provide
 
 
 def bind(component, startup=startup_, next_startup=None, parser_=PARSER):
+    """Bind a component object to a startup dependency graph."""
+
+    if isinstance(component, type):
+        asserts.precond(
+            issubclass(component, Component),
+            'expect Component subclass, not %r', component,
+        )
+        component = component()
+
+    asserts.type_of(component, Component)
+
     next_startup = next_startup or startup
 
-    if _is_method_overridden(component, Component, 'add_arguments'):
+    # Add add_arguments
+    if component.order:
         @functools.wraps(component.add_arguments)
         def add_arguments(parser):
             return component.add_arguments(parser)
-        startup.add_func(add_arguments, {'parser': parser_, 'return': PARSE})
+        add_arguments.__module__ = component.order
+    else:
+        add_arguments = component.add_arguments
+    startup.add_func(add_arguments, {'parser': parser_, 'return': PARSE})
 
-    if _is_method_overridden(component, Component, 'check_arguments'):
+    # Add check_arguments
+    if component.order:
         @functools.wraps(component.check_arguments)
         def check_arguments(parser, args):
             return component.check_arguments(parser, args)
-        startup.add_func(
-            check_arguments,
-            {'parser': PARSER, 'args': ARGS, 'return': CHECK_ARGS},
-        )
+        check_arguments.__module__ = component.order
+    else:
+        check_arguments = component.check_arguments
+    startup.add_func(
+        check_arguments,
+        {'parser': PARSER, 'args': ARGS, 'return': CHECK_ARGS},
+    )
 
-    if _is_method_overridden(component, Component, 'make'):
-        provide = component.provide
-        if isinstance(provide, tuple) and len(provide) == 1:
-            provide = provide[0]
-        annotations = {
-            'return': provide,
-            # Dummies for enforcing order
-            '__args': ARGS,
-            '__check_args': CHECK_ARGS,
-        }
+    # Populate annotations of make()
 
-        aliases = getattr(component, 'aliases', None)
+    annotations = {
+        # Dummies for enforcing order
+        '__args': ARGS,
+    }
+    if next_startup is startup:
+        annotations['__check_args'] = CHECK_ARGS
 
-        require = component.require
-        if isinstance(require, str):
-            require = (require,)
-        for fqname_ in require:
-            asserts.true(_is_fqname(fqname_))
-            if aliases and fqname_ in aliases:
-                name = aliases[fqname_]
-            else:
-                name = _get_name(fqname_)
-            asserts.not_in(name, annotations)
-            if isinstance(fqname_, TaggedStr) and fqname_.is_aggregation:
-                annotations[name] = [fqname_]
-            else:
-                annotations[name] = fqname_
+    for fqname in _get_require_as_tuple(component):
+        asserts.type_of(fqname, Fqname)
+        asserts.not_in(fqname.name, annotations)
+        annotations[fqname.name] = fqname.as_annotation()
 
-        @functools.wraps(component.make)
-        def make(__args, __check_args, **require):
-            return component.make(types.SimpleNamespace(**require))
-        next_startup.add_func(make, annotations)
+    provide = _get_provide_for_annotation(component)
+    if provide:
+        annotations['return'] = provide
 
+    @functools.wraps(component.make)
+    def make(__args, __check_args=None, **kwargs):
+        return component.make(types.SimpleNamespace(**kwargs))
+    if component.order:
+        make.__module__ = component.order
 
-def _is_method_overridden(obj_or_cls, base_cls, method_name):
-    if not hasattr(obj_or_cls, method_name):
-        return False
-    base_func = getattr(base_cls, method_name)
-    method = getattr(obj_or_cls, method_name)
-    func = method.__func__ if isinstance(method, types.MethodType) else method
-    return func is not base_func
+    next_startup.add_func(make, annotations)
 
 
 def find_closure(*comps, ignore=(), ignore_more=_SYMBOLS):
-    """Find (and make) dependent components recursively by convention."""
-    comps = list(comps)
-    comp_classes = {type(comp) for comp in comps}
+    """Find (and instantiate) dependent components recursively.
+
+    It finds dependent components by searching the modules referred by
+    the require list.
+    """
+    comps = [
+        comp if isinstance(comp, Component) else comp()
+        for comp in comps
+    ]
 
     ignore = set(ignore)
     ignore.update(ignore_more)
 
-    def _update(target, source):
-        if source is None:
-            pass
-        elif isinstance(source, str):
-            target.add(source)
-        else:
-            target.update(source)
-
     provide_set = set()
     for comp in comps:
-        _update(provide_set, comp.provide)
+        provide_set.update(_get_provide_as_tuple(comp))
 
     require_set = set()
     for comp in comps:
-        _update(require_set, comp.require)
+        require_set.update(_get_require_as_tuple(comp))
     require_set.difference_update(ignore)
     require_set.difference_update(provide_set)
 
     while require_set:
+        # Find components in modules referred from fqname
         iter_modules = map(
             importlib.import_module,
             # Sort it so that the lookup order is deterministic.
-            unique(map(_get_module_name, sorted(require_set)))
+            sorted(set(fqname.module_name for fqname in require_set)),
         )
+
         original = set(require_set)
         for module in iter_modules:
-            for comp_class in vars(module).values():
-                if (not isinstance(comp_class, type) or
-                        not issubclass(comp_class, Component) or
-                        comp_class in comp_classes or
-                        comp_class.provide is None or
-                        require_set.isdisjoint(comp_class.provide)):
+            for comp_obj_or_class in vars(module).values():
+
+                # Look for component classes in this module
+                if (isinstance(comp_obj_or_class, type) and
+                        issubclass(comp_obj_or_class, Component)):
+                    # Check if this is not what we are looking for
+                    provide = _get_provide_as_tuple(comp_obj_or_class)
+                    if require_set.isdisjoint(provide):
+                        continue
+                    # If it is, instantiate it!
+                    comp = comp_obj_or_class()
+
+                # Look for component objects in this module
+                elif isinstance(comp_obj_or_class, Component):
+                    comp = comp_obj_or_class
+                    # Check if this is not what we are looking for
+                    provide = _get_provide_as_tuple(comp)
+                    if require_set.isdisjoint(provide):
+                        continue
+
+                else:
                     continue
-                comps.append(comp_class())
-                comp_classes.add(comp_class)
-                _update(provide_set, comp_class.provide)
-                _update(require_set, comp_class.require)
+
+                comps.append(comp)
+
+                provide_set.update(_get_provide_as_tuple(comp))
+
+                require_set.update(_get_require_as_tuple(comp))
                 require_set.difference_update(ignore)
                 require_set.difference_update(provide_set)
+
         if require_set == original:
             raise ValueError(
                 'cannot make find components providing %r' % require_set)
@@ -236,16 +296,13 @@ def find_closure(*comps, ignore=(), ignore_more=_SYMBOLS):
     return comps
 
 
-def vars_as_namespace(varz, aliases=None):
+def vars_as_namespace(varz):
     ndict = {}
-    for fqname_, value in varz.items():
-        if aliases and fqname_ in aliases:
-            name = aliases[fqname_]
-        else:
-            name = _get_name(fqname_)
-        if name in ndict:
-            raise ValueError('overwrite name: %r' % name)
-        ndict[name] = value
+    for fqname_str, value in varz.items():
+        fqname = Fqname.parse(fqname_str)
+        if fqname.name in ndict:
+            raise ValueError('overwrite name: %r' % fqname.name)
+        ndict[fqname.name] = value
     return types.SimpleNamespace(**ndict)
 
 
@@ -253,15 +310,8 @@ def parse_argv(parser: PARSER, argv: ARGV, _: PARSE) -> ARGS:
     return parser.parse_args(argv[1:])
 
 
-# To work around the issue that if no components define check_arguments
-# function...
-def check_args(_: ARGS) -> CHECK_ARGS:
-    pass
-
-
 def main(argv, startup=startup_):
     startup.set(ARGV, argv)
-    startup(check_args)
     startup(parse_argv)
     varz = startup.call()
     main_ = varz[MAIN]

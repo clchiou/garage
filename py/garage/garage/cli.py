@@ -26,6 +26,7 @@ import sys
 from startup import startup
 
 from garage import asserts
+from garage.collections import unique
 import garage.components
 
 
@@ -210,15 +211,14 @@ class Command:
         startup_.set(garage.components.ARGV, argv)
         startup_.set(garage.components.EXIT_STACK, exit_stack)
         startup_.set(garage.components.PARSER, parser)
-        startup_(garage.components.check_args)
         startup_(garage.components.parse_argv)
 
-        # Use a set to filter out duplicated components
-        comps = set(self._initialize(parser))
+        # Filter out duplicated components (use unique because it
+        # preserves the original ordering)
+        comps = unique(self._initialize(parser))
         if self._verbosity is not None:
             from garage.startups.logging import LoggingComponent
-            comps.add(LoggingComponent(self._verbosity))
-        comps = [comp() if isinstance(comp, type) else comp for comp in comps]
+            comps.append(LoggingComponent(self._verbosity))
 
         for comp in garage.components.find_closure(*comps):
             garage.components.bind(comp, startup=startup_)

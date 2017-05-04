@@ -10,115 +10,149 @@ if startup_available:
         PARSE,
         PARSER,
         Component,
+        Fqname,
         bind,
         make_fqname_tuple,
         vars_as_namespace,
-        _get_name,
-        _is_method_overridden,
     )
 
 
 @unittest.skipUnless(startup_available, 'startup unavailable')
 class ComponentsTest(unittest.TestCase):
 
-    def test_get_name(self):
-        self.assertEqual('hello', _get_name('hello'))
-        self.assertEqual('hello', _get_name('a.b.c.d:hello'))
+    def test_fqname_parse(self):
+        with self.assertRaises(ValueError):
+            Fqname.parse('hello')
+        self.assertEqual('hello', Fqname.parse('a.b.c.d:hello').name)
 
     def test_make_fqname_tuple(self):
+
         self.assertTupleEqual((), make_fqname_tuple('a.b.c'))
-        fqnames = make_fqname_tuple('a.b.c', ['x'], 'y', 'd.e.f:z')
+
+        fqnames = make_fqname_tuple(
+            'a.b.c',
+            ['x'], 'y', Fqname.parse('d.e.f:z'),
+        )
         self.assertTupleEqual(('a.b.c:x', 'a.b.c:y', 'd.e.f:z'), fqnames)
         self.assertEqual('a.b.c:x', fqnames.x)
         self.assertEqual('a.b.c:y', fqnames.y)
         self.assertEqual('d.e.f:z', fqnames.z)
-        self.assertTrue(fqnames.x.is_aggregation)
-        self.assertFalse(fqnames.y.is_aggregation)
+        self.assertEqual(['a.b.c:x'], fqnames.x.as_annotation())
+        self.assertEqual('a.b.c:y', fqnames.y.as_annotation())
 
-    def test_is_method_overridden(self):
-        class Base:
-            def meth1(self): pass
-            def meth2(self): pass
+    # startup.call()'s output when all component's provide are empty
+    BASE_VARS = {ARGS: None, CHECK_ARGS: None, PARSE: None, PARSER: None}
 
-        class Ext(Base):
-            def meth1(self): pass
-        self.assertTrue(_is_method_overridden(Ext, Base, 'meth1'))
-        self.assertFalse(_is_method_overridden(Ext, Base, 'meth2'))
-        self.assertTrue(_is_method_overridden(Ext(), Base, 'meth1'))
-        self.assertFalse(_is_method_overridden(Ext(), Base, 'meth2'))
+    def _call_startup(self, startup):
 
-        class Ext(Base):
-            @staticmethod
-            def meth1(): pass
-            @classmethod
-            def meth2(cls): pass
-        self.assertTrue(_is_method_overridden(Ext, Base, 'meth1'))
-        self.assertTrue(_is_method_overridden(Ext, Base, 'meth2'))
-        self.assertTrue(_is_method_overridden(Ext(), Base, 'meth1'))
-        self.assertTrue(_is_method_overridden(Ext(), Base, 'meth2'))
+        @startup
+        def parse_argv(_: PARSE) -> ARGS:
+            pass
+
+        startup.set(PARSER, None)
+
+        return startup.call()
 
     def test_empty_component(self):
         startup = Startup()
         bind(Component(), startup)
-        self.assertDictEqual({}, startup.call())
+        self.assertDictEqual(self.BASE_VARS, self._call_startup(startup))
 
         class A(Component): pass
         startup = Startup()
         bind(A(), startup)
         bind(A, startup)
-        self.assertDictEqual({}, startup.call())
+        self.assertDictEqual(self.BASE_VARS, self._call_startup(startup))
 
     def test_component(self):
         class A(Component):
-            provide = ':A'
+            provide = make_fqname_tuple('hello', 'a')
             def make(self, require):
-                return 'a'
+                return 'str_a'
 
         class B(Component):
-            require = ':A'
-            provide = ':B'
+            require = (A.provide.a,)
+            provide = make_fqname_tuple('hello', 'b')
             def make(self, require):
-                return require.A
+                return require.a + 'a'
 
         startup = Startup()
         bind(A(), startup)
         bind(B(), startup)
-        startup.set(ARGS, None)
-        startup.set(CHECK_ARGS, None)
-        startup.set(PARSER, None)
-        self.assertDictEqual(
-            {':A': 'a', ':B': 'a',
-             ARGS: None, CHECK_ARGS: None, PARSER: None},
-            startup.call(),
-        )
 
-    def test_bind(self):
+        expect = dict(self.BASE_VARS)
+        expect.update({
+            'hello:a': 'str_a',
+            'hello:b': 'str_aa',
+        })
+        self.assertDictEqual(expect, self._call_startup(startup))
+
+    def test_order(self):
+
+        call_order = []
 
         class A(Component):
-            require = make_fqname_tuple('', ['a'])
-            provide = ':as'
-            def make(self, require):
-                return require.a
 
-        class B(Component):
-            provide = A.require.a
+            def __init__(self, order):
+                self.order = order
+
+            def add_arguments(self, parser):
+                call_order.append(('add_arguments', self.order))
+
+            def check_arguments(self, parser, args):
+                call_order.append(('check_arguments', self.order))
+
+            def make(self, require):
+                call_order.append(('make', self.order))
+
+        startup = Startup()
+        bind(A('3'), startup)
+        bind(A('1'), startup)
+        bind(A('2'), startup)
+
+        self._call_startup(startup)
+
+        self.assertEqual(
+            [
+                ('add_arguments', '1'),
+                ('add_arguments', '2'),
+                ('add_arguments', '3'),
+                ('check_arguments', '1'),
+                ('check_arguments', '2'),
+                ('check_arguments', '3'),
+                ('make', '1'),
+                ('make', '2'),
+                ('make', '3'),
+            ],
+            call_order,
+        )
+
+    def test_component_read_all(self):
+
+        class A(Component):
+            provide = make_fqname_tuple('hello', 'a')
             def __init__(self, msg):
                 self.msg = msg
             def make(self, require):
                 return self.msg
 
+        class B(Component):
+            require = (A.provide.a.read_all(),)
+            provide = make_fqname_tuple('hello', ['alist'])
+            def make(self, require):
+                return require.a
+
         startup = Startup()
-        bind(A(), startup)
-        bind(B('x'), startup)
-        bind(B('y'), startup)
-        startup.set(ARGS, None)
-        startup.set(CHECK_ARGS, None)
-        startup.set(PARSER, None)
-        self.assertDictEqual(
-            {':a': 'y', ':as': ['x', 'y'],
-             ARGS: None, CHECK_ARGS: None, PARSER: None},
-            startup.call(),
-        )
+        bind(A('x'), startup)
+        bind(A('y'), startup)
+        bind(B, startup)
+
+        expect = dict(self.BASE_VARS)
+        expect.update({
+            'hello:a': 'y',
+            'hello:alist': ['x', 'y'],
+        })
+        self.assertDictEqual(expect, self._call_startup(startup))
 
     def test_resolved_order(self):
 
@@ -140,43 +174,27 @@ class ComponentsTest(unittest.TestCase):
             def add_arguments(self, parser):
                 order.append('C.add_arguments')
 
-        def parse_argv(_: PARSE) -> ARGS:
-            pass
-
-        def check_args(_: ARGS) -> CHECK_ARGS:
-            pass
-
         startup = Startup()
         bind(A(), startup)
         bind(B(), startup)
         bind(C(), startup)
-        startup.set(PARSER, None)
-        startup(check_args)
-        startup(parse_argv)
-        startup.call()
+
+        self.assertDictEqual(self.BASE_VARS, self._call_startup(startup))
         self.assertEqual(
             ['C.add_arguments', 'B.check_arguments', 'A.make'],
             order,
         )
 
     def test_vars_as_namespace(self):
-        varz = vars_as_namespace({'a': 1, 'x.y.z:b': 2})
+        varz = vars_as_namespace({'x.y.z:a': 1, 'x.y.z:b': 2})
         self.assertEqual(1, varz.a)
         self.assertEqual(2, varz.b)
+        self.assertFalse(hasattr(varz, 'c'))
         with self.assertRaises(AttributeError):
             varz.c
 
-        with self.assertRaises(ValueError):
-            varz = vars_as_namespace({'a': 1, 'x.y.z:a': 2})
-
-        varz = vars_as_namespace(
-            {'a': 1, 'x.y.z:a': 2},
-            aliases={'x.y.z:a': 'b'},
-        )
-        self.assertEqual(1, varz.a)
-        self.assertEqual(2, varz.b)
-        with self.assertRaises(AttributeError):
-            varz.c
+        with self.assertRaisesRegex(ValueError, r'overwrite name'):
+            varz = vars_as_namespace({'p.q.r:a': 1, 'x.y.z:a': 2})
 
 
 if __name__ == '__main__':
