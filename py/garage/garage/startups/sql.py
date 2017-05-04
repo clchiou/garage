@@ -1,5 +1,5 @@
 __all__ = [
-    'make_db_engine_component',
+    'EngineComponent',
 ]
 
 import logging
@@ -9,42 +9,57 @@ from garage import components
 from garage.startups.logging import LoggingComponent
 
 
-def make_db_engine_component(
-        *, package_name,
-        argument_group, argument_prefix,
-        check_same_thread=False):
-    """DbEngineComponent Generator."""
+class EngineComponent(components.Component):
 
-    DB_URL = '%s_db_url' % argument_prefix.replace('-', '_')
+    require = components.ARGS
 
-    class DbEngineComponent(components.Component):
+    provide = components.make_fqname_tuple(__name__, 'engine')
 
-        require = components.ARGS
+    def __init__(
+            self, *,
+            module_name=None, name=None,
+            group=None,
+            check_same_thread=False):
+        """Create a SQLAlchemy Engine object component.
 
-        provide = components.make_fqname_tuple(package_name, 'engine')
+        NOTE: components.find_closure uses module_name to search for
+        component; set it to where this component is instantiated would
+        be helpful to find_closure.
+        """
 
-        def add_arguments(self, parser):
-            group = parser.add_argument_group(argument_group)
-            group.add_argument(
-                '--%s-db-url' % argument_prefix, required=True,
-                help="""set database URL""")
+        if module_name is None and name is None:
+            self.__group = __name__
+            self.__arg = '--db-url'
+            self.__attr = 'db_url'
+        else:
+            module_name = module_name or __name__
+            name = name or 'engine'
+            group = group or module_name
+            self.provide = components.make_fqname_tuple(module_name, name)
+            self.order = '%s/%s' % (module_name, name)
+            self.__group = '%s/%s' % (group, name)
+            self.__arg = '--%s-db-url' % name.replace('_', '-')
+            self.__attr = '%s_db_url' % name
 
-        def check_arguments(self, parser, args):
-            db_url = getattr(args, DB_URL)
-            if not db_url.startswith('sqlite://'):
-                parser.error('only support sqlite at the moment: %s' % db_url)
+        self.check_same_thread = check_same_thread
 
-        def make(self, require):
-            db_url = getattr(require.args, DB_URL)
-            echo = logging.getLogger().isEnabledFor(LoggingComponent.TRACE)
-            return garage.sql.sqlite.create_engine(
-                db_url,
-                check_same_thread=check_same_thread,
-                echo=echo,
-            )
+    def add_arguments(self, parser):
+        group = parser.add_argument_group(self.__group)
+        group.add_argument(
+            self.__arg, required=True,
+            help='set database URL',
+        )
 
-    # Hack for manipulating call order
-    DbEngineComponent.add_arguments.__module__ = package_name
-    DbEngineComponent.check_arguments.__module__ = package_name
+    def check_arguments(self, parser, args):
+        db_url = getattr(args, self.__attr)
+        if not db_url.startswith('sqlite://'):
+            parser.error('only support sqlite at the moment: %s' % db_url)
 
-    return DbEngineComponent
+    def make(self, require):
+        db_url = getattr(require.args, self.__attr)
+        echo = logging.getLogger().isEnabledFor(LoggingComponent.TRACE)
+        return garage.sql.sqlite.create_engine(
+            db_url,
+            check_same_thread=self.check_same_thread,
+            echo=echo,
+        )

@@ -98,6 +98,29 @@ class StartupsTest(unittest.TestCase):
         for comp_class in self.iter_comp_classes(modules):
             components.bind(comp_class(), startup)
 
+    def test_sql(self):
+
+        self.assertTrue(
+            hasattr(garage.startups.sql.EngineComponent.provide, 'engine'))
+        self.assertFalse(
+            hasattr(garage.startups.sql.EngineComponent.provide, 'raw_engine'))
+
+        comp = garage.startups.sql.EngineComponent()
+        self.assertTrue(hasattr(comp.provide, 'engine'))
+        self.assertFalse(hasattr(comp.provide, 'raw_engine'))
+        self.assertEqual(
+            garage.startups.sql.__name__,
+            comp.provide.engine.module_name,
+        )
+
+        comp = garage.startups.sql.EngineComponent(
+            module_name=__name__,
+            name='raw_engine',
+        )
+        self.assertFalse(hasattr(comp.provide, 'engine'))
+        self.assertTrue(hasattr(comp.provide, 'raw_engine'))
+        self.assertEqual(__name__, comp.provide.raw_engine.module_name)
+
 
 if __name__ == '__main__':
     unittest.main()
