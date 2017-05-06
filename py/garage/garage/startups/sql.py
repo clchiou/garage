@@ -27,19 +27,23 @@ class EngineComponent(components.Component):
         be helpful to find_closure.
         """
 
-        if module_name is None and name is None:
-            self.__group = __name__
+        if name:
+            self.__arg = '--%s-db-url' % name.replace('_', '-')
+            self.__attr = '%s_db_url' % name
+        else:
             self.__arg = '--db-url'
             self.__attr = 'db_url'
+
+        group = group or module_name or __name__
+
+        if module_name is None and name is None:
+            self.__group = '%s/engine' % group
         else:
             module_name = module_name or __name__
             name = name or 'engine'
-            group = group or module_name
             self.provide = components.make_fqname_tuple(module_name, name)
             self.order = '%s/%s' % (module_name, name)
             self.__group = '%s/%s' % (group, name)
-            self.__arg = '--%s-db-url' % name.replace('_', '-')
-            self.__attr = '%s_db_url' % name
 
         self.check_same_thread = check_same_thread
 

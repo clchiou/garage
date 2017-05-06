@@ -15,6 +15,7 @@ try:
     import garage.startups.asyncs.servers
     import garage.startups.formatters
     import garage.startups.http.clients
+    import garage.startups.http.clients
     import garage.startups.logging
     import garage.startups.metry
     import garage.startups.metry.reporters.logging
@@ -44,6 +45,7 @@ class StartupsTest(unittest.TestCase):
         modules = (
             garage.startups.asyncs.servers,
             garage.startups.formatters,
+            garage.startups.http.clients,
             garage.startups.http.clients,
             garage.startups.logging,
             garage.startups.metry,
