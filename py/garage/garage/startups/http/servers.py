@@ -19,7 +19,12 @@ class HttpServerComponent(components.Component):
         components.ARGS,
     )
 
-    provide = components.make_fqname_tuple(__name__, 'http_server')
+    provide = components.make_fqname_tuple(
+        __name__,
+        'http_server',
+        'http_server_scheme',
+        'http_server_address',
+    )
 
     def __init__(self, *, module_name=None, name=None, group=None):
 
@@ -35,7 +40,12 @@ class HttpServerComponent(components.Component):
         if module_name is not None or name is not None:
             module_name = module_name or __name__
             name = name or 'http_server'
-            self.provide = components.make_fqname_tuple(module_name, name)
+            self.provide = components.make_fqname_tuple(
+                module_name,
+                name,
+                name + '_scheme',
+                name + '_address',
+            )
             self.order = '%s/%s' % (module_name, name)
 
     def add_arguments(self, parser):
@@ -67,23 +77,26 @@ class HttpServerComponent(components.Component):
 
         graceful_exit = require.graceful_exit
 
+        address = (
+            getattr(require.args, self.__attr_prefix + 'host'),
+            getattr(require.args, self.__attr_prefix + 'port'),
+        )
         make_server_socket = functools.partial(
             garage.asyncs.utils.make_server_socket,
-            (
-                getattr(require.args, self.__attr_prefix + 'host'),
-                getattr(require.args, self.__attr_prefix + 'port'),
-            ),
+            address,
         )
 
         certificate = getattr(require.args, self.__attr_prefix + 'certificate')
         private_key = getattr(require.args, self.__attr_prefix + 'private_key')
         if certificate and private_key:
+            scheme = http2.Scheme.HTTPS
             make_ssl_context = functools.partial(
                 http2.make_ssl_context,
                 certificate,
                 private_key,
             )
         else:
+            scheme = http2.Scheme.HTTP
             make_ssl_context = None
 
         async def http_server(handler, *, logger=None):
@@ -95,4 +108,8 @@ class HttpServerComponent(components.Component):
                 logger=logger,
             )
 
-        return http_server
+        return (
+            http_server,
+            scheme,
+            address,
+        )
