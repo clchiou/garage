@@ -21,7 +21,7 @@ class HttpClientComponent(components.Component):
         group = parser.add_argument_group(clients.__name__)
         group.add_argument(
             '--http-user-agent', default=self.HTTP_USER_AGENT,
-            help="""set http user agent""")
+            help="""set http user agent (default to %(default)r)""")
         group.add_argument(
             '--http-max-requests', type=int, default=0,
             help="""set max concurrent http requests or 0 for unlimited
