@@ -136,7 +136,7 @@ class Client(_ClientMixin):
         while True:
             try:
                 return self._send(method, request, kwargs, retry_count)
-            except BaseException:
+            except Exception:
                 backoff = next(retry, None)
                 if backoff is None:
                     raise
@@ -161,7 +161,7 @@ class Client(_ClientMixin):
                         status_code, request.method, request.uri,
                         exc_info=True)
             raise HttpError('%s %s' % (request.method, request.uri)) from exc
-        except BaseException:
+        except Exception:
             LOG.warning('Generic error when %s %s',
                         request.method, request.uri, exc_info=True)
             raise
