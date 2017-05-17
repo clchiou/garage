@@ -14,5 +14,5 @@ subprojects {
 // It is silly to track the gradle wrapper in the version control.
 // Run `gradle wrapper` to generate the wrapper instead.
 task wrapper(type: Wrapper) {
-    gradleVersion = '3.4.1'
+    gradleVersion = '3.5'
 }
