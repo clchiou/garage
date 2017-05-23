@@ -1,13 +1,40 @@
 // Top-level build file of Java projects.
 
+plugins {
+    id 'com.github.johnrengelman.shadow' version '2.0.0'
+    id 'java'
+    id 'net.ltgt.apt' version '0.10'
+}
+
 subprojects {
+    apply plugin: 'com.github.johnrengelman.shadow'
     apply plugin: 'java'
+    apply plugin: 'net.ltgt.apt'
 
     sourceCompatibility = '1.8'
     targetCompatibility = '1.8'
 
     repositories {
         jcenter()
+    }
+
+    // These are global dependencies, where you should only add the bare
+    // minimum stuff.
+    dependencies {
+        compile 'com.google.dagger:dagger:2.10'
+        apt     'com.google.dagger:dagger-compiler:2.10'
+
+        compile 'args4j:args4j:2.33'
+        compile 'com.google.guava:guava:21.0'
+        compile 'org.slf4j:slf4j-api:1.7.25'
+    }
+
+    shadowJar {
+        classifier = null
+
+        // Don't know what are these - just remove them.
+        exclude 'META-INF/maven/**'
+        exclude 'OSGI-OPT/**'
     }
 }
 

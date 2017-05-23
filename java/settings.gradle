@@ -2,4 +2,4 @@
 
 rootProject.name = 'garage'
 
-include ':garage'
+include ':examples'
