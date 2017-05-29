@@ -6,10 +6,22 @@ plugins {
     id 'net.ltgt.apt' version '0.10'
 }
 
+// I don't know why but junit can't be imported with `plugins` block as
+// other plugins.
+buildscript {
+    repositories {
+        jcenter()
+    }
+    dependencies {
+        classpath 'org.junit.platform:junit-platform-gradle-plugin:1.0.0-M4'
+    }
+}
+
 subprojects {
     apply plugin: 'com.github.johnrengelman.shadow'
     apply plugin: 'java'
     apply plugin: 'net.ltgt.apt'
+    apply plugin: 'org.junit.platform.gradle.plugin'
 
     sourceCompatibility = '1.8'
     targetCompatibility = '1.8'
@@ -25,8 +37,16 @@ subprojects {
         apt     'com.google.dagger:dagger-compiler:2.10'
 
         compile 'args4j:args4j:2.33'
+        compile 'com.google.code.findbugs:jsr305:3.0.2'
         compile 'com.google.guava:guava:21.0'
         compile 'org.slf4j:slf4j-api:1.7.25'
+
+        // Let's use slf4j-simple framework for now and (maybe) switch to a
+        // more sophisticated framework later.
+        compile 'org.slf4j:slf4j-simple:1.7.25'
+
+        testCompile 'org.junit.jupiter:junit-jupiter-api:5.0.0-M4'
+        testRuntime 'org.junit.jupiter:junit-jupiter-engine:5.0.0-M4'
     }
 
     shadowJar {
@@ -35,6 +55,15 @@ subprojects {
         // Don't know what are these - just remove them.
         exclude 'META-INF/maven/**'
         exclude 'OSGI-OPT/**'
+    }
+
+    // Configure Intellij IDEA to locate generated code.
+    apply plugin: 'idea'
+    idea {
+        module {
+            generatedSourceDirs +=
+                file(new File(buildDir, 'generated/source/apt/main'))
+        }
     }
 }
 

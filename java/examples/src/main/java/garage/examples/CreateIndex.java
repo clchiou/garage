@@ -1,5 +1,6 @@
 package garage.examples;
 
+import com.google.common.base.Preconditions;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
@@ -11,19 +12,14 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.FSDirectory;
-import org.kohsuke.args4j.CmdLineException;
-import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
-import org.kohsuke.args4j.spi.PathOptionHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.BufferedReader;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.FileVisitResult;
@@ -31,73 +27,55 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 
+import garage.base.Application;
+import garage.base.MoreFiles;
+
 public class CreateIndex {
+
     private static final Logger LOG =
         LoggerFactory.getLogger(CreateIndex.class);
 
-    @Option(name = "--update", usage = "update index")
-    private boolean doUpdate;
-
-    @Option(name = "--docs", required = true,
-            usage = "provide input docs directory")
-    private Path docsDirPath;
-
-    @Option(name = "--index", required = true,
-            usage = "provide output index directory")
-    private Path indexDirPath;
-
-    public static void main(String[] args) throws Error, IOException {
-        CreateIndex createIndex = null;
-        try {
-            createIndex = new CreateIndex(args);
-        } catch (Error e) {
-            if (e.getMessage() != null) {
-                System.err.print(e.getMessage());
-            }
-            System.exit(1);
-        }
-        createIndex.index();
+    private CreateIndex() {
+        throw new AssertionError();
     }
 
-    public static class Error extends Exception {
-        Error(String message) { super(message); }
+    private static class Args extends Application.Args {
+
+        @Option(name = "--update", usage = "update index")
+        private boolean doUpdate;
+
+        @Option(name = "--docs", required = true,
+                usage = "provide input docs directory")
+        private Path docsDirPath;
+
+        @Option(name = "--index", required = true,
+                usage = "provide output index directory")
+        private Path indexDirPath;
     }
 
-    public CreateIndex(String[] args) throws Error {
-        CmdLineParser parser = new CmdLineParser(this);
-        try {
-            parser.parseArgument(args);
-        } catch (CmdLineException e) {
-            ByteArrayOutputStream output = new ByteArrayOutputStream();
-            try {
-                new OutputStreamWriter(output)
-                    .append(e.getMessage()).append('\n')
-                    .close();
-            } catch (IOException exc) {
-                System.err.println(
-                    "Err when writing error message: " + exc.getMessage());
-            }
-            parser.printUsage(output);
-            throw new Error(output.toString());
-        }
+    public static void main(String[] args) {
+        Application.run(args, new Args(), CreateIndex::index);
     }
 
-    public void index() throws Error, IOException {
-        if (!isReadableDirectory(docsDirPath)) {
-            throw new Error("Not a readable directory: " + docsDirPath);
-        }
-        if (Files.exists(indexDirPath) && !isWritableDirectory(indexDirPath)) {
-            throw new Error("Not a writable directory: " + indexDirPath);
-        }
+    private static void index(Args args) throws IOException {
+        Preconditions.checkArgument(
+            MoreFiles.isReadableDirectory(args.docsDirPath),
+            "Not a readable directory: %s", args.docsDirPath
+        );
+        Preconditions.checkArgument(
+            !Files.exists(args.indexDirPath) ||
+                MoreFiles.isWritableDirectory(args.indexDirPath),
+            "Not a writable directory: %s", args.indexDirPath
+        );
 
-        LOG.info("start indexing {}", indexDirPath);
+        LOG.info("start indexing {}", args.indexDirPath);
         long duration = System.nanoTime();
 
         Analyzer analyzer = new StandardAnalyzer();
         IndexWriterConfig config = new IndexWriterConfig(analyzer);
 
         config.setOpenMode(
-            doUpdate ?
+            args.doUpdate ?
                 IndexWriterConfig.OpenMode.CREATE_OR_APPEND :
                 IndexWriterConfig.OpenMode.CREATE
         );
@@ -107,11 +85,11 @@ public class CreateIndex {
         config.setRAMBufferSizeMB(256);
 
         IndexWriter writer = new IndexWriter(
-            FSDirectory.open(indexDirPath),
+            FSDirectory.open(args.indexDirPath),
             config
         );
 
-        indexDocs(writer, docsDirPath);
+        indexDocs(writer, args.docsDirPath);
 
         writer.forceMerge(1);
 
@@ -181,13 +159,5 @@ public class CreateIndex {
                 );
             }
         }
-    }
-
-    private static boolean isReadableDirectory(Path path) {
-        return Files.isDirectory(path) && Files.isReadable(path);
-    }
-
-    private static boolean isWritableDirectory(Path path) {
-        return Files.isDirectory(path) && Files.isWritable(path);
     }
 }

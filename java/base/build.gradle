@@ -1,5 +1,3 @@
 dependencies {
-    // Let's use slf4j-simple framework for now and (maybe) switch to a
-    // more sophisticated framework later.
-    compile 'org.slf4j:slf4j-simple:1.7.25'
+    compile 'org.yaml:snakeyaml:1.18'
 }

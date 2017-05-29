@@ -11,112 +11,78 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.FSDirectory;
-import org.kohsuke.args4j.CmdLineException;
-import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
 import org.kohsuke.args4j.spi.PathOptionHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.OutputStreamWriter;
 import java.nio.file.Path;
 
+import garage.base.Application;
+
 public class SearchIndex {
+
     private static final Logger LOG =
         LoggerFactory.getLogger(SearchIndex.class);
 
-    @Option(name = "--index", required = true,
+    private SearchIndex() {
+        throw new AssertionError();
+    }
+
+    private static class Args extends Application.Args {
+
+        @Option(name = "--index", required = true,
             handler = PathOptionHandler.class,
             usage = "provide input index directory")
-    private Path indexDirPath;
+        private Path indexDirPath;
 
-    @Option(name = "--field", usage = "search this field")
-    private String field = "contents";
+        @Option(name = "--field", usage = "search this field")
+        private String field = "contents";
 
-    @Option(name = "--query", required = true,
+        @Option(name = "--query", required = true,
             usage = "provide search query")
-    private String queryString;
+        private String query;
 
-    @Option(name = "--num-results", required = true,
+        @Option(name = "--num-results", required = true,
             usage = "set num results")
-    private int numResults;
-
-    @Option(name = "--raw", usage = "output in raw format")
-    private boolean outputRawFormat;
-
-    public static void main(String[] args) throws Exception {
-        SearchIndex searchIndex = null;
-        try {
-            searchIndex = new SearchIndex(args);
-        } catch (Error e) {
-            if (e.getMessage() != null) {
-                System.err.print(e.getMessage());
-            }
-            System.exit(1);
-        }
-        searchIndex.search();
+        private int numResults;
     }
 
-    public static class Error extends Exception {
-        Error(String message) { super(message); }
+    public static void main(String[] args) {
+        Application.run(args, new Args(), SearchIndex::search);
     }
 
-    public SearchIndex(String[] args) throws Error {
-        CmdLineParser parser = new CmdLineParser(this);
-        try {
-            parser.parseArgument(args);
-        } catch (CmdLineException e) {
-            ByteArrayOutputStream message = new ByteArrayOutputStream();
-            try {
-                new OutputStreamWriter(message)
-                    .append(e.getMessage())
-                    .append('\n')
-                    .close();
-            } catch (IOException exc) {
-                System.err.println(
-                    "Err when writing error message: " + exc.getMessage());
-            }
-            parser.printUsage(message);
-            throw new Error(message.toString());
-        }
-    }
-
-    public void search() throws Exception {
+    private static void search(Args args) throws Exception {
         try (IndexReader reader =
-                DirectoryReader.open(FSDirectory.open(indexDirPath))) {
+                DirectoryReader.open(FSDirectory.open(args.indexDirPath))) {
 
             Analyzer analyzer = new StandardAnalyzer();
-            QueryParser parser = new QueryParser(field, analyzer);
-            Query query = parser.parse(queryString);
-            LOG.info("search for: {}", query.toString(field));
+            QueryParser parser = new QueryParser(args.field, analyzer);
+            Query query = parser.parse(args.query);
+            LOG.info("search for: {}", query.toString(args.field));
 
             IndexSearcher searcher = new IndexSearcher(reader);
-            search(searcher, query);
+            search(args, searcher, query);
         }
     }
 
-    private void search(
+    private static void search(
+        Args args,
         IndexSearcher searcher, Query query
     ) throws IOException {
-
         long duration = System.nanoTime();
-        TopDocs results = searcher.search(query, numResults);
+        TopDocs results = searcher.search(query, args.numResults);
         duration = System.nanoTime() - duration;
         LOG.info("search index in {} seconds", duration / 1e9d);
 
         LOG.info("find {} matching documents", results.totalHits);
         for (ScoreDoc hit : results.scoreDocs) {
-            if (outputRawFormat) {
-                LOG.info("doc={} score={}", hit.doc, hit.score);
-            } else {
-                Document doc = searcher.doc(hit.doc);
-                LOG.info(
-                    "doc={} score={} path={}",
-                    hit.doc, hit.score, doc.get("path")
-                );
-            }
+            Document doc = searcher.doc(hit.doc);
+            LOG.info(
+                "doc={} score={} path={}",
+                hit.doc, hit.score, doc.get("path")
+            );
         }
     }
 }
