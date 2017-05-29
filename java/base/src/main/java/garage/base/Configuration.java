@@ -323,6 +323,7 @@ public abstract class Configuration {
     @SuppressWarnings("unchecked")
     @VisibleForTesting
     static Object parseValue(Object object) {
+        Preconditions.checkNotNull(object);
         if (object instanceof Map) {
             Map map = (Map) object;
             Preconditions.checkArgument(
