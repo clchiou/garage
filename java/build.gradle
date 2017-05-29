@@ -1,11 +1,5 @@
 // Top-level build file of Java projects.
 
-plugins {
-    id 'com.github.johnrengelman.shadow' version '2.0.0'
-    id 'java'
-    id 'net.ltgt.apt' version '0.10'
-}
-
 // I don't know why but junit can't be imported with `plugins` block as
 // other plugins.
 buildscript {
@@ -17,7 +11,13 @@ buildscript {
     }
 }
 
-subprojects {
+plugins {
+    id 'com.github.johnrengelman.shadow' version '2.0.0'
+    id 'java'
+    id 'net.ltgt.apt' version '0.10'
+}
+
+allprojects {
     apply plugin: 'com.github.johnrengelman.shadow'
     apply plugin: 'java'
     apply plugin: 'net.ltgt.apt'
@@ -50,12 +50,13 @@ subprojects {
     }
 
     shadowJar {
-        classifier = null
-
         // Don't know what are these - just remove them.
         exclude 'META-INF/maven/**'
         exclude 'OSGI-OPT/**'
     }
+
+    // Only "leaf" projects should produce shadow JAR.
+    shadowJar.enabled = false;
 
     // Configure Intellij IDEA to locate generated code.
     apply plugin: 'idea'

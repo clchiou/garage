@@ -4,3 +4,5 @@ dependencies {
 
     compile project(':base')
 }
+
+shadowJar.enabled = true

@@ -14,7 +14,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -25,12 +24,12 @@ import java.util.stream.Stream;
 public abstract class Configuration {
 
     @SuppressWarnings("unchecked")
-    protected static <T> T checkType(Class<T> cls, Object value) {
+    private static <T> T checkType(Class<T> cls, Object value) {
         Preconditions.checkArgument(
             cls.isInstance(value),
             "Not %s typed: %s", cls, value
         );
-        return (T)value;
+        return (T) value;
     }
 
     private Configuration parent = null;
@@ -43,11 +42,12 @@ public abstract class Configuration {
         this.parent = parent;
     }
 
-    protected abstract Stream children();
+    @VisibleForTesting
+    abstract Stream children();
 
     @SuppressWarnings("unchecked")
     private Iterator<Configuration> childConfigs() {
-        return ((Stream)children())
+        return ((Stream) children())
             .filter((child) -> child instanceof Configuration)
             .iterator();
     }
@@ -57,32 +57,43 @@ public abstract class Configuration {
     }
 
     public <T> Optional<T> get(EntryPath path, Class<T> cls) {
-        Configuration config = this;
-        for (String key : path.getParent()) {
-            config = config.getChild(key, Configuration.class)
-                .orElseThrow(() -> new AssertionError(
-                    "Entry not found: path=%s" + path));
-        }
-        return config.getChild(path.getBase(), cls);
+        return getConfig(path).getChild(path.getBase(), cls);
     }
 
     public abstract <T> Optional<T> getChild(String name, Class<T> cls);
+    public abstract <T> Optional<T> getChild(int index, Class<T> cls);
 
-    private <T> void set(String path, T value) {
+    @VisibleForTesting
+    <T> void set(String path, T value) {
         set(EntryPath.parse(path), value);
     }
 
     private <T> void set(EntryPath path, T value) {
+        getConfig(path).setChild(path.getBase(), value);
+    }
+
+    abstract <T> void setChild(String name, T value);
+
+    @VisibleForTesting
+    void remove(String path) {
+        remove(EntryPath.parse(path));
+    }
+
+    private void remove(EntryPath path) {
+        getConfig(path).removeChild(path.getBase());
+    }
+
+    abstract <T> void removeChild(String name);
+
+    private Configuration getConfig(EntryPath path) {
         Configuration config = this;
         for (String key : path.getParent()) {
             config = config.getChild(key, Configuration.class)
                 .orElseThrow(() -> new AssertionError(
                     "Entry not found: path=%s" + path));
         }
-        config.setChild(path.getBase(), value);
+        return config;
     }
-
-    protected abstract <T> void setChild(String name, T value);
 
     // Define helper class and implement the interface.
 
@@ -140,18 +151,16 @@ public abstract class Configuration {
         }
     }
 
-    @VisibleForTesting
-    static class MapConfiguration extends Configuration {
+    private static class MapConfiguration extends Configuration {
 
         private ImmutableMap<String, Object> children;
 
-        @VisibleForTesting
-        MapConfiguration(ImmutableMap<String, Object> children) {
+        private MapConfiguration(ImmutableMap<String, Object> children) {
             this.children = children;
         }
 
         @Override
-        public Stream children() {
+        Stream children() {
             return children.values().stream();
         }
 
@@ -165,42 +174,88 @@ public abstract class Configuration {
         }
 
         @Override
-        protected <T> void setChild(String name, T value) {
-            children = ImmutableMap.<String, Object>builder()
-                .putAll(children)
-                .put(name, value)
-                .build();
+        public <T> Optional<T> getChild(int index, Class<T> cls) {
+            return getChild(String.valueOf(index), cls);
+        }
+
+        @Override
+        <T> void setChild(String name, T value) {
+            final ImmutableMap.Builder<String, Object> builder =
+                ImmutableMap.builder();
+            if (children.containsKey(name)) {
+                children.forEach((n, v) -> {
+                    builder.put(n, n.equals(name) ? value : v);
+                });
+            } else {
+                builder.putAll(children).put(name, value);
+            }
+            children = builder.build();
+        }
+
+        @Override
+        void removeChild(String name) {
+            Preconditions.checkArgument(children.containsKey(name));
+            final ImmutableMap.Builder<String, Object> builder =
+                ImmutableMap.builder();
+            children.forEach((n, v) -> {
+                if (!n.equals(name)) {
+                    builder.put(n, v);
+                }
+            });
+            children = builder.build();
         }
     }
 
-    @VisibleForTesting
-    static class ListConfiguration extends Configuration {
+    private static class ListConfiguration extends Configuration {
 
         private ImmutableList<Object> children;
 
-        @VisibleForTesting
-        ListConfiguration(ImmutableList<Object> children) {
+        private ListConfiguration(ImmutableList<Object> children) {
             this.children = children;
         }
 
         @Override
-        public Stream children() {
+        Stream children() {
             return children.stream();
         }
 
         @Override
         public <T> Optional<T> getChild(String name, Class<T> cls) {
-            Object value = children.get(Integer.parseInt(name));
+            int index;
+            try {
+                index = Integer.parseInt(name);
+            } catch (NumberFormatException e) {
+                return Optional.empty();
+            }
+            return getChild(index, cls);
+        }
+
+        @Override
+        public <T> Optional<T> getChild(int index, Class<T> cls) {
+            if (!(0 <= index && index < children.size())) {
+                return Optional.empty();
+            }
+            Object value = children.get(index);
             return Optional.of(checkType(cls, value));
         }
 
         @Override
-        protected <T> void setChild(String name, T value) {
+        <T> void setChild(String name, T value) {
             int i = Integer.parseInt(name);
-            Preconditions.checkArgument(0 <= i && i < children.size());
+            Preconditions.checkElementIndex(i, children.size());
             children = ImmutableList.builder()
                 .addAll(children.subList(0, i))
                 .add(value)
+                .addAll(children.subList(i + 1, children.size()))
+                .build();
+        }
+
+        @Override
+        void removeChild(String name) {
+            int i = Integer.parseInt(name);
+            Preconditions.checkElementIndex(i, children.size());
+            children = ImmutableList.builder()
+                .addAll(children.subList(0, i))
                 .addAll(children.subList(i + 1, children.size()))
                 .build();
         }
@@ -219,6 +274,10 @@ public abstract class Configuration {
         public Map<String, String> configOverwrites;
     }
 
+    private static boolean isCollectionType(Object value) {
+        return (value instanceof Map) || (value instanceof List);
+    }
+
     public static Configuration parse(Args args) throws IOException {
         Yaml yaml = new Yaml();
 
@@ -230,8 +289,12 @@ public abstract class Configuration {
             );
             try (InputStream input =
                     Files.newInputStream(args.configFilePath)) {
-                Collection collection = yaml.loadAs(input, Collection.class);
-                config = parse(collection);
+                Object collection = yaml.load(input);
+                Preconditions.checkArgument(
+                    isCollectionType(collection),
+                    "Not collection value: %s", collection
+                );
+                config = parseCollection(collection);
             }
         } else {
             config = new MapConfiguration(ImmutableMap.of());
@@ -239,7 +302,18 @@ public abstract class Configuration {
 
         if (args.configOverwrites != null) {
             args.configOverwrites.forEach((path, yamlText) -> {
-                config.set(path, yaml.load(yamlText));
+                Object value = yaml.load(yamlText);
+                if (value == null) {
+                    config.remove(path);
+                } else {
+                    // For simplicity, we only allow primitive overwrite
+                    // at the moment.
+                    Preconditions.checkArgument(
+                        !isCollectionType(value),
+                        "Not primitive overwrite value: %s", value
+                    );
+                    config.set(path, value);
+                }
             });
         }
 
@@ -248,24 +322,30 @@ public abstract class Configuration {
 
     @SuppressWarnings("unchecked")
     @VisibleForTesting
-    static Configuration parse(Collection collection) {
-        if (collection instanceof Map) {
-            Map map = (Map<String, Object>)collection;
+    static Object parseValue(Object object) {
+        if (object instanceof Map) {
+            Map map = (Map) object;
             Preconditions.checkArgument(
                 map.keySet().stream().allMatch((key) -> key instanceof String),
-                "Invalid configuration key type: %s", map
+                "Invalid key type: %s", map
             );
-            return parse(map);
-        } else if (collection instanceof List) {
-            return parse((List<Object>)collection);
+            return parseMap(map);
+        } else if (object instanceof List) {
+            return parseList((List<Object>) object);
         } else {
-            throw new AssertionError(
-                "Unknown collection type: " + collection);
+            return object;
         }
     }
 
-    @VisibleForTesting
-    static Configuration parse(Map<String, Object> map) {
+    private static Configuration parseCollection(Object object) {
+        Preconditions.checkState(
+            isCollectionType(object),
+            "Not collection value: %s", object
+        );
+        return (Configuration) parseValue(object);
+    }
+
+    private static Configuration parseMap(Map<String, Object> map) {
         ImmutableMap.Builder<String, Object> builder = ImmutableMap.builder();
         map.forEach((key, value) -> {
             builder.put(key, parseValue(value));
@@ -275,18 +355,13 @@ public abstract class Configuration {
         return config;
     }
 
-    @VisibleForTesting
-    static Configuration parse(List<Object> list) {
+    private static Configuration parseList(List<Object> list) {
         Configuration config = new ListConfiguration(ImmutableList.builder()
             .addAll(list.stream().map(Configuration::parseValue).iterator())
             .build()
         );
         setParentToChildren(config);
         return config;
-    }
-
-    private static Object parseValue(Object value) {
-        return value instanceof Collection ? parse((Collection)value) : value;
     }
 
     private static void setParentToChildren(Configuration config) {
