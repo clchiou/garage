@@ -5,7 +5,7 @@ rootProject.name = 'garage'
 // Be flat - while gradle allows deep sub-projects, it seems to prefer
 // a flattened structure.
 include 'base'
-include 'search-digester'
+include 'search-indexer'
 include 'search-server'
 
 include 'examples'
