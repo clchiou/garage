@@ -3,6 +3,7 @@ dependencies {
     compile 'org.apache.lucene:lucene-queryparser:6.5.1'
 
     compile project(':base')
+    compile project(':search-indexer')
 }
 
 shadowJar.enabled = true

@@ -52,6 +52,11 @@ public abstract class Configuration {
             .iterator();
     }
 
+    public <T> T getOrThrow(String path, Class<T> cls) {
+        return get(path, cls).orElseThrow(() -> new IllegalArgumentException(
+            "cannot get config entry: " + path));
+    }
+
     public <T> Optional<T> get(String path, Class<T> cls) {
         return get(EntryPath.parse(path), cls);
     }
@@ -265,9 +270,9 @@ public abstract class Configuration {
 
     public static class Args extends Application.Args {
 
-        @Option(name = "--config-file",
+        @Option(name = "--config",
                 usage = "provide config file path")
-        public Path configFilePath;
+        public Path configPath;
 
         @Option(name = "--config-overwrite",
                 usage = "overwrite config entry")
@@ -282,13 +287,12 @@ public abstract class Configuration {
         Yaml yaml = new Yaml();
 
         Configuration config;
-        if (args.configFilePath != null) {
+        if (args.configPath != null) {
             Preconditions.checkArgument(
-                MoreFiles.isReadableFile(args.configFilePath),
-                "Not a readable file: %s", args.configFilePath
+                MoreFiles.isReadableFile(args.configPath),
+                "Not a readable file: %s", args.configPath
             );
-            try (InputStream input =
-                    Files.newInputStream(args.configFilePath)) {
+            try (InputStream input = Files.newInputStream(args.configPath)) {
                 Object collection = yaml.load(input);
                 Preconditions.checkArgument(
                     isCollectionType(collection),
