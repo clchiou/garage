@@ -10,8 +10,10 @@ import org.kohsuke.args4j.Option;
 import org.yaml.snakeyaml.Yaml;
 
 import javax.annotation.Nonnull;
+import javax.inject.Qualifier;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.annotation.Retention;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Iterator;
@@ -20,8 +22,18 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
 
+import static java.lang.annotation.RetentionPolicy.RUNTIME;
+
 /** Represent configuration entries in a tree. */
 public abstract class Configuration {
+
+    @Qualifier
+    @Retention(RUNTIME)
+    public @interface Node {
+
+        /** The name. */
+        Class<?> value();
+    }
 
     @SuppressWarnings("unchecked")
     private static <T> T checkType(Class<T> cls, Object value) {
