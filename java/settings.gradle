@@ -1,4 +1,6 @@
-// List of projects.
+//
+// List of sub-projects
+//
 
 rootProject.name = 'garage'
 

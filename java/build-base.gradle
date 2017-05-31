@@ -1,0 +1,76 @@
+//
+// Base top-level build file to be imported
+//
+// We split build.gradle because some blocks, like plugins, cannot be
+// imported with `apply from:`.
+//
+
+ext {
+    // Enumerate version of all dependency here.
+    args4jVersion = '2.33'
+    daggerVersion = '2.10'
+    findbugsVersion = '3.0.2'
+    guavaVersion = '22.0'
+    jooqVersion = '3.9.3'
+    junitVersion = '5.0.0-M4'
+    luceneVersion = '6.5.1'
+    slf4jVersion = '1.7.25'
+    snakeyamlVersion = '1.18'
+}
+
+allprojects {
+    apply plugin: 'com.github.johnrengelman.shadow'
+    apply plugin: 'java'
+    apply plugin: 'net.ltgt.apt'
+    apply plugin: 'org.junit.platform.gradle.plugin'
+
+    sourceCompatibility = '1.8'
+    targetCompatibility = '1.8'
+
+    repositories {
+        jcenter()
+    }
+
+    // These are global dependencies, where you should only add the bare
+    // minimum stuff.
+    dependencies {
+        compile "com.google.dagger:dagger:${rootProject.ext.daggerVersion}"
+        apt     "com.google.dagger:dagger-compiler:${rootProject.ext.daggerVersion}"
+
+        compile "args4j:args4j:${rootProject.ext.args4jVersion}"
+        compile "com.google.code.findbugs:jsr305:${rootProject.ext.findbugsVersion}"
+        compile "com.google.guava:guava:${rootProject.ext.guavaVersion}"
+        compile "org.slf4j:slf4j-api:${rootProject.ext.slf4jVersion}"
+
+        // Let's use slf4j-simple framework for now and (maybe) switch to a
+        // more sophisticated framework later.
+        compile "org.slf4j:slf4j-simple:${rootProject.ext.slf4jVersion}"
+
+        testCompile "org.junit.jupiter:junit-jupiter-api:${rootProject.ext.junitVersion}"
+        testRuntime "org.junit.jupiter:junit-jupiter-engine:${rootProject.ext.junitVersion}"
+    }
+
+    shadowJar {
+        // Don't know what are these - just remove them.
+        exclude 'META-INF/maven/**'
+        exclude 'OSGI-OPT/**'
+    }
+
+    // Only "leaf" projects should produce shadow JAR.
+    shadowJar.enabled = false;
+
+    // Configure Intellij IDEA to locate generated code.
+    apply plugin: 'idea'
+    idea {
+        module {
+            generatedSourceDirs +=
+                file(new File(buildDir, 'generated/source/apt/main'))
+        }
+    }
+}
+
+// It is silly to track the gradle wrapper in the version control.
+// Run `gradle wrapper` to generate the wrapper instead.
+task wrapper(type: Wrapper) {
+    gradleVersion = '3.5'
+}
