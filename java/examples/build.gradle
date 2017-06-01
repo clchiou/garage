@@ -2,9 +2,57 @@ dependencies {
 
     compile "org.apache.lucene:lucene-core:${rootProject.ext.luceneVersion}"
     compile "org.apache.lucene:lucene-queryparser:${rootProject.ext.luceneVersion}"
+    compile "org.jooq:jooq:${rootProject.ext.jooqVersion}"
 
     compile project(':base')
     compile project(':search-indexer')
+
+    jooqRuntime "org.xerial:sqlite-jdbc:${sqliteJdbcVersion}"
 }
+
+jooq {
+
+    version = rootProject.ext.jooqVersion
+    edition = 'OSS'
+
+    examples(sourceSets.main) {
+
+        jdbc {
+            driver = 'org.sqlite.JDBC'
+            url = "jdbc:sqlite:${buildDir}/books.db"
+        }
+
+        generator {
+
+            database {
+                name = 'org.jooq.util.sqlite.SQLiteDatabase'
+            }
+
+            generate {
+                relations = true
+                deprecated = false
+                records = true
+                immutablePojos = true
+                fluentSetters = true
+            }
+
+            target {
+                packageName = 'garage.examples'
+                directory = "${buildDir}/generated/source/jooq/main"
+            }
+        }
+    }
+}
+
+task generateExamplesDatabase(type:Exec) {
+
+    doFirst {
+        mkdir buildDir
+    }
+
+    commandLine 'sqlite3', "${buildDir}/books.db", ".read ${projectDir}/books.sql"
+}
+
+generateExamplesJooqSchemaSource.dependsOn generateExamplesDatabase
 
 shadowJar.enabled = true

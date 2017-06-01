@@ -16,12 +16,15 @@ ext {
     luceneVersion = '6.5.1'
     slf4jVersion = '1.7.25'
     snakeyamlVersion = '1.18'
+    sqliteJdbcVersion = '3.18.0'
 }
 
 allprojects {
+
     apply plugin: 'com.github.johnrengelman.shadow'
     apply plugin: 'java'
     apply plugin: 'net.ltgt.apt'
+    apply plugin: 'nu.studer.jooq'
     apply plugin: 'org.junit.platform.gradle.plugin'
 
     sourceCompatibility = '1.8'
@@ -34,6 +37,7 @@ allprojects {
     // These are global dependencies, where you should only add the bare
     // minimum stuff.
     dependencies {
+
         compile "com.google.dagger:dagger:${rootProject.ext.daggerVersion}"
         apt     "com.google.dagger:dagger-compiler:${rootProject.ext.daggerVersion}"
 
@@ -65,6 +69,8 @@ allprojects {
         module {
             generatedSourceDirs +=
                 file(new File(buildDir, 'generated/source/apt/main'))
+            generatedSourceDirs +=
+                file(new File(buildDir, 'generated/source/jooq/main'))
         }
     }
 }

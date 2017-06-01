@@ -4,4 +4,5 @@ dependencies {
     compile "org.apache.lucene:lucene-queryparser:${rootProject.ext.luceneVersion}"
 
     compile project(':base')
+    compile project(':search-analyzer')
 }

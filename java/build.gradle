@@ -9,6 +9,7 @@ buildscript {
         jcenter()
     }
     dependencies {
+        classpath 'org.jooq:jooq-codegen:3.9.3'
         classpath 'org.junit.platform:junit-platform-gradle-plugin:1.0.0-M4'
     }
 }
@@ -17,6 +18,7 @@ plugins {
     id 'com.github.johnrengelman.shadow' version '2.0.0'
     id 'java'
     id 'net.ltgt.apt' version '0.10'
+    id 'nu.studer.jooq' version '2.0.6'
 }
 
 apply from: 'build-base.gradle'

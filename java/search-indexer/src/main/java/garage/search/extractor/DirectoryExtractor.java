@@ -1,5 +1,8 @@
 package garage.search.extractor;
 
+import com.google.common.base.Preconditions;
+import dagger.BindsInstance;
+
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Named;
@@ -10,7 +13,14 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 
+import garage.base.MoreFiles;
+
 public class DirectoryExtractor {
+
+    public interface DaggerBuilderMixin<T> {
+        @BindsInstance
+        T directoryExtractorRoot(@Named("DirectoryExtractor.root") Path root);
+    }
 
     public interface Predicate {
         boolean test(Path file, BasicFileAttributes attrs) throws IOException;
@@ -28,6 +38,7 @@ public class DirectoryExtractor {
         @Named("DirectoryExtractor.root") Path root,
         @Nullable Predicate predicate
     ) {
+        Preconditions.checkArgument(MoreFiles.isReadableDirectory(root));
         this.root = root;
         this.predicate = predicate;
     }

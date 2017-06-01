@@ -1,10 +1,12 @@
 package garage.search.indexer;
 
 import com.google.common.base.Preconditions;
+import dagger.BindsInstance;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.IndexWriterConfig.OpenMode;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.FSDirectory;
 import org.slf4j.Logger;
@@ -22,6 +24,11 @@ import garage.base.MoreFiles;
 
 public class BatchIndexer implements AutoCloseable {
 
+    public interface DaggerBuilderMixin<T> {
+        @BindsInstance
+        T batchIndexerConfig(@Node(BatchIndexer.class) Configuration config);
+    }
+
     private static final Logger LOG =
         LoggerFactory.getLogger(BatchIndexer.class);
 
@@ -35,7 +42,7 @@ public class BatchIndexer implements AutoCloseable {
         IndexWriterConfig.DISABLE_AUTO_FLUSH;
 
     private final IndexWriter writer;
-    private final IndexWriterConfig.OpenMode mode;
+    private final OpenMode mode;
 
     @Inject
     public BatchIndexer(
@@ -59,7 +66,7 @@ public class BatchIndexer implements AutoCloseable {
         // Decide open mode.
         String openMode = config.get("open_mode", String.class).orElse(null);
         if (openMode != null) {
-            mode = IndexWriterConfig.OpenMode.valueOf(openMode);
+            mode = OpenMode.valueOf(openMode);
             // Make sure index directory agrees with open mode.
             switch (mode) {
                 case CREATE:
@@ -86,9 +93,7 @@ public class BatchIndexer implements AutoCloseable {
             }
         } else {
             // Detect open mode.
-            mode = Files.exists(index) ?
-                IndexWriterConfig.OpenMode.APPEND :
-                IndexWriterConfig.OpenMode.CREATE;
+            mode = Files.exists(index) ? OpenMode.APPEND : OpenMode.CREATE;
         }
         LOG.info("set index open mode: {}", mode);
         writerConfig.setOpenMode(mode);
@@ -101,6 +106,10 @@ public class BatchIndexer implements AutoCloseable {
             // constructor; let's turn it into RuntimeError.
             throw new RuntimeException(e);
         }
+    }
+
+    public OpenMode getOpenMode() {
+        return mode;
     }
 
     public long index(Document doc) throws IOException {

@@ -1,8 +1,7 @@
 dependencies {
 
     compile "org.apache.lucene:lucene-core:${rootProject.ext.luceneVersion}"
-    compile "org.jooq:jooq:${rootProject.ext.jooqVersion}"
 
     compile project(':base')
-    compile project(':search-analyzer')
 }
+
