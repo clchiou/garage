@@ -8,6 +8,7 @@
 ext {
     // Enumerate version of all dependency here.
     args4jVersion = '2.33'
+    capnprotoVersion = '0.1.2'
     daggerVersion = '2.10'
     findbugsVersion = '3.0.2'
     guavaVersion = '22.0'
@@ -54,6 +55,9 @@ allprojects {
         testRuntime "org.junit.jupiter:junit-jupiter-engine:${rootProject.ext.junitVersion}"
     }
 
+    // Since We don't have a capnp plugin yet, we add srcDir here.
+    sourceSets.main.java.srcDir new File(buildDir, 'generated/source/capnp/main')
+
     shadowJar {
         // Don't know what are these - just remove them.
         exclude 'META-INF/maven/**'
@@ -69,6 +73,8 @@ allprojects {
         module {
             generatedSourceDirs +=
                 file(new File(buildDir, 'generated/source/apt/main'))
+            generatedSourceDirs +=
+                file(new File(buildDir, 'generated/source/capnp/main'))
             generatedSourceDirs +=
                 file(new File(buildDir, 'generated/source/jooq/main'))
         }

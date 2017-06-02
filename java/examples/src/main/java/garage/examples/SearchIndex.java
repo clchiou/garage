@@ -60,7 +60,7 @@ public class SearchIndex {
             Analyzer analyzer = new StandardAnalyzer();
             QueryParser parser = new QueryParser(args.field, analyzer);
             Query query = parser.parse(args.query);
-            LOG.info("search for: {}", query.toString(args.field));
+            LOG.info("search for \"{}\"", query.toString(args.field));
 
             IndexSearcher searcher = new IndexSearcher(reader);
             search(args, searcher, query);
@@ -80,8 +80,8 @@ public class SearchIndex {
         for (ScoreDoc hit : results.scoreDocs) {
             Document doc = searcher.doc(hit.doc);
             LOG.info(
-                "doc={} score={} path={}",
-                hit.doc, hit.score, doc.get("path")
+                "doc={} score={} {}=\"{}\"",
+                hit.doc, hit.score, args.field, doc.get(args.field)
             );
         }
     }

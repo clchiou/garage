@@ -2,6 +2,7 @@ dependencies {
 
     compile "org.apache.lucene:lucene-core:${rootProject.ext.luceneVersion}"
     compile "org.apache.lucene:lucene-queryparser:${rootProject.ext.luceneVersion}"
+    compile "org.capnproto:runtime:${rootProject.ext.capnprotoVersion}"
     compile "org.jooq:jooq:${rootProject.ext.jooqVersion}"
 
     compile project(':base')
@@ -46,7 +47,9 @@ jooq {
     }
 }
 
-task generateExamplesDatabase(type:Exec) {
+// Generate books.db
+
+task generateExamplesDatabase(type: Exec) {
 
     doFirst {
         mkdir buildDir
@@ -56,5 +59,23 @@ task generateExamplesDatabase(type:Exec) {
 }
 
 generateExamplesJooqSchemaSource.dependsOn generateExamplesDatabase
+
+// Capnp
+
+task compileCapnproto(type: Exec) {
+
+    doFirst {
+        mkdir "${buildDir}/generated/source/capnp/main"
+    }
+
+    commandLine 'capnp', 'compile',
+                "--output=java:${buildDir}/generated/source/capnp/main",
+                "--src-prefix=${projectDir}/src/main/java",
+                "${projectDir}/src/main/java/garage/examples/books.capnp"
+}
+
+compileJava.dependsOn compileCapnproto
+
+// ShadowJar
 
 shadowJar.enabled = true
