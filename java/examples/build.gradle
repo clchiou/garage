@@ -8,6 +8,8 @@ dependencies {
     compile project(':search-indexer')
 
     jooqRuntime "org.xerial:sqlite-jdbc:${sqliteJdbcVersion}"
+
+    runtime "org.xerial:sqlite-jdbc:${sqliteJdbcVersion}"
 }
 
 jooq {

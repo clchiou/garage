@@ -2,6 +2,9 @@ package garage.examples;
 
 import com.google.common.base.Preconditions;
 import dagger.Component;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexWriterConfig.OpenMode;
 import org.jooq.DSLContext;
 import org.jooq.Record;
@@ -65,9 +68,25 @@ public interface DatabaseIndexer {
             );
 
             DSLContext context = DSL.using(connection, SQLDialect.SQLITE);
-            Result<Record> result = context.select().from(BOOKS).fetch();
+            Result<Record> result = context
+                .select()
+                .from(BOOKS)
+                .join(AUTHORS)
+                .on(BOOKS.AUTHOR_ID.eq(AUTHORS.ID))
+                .fetch();
             for (Record record : result) {
-                // TODO...
+                Document doc = new Document();
+                doc.add(new TextField(
+                    "title",
+                    record.getValue(BOOKS.TITLE),
+                    Field.Store.YES
+                ));
+                doc.add(new TextField(
+                    "author",
+                    record.getValue(AUTHORS.NAME),
+                    Field.Store.YES
+                ));
+                indexer.index(doc);
             }
         }
     }
