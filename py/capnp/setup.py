@@ -16,7 +16,7 @@ setup(
     ],
     ext_modules = [
         Extension(
-            'capnp._capnp',
+            'capnp.native',
             language = 'c++',
             sources = [
                 'src/module.cc',

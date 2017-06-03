@@ -43,23 +43,29 @@ void defineResourceTypes(void) {
       "BufferedOutputStream", boost::python::no_init);
 
   ResourceType<kj::BufferedInputStreamWrapper, boost::python::bases<kj::BufferedInputStream>>(
-      "BufferedInputStreamWrapper", boost::python::init<kj::InputStream&>());
+      "BufferedInputStreamWrapper", boost::python::init<kj::InputStream&>())
+      .DEF_RESET(kj::BufferedInputStreamWrapper);
 
   ResourceType<kj::BufferedOutputStreamWrapper, boost::python::bases<kj::BufferedOutputStream>>(
-      "BufferedOutputStreamWrapper", boost::python::init<kj::OutputStream&>());
+      "BufferedOutputStreamWrapper", boost::python::init<kj::OutputStream&>())
+      .DEF_RESET(kj::BufferedOutputStreamWrapper);
 
   ResourceType<kj::ArrayInputStream, boost::python::bases<kj::BufferedInputStream>>(
-      "ArrayInputStream", boost::python::init<kj::ArrayPtr<const kj::byte>>());
+      "ArrayInputStream", boost::python::init<kj::ArrayPtr<const kj::byte>>())
+      .DEF_RESET(kj::ArrayInputStream);
 
   ResourceType<kj::VectorOutputStream, boost::python::bases<kj::BufferedOutputStream>>(
       "VectorOutputStream", boost::python::init<boost::python::optional<size_t>>())
+      .DEF_RESET(kj::VectorOutputStream)
       .def("getArray", &kj::VectorOutputStream::getArray);
 
-  ResourceType<kj::FdInputStream, boost::python::bases<kj::InputStream>>(
-      "FdInputStream", boost::python::init<int>());
+  ResourceType<kj::FdInputStream, boost::python::bases<kj::InputStream>>("FdInputStream",
+                                                                         boost::python::init<int>())
+      .DEF_RESET(kj::FdInputStream);
 
   ResourceType<kj::FdOutputStream, boost::python::bases<kj::OutputStream>>(
-      "FdOutputStream", boost::python::init<int>());
+      "FdOutputStream", boost::python::init<int>())
+      .DEF_RESET(kj::FdOutputStream);
 
   // capnp/message.h
 
@@ -83,13 +89,14 @@ void defineResourceTypes(void) {
 
   ResourceType<capnp::MallocMessageBuilder, boost::python::bases<capnp::MessageBuilder>>
       // Don't expose constructor arguments for now
-      ("MallocMessageBuilder", boost::python::init<>());
+      ("MallocMessageBuilder", boost::python::init<>()).DEF_RESET(capnp::MallocMessageBuilder);
 
   // capnp/schema-loader.h
 
   ResourceType<capnp::SchemaLoader>
       // Don't expose constructor arguments for now
       ("SchemaLoader", boost::python::init<>())
+          .DEF_RESET(capnp::SchemaLoader)
           .def("get", &capnp::SchemaLoader::get, SchemaLoader_get_overloads())
           .def("getType", &capnp::SchemaLoader::getType, SchemaLoader_getType_overloads())
           .def("load", &capnp::SchemaLoader::load)
@@ -102,17 +109,20 @@ void defineResourceTypes(void) {
       "FlatArrayMessageReader",
       boost::python::init<kj::ArrayPtr<const capnp::word>,
                           boost::python::optional<capnp::ReaderOptions>>())
+      .DEF_RESET(capnp::FlatArrayMessageReader)
       // TODO: Figure out a how to safely handle raw pointer
       //.def("getEnd", &capnp::FlatArrayMessageReader::getEnd)
       ;
 
   ResourceType<capnp::InputStreamMessageReader, boost::python::bases<capnp::MessageReader>>(
       "InputStreamMessageReader",
-      boost::python::init<kj::InputStream&, boost::python::optional<capnp::ReaderOptions>>());
+      boost::python::init<kj::InputStream&, boost::python::optional<capnp::ReaderOptions>>())
+      .DEF_RESET(capnp::InputStreamMessageReader);
 
   ResourceType<capnp::StreamFdMessageReader, boost::python::bases<capnp::InputStreamMessageReader>>(
       "StreamFdMessageReader",
-      boost::python::init<int, boost::python::optional<capnp::ReaderOptions>>());
+      boost::python::init<int, boost::python::optional<capnp::ReaderOptions>>())
+      .DEF_RESET(capnp::StreamFdMessageReader);
 
   boost::python::def("initMessageBuilderFromFlatArrayCopy",
                      capnp::initMessageBuilderFromFlatArrayCopy,
@@ -129,11 +139,13 @@ void defineResourceTypes(void) {
 
   ResourceType<capnp::PackedMessageReader, boost::python::bases<capnp::InputStreamMessageReader>>(
       "PackedMessageReader", boost::python::init<kj::BufferedInputStream&,
-                                                 boost::python::optional<capnp::ReaderOptions>>());
+                                                 boost::python::optional<capnp::ReaderOptions>>())
+      .DEF_RESET(capnp::PackedMessageReader);
 
   ResourceType<capnp::PackedFdMessageReader, boost::python::bases<capnp::PackedMessageReader>>(
       "PackedFdMessageReader",
-      boost::python::init<int, boost::python::optional<capnp::ReaderOptions>>());
+      boost::python::init<int, boost::python::optional<capnp::ReaderOptions>>())
+      .DEF_RESET(capnp::PackedFdMessageReader);
 
   DEF_FUNC(capnp, writePackedMessage, void, kj::BufferedOutputStream&, capnp::MessageBuilder&);
   DEF_FUNC(capnp, writePackedMessageToFd, void, int, capnp::MessageBuilder&);

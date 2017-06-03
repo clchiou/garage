@@ -53,7 +53,7 @@ class ThrowingDtorHandler {
 
   // Give user the ability to call destructor explicitly and handle any
   // exception it may throw
-  void _reset(void) {
+  void reset(void) {
     ptr_.reset();
     if (PyErr_Occurred()) {
       boost::python::throw_error_already_set();
@@ -109,5 +109,7 @@ struct pointee<capnp_python::ThrowingDtorHandler<T>> {
 #define DEF_FUNC(NS, F, R, ARGS...) boost::python::def(#F, static_cast<R (*)(ARGS)>(NS::F))
 #define DEF_MF(M, R, T, ARGS...) def(#M, static_cast<R (T::*)(ARGS)>(&T::M))
 #define DEF_MF_CONST(M, R, T, ARGS...) def(#M, static_cast<R (T::*)(ARGS) const>(&T::M))
+
+#define DEF_RESET(T) def("_reset", &capnp_python::ThrowingDtorHandler<T>::reset)
 
 #endif  // CAPNP_PYTHON_COMMON_H_

@@ -55,6 +55,37 @@ struct ArrayPtrFromPythonBytes {
   }
 };
 
+// Convert Python str to kj::StringPtr
+// Be careful: kj::StringPtr doesn't own the data
+struct StringPtrFromPythonStr {
+  StringPtrFromPythonStr() {
+    boost::python::converter::registry::push_back(&convertible, &construct,
+                                                  boost::python::type_id<kj::StringPtr>());
+  }
+
+  static void* convertible(PyObject* object) {
+    if (!PyUnicode_Check(object)) {
+      return nullptr;
+    }
+    return object;
+  }
+
+  static void construct(PyObject* object,
+                        boost::python::converter::rvalue_from_python_stage1_data* data) {
+    Py_ssize_t size;
+    const char* buffer = PyUnicode_AsUTF8AndSize(object, &size);
+    if (!buffer) {
+      boost::python::throw_error_already_set();
+    }
+
+    void* storage =
+        ((boost::python::converter::rvalue_from_python_storage<kj::StringPtr>*)data)->storage.bytes;
+    new (storage) kj::StringPtr(buffer, static_cast<size_t>(size));
+
+    data->convertible = storage;
+  }
+};
+
 // Convert capnp::Void to Python None
 struct VoidToPythonNone {
   static PyObject* convert(const capnp::Void& void_) { return Py_None; }
@@ -169,6 +200,7 @@ void defineValueTypes(void) {
 
   ArrayPtrFromPythonBytes();
 
+  StringPtrFromPythonStr();
   StringLikeToPythonStrConverter<kj::StringPtr>();
 
   boost::python::to_python_converter<kj::StringTree, StringTreeToPythonStr>();
@@ -311,6 +343,7 @@ void defineDynamicValue(void) {
 
   using Reader = DynamicValue::Reader;
   boost::python::class_<Reader, ThrowingDtorHandler<Reader>>("Reader", boost::python::no_init)
+      .DEF_RESET(Reader)
       .def("asVoid", &Reader::as<capnp::Void>)
       .def("asBool", &Reader::as<bool>)
       .def("asInt", &Reader::as<int64_t>)
@@ -325,6 +358,7 @@ void defineDynamicValue(void) {
   using Builder = DynamicValue::Builder;
   boost::python::class_<MakeCopyable<Builder>, ThrowingDtorHandler<MakeCopyable<Builder>>>(
       "Builder", boost::python::no_init)
+      .DEF_RESET(MakeCopyable<Builder>)
       .def("asVoid", &Builder::as<capnp::Void>)
       .def("asBool", &Builder::as<bool>)
       .def("asInt", &Builder::as<int64_t>)

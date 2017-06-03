@@ -69,7 +69,7 @@ class ThrowingDtorHandler {
 
   // Give user the ability to call destructor explicitly and handle any
   // exception it may throw
-  void _reset(void) {
+  void reset(void) {
     ptr_.reset();
     if (PyErr_Occurred()) {
       boost::python::throw_error_already_set();
@@ -109,5 +109,5 @@ struct pointee<ThrowingDtorHandler<T>> {
 
 BOOST_PYTHON_MODULE(extension) {
   boost::python::class_<Boom, ThrowingDtorHandler<Boom>>("Boom").def(
-      "_reset", &ThrowingDtorHandler<Boom>::_reset);
+      "_reset", &ThrowingDtorHandler<Boom>::reset);
 }
