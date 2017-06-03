@@ -226,9 +226,9 @@ void defineValueTypes(void) {
 
   // capnp/list.h
 
+  VectorLikeToPythonTupleConverter<capnp::List<capnp::schema::Annotation>::Reader>();
   VectorLikeToPythonTupleConverter<capnp::List<capnp::schema::Node>::Reader>();
   VectorLikeToPythonTupleConverter<capnp::List<capnp::schema::Node::NestedNode>::Reader>();
-  VectorLikeToPythonTupleConverter<capnp::List<capnp::schema::Node::Annotation>::Reader>();
   VectorLikeToPythonTupleConverter<
       capnp::List<capnp::schema::CodeGeneratorRequest::RequestedFile>::Reader>();
 

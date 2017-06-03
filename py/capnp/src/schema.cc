@@ -22,8 +22,9 @@
 
 #define DEF_PRIMITIVE(FIELD) def("get" #FIELD, &Reader::get##FIELD)
 
-#define DEF_POINTER(FIELD) \
-  def("has" #FIELD, &Reader::has##FIELD).def("get" #FIELD, &Reader::get##FIELD)
+#define DEF_HAZZER(FIELD) def("has" #FIELD, &Reader::has##FIELD)
+
+#define DEF_POINTER(FIELD) DEF_HAZZER(FIELD).def("get" #FIELD, &Reader::get##FIELD)
 
 #define DEF_UNION(FIELD) def("is" #FIELD, &Reader::is##FIELD).def("get" #FIELD, &Reader::get##FIELD)
 
@@ -322,12 +323,17 @@ void defineValue(void) {
       .DEF_UNION(Float32)
       .DEF_UNION(Float64)
       .DEF_UNION(Text)
+      .DEF_HAZZER(Text)
       .DEF_UNION(Data)
+      .DEF_HAZZER(Data)
       .DEF_UNION(List)
+      .DEF_HAZZER(List)
       .DEF_UNION(Enum)
       .DEF_UNION(Struct)
+      .DEF_HAZZER(Struct)
       .DEF_UNION(Interface)
-      .DEF_UNION(AnyPointer);
+      .DEF_UNION(AnyPointer)
+      .DEF_HAZZER(AnyPointer);
 
   boost::python::enum_<StructType::Which>("Which")
       .ENUM_VALUE(VOID)
