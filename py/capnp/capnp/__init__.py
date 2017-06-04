@@ -699,10 +699,16 @@ class DynamicList:
         assert schema.id == _get_list_type_id(list_.getSchema())
         self.schema = schema
         self._list = list_
-        self._values = tuple(
-            DynamicValue(self.schema.element_type, self._list[i])
-            for i in range(len(self._list))
-        )
+        self._values_cache = None
+
+    @property
+    def _values(self):
+        if self._values_cache is None:
+            self._values_cache = tuple(
+                DynamicValue(self.schema.element_type, self._list[i])
+                for i in range(len(self._list))
+            )
+        return self._values_cache
 
     def __len__(self):
         return len(self._list)
@@ -730,34 +736,40 @@ class DynamicStruct:
         assert schema.id == struct.getSchema().getProto().getId()
         self.schema = schema
         self._struct = struct
+        self._dict_cache = None
+
+    @property
+    def _dict(self):
+        if self._dict_cache is None:
+            # What about union?
+            self._dict_cache = OrderedDict(
+                (
+                    field.name,
+                    DynamicValue(field.type, self._struct.get(field._field)),
+                )
+                for field in self.schema.fields
+                if self._struct.has(field._field)
+            )
+        return self._dict_cache
 
     @property
     def total_size(self):
         return self._struct.totalSize()
 
     def __contains__(self, name):
-        return name in self.schema
+        return name in self._dict
 
     def __iter__(self):
-        yield from self.schema
+        yield from self._dict
 
     def __getitem__(self, name):
-        return self._get(name, None, KeyError)
+        return self._dict[name]
 
     def get(self, name, default=None):
-        return self._get(name, default, None)
-
-    def _get(self, name, default, raises):
-        field = self.schema[name]
-        if not self._struct.has(field._field):
-            if raises:
-                raise raises(name)
-            else:
-                return default
-        return DynamicValue(field.type, self._struct.get(field._field))
+        return self._dict.get(name, default)
 
     def as_dict(self):
-        return OrderedDict((name, self[name]) for name in self.schema)
+        return OrderedDict(self._dict)
 
 
 class DynamicValue:
@@ -845,20 +857,15 @@ class DynamicValue:
             raise AssertionError('unsupported type: %s' % self.type)
 
         self.python_type = python_type
-        self._converter = converter
-        self._python_value = None
 
-        self._dynamic_type = self._DYNAMIC_TYPES.get(self.type.kind)
+        dynamic_type = self._DYNAMIC_TYPES.get(self.type.kind)
+
+        python_value = converter(self._value)
+        if dynamic_type:
+            assert self.type.schema is not None
+            python_value = dynamic_type(self.type.schema, python_value)
+        assert isinstance(python_value, self.python_type)
+        self._python_value = python_value
 
     def get(self):
-        if self._python_value is None:
-            python_value = self._converter(self._value)
-            if self._dynamic_type:
-                assert self.type.schema is not None
-                python_value = self._dynamic_type(
-                    self.type.schema,
-                    python_value,
-                )
-            assert isinstance(python_value, self.python_type)
-            self._python_value = python_value
         return self._python_value
