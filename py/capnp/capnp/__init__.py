@@ -13,14 +13,16 @@ __all__ = [
     'Schema',
     'SchemaLoader',
 
+    'MessageBuilder',
+    'MessageReader',
+
     'DynamicEnum',
     'DynamicList',
     'DynamicStruct',
-    'DynamicValue',
 ]
 
 from collections import OrderedDict
-from pathlib import Path
+import collections
 import contextlib
 import enum
 import logging
@@ -33,16 +35,81 @@ LOG = logging.getLogger(__name__)
 LOG.addHandler(logging.NullHandler())
 
 
-#
-# Load and traverse schema objects.
-#
-
-
 def repr_object(obj):
     """The default __repr__ implementation."""
     cls = obj.__class__
     return ('<%s.%s 0x%x %s>' %
             (cls.__module__, cls.__qualname__, id(obj), obj))
+
+
+def _get_list_type_id(schema):
+    """Generate an unique id for list schema.
+
+    We cannot call schema.getProto().getId() to generate an unique id
+    because ListSchema is different - it is not associated with a Node.
+    """
+    assert isinstance(schema, native.ListSchema)
+    type_ = schema.getElementType()
+    level = 0
+    while type_.isList():
+        type_ = type_.asList().getElementType()
+        level += 1
+    return (level, type_.hashCode())
+
+
+@contextlib.contextmanager
+def _resetting(resource):
+    try:
+        yield resource
+    finally:
+        resource._reset()
+
+
+@contextlib.contextmanager
+def _open_fd(path, flags):
+    fd = os.open(path, flags)
+    try:
+        yield fd
+    finally:
+        os.close(fd)
+
+
+def _make_bytes_reader(blob):
+    return _resetting(native.FlatArrayMessageReader(blob))
+
+
+@contextlib.contextmanager
+def _make_packed_bytes_reader(blob):
+    with _resetting(native.ArrayInputStream(blob)) as stream:
+        with _resetting(native.PackedMessageReader(stream)) as reader:
+            yield reader
+
+
+@contextlib.contextmanager
+def _make_file_reader(path):
+    with _open_fd(path, os.O_RDONLY) as fd:
+        with _resetting(native.StreamFdMessageReader(fd)) as reader:
+            yield reader
+
+
+@contextlib.contextmanager
+def _make_packed_file_reader(path):
+    with _open_fd(path, os.O_RDONLY) as fd:
+        with _resetting(native.PackedFdMessageReader(fd)) as reader:
+            yield reader
+
+
+def _make_bytes_builder():
+    return _resetting(native.MallocMessageBuilder())
+
+
+def _make_bytes_writer():
+    return _resetting(native.VectorOutputStream())
+
+
+#
+# Load and traverse schema objects.
+#
 
 
 class SchemaLoader:
@@ -69,21 +136,33 @@ class SchemaLoader:
         self._loader, loader = None, self._loader
         loader._reset()
 
-    def load(self, schema_path):
-        """Load schema from a file."""
-        if not isinstance(schema_path, Path):
-            schema_path = Path(schema_path)
-        self.load_from(schema_path.read_bytes())
-
-    def load_from(self, blob):
+    def load_bytes(self, blob):
         """Load schema from a binary blob in memory."""
-        assert self._loader is not None
         with _make_bytes_reader(blob) as reader:
-            codegen_request = reader.getRoot()
-            for node in codegen_request.getNodes():
-                self._loader.load(node)
-            for requested_file in codegen_request.getRequestedFiles():
-                self._load(requested_file.getId(), 0)
+            self._load_schema(reader)
+
+    def load_packed_bytes(self, blob):
+        """Load schema from a packed binary blob in memory."""
+        with _make_packed_bytes_reader(blob) as reader:
+            self._load_schema(reader)
+
+    def load_file(self, path):
+        """Load schema from a file."""
+        with _make_file_reader(path) as reader:
+            self._load_schema(reader)
+
+    def load_packed_file(self, path):
+        """Load schema from a file whose contents are packed."""
+        with _make_packed_file_reader(path) as reader:
+            self._load_schema(reader)
+
+    def _load_schema(self, reader):
+        assert self._loader is not None
+        codegen_request = reader.getRoot()
+        for node in codegen_request.getNodes():
+            self._loader.load(node)
+        for requested_file in codegen_request.getRequestedFiles():
+            self._load(requested_file.getId(), 0)
 
     def _load(self, node_id, depth):
         """Recursively traverse and load nodes."""
@@ -227,6 +306,10 @@ class Schema:
                 (enumerant.name, enumerant)
                 for enumerant in self.enumerants
             )
+            self._reverse_lookup = {
+                enumerant.ordinal: enumerant
+                for enumerant in self.enumerants
+            }
 
         elif self.kind is Schema.Kind.INTERFACE:
             LOG.debug('construct interface schema: %s', self._proto)
@@ -280,6 +363,10 @@ class Schema:
         assert self.kind in (Schema.Kind.ENUM, Schema.Kind.STRUCT)
         return self._dict[name]
 
+    def get_enumerant_from_ordinal(self, ordinal):
+        assert self.kind is Schema.Kind.ENUM
+        return self._reverse_lookup.get(ordinal)
+
     def _get_fields(self, schema_table):
         fields = tuple(
             Field(schema_table, field) for field in self._schema.getFields())
@@ -296,7 +383,7 @@ class Enumerant:
         self._enumerant = enumerant
         self._proto = self._enumerant.getProto()
         self.name = self._proto.getName()
-        self.oridinal = self._enumerant.getOrdinal()
+        self.ordinal = self._enumerant.getOrdinal()
         self.index = self._enumerant.getIndex()
         self.annotations = tuple(map(Annotation, self._proto.getAnnotations()))
 
@@ -422,7 +509,7 @@ class Type:
 class Value:
     """Represent Value struct of schema.capnp.
 
-    Don't confuse this with DynamicValue.
+    Don't confuse this with capnp::DynamicValue.
     """
 
     # type_kind, python_type, izzer, hazzer, getter
@@ -570,62 +657,38 @@ class Value:
     __repr__ = repr_object
 
 
-def _get_list_type_id(schema):
-    """Generate an unique id for list schema.
-
-    We cannot call schema.getProto().getId() to generate an unique id
-    because ListSchema is different - it is not associated with a Node.
-    """
-    assert isinstance(schema, native.ListSchema)
-    type_ = schema.getElementType()
-    level = 0
-    while type_.isList():
-        type_ = type_.asList().getElementType()
-        level += 1
-    return (level, type_.hashCode())
-
-
 #
 # Access Cap'n Proto data dynamically with reflection.
 #
 
 
-@contextlib.contextmanager
-def _make_bytes_reader(blob):
-    reader = native.FlatArrayMessageReader(blob)
-    try:
-        yield reader
-    finally:
-        reader._reset()
+class MessageBase:
+
+    def __init__(self, make_context):
+        self._make_context = make_context
+        self._context = None
+        self._resource = None
+
+    def __enter__(self):
+        assert self._make_context is not None
+        assert self._resource is None
+        self._context = self._make_context()
+        self._make_context = None  # _make_context is one-time use only.
+        self._resource = self._context.__enter__()
+        return self
+
+    def __exit__(self, *args):
+        self._resource = None
+        self._context, context = None, self._context
+        return context.__exit__(*args)
+
+    @property
+    def canonical(self):
+        assert self._resource is not None
+        return self._resource.isCanonical()
 
 
-@contextlib.contextmanager
-def _make_packed_bytes_reader(blob):
-    stream = native.ArrayInputStream(blob)
-    try:
-        reader = native.PackedMessageReader(stream)
-        try:
-            yield reader
-        finally:
-            reader._reset()
-    finally:
-        stream._reset()
-
-
-@contextlib.contextmanager
-def _make_file_reader(reader_class, path):
-    fd = os.open(path, os.O_RDONLY)
-    try:
-        reader = reader_class(fd)
-        try:
-            yield reader
-        finally:
-            reader._reset()
-    finally:
-        os.close(fd)
-
-
-class MessageReader:
+class MessageReader(MessageBase):
 
     @classmethod
     def from_bytes(cls, blob):
@@ -637,44 +700,88 @@ class MessageReader:
 
     @classmethod
     def from_file(cls, path):
-        return cls(
-            lambda: _make_file_reader(native.StreamFdMessageReader, path))
+        return cls(lambda: _make_file_reader(path))
 
     @classmethod
     def from_packed_file(cls, path):
-        return cls(
-            lambda: _make_file_reader(native.PackedFdMessageReader, path))
-
-    def __init__(self, make_reader):
-        self._make_reader = make_reader
-        self._context = None
-        self._reader = None
-
-    def __enter__(self):
-        assert self._make_reader is not None
-        assert self._reader is None
-        self._context = self._make_reader()
-        self._make_reader = None  # _make_reader is one-time use only.
-        self._reader = self._context.__enter__()
-        return self
-
-    def __exit__(self, *args):
-        self._reader = None
-        self._context, context = None, self._context
-        return context.__exit__(*args)
-
-    @property
-    def canonical(self):
-        assert self._reader is not None
-        return self._reader.isCanonical()
+        return cls(lambda: _make_packed_file_reader(path))
 
     def get_root(self, schema):
-        assert self._reader is not None
+        assert self._resource is not None
         assert schema.kind is Schema.Kind.STRUCT
-        return DynamicStruct(schema, self._reader.getRoot(schema._schema))
+        return DynamicStruct(schema, self._resource.getRoot(schema._schema))
+
+
+class MessageBuilder(MessageBase):
+
+    def __init__(self):
+        super().__init__(_make_bytes_builder)
+
+    def init_root(self, schema):
+        assert self._resource is not None
+        assert schema.kind is Schema.Kind.STRUCT
+        message = self._resource.initRoot(schema._schema)
+        return DynamicStruct.Builder(schema, message)
+
+    def to_bytes(self):
+        assert self._resource is not None
+        with _make_bytes_writer() as writer:
+            native.writeMessage(writer, self._resource)
+            return writer.getArray()
+
+    def to_packed_bytes(self):
+        assert self._resource is not None
+        with _make_bytes_writer() as writer:
+            native.writePackedMessage(writer, self._resource)
+            return writer.getArray()
+
+    def to_file(self, path):
+        assert self._resource is not None
+        with _open_fd(path, os.O_WRONLY) as fd:
+            native.writeMessageToFd(fd, self._resource)
+
+    def to_packed_file(self, path):
+        assert self._resource is not None
+        with _open_fd(path, os.O_WRONLY) as fd:
+            native.writePackedMessageToFd(fd, self._resource)
+
+    @staticmethod
+    def _get_fd(file_like):
+        try:
+            return file_like.fileno()
+        except OSError:
+            return None
+
+    def write_to(self, output):
+        assert self._resource is not None
+        fd = self._get_fd(output)
+        if fd is None:
+            output.write(self.to_bytes())
+        else:
+            native.writeMessageToFd(fd, self._resource)
+
+    def write_packed_to(self, output):
+        assert self._resource is not None
+        fd = self._get_fd(output)
+        if fd is None:
+            output.write(self.to_packed_bytes())
+        else:
+            native.writePackedMessageToFd(fd, self._resource)
 
 
 class DynamicEnum:
+
+    @classmethod
+    def from_member(cls, schema, member):
+        assert schema.kind is Schema.Kind.ENUM
+        if isinstance(member, enum.Enum):
+            enumerant = schema.get_enumerant_from_ordinal(member.value)
+        else:
+            assert isinstance(member, int)
+            enumerant = schema.get_enumerant_from_ordinal(member)
+        if enumerant is None:
+            raise ValueError('%r is not a member of %s' % (member, schema))
+        return cls(schema, native.DynamicEnum(enumerant._enumerant))
 
     def __init__(self, schema, enum_):
         assert schema.kind is Schema.Kind.ENUM
@@ -691,8 +798,69 @@ class DynamicEnum:
     def get(self):
         return self._enum.getRaw()
 
+    def __str__(self):
+        raw = self.get()
+        if raw == self.enumerant.ordinal:
+            return self.enumerant.name
+        else:
+            return str(raw)
 
-class DynamicList:
+    __repr__ = repr_object
+
+
+class DynamicList(collections.Sequence):
+
+    class Builder(collections.MutableSequence):
+
+        def __init__(self, schema, list_):
+            assert schema.kind is Schema.Kind.LIST
+            assert schema.id == _get_list_type_id(list_.getSchema())
+            self.schema = schema
+            self._list = list_
+
+        def as_reader(self):
+            return DynamicList(self.schema, self._list.asReader())
+
+        def __len__(self):
+            return len(self._list)
+
+        def _ensure_index(self, index):
+            if not isinstance(index, int):
+                raise TypeError('non-integer index: %s' % index)
+            if not 0 <= index < len(self._list):
+                raise IndexError('not 0 <= %d < %d' % (index, len(self._list)))
+
+        def __getitem__(self, index):
+            self._ensure_index(index)
+            return _dynamic_value_builder_to_python(
+                self.schema.element_type,
+                self._list[index],
+            )
+
+        def init(self, index, size):
+            self._ensure_index(index)
+            assert self.schema.element_type.kind is Type.Kind.LIST
+            return DynamicList.Builder(
+                self.schema.element_type.schema,
+                self._list.init(index, size).asList(),
+            )
+
+        def __setitem__(self, index, value):
+            self._ensure_index(index)
+            _set_scalar(self._list, index, self.schema.element_type, value)
+
+        def __delitem__(self, index):
+            cls = self.__class__
+            raise IndexError('%s.%s does not support __delitem__' %
+                             (cls.__module__, cls.__qualname__))
+
+        def insert(self, index, value):
+            self[index] = value
+
+        def __str__(self):
+            return '[%s]' % ', '.join(map(str, self))
+
+        __repr__ = repr_object
 
     def __init__(self, schema, list_):
         assert schema.kind is Schema.Kind.LIST
@@ -705,7 +873,10 @@ class DynamicList:
     def _values(self):
         if self._values_cache is None:
             self._values_cache = tuple(
-                DynamicValue(self.schema.element_type, self._list[i])
+                _dynamic_value_reader_to_python(
+                    self.schema.element_type,
+                    self._list[i],
+                )
                 for i in range(len(self._list))
             )
         return self._values_cache
@@ -714,14 +885,10 @@ class DynamicList:
         return len(self._list)
 
     def __iter__(self):
-        for i in range(len(self._list)):
-            yield DynamicValue(self.schema.element_type, self._list[i])
+        yield from self._values
 
     def __getitem__(self, index):
-        assert isinstance(index, int)
-        if not 0 <= index < len(self._list):
-            raise IndexError('not 0 <= %d < %d' % (index, len(self._list)))
-        return DynamicValue(self.schema.element_type, self._list[index])
+        return self._values[index]
 
     def __str__(self):
         return str(self._values)
@@ -729,7 +896,93 @@ class DynamicList:
     __repr__ = repr_object
 
 
-class DynamicStruct:
+class DynamicStruct(collections.Mapping):
+
+    class Builder(collections.MutableMapping):
+
+        def __init__(self, schema, struct):
+            assert schema.kind is Schema.Kind.STRUCT
+            assert schema.id == struct.getSchema().getProto().getId()
+            self.schema = schema
+            self._struct = struct
+
+        @property
+        def total_size(self):
+            msg_size = self._struct.totalSize()
+            return (msg_size.wordCount, msg_size.capCount)
+
+        def as_reader(self):
+            return DynamicStruct(self.schema, self._struct.asReader())
+
+        def __len__(self):
+            count = 0
+            for field in self.schema.fields:
+                if self._struct.has(field._field):
+                    count += 1
+            return count
+
+        def __contains__(self, name):
+            field = self.schema.get(name)
+            return field and self._struct.has(field._field)
+
+        def __iter__(self):
+            for field in self.schema.fields:
+                if self._struct.has(field._field):
+                    yield field.name
+
+        def __getitem__(self, name):
+            return self._get(name, True, None)
+
+        def get(self, name, default=None):
+            return self._get(name, False, default)
+
+        def _get(self, name, raise_on_missing, default):
+            field = self.schema.get(name)
+            if field and self._struct.has(field._field):
+                return _dynamic_value_builder_to_python(
+                    field.type,
+                    self._struct.get(field._field),
+                )
+            if raise_on_missing:
+                raise KeyError(name)
+            else:
+                return default
+
+        def init(self, name, size=None):
+
+            field = self.schema[name]  # This may raise KeyError.
+
+            if field.type.kind is Type.Kind.LIST:
+                assert isinstance(size, int) and size > 0
+                return DynamicList.Builder(
+                    field.type.schema,
+                    self._struct.init(field._field, size).asList(),
+                )
+
+            elif field.type.kind is Type.Kind.STRUCT:
+                assert size is None
+                return DynamicStruct.Builder(
+                    field.type.schema,
+                    self._struct.init(field._field).asStruct(),
+                )
+
+            else:
+                raise AssertionError(
+                    'cannot init non-list, non-struct field: %s' % field)
+
+        def __setitem__(self, name, value):
+            field = self.schema[name]  # This may raise KeyError.
+            _set_scalar(self._struct, field._field, field.type, value)
+
+        def __delitem__(self, name):
+            field = self.schema[name]  # This may raise KeyError.
+            self._struct.clear(field._field)
+
+        def __str__(self):
+            fields = ('%s = %s' % item for item in self.items())
+            return '<%s>' % ', '.join(fields)
+
+        __repr__ = repr_object
 
     def __init__(self, schema, struct):
         assert schema.kind is Schema.Kind.STRUCT
@@ -741,11 +994,13 @@ class DynamicStruct:
     @property
     def _dict(self):
         if self._dict_cache is None:
-            # What about union?
             self._dict_cache = OrderedDict(
                 (
                     field.name,
-                    DynamicValue(field.type, self._struct.get(field._field)),
+                    _dynamic_value_reader_to_python(
+                        field.type,
+                        self._struct.get(field._field),
+                    ),
                 )
                 for field in self.schema.fields
                 if self._struct.has(field._field)
@@ -754,7 +1009,11 @@ class DynamicStruct:
 
     @property
     def total_size(self):
-        return self._struct.totalSize()
+        msg_size = self._struct.totalSize()
+        return (msg_size.wordCount, msg_size.capCount)
+
+    def __len__(self):
+        return len(self._dict)
 
     def __contains__(self, name):
         return name in self._dict
@@ -768,104 +1027,205 @@ class DynamicStruct:
     def get(self, name, default=None):
         return self._dict.get(name, default)
 
-    def as_dict(self):
-        return OrderedDict(self._dict)
+    def __str__(self):
+        fields = ('%s = %s' % item for item in self._dict.items())
+        return '<%s>' % ', '.join(fields)
+
+    __repr__ = repr_object
 
 
-class DynamicValue:
+_SCALAR_SCHEMA_KINDS = frozenset((
+    Schema.Kind.PRIMITIVE,
+    Schema.Kind.BLOB,
+    Schema.Kind.ENUM,
+))
 
-    # type_kinds, python_type, converter
-    _TYPE_TABLE = (
-        (
-            frozenset((Type.Kind.VOID,)),
-            type(None),
-            lambda _: None,
-        ),
-        (
-            frozenset((Type.Kind.BOOL,)),
-            bool,
-            native.DynamicValue.Reader.asBool,
-        ),
-        (
-            frozenset((
-                Type.Kind.INT8,
-                Type.Kind.INT16,
-                Type.Kind.INT32,
-                Type.Kind.INT64,
-            )),
-            int,
-            native.DynamicValue.Reader.asInt,
-        ),
-        (
-            frozenset((
-                Type.Kind.UINT8,
-                Type.Kind.UINT16,
-                Type.Kind.UINT32,
-                Type.Kind.UINT64,
-            )),
-            int,
-            native.DynamicValue.Reader.asUInt,
-        ),
-        (
-            frozenset((Type.Kind.FLOAT32, Type.Kind.FLOAT64)),
-            float,
-            native.DynamicValue.Reader.asFloat,
-        ),
-        (
-            frozenset((Type.Kind.TEXT,)),
-            str,
-            native.DynamicValue.Reader.asText,
-        ),
-        (
-            frozenset((Type.Kind.DATA,)),
-            bytes,
-            native.DynamicValue.Reader.asData,
-        ),
-        (
-            frozenset((Type.Kind.LIST,)),
-            DynamicList,
-            native.DynamicValue.Reader.asList,
-        ),
-        (
-            frozenset((Type.Kind.ENUM,)),
-            DynamicEnum,
-            native.DynamicValue.Reader.asEnum,
-        ),
-        (
-            frozenset((Type.Kind.STRUCT,)),
-            DynamicStruct,
-            native.DynamicValue.Reader.asStruct,
-        ),
-    )
 
-    _DYNAMIC_TYPES = {
-        Type.Kind.LIST: DynamicList,
-        Type.Kind.ENUM: DynamicEnum,
-        Type.Kind.STRUCT: DynamicStruct,
-    }
+def _set_scalar(builder, key, type_, python_value):
+    if type_.kind is Type.Kind.VOID:
+        assert python_value is None
+    elif type_.kind.schema_kind not in _SCALAR_SCHEMA_KINDS:
+        raise TypeError('not scalar type: %s' % type_)
+    elif type_.kind is Type.Kind.ENUM:
+        python_value = DynamicEnum.from_member(type_.schema, python_value)
+    builder.set(key, _python_to_dynamic_value_reader(type_, python_value))
 
-    def __init__(self, type_, value):
 
-        self.type = type_
-        self._value = value
+# type_kind -> python_type, maker, converter
+_DYNAMIC_VALUE_READER_TABLE = {
 
-        type_kinds = python_type = converter = None
-        for type_kinds, python_type, converter in self._TYPE_TABLE:
-            if self.type.kind in type_kinds:
-                break
-        else:
-            raise AssertionError('unsupported type: %s' % self.type)
+    Type.Kind.VOID: (
+        type(None),
+        native.DynamicValue.Reader.fromVoid,
+        native.DynamicValue.Reader.asVoid,
+    ),
 
-        self.python_type = python_type
+    Type.Kind.BOOL: (
+        bool,
+        native.DynamicValue.Reader.fromBool,
+        native.DynamicValue.Reader.asBool,
+    ),
 
-        dynamic_type = self._DYNAMIC_TYPES.get(self.type.kind)
+    Type.Kind.INT8: (
+        int,
+        native.DynamicValue.Reader.fromInt,
+        native.DynamicValue.Reader.asInt,
+    ),
+    Type.Kind.INT16: (
+        int,
+        native.DynamicValue.Reader.fromInt,
+        native.DynamicValue.Reader.asInt,
+    ),
+    Type.Kind.INT32: (
+        int,
+        native.DynamicValue.Reader.fromInt,
+        native.DynamicValue.Reader.asInt,
+    ),
+    Type.Kind.INT64: (
+        int,
+        native.DynamicValue.Reader.fromInt,
+        native.DynamicValue.Reader.asInt,
+    ),
 
-        python_value = converter(self._value)
-        if dynamic_type:
-            assert self.type.schema is not None
-            python_value = dynamic_type(self.type.schema, python_value)
-        assert isinstance(python_value, self.python_type)
-        self._python_value = python_value
+    Type.Kind.UINT8: (
+        int,
+        native.DynamicValue.Reader.fromInt,
+        native.DynamicValue.Reader.asUInt,
+    ),
+    Type.Kind.UINT16: (
+        int,
+        native.DynamicValue.Reader.fromInt,
+        native.DynamicValue.Reader.asUInt,
+    ),
+    Type.Kind.UINT32: (
+        int,
+        native.DynamicValue.Reader.fromInt,
+        native.DynamicValue.Reader.asUInt,
+    ),
+    Type.Kind.UINT64: (
+        int,
+        native.DynamicValue.Reader.fromInt,
+        native.DynamicValue.Reader.asUInt,
+    ),
 
-    def get(self):
-        return self._python_value
+    Type.Kind.FLOAT32: (
+        float,
+        native.DynamicValue.Reader.fromFloat,
+        native.DynamicValue.Reader.asFloat,
+    ),
+    Type.Kind.FLOAT64: (
+        float,
+        native.DynamicValue.Reader.fromFloat,
+        native.DynamicValue.Reader.asFloat,
+    ),
+
+    Type.Kind.TEXT: (
+        str,
+        native.DynamicValue.Reader.fromStr,
+        native.DynamicValue.Reader.asText,
+    ),
+    Type.Kind.DATA: (
+        bytes,
+        native.DynamicValue.Reader.fromBytes,
+        native.DynamicValue.Reader.asData,
+    ),
+
+    Type.Kind.LIST: (
+        DynamicList,
+        native.DynamicValue.Reader.fromList,
+        native.DynamicValue.Reader.asList,
+    ),
+
+    Type.Kind.ENUM: (
+        DynamicEnum,
+        native.DynamicValue.Reader.fromEnum,
+        native.DynamicValue.Reader.asEnum,
+    ),
+
+    Type.Kind.STRUCT: (
+        DynamicStruct,
+        native.DynamicValue.Reader.fromStruct,
+        native.DynamicValue.Reader.asStruct,
+    ),
+}
+
+
+_DYNAMIC_READER_TYPES = frozenset((
+    DynamicList,
+    DynamicEnum,
+    DynamicStruct,
+))
+
+
+def _python_to_dynamic_value_reader(type_, python_value):
+    python_type, maker, _ = _DYNAMIC_VALUE_READER_TABLE[type_.kind]
+    assert isinstance(python_value, python_type)
+    if python_type is DynamicEnum:
+        return maker(python_value._enum)
+    elif python_type is DynamicList:
+        return maker(python_value._list)
+    elif python_type is DynamicStruct:
+        return maker(python_value._struct)
+    else:
+        return maker(python_value)
+
+
+def _dynamic_value_reader_to_python(type_, value):
+    assert isinstance(value, native.DynamicValue.Reader)
+    python_type, _, converter = _DYNAMIC_VALUE_READER_TABLE[type_.kind]
+    python_value = converter(value)
+    if python_type in _DYNAMIC_READER_TYPES:
+        assert type_.schema is not None
+        python_value = python_type(type_.schema, python_value)
+    assert isinstance(python_value, python_type), (python_value, python_type)
+    return python_value
+
+
+# type_kind -> python_type, converter
+_DYNAMIC_VALUE_BUILDER_TABLE = {
+
+    Type.Kind.VOID: (type(None), lambda _: None),
+
+    Type.Kind.BOOL: (bool, native.DynamicValue.Builder.asBool),
+
+    Type.Kind.INT8: (int, native.DynamicValue.Builder.asInt),
+    Type.Kind.INT16: (int, native.DynamicValue.Builder.asInt),
+    Type.Kind.INT32: (int, native.DynamicValue.Builder.asInt),
+    Type.Kind.INT64: (int, native.DynamicValue.Builder.asInt),
+
+    Type.Kind.UINT8: (int, native.DynamicValue.Builder.asUInt),
+    Type.Kind.UINT16: (int, native.DynamicValue.Builder.asUInt),
+    Type.Kind.UINT32: (int, native.DynamicValue.Builder.asUInt),
+    Type.Kind.UINT64: (int, native.DynamicValue.Builder.asUInt),
+
+    Type.Kind.FLOAT32: (float, native.DynamicValue.Builder.asFloat),
+    Type.Kind.FLOAT64: (float, native.DynamicValue.Builder.asFloat),
+
+    Type.Kind.TEXT: (str, native.DynamicValue.Builder.asText),
+    Type.Kind.DATA: (bytes, native.DynamicValue.Builder.asData),
+
+    Type.Kind.LIST: (DynamicList.Builder, native.DynamicValue.Builder.asList),
+
+    Type.Kind.ENUM: (DynamicEnum, native.DynamicValue.Builder.asEnum),
+
+    Type.Kind.STRUCT: (
+        DynamicStruct.Builder, native.DynamicValue.Builder.asStruct),
+}
+
+
+_DYNAMIC_BUILDER_TYPES = frozenset((
+    DynamicList.Builder,
+    DynamicEnum,
+    DynamicStruct.Builder,
+))
+
+
+def _dynamic_value_builder_to_python(type_, value):
+    assert isinstance(value, native.DynamicValue.Builder)
+    python_type, converter = _DYNAMIC_VALUE_BUILDER_TABLE[type_.kind]
+    python_value = converter(value)
+    if python_type in _DYNAMIC_BUILDER_TYPES:
+        assert type_.schema is not None
+        python_value = python_type(type_.schema, python_value)
+    assert isinstance(python_value, python_type), (python_value, python_type)
+    return python_value

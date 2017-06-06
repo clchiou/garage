@@ -110,6 +110,8 @@ struct pointee<capnp_python::ThrowingDtorHandler<T>> {
 #define DEF_MF(M, R, T, ARGS...) def(#M, static_cast<R (T::*)(ARGS)>(&T::M))
 #define DEF_MF_CONST(M, R, T, ARGS...) def(#M, static_cast<R (T::*)(ARGS) const>(&T::M))
 
+#define DEF_STATICMETHOD(NAME, FUNC) def(NAME, FUNC).staticmethod(NAME)
+
 #define DEF_RESET(T) def("_reset", &capnp_python::ThrowingDtorHandler<T>::reset)
 
 #endif  // CAPNP_PYTHON_COMMON_H_

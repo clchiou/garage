@@ -5,6 +5,7 @@
 #include <boost/python/bases.hpp>
 #include <boost/python/class.hpp>
 #include <boost/python/enum.hpp>
+#include <boost/python/init.hpp>
 #include <boost/python/scope.hpp>
 #include <boost/python/to_python_converter.hpp>
 
@@ -21,20 +22,16 @@
 
 namespace capnp_python {
 
-// Convert Python bytes to kj::ArrayPtr<const capnp::word>>
+// Convert Python bytes to kj::ArrayPtr<const T>>
 // Be careful: kj::ArrayPtr doesn't own the data
-struct ArrayPtrFromPythonBytes {
-  ArrayPtrFromPythonBytes() {
-    boost::python::converter::registry::push_back(
-        &convertible, &construct, boost::python::type_id<kj::ArrayPtr<const capnp::word>>());
+template <typename T>
+struct ArrayLikeFromPythonBytes {
+  ArrayLikeFromPythonBytes() {
+    boost::python::converter::registry::push_back(&convertible, &construct,
+                                                  boost::python::type_id<kj::ArrayPtr<const T>>());
   }
 
-  static void* convertible(PyObject* object) {
-    if (!PyBytes_Check(object)) {
-      return nullptr;
-    }
-    return object;
-  }
+  static void* convertible(PyObject* object) { return PyBytes_Check(object) ? object : nullptr; }
 
   static void construct(PyObject* object,
                         boost::python::converter::rvalue_from_python_stage1_data* data) {
@@ -45,15 +42,32 @@ struct ArrayPtrFromPythonBytes {
     Py_ssize_t size = PyBytes_Size(object);
 
     void* storage =
-        ((boost::python::converter::rvalue_from_python_storage<kj::ArrayPtr<const capnp::word>>*)
-             data)
+        ((boost::python::converter::rvalue_from_python_storage<kj::ArrayPtr<const T>>*)data)
             ->storage.bytes;
-    new (storage) kj::ArrayPtr<const capnp::word>(static_cast<const capnp::word*>(buffer),
-                                                  static_cast<size_t>(size));
+    new (storage) kj::ArrayPtr<const T>(static_cast<const T*>(buffer), static_cast<size_t>(size));
 
     data->convertible = storage;
   }
 };
+
+// Convert kj::ArrayPtr<kj::byte> or equivalent to Python bytes
+template <typename T>
+struct ArrayLikeToPythonBytes {
+  static PyObject* convert(const T& array) {
+    // To convert const unsigned char* and const char*, you need
+    // reinterpret_cast.
+    PyObject* bytes = PyBytes_FromStringAndSize(reinterpret_cast<const char*>(array.begin()),
+                                                static_cast<Py_ssize_t>(array.size()));
+    if (!bytes) {
+      boost::python::throw_error_already_set();
+    }
+    return bytes;
+  }
+};
+
+template <typename T>
+using ArrayLikeToPythonBytesConverter =
+    boost::python::to_python_converter<T, ArrayLikeToPythonBytes<T>>;
 
 // Convert Python str to kj::StringPtr
 // Be careful: kj::StringPtr doesn't own the data
@@ -63,12 +77,7 @@ struct StringPtrFromPythonStr {
                                                   boost::python::type_id<kj::StringPtr>());
   }
 
-  static void* convertible(PyObject* object) {
-    if (!PyUnicode_Check(object)) {
-      return nullptr;
-    }
-    return object;
-  }
+  static void* convertible(PyObject* object) { return PyUnicode_Check(object) ? object : nullptr; }
 
   static void construct(PyObject* object,
                         boost::python::converter::rvalue_from_python_stage1_data* data) {
@@ -86,6 +95,25 @@ struct StringPtrFromPythonStr {
   }
 };
 
+// Convert Python None to capnp::Void
+struct VoidFromPythonNone {
+  VoidFromPythonNone() {
+    boost::python::converter::registry::push_back(&convertible, &construct,
+                                                  boost::python::type_id<capnp::Void>());
+  }
+
+  static void* convertible(PyObject* object) { return object == Py_None ? object : nullptr; }
+
+  static void construct(PyObject* object,
+                        boost::python::converter::rvalue_from_python_stage1_data* data) {
+    void* storage =
+        ((boost::python::converter::rvalue_from_python_storage<capnp::Void>*)data)->storage.bytes;
+    new (storage) capnp::Void();
+
+    data->convertible = storage;
+  }
+};
+
 // Convert capnp::Void to Python None
 struct VoidToPythonNone {
   static PyObject* convert(const capnp::Void& void_) { return Py_None; }
@@ -94,7 +122,13 @@ struct VoidToPythonNone {
 // Convert kj and capnp string-like object to Python str
 template <typename T>
 struct StringLikeToPythonStr {
-  static PyObject* convert(const T& str) { return PyUnicode_FromString(str.cStr()); }
+  static PyObject* convert(const T& strLike) {
+    PyObject* str = PyUnicode_FromString(strLike.cStr());
+    if (!str) {
+      boost::python::throw_error_already_set();
+    }
+    return str;
+  }
 };
 
 template <typename T>
@@ -104,7 +138,11 @@ using StringLikeToPythonStrConverter =
 // Convert kj::StringTree to Python str
 struct StringTreeToPythonStr {
   static PyObject* convert(const kj::StringTree& stree) {
-    return PyUnicode_FromString(stree.flatten().cStr());
+    PyObject* str = PyUnicode_FromString(stree.flatten().cStr());
+    if (!str) {
+      boost::python::throw_error_already_set();
+    }
+    return str;
   }
 };
 
@@ -168,19 +206,26 @@ struct Getitem {
 // all constructors to Python, this trade-off seems to be acceptable.)
 //
 template <typename T>
-class _MakeCopyable : public T {
+class MakeCopyableHolder : public T {
  public:
-  _MakeCopyable(PyObject* self) : self_(self) {}
-  _MakeCopyable(PyObject* self, const T& obj)
+  MakeCopyableHolder(PyObject* self) : self_(self) {}
+  MakeCopyableHolder(PyObject* self, const T& obj)
       : T(const_cast<T&>(obj)),  // Cast away constness
         self_(self) {}
+
+  // Some value types, like capnp::DynamicValue::Builder::~Builder,
+  // declares noexcept(false) explicitly in their destructor, and Boost
+  // hates that. To make peace, we make a lie.  But if any destructors
+  // does throw one day, the program will be aborted, and that is the
+  // punishment for lying.
+  ~MakeCopyableHolder() noexcept(true) {}
 
  private:
   PyObject* self_;
 };
 
 template <typename T, typename Bases = boost::python::bases<>>
-using MakeCopyable = boost::python::class_<T, Bases, _MakeCopyable<T>>;
+using MakeCopyable = boost::python::class_<T, Bases, MakeCopyableHolder<T>>;
 
 //
 // defineValueTypes
@@ -198,7 +243,10 @@ void defineListSchema(void);
 void defineValueTypes(void) {
   // kj/common.h, kj/string.h, and kj/string-tree.h
 
-  ArrayPtrFromPythonBytes();
+  ArrayLikeFromPythonBytes<kj::byte>();
+  ArrayLikeToPythonBytesConverter<kj::ArrayPtr<kj::byte>>();
+
+  ArrayLikeFromPythonBytes<capnp::word>();
 
   StringPtrFromPythonStr();
   StringLikeToPythonStrConverter<kj::StringPtr>();
@@ -207,6 +255,7 @@ void defineValueTypes(void) {
 
   // capnp/common.h
 
+  VoidFromPythonNone();
   boost::python::to_python_converter<capnp::Void, VoidToPythonNone>();
 
   ValueType<capnp::MessageSize>("MessageSize", boost::python::no_init)
@@ -215,7 +264,11 @@ void defineValueTypes(void) {
 
   // capnp/blob.h
 
+  ArrayLikeToPythonBytesConverter<capnp::Data::Reader>();
+  ArrayLikeToPythonBytesConverter<capnp::Data::Builder>();
+
   StringLikeToPythonStrConverter<capnp::Text::Reader>();
+  StringLikeToPythonStrConverter<capnp::Text::Builder>();
 
   // capnp/dynamic.h
 
@@ -244,8 +297,8 @@ void defineValueTypes(void) {
 //
 
 void defineDynamicEnum(void) {
-  using capnp::DynamicEnum;
-  ValueType<DynamicEnum>("DynamicEnum", boost::python::no_init)
+  using DynamicEnum = capnp::DynamicEnum;
+  ValueType<DynamicEnum>("DynamicEnum", boost::python::init<capnp::EnumSchema::Enumerant>())
       .def("getSchema", &DynamicEnum::getSchema)
       .def("getEnumerant", &DynamicEnum::getEnumerant)
       .def("getRaw", &DynamicEnum::getRaw);
@@ -319,6 +372,13 @@ void defineDynamicStruct(void) {
 // capnp::DynamicValue
 //
 
+// Use this template because Boost.Python doesn't seem to be able to
+// parse lambda function's signature (why?).
+template <typename T>
+struct From {
+  static capnp::DynamicValue::Reader func(T t) { return capnp::DynamicValue::Reader(t); }
+};
+
 void defineDynamicValue(void) {
   using capnp::DynamicValue;
   boost::python::scope _ =
@@ -341,9 +401,27 @@ void defineDynamicValue(void) {
       .EV(ANY_POINTER);
 #undef EV
 
+  // Unfortunately DynamicValue::Reader has a throwing destructor; wrap
+  // it in MakeCopyable to work around this.
   using Reader = DynamicValue::Reader;
-  boost::python::class_<Reader, ThrowingDtorHandler<Reader>>("Reader", boost::python::no_init)
-      .DEF_RESET(Reader)
+  MakeCopyable<Reader>("Reader", boost::python::no_init)
+      //
+      // Don't rely on C++ function overload resolution, like having
+      // init<bool>, init<int>, and init<double> all work together; it
+      // is just very hard to make right.
+      //
+      // And in C++ you cannot take address to a constructor :(
+      //
+      .DEF_STATICMETHOD("fromVoid", From<capnp::Void>::func)
+      .DEF_STATICMETHOD("fromBool", From<bool>::func)
+      .DEF_STATICMETHOD("fromInt", From<int64_t>::func)
+      .DEF_STATICMETHOD("fromFloat", From<double>::func)
+      .DEF_STATICMETHOD("fromStr", From<kj::StringPtr>::func)
+      .DEF_STATICMETHOD("fromBytes", From<kj::ArrayPtr<const kj::byte>>::func)
+      .DEF_STATICMETHOD("fromList", From<const capnp::DynamicList::Reader&>::func)
+      .DEF_STATICMETHOD("fromEnum", From<capnp::DynamicEnum>::func)
+      .DEF_STATICMETHOD("fromStruct", From<const capnp::DynamicStruct::Reader&>::func)
+      // TODO: Add fromAnyPointer.
       .def("asVoid", &Reader::as<capnp::Void>)
       .def("asBool", &Reader::as<bool>)
       .def("asInt", &Reader::as<int64_t>)
@@ -357,9 +435,7 @@ void defineDynamicValue(void) {
       .def("getType", &Reader::getType);
 
   using Builder = DynamicValue::Builder;
-  boost::python::class_<MakeCopyable<Builder>, ThrowingDtorHandler<MakeCopyable<Builder>>>(
-      "Builder", boost::python::no_init)
-      .DEF_RESET(MakeCopyable<Builder>)
+  MakeCopyable<Builder>("Builder", boost::python::no_init)
       .def("asVoid", &Builder::as<capnp::Void>)
       .def("asBool", &Builder::as<bool>)
       .def("asInt", &Builder::as<int64_t>)
