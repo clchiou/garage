@@ -10,8 +10,10 @@ This module provides three groups of functionalities:
 """
 
 __all__ = [
+    'Annotation',
     'Schema',
     'SchemaLoader',
+    'Type',
 
     'MessageBuilder',
     'MessageReader',
@@ -30,8 +32,10 @@ from .dynamics import DynamicEnum
 from .dynamics import DynamicList
 from .dynamics import DynamicStruct
 
+from .schemas import Annotation
 from .schemas import Schema
 from .schemas import SchemaLoader
+from .schemas import Type
 
 
 logging.getLogger(__name__).addHandler(logging.NullHandler())

@@ -1,6 +1,8 @@
 __all__ = [
+    'Annotation',
     'Schema',
     'SchemaLoader',
+    'Type',
 ]
 
 from collections import OrderedDict
@@ -44,19 +46,9 @@ class SchemaLoader:
         with io.make_bytes_reader(blob) as reader:
             self._load_schema(reader)
 
-    def load_packed_bytes(self, blob):
-        """Load schema from a packed binary blob in memory."""
-        with io.make_packed_bytes_reader(blob) as reader:
-            self._load_schema(reader)
-
     def load_file(self, path):
         """Load schema from a file."""
         with io.make_file_reader(path) as reader:
-            self._load_schema(reader)
-
-    def load_packed_file(self, path):
-        """Load schema from a file whose contents are packed."""
-        with io.make_packed_file_reader(path) as reader:
             self._load_schema(reader)
 
     def _load_schema(self, reader):
@@ -185,6 +177,9 @@ class Schema:
 
     def __init__(self, schema_table, schema):
 
+        # Import it here to break cyclic import.
+        from . import dynamics
+
         if isinstance(schema, native.ListSchema):
             self._proto = None
             self.id = bases.list_schema_id(schema)
@@ -198,7 +193,10 @@ class Schema:
             LOG.debug('construct const schema: %s', self._proto)
             self._schema = schema.asConst()
             self.type = Type(schema_table, self._schema.getType())
-            self.value = Value(self._schema.asDynamicValue())
+            self.value = dynamics._dynamic_value_reader_to_python(
+                self.type,
+                self._schema.asDynamicValue(),
+            )
 
         elif self.kind is Schema.Kind.ENUM:
             LOG.debug('construct enum schema: %s', self._proto)
@@ -242,13 +240,22 @@ class Schema:
         else:
             raise AssertionError('unsupported kind of schema: %s' % self.kind)
 
+    @property
+    def annotations(self):
+        assert self.kind is not Schema.Kind.LIST
+        return self._proto.annotations
+
     def __str__(self):
         if self.kind is Schema.Kind.LIST:
-            return 'List<%s>' % self.element_type
+            return 'List(%s)' % self.element_type
         else:
             return str(self._proto)
 
     __repr__ = bases.repr_object
+
+    def __len__(self):
+        assert self.kind in (Schema.Kind.ENUM, Schema.Kind.STRUCT)
+        return len(self._dict)
 
     def __contains__(self, name):
         assert self.kind in (Schema.Kind.ENUM, Schema.Kind.STRUCT)
@@ -333,14 +340,14 @@ class Annotation:
     def __init__(self, annotation):
         self._annotation = annotation
         self.id = self._annotation.getId()
-        self.value = Value(self._annotation.getValue())
         self.kind = Annotation.Kind.from_id(self.id)
+        self.value = _schema_value_to_python(self._annotation.getValue())
 
     def __str__(self):
         if self.kind is Annotation.Kind.UNIDENTIFIED:
-            return '$%s(%s)' % (self.id, self.value)
+            return '$%s(%s)' % (self.id, bases.str_value(self.value))
         else:
-            return '$%s(%s)' % (self.kind.name, self.value)
+            return '$%s(%s)' % (self.kind.name, bases.str_value(self.value))
 
     __repr__ = bases.repr_object
 
@@ -412,157 +419,158 @@ class Type:
             self.schema = None
 
     def __str__(self):
-        return self.kind.name
+        if self.kind is Type.Kind.LIST:
+            return 'List(%s)' % self.schema.element_type
+        elif self.schema is not None:
+            # TODO: Use schema's name, not display name.
+            return str(self.schema)
+        else:
+            return self.kind.name
 
     __repr__ = bases.repr_object
 
 
-class Value:
-    """Represent Value struct of schema.capnp.
+# type_kind, python_type, izzer, hazzer, getter
+_SCHEMA_VALUE_TABLE = (
 
-    Don't confuse this with capnp::DynamicValue.
-    """
+    (
+        Type.Kind.VOID,
+        type(None),
+        native.schema.Value.isVoid, None, lambda _: None,
+    ),
 
-    # type_kind, python_type, izzer, hazzer, getter
-    _TYPE_TABLE = (
+    (
+        Type.Kind.BOOL,
+        bool,
+        native.schema.Value.isBool, None, native.schema.Value.getBool,
+    ),
 
-        (
-            Type.Kind.VOID, type(None),
-            native.schema.Value.isVoid, None, lambda _: None,
-        ),
+    (
+        Type.Kind.INT8,
+        int,
+        native.schema.Value.isInt8, None, native.schema.Value.getInt8,
+    ),
+    (
+        Type.Kind.INT16,
+        int,
+        native.schema.Value.isInt16, None, native.schema.Value.getInt16,
+    ),
+    (
+        Type.Kind.INT32,
+        int,
+        native.schema.Value.isInt32, None, native.schema.Value.getInt32,
+    ),
+    (
+        Type.Kind.INT64,
+        int,
+        native.schema.Value.isInt64, None, native.schema.Value.getInt64,
+    ),
 
-        (
-            Type.Kind.BOOL, bool,
-            native.schema.Value.isBool, None, native.schema.Value.getBool,
-        ),
-        (
-            Type.Kind.INT8, int,
-            native.schema.Value.isInt8, None, native.schema.Value.getInt8,
-        ),
-        (
-            Type.Kind.INT16, int,
-            native.schema.Value.isInt16, None, native.schema.Value.getInt16,
-        ),
-        (
-            Type.Kind.INT32, int,
-            native.schema.Value.isInt32, None, native.schema.Value.getInt32,
-        ),
-        (
-            Type.Kind.INT64, int,
-            native.schema.Value.isInt64, None, native.schema.Value.getInt64,
-        ),
-        (
-            Type.Kind.UINT8, int,
-            native.schema.Value.isUint8, None, native.schema.Value.getUint8,
-        ),
-        (
-            Type.Kind.UINT16, int,
-            native.schema.Value.isUint16, None, native.schema.Value.getUint16,
-        ),
-        (
-            Type.Kind.UINT32, int,
-            native.schema.Value.isUint32, None, native.schema.Value.getUint32,
-        ),
-        (
-            Type.Kind.UINT64, int,
-            native.schema.Value.isUint64, None, native.schema.Value.getUint64,
-        ),
-        (
-            Type.Kind.FLOAT32,
-            float,
-            native.schema.Value.isFloat32,
-            None,
-            native.schema.Value.getFloat32,
-        ),
-        (
-            Type.Kind.FLOAT64,
-            float,
-            native.schema.Value.isFloat64,
-            None,
-            native.schema.Value.getFloat64,
-        ),
+    (
+        Type.Kind.UINT8,
+        int,
+        native.schema.Value.isUint8, None, native.schema.Value.getUint8,
+    ),
+    (
+        Type.Kind.UINT16,
+        int,
+        native.schema.Value.isUint16, None, native.schema.Value.getUint16,
+    ),
+    (
+        Type.Kind.UINT32,
+        int,
+        native.schema.Value.isUint32, None, native.schema.Value.getUint32,
+    ),
+    (
+        Type.Kind.UINT64,
+        int,
+        native.schema.Value.isUint64, None, native.schema.Value.getUint64,
+    ),
 
-        (
-            Type.Kind.TEXT,
-            str,
-            native.schema.Value.isText,
-            native.schema.Value.hasText,
-            native.schema.Value.getText,
-        ),
-        (
-            Type.Kind.DATA,
-            bytes,
-            native.schema.Value.isData,
-            native.schema.Value.hasData,
-            native.schema.Value.getData,
-        ),
+    (
+        Type.Kind.FLOAT32,
+        float,
+        native.schema.Value.isFloat32, None, native.schema.Value.getFloat32,
+    ),
+    (
+        Type.Kind.FLOAT64,
+        float,
+        native.schema.Value.isFloat64, None, native.schema.Value.getFloat64,
+    ),
 
-        (
-            Type.Kind.LIST,
-            tuple,
-            native.schema.Value.isList,
-            native.schema.Value.hasList,
-            native.schema.Value.getList,
-        ),
+    (
+        Type.Kind.TEXT,
+        str,
+        native.schema.Value.isText,
+        native.schema.Value.hasText,
+        native.schema.Value.getText,
+    ),
+    (
+        Type.Kind.DATA,
+        bytes,
+        native.schema.Value.isData,
+        native.schema.Value.hasData,
+        native.schema.Value.getData,
+    ),
 
-        (
-            Type.Kind.ENUM,
-            int,
-            native.schema.Value.isEnum, None, native.schema.Value.getEnum,
-        ),
+    (
+        Type.Kind.LIST,
+        tuple,
+        native.schema.Value.isList,
+        native.schema.Value.hasList,
+        native.schema.Value.getList,
+    ),
 
-        (
-            Type.Kind.STRUCT,
-            object,
-            native.schema.Value.isStruct,
-            native.schema.Value.hasStruct,
-            native.schema.Value.getStruct,
-        ),
+    (
+        Type.Kind.ENUM,
+        int,
+        native.schema.Value.isEnum, None, native.schema.Value.getEnum,
+    ),
 
-        (
-            Type.Kind.INTERFACE, type(None),
-            native.schema.Value.isInterface, None, lambda _: None,
-        ),
+    (
+        Type.Kind.STRUCT,
+        object,
+        native.schema.Value.isStruct,
+        native.schema.Value.hasStruct,
+        native.schema.Value.getStruct,
+    ),
 
-        (
-            Type.Kind.ANY_POINTER,
-            object,
-            native.schema.Value.isAnyPointer,
-            native.schema.Value.hasAnyPointer,
-            native.schema.Value.getAnyPointer,
-        ),
-    )
+    (
+        Type.Kind.INTERFACE,
+        type(None),
+        native.schema.Value.isInterface, None, lambda _: None,
+    ),
 
-    def __init__(self, value):
+    (
+        Type.Kind.ANY_POINTER,
+        object,
+        native.schema.Value.isAnyPointer,
+        native.schema.Value.hasAnyPointer,
+        native.schema.Value.getAnyPointer,
+    ),
+)
 
-        type_kind = python_type = izzer = hazzer = getter = None
-        for type_kind, python_type, izzer, hazzer, getter in self._TYPE_TABLE:
-            if izzer(value):
-                break
-        else:
-            raise AssertionError('unsupported value: %s' % value)
 
-        self.type_kind = type_kind
-        self._value = value
-        self._has_value = not hazzer or hazzer(self._value)
-        if self._has_value:
-            python_value = getter(self._value)
-            if type_kind is Type.Kind.LIST:
-                raise NotImplementedError  # TODO: Handle AnyPointer.
-            elif type_kind is Type.Kind.STRUCT:
-                raise NotImplementedError  # TODO: Handle AnyPointer.
-            elif type_kind is Type.Kind.ANY_POINTER:
-                raise NotImplementedError  # TODO: Handle AnyPointer.
-            else:
-                self._python_value = python_value
-            assert isinstance(self._python_value, python_type)
-        else:
-            self._python_value = None
+def _schema_value_to_python(value, default=None):
+    type_kind = python_type = izzer = hazzer = getter = None
+    for type_kind, python_type, izzer, hazzer, getter in _SCHEMA_VALUE_TABLE:
+        if izzer(value):
+            break
+    if type_kind is None:
+        raise AssertionError('unsupported schema value: %s' % value)
 
-    def get(self, default=None):
-        return self._python_value if self._has_value else default
+    if hazzer and not hazzer(value):
+        return default
 
-    def __str__(self):
-        return bases.str_value(self.get())
+    python_value = getter(value)
 
-    __repr__ = bases.repr_object
+    if type_kind is Type.Kind.LIST:
+        raise NotImplementedError  # TODO: Handle AnyPointer.
+    elif type_kind is Type.Kind.STRUCT:
+        raise NotImplementedError  # TODO: Handle AnyPointer.
+    elif type_kind is Type.Kind.ANY_POINTER:
+        raise NotImplementedError  # TODO: Handle AnyPointer.
+
+    assert isinstance(python_value, python_type)
+
+    return python_value

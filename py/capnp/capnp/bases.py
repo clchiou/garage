@@ -27,7 +27,10 @@ def str_value(value):
     elif value is False:
         return 'false'
     elif isinstance(value, str):
-        return repr(value)
+        # NOTE: This doesn't escape '"'.
+        return '"%s"' % value
+    elif isinstance(value, bytes):
+        return '0x"%s"' % ' '.join('%02x' % x for x in value)
     else:
         return str(value)
 
