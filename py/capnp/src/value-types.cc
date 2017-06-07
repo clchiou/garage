@@ -535,8 +535,7 @@ void defineEnumSchemaEnumerant(void) {
   ValueType<Enumerant>("Enumerant", boost::python::no_init)
       .def("getProto", &Enumerant::getProto)
       .def("getContainingEnum", &Enumerant::getContainingEnum)
-      .def("getOrdinal", &Enumerant::getOrdinal)
-      .def("getIndex", &Enumerant::getIndex);
+      .def("getOrdinal", &Enumerant::getOrdinal);
 }
 
 //
@@ -575,7 +574,6 @@ void defineInterfaceSchemaMethod(void) {
       .def("getProto", &Method::getProto)
       .def("getContainingInterface", &Method::getContainingInterface)
       .def("getOrdinal", &Method::getOrdinal)
-      .def("getIndex", &Method::getIndex)
       .def("getParamType", &Method::getParamType)
       .def("getResultType", &Method::getResultType);
 }

@@ -16,10 +16,7 @@ def repr_object(obj):
 
 
 def str_value(value):
-    """Format Python value to look like Cap'n Proto textual format.
-
-    At the moment they are not identical.
-    """
+    """Format Python value to look like Cap'n Proto textual format."""
     if value is None:
         return 'void'
     elif value is True:
@@ -27,8 +24,7 @@ def str_value(value):
     elif value is False:
         return 'false'
     elif isinstance(value, str):
-        # NOTE: This doesn't escape '"'.
-        return '"%s"' % value
+        return '"%s"' % value.replace('"', '\\"')
     elif isinstance(value, bytes):
         return '0x"%s"' % ' '.join('%02x' % x for x in value)
     else:

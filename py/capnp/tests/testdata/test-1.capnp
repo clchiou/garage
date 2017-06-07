@@ -5,7 +5,7 @@ $Cxx.namespace("unittest");
 
 struct SomeStruct $Cxx.name("AliasForSomeStruct") {
 
-  boolWithDefault @0 :Bool = true;
+  b @0 :Bool = true;
 
   i8 @1 :Int8 = 1;
   i16 @2 :Int16 = 2;
@@ -23,7 +23,7 @@ struct SomeStruct $Cxx.name("AliasForSomeStruct") {
   t @11 :Text = "string with \"quotes\"";
   d @12 :Data = 0x"ab cd ef";
 
-  e @13 :SomeEnum;
+  e @13 :SomeEnum = e1;
 
   l @14 :List(List(List(SomeEnum)));
 

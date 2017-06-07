@@ -79,7 +79,7 @@ class SchemaLoader:
             self.files[node_id] = file_node
 
         else:
-            schema = Schema(self.schemas, schema)
+            schema = Schema(self, schema)
             assert node_id == schema.id
             self.schemas[node_id] = schema
             if depth == 1:  # Collect top-level declarations.
@@ -118,12 +118,23 @@ class Node:
         def __init__(self, izzer):
             self.izzer = izzer
 
+    class NestedNode:
+
+        def __init__(self, name, id):
+            self.name = name
+            self.id = id
+
     def __init__(self, node):
         assert not node.getIsGeneric(), 'do not support generics yet'
         self._node = node
         self.id = self._node.getId()
+        self.scope_id = self._node.getScopeId()
         self.kind = Node.Kind.from_node(self._node)
         self.name = self._node.getDisplayName()
+        self.nested_nodes = tuple(
+            Node.NestedNode(nested_node.getName(), nested_node.getId())
+            for nested_node in self._node.getNestedNodes()
+        )
         self.annotations = tuple(map(Annotation, self._node.getAnnotations()))
 
     def __str__(self):
@@ -137,7 +148,6 @@ class FileNode(Node):
     def __init__(self, node):
         assert node.isFile()
         super().__init__(node)
-        self.node_ids = tuple(nn.getId() for nn in self._node.getNestedNodes())
 
 
 class Schema:
@@ -145,7 +155,7 @@ class Schema:
 
     Schema has a two generic properties: `id` and `kind`.
     * `id` is unique among all schemas and is the key of the
-      `schema_table` of SchemaLoader.
+      `schemas` of SchemaLoader.
     * `kind` describes the specific details of this Schema object.
     """
 
@@ -175,7 +185,7 @@ class Schema:
 
         OTHER = enum.auto()
 
-    def __init__(self, schema_table, schema):
+    def __init__(self, loader, schema):
 
         # Import it here to break cyclic import.
         from . import dynamics
@@ -184,15 +194,24 @@ class Schema:
             self._proto = None
             self.id = bases.list_schema_id(schema)
             self.kind = Schema.Kind.LIST
+            self.name = None
         else:
             self._proto = Node(schema.getProto())
             self.id = self._proto.id
             self.kind = Schema.Kind.from_node(self._proto)
+            node = loader._loader.get(self._proto.scope_id).getProto()
+            for nn in node.getNestedNodes():
+                if nn.getId() == self.id:
+                    self.name = nn.getName()
+                    break
+            else:
+                # Union field does not have "name"
+                self.name = None
 
         if self._proto and self._proto.kind is Node.Kind.CONST:
             LOG.debug('construct const schema: %s', self._proto)
             self._schema = schema.asConst()
-            self.type = Type(schema_table, self._schema.getType())
+            self.type = Type(loader, self._schema.getType())
             self.value = dynamics._dynamic_value_reader_to_python(
                 self.type,
                 self._schema.asDynamicValue(),
@@ -220,14 +239,13 @@ class Schema:
         elif self.kind is Schema.Kind.LIST:
             assert isinstance(schema, native.ListSchema)
             self._schema = schema
-            self.element_type = Type(
-                schema_table, self._schema.getElementType())
+            self.element_type = Type(loader, self._schema.getElementType())
             LOG.debug('construct schema for list of %s', self.element_type)
 
         elif self.kind is Schema.Kind.STRUCT:
             LOG.debug('construct struct schema: %s', self._proto)
             self._schema = schema.asStruct()
-            self.fields = self._get_fields(schema_table)
+            self.fields = self._get_fields(loader)
             self.union_fields = self._collect_fields(
                 self._schema.getUnionFields())
             self.non_union_fields = self._collect_fields(
@@ -248,6 +266,8 @@ class Schema:
     def __str__(self):
         if self.kind is Schema.Kind.LIST:
             return 'List(%s)' % self.element_type
+        elif self.name is not None:
+            return self.name
         else:
             return str(self._proto)
 
@@ -277,9 +297,11 @@ class Schema:
         assert self.kind is Schema.Kind.ENUM
         return self._reverse_lookup.get(ordinal)
 
-    def _get_fields(self, schema_table):
+    def _get_fields(self, loader):
         fields = tuple(
-            Field(schema_table, field) for field in self._schema.getFields())
+            Field(loader, field)
+            for field in self._schema.getFields()
+        )
         assert all(i == field.index for i, field in enumerate(fields))
         return fields
 
@@ -294,7 +316,6 @@ class Enumerant:
         self._proto = self._enumerant.getProto()
         self.name = self._proto.getName()
         self.ordinal = self._enumerant.getOrdinal()
-        self.index = self._enumerant.getIndex()
         self.annotations = tuple(map(Annotation, self._proto.getAnnotations()))
 
     def __str__(self):
@@ -305,13 +326,24 @@ class Enumerant:
 
 class Field:
 
-    def __init__(self, schema_table, field):
+    def __init__(self, loader, field):
         self._field = field
         self._proto = self._field.getProto()
         self.name = self._proto.getName()
         self.index = self._field.getIndex()
-        self.type = Type(schema_table, self._field.getType())
+        self.type = Type(loader, self._field.getType())
         self.annotations = tuple(map(Annotation, self._proto.getAnnotations()))
+
+        if self._proto.isSlot():
+            slot = self._proto.getSlot()
+            self.has_explicit_default = slot.getHadExplicitDefault()
+            if self.has_explicit_default:
+                self.default = _schema_value_to_python(slot.getDefaultValue())
+            else:
+                self.default = None
+        else:
+            self.has_explicit_default = False
+            self.default = None
 
     def __str__(self):
         return self.name
@@ -388,33 +420,31 @@ class Type:
             self.schema_kind = schema_kind
 
     @staticmethod
-    def _make_schema(schema_table, schema):
+    def _make_schema(loader, schema):
         if isinstance(schema, native.ListSchema):
             node_id = bases.list_schema_id(schema)
         else:
             node_id = schema.getProto().getId()
-        if node_id in schema_table:
-            return schema_table[node_id]
+        if node_id in loader.schemas:
+            return loader.schemas[node_id]
         else:
-            schema = Schema(schema_table, schema)
+            schema = Schema(loader, schema)
             assert node_id == schema.id
-            schema_table[node_id] = schema
+            loader.schemas[node_id] = schema
             return schema
 
-    def __init__(self, schema_table, type_):
+    def __init__(self, loader, type_):
         self._type = type_
         self.kind = Type.Kind.from_type(self._type)
 
         if self.kind is Type.Kind.ENUM:
-            self.schema = self._make_schema(schema_table, self._type.asEnum())
+            self.schema = self._make_schema(loader, self._type.asEnum())
         elif self.kind is Type.Kind.INTERFACE:
-            self.schema = self._make_schema(
-                schema_table, self._type.asInterface())
+            self.schema = self._make_schema(loader, self._type.asInterface())
         elif self.kind is Type.Kind.LIST:
-            self.schema = self._make_schema(schema_table, self._type.asList())
+            self.schema = self._make_schema(loader, self._type.asList())
         elif self.kind is Type.Kind.STRUCT:
-            self.schema = self._make_schema(
-                schema_table, self._type.asStruct())
+            self.schema = self._make_schema(loader, self._type.asStruct())
         else:
             self.schema = None
 
