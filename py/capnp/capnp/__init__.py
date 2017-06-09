@@ -6,7 +6,6 @@ directly, which offers a 1:1 mapping to Cap'n Proto C++ API.
 This module provides three groups of functionalities:
 * Load and traverse schema objects.
 * Access Cap'n Proto data dynamically with reflection.
-* Generate Python class from schema.
 """
 
 __all__ = [
@@ -17,20 +16,12 @@ __all__ = [
 
     'MessageBuilder',
     'MessageReader',
-
-    'DynamicEnum',
-    'DynamicList',
-    'DynamicStruct',
 ]
 
 import logging
 
 from .dynamics import MessageBuilder
 from .dynamics import MessageReader
-
-from .dynamics import DynamicEnum
-from .dynamics import DynamicList
-from .dynamics import DynamicStruct
 
 from .schemas import Annotation
 from .schemas import Schema

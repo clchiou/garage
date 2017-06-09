@@ -178,13 +178,14 @@ class DynamicList(collections.Sequence):
             return DynamicList(self.schema, self._list.asReader())
 
         def __len__(self):
-            return len(self._list)
+            return self._list.size()
 
         def _ensure_index(self, index):
             if not isinstance(index, int):
                 raise TypeError('non-integer index: %s' % index)
-            if not 0 <= index < len(self._list):
-                raise IndexError('not 0 <= %d < %d' % (index, len(self._list)))
+            if not 0 <= index < self._list.size():
+                raise IndexError(
+                    'not 0 <= %d < %d' % (index, self._list.size()))
 
         def __getitem__(self, index):
             self._ensure_index(index)
@@ -233,12 +234,12 @@ class DynamicList(collections.Sequence):
                     self.schema.element_type,
                     self._list[i],
                 )
-                for i in range(len(self._list))
+                for i in range(self._list.size())
             )
         return self._values_cache
 
     def __len__(self):
-        return len(self._list)
+        return self._list.size()
 
     def __iter__(self):
         yield from self._values

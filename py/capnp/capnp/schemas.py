@@ -10,6 +10,7 @@ import enum
 import logging
 
 from . import bases
+from . import dynamics  # Cyclic dependency :(
 from . import io
 from . import native
 
@@ -25,12 +26,26 @@ class SchemaLoader:
     you want to generate Python classes from the schema file).
     """
 
+    class _StateUpdate:
+
+        def __init__(self):
+            self.files = OrderedDict()
+            self.schemas = OrderedDict()
+            self.declarations = []
+            self.node_ids = set()
+            self.schema_lookup_table = {}
+
     def __init__(self):
+
         self._loader = None
+
         self.files = OrderedDict()
         self.schemas = OrderedDict()
         self.declarations = []  # Top-level declarations.
         self._node_ids = set()
+        self._schema_lookup_table = {}
+
+        self._update = None
 
     def __enter__(self):
         assert self._loader is None
@@ -53,22 +68,54 @@ class SchemaLoader:
 
     def _load_schema(self, reader):
         assert self._loader is not None
+        assert self._update is None
+
         codegen_request = reader.getRoot()
+
         for node in codegen_request.getNodes():
             self._loader.load(node)
-        for requested_file in codegen_request.getRequestedFiles():
-            self._load(requested_file.getId(), 0)
+
+        # Implement transaction semantics.
+        self._update = self._StateUpdate()
+        try:
+
+            for requested_file in codegen_request.getRequestedFiles():
+                self._load(requested_file.getId(), 0)
+
+            # Create look-up entry for enum and struct.
+            for schema in self._update.schemas.values():
+                if schema.kind is Schema.Kind.STRUCT:
+                    # Skip it if it's a union field.
+                    if schema._proto._node.getStruct().getIsGroup():
+                        continue
+                elif schema.kind is Schema.Kind.ENUM:
+                    pass
+                else:
+                    continue
+                fqname = self._get_fqname(schema)
+                LOG.debug('create look-up entry: %s -> %r', fqname, schema)
+                self._schema_lookup_table[fqname] = schema
+
+            # Commit changes.
+            self.files.update(self._update.files)
+            self.schemas.update(self._update.schemas)
+            self.declarations.extend(self._update.declarations)
+            self._node_ids.update(self._update.node_ids)
+            self._schema_lookup_table.update(self._update.schema_lookup_table)
+
+        finally:
+            self._update = None
 
     def _load(self, node_id, depth):
         """Recursively traverse and load nodes."""
 
-        if node_id in self._node_ids:
+        if node_id in self._update.node_ids or node_id in self._node_ids:
             return
 
-        self._node_ids.add(node_id)
+        self._update.node_ids.add(node_id)
 
-        schema = self._loader.get(node_id)
-        node = schema.getProto()
+        raw_schema = self._loader.get(node_id)
+        node = raw_schema.getProto()
 
         if node.isAnnotation():
             pass  # We don't track annotation definitions, yet.
@@ -76,19 +123,71 @@ class SchemaLoader:
         elif node.isFile():
             file_node = FileNode(node)
             assert node_id == file_node.id
-            self.files[node_id] = file_node
+            assert not self._is_file_id(node_id)
+            self._update.files[node_id] = file_node
 
         else:
-            schema = Schema(self, schema)
-            assert node_id == schema.id
-            self.schemas[node_id] = schema
+            schema = self._get_or_add_schema(node_id, raw_schema)
             if depth == 1:  # Collect top-level declarations.
-                self.declarations.append(schema)
+                self._update.declarations.append(schema)
 
         for nested_node in node.getNestedNodes():
             self._load(nested_node.getId(), depth + 1)
         for annotation in node.getAnnotations():
             self._load(annotation.getId(), depth + 1)
+
+    def _is_file_id(self, node_id):
+        assert self._update is not None
+        return node_id in self._update.files or node_id in self.files
+
+    def _get_file(self, node_id):
+        assert self._update is not None
+        return self._update.files.get(node_id) or self.files.get(node_id)
+
+    def _get_schema(self, node_id):
+        assert self._update is not None
+        return self._update.schemas.get(node_id) or self.schemas.get(node_id)
+
+    def _get_or_add_schema(self, node_id, raw_schema):
+        assert self._update is not None
+        schema = self._update.schemas.get(node_id) or self.schemas.get(node_id)
+        if schema is not None:
+            return schema
+        schema = Schema(self, raw_schema)
+        assert node_id == schema.id
+        assert node_id not in self._update.schemas
+        self._update.schemas[node_id] = schema
+        return schema
+
+    def _get_fqname(self, schema):
+        assert schema.name is not None
+
+        parts = [schema.name]
+        while True:
+            next_schema = self._get_schema(schema._proto.scope_id)
+            if next_schema is None:
+                break
+            assert next_schema.name is not None
+            schema = next_schema
+            parts.append(schema.name)
+        qual_name = '.'.join(reversed(parts))
+
+        file_node = self._get_file(schema._proto.scope_id)
+        assert file_node is not None
+        module_name = None
+        for annotation in file_node.annotations:
+            if annotation.kind is Annotation.Kind.CXX_NAMESPACE:
+                module_name = annotation.value.replace('::', '.').strip('.')
+                break
+        else:
+            raise ValueError(
+                'file is not annotated with namespace: %s' % file_node)
+
+        return '%s:%s' % (module_name, qual_name)
+
+    def get_schema(self, fqname):
+        """Get schema by fully-qualified name."""
+        return self._schema_lookup_table.get(fqname)
 
 
 class Node:
@@ -187,9 +286,6 @@ class Schema:
 
     def __init__(self, loader, schema):
 
-        # Import it here to break cyclic import.
-        from . import dynamics
-
         if isinstance(schema, native.ListSchema):
             self._proto = None
             self.id = bases.list_schema_id(schema)
@@ -205,7 +301,8 @@ class Schema:
                     self.name = nn.getName()
                     break
             else:
-                # Union field does not have "name"
+                # This is probably a union field, which does not have a
+                # name in usual sense.
                 self.name = None
 
         if self._proto and self._proto.kind is Node.Kind.CONST:
@@ -338,12 +435,15 @@ class Field:
             slot = self._proto.getSlot()
             self.has_explicit_default = slot.getHadExplicitDefault()
             if self.has_explicit_default:
-                self.default = _schema_value_to_python(slot.getDefaultValue())
+                self.explicit_default = _schema_value_to_python(
+                    self.type.schema,
+                    slot.getDefaultValue(),
+                )
             else:
-                self.default = None
+                self.explicit_default = None
         else:
             self.has_explicit_default = False
-            self.default = None
+            self.explicit_default = None
 
     def __str__(self):
         return self.name
@@ -373,7 +473,10 @@ class Annotation:
         self._annotation = annotation
         self.id = self._annotation.getId()
         self.kind = Annotation.Kind.from_id(self.id)
-        self.value = _schema_value_to_python(self._annotation.getValue())
+        self.value = _schema_value_to_python(
+            None,  # TODO: Look up its type and schema.
+            self._annotation.getValue(),
+        )
 
     def __str__(self):
         if self.kind is Annotation.Kind.UNIDENTIFIED:
@@ -425,13 +528,7 @@ class Type:
             node_id = bases.list_schema_id(schema)
         else:
             node_id = schema.getProto().getId()
-        if node_id in loader.schemas:
-            return loader.schemas[node_id]
-        else:
-            schema = Schema(loader, schema)
-            assert node_id == schema.id
-            loader.schemas[node_id] = schema
-            return schema
+        return loader._get_or_add_schema(node_id, schema)
 
     def __init__(self, loader, type_):
         self._type = type_
@@ -452,7 +549,6 @@ class Type:
         if self.kind is Type.Kind.LIST:
             return 'List(%s)' % self.schema.element_type
         elif self.schema is not None:
-            # TODO: Use schema's name, not display name.
             return str(self.schema)
         else:
             return self.kind.name
@@ -581,7 +677,7 @@ _SCHEMA_VALUE_TABLE = (
 )
 
 
-def _schema_value_to_python(value, default=None):
+def _schema_value_to_python(schema, value, default=None):
     type_kind = python_type = izzer = hazzer = getter = None
     for type_kind, python_type, izzer, hazzer, getter in _SCHEMA_VALUE_TABLE:
         if izzer(value):
@@ -595,9 +691,25 @@ def _schema_value_to_python(value, default=None):
     python_value = getter(value)
 
     if type_kind is Type.Kind.LIST:
-        raise NotImplementedError  # TODO: Handle AnyPointer.
+        assert python_value.isList()
+        # TODO: Remove this when Annotation looks up schema.
+        assert schema is not None, 'cannot handle list annotation for now'
+        python_type = dynamics.DynamicList
+        python_value = dynamics.DynamicList(
+            schema,
+            python_value.getAsList(schema._schema),
+        )
+
     elif type_kind is Type.Kind.STRUCT:
-        raise NotImplementedError  # TODO: Handle AnyPointer.
+        assert python_value.isStruct()
+        # TODO: Remove this when Annotation looks up schema.
+        assert schema is not None, 'cannot handle struct annotation for now'
+        python_type = dynamics.DynamicStruct
+        python_value = dynamics.DynamicStruct(
+            schema,
+            python_value.getAsStruct(schema._schema),
+        )
+
     elif type_kind is Type.Kind.ANY_POINTER:
         raise NotImplementedError  # TODO: Handle AnyPointer.
 

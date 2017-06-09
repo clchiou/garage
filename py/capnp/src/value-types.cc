@@ -12,6 +12,7 @@
 #include <kj/common.h>
 
 #include <capnp/common.h>
+#include <capnp/any.h>
 #include <capnp/blob.h>
 #include <capnp/dynamic.h>
 #include <capnp/list.h>
@@ -231,6 +232,8 @@ using MakeCopyable = boost::python::class_<T, Bases, MakeCopyableHolder<T>>;
 // defineValueTypes
 //
 
+void defineAnyPointer(void);
+
 void defineDynamicEnum(void);
 void defineDynamicList(void);
 void defineDynamicStruct(void);
@@ -261,6 +264,10 @@ void defineValueTypes(void) {
   ValueType<capnp::MessageSize>("MessageSize", boost::python::no_init)
       .def_readonly("wordCount", &capnp::MessageSize::wordCount)
       .def_readonly("capCount", &capnp::MessageSize::capCount);
+
+  // capnp/any.h
+
+  defineAnyPointer();
 
   // capnp/blob.h
 
@@ -293,6 +300,31 @@ void defineValueTypes(void) {
 }
 
 //
+// capnp::AnyPointer
+//
+
+void defineAnyPointer(void) {
+  using capnp::AnyPointer;
+  boost::python::scope _ = boost::python::class_<AnyPointer>("AnyPointer", boost::python::no_init);
+
+  using Reader = AnyPointer::Reader;
+  ValueType<Reader>("Reader", boost::python::no_init)
+      .def("targetSize", &Reader::targetSize)
+      .def("isNull", &Reader::isNull)
+      .def("isStruct", &Reader::isStruct)
+      .def("isList", &Reader::isList)
+      .def("isCapability", &Reader::isCapability)
+#define MF(R, M, ARGS...) static_cast<capnp::ReaderFor<R> (Reader::*)(ARGS) const>(&Reader::M<R>)
+      .def("getAsText", MF(capnp::Text, getAs))
+      .def("getAsData", MF(capnp::Data, getAs))
+      .def("getAsList", MF(capnp::DynamicList, getAs, capnp::ListSchema))
+      .def("getAsStruct", MF(capnp::DynamicStruct, getAs, capnp::StructSchema));
+#undef MF
+
+  // TODO: Add AnyPointer::Builder.
+}
+
+//
 // capnp::DynamicEnum
 //
 
@@ -319,15 +351,15 @@ void defineDynamicList(void) {
   using Reader = DynamicList::Reader;
   ValueType<Reader>("Reader", boost::python::no_init)
       .def("getSchema", &Reader::getSchema)
-      .def("__len__", &Reader::size)
+      .def("size", &Reader::size)
       .def("__getitem__", Getitem<Reader, capnp::DynamicValue::Reader>::getitemConst);
 
   using Builder = DynamicList::Builder;
   MakeCopyable<Builder>("Builder", boost::python::no_init)
       .def("getSchema", &Builder::getSchema)
-      .def("__len__", &Builder::size)
+      .def("size", &Builder::size)
       .def("__getitem__", Getitem<Builder, capnp::DynamicValue::Builder>::getitem)
-      .def("__setitem__", &Builder::set)
+      .def("set", &Builder::set)
       .def("init", &Builder::init)
       // TODO: Test whether Boost.Python can handle std::initializer_list
       .def("copyFrom", &Builder::copyFrom)
@@ -421,7 +453,7 @@ void defineDynamicValue(void) {
       .DEF_STATICMETHOD("fromList", From<const capnp::DynamicList::Reader&>::func)
       .DEF_STATICMETHOD("fromEnum", From<capnp::DynamicEnum>::func)
       .DEF_STATICMETHOD("fromStruct", From<const capnp::DynamicStruct::Reader&>::func)
-      // TODO: Add fromAnyPointer.
+      .DEF_STATICMETHOD("fromAnyPointer", From<const capnp::AnyPointer::Reader&>::func)
       .def("asVoid", &Reader::as<capnp::Void>)
       .def("asBool", &Reader::as<bool>)
       .def("asInt", &Reader::as<int64_t>)

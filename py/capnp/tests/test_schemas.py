@@ -33,7 +33,7 @@ class SchemasTest(Fixture):
                 [
                     (
                         capnp.Annotation.Kind.CXX_NAMESPACE,
-                        'unittest',
+                        'unittest::test_1',
                     ),
                 ],
                 [
@@ -52,9 +52,27 @@ class SchemasTest(Fixture):
                 [decl.id for decl in loader.declarations],
             )
 
+            # loader._schema_lookup_table
+
+            # It should not include union and group field.
+            self.assertEqual(
+                {
+                    'unittest.test_1:SomeEnum',
+                    'unittest.test_1:SomeStruct',
+                    'unittest.test_1:SomeStruct.EmbeddedStruct1',
+                    'unittest.test_1:SomeStruct.EmbeddedStruct2',
+                    'unittest.test_1:SomeStruct.EmbeddedStruct3',
+                },
+                set(loader._schema_lookup_table),
+            )
+
             # SomeStruct
 
             struct_schema = loader.declarations[0]
+            self.assertIs(
+                struct_schema,
+                loader.get_schema('unittest.test_1:SomeStruct'),
+            )
             self.assertEqual('SomeStruct', struct_schema.name)
             self.assertIs(struct_schema.kind, capnp.Schema.Kind.STRUCT)
 
@@ -76,72 +94,34 @@ class SchemasTest(Fixture):
 
             self.assertEqual(
                 [
-                    (
-                        'b', 0, capnp.Type.Kind.BOOL, (),
-                        True, True,
-                    ),
+                    ('b', 0, capnp.Type.Kind.BOOL, (), True),
 
-                    (
-                        'i8', 1, capnp.Type.Kind.INT8, (),
-                        True, 1,
-                    ),
-                    (
-                        'i16', 2, capnp.Type.Kind.INT16, (),
-                        True, 2,
-                    ),
-                    (
-                        'i32', 3, capnp.Type.Kind.INT32, (),
-                        True, 3,
-                    ),
-                    (
-                        'i64', 4, capnp.Type.Kind.INT64, (),
-                        True, 4,
-                    ),
+                    ('i8', 1, capnp.Type.Kind.INT8, (), True),
+                    ('i16', 2, capnp.Type.Kind.INT16, (), True),
+                    ('i32', 3, capnp.Type.Kind.INT32, (), True),
+                    ('i64', 4, capnp.Type.Kind.INT64, (), True),
 
-                    (
-                        'u8', 5, capnp.Type.Kind.UINT8, (),
-                        False, None,
-                    ),
-                    (
-                        'u16', 6, capnp.Type.Kind.UINT16, (),
-                        False, None,
-                    ),
-                    (
-                        'u32', 7, capnp.Type.Kind.UINT32, (),
-                        False, None,
-                    ),
-                    (
-                        'u64', 8, capnp.Type.Kind.UINT64, (),
-                        False, None,
-                    ),
+                    ('u8', 5, capnp.Type.Kind.UINT8, (), False),
+                    ('u16', 6, capnp.Type.Kind.UINT16, (), False),
+                    ('u32', 7, capnp.Type.Kind.UINT32, (), False),
+                    ('u64', 8, capnp.Type.Kind.UINT64, (), False),
 
-                    (
-                        'f32', 9, capnp.Type.Kind.FLOAT32, (),
-                        False, None,
-                    ),
-                    (
-                        'f64', 10, capnp.Type.Kind.FLOAT64, (),
-                        False, None,
-                    ),
+                    ('f32', 9, capnp.Type.Kind.FLOAT32, (), False),
+                    ('f64', 10, capnp.Type.Kind.FLOAT64, (), False),
 
-                    (
-                        't', 11, capnp.Type.Kind.TEXT, (),
-                        True, 'string with "quotes"',
-                    ),
-                    (
-                        'd', 12, capnp.Type.Kind.DATA, (),
-                        True, b'\xab\xcd\xef'
-                    ),
+                    ('t', 11, capnp.Type.Kind.TEXT, (), True),
+                    ('d', 12, capnp.Type.Kind.DATA, (), True),
 
-                    (
-                        'e', 13, capnp.Type.Kind.ENUM, (),
-                        True, 1,
-                    ),
+                    ('e', 13, capnp.Type.Kind.ENUM, (), True),
 
-                    (
-                        'l', 14, capnp.Type.Kind.LIST, (),
-                        False, None,
-                    ),
+                    ('l', 14, capnp.Type.Kind.LIST, (), False),
+
+                    ('u', 15, capnp.Type.Kind.STRUCT, (), False),
+
+                    ('g', 16, capnp.Type.Kind.STRUCT, (), False),
+
+                    ('s1', 17, capnp.Type.Kind.STRUCT, (), True),
+                    ('ls1', 18, capnp.Type.Kind.LIST, (), True),
                 ],
                 [
                     (
@@ -150,15 +130,41 @@ class SchemasTest(Fixture):
                         field.type.kind,
                         field.annotations,
                         field.has_explicit_default,
-                        field.default,
                     )
                     for field in struct_schema.fields
                 ],
             )
 
+            self.assertIs(True, struct_schema.fields[0].explicit_default)
+            self.assertEqual(1, struct_schema.fields[1].explicit_default)
+            self.assertEqual(2, struct_schema.fields[2].explicit_default)
+            self.assertEqual(3, struct_schema.fields[3].explicit_default)
+            self.assertEqual(4, struct_schema.fields[4].explicit_default)
+            self.assertEqual(
+                'string with "quotes"',
+                struct_schema.fields[11].explicit_default,
+            )
+            self.assertEqual(
+                b'\xab\xcd\xef',
+                struct_schema.fields[12].explicit_default,
+            )
+            self.assertEqual(1, struct_schema.fields[13].explicit_default)
+            self.assertEqual(
+                '(s2 = (s3 = (i32 = 999)))',
+                str(struct_schema.fields[17].explicit_default),
+            )
+            self.assertEqual(
+                '[(ls2 = [(ls3 = [(i32 = 999)])])]',
+                str(struct_schema.fields[18].explicit_default),
+            )
+
             # SomeEnum
 
             enum_schema = loader.declarations[1]
+            self.assertIs(
+                enum_schema,
+                loader.get_schema('unittest.test_1:SomeEnum'),
+            )
             self.assertEqual('SomeEnum', enum_schema.name)
             self.assertIs(enum_schema.kind, capnp.Schema.Kind.ENUM)
 

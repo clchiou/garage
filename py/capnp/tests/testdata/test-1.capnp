@@ -1,7 +1,7 @@
 @0xcd9f4c2c27cfeec6;
 
 using Cxx = import "/capnp/c++.capnp";
-$Cxx.namespace("unittest");
+$Cxx.namespace("unittest::test_1");
 
 struct SomeStruct $Cxx.name("AliasForSomeStruct") {
 
@@ -27,7 +27,32 @@ struct SomeStruct $Cxx.name("AliasForSomeStruct") {
 
   l @14 :List(List(List(SomeEnum)));
 
-  # TODO: Test nested struct.
+  u :union {
+    v @15 :Void;
+    b @16 :Bool;
+  }
+
+  g :group {
+    i8 @17 :Int8;
+    f32 @18 :Float32;
+  }
+
+  s1 @19 :EmbeddedStruct1 = (s2 = (s3 = (i32 = 999)));
+  ls1 @20 :List(EmbeddedStruct1) = [(ls2 = [(ls3 = [(i32 = 999)])])];
+
+  struct EmbeddedStruct1 {
+    s2 @0 :EmbeddedStruct2;
+    ls2 @1 :List(EmbeddedStruct2);
+  }
+
+  struct EmbeddedStruct2 {
+    s3 @0 :EmbeddedStruct3;
+    ls3 @1 :List(EmbeddedStruct3);
+  }
+
+  struct EmbeddedStruct3 {
+    i32 @0 :Int32;
+  }
 }
 
 enum SomeEnum {
