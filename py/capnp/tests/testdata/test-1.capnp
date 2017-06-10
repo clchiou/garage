@@ -58,6 +58,7 @@ struct SomeStruct $Cxx.name("AliasForSomeStruct") {
 enum SomeEnum {
   e0 @0;
   e1 @1;
+  someCamelCaseWord @2;
 }
 
 # TODO: Test const.

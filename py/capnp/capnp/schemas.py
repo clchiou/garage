@@ -390,6 +390,28 @@ class Schema:
         assert self.kind in (Schema.Kind.ENUM, Schema.Kind.STRUCT)
         return self._dict[name]
 
+    def generate_enum(self, name_fixes=None):
+        """Generate enum.Enum class from this EnumSchema.
+
+        The camelCase member name will be replaced with SNAKE_CASE one.
+
+        If the SNAKE_CASE transformation is messed up, you may override
+        it with the name_fixes dict.
+        """
+        assert self.kind is Schema.Kind.ENUM
+        assert self.name is not None
+        name_fixes = name_fixes or {}
+        return enum.Enum(self.name, [
+            (
+                name_fixes.get(
+                    enumerant.name,
+                    bases.camel_to_upper_snake(enumerant.name),
+                ),
+                enumerant.ordinal,
+            )
+            for enumerant in self.enumerants
+        ])
+
     def get_enumerant_from_ordinal(self, ordinal):
         assert self.kind is Schema.Kind.ENUM
         return self._reverse_lookup.get(ordinal)

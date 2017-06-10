@@ -14,6 +14,9 @@ class DynamicsTest(Fixture):
             struct_schema = loader.get_schema('unittest.test_1:SomeStruct')
             self.assertEqual('SomeStruct', struct_schema.name)
 
+            enum_schema = loader.get_schema('unittest.test_1:SomeEnum')
+            enum_class = enum_schema.generate_enum()
+
             with capnp.MessageBuilder() as message:
 
                 struct = message.init_root(struct_schema)
@@ -23,7 +26,7 @@ class DynamicsTest(Fixture):
                 struct['f32'] = 3.14
                 struct['t'] = 'hello "" world'
                 struct['d'] = b'hello world'
-                struct['e'] = 1
+                struct['e'] = enum_class.E1
                 struct['u']['v'] = None
                 struct['g']['i8'] = 1
                 struct['g']['f32'] = 0.1

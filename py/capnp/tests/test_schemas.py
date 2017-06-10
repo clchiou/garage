@@ -172,6 +172,7 @@ class SchemasTest(Fixture):
                 [
                     ('e0', 0),
                     ('e1', 1),
+                    ('someCamelCaseWord', 2),
                 ],
                 [
                     (e.name, e.ordinal)
@@ -180,6 +181,20 @@ class SchemasTest(Fixture):
             )
 
             self.assertNotIn('e2', enum_schema)
+
+            enum_class = enum_schema.generate_enum()
+            self.assertEqual('SomeEnum', enum_class.__name__)
+            self.assertEqual(
+                [
+                    ('E0', 0),
+                    ('E1', 1),
+                    ('SOME_CAMEL_CASE_WORD', 2),
+                ],
+                [
+                    (name, member.value)
+                    for name, member in enum_class.__members__.items()
+                ],
+            )
 
 
 if __name__ == '__main__':
