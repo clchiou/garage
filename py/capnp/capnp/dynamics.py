@@ -395,17 +395,10 @@ class DynamicStruct(collections.Mapping):
     __repr__ = bases.repr_object
 
 
-_SCALAR_SCHEMA_KINDS = frozenset((
-    Schema.Kind.PRIMITIVE,
-    Schema.Kind.BLOB,
-    Schema.Kind.ENUM,
-))
-
-
 def _set_scalar(builder, key, type_, python_value):
     if type_.kind is Type.Kind.VOID:
         assert python_value is None
-    elif type_.kind.schema_kind not in _SCALAR_SCHEMA_KINDS:
+    elif not type_.kind.is_scalar:
         raise TypeError('not scalar type: %s' % type_)
     elif type_.kind is Type.Kind.ENUM:
         python_value = DynamicEnum.from_member(type_.schema, python_value)

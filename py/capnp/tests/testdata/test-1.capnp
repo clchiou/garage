@@ -3,7 +3,11 @@
 using Cxx = import "/capnp/c++.capnp";
 $Cxx.namespace("unittest::test_1");
 
+const int8Const :Int8 = 13;
+
 struct SomeStruct $Cxx.name("AliasForSomeStruct") {
+
+  const someStruct :SomeStruct = ();
 
   b @0 :Bool = true;
 
@@ -60,5 +64,3 @@ enum SomeEnum {
   e1 @1;
   someCamelCaseWord @2;
 }
-
-# TODO: Test const.

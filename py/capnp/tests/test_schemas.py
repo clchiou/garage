@@ -57,18 +57,20 @@ class SchemasTest(Fixture):
             # It should not include union and group field.
             self.assertEqual(
                 {
+                    'unittest.test_1:int8Const',
                     'unittest.test_1:SomeEnum',
                     'unittest.test_1:SomeStruct',
                     'unittest.test_1:SomeStruct.EmbeddedStruct1',
                     'unittest.test_1:SomeStruct.EmbeddedStruct2',
                     'unittest.test_1:SomeStruct.EmbeddedStruct3',
+                    'unittest.test_1:SomeStruct.someStruct',
                 },
                 set(loader._schema_lookup_table),
             )
 
             # SomeStruct
 
-            struct_schema = loader.declarations[0]
+            struct_schema = loader.declarations[1]
             self.assertIs(
                 struct_schema,
                 loader.get_schema('unittest.test_1:SomeStruct'),
@@ -160,7 +162,7 @@ class SchemasTest(Fixture):
 
             # SomeEnum
 
-            enum_schema = loader.declarations[1]
+            enum_schema = loader.declarations[2]
             self.assertIs(
                 enum_schema,
                 loader.get_schema('unittest.test_1:SomeEnum'),
@@ -195,6 +197,20 @@ class SchemasTest(Fixture):
                     for name, member in enum_class.__members__.items()
                 ],
             )
+
+            # Const values
+
+            fqname = 'unittest.test_1:int8Const'
+            self.assertEqual(13, loader.get_schema(fqname).value)
+
+            with capnp.MessageBuilder() as message:
+                # Construct a default message.
+                struct = message.init_root(struct_schema)
+                fqname = 'unittest.test_1:SomeStruct.someStruct'
+                self.assertEqual(
+                    str(struct),
+                    str(loader.get_schema(fqname).value),
+                )
 
 
 if __name__ == '__main__':

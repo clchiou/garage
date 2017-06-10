@@ -82,13 +82,13 @@ class SchemaLoader:
             for requested_file in codegen_request.getRequestedFiles():
                 self._load(requested_file.getId(), 0)
 
-            # Create look-up entry for enum and struct.
+            # Create look-up entry for const, enum, and struct.
             for schema in self._update.schemas.values():
                 if schema.kind is Schema.Kind.STRUCT:
                     # Skip it if it's a union field.
                     if schema._proto._node.getStruct().getIsGroup():
                         continue
-                elif schema.kind is Schema.Kind.ENUM:
+                elif schema.kind in (Schema.Kind.CONST, Schema.Kind.ENUM):
                     pass
                 else:
                     continue
@@ -219,9 +219,9 @@ class Node:
 
     class NestedNode:
 
-        def __init__(self, name, id):
+        def __init__(self, name, id_):
             self.name = name
-            self.id = id
+            self.id = id_
 
     def __init__(self, node):
         assert not node.getIsGeneric(), 'do not support generics yet'
@@ -262,27 +262,22 @@ class Schema:
 
         @classmethod
         def from_node(cls, node):
-            if node.kind is Node.Kind.STRUCT:
-                return cls.STRUCT
+            if node.kind is Node.Kind.CONST:
+                return cls.CONST
             elif node.kind is Node.Kind.ENUM:
                 return cls.ENUM
             elif node.kind is Node.Kind.INTERFACE:
                 return cls.INTERFACE
-            elif node.kind is Node.Kind.CONST:
-                type_kind = Type.Kind.from_type(node.asConst().getType())
-                return type_kind.schema_kind
+            elif node.kind is Node.Kind.STRUCT:
+                return cls.STRUCT
             else:
                 raise AssertionError('unrecognizable schema type: %s' % node)
 
-        PRIMITIVE = enum.auto()
-        BLOB = enum.auto()
         ENUM = enum.auto()
-        STRUCT = enum.auto()
-        UNION = enum.auto()
+        CONST = enum.auto()
         INTERFACE = enum.auto()
         LIST = enum.auto()
-
-        OTHER = enum.auto()
+        STRUCT = enum.auto()
 
     def __init__(self, loader, schema):
 
@@ -305,7 +300,7 @@ class Schema:
                 # name in usual sense.
                 self.name = None
 
-        if self._proto and self._proto.kind is Node.Kind.CONST:
+        if self.kind is Schema.Kind.CONST:
             LOG.debug('construct const schema: %s', self._proto)
             self._schema = schema.asConst()
             self.type = Type(loader, self._schema.getType())
@@ -520,29 +515,37 @@ class Type:
                     return kind
             raise AssertionError('undefined type kind: %s' % type_)
 
-        VOID = (native.Type.isVoid, Schema.Kind.OTHER)
-        BOOL = (native.Type.isBool, Schema.Kind.PRIMITIVE)
-        INT8 = (native.Type.isInt8, Schema.Kind.PRIMITIVE)
-        INT16 = (native.Type.isInt16, Schema.Kind.PRIMITIVE)
-        INT32 = (native.Type.isInt32, Schema.Kind.PRIMITIVE)
-        INT64 = (native.Type.isInt64, Schema.Kind.PRIMITIVE)
-        UINT8 = (native.Type.isUInt8, Schema.Kind.PRIMITIVE)
-        UINT16 = (native.Type.isUInt16, Schema.Kind.PRIMITIVE)
-        UINT32 = (native.Type.isUInt32, Schema.Kind.PRIMITIVE)
-        UINT64 = (native.Type.isUInt64, Schema.Kind.PRIMITIVE)
-        FLOAT32 = (native.Type.isFloat32, Schema.Kind.PRIMITIVE)
-        FLOAT64 = (native.Type.isFloat64, Schema.Kind.PRIMITIVE)
-        TEXT = (native.Type.isText, Schema.Kind.BLOB)
-        DATA = (native.Type.isData, Schema.Kind.BLOB)
-        LIST = (native.Type.isList, Schema.Kind.LIST)
-        ENUM = (native.Type.isEnum, Schema.Kind.ENUM)
-        STRUCT = (native.Type.isStruct, Schema.Kind.STRUCT)
-        INTERFACE = (native.Type.isInterface, Schema.Kind.INTERFACE)
-        ANY_POINTER = (native.Type.isAnyPointer, Schema.Kind.OTHER)
+        # izzer, is_scalar
+        VOID = (native.Type.isVoid, False)
 
-        def __init__(self, izzer, schema_kind):
+        BOOL = (native.Type.isBool, True)
+        INT8 = (native.Type.isInt8, True)
+        INT16 = (native.Type.isInt16, True)
+        INT32 = (native.Type.isInt32, True)
+        INT64 = (native.Type.isInt64, True)
+        UINT8 = (native.Type.isUInt8, True)
+        UINT16 = (native.Type.isUInt16, True)
+        UINT32 = (native.Type.isUInt32, True)
+        UINT64 = (native.Type.isUInt64, True)
+        FLOAT32 = (native.Type.isFloat32, True)
+        FLOAT64 = (native.Type.isFloat64, True)
+
+        TEXT = (native.Type.isText, True)
+        DATA = (native.Type.isData, True)
+
+        LIST = (native.Type.isList, False)
+
+        ENUM = (native.Type.isEnum, True)
+
+        STRUCT = (native.Type.isStruct, False)
+
+        INTERFACE = (native.Type.isInterface, False)
+
+        ANY_POINTER = (native.Type.isAnyPointer, False)
+
+        def __init__(self, izzer, is_scalar):
             self.izzer = izzer
-            self.schema_kind = schema_kind
+            self.is_scalar = is_scalar
 
     @staticmethod
     def _make_schema(loader, schema):
