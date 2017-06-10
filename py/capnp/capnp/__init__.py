@@ -9,7 +9,7 @@ This module provides three groups of functionalities:
 """
 
 __all__ = [
-    'Annotation',
+    'AnnotationDef',
     'Schema',
     'SchemaLoader',
     'Type',
@@ -23,7 +23,7 @@ import logging
 from .dynamics import MessageBuilder
 from .dynamics import MessageReader
 
-from .schemas import Annotation
+from .schemas import AnnotationDef
 from .schemas import Schema
 from .schemas import SchemaLoader
 from .schemas import Type

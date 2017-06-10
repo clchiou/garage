@@ -3,11 +3,17 @@
 using Cxx = import "/capnp/c++.capnp";
 $Cxx.namespace("unittest::test_1");
 
+annotation structAnnotation(field): StructAnnotation;
+
+struct StructAnnotation {
+  x @0 :Int32 = 7;
+}
+
 const int8Const :Int8 = 13;
 
 struct SomeStruct $Cxx.name("AliasForSomeStruct") {
 
-  const someStruct :SomeStruct = ();
+  const someStructConst :SomeStruct = ();
 
   b @0 :Bool = true;
 
@@ -16,7 +22,7 @@ struct SomeStruct $Cxx.name("AliasForSomeStruct") {
   i32 @3 :Int32 = 3;
   i64 @4 :Int64 = 4;
 
-  u8 @5 :UInt8;
+  u8 @5 :UInt8 $structAnnotation(());
   u16 @6 :UInt16;
   u32 @7 :UInt32;
   u64 @8 :UInt64;

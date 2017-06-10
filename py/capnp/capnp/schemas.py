@@ -1,5 +1,5 @@
 __all__ = [
-    'Annotation',
+    'AnnotationDef',
     'Schema',
     'SchemaLoader',
     'Type',
@@ -22,28 +22,41 @@ class SchemaLoader:
     """Load Cap'n Proto schema.
 
     The loaded schemas are stored in `schemas`.  Also, top-level
-    declarations are referenced from `declarations` (this is useful when
+    definitions are referenced from `definitions` (this is useful when
     you want to generate Python classes from the schema file).
     """
 
     class _StateUpdate:
 
         def __init__(self):
+
             self.files = OrderedDict()
+
             self.schemas = OrderedDict()
-            self.declarations = []
-            self.node_ids = set()
+            self.definitions = []
             self.schema_lookup_table = {}
+
+            self.annotations = OrderedDict()
+
+            self.node_ids = set()
 
     def __init__(self):
 
         self._loader = None
 
         self.files = OrderedDict()
+
+        # All schema definitions.
         self.schemas = OrderedDict()
-        self.declarations = []  # Top-level declarations.
-        self._node_ids = set()
+        # Top-level schemas.
+        self.definitions = []
+        # Look up schema by fully-qualified name.
         self._schema_lookup_table = {}
+
+        # Annotation definitions.
+        self.annotations = OrderedDict()
+
+        self._node_ids = set()
 
         self._update = None
 
@@ -99,9 +112,10 @@ class SchemaLoader:
             # Commit changes.
             self.files.update(self._update.files)
             self.schemas.update(self._update.schemas)
-            self.declarations.extend(self._update.declarations)
-            self._node_ids.update(self._update.node_ids)
+            self.definitions.extend(self._update.definitions)
             self._schema_lookup_table.update(self._update.schema_lookup_table)
+            self.annotations.update(self._update.annotations)
+            self._node_ids.update(self._update.node_ids)
 
         finally:
             self._update = None
@@ -118,18 +132,18 @@ class SchemaLoader:
         node = raw_schema.getProto()
 
         if node.isAnnotation():
-            pass  # We don't track annotation definitions, yet.
+            self._get_or_add_annotation_def(node_id)
 
         elif node.isFile():
-            file_node = FileNode(node)
+            file_node = FileNode(self, node)
             assert node_id == file_node.id
             assert not self._is_file_id(node_id)
             self._update.files[node_id] = file_node
 
         else:
             schema = self._get_or_add_schema(node_id, raw_schema)
-            if depth == 1:  # Collect top-level declarations.
-                self._update.declarations.append(schema)
+            if depth == 1:  # Collect top-level definitions.
+                self._update.definitions.append(schema)
 
         for nested_node in node.getNestedNodes():
             self._load(nested_node.getId(), depth + 1)
@@ -142,21 +156,42 @@ class SchemaLoader:
 
     def _get_file(self, node_id):
         assert self._update is not None
-        return self._update.files.get(node_id) or self.files.get(node_id)
+        return bases.dicts_get((self._update.files, self.files), node_id)
+
+    def _get_or_add_annotation_def(self, node_id):
+        assert self._update is not None
+
+        annotation_def = bases.dicts_get(
+            (self._update.annotations, self.annotations),
+            node_id
+        )
+        if annotation_def is not None:
+            return annotation_def
+
+        self._update.annotations[node_id] = annotation_def = AnnotationDef(
+            self,
+            self._loader.get(node_id).getProto(),
+        )
+
+        return annotation_def
 
     def _get_schema(self, node_id):
         assert self._update is not None
-        return self._update.schemas.get(node_id) or self.schemas.get(node_id)
+        return bases.dicts_get((self._update.schemas, self.schemas), node_id)
 
     def _get_or_add_schema(self, node_id, raw_schema):
         assert self._update is not None
-        schema = self._update.schemas.get(node_id) or self.schemas.get(node_id)
+
+        schema = bases.dicts_get((self._update.schemas, self.schemas), node_id)
         if schema is not None:
             return schema
+
         schema = Schema(self, raw_schema)
         assert node_id == schema.id
         assert node_id not in self._update.schemas
+        LOG.debug('add schema: %s -> %s', node_id, schema)
         self._update.schemas[node_id] = schema
+
         return schema
 
     def _get_fqname(self, schema):
@@ -176,7 +211,8 @@ class SchemaLoader:
         assert file_node is not None
         module_name = None
         for annotation in file_node.annotations:
-            if annotation.kind is Annotation.Kind.CXX_NAMESPACE:
+            known = annotation.node.known
+            if known is AnnotationDef.Known.CXX_NAMESPACE:
                 module_name = annotation.value.replace('::', '.').strip('.')
                 break
         else:
@@ -223,7 +259,7 @@ class Node:
             self.name = name
             self.id = id_
 
-    def __init__(self, node):
+    def __init__(self, loader, node):
         assert not node.getIsGeneric(), 'do not support generics yet'
         self._node = node
         self.id = self._node.getId()
@@ -234,7 +270,10 @@ class Node:
             Node.NestedNode(nested_node.getName(), nested_node.getId())
             for nested_node in self._node.getNestedNodes()
         )
-        self.annotations = tuple(map(Annotation, self._node.getAnnotations()))
+        self.annotations = tuple(
+            Annotation(loader, annotation)
+            for annotation in self._node.getAnnotations()
+        )
 
     def __str__(self):
         return self.name
@@ -244,9 +283,41 @@ class Node:
 
 class FileNode(Node):
 
-    def __init__(self, node):
+    def __init__(self, loader, node):
         assert node.isFile()
-        super().__init__(node)
+        super().__init__(loader, node)
+        LOG.debug('construct file node: %s', self.name)
+
+
+class AnnotationDef(Node):
+    """Represent a definition of annotation (not an instance)."""
+
+    class Known(enum.Enum):
+        """Enumeration of some well-known / built-in annotations."""
+
+        @classmethod
+        def from_id(cls, node_id):
+            for known in cls:
+                if known.value == node_id:
+                    return known
+            return None
+
+        # Annotation node id from capnp/c++.capnp.
+        CXX_NAMESPACE = 0xb9c6f99ebf805f2c
+        CXX_NAME = 0xf264a779fef191ce
+
+    def __init__(self, loader, node):
+        assert node.isAnnotation()
+        super().__init__(loader, node)
+        self.type = Type(
+            loader,
+            _schema_type_to_type(
+                loader,
+                self._node.getAnnotation().getType(),
+            ),
+        )
+        self.known = AnnotationDef.Known.from_id(self.id)
+        LOG.debug('construct annotation node: %s', self.name)
 
 
 class Schema:
@@ -287,7 +358,7 @@ class Schema:
             self.kind = Schema.Kind.LIST
             self.name = None
         else:
-            self._proto = Node(schema.getProto())
+            self._proto = Node(loader, schema.getProto())
             self.id = self._proto.id
             self.kind = Schema.Kind.from_node(self._proto)
             node = loader._loader.get(self._proto.scope_id).getProto()
@@ -332,7 +403,7 @@ class Schema:
             assert isinstance(schema, native.ListSchema)
             self._schema = schema
             self.element_type = Type(loader, self._schema.getElementType())
-            LOG.debug('construct schema for list of %s', self.element_type)
+            LOG.debug('construct list schema: List(%s)', self.element_type)
 
         elif self.kind is Schema.Kind.STRUCT:
             LOG.debug('construct struct schema: %s', self._proto)
@@ -446,7 +517,10 @@ class Field:
         self.name = self._proto.getName()
         self.index = self._field.getIndex()
         self.type = Type(loader, self._field.getType())
-        self.annotations = tuple(map(Annotation, self._proto.getAnnotations()))
+        self.annotations = tuple(
+            Annotation(loader, annotation)
+            for annotation in self._proto.getAnnotations()
+        )
 
         if self._proto.isSlot():
             slot = self._proto.getSlot()
@@ -469,37 +543,23 @@ class Field:
 
 
 class Annotation:
+    """Represent an instance of annotation (not a definition)."""
 
-    class Kind(enum.Enum):
-        """Enumeration of some well-known / built-in annotations."""
-
-        @classmethod
-        def from_id(cls, node_id):
-            for kind in cls:
-                if kind.value == node_id:
-                    return kind
-            return cls.UNIDENTIFIED
-
-        UNIDENTIFIED = -1
-
-        # Annotation node id from capnp/c++.capnp.
-        CXX_NAMESPACE = 0xb9c6f99ebf805f2c
-        CXX_NAME = 0xf264a779fef191ce
-
-    def __init__(self, annotation):
+    def __init__(self, loader, annotation):
         self._annotation = annotation
         self.id = self._annotation.getId()
-        self.kind = Annotation.Kind.from_id(self.id)
+        self.node = loader._get_or_add_annotation_def(self.id)
         self.value = _schema_value_to_python(
-            None,  # TODO: Look up its type and schema.
+            self.node.type.schema,
             self._annotation.getValue(),
         )
 
     def __str__(self):
-        if self.kind is Annotation.Kind.UNIDENTIFIED:
-            return '$%s(%s)' % (self.id, bases.str_value(self.value))
+        if self.node.known:
+            name = self.node.known.name
         else:
-            return '$%s(%s)' % (self.kind.name, bases.str_value(self.value))
+            name = self.node.name
+        return '$%s(%s)' % (name, bases.str_value(self.value))
 
     __repr__ = bases.repr_object
 
@@ -579,6 +639,44 @@ class Type:
             return self.kind.name
 
     __repr__ = bases.repr_object
+
+
+_SCHEMA_TYPE_PRIMITIVES = (
+    native.schema.Type.isVoid,
+    native.schema.Type.isBool,
+    native.schema.Type.isInt8,
+    native.schema.Type.isInt16,
+    native.schema.Type.isInt32,
+    native.schema.Type.isInt64,
+    native.schema.Type.isUint8,
+    native.schema.Type.isUint16,
+    native.schema.Type.isUint32,
+    native.schema.Type.isUint64,
+    native.schema.Type.isFloat32,
+    native.schema.Type.isFloat64,
+    native.schema.Type.isText,
+    native.schema.Type.isData,
+)
+
+
+def _schema_type_to_type(loader, stype):
+    """Convert capnp::schema::Type to capnp::Type object."""
+    if stype.isEnum():
+        return native.Type.fromEnumSchema(
+            loader._loader
+            .get(stype.getEnum().getTypeId())
+            .asEnum()
+        )
+    elif stype.isStruct():
+        return native.Type.fromStructSchema(
+            loader._loader
+            .get(stype.getStruct().getTypeId())
+            .asStruct()
+        )
+    elif any(izzer(stype) for izzer in _SCHEMA_TYPE_PRIMITIVES):
+        return native.Type.fromPrimitiveWhich(stype.which())
+    else:
+        raise AssertionError('unsupported conversion from: %s' % stype)
 
 
 # type_kind, python_type, izzer, hazzer, getter
@@ -703,6 +801,10 @@ _SCHEMA_VALUE_TABLE = (
 
 
 def _schema_value_to_python(schema, value, default=None):
+    """Convert capnp::schema::Value to a Python object.
+
+    Don't confuse it with capnp::DynamicValue.
+    """
     type_kind = python_type = izzer = hazzer = getter = None
     for type_kind, python_type, izzer, hazzer, getter in _SCHEMA_VALUE_TABLE:
         if izzer(value):
@@ -717,8 +819,7 @@ def _schema_value_to_python(schema, value, default=None):
 
     if type_kind is Type.Kind.LIST:
         assert python_value.isList()
-        # TODO: Remove this when Annotation looks up schema.
-        assert schema is not None, 'cannot handle list annotation for now'
+        assert schema is not None
         python_type = dynamics.DynamicList
         python_value = dynamics.DynamicList(
             schema,
@@ -727,8 +828,7 @@ def _schema_value_to_python(schema, value, default=None):
 
     elif type_kind is Type.Kind.STRUCT:
         assert python_value.isStruct()
-        # TODO: Remove this when Annotation looks up schema.
-        assert schema is not None, 'cannot handle struct annotation for now'
+        assert schema is not None
         python_type = dynamics.DynamicStruct
         python_value = dynamics.DynamicStruct(
             schema,

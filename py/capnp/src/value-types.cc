@@ -407,7 +407,7 @@ void defineDynamicStruct(void) {
 // Use this template because Boost.Python doesn't seem to be able to
 // parse lambda function's signature (why?).
 template <typename T>
-struct From {
+struct ValueFrom {
   static capnp::DynamicValue::Reader func(T t) { return capnp::DynamicValue::Reader(t); }
 };
 
@@ -444,16 +444,16 @@ void defineDynamicValue(void) {
       //
       // And in C++ you cannot take address to a constructor :(
       //
-      .DEF_STATICMETHOD("fromVoid", From<capnp::Void>::func)
-      .DEF_STATICMETHOD("fromBool", From<bool>::func)
-      .DEF_STATICMETHOD("fromInt", From<int64_t>::func)
-      .DEF_STATICMETHOD("fromFloat", From<double>::func)
-      .DEF_STATICMETHOD("fromStr", From<kj::StringPtr>::func)
-      .DEF_STATICMETHOD("fromBytes", From<kj::ArrayPtr<const kj::byte>>::func)
-      .DEF_STATICMETHOD("fromList", From<const capnp::DynamicList::Reader&>::func)
-      .DEF_STATICMETHOD("fromEnum", From<capnp::DynamicEnum>::func)
-      .DEF_STATICMETHOD("fromStruct", From<const capnp::DynamicStruct::Reader&>::func)
-      .DEF_STATICMETHOD("fromAnyPointer", From<const capnp::AnyPointer::Reader&>::func)
+      .DEF_STATICMETHOD("fromVoid", ValueFrom<capnp::Void>::func)
+      .DEF_STATICMETHOD("fromBool", ValueFrom<bool>::func)
+      .DEF_STATICMETHOD("fromInt", ValueFrom<int64_t>::func)
+      .DEF_STATICMETHOD("fromFloat", ValueFrom<double>::func)
+      .DEF_STATICMETHOD("fromStr", ValueFrom<kj::StringPtr>::func)
+      .DEF_STATICMETHOD("fromBytes", ValueFrom<kj::ArrayPtr<const kj::byte>>::func)
+      .DEF_STATICMETHOD("fromList", ValueFrom<const capnp::DynamicList::Reader&>::func)
+      .DEF_STATICMETHOD("fromEnum", ValueFrom<capnp::DynamicEnum>::func)
+      .DEF_STATICMETHOD("fromStruct", ValueFrom<const capnp::DynamicStruct::Reader&>::func)
+      .DEF_STATICMETHOD("fromAnyPointer", ValueFrom<const capnp::AnyPointer::Reader&>::func)
       .def("asVoid", &Reader::as<capnp::Void>)
       .def("asBool", &Reader::as<bool>)
       .def("asInt", &Reader::as<int64_t>)
@@ -627,10 +627,21 @@ void defineConstSchema(void) {
 // capnp::Type
 //
 
+// Use this template because Boost.Python doesn't seem to be able to
+// parse lambda function's signature (why?).
+template <typename T>
+struct TypeFrom {
+  static capnp::Type func(T t) { return capnp::Type(t); }
+};
+
 void defineType(void) {
 #define DEF(mf) def(#mf, &Type::mf)
   using capnp::Type;
   ValueType<Type>("Type", boost::python::no_init)
+      .DEF_STATICMETHOD("fromPrimitiveWhich", TypeFrom<capnp::schema::Type::Which>::func)
+      .DEF_STATICMETHOD("fromEnumSchema", TypeFrom<capnp::EnumSchema>::func)
+      .DEF_STATICMETHOD("fromListSchema", TypeFrom<capnp::ListSchema>::func)
+      .DEF_STATICMETHOD("fromStructSchema", TypeFrom<capnp::StructSchema>::func)
       .DEF(which)
       .DEF(asStruct)
       .DEF(asEnum)

@@ -32,24 +32,28 @@ class SchemasTest(Fixture):
             self.assertEqual(
                 [
                     (
-                        capnp.Annotation.Kind.CXX_NAMESPACE,
+                        capnp.AnnotationDef.Known.CXX_NAMESPACE,
                         'unittest::test_1',
                     ),
                 ],
                 [
                     (
-                        annotation.kind,
+                        annotation.node.known,
                         annotation.value,
                     )
                     for annotation in file_node.annotations
                 ],
             )
 
-            # loader.declarations
+            # loader.definitions
 
             self.assertEqual(
-                [nn.id for nn in file_node.nested_nodes],
-                [decl.id for decl in loader.declarations],
+                # Exclude structAnnotation.
+                [(nn.id, nn.name) for nn in file_node.nested_nodes[1:]],
+                [
+                    (definition.id, definition.name)
+                    for definition in loader.definitions
+                ],
             )
 
             # loader._schema_lookup_table
@@ -63,14 +67,15 @@ class SchemasTest(Fixture):
                     'unittest.test_1:SomeStruct.EmbeddedStruct1',
                     'unittest.test_1:SomeStruct.EmbeddedStruct2',
                     'unittest.test_1:SomeStruct.EmbeddedStruct3',
-                    'unittest.test_1:SomeStruct.someStruct',
+                    'unittest.test_1:SomeStruct.someStructConst',
+                    'unittest.test_1:StructAnnotation',
                 },
                 set(loader._schema_lookup_table),
             )
 
             # SomeStruct
 
-            struct_schema = loader.declarations[1]
+            struct_schema = loader.definitions[2]
             self.assertIs(
                 struct_schema,
                 loader.get_schema('unittest.test_1:SomeStruct'),
@@ -81,13 +86,13 @@ class SchemasTest(Fixture):
             self.assertEqual(
                 [
                     (
-                        capnp.Annotation.Kind.CXX_NAME,
+                        capnp.AnnotationDef.Known.CXX_NAME,
                         'AliasForSomeStruct',
                     ),
                 ],
                 [
                     (
-                        annotation.kind,
+                        annotation.node.known,
                         annotation.value,
                     )
                     for annotation in struct_schema.annotations
@@ -96,47 +101,59 @@ class SchemasTest(Fixture):
 
             self.assertEqual(
                 [
-                    ('b', 0, capnp.Type.Kind.BOOL, (), True),
+                    ('b', 0, capnp.Type.Kind.BOOL, False, True),
 
-                    ('i8', 1, capnp.Type.Kind.INT8, (), True),
-                    ('i16', 2, capnp.Type.Kind.INT16, (), True),
-                    ('i32', 3, capnp.Type.Kind.INT32, (), True),
-                    ('i64', 4, capnp.Type.Kind.INT64, (), True),
+                    ('i8', 1, capnp.Type.Kind.INT8, False, True),
+                    ('i16', 2, capnp.Type.Kind.INT16, False, True),
+                    ('i32', 3, capnp.Type.Kind.INT32, False, True),
+                    ('i64', 4, capnp.Type.Kind.INT64, False, True),
 
-                    ('u8', 5, capnp.Type.Kind.UINT8, (), False),
-                    ('u16', 6, capnp.Type.Kind.UINT16, (), False),
-                    ('u32', 7, capnp.Type.Kind.UINT32, (), False),
-                    ('u64', 8, capnp.Type.Kind.UINT64, (), False),
+                    ('u8', 5, capnp.Type.Kind.UINT8, True, False),
+                    ('u16', 6, capnp.Type.Kind.UINT16, False, False),
+                    ('u32', 7, capnp.Type.Kind.UINT32, False, False),
+                    ('u64', 8, capnp.Type.Kind.UINT64, False, False),
 
-                    ('f32', 9, capnp.Type.Kind.FLOAT32, (), False),
-                    ('f64', 10, capnp.Type.Kind.FLOAT64, (), False),
+                    ('f32', 9, capnp.Type.Kind.FLOAT32, False, False),
+                    ('f64', 10, capnp.Type.Kind.FLOAT64, False, False),
 
-                    ('t', 11, capnp.Type.Kind.TEXT, (), True),
-                    ('d', 12, capnp.Type.Kind.DATA, (), True),
+                    ('t', 11, capnp.Type.Kind.TEXT, False, True),
+                    ('d', 12, capnp.Type.Kind.DATA, False, True),
 
-                    ('e', 13, capnp.Type.Kind.ENUM, (), True),
+                    ('e', 13, capnp.Type.Kind.ENUM, False, True),
 
-                    ('l', 14, capnp.Type.Kind.LIST, (), False),
+                    ('l', 14, capnp.Type.Kind.LIST, False, False),
 
-                    ('u', 15, capnp.Type.Kind.STRUCT, (), False),
+                    ('u', 15, capnp.Type.Kind.STRUCT, False, False),
 
-                    ('g', 16, capnp.Type.Kind.STRUCT, (), False),
+                    ('g', 16, capnp.Type.Kind.STRUCT, False, False),
 
-                    ('s1', 17, capnp.Type.Kind.STRUCT, (), True),
-                    ('ls1', 18, capnp.Type.Kind.LIST, (), True),
+                    ('s1', 17, capnp.Type.Kind.STRUCT, False, True),
+                    ('ls1', 18, capnp.Type.Kind.LIST, False, True),
                 ],
                 [
                     (
                         field.name,
                         field.index,
                         field.type.kind,
-                        field.annotations,
+                        bool(field.annotations),
                         field.has_explicit_default,
                     )
                     for field in struct_schema.fields
                 ],
             )
 
+            # Check annotation value
+            self.assertEqual(
+                [
+                    '(x = 7)',
+                ],
+                [
+                    str(annotation.value)
+                    for annotation in struct_schema.fields[5].annotations
+                ],
+            )
+
+            # Check explicit default value
             self.assertIs(True, struct_schema.fields[0].explicit_default)
             self.assertEqual(1, struct_schema.fields[1].explicit_default)
             self.assertEqual(2, struct_schema.fields[2].explicit_default)
@@ -162,7 +179,7 @@ class SchemasTest(Fixture):
 
             # SomeEnum
 
-            enum_schema = loader.declarations[2]
+            enum_schema = loader.definitions[3]
             self.assertIs(
                 enum_schema,
                 loader.get_schema('unittest.test_1:SomeEnum'),
@@ -206,7 +223,7 @@ class SchemasTest(Fixture):
             with capnp.MessageBuilder() as message:
                 # Construct a default message.
                 struct = message.init_root(struct_schema)
-                fqname = 'unittest.test_1:SomeStruct.someStruct'
+                fqname = 'unittest.test_1:SomeStruct.someStructConst'
                 self.assertEqual(
                     str(struct),
                     str(loader.get_schema(fqname).value),

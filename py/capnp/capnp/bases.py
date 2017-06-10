@@ -5,6 +5,8 @@ __all__ = [
     'list_schema_id',
 
     'camel_to_upper_snake',
+
+    'dicts_get',
 ]
 
 import re
@@ -62,3 +64,18 @@ def camel_to_upper_snake(camel):
     camel = CAMEL_PATTERN_1.sub(r'\1_\2', camel)
     camel = CAMEL_PATTERN_2.sub(r'\1_\2', camel)
     return camel.upper()
+
+
+def dicts_get(dicts, key, default=None):
+    """Do get() on multiple dict.
+
+    NOTE: While `d1.get(k) or d2.get(k)` looks cool, it is actually
+    incorrect because d1 might contain false value (like an empty tuple)
+    and you should return that instead of going on to d2.
+    """
+    for d in dicts:
+        try:
+            return d[key]
+        except KeyError:
+            pass
+    return default
