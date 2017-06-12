@@ -518,16 +518,24 @@ void defineInterfaceSchema(void);
 void defineConstSchema(void);
 
 void defineSchema(void) {
-  using capnp::Schema;
-  ValueType<Schema>("Schema", boost::python::no_init)
-      .def("getProto", &Schema::getProto)
-      .def("isBranded", &Schema::isBranded)
-      .def("getGeneric", &Schema::getGeneric)
-      .def("asStruct", &Schema::asStruct)
-      .def("asEnum", &Schema::asEnum)
-      .def("asInterface", &Schema::asInterface)
-      .def("asConst", &Schema::asConst)
-      .def("getShortDisplayName", &Schema::getShortDisplayName);
+  {
+    using capnp::Schema;
+    boost::python::scope _ = ValueType<Schema>("Schema", boost::python::no_init)
+                                 .def("getProto", &Schema::getProto)
+                                 .def("isBranded", &Schema::isBranded)
+                                 .def("getGeneric", &Schema::getGeneric)
+                                 .def("getBrandArgumentsAtScope", &Schema::getBrandArgumentsAtScope)
+                                 .def("asStruct", &Schema::asStruct)
+                                 .def("asEnum", &Schema::asEnum)
+                                 .def("asInterface", &Schema::asInterface)
+                                 .def("asConst", &Schema::asConst)
+                                 .def("getShortDisplayName", &Schema::getShortDisplayName);
+
+    using BrandArgumentList = Schema::BrandArgumentList;
+    ValueType<BrandArgumentList>("BrandArgumentList", boost::python::no_init)
+        .def("size", &BrandArgumentList::size)
+        .def("__getitem__", Getitem<BrandArgumentList, capnp::Type>::getitemConst);
+  }
 
   defineStructSchema();
   defineEnumSchema();

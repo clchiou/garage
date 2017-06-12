@@ -128,11 +128,16 @@ class SchemaLoader:
                     # Skip it if it's a union field.
                     if schema._proto._node.getStruct().getIsGroup():
                         continue
+                    # Skip it if it's branded (we only generate entry
+                    # for the non-branded generic) to avoid duplicates.
+                    if schema.is_branded:
+                        continue
                 elif schema.kind in (Schema.Kind.CONST, Schema.Kind.ENUM):
                     pass
                 else:
                     continue
                 fqname = self._get_fqname(schema)
+                assert fqname not in self._schema_lookup_table
                 LOG.debug('create look-up entry: %s -> %r', fqname, schema)
                 self._schema_lookup_table[fqname] = schema
 
@@ -168,7 +173,10 @@ class SchemaLoader:
             self._update.files[node_id] = file_node
 
         else:
-            schema = self._get_or_add_schema(node_id, raw_schema)
+            schema = self._get_or_add_schema(
+                bases.get_schema_id(raw_schema),
+                raw_schema,
+            )
             if depth == 1:  # Collect top-level definitions.
                 self._update.definitions.append(schema)
 
@@ -202,22 +210,25 @@ class SchemaLoader:
 
         return annotation_def
 
-    def _get_schema(self, node_id):
+    def _get_schema(self, schema_id):
         assert self._update is not None
-        return bases.dicts_get((self._update.schemas, self.schemas), node_id)
+        return bases.dicts_get((self._update.schemas, self.schemas), schema_id)
 
-    def _get_or_add_schema(self, node_id, raw_schema):
+    def _get_or_add_schema(self, schema_id, raw_schema):
         assert self._update is not None
 
-        schema = bases.dicts_get((self._update.schemas, self.schemas), node_id)
+        schema = bases.dicts_get(
+            (self._update.schemas, self.schemas),
+            schema_id,
+        )
         if schema is not None:
             return schema
 
         schema = Schema(self, raw_schema)
-        assert node_id == schema.id
-        assert node_id not in self._update.schemas
-        LOG.debug('add schema: %s -> %s', node_id, schema)
-        self._update.schemas[node_id] = schema
+        assert schema_id == schema.id
+        assert schema_id not in self._update.schemas
+        LOG.debug('add schema: %s -> %s', schema_id, schema)
+        self._update.schemas[schema_id] = schema
 
         return schema
 
@@ -287,12 +298,12 @@ class Node:
             self.id = id_
 
     def __init__(self, loader, node):
-        assert not node.getIsGeneric(), 'do not support generics yet'
         self._node = node
         self.id = self._node.getId()
         self.scope_id = self._node.getScopeId()
         self.kind = Node.Kind.from_node(self._node)
         self.name = self._node.getDisplayName()
+        self.is_generic = self._node.getIsGeneric()
         self.nested_nodes = tuple(
             Node.NestedNode(nested_node.getName(), nested_node.getId())
             for nested_node in self._node.getNestedNodes()
@@ -379,18 +390,18 @@ class Schema:
 
     def __init__(self, loader, schema):
 
+        self.id = bases.get_schema_id(schema)
+
         if isinstance(schema, native.ListSchema):
             self._proto = None
-            self.id = bases.list_schema_id(schema)
             self.kind = Schema.Kind.LIST
             self.name = None
         else:
             self._proto = Node(loader, schema.getProto())
-            self.id = self._proto.id
             self.kind = Schema.Kind.from_node(self._proto)
             node = loader._loader.get(self._proto.scope_id).getProto()
             for nn in node.getNestedNodes():
-                if nn.getId() == self.id:
+                if nn.getId() == self._proto.id:
                     self.name = nn.getName()
                     break
             else:
@@ -433,12 +444,26 @@ class Schema:
 
         elif self.kind is Schema.Kind.STRUCT:
             LOG.debug('construct struct schema: %s', self._proto)
+
             self._schema = schema.asStruct()
+
+            self.is_generic = self._proto.is_generic
+            self.is_branded = self._schema.isBranded()
+            if self.is_branded:
+                balist = self._schema.getBrandArgumentsAtScope(self._proto.id)
+                self.brands = tuple(
+                    Type(loader, balist[i])
+                    for i in range(balist.size())
+                )
+            else:
+                self.brands = ()
+
             self.fields = self._get_fields(loader)
             self.union_fields = self._collect_fields(
                 self._schema.getUnionFields())
             self.non_union_fields = self._collect_fields(
                 self._schema.getNonUnionFields())
+
             self._dict = OrderedDict(
                 (field.name, field)
                 for field in self.fields
@@ -456,7 +481,10 @@ class Schema:
         if self.kind is Schema.Kind.LIST:
             return 'List(%s)' % self.element_type
         elif self.name is not None:
-            return self.name
+            if self.kind is Schema.Kind.STRUCT and self.is_branded:
+                return '%s(%s)' % (self.name, ', '.join(map(str, self.brands)))
+            else:
+                return self.name
         else:
             return str(self._proto)
 
@@ -605,45 +633,42 @@ class Type:
                     return kind
             raise AssertionError('undefined type kind: %s' % type_)
 
-        # izzer, is_scalar
-        VOID = (native.Type.isVoid, False)
+        # display_name, izzer, is_scalar
+        VOID = ('Void', native.Type.isVoid, False)
 
-        BOOL = (native.Type.isBool, True)
-        INT8 = (native.Type.isInt8, True)
-        INT16 = (native.Type.isInt16, True)
-        INT32 = (native.Type.isInt32, True)
-        INT64 = (native.Type.isInt64, True)
-        UINT8 = (native.Type.isUInt8, True)
-        UINT16 = (native.Type.isUInt16, True)
-        UINT32 = (native.Type.isUInt32, True)
-        UINT64 = (native.Type.isUInt64, True)
-        FLOAT32 = (native.Type.isFloat32, True)
-        FLOAT64 = (native.Type.isFloat64, True)
+        BOOL = ('Bool', native.Type.isBool, True)
+        INT8 = ('Int8', native.Type.isInt8, True)
+        INT16 = ('Int16', native.Type.isInt16, True)
+        INT32 = ('Int32', native.Type.isInt32, True)
+        INT64 = ('Int64', native.Type.isInt64, True)
+        UINT8 = ('UInt8', native.Type.isUInt8, True)
+        UINT16 = ('UInt16', native.Type.isUInt16, True)
+        UINT32 = ('UInt32', native.Type.isUInt32, True)
+        UINT64 = ('UInt64', native.Type.isUInt64, True)
+        FLOAT32 = ('Float32', native.Type.isFloat32, True)
+        FLOAT64 = ('Float64', native.Type.isFloat64, True)
 
-        TEXT = (native.Type.isText, True)
-        DATA = (native.Type.isData, True)
+        TEXT = ('Text', native.Type.isText, True)
+        DATA = ('Data', native.Type.isData, True)
 
-        LIST = (native.Type.isList, False)
+        LIST = ('List', native.Type.isList, False)
 
-        ENUM = (native.Type.isEnum, True)
+        ENUM = ('enum', native.Type.isEnum, True)
 
-        STRUCT = (native.Type.isStruct, False)
+        STRUCT = ('struct', native.Type.isStruct, False)
 
-        INTERFACE = (native.Type.isInterface, False)
+        INTERFACE = ('interface', native.Type.isInterface, False)
 
-        ANY_POINTER = (native.Type.isAnyPointer, False)
+        ANY_POINTER = ('AnyPointer', native.Type.isAnyPointer, False)
 
-        def __init__(self, izzer, is_scalar):
+        def __init__(self, display_name, izzer, is_scalar):
+            self.display_name = display_name
             self.izzer = izzer
             self.is_scalar = is_scalar
 
     @staticmethod
     def _make_schema(loader, schema):
-        if isinstance(schema, native.ListSchema):
-            node_id = bases.list_schema_id(schema)
-        else:
-            node_id = schema.getProto().getId()
-        return loader._get_or_add_schema(node_id, schema)
+        return loader._get_or_add_schema(bases.get_schema_id(schema), schema)
 
     def __init__(self, loader, type_):
         self._type = type_
@@ -666,7 +691,7 @@ class Type:
         elif self.schema is not None:
             return str(self.schema)
         else:
-            return self.kind.name
+            return self.kind.display_name
 
     __repr__ = bases.repr_object
 

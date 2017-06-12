@@ -64,6 +64,7 @@ class SchemasTest(Fixture):
                     'unittest.test_1:anyPointerConst',
                     'unittest.test_1:int8Const',
                     'unittest.test_1:structConst',
+                    'unittest.test_1:GenericStruct',
                     'unittest.test_1:SomeEnum',
                     'unittest.test_1:SomeStruct',
                     'unittest.test_1:SomeStruct.EmbeddedStruct1',
@@ -132,7 +133,12 @@ class SchemasTest(Fixture):
                     ('s1', 17, capnp.Type.Kind.STRUCT, False, True),
                     ('ls1', 18, capnp.Type.Kind.LIST, False, True),
 
-                    ('ap', 19, capnp.Type.Kind.ANY_POINTER, False, False),
+                    ('ap', 19, capnp.Type.Kind.ANY_POINTER, False, True),
+
+                    ('gt', 20, capnp.Type.Kind.STRUCT, False, False),
+                    ('gl', 21, capnp.Type.Kind.STRUCT, False, False),
+                    ('gs', 22, capnp.Type.Kind.STRUCT, False, False),
+                    ('gg', 23, capnp.Type.Kind.STRUCT, False, False),
                 ],
                 [
                     (
@@ -179,6 +185,36 @@ class SchemasTest(Fixture):
             self.assertEqual(
                 '[(ls2 = [(ls3 = [(i32 = 999)])])]',
                 str(struct_schema.fields[18].explicit_default),
+            )
+            self.assertEqual(
+                '(x = 7)',
+                str(struct_schema.fields[19].explicit_default.get(
+                    loader.get_schema('unittest.test_1:StructAnnotation'),
+                )),
+            )
+
+            # Check generics
+            self.assertFalse(struct_schema.is_generic)
+            self.assertEqual(
+                [
+                    (True, True, 'GenericStruct(Text)'),
+                    (True, True, 'GenericStruct(List(Data))'),
+                    (True, True, 'GenericStruct(EmbeddedStruct1)'),
+                    (True, False, 'GenericStruct'),
+                ],
+                [
+                    (
+                        g.type.schema.is_generic,
+                        g.type.schema.is_branded,
+                        str(g.type),
+                    )
+                    for g in (
+                        struct_schema['gt'],
+                        struct_schema['gl'],
+                        struct_schema['gs'],
+                        struct_schema['gg'],
+                    )
+                ],
             )
 
             # SomeEnum

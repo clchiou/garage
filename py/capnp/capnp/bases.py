@@ -2,7 +2,7 @@ __all__ = [
     'repr_object',
     'str_value',
 
-    'list_schema_id',
+    'get_schema_id',
 
     'camel_to_upper_snake',
 
@@ -37,19 +37,36 @@ def str_value(value):
         return str(value)
 
 
-def list_schema_id(schema):
+def get_schema_id(schema):
+    if isinstance(schema, native.ListSchema):
+        return _get_list_schema_id(schema)
+    node = schema.getProto()
+    if schema.isBranded():
+        return _get_branded_schema_id(schema, node)
+    else:
+        return schema.getProto().getId()
+
+
+def _get_branded_schema_id(schema, node):
+    node_id = node.getId()
+    schema_id = ['g', node_id]
+    balist = schema.getBrandArgumentsAtScope(node_id)
+    schema_id.extend(balist[i].hashCode() for i in range(balist.size()))
+    return tuple(schema_id)
+
+
+def _get_list_schema_id(schema):
     """Generate an unique id for list schema.
 
     We cannot call schema.getProto().getId() to generate an unique id
     because ListSchema is different - it is not associated with a Node.
     """
-    assert isinstance(schema, native.ListSchema)
     type_ = schema.getElementType()
     level = 0
     while type_.isList():
         type_ = type_.asList().getElementType()
         level += 1
-    return (level, type_.hashCode())
+    return ('l', level, type_.hashCode())
 
 
 # An upper case word followed a lower case letter.  For now a "word" is

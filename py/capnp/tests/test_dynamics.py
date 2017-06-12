@@ -45,6 +45,10 @@ class DynamicsTest(Fixture):
              .init('ls2', 1)[0]
              .init('ls3', 1)[0]['i32']) = 42
 
+            struct.init('gt')['t'] = 'text generic'
+            struct.init('gl').init('t', 1)[0] = b'list generic'
+            struct.init('gs').init('t').init('s2').init('s3')['i32'] = -77
+
             self.assertEqual(
                 self.encode('test-1.capnp', self.struct_schema, struct),
                 message.to_bytes(),

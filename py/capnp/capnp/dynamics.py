@@ -143,7 +143,7 @@ class DynamicEnum:
 
     def __init__(self, schema, enum_):
         assert schema.kind is Schema.Kind.ENUM
-        assert schema.id == enum_.getSchema().getProto().getId()
+        assert schema.id == bases.get_schema_id(enum_.getSchema())
         self.schema = schema
         self._enum = enum_
 
@@ -175,7 +175,7 @@ class DynamicList(collections.Sequence):
 
         def __init__(self, schema, list_):
             assert schema.kind is Schema.Kind.LIST
-            assert schema.id == bases.list_schema_id(list_.getSchema())
+            assert schema.id == bases.get_schema_id(list_.getSchema())
             self.schema = schema
             self._list = list_
 
@@ -226,7 +226,7 @@ class DynamicList(collections.Sequence):
 
     def __init__(self, schema, list_):
         assert schema.kind is Schema.Kind.LIST
-        assert schema.id == bases.list_schema_id(list_.getSchema())
+        assert schema.id == bases.get_schema_id(list_.getSchema())
         self.schema = schema
         self._list = list_
         self._values_cache = None
@@ -264,7 +264,7 @@ class DynamicStruct(collections.Mapping):
 
         def __init__(self, schema, struct):
             assert schema.kind is Schema.Kind.STRUCT
-            assert schema.id == struct.getSchema().getProto().getId()
+            assert schema.id == bases.get_schema_id(struct.getSchema())
             self.schema = schema
             self._struct = struct
 
@@ -362,7 +362,7 @@ class DynamicStruct(collections.Mapping):
 
     def __init__(self, schema, struct):
         assert schema.kind is Schema.Kind.STRUCT
-        assert schema.id == struct.getSchema().getProto().getId()
+        assert schema.id == bases.get_schema_id(struct.getSchema())
         self.schema = schema
         self._struct = struct
         self._dict_cache = None
