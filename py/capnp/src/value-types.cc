@@ -23,13 +23,13 @@
 
 namespace capnp_python {
 
-// Convert Python bytes to kj::ArrayPtr<const T>>
-// Be careful: kj::ArrayPtr doesn't own the data
-template <typename T>
+// Convert Python bytes to kj::ArrayPtr<kj::byte>> or equivalent.
+// Be careful: kj::ArrayPtr doesn't own the data.
+template <typename T, typename E>
 struct ArrayLikeFromPythonBytes {
   ArrayLikeFromPythonBytes() {
     boost::python::converter::registry::push_back(&convertible, &construct,
-                                                  boost::python::type_id<kj::ArrayPtr<const T>>());
+                                                  boost::python::type_id<T>());
   }
 
   static void* convertible(PyObject* object) { return PyBytes_Check(object) ? object : nullptr; }
@@ -42,16 +42,14 @@ struct ArrayLikeFromPythonBytes {
     }
     Py_ssize_t size = PyBytes_Size(object);
 
-    void* storage =
-        ((boost::python::converter::rvalue_from_python_storage<kj::ArrayPtr<const T>>*)data)
-            ->storage.bytes;
-    new (storage) kj::ArrayPtr<const T>(static_cast<const T*>(buffer), static_cast<size_t>(size));
+    void* storage = ((boost::python::converter::rvalue_from_python_storage<T>*)data)->storage.bytes;
+    new (storage) T(static_cast<E*>(buffer), static_cast<size_t>(size));
 
     data->convertible = storage;
   }
 };
 
-// Convert kj::ArrayPtr<kj::byte> or equivalent to Python bytes
+// Convert kj::ArrayPtr<kj::byte> or equivalent to Python bytes.
 template <typename T>
 struct ArrayLikeToPythonBytes {
   static PyObject* convert(const T& array) {
@@ -70,12 +68,13 @@ template <typename T>
 using ArrayLikeToPythonBytesConverter =
     boost::python::to_python_converter<T, ArrayLikeToPythonBytes<T>>;
 
-// Convert Python str to kj::StringPtr
-// Be careful: kj::StringPtr doesn't own the data
+// Convert Python str to kj::StringPtr or equivalent.
+// Be careful: kj::StringPtr doesn't own the data.
+template <typename T>
 struct StringPtrFromPythonStr {
   StringPtrFromPythonStr() {
     boost::python::converter::registry::push_back(&convertible, &construct,
-                                                  boost::python::type_id<kj::StringPtr>());
+                                                  boost::python::type_id<T>());
   }
 
   static void* convertible(PyObject* object) { return PyUnicode_Check(object) ? object : nullptr; }
@@ -88,9 +87,8 @@ struct StringPtrFromPythonStr {
       boost::python::throw_error_already_set();
     }
 
-    void* storage =
-        ((boost::python::converter::rvalue_from_python_storage<kj::StringPtr>*)data)->storage.bytes;
-    new (storage) kj::StringPtr(buffer, static_cast<size_t>(size));
+    void* storage = ((boost::python::converter::rvalue_from_python_storage<T>*)data)->storage.bytes;
+    new (storage) T(buffer, static_cast<size_t>(size));
 
     data->convertible = storage;
   }
@@ -246,12 +244,12 @@ void defineListSchema(void);
 void defineValueTypes(void) {
   // kj/common.h, kj/string.h, and kj/string-tree.h
 
-  ArrayLikeFromPythonBytes<kj::byte>();
+  ArrayLikeFromPythonBytes<kj::ArrayPtr<const kj::byte>, const kj::byte>();
   ArrayLikeToPythonBytesConverter<kj::ArrayPtr<kj::byte>>();
 
-  ArrayLikeFromPythonBytes<capnp::word>();
+  ArrayLikeFromPythonBytes<kj::ArrayPtr<const capnp::word>, const capnp::word>();
 
-  StringPtrFromPythonStr();
+  StringPtrFromPythonStr<kj::StringPtr>();
   StringLikeToPythonStrConverter<kj::StringPtr>();
 
   boost::python::to_python_converter<kj::StringTree, StringTreeToPythonStr>();
@@ -274,8 +272,12 @@ void defineValueTypes(void) {
   ArrayLikeToPythonBytesConverter<capnp::Data::Reader>();
   ArrayLikeToPythonBytesConverter<capnp::Data::Builder>();
 
+  ArrayLikeFromPythonBytes<capnp::Data::Reader, const kj::byte>();
+
   StringLikeToPythonStrConverter<capnp::Text::Reader>();
   StringLikeToPythonStrConverter<capnp::Text::Builder>();
+
+  StringPtrFromPythonStr<capnp::Text::Reader>();
 
   // capnp/dynamic.h
 
@@ -321,7 +323,29 @@ void defineAnyPointer(void) {
       .def("getAsStruct", MF(capnp::DynamicStruct, getAs, capnp::StructSchema));
 #undef MF
 
-  // TODO: Add AnyPointer::Builder.
+  // Use MakeCopyable because capnp::AnyPointer::Builder does not accept
+  // non-const reference copy constructor (why?).
+  using Builder = AnyPointer::Builder;
+  MakeCopyable<Builder>("Builder", boost::python::no_init)
+      .def("targetSize", &Builder::targetSize)
+      .def("isNull", &Builder::isNull)
+      .def("isStruct", &Builder::isStruct)
+      .def("isList", &Builder::isList)
+      .def("isCapability", &Builder::isCapability)
+      .def("clear", &Builder::clear)
+#define MF(R, M, ARGS...) static_cast<capnp::BuilderFor<R> (Builder::*)(ARGS)>(&Builder::M<R>)
+      .def("getAsText", MF(capnp::Text, getAs))
+      .def("getAsData", MF(capnp::Data, getAs))
+      .def("getAsList", MF(capnp::DynamicList, getAs, capnp::ListSchema))
+      .def("getAsStruct", MF(capnp::DynamicStruct, getAs, capnp::StructSchema))
+      .def("initAsText", MF(capnp::Text, initAs, uint))
+      .def("initAsData", MF(capnp::Data, initAs, uint))
+      .def("initAsList", MF(capnp::DynamicList, initAs, capnp::ListSchema, uint))
+      .def("initAsStruct", MF(capnp::DynamicStruct, initAs, capnp::StructSchema))
+#undef MF
+      .def("setAsText", &Builder::setAs<capnp::Text>)
+      .def("setAsData", &Builder::setAs<capnp::Data>)
+      .def("asReader", &Builder::asReader);
 }
 
 //
@@ -464,6 +488,7 @@ void defineDynamicValue(void) {
       .def("asList", &Reader::as<capnp::DynamicList>)
       .def("asEnum", &Reader::as<capnp::DynamicEnum>)
       .def("asStruct", &Reader::as<capnp::DynamicStruct>)
+      .def("asAnyPointer", &Reader::as<capnp::AnyPointer>)
       .def("getType", &Reader::getType);
 
   using Builder = DynamicValue::Builder;
@@ -478,6 +503,7 @@ void defineDynamicValue(void) {
       .def("asList", &Builder::as<capnp::DynamicList>)
       .def("asEnum", &Builder::as<capnp::DynamicEnum>)
       .def("asStruct", &Builder::as<capnp::DynamicStruct>)
+      .def("asAnyPointer", &Builder::as<capnp::AnyPointer>)
       .def("getType", &Builder::getType)
       .def("asReader", &Builder::asReader);
 }

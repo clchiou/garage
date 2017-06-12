@@ -1,7 +1,28 @@
+"""Wrap capnp classes and provide Pythonic API.
+
+Within Cap'n Proto's class hierarchy, it seems to have two levels of
+classes, grouped in two namespace capnp and capnp::schema.  The first
+group is at higher level that is based on the second group, which is
+generated from capnp/schema.capnp directly.
+
+If a class wraps a first-group C++ class, it usually has a reference to
+another class that wraps the associated second-group C++ class; for
+example, Schema wraps capnp::Schema, and it has a reference `_proto` to
+Node, which wraps capnp::schema::Node associated with capnp::Schema.
+"""
+
 __all__ = [
-    'AnnotationDef',
-    'Schema',
     'SchemaLoader',
+
+    'Enumerant',
+    'Field',
+    'Schema',
+
+    'AnnotationDef',
+    'FileNode',
+    'Node',
+
+    'Annotation',
     'Type',
 ]
 
@@ -60,14 +81,20 @@ class SchemaLoader:
 
         self._update = None
 
-    def __enter__(self):
+    def open(self):
         assert self._loader is None
         self._loader = native.SchemaLoader()
+
+    def close(self):
+        self._loader, loader = None, self._loader
+        loader._reset()
+
+    def __enter__(self):
+        self.open()
         return self
 
     def __exit__(self, *_):
-        self._loader, loader = None, self._loader
-        loader._reset()
+        self.close()
 
     def load_bytes(self, blob):
         """Load schema from a binary blob in memory."""
@@ -227,7 +254,7 @@ class SchemaLoader:
 
 
 class Node:
-    """Represent low-level schema.capnp Node object.
+    """Represent low-level capnp::schema::Node object.
 
     You usually don't need to access this, but other classes that wrap
     this and expose higher-level interface.
@@ -290,10 +317,10 @@ class FileNode(Node):
 
 
 class AnnotationDef(Node):
-    """Represent a definition of annotation (not an instance)."""
+    """Represent a definition of annotation (not an use of annotation)."""
 
     class Known(enum.Enum):
-        """Enumeration of some well-known / built-in annotations."""
+        """Enumerate some well-known / built-in annotations."""
 
         @classmethod
         def from_id(cls, node_id):
@@ -324,8 +351,8 @@ class Schema:
     """Represent schema for various kind of entities.
 
     Schema has a two generic properties: `id` and `kind`.
-    * `id` is unique among all schemas and is the key of the
-      `schemas` of SchemaLoader.
+    * `id` is unique among all schemas and is the key of the `schemas`
+      of SchemaLoader.
     * `kind` describes the specific details of this Schema object.
     """
 
@@ -367,8 +394,7 @@ class Schema:
                     self.name = nn.getName()
                     break
             else:
-                # This is probably a union field, which does not have a
-                # name in usual sense.
+                # This is probably a union field, which may be nameless.
                 self.name = None
 
         if self.kind is Schema.Kind.CONST:
@@ -565,6 +591,10 @@ class Annotation:
 
 
 class Type:
+    """Wrap a capnp::Type object.
+
+    Don't confuse it with capnp::schema::Type.
+    """
 
     class Kind(enum.Enum):
 
@@ -641,22 +671,22 @@ class Type:
     __repr__ = bases.repr_object
 
 
-_SCHEMA_TYPE_PRIMITIVES = (
-    native.schema.Type.isVoid,
-    native.schema.Type.isBool,
-    native.schema.Type.isInt8,
-    native.schema.Type.isInt16,
-    native.schema.Type.isInt32,
-    native.schema.Type.isInt64,
-    native.schema.Type.isUint8,
-    native.schema.Type.isUint16,
-    native.schema.Type.isUint32,
-    native.schema.Type.isUint64,
-    native.schema.Type.isFloat32,
-    native.schema.Type.isFloat64,
-    native.schema.Type.isText,
-    native.schema.Type.isData,
-)
+_SCHEMA_TYPE_PRIMITIVES = frozenset((
+    native.schema.Type.Which.VOID,
+    native.schema.Type.Which.BOOL,
+    native.schema.Type.Which.INT8,
+    native.schema.Type.Which.INT16,
+    native.schema.Type.Which.INT32,
+    native.schema.Type.Which.INT64,
+    native.schema.Type.Which.UINT8,
+    native.schema.Type.Which.UINT16,
+    native.schema.Type.Which.UINT32,
+    native.schema.Type.Which.UINT64,
+    native.schema.Type.Which.FLOAT32,
+    native.schema.Type.Which.FLOAT64,
+    native.schema.Type.Which.TEXT,
+    native.schema.Type.Which.DATA,
+))
 
 
 def _schema_type_to_type(loader, stype):
@@ -673,131 +703,88 @@ def _schema_type_to_type(loader, stype):
             .get(stype.getStruct().getTypeId())
             .asStruct()
         )
-    elif any(izzer(stype) for izzer in _SCHEMA_TYPE_PRIMITIVES):
+    elif stype.which() in _SCHEMA_TYPE_PRIMITIVES:
         return native.Type.fromPrimitiveWhich(stype.which())
     else:
         raise AssertionError('unsupported conversion from: %s' % stype)
 
 
-# type_kind, python_type, izzer, hazzer, getter
-_SCHEMA_VALUE_TABLE = (
+# which -> type_kind, python_type, hazzer, getter
+_SCHEMA_VALUE_TABLE = {
 
-    (
-        Type.Kind.VOID,
-        type(None),
-        native.schema.Value.isVoid, None, lambda _: None,
+    native.schema.Value.Which.VOID: (
+        Type.Kind.VOID, type(None), None, lambda _: None,
     ),
 
-    (
-        Type.Kind.BOOL,
-        bool,
-        native.schema.Value.isBool, None, native.schema.Value.getBool,
+    native.schema.Value.Which.BOOL: (
+        Type.Kind.BOOL, bool, None, native.schema.Value.getBool,
     ),
 
-    (
-        Type.Kind.INT8,
-        int,
-        native.schema.Value.isInt8, None, native.schema.Value.getInt8,
+    native.schema.Value.Which.INT8: (
+        Type.Kind.INT8, int, None, native.schema.Value.getInt8,
     ),
-    (
-        Type.Kind.INT16,
-        int,
-        native.schema.Value.isInt16, None, native.schema.Value.getInt16,
+    native.schema.Value.Which.INT16: (
+        Type.Kind.INT16, int, None, native.schema.Value.getInt16,
     ),
-    (
-        Type.Kind.INT32,
-        int,
-        native.schema.Value.isInt32, None, native.schema.Value.getInt32,
+    native.schema.Value.Which.INT32: (
+        Type.Kind.INT32, int, None, native.schema.Value.getInt32,
     ),
-    (
-        Type.Kind.INT64,
-        int,
-        native.schema.Value.isInt64, None, native.schema.Value.getInt64,
+    native.schema.Value.Which.INT64: (
+        Type.Kind.INT64, int, None, native.schema.Value.getInt64,
     ),
 
-    (
-        Type.Kind.UINT8,
-        int,
-        native.schema.Value.isUint8, None, native.schema.Value.getUint8,
+    native.schema.Value.Which.UINT8: (
+        Type.Kind.UINT8, int, None, native.schema.Value.getUint8,
     ),
-    (
-        Type.Kind.UINT16,
-        int,
-        native.schema.Value.isUint16, None, native.schema.Value.getUint16,
+    native.schema.Value.Which.UINT16: (
+        Type.Kind.UINT16, int, None, native.schema.Value.getUint16,
     ),
-    (
-        Type.Kind.UINT32,
-        int,
-        native.schema.Value.isUint32, None, native.schema.Value.getUint32,
+    native.schema.Value.Which.UINT32: (
+        Type.Kind.UINT32, int, None, native.schema.Value.getUint32,
     ),
-    (
-        Type.Kind.UINT64,
-        int,
-        native.schema.Value.isUint64, None, native.schema.Value.getUint64,
+    native.schema.Value.Which.UINT64: (
+        Type.Kind.UINT64, int, None, native.schema.Value.getUint64,
     ),
 
-    (
-        Type.Kind.FLOAT32,
-        float,
-        native.schema.Value.isFloat32, None, native.schema.Value.getFloat32,
+    native.schema.Value.Which.FLOAT32: (
+        Type.Kind.FLOAT32, float, None, native.schema.Value.getFloat32,
     ),
-    (
-        Type.Kind.FLOAT64,
-        float,
-        native.schema.Value.isFloat64, None, native.schema.Value.getFloat64,
+    native.schema.Value.Which.FLOAT64: (
+        Type.Kind.FLOAT64, float, None, native.schema.Value.getFloat64,
     ),
 
-    (
-        Type.Kind.TEXT,
-        str,
-        native.schema.Value.isText,
-        native.schema.Value.hasText,
-        native.schema.Value.getText,
+    native.schema.Value.Which.TEXT: (
+        Type.Kind.TEXT, str,
+        native.schema.Value.hasText, native.schema.Value.getText,
     ),
-    (
-        Type.Kind.DATA,
-        bytes,
-        native.schema.Value.isData,
-        native.schema.Value.hasData,
-        native.schema.Value.getData,
+    native.schema.Value.Which.DATA: (
+        Type.Kind.DATA, bytes,
+        native.schema.Value.hasData, native.schema.Value.getData,
     ),
 
-    (
-        Type.Kind.LIST,
-        tuple,
-        native.schema.Value.isList,
-        native.schema.Value.hasList,
-        native.schema.Value.getList,
+    native.schema.Value.Which.LIST: (
+        Type.Kind.LIST, tuple,
+        native.schema.Value.hasList, native.schema.Value.getList,
     ),
 
-    (
-        Type.Kind.ENUM,
-        int,
-        native.schema.Value.isEnum, None, native.schema.Value.getEnum,
+    native.schema.Value.Which.ENUM: (
+        Type.Kind.ENUM, int, None, native.schema.Value.getEnum,
     ),
 
-    (
-        Type.Kind.STRUCT,
-        object,
-        native.schema.Value.isStruct,
-        native.schema.Value.hasStruct,
-        native.schema.Value.getStruct,
+    native.schema.Value.Which.STRUCT: (
+        Type.Kind.STRUCT, object,
+        native.schema.Value.hasStruct, native.schema.Value.getStruct,
     ),
 
-    (
-        Type.Kind.INTERFACE,
-        type(None),
-        native.schema.Value.isInterface, None, lambda _: None,
+    native.schema.Value.Which.INTERFACE: (
+        Type.Kind.INTERFACE, type(None), None, lambda _: None,
     ),
 
-    (
-        Type.Kind.ANY_POINTER,
-        object,
-        native.schema.Value.isAnyPointer,
-        native.schema.Value.hasAnyPointer,
-        native.schema.Value.getAnyPointer,
+    native.schema.Value.Which.ANY_POINTER: (
+        Type.Kind.ANY_POINTER, object,
+        native.schema.Value.hasAnyPointer, native.schema.Value.getAnyPointer,
     ),
-)
+}
 
 
 def _schema_value_to_python(schema, value, default=None):
@@ -805,12 +792,11 @@ def _schema_value_to_python(schema, value, default=None):
 
     Don't confuse it with capnp::DynamicValue.
     """
-    type_kind = python_type = izzer = hazzer = getter = None
-    for type_kind, python_type, izzer, hazzer, getter in _SCHEMA_VALUE_TABLE:
-        if izzer(value):
-            break
-    if type_kind is None:
+
+    which = value.which()
+    if which not in _SCHEMA_VALUE_TABLE:
         raise AssertionError('unsupported schema value: %s' % value)
+    type_kind, python_type, hazzer, getter = _SCHEMA_VALUE_TABLE[which]
 
     if hazzer and not hazzer(value):
         return default
@@ -818,7 +804,6 @@ def _schema_value_to_python(schema, value, default=None):
     python_value = getter(value)
 
     if type_kind is Type.Kind.LIST:
-        assert python_value.isList()
         assert schema is not None
         python_type = dynamics.DynamicList
         python_value = dynamics.DynamicList(
@@ -827,7 +812,6 @@ def _schema_value_to_python(schema, value, default=None):
         )
 
     elif type_kind is Type.Kind.STRUCT:
-        assert python_value.isStruct()
         assert schema is not None
         python_type = dynamics.DynamicStruct
         python_value = dynamics.DynamicStruct(
@@ -836,7 +820,8 @@ def _schema_value_to_python(schema, value, default=None):
         )
 
     elif type_kind is Type.Kind.ANY_POINTER:
-        raise NotImplementedError  # TODO: Handle AnyPointer.
+        python_type = dynamics.AnyPointer
+        python_value = dynamics.AnyPointer(python_value)
 
     assert isinstance(python_value, python_type)
 

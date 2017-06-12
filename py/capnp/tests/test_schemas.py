@@ -61,7 +61,9 @@ class SchemasTest(Fixture):
             # It should not include union and group field.
             self.assertEqual(
                 {
+                    'unittest.test_1:anyPointerConst',
                     'unittest.test_1:int8Const',
+                    'unittest.test_1:structConst',
                     'unittest.test_1:SomeEnum',
                     'unittest.test_1:SomeStruct',
                     'unittest.test_1:SomeStruct.EmbeddedStruct1',
@@ -129,6 +131,8 @@ class SchemasTest(Fixture):
 
                     ('s1', 17, capnp.Type.Kind.STRUCT, False, True),
                     ('ls1', 18, capnp.Type.Kind.LIST, False, True),
+
+                    ('ap', 19, capnp.Type.Kind.ANY_POINTER, False, False),
                 ],
                 [
                     (
@@ -228,6 +232,16 @@ class SchemasTest(Fixture):
                     str(struct),
                     str(loader.get_schema(fqname).value),
                 )
+
+            # AnyPointer const value
+
+            value = loader.get_schema('unittest.test_1:anyPointerConst').value
+            self.assertEqual(
+                '(x = 7)',
+                str(value.get(
+                    loader.get_schema('unittest.test_1:StructAnnotation'),
+                )),
+            )
 
 
 if __name__ == '__main__':

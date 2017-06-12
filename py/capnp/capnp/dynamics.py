@@ -5,6 +5,8 @@ __all__ = [
     'DynamicEnum',
     'DynamicList',
     'DynamicStruct',
+
+    'AnyPointer',
 ]
 
 import collections
@@ -166,6 +168,9 @@ class DynamicEnum:
 
 class DynamicList(collections.Sequence):
 
+    # NOTE: Since Cap'n Proto doesn't seem to allow List(AnyPointer), we
+    # don't have to handle that in DynamicList.
+
     class Builder(collections.MutableSequence):
 
         def __init__(self, schema, list_):
@@ -323,16 +328,28 @@ class DynamicStruct(collections.Mapping):
                     self._struct.init(field._field).asStruct(),
                 )
 
+            elif field.type.kind is Type.Kind.ANY_POINTER:
+                assert size is None
+                return self._get_any_pointer(field)
+
             else:
                 raise AssertionError(
                     'cannot init non-list, non-struct field: %s' % field)
 
         def __setitem__(self, name, value):
             field = self.schema[name]  # This may raise KeyError.
-            _set_scalar(self._struct, field._field, field.type, value)
+            if field.type.kind is Type.Kind.ANY_POINTER:
+                self._get_any_pointer(field).set(value)
+            else:
+                _set_scalar(self._struct, field._field, field.type, value)
+
+        def _get_any_pointer(self, field):
+            return AnyPointer(self._struct.get(field._field).asAnyPointer())
 
         def __delitem__(self, name):
             field = self.schema[name]  # This may raise KeyError.
+            if not self._struct.has(field._field):
+                raise KeyError(name)
             self._struct.clear(field._field)
 
         def __str__(self):
@@ -402,7 +419,125 @@ def _set_scalar(builder, key, type_, python_value):
         raise TypeError('not scalar type: %s' % type_)
     elif type_.kind is Type.Kind.ENUM:
         python_value = DynamicEnum.from_member(type_.schema, python_value)
-    builder.set(key, _python_to_dynamic_value_reader(type_, python_value))
+
+    python_type, maker, _ = _DYNAMIC_VALUE_READER_TABLE[type_.kind]
+    assert isinstance(python_value, python_type)
+
+    if python_type is DynamicEnum:
+        value = maker(python_value._enum)
+    else:
+        value = maker(python_value)
+
+    builder.set(key, value)
+
+
+class AnyPointer:
+    """Wrap a capnp::AnyPointer::Reader/Builder object.
+
+    This is defined in capnp/any.h; don't confuse it with
+    capnp::schema::Type::AnyPointer::Reader/Builder.
+    """
+
+    class Kind(enum.Enum):
+
+        @classmethod
+        def from_any_pointer(cls, any_pointer):
+            if isinstance(any_pointer, native.AnyPointer.Reader):
+                izzer_name = 'reader_izzer'
+            else:
+                assert isinstance(any_pointer, native.AnyPointer.Builder)
+                izzer_name = 'builder_izzer'
+            for kind in cls:
+                if getattr(kind, izzer_name)(any_pointer):
+                    return kind
+            else:
+                raise AssertionError(
+                    'unsupported AnyPointer kind: %s' % any_pointer)
+
+        NULL = (
+            native.AnyPointer.Reader.isNull,
+            native.AnyPointer.Builder.isNull,
+        )
+        CAPABILITY = (
+            native.AnyPointer.Reader.isCapability,
+            native.AnyPointer.Builder.isCapability,
+        )
+        LIST = (
+            native.AnyPointer.Reader.isList,
+            native.AnyPointer.Builder.isList,
+        )
+        STRUCT = (
+            native.AnyPointer.Reader.isStruct,
+            native.AnyPointer.Builder.isStruct,
+        )
+
+        def __init__(self, reader_izzer, builder_izzer):
+            self.reader_izzer = reader_izzer
+            self.builder_izzer = builder_izzer
+
+    def __init__(self, any_pointer):
+        self._any_pointer = any_pointer
+        self._is_reader = isinstance(any_pointer, native.AnyPointer.Reader)
+
+    def __str__(self):
+        return '<opaque pointer>'
+
+    __repr__ = bases.repr_object
+
+    @property
+    def kind(self):
+        return AnyPointer.Kind.from_any_pointer(self._any_pointer)
+
+    def init(self, schema, size=None):
+        assert not self._is_reader
+        if schema.kind is Schema.Kind.LIST:
+            assert isinstance(size, int) and size > 0
+            builder = DynamicList.Builder(
+                schema,
+                self._any_pointer.initAsList(schema._schema, size),
+            )
+        else:
+            assert schema.kind is Schema.Kind.STRUCT
+            assert size is None
+            builder = DynamicStruct.Builder(
+                schema,
+                self._any_pointer.initAsStruct(schema._schema)
+            )
+        return builder
+
+    def get(self, schema):
+        kind = self.kind
+        if kind is AnyPointer.Kind.NULL:
+            return None
+        elif schema is str:
+            assert kind is AnyPointer.Kind.LIST
+            return self._any_pointer.getAsText()
+        elif schema is bytes:
+            assert kind is AnyPointer.Kind.LIST
+            return self._any_pointer.getAsData()
+        elif schema.kind is Schema.Kind.LIST:
+            assert kind is AnyPointer.Kind.LIST
+            cls = DynamicList if self._is_reader else DynamicList.Builder
+            return cls(schema, self._any_pointer.getAsList(schema._schema))
+        else:
+            assert schema.kind is Schema.Kind.STRUCT
+            assert kind is AnyPointer.Kind.STRUCT
+            cls = DynamicStruct if self._is_reader else DynamicStruct.Builder
+            return cls(schema, self._any_pointer.getAsStruct(schema._schema))
+
+    def set(self, blob):
+        assert not self._is_reader
+        if blob is None:
+            self._any_pointer.clear()
+        elif isinstance(blob, str):
+            self._any_pointer.setAsText(blob)
+        else:
+            assert isinstance(blob, bytes)
+            self._any_pointer.setAsData(blob)
+
+    def as_reader(self):
+        assert not self._is_reader
+        return AnyPointer(self._any_pointer.asReader())
 
 
 # type_kind -> python_type, maker, converter
@@ -501,6 +636,12 @@ _DYNAMIC_VALUE_READER_TABLE = {
         native.DynamicValue.Reader.fromStruct,
         native.DynamicValue.Reader.asStruct,
     ),
+
+    Type.Kind.ANY_POINTER: (
+        AnyPointer,
+        native.DynamicValue.Reader.fromAnyPointer,
+        native.DynamicValue.Reader.asAnyPointer,
+    )
 }
 
 
@@ -511,27 +652,20 @@ _DYNAMIC_READER_TYPES = frozenset((
 ))
 
 
-def _python_to_dynamic_value_reader(type_, python_value):
-    python_type, maker, _ = _DYNAMIC_VALUE_READER_TABLE[type_.kind]
-    assert isinstance(python_value, python_type)
-    if python_type is DynamicEnum:
-        return maker(python_value._enum)
-    elif python_type is DynamicList:
-        return maker(python_value._list)
-    elif python_type is DynamicStruct:
-        return maker(python_value._struct)
-    else:
-        return maker(python_value)
-
-
 def _dynamic_value_reader_to_python(type_, value):
     assert isinstance(value, native.DynamicValue.Reader)
+
     python_type, _, converter = _DYNAMIC_VALUE_READER_TABLE[type_.kind]
+
     python_value = converter(value)
     if python_type in _DYNAMIC_READER_TYPES:
         assert type_.schema is not None
         python_value = python_type(type_.schema, python_value)
+    elif python_type is AnyPointer:
+        python_value = AnyPointer(python_value)
+
     assert isinstance(python_value, python_type), (python_value, python_type)
+
     return python_value
 
 
@@ -563,7 +697,14 @@ _DYNAMIC_VALUE_BUILDER_TABLE = {
     Type.Kind.ENUM: (DynamicEnum, native.DynamicValue.Builder.asEnum),
 
     Type.Kind.STRUCT: (
-        DynamicStruct.Builder, native.DynamicValue.Builder.asStruct),
+        DynamicStruct.Builder,
+        native.DynamicValue.Builder.asStruct,
+    ),
+
+    Type.Kind.ANY_POINTER: (
+        AnyPointer,
+        native.DynamicValue.Builder.asAnyPointer,
+    ),
 }
 
 
@@ -576,10 +717,16 @@ _DYNAMIC_BUILDER_TYPES = frozenset((
 
 def _dynamic_value_builder_to_python(type_, value):
     assert isinstance(value, native.DynamicValue.Builder)
+
     python_type, converter = _DYNAMIC_VALUE_BUILDER_TABLE[type_.kind]
+
     python_value = converter(value)
     if python_type in _DYNAMIC_BUILDER_TYPES:
         assert type_.schema is not None
         python_value = python_type(type_.schema, python_value)
+    elif python_type is AnyPointer:
+        python_value = AnyPointer(python_value)
+
     assert isinstance(python_value, python_type), (python_value, python_type)
+
     return python_value

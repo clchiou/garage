@@ -288,9 +288,7 @@ void defineTypeInterface(void) {
 }
 
 void defineTypeAnyPointer(void) {
-  STRUCT(capnp::schema::Type, AnyPointer)
-  // TODO: Expose capnp::schema::Type::AnyPointer
-  ;
+  STRUCT(capnp::schema::Type, AnyPointer);
 }
 
 //
@@ -298,9 +296,7 @@ void defineTypeAnyPointer(void) {
 //
 
 void defineBrand(void) {
-  STRUCT(capnp::schema, Brand)
-  // TODO: Expose capnp::schema::Brand
-  ;
+  STRUCT(capnp::schema, Brand);
 }
 
 //

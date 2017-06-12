@@ -3,7 +3,7 @@
 using Cxx = import "/capnp/c++.capnp";
 $Cxx.namespace("unittest::test_1");
 
-annotation structAnnotation(field): StructAnnotation;
+annotation structAnnotation(field) :StructAnnotation;
 
 struct StructAnnotation {
   x @0 :Int32 = 7;
@@ -50,6 +50,10 @@ struct SomeStruct $Cxx.name("AliasForSomeStruct") {
   s1 @19 :EmbeddedStruct1 = (s2 = (s3 = (i32 = 999)));
   ls1 @20 :List(EmbeddedStruct1) = [(ls2 = [(ls3 = [(i32 = 999)])])];
 
+  # It seems not that you may assign default value to an AnyPointer
+  # field (why?).
+  ap @21 :AnyPointer;
+
   struct EmbeddedStruct1 {
     s2 @0 :EmbeddedStruct2;
     ls2 @1 :List(EmbeddedStruct2);
@@ -70,3 +74,6 @@ enum SomeEnum {
   e1 @1;
   someCamelCaseWord @2;
 }
+
+const structConst :StructAnnotation = ();
+const anyPointerConst :AnyPointer = .structConst;
