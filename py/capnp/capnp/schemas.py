@@ -273,23 +273,17 @@ class Node:
 
     class Kind(enum.Enum):
 
-        @classmethod
-        def from_node(cls, node):
-            for kind in cls:
-                if kind.izzer(node):
-                    return kind
-            raise AssertionError(
-                'undefined node kind: %s' % node.getDisplayName())
+        FILE = (native.schema.Node.Which.FILE,)
+        STRUCT = (native.schema.Node.Which.STRUCT,)
+        ENUM = (native.schema.Node.Which.ENUM,)
+        INTERFACE = (native.schema.Node.Which.INTERFACE,)
+        CONST = (native.schema.Node.Which.CONST,)
+        ANNOTATION = (native.schema.Node.Which.ANNOTATION,)
 
-        FILE = (native.schema.Node.isFile,)
-        STRUCT = (native.schema.Node.isStruct,)
-        ENUM = (native.schema.Node.isEnum,)
-        INTERFACE = (native.schema.Node.isInterface,)
-        CONST = (native.schema.Node.isConst,)
-        ANNOTATION = (native.schema.Node.isAnnotation,)
+        def __init__(self, which):
+            self.which = which
 
-        def __init__(self, izzer):
-            self.izzer = izzer
+    _KIND_LOOKUP = {kind.which: kind for kind in Kind}
 
     class NestedNode:
 
@@ -301,7 +295,7 @@ class Node:
         self._node = node
         self.id = self._node.getId()
         self.scope_id = self._node.getScopeId()
-        self.kind = Node.Kind.from_node(self._node)
+        self.kind = Node._KIND_LOOKUP[self._node.which()]
         self.name = self._node.getDisplayName()
         self.is_generic = self._node.getIsGeneric()
         self.nested_nodes = tuple(
@@ -333,13 +327,6 @@ class AnnotationDef(Node):
     class Known(enum.Enum):
         """Enumerate some well-known / built-in annotations."""
 
-        @classmethod
-        def from_id(cls, node_id):
-            for known in cls:
-                if known.value == node_id:
-                    return known
-            return None
-
         # Annotation node id from capnp/c++.capnp.
         CXX_NAMESPACE = 0xb9c6f99ebf805f2c
         CXX_NAME = 0xf264a779fef191ce
@@ -354,7 +341,10 @@ class AnnotationDef(Node):
                 self._node.getAnnotation().getType(),
             ),
         )
-        self.known = AnnotationDef.Known.from_id(self.id)
+        try:
+            self.known = self.Known(self.id)
+        except ValueError:
+            self.known = None
         LOG.debug('construct annotation node: %s', self.name)
 
 
@@ -369,24 +359,17 @@ class Schema:
 
     class Kind(enum.Enum):
 
-        @classmethod
-        def from_node(cls, node):
-            if node.kind is Node.Kind.CONST:
-                return cls.CONST
-            elif node.kind is Node.Kind.ENUM:
-                return cls.ENUM
-            elif node.kind is Node.Kind.INTERFACE:
-                return cls.INTERFACE
-            elif node.kind is Node.Kind.STRUCT:
-                return cls.STRUCT
-            else:
-                raise AssertionError('unrecognizable schema type: %s' % node)
+        ENUM = (Node.Kind.ENUM,)
+        CONST = (Node.Kind.CONST,)
+        INTERFACE = (Node.Kind.INTERFACE,)
+        STRUCT = (Node.Kind.STRUCT,)
 
-        ENUM = enum.auto()
-        CONST = enum.auto()
-        INTERFACE = enum.auto()
-        LIST = enum.auto()
-        STRUCT = enum.auto()
+        LIST = (None,)  # ListSchema is not associated with a node.
+
+        def __init__(self, node_kind):
+            self.node_kind = node_kind
+
+    _KIND_LOOKUP = {kind.node_kind: kind for kind in Kind if kind.node_kind}
 
     def __init__(self, loader, schema):
 
@@ -398,7 +381,7 @@ class Schema:
             self.name = None
         else:
             self._proto = Node(loader, schema.getProto())
-            self.kind = Schema.Kind.from_node(self._proto)
+            self.kind = Schema._KIND_LOOKUP[self._proto.kind]
             node = loader._loader.get(self._proto.scope_id).getProto()
             for nn in node.getNestedNodes():
                 if nn.getId() == self._proto.id:
@@ -626,45 +609,42 @@ class Type:
 
     class Kind(enum.Enum):
 
-        @classmethod
-        def from_type(cls, type_):
-            for kind in cls:
-                if kind.izzer(type_):
-                    return kind
-            raise AssertionError('undefined type kind: %s' % type_)
+        # display_name, which, is_scalar
 
-        # display_name, izzer, is_scalar
-        VOID = ('Void', native.Type.isVoid, False)
+        VOID = ('Void', native.schema.Type.Which.VOID, False)
 
-        BOOL = ('Bool', native.Type.isBool, True)
-        INT8 = ('Int8', native.Type.isInt8, True)
-        INT16 = ('Int16', native.Type.isInt16, True)
-        INT32 = ('Int32', native.Type.isInt32, True)
-        INT64 = ('Int64', native.Type.isInt64, True)
-        UINT8 = ('UInt8', native.Type.isUInt8, True)
-        UINT16 = ('UInt16', native.Type.isUInt16, True)
-        UINT32 = ('UInt32', native.Type.isUInt32, True)
-        UINT64 = ('UInt64', native.Type.isUInt64, True)
-        FLOAT32 = ('Float32', native.Type.isFloat32, True)
-        FLOAT64 = ('Float64', native.Type.isFloat64, True)
+        BOOL = ('Bool', native.schema.Type.Which.BOOL, True)
+        INT8 = ('Int8', native.schema.Type.Which.INT8, True)
+        INT16 = ('Int16', native.schema.Type.Which.INT16, True)
+        INT32 = ('Int32', native.schema.Type.Which.INT32, True)
+        INT64 = ('Int64', native.schema.Type.Which.INT64, True)
+        UINT8 = ('UInt8', native.schema.Type.Which.UINT8, True)
+        UINT16 = ('UInt16', native.schema.Type.Which.UINT16, True)
+        UINT32 = ('UInt32', native.schema.Type.Which.UINT32, True)
+        UINT64 = ('UInt64', native.schema.Type.Which.UINT64, True)
+        FLOAT32 = ('Float32', native.schema.Type.Which.FLOAT32, True)
+        FLOAT64 = ('Float64', native.schema.Type.Which.FLOAT64, True)
 
-        TEXT = ('Text', native.Type.isText, True)
-        DATA = ('Data', native.Type.isData, True)
+        TEXT = ('Text', native.schema.Type.Which.TEXT, True)
+        DATA = ('Data', native.schema.Type.Which.DATA, True)
 
-        LIST = ('List', native.Type.isList, False)
+        LIST = ('List', native.schema.Type.Which.LIST, False)
 
-        ENUM = ('enum', native.Type.isEnum, True)
+        ENUM = ('enum', native.schema.Type.Which.ENUM, True)
 
-        STRUCT = ('struct', native.Type.isStruct, False)
+        STRUCT = ('struct', native.schema.Type.Which.STRUCT, False)
 
-        INTERFACE = ('interface', native.Type.isInterface, False)
+        INTERFACE = ('interface', native.schema.Type.Which.INTERFACE, False)
 
-        ANY_POINTER = ('AnyPointer', native.Type.isAnyPointer, False)
+        ANY_POINTER = (
+            'AnyPointer', native.schema.Type.Which.ANY_POINTER, False)
 
-        def __init__(self, display_name, izzer, is_scalar):
+        def __init__(self, display_name, which, is_scalar):
             self.display_name = display_name
-            self.izzer = izzer
+            self.which = which
             self.is_scalar = is_scalar
+
+    _KIND_LOOKUP = {kind.which: kind for kind in Kind}
 
     @staticmethod
     def _make_schema(loader, schema):
@@ -672,7 +652,7 @@ class Type:
 
     def __init__(self, loader, type_):
         self._type = type_
-        self.kind = Type.Kind.from_type(self._type)
+        self.kind = Type._KIND_LOOKUP[self._type.which()]
 
         if self.kind is Type.Kind.ENUM:
             self.schema = self._make_schema(loader, self._type.asEnum())

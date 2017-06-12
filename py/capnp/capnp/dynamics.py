@@ -440,40 +440,15 @@ class AnyPointer:
 
     class Kind(enum.Enum):
 
-        @classmethod
-        def from_any_pointer(cls, any_pointer):
-            if isinstance(any_pointer, native.AnyPointer.Reader):
-                izzer_name = 'reader_izzer'
-            else:
-                assert isinstance(any_pointer, native.AnyPointer.Builder)
-                izzer_name = 'builder_izzer'
-            for kind in cls:
-                if getattr(kind, izzer_name)(any_pointer):
-                    return kind
-            else:
-                raise AssertionError(
-                    'unsupported AnyPointer kind: %s' % any_pointer)
+        NULL = (native.PointerType.NULL,)
+        STRUCT = (native.PointerType.STRUCT,)
+        LIST = (native.PointerType.LIST,)
+        CAPABILITY = (native.PointerType.CAPABILITY,)
 
-        NULL = (
-            native.AnyPointer.Reader.isNull,
-            native.AnyPointer.Builder.isNull,
-        )
-        CAPABILITY = (
-            native.AnyPointer.Reader.isCapability,
-            native.AnyPointer.Builder.isCapability,
-        )
-        LIST = (
-            native.AnyPointer.Reader.isList,
-            native.AnyPointer.Builder.isList,
-        )
-        STRUCT = (
-            native.AnyPointer.Reader.isStruct,
-            native.AnyPointer.Builder.isStruct,
-        )
+        def __init__(self, pointer_type):
+            self.pointer_type = pointer_type
 
-        def __init__(self, reader_izzer, builder_izzer):
-            self.reader_izzer = reader_izzer
-            self.builder_izzer = builder_izzer
+    _KIND_LOOKUP = {kind.pointer_type: kind for kind in Kind}
 
     def __init__(self, any_pointer):
         self._any_pointer = any_pointer
@@ -486,7 +461,7 @@ class AnyPointer:
 
     @property
     def kind(self):
-        return AnyPointer.Kind.from_any_pointer(self._any_pointer)
+        return self._KIND_LOOKUP[self._any_pointer.getPointerType()]
 
     def init(self, schema, size=None):
         assert not self._is_reader

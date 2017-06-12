@@ -153,12 +153,13 @@ class SchemasTest(Fixture):
             )
 
             # Check annotation value
+            name = 'test-1.capnp:structAnnotation'
             self.assertEqual(
                 [
-                    '(x = 7)',
+                    (name, '(x = 7)'),
                 ],
                 [
-                    str(annotation.value)
+                    (annotation.node.name[-len(name):], str(annotation.value))
                     for annotation in struct_schema.fields[5].annotations
                 ],
             )

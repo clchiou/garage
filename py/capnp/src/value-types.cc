@@ -263,6 +263,12 @@ void defineValueTypes(void) {
       .def_readonly("wordCount", &capnp::MessageSize::wordCount)
       .def_readonly("capCount", &capnp::MessageSize::capCount);
 
+  boost::python::enum_<capnp::PointerType>("PointerType")
+      .value("NULL", capnp::PointerType::NULL_)
+      .value("STRUCT", capnp::PointerType::STRUCT)
+      .value("LIST", capnp::PointerType::LIST)
+      .value("CAPABILITY", capnp::PointerType::CAPABILITY);
+
   // capnp/any.h
 
   defineAnyPointer();
@@ -312,6 +318,7 @@ void defineAnyPointer(void) {
   using Reader = AnyPointer::Reader;
   ValueType<Reader>("Reader", boost::python::no_init)
       .def("targetSize", &Reader::targetSize)
+      .def("getPointerType", &Reader::getPointerType)
       .def("isNull", &Reader::isNull)
       .def("isStruct", &Reader::isStruct)
       .def("isList", &Reader::isList)
@@ -328,6 +335,7 @@ void defineAnyPointer(void) {
   using Builder = AnyPointer::Builder;
   MakeCopyable<Builder>("Builder", boost::python::no_init)
       .def("targetSize", &Builder::targetSize)
+      .def("getPointerType", &Builder::getPointerType)
       .def("isNull", &Builder::isNull)
       .def("isStruct", &Builder::isStruct)
       .def("isList", &Builder::isList)
