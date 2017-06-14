@@ -130,7 +130,7 @@ class SchemaLoader:
                         continue
                     # Skip it if it's branded (we only generate entry
                     # for the non-branded generic) to avoid duplicates.
-                    if schema.is_branded:
+                    if schema.brands:
                         continue
                 elif schema.kind in (Schema.Kind.CONST, Schema.Kind.ENUM):
                     pass
@@ -297,7 +297,6 @@ class Node:
         self.scope_id = self._node.getScopeId()
         self.kind = Node._KIND_LOOKUP[self._node.which()]
         self.name = self._node.getDisplayName()
-        self.is_generic = self._node.getIsGeneric()
         self.nested_nodes = tuple(
             Node.NestedNode(nested_node.getName(), nested_node.getId())
             for nested_node in self._node.getNestedNodes()
@@ -430,9 +429,7 @@ class Schema:
 
             self._schema = schema.asStruct()
 
-            self.is_generic = self._proto.is_generic
-            self.is_branded = self._schema.isBranded()
-            if self.is_branded:
+            if self._schema.isBranded():
                 balist = self._schema.getBrandArgumentsAtScope(self._proto.id)
                 self.brands = tuple(
                     Type(loader, balist[i])
@@ -464,7 +461,7 @@ class Schema:
         if self.kind is Schema.Kind.LIST:
             return 'List(%s)' % self.element_type
         elif self.name is not None:
-            if self.kind is Schema.Kind.STRUCT and self.is_branded:
+            if self.kind is Schema.Kind.STRUCT and self.brands:
                 return '%s(%s)' % (self.name, ', '.join(map(str, self.brands)))
             else:
                 return self.name

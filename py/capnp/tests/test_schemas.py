@@ -195,18 +195,17 @@ class SchemasTest(Fixture):
             )
 
             # Check generics
-            self.assertFalse(struct_schema.is_generic)
+            self.assertEqual((), struct_schema.brands)
             self.assertEqual(
                 [
-                    (True, True, 'GenericStruct(Text)'),
-                    (True, True, 'GenericStruct(List(Data))'),
-                    (True, True, 'GenericStruct(EmbeddedStruct1)'),
-                    (True, False, 'GenericStruct'),
+                    (True, 'GenericStruct(Text)'),
+                    (True, 'GenericStruct(List(Data))'),
+                    (True, 'GenericStruct(EmbeddedStruct1)'),
+                    (False, 'GenericStruct'),
                 ],
                 [
                     (
-                        g.type.schema.is_generic,
-                        g.type.schema.is_branded,
+                        bool(g.type.schema.brands),
                         str(g.type),
                     )
                     for g in (
