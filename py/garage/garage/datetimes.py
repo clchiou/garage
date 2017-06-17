@@ -3,9 +3,13 @@
 __all__ = [
     'format_iso8601',
     'parse_iso8601',
+
+    'fromtimestamp',
 ]
 
 from datetime import datetime
+
+from .timezones import TimeZone
 
 
 # ISO 8601 date and time format (with time zone designator).
@@ -27,3 +31,7 @@ def parse_iso8601(dt_str):
         except ValueError:
             pass
     raise ValueError('not ISO-8601 format: %r' % dt_str)
+
+
+def fromtimestamp(timestamp, tz=TimeZone.UTC):
+    return datetime.fromtimestamp(timestamp, tz)
