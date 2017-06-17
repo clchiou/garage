@@ -5,6 +5,7 @@ __all__ = [
     'get_schema_id',
 
     'camel_to_upper_snake',
+    'snake_to_lower_camel',
 
     'dicts_get',
 ]
@@ -77,10 +78,18 @@ CAMEL_PATTERN_2 = re.compile(r'([a-z0-9])([A-Z])')
 
 
 def camel_to_upper_snake(camel):
-    """Turn a camelCase name into a SNAKE_CASE one."""
+    """Turn a CamelCase or camelCase name into a SNAKE_CASE one."""
     camel = CAMEL_PATTERN_1.sub(r'\1_\2', camel)
     camel = CAMEL_PATTERN_2.sub(r'\1_\2', camel)
     return camel.upper()
+
+
+SNAKE_PATTERN = re.compile(r'_([a-z])')
+
+
+def snake_to_lower_camel(snake):
+    """Turn a SNAKE_CASE or snake_case name into camelCase."""
+    return SNAKE_PATTERN.sub(lambda s: s.group(1).upper(), snake.lower())
 
 
 def dicts_get(dicts, key, default=None):

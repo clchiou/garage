@@ -29,6 +29,14 @@ class BasesTest(unittest.TestCase):
             bases.camel_to_upper_snake('aPICTUREisWORTHaTHOUSANDwords'),
         )
 
+    def test_snake_to_lower_camel(self):
+        self.assertEqual('camelCase', bases.snake_to_lower_camel('CAMEL_CASE'))
+        self.assertEqual('camelCase', bases.snake_to_lower_camel('camel_case'))
+        self.assertEqual('http', bases.snake_to_lower_camel('HTTP'))
+        self.assertEqual('http', bases.snake_to_lower_camel('http'))
+        self.assertEqual('httpGet', bases.snake_to_lower_camel('HTTP_GET'))
+        self.assertEqual('httpGet', bases.snake_to_lower_camel('http_get'))
+
 
 if __name__ == '__main__':
     unittest.main()

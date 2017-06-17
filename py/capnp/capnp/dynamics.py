@@ -81,6 +81,12 @@ class MessageBuilder(MessageBase):
         message = self._resource.initRoot(schema._schema)
         return DynamicStruct.Builder(schema, message)
 
+    def get_root(self, schema):
+        assert self._resource is not None
+        assert schema.kind is Schema.Kind.STRUCT
+        message = self._resource.getRoot(schema._schema)
+        return DynamicStruct.Builder(schema, message)
+
     def to_bytes(self):
         assert self._resource is not None
         with io.make_bytes_writer() as writer:

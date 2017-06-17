@@ -16,12 +16,16 @@ __all__ = [
 
     'MessageBuilder',
     'MessageReader',
+
+    'DynamicObject',
 ]
 
 import logging
 
 from .dynamics import MessageBuilder
 from .dynamics import MessageReader
+
+from .objects import DynamicObject
 
 from .schemas import AnnotationDef
 from .schemas import Schema

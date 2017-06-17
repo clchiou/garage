@@ -62,6 +62,12 @@ class DynamicsTest(Fixture):
                 message.to_packed_bytes(),
             )
 
+            obj = capnp.DynamicObject(struct)
+            self.assertEqual(-1, obj.i8)
+            self.assertEqual(-1, obj.I8)  # Upper snake case works, too.
+            with self.assertRaises(AttributeError):
+                obj.no_such_field
+
     def test_clear_field(self):
         with capnp.MessageBuilder() as message:
             struct = message.init_root(self.struct_schema)
