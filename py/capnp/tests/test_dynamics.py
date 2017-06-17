@@ -85,6 +85,9 @@ class DynamicsTest(Fixture):
             obj.s1 = {'s2': {'s3': {'i32': 99}}}
             self.assertEqual('(s2 = (s3 = (i32 = 99)))', str(obj.s1))
 
+            obj._init('s1').s2 = {'s3': {'i32': 12}}
+            self.assertEqual('(s2 = (s3 = (i32 = 12)))', str(obj.s1))
+
     def test_clear_field(self):
         with capnp.MessageBuilder() as message:
             struct = message.init_root(self.struct_schema)

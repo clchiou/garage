@@ -73,6 +73,12 @@ class DynamicObject(metaclass=DynamicObjectMeta):
         assert isinstance(struct, (DynamicStruct, DynamicStruct.Builder))
         super().__setattr__('_struct', struct)
 
+    def _init(self, name, size=None):
+        camel_case = bases.snake_to_lower_camel(name)
+        value = _convert(self._struct.init(camel_case, size))
+        value = self.__annotations__.get(name, _identity_converter)(value)
+        return value
+
     def __getattr__(self, name):
 
         # Translate name.
@@ -145,6 +151,9 @@ class DynamicListAdapter(collections.MutableSequence):
 
     def __iter__(self):
         yield from map(_convert, self._list)
+
+    def _init(self, index, size=None):
+        return _convert(self._list.init(index, size))
 
     def __getitem__(self, index):
         return _convert(self._list[index])
