@@ -18,6 +18,7 @@ __all__ = [
     'MessageReader',
 
     'DynamicObject',
+    'register_converter',
 ]
 
 import logging
@@ -26,6 +27,7 @@ from .dynamics import MessageBuilder
 from .dynamics import MessageReader
 
 from .objects import DynamicObject
+from .objects import register_converter
 
 from .schemas import AnnotationDef
 from .schemas import Schema

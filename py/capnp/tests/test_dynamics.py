@@ -68,6 +68,23 @@ class DynamicsTest(Fixture):
             with self.assertRaises(AttributeError):
                 obj.no_such_field
 
+            obj.i8 = 7
+            self.assertEqual(7, obj.i8)
+
+            self.assertEqual('hello "" world', obj.t)
+            obj.t = 'some text'
+            self.assertEqual('some text', obj.t)
+            del obj.t
+            self.assertIsNone(obj.t)
+
+            self.assertEqual('[[[e1]]]', str(obj.l))
+            obj.l = [[[0, 1], [1], [0]]]
+            self.assertEqual('[[[e0, e1], [e1], [e0]]]', str(obj.l))
+
+            self.assertEqual('(s2 = (s3 = (i32 = 42)))', str(obj.s1))
+            obj.s1 = {'s2': {'s3': {'i32': 99}}}
+            self.assertEqual('(s2 = (s3 = (i32 = 99)))', str(obj.s1))
+
     def test_clear_field(self):
         with capnp.MessageBuilder() as message:
             struct = message.init_root(self.struct_schema)

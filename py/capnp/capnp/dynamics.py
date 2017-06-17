@@ -205,25 +205,31 @@ class DynamicList(collections.Sequence):
                 self._list[index],
             )
 
-        def init(self, index, size):
+        def init(self, index, size=None):
             self._ensure_index(index)
-            assert self.schema.element_type.kind is Type.Kind.LIST
-            return DynamicList.Builder(
-                self.schema.element_type.schema,
-                self._list.init(index, size).asList(),
-            )
+            if self.schema.element_type.kind is Type.Kind.LIST:
+                assert size is not None
+                return DynamicList.Builder(
+                    self.schema.element_type.schema,
+                    self._list.init(index, size).asList(),
+                )
+            else:
+                assert self.schema.element_type.kind is Type.Kind.STRUCT
+                assert size is None
+                return DynamicStruct.Builder(
+                    self.schema.element_type.schema,
+                    self._list[index].asStruct(),
+                )
 
         def __setitem__(self, index, value):
             self._ensure_index(index)
             _set_scalar(self._list, index, self.schema.element_type, value)
 
         def __delitem__(self, index):
-            cls = self.__class__
-            raise IndexError('%s.%s does not support __delitem__' %
-                             (cls.__module__, cls.__qualname__))
+            raise IndexError('do not support __delitem__')
 
         def insert(self, index, value):
-            self[index] = value
+            raise IndexError('do not support insert')
 
         def __str__(self):
             return '[%s]' % ', '.join(map(bases.str_value, self))
