@@ -20,7 +20,7 @@ class DynamicsTest(Fixture):
         self.loader.close()
 
     def test_dynamic_object(self):
-        obj = capnp.DynamicObject.from_message(
+        obj = capnp.DynamicObject._make(
             capnp.MessageBuilder(),
             self.struct_schema,
         )

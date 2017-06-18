@@ -101,7 +101,7 @@ class DynamicObject(metaclass=DynamicObjectMeta):
     _schema = None
 
     @classmethod
-    def from_message(cls, message, schema=None):
+    def _make(cls, message, schema=None):
         """Make a DynamicObject from message and default schema.
 
         This will "own" the message object, and thus you should neither
