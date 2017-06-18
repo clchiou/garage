@@ -40,6 +40,12 @@ class MessageBase:
         self._context, context = None, self._context
         return context.__exit__(*args)
 
+    def open(self):
+        self.__enter__()
+
+    def close(self):
+        self.__exit__(None, None, None)
+
     @property
     def canonical(self):
         assert self._resource is not None

@@ -263,6 +263,9 @@ class SchemaLoader:
         """Get schema by fully-qualified name."""
         return self._schema_lookup_table.get(fqname)
 
+    def get_schema_or_fail(self, fqname):
+        return self._schema_lookup_table[fqname]
+
 
 class Node:
     """Represent low-level capnp::schema::Node object.

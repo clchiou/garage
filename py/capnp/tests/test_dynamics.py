@@ -19,6 +19,17 @@ class DynamicsTest(Fixture):
     def tearDown(self):
         self.loader.close()
 
+    def test_dynamic_object(self):
+        obj = capnp.DynamicObject.from_message(
+            capnp.MessageBuilder(),
+            self.struct_schema,
+        )
+        obj.i8 = -1
+        self.assertEqual(
+            self.encode('test-1.capnp', self.struct_schema, obj._struct),
+            obj._message.to_bytes(),
+        )
+
     def test_message_builder(self):
 
         enum_class = self.enum_schema.generate_enum()

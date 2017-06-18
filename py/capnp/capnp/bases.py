@@ -4,6 +4,7 @@ __all__ = [
 
     'get_schema_id',
 
+    'camel_to_lower_snake',
     'camel_to_upper_snake',
     'snake_to_lower_camel',
 
@@ -77,11 +78,20 @@ CAMEL_PATTERN_1 = re.compile(r'([A-Z]{2})([a-z0-9])')
 CAMEL_PATTERN_2 = re.compile(r'([a-z0-9])([A-Z])')
 
 
-def camel_to_upper_snake(camel):
-    """Turn a CamelCase or camelCase name into a SNAKE_CASE one."""
+def _camel_to_snake(camel):
     camel = CAMEL_PATTERN_1.sub(r'\1_\2', camel)
     camel = CAMEL_PATTERN_2.sub(r'\1_\2', camel)
-    return camel.upper()
+    return camel
+
+
+def camel_to_upper_snake(camel):
+    """Turn a CamelCase or camelCase name into a SNAKE_CASE one."""
+    return _camel_to_snake(camel).upper()
+
+
+def camel_to_lower_snake(camel):
+    """Turn a CamelCase or camelCase name into a snake_case one."""
+    return _camel_to_snake(camel).lower()
 
 
 SNAKE_PATTERN = re.compile(r'_([a-z])')

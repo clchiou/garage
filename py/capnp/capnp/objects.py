@@ -2,9 +2,11 @@ __all__ = [
     'DynamicObject',
     'DynamicListAdapter',
     'register_converter',
+    'register_serializer',
 ]
 
 import collections
+import enum
 
 from . import bases
 from .schemas import Type
@@ -14,23 +16,52 @@ from .dynamics import DynamicStruct
 
 
 _CONVERTER_TABLE = {}
+_SERIALIZER_TABLE = collections.OrderedDict()
 
 
 def register_converter(type_, converter):
+    """Register a converter for the given type.
+
+    A converter transforms capnp-domain value into Python-domain.
+    """
     if type_ in _CONVERTER_TABLE:
         raise ValueError('cannot override converter: type=%r' % type_)
     _CONVERTER_TABLE[type_] = converter
 
 
-def _identity_converter(value):
+def register_serializer(type_, serializer):
+    """Register a serializer for the given type and all its sub-types.
+
+    A serializer transforms Python value into another that is suitable
+    for JSON or YAML serialization.
+
+    Note that serializer is matched with all sub-types because it is
+    common that you sub-class a Python type (which is not so for capnp-
+    domain types).
+    """
+    if type_ in _SERIALIZER_TABLE:
+        raise ValueError('cannot override serializer: type=%r' % type_)
+    _SERIALIZER_TABLE[type_] = serializer
+
+
+def _identity_func(value):
     return value
 
 
 def _convert(value):
-    return _CONVERTER_TABLE.get(type(value), _identity_converter)(value)
+    return _CONVERTER_TABLE.get(type(value), _identity_func)(value)
+
+
+def _serialize(value):
+    for type_, serializer in _SERIALIZER_TABLE.items():
+        if isinstance(value, type_):
+            value = serializer(value)
+            break
+    return value
 
 
 register_converter(DynamicEnum, lambda e: e.get())
+register_serializer(enum.Enum, lambda e: e.value)
 
 
 class DynamicObjectMeta(type):
@@ -45,6 +76,8 @@ class DynamicObjectMeta(type):
     def __new__(mcs, class_name, base_classes, namespace, schema=None):
         if schema in mcs.DYNAMIC_OBJECT_CLASS:
             raise ValueError('cannot override: %r' % schema)
+        if schema is not None:
+            namespace['_schema'] = schema
         cls = super().__new__(mcs, class_name, base_classes, namespace)
         if schema is not None:
             mcs.DYNAMIC_OBJECT_CLASS[schema] = cls
@@ -54,29 +87,69 @@ class DynamicObjectMeta(type):
         super().__init__(name, base_classes, namespace)
 
 
-register_converter(DynamicStruct, DynamicObjectMeta.convert_struct)
-register_converter(DynamicStruct.Builder, DynamicObjectMeta.convert_struct)
-
-
 class DynamicObject(metaclass=DynamicObjectMeta):
-    """Let you access DynamicStruct like a regular read-only object.
+    """Let you access DynamicStruct like a regular object.
 
     NOTE: Cap'n Proto's data model is quite different from the normal
-    Python object field access semantics - at least for now I can't
-    reconcile the differences of the two sides; as a result, this class
-    is quite awkward to use at the moment.
+    Python object semantics - at least for now I can't reconcile the
+    differences of the two sides; as a result, this class is quite
+    awkward to use at the moment.
     """
 
     __annotations__ = {}
 
+    _schema = None
+
+    @classmethod
+    def from_message(cls, message, schema=None):
+        """Make a DynamicObject from message and default schema.
+
+        This will "own" the message object, and thus you should neither
+        open the message before calling this, nor close the message
+        afterwards.
+        """
+        if schema is None:
+            schema = cls._schema
+        assert schema is not None
+        message.open()
+        try:
+            obj = cls(message.get_root(schema))
+            obj._message = message
+            return obj
+        except:
+            message.close()
+            raise
+
     def __init__(self, struct):
         assert isinstance(struct, (DynamicStruct, DynamicStruct.Builder))
-        super().__setattr__('_struct', struct)
+        self._message = None
+        self._struct = struct
+
+    def __del__(self):
+        # Release C++ resources, just to be safe.
+        self._close()
+
+    def _close(self):
+        if self._message is not None:
+            self._struct, self._message, message = None, None, self._message
+            message.close()
+
+    def _as_reader(self):
+        return self.__class__(self._struct.as_reader())
+
+    def _serialize_asdict(self):
+        odict = collections.OrderedDict()
+        for camel_case in self._struct.keys():
+            name = bases.camel_to_lower_snake(camel_case)
+            # Use getattr() so that converter may participate.
+            value = getattr(self, name)
+            odict[name] = _serialize(value)
+        return odict
 
     def _init(self, name, size=None):
         camel_case = bases.snake_to_lower_camel(name)
         value = _convert(self._struct.init(camel_case, size))
-        value = self.__annotations__.get(name, _identity_converter)(value)
+        value = self.__annotations__.get(name, _identity_func)(value)
         return value
 
     def __getattr__(self, name):
@@ -104,11 +177,16 @@ class DynamicObject(metaclass=DynamicObjectMeta):
         value = _convert(value)
 
         # Apply per-struct converter.
-        value = self.__annotations__.get(name, _identity_converter)(value)
+        value = self.__annotations__.get(name, _identity_func)(value)
 
         return value
 
     def __setattr__(self, name, value):
+
+        # Special case for attribute name started with '_'.
+        if name.startswith('_'):
+            super().__setattr__(name, value)
+            return
 
         camel_case = bases.snake_to_lower_camel(name)
 
@@ -127,6 +205,12 @@ class DynamicObject(metaclass=DynamicObjectMeta):
         )
 
     def __delattr__(self, name):
+
+        # Special case for attribute name started with '_'.
+        if name.startswith('_'):
+            super().__delattr__(name)
+            return
+
         camel_case = bases.snake_to_lower_camel(name)
         try:
             self._struct.pop(name)
@@ -140,11 +224,19 @@ class DynamicObject(metaclass=DynamicObjectMeta):
     __repr__ = bases.repr_object
 
 
+register_converter(DynamicStruct, DynamicObjectMeta.convert_struct)
+register_converter(DynamicStruct.Builder, DynamicObjectMeta.convert_struct)
+register_serializer(DynamicObject, DynamicObject._serialize_asdict)
+
+
 class DynamicListAdapter(collections.MutableSequence):
 
     def __init__(self, list_):
         assert isinstance(list_, (DynamicList, DynamicList.Builder))
         self._list = list_
+
+    def _serialize_aslist(self):
+        return list(map(_serialize, self))
 
     def __len__(self):
         return len(self._list)
@@ -181,6 +273,7 @@ class DynamicListAdapter(collections.MutableSequence):
 
 register_converter(DynamicList, DynamicListAdapter)
 register_converter(DynamicList.Builder, DynamicListAdapter)
+register_serializer(DynamicListAdapter, DynamicListAdapter._serialize_aslist)
 
 
 def _setter_helper(type_, target, key, value, get_obj):
