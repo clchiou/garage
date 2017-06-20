@@ -2,7 +2,6 @@ __all__ = [
     'make_compile_schemas',
 ]
 
-import os
 import warnings
 from distutils import log
 from distutils.core import Command
@@ -10,63 +9,37 @@ from pathlib import Path
 from subprocess import check_call
 
 
-def make_compile_schemas(schemas, *, import_paths=None):
+def make_compile_schemas(schemas, *, import_paths=()):
 
     class compile_schemas(Command):
 
+        IMPORT_PATH = ':'.join(map(str, import_paths))
+
         description = "compile Cap'n Proto schema files"
 
+        user_options = [
+            ('import-path=', None, 'schema file search path'),
+        ]
+
         def initialize_options(self):
-            pass
+            self.import_path = self.IMPORT_PATH
 
         def finalize_options(self):
             pass
 
         def run(self):
-            _compile_schemas(schemas, import_paths)
+            _compile_schemas(schemas, self.import_path.split(':'))
 
     return compile_schemas
 
 
 def _compile_schemas(schemas, import_paths):
     """Generate the CodeGeneratorRequest."""
-
-    import_paths = import_paths or []
-
-    #
-    # Unfortunately setup.py does not have a nice way to pass import
-    # paths to us in all scenarios.
-    #
-    # * Adding new command-line arguments (e.g., --capnp-import-path)
-    #   would not be recognized by distutils (unless you remove them
-    #   before distutils starts parsing command-line arguments).
-    #
-    # * Using existing command-line arguments (like --include-dirs) does
-    #   not work because you do not always invoke the associated command
-    #   (which is build_ext in this case).
-    #
-    # * Adding new environment variable (e.g., CAPNP_IMPORT_PATH) does
-    #   not work because sudo does not preserve non-whitelisted
-    #   environment variables.  This problem arises when you run:
-    #
-    #       sudo python setup.py install
-    #
-    # Which leaves us to the only option to use PYTHONPATH for passing
-    # import paths.  This works with sudo because my build tools
-    # explicitly make sudo preserve PYTHONPATH.
-    #
-    pythonpath = os.environ.get('PYTHONPATH')
-    if pythonpath:
-        import_paths.extend(pythonpath.split(':'))
-
     schema_paths = _find_schema_paths(schemas, import_paths)
-
     for import_, output_path in sorted(schemas.items()):
-
         output_path = Path(output_path).absolute()
         if not output_path.parent.is_dir():
             check_call(['mkdir', '--parents', str(output_path.parent)])
-
         _compile(schema_paths[import_], import_paths, output_path)
 
 
