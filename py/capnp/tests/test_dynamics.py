@@ -99,6 +99,13 @@ class DynamicsTest(Fixture):
             obj._init('s1').s2 = {'s3': {'i32': 12}}
             self.assertEqual('(s2 = (s3 = (i32 = 12)))', str(obj.s1))
 
+            with capnp.MessageBuilder() as m2:
+                s2 = m2.init_root(self.struct_schema)
+                s2.copy_from(struct)
+                decode = lambda m: self.decode(
+                    'test-1.capnp', self.struct_schema, m.to_bytes())
+                self.assertEqual(decode(message), decode(m2))
+
     def test_clear_field(self):
         with capnp.MessageBuilder() as message:
             struct = message.init_root(self.struct_schema)

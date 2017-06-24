@@ -146,6 +146,9 @@ class DynamicEnum:
         assert schema.kind is Schema.Kind.ENUM
         if isinstance(member, enum.Enum):
             enumerant = schema.get_enumerant_from_ordinal(member.value)
+        elif isinstance(member, DynamicEnum):
+            assert member.schema is schema
+            enumerant = member.enumerant
         else:
             assert isinstance(member, int)
             enumerant = schema.get_enumerant_from_ordinal(member)
@@ -190,6 +193,20 @@ class DynamicList(collections.Sequence):
             assert schema.id == bases.get_schema_id(list_.getSchema())
             self.schema = schema
             self._list = list_
+
+        def copy_from(self, list_):
+            assert list_.schema is self.schema
+            assert len(list_) == len(self)
+            if self.schema.element_type.kind is Type.Kind.LIST:
+                for i in range(len(self)):
+                    value = list_[i]
+                    self.init(i, len(value)).copy_from(value)
+            elif self.schema.element_type.kind is Type.Kind.STRUCT:
+                for i in range(len(self)):
+                    self.init(i).copy_from(list_[i])
+            else:
+                for i in range(len(self)):
+                    self[i] = list_[i]
 
         def as_reader(self):
             return DynamicList(self.schema, self._list.asReader())
@@ -285,6 +302,36 @@ class DynamicStruct(collections.Mapping):
             assert schema.id == bases.get_schema_id(struct.getSchema())
             self.schema = schema
             self._struct = struct
+
+        def copy_from(self, struct):
+            assert struct.schema is self.schema
+
+            if self.schema.union_fields:
+                # Can you mix union and non-union fields in one struct?
+                assert not self.schema.non_union_fields
+                for field in self.schema.union_fields:
+                    if struct._struct.has(field._field):
+                        self._copy_field(field, struct)
+                        break
+                else:
+                    raise ValueError(
+                        'none of union member is set: %s' % struct)
+                return
+
+            for field in self.schema.fields:
+                if struct._struct.has(field._field):
+                    self._copy_field(field, struct)
+                else:
+                    self._struct.clear(field._field)
+
+        def _copy_field(self, field, struct):
+            if field.type.kind is Type.Kind.LIST:
+                list_ = struct[field.name]
+                self.init(field.name, len(list_)).copy_from(list_)
+            elif field.type.kind is Type.Kind.STRUCT:
+                self.init(field.name).copy_from(struct[field.name])
+            else:
+                self[field.name] = struct[field.name]
 
         @property
         def total_size(self):

@@ -227,6 +227,17 @@ template <typename T, typename Bases = boost::python::bases<>>
 using MakeCopyable = boost::python::class_<T, Bases, MakeCopyableHolder<T>>;
 
 //
+// Call class T's constructor with single argument.
+//
+// Use this template because Boost.Python doesn't seem to be able to
+// parse lambda function's signature (why?).
+//
+template <typename T, typename Arg>
+struct Constructor {
+  static T func(Arg arg) { return T(arg); }
+};
+
+//
 // defineValueTypes
 //
 
@@ -393,8 +404,6 @@ void defineDynamicList(void) {
       .def("__getitem__", Getitem<Builder, capnp::DynamicValue::Builder>::getitem)
       .def("set", &Builder::set)
       .def("init", &Builder::init)
-      // TODO: Test whether Boost.Python can handle std::initializer_list
-      .def("copyFrom", &Builder::copyFrom)
       .def("asReader", &Builder::asReader);
 }
 
@@ -436,12 +445,8 @@ void defineDynamicStruct(void) {
 // capnp::DynamicValue
 //
 
-// Use this template because Boost.Python doesn't seem to be able to
-// parse lambda function's signature (why?).
 template <typename T>
-struct ValueFrom {
-  static capnp::DynamicValue::Reader func(T t) { return capnp::DynamicValue::Reader(t); }
-};
+using ValueReaderCtor = Constructor<capnp::DynamicValue::Reader, T>;
 
 void defineDynamicValue(void) {
   using capnp::DynamicValue;
@@ -476,16 +481,16 @@ void defineDynamicValue(void) {
       //
       // And in C++ you cannot take address to a constructor :(
       //
-      .DEF_STATICMETHOD("fromVoid", ValueFrom<capnp::Void>::func)
-      .DEF_STATICMETHOD("fromBool", ValueFrom<bool>::func)
-      .DEF_STATICMETHOD("fromInt", ValueFrom<int64_t>::func)
-      .DEF_STATICMETHOD("fromFloat", ValueFrom<double>::func)
-      .DEF_STATICMETHOD("fromStr", ValueFrom<kj::StringPtr>::func)
-      .DEF_STATICMETHOD("fromBytes", ValueFrom<kj::ArrayPtr<const kj::byte>>::func)
-      .DEF_STATICMETHOD("fromList", ValueFrom<const capnp::DynamicList::Reader&>::func)
-      .DEF_STATICMETHOD("fromEnum", ValueFrom<capnp::DynamicEnum>::func)
-      .DEF_STATICMETHOD("fromStruct", ValueFrom<const capnp::DynamicStruct::Reader&>::func)
-      .DEF_STATICMETHOD("fromAnyPointer", ValueFrom<const capnp::AnyPointer::Reader&>::func)
+      .DEF_STATICMETHOD("fromVoid", ValueReaderCtor<capnp::Void>::func)
+      .DEF_STATICMETHOD("fromBool", ValueReaderCtor<bool>::func)
+      .DEF_STATICMETHOD("fromInt", ValueReaderCtor<int64_t>::func)
+      .DEF_STATICMETHOD("fromFloat", ValueReaderCtor<double>::func)
+      .DEF_STATICMETHOD("fromStr", ValueReaderCtor<kj::StringPtr>::func)
+      .DEF_STATICMETHOD("fromBytes", ValueReaderCtor<kj::ArrayPtr<const kj::byte>>::func)
+      .DEF_STATICMETHOD("fromList", ValueReaderCtor<const capnp::DynamicList::Reader&>::func)
+      .DEF_STATICMETHOD("fromEnum", ValueReaderCtor<capnp::DynamicEnum>::func)
+      .DEF_STATICMETHOD("fromStruct", ValueReaderCtor<const capnp::DynamicStruct::Reader&>::func)
+      .DEF_STATICMETHOD("fromAnyPointer", ValueReaderCtor<const capnp::AnyPointer::Reader&>::func)
       .def("asVoid", &Reader::as<capnp::Void>)
       .def("asBool", &Reader::as<bool>)
       .def("asInt", &Reader::as<int64_t>)
@@ -669,21 +674,17 @@ void defineConstSchema(void) {
 // capnp::Type
 //
 
-// Use this template because Boost.Python doesn't seem to be able to
-// parse lambda function's signature (why?).
 template <typename T>
-struct TypeFrom {
-  static capnp::Type func(T t) { return capnp::Type(t); }
-};
+using TypeCtor = Constructor<capnp::Type, T>;
 
 void defineType(void) {
 #define DEF(mf) def(#mf, &Type::mf)
   using capnp::Type;
   ValueType<Type>("Type", boost::python::no_init)
-      .DEF_STATICMETHOD("fromPrimitiveWhich", TypeFrom<capnp::schema::Type::Which>::func)
-      .DEF_STATICMETHOD("fromEnumSchema", TypeFrom<capnp::EnumSchema>::func)
-      .DEF_STATICMETHOD("fromListSchema", TypeFrom<capnp::ListSchema>::func)
-      .DEF_STATICMETHOD("fromStructSchema", TypeFrom<capnp::StructSchema>::func)
+      .DEF_STATICMETHOD("fromPrimitiveWhich", TypeCtor<capnp::schema::Type::Which>::func)
+      .DEF_STATICMETHOD("fromEnumSchema", TypeCtor<capnp::EnumSchema>::func)
+      .DEF_STATICMETHOD("fromListSchema", TypeCtor<capnp::ListSchema>::func)
+      .DEF_STATICMETHOD("fromStructSchema", TypeCtor<capnp::StructSchema>::func)
       .DEF(which)
       .DEF(asStruct)
       .DEF(asEnum)
