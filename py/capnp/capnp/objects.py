@@ -213,7 +213,7 @@ class DynamicObject(metaclass=DynamicObjectMeta):
 
         camel_case = bases.snake_to_lower_camel(name)
         try:
-            self._struct.pop(name)
+            self._struct.pop(camel_case)
         except KeyError:
             msg = '%s cannot delete %r' % (self._struct.schema, camel_case)
             raise AttributeError(msg) from None
