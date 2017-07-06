@@ -10,7 +10,7 @@ buildscript {
     }
     dependencies {
         classpath 'org.jooq:jooq-codegen:3.9.3'
-        classpath 'org.junit.platform:junit-platform-gradle-plugin:1.0.0-M4'
+        classpath 'org.junit.platform:junit-platform-gradle-plugin:1.0.0-M5'
     }
 }
 
