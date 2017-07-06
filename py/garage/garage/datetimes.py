@@ -4,7 +4,8 @@ __all__ = [
     'format_iso8601',
     'parse_iso8601',
 
-    'fromtimestamp',
+    'utcfromtimestamp',
+    'utcnow',
 ]
 
 from datetime import datetime
@@ -33,5 +34,9 @@ def parse_iso8601(dt_str):
     raise ValueError('not ISO-8601 format: %r' % dt_str)
 
 
-def fromtimestamp(timestamp, tz=TimeZone.UTC):
-    return datetime.fromtimestamp(timestamp, tz)
+def utcfromtimestamp(timestamp):
+    return datetime.fromtimestamp(timestamp, TimeZone.UTC)
+
+
+def utcnow():
+    return datetime.utcnow().replace(tzinfo=TimeZone.UTC)
