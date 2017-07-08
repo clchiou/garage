@@ -1,0 +1,4 @@
+dependencies {
+
+    compile "net.java.dev.jna:jna:${rootProject.ext.jnaVersion}"
+}

@@ -8,6 +8,7 @@
 ext {
     garageProjects = [
         'base',
+        'nanomsg',
         'search-analyzer',
         'search-indexer',
         'search-server',

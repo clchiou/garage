@@ -22,6 +22,8 @@ DEPS = [
 
     'com.google.guava:guava',
 
+    'net.java.dev.jna:jna',
+
     'org.jooq:jooq',
     'org.jooq:jooq-codegen',
 
