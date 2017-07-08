@@ -2,8 +2,6 @@ package nanomsg;
 
 import com.google.common.collect.ImmutableMap;
 
-import nanomsg.Symbol.Namespace;
-
 import java.util.Optional;
 
 import static nanomsg.Nanomsg.NANOMSG;
@@ -51,7 +49,7 @@ public class Error extends RuntimeException {
     public String toString() {
         return String.format(
             "Error<%s(%d): %s>",
-            asSymbol().map((e) -> e.name).orElse("UNKNOWN"),
+            asSymbol().map(Symbol::name).orElse("UNKNOWN"),
             errno, NANOMSG.nn_strerror(errno)
         );
     }

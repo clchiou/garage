@@ -6,6 +6,7 @@ dependencies {
     compile "org.jooq:jooq:${rootProject.ext.jooqVersion}"
 
     compile project(':base')
+    compile project(':nanomsg')
     compile project(':search-indexer')
 
     jooqRuntime "org.xerial:sqlite-jdbc:${sqliteJdbcVersion}"

@@ -23,6 +23,8 @@ public class Socket implements AutoCloseable {
     public static void device(Socket s1, Socket s2) {
         synchronized (s1) {
             synchronized (s2) {
+                Preconditions.checkArgument(s1.socket != -1);
+                Preconditions.checkArgument(s2.socket != -1);
                 check(NANOMSG.nn_device(s1.socket, s2.socket));
             }
         }
@@ -34,23 +36,22 @@ public class Socket implements AutoCloseable {
 
     static {
         Preconditions.checkState(
-            NN_SOL_SOCKET.namespace == Symbol.Namespace.NN_NS_OPTION_LEVEL);
+            NN_SOL_SOCKET.namespace == Namespace.NN_NS_OPTION_LEVEL);
     }
 
     private static final Joiner JOINER = Joiner.on(',');
 
     private int socket;
+    private final Domain domain;
+    private final Protocol protocol;
     private final Map<String, Integer> localEndpoints;
     private final Map<String, Integer> remoteEndpoints;
 
-    public Socket(Symbol domain, Symbol protocol) {
-        Preconditions.checkArgument(
-            domain.namespace == Symbol.Namespace.NN_NS_DOMAIN);
-        Preconditions.checkArgument(
-            protocol.namespace == Symbol.Namespace.NN_NS_PROTOCOL);
-
-        socket = -1;
+    public Socket(Domain domain, Protocol protocol) {
         socket = check(NANOMSG.nn_socket(domain.value, protocol.value));
+
+        this.domain = domain;
+        this.protocol = protocol;
 
         localEndpoints = Maps.newLinkedHashMap();
         remoteEndpoints = Maps.newLinkedHashMap();
@@ -62,7 +63,9 @@ public class Socket implements AutoCloseable {
         // fix it.  Otherwise, we cannot "print" a socket when another
         // thread is locking it (which is annoying).
         return String.format(
-            "Socket<socket=%d, local_addrs=[%s], remote_addrs=[%s]>",
+            "Socket<%s, %s, socket=%d, local=[%s], remote=[%s]>",
+            domain.name(),
+            protocol.name(),
             socket,
             JOINER.join(localEndpoints.keySet()),
             JOINER.join(remoteEndpoints.keySet())
@@ -85,19 +88,14 @@ public class Socket implements AutoCloseable {
         close();
     }
 
-    public synchronized int getOption(Symbol option) {
+    public synchronized int getOption(Option option) {
         Preconditions.checkState(socket != -1);
-
-        Preconditions.checkArgument(
-            option.namespace == Symbol.Namespace.NN_NS_SOCKET_OPTION ||
-            option.namespace == Symbol.Namespace.NN_NS_TRANSPORT_OPTION
-        );
 
         // Should we support other types?
         Preconditions.checkArgument(
-            option.type == Symbol.Type.NN_TYPE_INT,
+            option.type == Option.Type.NN_TYPE_INT,
             "Expect only integer-typed option: option=%s, type=%s",
-            option.name, option.type
+            option.name(), option.type.name()
         );
 
         IntByReference iref = new IntByReference();
@@ -112,23 +110,19 @@ public class Socket implements AutoCloseable {
         return iref.getValue();
     }
 
-    public synchronized void setOption(Symbol option, Object newValue) {
+    public synchronized void setOption(Option option, Object newValue) {
         Preconditions.checkState(socket != -1);
-
-        Preconditions.checkArgument(
-            option.namespace == Symbol.Namespace.NN_NS_SOCKET_OPTION ||
-            option.namespace == Symbol.Namespace.NN_NS_TRANSPORT_OPTION
-        );
+        Preconditions.checkArgument(Option.WRITABLE.contains(option));
 
         Pointer optval;
         size_t optvallen;
 
-        if (option.type == Symbol.Type.NN_TYPE_INT) {
+        if (option.type == Option.Type.NN_TYPE_INT) {
 
             Preconditions.checkArgument(
                 Integer.class.isAssignableFrom(newValue.getClass()),
                 "Expect integer value: option=%s, value=%s",
-                option.name, newValue
+                option.name(), newValue
             );
 
             IntByReference iref = new IntByReference();
@@ -136,12 +130,12 @@ public class Socket implements AutoCloseable {
             optval = iref.getPointer();
             optvallen = new size_t(4);
 
-        } else if (option.type == Symbol.Type.NN_TYPE_STR) {
+        } else if (option.type == Option.Type.NN_TYPE_STR) {
 
             Preconditions.checkArgument(
                 String.class.isAssignableFrom(newValue.getClass()),
                 "Expect string value: option=%s, value=%s",
-                option.name, newValue
+                option.name(), newValue
             );
 
             String str = (String) newValue;
@@ -154,7 +148,7 @@ public class Socket implements AutoCloseable {
         } else {
             throw new AssertionError(String.format(
                 "Unsupported type of option: option=%s, type=%s",
-                option.name, option.type
+                option.name(), option.type.name()
             ));
         }
 
@@ -206,65 +200,67 @@ public class Socket implements AutoCloseable {
     // At the moment we don't take the flags argument in send and recv,
     // but should we?
 
-    public int send(byte[] buffer) {
-        return send(buffer, buffer.length);
-    }
-
-    public synchronized int send(byte[] buffer, int size) {
+    public synchronized void send(byte[] buffer, int offset, int size) {
         Preconditions.checkState(socket != -1);
-        Preconditions.checkArgument(buffer.length >= size);
-
-        if (size == 0) {
-            return 0;
-        }
-
-        return check(NANOMSG.nn_send(socket, buffer, new size_t(size), 0));
-    }
-
-    public void send(ByteBuffer buffer) {
-        send(buffer, buffer.remaining());
-    }
-
-    public synchronized void send(ByteBuffer buffer, int size) {
-        Preconditions.checkState(socket != -1);
-        Preconditions.checkArgument(buffer.remaining() >= size);
+        Preconditions.checkArgument(offset >= 0 && size >= 0);
+        Preconditions.checkArgument(buffer.length >= offset + size);
 
         if (size == 0) {
             return;
         }
 
-        int n = check(NANOMSG.nn_send(socket, buffer, new size_t(size), 0));
+        send(ByteBuffer.wrap(buffer, offset, size));
+    }
+
+    public synchronized void send(ByteBuffer buffer) {
+        Preconditions.checkState(socket != -1);
+
+        if (buffer.remaining() == 0) {
+            return;
+        }
+
+        int n = check(NANOMSG.nn_send(
+            socket,
+            buffer,
+            new size_t(buffer.remaining()),
+            0
+        ));
+        Preconditions.checkState(
+            n == buffer.remaining(),
+            "Expect message to be sent in entirety: %s != %s",
+            n, buffer.remaining()
+        );
         buffer.position(buffer.position() + n);
     }
 
-    public int recv(byte[] buffer) {
-        return recv(buffer, buffer.length);
-    }
-
-    public synchronized int recv(byte[] buffer, int size) {
+    public synchronized int recv(byte[] buffer, int offset, int size) {
         Preconditions.checkState(socket != -1);
-        Preconditions.checkArgument(buffer.length >= size);
+        Preconditions.checkArgument(offset >= 0 && size >= 0);
+        Preconditions.checkArgument(buffer.length >= offset + size);
 
         if (size == 0) {
             return 0;
         }
 
-        return check(NANOMSG.nn_recv(socket, buffer, new size_t(size), 0));
+        ByteBuffer b = ByteBuffer.wrap(buffer, offset, size);
+        recv(b);
+
+        return b.position() - offset;
     }
 
-    public void recv(ByteBuffer buffer) {
-        recv(buffer, buffer.remaining());
-    }
-
-    public synchronized void recv(ByteBuffer buffer, int size) {
+    public synchronized void recv(ByteBuffer buffer) {
         Preconditions.checkState(socket != -1);
-        Preconditions.checkArgument(buffer.remaining() >= size);
 
-        if (size == 0) {
+        if (buffer.remaining() == 0) {
             return;
         }
 
-        int n = check(NANOMSG.nn_recv(socket, buffer, new size_t(size), 0));
+        int n = check(NANOMSG.nn_recv(
+            socket,
+            buffer,
+            new size_t(buffer.remaining()),
+            0
+        ));
         buffer.position(buffer.position() + n);
     }
 }
