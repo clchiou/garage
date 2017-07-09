@@ -10,6 +10,7 @@ import com.sun.jna.Native;
 import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
 import com.sun.jna.ptr.ByReference;
+import com.sun.jna.ptr.PointerByReference;
 
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -34,7 +35,7 @@ class Nanomsg {
     public static class size_t extends IntegerType {
 
         public size_t() {
-            this(0);
+            this(0L);
         }
 
         public size_t(long value) {
@@ -45,7 +46,7 @@ class Nanomsg {
     public static class size_t_ptr extends ByReference {
 
         public size_t_ptr() {
-            this(0);
+            this(0L);
         }
 
         public size_t_ptr(long value) {
@@ -54,11 +55,11 @@ class Nanomsg {
         }
 
         public long getValue() {
-            return getPointer().getLong(0);
+            return getPointer().getLong(0L);
         }
 
         public void setValue(long value) {
-            getPointer().setLong(0, value);
+            getPointer().setLong(0L, value);
         }
     }
 
@@ -99,6 +100,8 @@ class Nanomsg {
 
         void nn_term();
 
+        int nn_freemsg(Pointer msg);
+
         int nn_socket(int domain, int protocol);
 
         int nn_close(int s);
@@ -119,14 +122,14 @@ class Nanomsg {
 
         int nn_shutdown(int s, int how);
 
-        int nn_send(int s, byte[] buf, size_t len, int flags);
         int nn_send(int s, ByteBuffer buf, size_t len, int flags);
 
-        int nn_recv(int s, byte[] buf, size_t len, int flags);
-        int nn_recv(int s, ByteBuffer buf, size_t len, int flags);
+        int nn_recv(int s, PointerByReference buf, size_t len, int flags);
 
         int nn_device(int s1, int s2);
     }
+
+    static final size_t NN_MSG = new size_t(-1);
 
     static final NanomsgLibrary NANOMSG = (NanomsgLibrary) Native.loadLibrary(
         "nanomsg",

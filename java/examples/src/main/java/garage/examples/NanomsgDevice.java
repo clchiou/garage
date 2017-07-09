@@ -11,6 +11,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import nanomsg.Domain;
+import nanomsg.Message;
 import nanomsg.Protocol;
 import nanomsg.Socket;
 
@@ -81,27 +82,26 @@ public class NanomsgDevice {
             socket.connect(url);
 
             LOG.info("client: {} <- \"{}\"", socket, message);
-            ByteBuffer req = encode(message);
-            socket.send(req);
+            socket.send(encode(message));
 
-            ByteBuffer rep = ByteBuffer.allocate(req.capacity() + 16);
-            socket.recv(rep);
-            rep.flip();
-            LOG.info("client: {} -> \"{}\"", socket, decode(rep));
+            try (Message rep = socket.recv()) {
+                LOG.info(
+                    "client: {} -> \"{}\"",
+                    socket, decode(rep.getByteBuffer())
+                );
+            }
         }
     }
 
     private static void server(String url) {
         try (Socket socket = new Socket(Domain.AF_SP, Protocol.NN_REP)) {
             socket.connect(url);
-            ByteBuffer req = ByteBuffer.allocate(64);
             while (true) {
 
-                socket.recv(req);
-                req.flip();
-
-                String message = decode(req);
-                req.clear();
+                String message;
+                try (Message req = socket.recv()) {
+                    message = decode(req.getByteBuffer());
+                }
                 LOG.info("server: {} <- \"{}\"", socket, message);
 
                 socket.send(encode(String.format("echo: \"%s\"", message)));

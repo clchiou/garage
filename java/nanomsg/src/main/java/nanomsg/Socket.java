@@ -6,6 +6,7 @@ import com.google.common.collect.Maps;
 import com.sun.jna.Memory;
 import com.sun.jna.Pointer;
 import com.sun.jna.ptr.IntByReference;
+import com.sun.jna.ptr.PointerByReference;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -16,6 +17,7 @@ import nanomsg.Nanomsg.size_t_ptr;
 
 import static nanomsg.Error.check;
 import static nanomsg.Nanomsg.NANOMSG;
+import static nanomsg.Nanomsg.NN_MSG;
 import static nanomsg.Symbol.NN_SOL_SOCKET;
 
 public class Socket implements AutoCloseable {
@@ -233,34 +235,12 @@ public class Socket implements AutoCloseable {
         buffer.position(buffer.position() + n);
     }
 
-    public synchronized int recv(byte[] buffer, int offset, int size) {
-        Preconditions.checkState(socket != -1);
-        Preconditions.checkArgument(offset >= 0 && size >= 0);
-        Preconditions.checkArgument(buffer.length >= offset + size);
-
-        if (size == 0) {
-            return 0;
-        }
-
-        ByteBuffer b = ByteBuffer.wrap(buffer, offset, size);
-        recv(b);
-
-        return b.position() - offset;
-    }
-
-    public synchronized void recv(ByteBuffer buffer) {
+    public synchronized Message recv() {
         Preconditions.checkState(socket != -1);
 
-        if (buffer.remaining() == 0) {
-            return;
-        }
+        PointerByReference pref = new PointerByReference();
+        int n = check(NANOMSG.nn_recv(socket, pref, NN_MSG, 0));
 
-        int n = check(NANOMSG.nn_recv(
-            socket,
-            buffer,
-            new size_t(buffer.remaining()),
-            0
-        ));
-        buffer.position(buffer.position() + n);
+        return new Message(pref.getValue(), n);
     }
 }
