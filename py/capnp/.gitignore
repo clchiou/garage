@@ -1,1 +1,3 @@
 capnp/*.so
+scripts/pack
+scripts/unpack
