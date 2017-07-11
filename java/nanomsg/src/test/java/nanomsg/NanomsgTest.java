@@ -3,6 +3,8 @@ package nanomsg;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import java.nio.ByteBuffer;
+
 import nanomsg.Nanomsg.nn_symbol_properties;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -81,17 +83,15 @@ public class NanomsgTest {
             s1.bind("inproc://testSocket");
             s2.connect("inproc://testSocket");
 
-            byte[] req = new byte[]{0, 1, 2, 3, 4, 5};
-            byte[] rep = new byte[req.length];
+            ByteBuffer req;
 
-            s1.send(req, 0, req.length);
-            assertEquals(req.length, s2.recv(rep, 0, rep.length));
-            assertArrayEquals(req, rep);
+            req = ByteBuffer.wrap(new byte[]{0, 1, 2, 3, 4, 5});
+            s1.send(req);
+            assertEquals(req.flip(), s2.recv().getByteBuffer());
 
-            req = new byte[]{5, 4, 3, 2, 1, 0};
-            s2.send(req, 0, req.length);
-            assertEquals(req.length, s1.recv(rep, 0, rep.length));
-            assertArrayEquals(req, rep);
+            req = ByteBuffer.wrap(new byte[]{5, 4, 3, 2, 1, 0});
+            s2.send(req);
+            assertEquals(req.flip(), s1.recv().getByteBuffer());
         }
     }
 }
