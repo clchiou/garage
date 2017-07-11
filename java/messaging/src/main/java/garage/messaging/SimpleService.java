@@ -1,6 +1,7 @@
 package garage.messaging;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.util.concurrent.AbstractExecutionThreadService;
 import com.google.common.util.concurrent.MoreExecutors;
@@ -39,7 +40,6 @@ public class SimpleService {
     }
 
     public interface Handler {
-        // TODO: Both request and response should be Channels.
         ByteBuffer handle(ByteBuffer request) throws Exception;
     }
 
@@ -53,49 +53,51 @@ public class SimpleService {
 
     private ServiceManager manager;
 
+    private final String serverNameFormat;
     private final ImmutableSet<String> serverAddresses;
 
     private final String routerName;
     private final String routerAddress;
-
-    private final String handlerNameFormat;
 
     private final long gracePeriod;
 
     @Inject
     public SimpleService(@Node(SimpleService.class) Configuration config) {
         this(
-            config.getOrThrow("service-name", String.class),
+            config.getOrThrow("service_name", String.class),
 
-            config.getOrThrow("server-addresses", List.class),
-
-            config.get("router-name", String.class)
+            config.get("router_name", String.class)
                 .orElse(DEFAULT_ROUTER_NAME),
-            config.get("router-address", String.class)
+            config.get("router_address", String.class)
                 .orElse(DEFAULT_ROUTER_ADDRESS),
 
-            config.get("handler-name-format", String.class)
+            config.get("server_name_format", String.class)
                 .orElse(DEFAULT_HANDLER_NAME_FORMAT),
+            config.getOrThrow("server_addresses", List.class),
 
-            config.get("grace-period", Long.class)
+            config.get("grace_period", Long.class)
                 .orElse(DEFAULT_GRACE_PERIOD)
         );
     }
 
     public SimpleService(
         String name,
-        List<String> serverAddresses,
         String routerName,
         String routerAddress,
-        String handlerNameFormat,
+        String serverNameFormat,
+        List<String> serverAddresses,
         long gracePeriod
     ) {
         this.name = name;
+
         this.manager = null;
-        this.serverAddresses = ImmutableSet.copyOf(serverAddresses);
+
         this.routerName = routerName;
         this.routerAddress = routerAddress;
-        this.handlerNameFormat = handlerNameFormat;
+
+        this.serverNameFormat = serverNameFormat;
+        this.serverAddresses = ImmutableSet.copyOf(serverAddresses);
+
         this.gracePeriod = gracePeriod;
     }
 
@@ -103,7 +105,7 @@ public class SimpleService {
         Preconditions.checkState(manager == null);
 
         manager = new ServiceManager(makeServices(
-            ImmutableSet.copyOf(handlers)
+            ImmutableList.copyOf(handlers)
         ));
 
         manager.addListener(
@@ -162,12 +164,12 @@ public class SimpleService {
         LOG.info("{}: exit", name);
     }
 
-    private ImmutableSet<Service> makeServices(
-        ImmutableSet<Handler> handlers
+    private ImmutableList<Service> makeServices(
+        ImmutableList<Handler> handlers
     ) {
         Preconditions.checkState(!handlers.isEmpty());
 
-        ImmutableSet.Builder<Service> builder = new ImmutableSet.Builder<>();
+        ImmutableList.Builder<Service> builder = new ImmutableList.Builder<>();
 
         Endpoints incoming;
         if (handlers.size() > 1) {
@@ -185,7 +187,7 @@ public class SimpleService {
         int handlerIndex = 1;
         for (Handler handler : handlers) {
             builder.add(new Server(
-                String.format(handlerNameFormat, handlerIndex),
+                String.format(serverNameFormat, handlerIndex),
                 incoming,
                 handler
             ));
@@ -362,6 +364,7 @@ public class SimpleService {
                     LOG.info("socket has probably been closed: {}", socket);
                     break;
                 }
+                LOG.info("receive request: size={}", request.remaining());
 
                 ByteBuffer response;
                 try {
@@ -371,6 +374,7 @@ public class SimpleService {
                     continue;
                 }
 
+                LOG.info("send response: size={}", response.remaining());
                 try {
                     socket.send(response);
                 } catch (nanomsg.Error.EBADF e) {

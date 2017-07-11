@@ -37,10 +37,19 @@ public abstract class Configuration {
 
     @SuppressWarnings("unchecked")
     private static <T> T checkType(Class<T> cls, Object value) {
+
+        // Special type conversions for Map and List.
+        if (cls == Map.class && value instanceof MapConfiguration) {
+            value = ((MapConfiguration) value).children;
+        } else if (cls == List.class && value instanceof ListConfiguration) {
+            value = ((ListConfiguration) value).children;
+        }
+
         Preconditions.checkArgument(
             cls.isInstance(value),
             "Not %s typed: %s", cls, value
         );
+
         return (T) value;
     }
 
