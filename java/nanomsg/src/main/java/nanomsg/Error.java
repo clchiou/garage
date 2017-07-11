@@ -15,9 +15,21 @@ public class Error extends RuntimeException {
      */
     static int check(int ret) {
         if (ret < 0) {
-            throw new Error(NANOMSG.nn_errno());
+            int errno = NANOMSG.nn_errno();
+            if (errno == Symbol.EBADF.value) {
+                throw new EBADF();
+            } else {
+                throw new Error(errno);
+            }
         }
         return ret;
+    }
+
+    public static class EBADF extends Error {
+
+        public EBADF() {
+            super(Symbol.EBADF.value);
+        }
     }
 
     /**
