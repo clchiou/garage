@@ -4,5 +4,4 @@ dependencies {
     compile "org.jooq:jooq:${rootProject.ext.jooqVersion}"
 
     compile project(':base')
-    compile project(':search-analyzer')
 }

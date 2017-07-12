@@ -1,7 +1,0 @@
-dependencies {
-
-    compile "org.apache.lucene:lucene-core:${rootProject.ext.luceneVersion}"
-
-    compile project(':base')
-}
-

@@ -10,8 +10,6 @@ ext {
         'base',
         'messaging',
         'nanomsg',
-        'search-analyzer',
         'search-indexer',
-        'search-server',
     ]
 }

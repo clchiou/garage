@@ -1,4 +1,4 @@
-package garage.search.analyzer;
+package garage.examples;
 
 import dagger.Module;
 import dagger.Provides;

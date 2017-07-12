@@ -20,7 +20,6 @@ import java.nio.file.Paths;
 import garage.base.Application;
 import garage.base.Configuration;
 import garage.base.Configuration.Args;
-import garage.search.analyzer.StandardAnalyzerModule;
 import garage.search.extractor.DirectoryExtractor;
 import garage.search.indexer.BatchIndexer;
 

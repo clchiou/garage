@@ -19,7 +19,6 @@ import java.nio.file.StandardOpenOption;
 import garage.base.Application;
 import garage.base.Configuration;
 import garage.base.Configuration.Args;
-import garage.search.analyzer.StandardAnalyzerModule;
 import garage.search.indexer.BatchIndexer;
 
 import static garage.examples.Books.*;
