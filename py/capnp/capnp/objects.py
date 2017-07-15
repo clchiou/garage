@@ -129,6 +129,12 @@ class DynamicObject(metaclass=DynamicObjectMeta):
         # Release C++ resources, just to be safe.
         self._close()
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self._close()
+
     def _close(self):
         if self._message is not None:
             self._struct, self._message, message = None, None, self._message
