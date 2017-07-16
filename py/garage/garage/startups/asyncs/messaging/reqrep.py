@@ -2,6 +2,8 @@ __all__ = [
     'ClientComponent',
 ]
 
+import logging
+
 import nanomsg as nn
 from nanomsg.curio import Socket
 
@@ -122,9 +124,8 @@ class ClientComponent(components.Component):
         bind = getattr(require.args, '%sbind' % self.__attr) or ()
         connect = getattr(require.args, '%sconnect' % self.__attr) or ()
         if not bind and not connect:
-            if self.__logger:
-                self.__logger.warning(
-                    'neither bind nor connect address is provided')
+            (self.__logger or logging).warning(
+                'clint socket is neither bound nor connected to any address')
 
         capacity = getattr(require.args, '%squeue_capacity' % self.__attr)
 
