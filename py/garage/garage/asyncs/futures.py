@@ -12,6 +12,7 @@ Future objects to model the caller-callee relationship.
 
 __all__ = [
     'CancelledError',
+    'DeferredFuture',
     'Future',
     'FutureAdapter',
 ]
@@ -235,3 +236,83 @@ class FutureAdapter:
         if not self._future.done():
             await curio.traps._future_wait(self._future)
         return self._future.exception()
+
+
+class DeferredFuture:
+    """Represent deferred computation.
+
+       Unlike Future, DeferredFuture is not for split work across tasks,
+       as it execute the computation on the same task, but is designed
+       for two purposes:
+         * Defer and evaluate a computation lazily (duh!).
+         * You want to provide Future-esque interface but do not want to
+           spawn and manage new tasks.
+    """
+
+    @classmethod
+    def wrap(cls, coro_func):
+        """Wrap a coroutine function (a function that generates
+           coroutine, not a coroutine itself) that whenever the wrapper
+           is called, a DeferredFuture is returned.
+        """
+        def wrapper(*args, **kwargs):
+            return cls(coro_func, args, kwargs)
+        return wrapper
+
+    def __init__(self, coro_func, args, kwargs):
+        self._coro_func = coro_func
+        self._args = args
+        self._kwargs = kwargs
+        self._state = State.PENDING
+        self._result = None
+        self._exception = None
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *_):
+        self.cancel()
+
+    def running(self):
+        return self._state is State.RUNNING
+
+    def cancelled(self):
+        return self._state is State.CANCELLED
+
+    def done(self):
+        return self._state in (State.CANCELLED, State.FINISHED)
+
+    def cancel(self):
+        if self._state is State.PENDING:
+            self._state = State.CANCELLED
+            return True
+        elif self._state is State.RUNNING:
+            return False
+        elif self._state is State.CANCELLED:
+            return True
+        else:
+            asserts.is_(self._state, State.FINISHED)
+            return False
+
+    async def result(self):
+        if not self.done():
+            await self._evaluate()
+        if self._exception is not None:
+            raise self._exception
+        else:
+            return self._result
+
+    async def exception(self):
+        if not self.done():
+            await self._evaluate()
+        return self._exception
+
+    async def _evaluate(self):
+        asserts.is_(self._state, State.PENDING)
+        self._state = State.RUNNING
+        try:
+            self._result = await self._coro_func(*self._args, **self._kwargs)
+        except Exception as e:
+            self._exception = e
+        finally:
+            self._state = State.FINISHED

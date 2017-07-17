@@ -8,7 +8,10 @@ import warnings
 if curio_available:
     import curio
     from garage import asyncs
-    from garage.asyncs.futures import CancelledError, Future, FutureAdapter
+    from garage.asyncs.futures import CancelledError
+    from garage.asyncs.futures import Future
+    from garage.asyncs.futures import FutureAdapter
+    from garage.asyncs.futures import DeferredFuture
     from garage.asyncs.utils import synchronous
 
 
@@ -162,6 +165,49 @@ class FutureAdapterTest(unittest.TestCase):
         f = FutureAdapter(_Future())
         f._future.set_running_or_notify_cancel()
         self.assertFalse(f.cancel())
+
+
+@unittest.skipUnless(curio_available, 'curio unavailable')
+class DeferredFutureAdapterTest(unittest.TestCase):
+
+    @synchronous
+    async def test_result(self):
+
+        @DeferredFuture.wrap
+        async def func(x):
+            return x
+
+        f = func(1)
+
+        self.assertFalse(f.running())
+        self.assertFalse(f.cancelled())
+        self.assertFalse(f.done())
+
+        self.assertEqual(1, await f.result())
+
+        self.assertFalse(f.running())
+        self.assertFalse(f.cancelled())
+        self.assertTrue(f.done())
+
+    @synchronous
+    async def test_exception(self):
+
+        @DeferredFuture.wrap
+        async def err():
+            raise ValueError('some message')
+
+        f = err()
+
+        self.assertFalse(f.running())
+        self.assertFalse(f.cancelled())
+        self.assertFalse(f.done())
+
+        with self.assertRaisesRegex(ValueError, 'some message'):
+            await f.result()
+
+        self.assertFalse(f.running())
+        self.assertFalse(f.cancelled())
+        self.assertTrue(f.done())
 
 
 if __name__ == '__main__':
