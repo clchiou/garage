@@ -180,6 +180,20 @@ class DynamicEnum:
 
     __repr__ = bases.repr_object
 
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return False
+        return (
+            self.schema == other.schema and
+            self.enumerant.ordinal == other.enumerant.ordinal
+        )
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def __hash__(self):
+        return hash(self.enumerant.ordinal)
+
 
 class DynamicList(collections.Sequence):
 
@@ -259,6 +273,20 @@ class DynamicList(collections.Sequence):
 
         __repr__ = bases.repr_object
 
+        def __eq__(self, other):
+            if not isinstance(other, self.__class__):
+                return False
+            return (
+                self.schema == other.schema and
+                len(self) == len(other) and
+                all(p == q for p, q in zip(self, other))
+            )
+
+        def __ne__(self, other):
+            return not self.__eq__(other)
+
+        # Builder is not hashable.
+
     def __init__(self, schema, list_):
         assert schema.kind is Schema.Kind.LIST
         assert schema.id == bases.get_schema_id(list_.getSchema())
@@ -291,6 +319,22 @@ class DynamicList(collections.Sequence):
         return '[%s]' % ', '.join(map(bases.str_value, self._values))
 
     __repr__ = bases.repr_object
+
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return False
+        return (
+            self.schema == other.schema and
+            len(self) == len(other) and
+            all(p == q for p, q in zip(self, other))
+        )
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def __hash__(self):
+        assert isinstance(self._values, tuple)
+        return hash(self._values)
 
 
 class DynamicStruct(collections.Mapping):
@@ -425,6 +469,25 @@ class DynamicStruct(collections.Mapping):
 
         __repr__ = bases.repr_object
 
+        def __eq__(self, other):
+            if not isinstance(other, self.__class__):
+                return False
+            if self.schema != other.schema:
+                return False
+            if len(self) != len(other):
+                return False
+            for name in self:
+                if name not in other:
+                    return False
+                if self[name] != other[name]:
+                    return False
+            return True
+
+        def __ne__(self, other):
+            return not self.__eq__(other)
+
+        # Builder is not hashable.
+
     def __init__(self, schema, struct):
         assert schema.kind is Schema.Kind.STRUCT
         assert schema.id == bases.get_schema_id(struct.getSchema())
@@ -475,6 +538,22 @@ class DynamicStruct(collections.Mapping):
         )
 
     __repr__ = bases.repr_object
+
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return False
+        if self.schema != other.schema:
+            return False
+        return self._dict == other._dict
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def __hash__(self):
+        # self._dict is ordered, and so we could hash with iterating
+        # through it.
+        assert isinstance(self._dict, collections.OrderedDict)
+        return hash(tuple(self[name] for name in self))
 
 
 def _set_scalar(builder, key, type_, python_value):

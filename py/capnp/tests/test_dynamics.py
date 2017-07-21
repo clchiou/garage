@@ -73,6 +73,43 @@ class DynamicsTest(Fixture):
                 message.to_packed_bytes(),
             )
 
+            # Test reader's __eq__ and __hash__.
+            bs = self.encode('test-1.capnp', self.struct_schema, struct)
+            with capnp.MessageReader.from_bytes(bs) as m2:
+
+                s1 = struct.as_reader()
+                s2 = m2.get_root(self.struct_schema)
+                self.assertIsNot(s1, s2)
+                self.assertEqual(s1, s2)
+                self.assertNotEqual(struct, s2)  # Reader != builder.
+                self.assertEqual(hash(s1), hash(s2))
+
+                o1 = capnp.DynamicObject(s1)
+                o2 = capnp.DynamicObject(s2)
+                self.assertIsNot(o1, o2)
+                self.assertEqual(o1, o2)
+                self.assertNotEqual(capnp.DynamicObject(struct), o2)
+                self.assertEqual(hash(o1), hash(o2))
+
+            # Test builder's __eq__ and __hash__.
+            with capnp.MessageBuilder() as m2:
+
+                s2 = m2.init_root(self.struct_schema)
+                s2.copy_from(struct)
+                self.assertIsNot(struct, s2)
+                self.assertEqual(struct, s2)
+
+                o1 = capnp.DynamicObject(struct)
+                o2 = capnp.DynamicObject(s2)
+                self.assertIsNot(o1, o2)
+                self.assertEqual(o1, o2)
+
+            # Builder is not hashable.
+            with self.assertRaisesRegex(TypeError, r'unhashable type'):
+                hash(struct)
+            with self.assertRaisesRegex(TypeError, r'unhashable type'):
+                hash(capnp.DynamicObject(struct))
+
             obj = capnp.DynamicObject(struct)
             self.assertEqual(-1, obj.i8)
             self.assertEqual(-1, obj.I8)  # Upper snake case works, too.

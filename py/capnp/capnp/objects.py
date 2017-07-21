@@ -229,6 +229,17 @@ class DynamicObject(metaclass=DynamicObjectMeta):
 
     __repr__ = bases.repr_object
 
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return False
+        return self._struct == other._struct
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def __hash__(self):
+        return hash(self._struct)
+
 
 register_converter(DynamicStruct, DynamicObjectMeta.convert_struct)
 register_converter(DynamicStruct.Builder, DynamicObjectMeta.convert_struct)
@@ -275,6 +286,17 @@ class DynamicListAdapter(collections.MutableSequence):
         return str(self._list)
 
     __repr__ = bases.repr_object
+
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return False
+        return self._list == other._list
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def __hash__(self):
+        return hash(self._list)
 
 
 register_converter(DynamicList, DynamicListAdapter)
