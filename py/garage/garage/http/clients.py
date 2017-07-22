@@ -23,6 +23,7 @@ try:
 except ImportError:
     fromstring = None
 
+from garage import asserts
 from garage.http import policies
 
 
@@ -223,9 +224,29 @@ class Response:
     def __getattr__(self, name):
         return getattr(self._response, name)
 
-    def dom(self, encoding=None):
+    def dom(self, encoding=None, errors=None):
+
         if fromstring is None:
             raise RuntimeError('lxml.etree is not installed')
+
+        #
+        # The caller intends to handle character encoding error in a way
+        # that is different from lxml's (lxml refuses to parse the rest
+        # of the document if there is any encoding error in the middle,
+        # but neither does it report the error).
+        #
+        # lxml's strict-but-silent policy is counterproductive because
+        # Web is full of malformed documents, and it should either be
+        # lenient about the error, or raise it to the caller, not a mix
+        # of both as it is right now.
+        #
+        if encoding and errors:
+            html = self.content.decode(encoding=encoding, errors=errors)
+            parser = _get_parser(None)
+            return fromstring(html, parser)
+
+        asserts.none(errors)
+
         parser = _get_parser(encoding or self.encoding)
         return fromstring(self.content, parser)
 
