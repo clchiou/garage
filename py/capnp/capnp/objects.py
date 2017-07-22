@@ -306,23 +306,38 @@ register_serializer(DynamicListAdapter, DynamicListAdapter._serialize_aslist)
 
 def _setter_helper(type_, target, key, value, get_obj):
 
-    if type_.kind is Type.Kind.VOID or type_.kind.is_scalar:
+    if type_.kind is Type.Kind.VOID:
         target[key] = value
 
+    elif type_.kind.is_scalar:
+        if value is None:
+            if key in target:
+                del target[key]
+        else:
+            target[key] = value
+
     elif type_.kind is Type.Kind.LIST:
-        target.init(key, len(value))
-        obj = get_obj()
-        for index, element in enumerate(value):
-            obj[index] = element
+        if value:
+            target.init(key, len(value))
+            obj = get_obj()
+            for index, element in enumerate(value):
+                obj[index] = element
+        else:
+            if key in target:
+                del target[key]
 
     elif type_.kind is Type.Kind.STRUCT:
         if not isinstance(value, collections.Mapping):
             raise ValueError('cannot assign from: %s %s %r' %
                              (type_, key, value))
-        target.init(key)
-        obj = get_obj()
-        for k, v in value.items():
-            setattr(obj, k, v)
+        if value:
+            target.init(key)
+            obj = get_obj()
+            for k, v in value.items():
+                setattr(obj, k, v)
+        else:
+            if key in target:
+                del target[key]
 
     else:
         raise AssertionError('cannot assign to: %s %s' % (type_, key))
