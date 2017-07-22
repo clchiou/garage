@@ -18,6 +18,10 @@ def create_engine(db_uri, check_same_thread=False, echo=False):
     def do_connect(dbapi_connection, _):
         # Stop pysqlite issue commit automatically.
         dbapi_connection.isolation_level = None
+        # Enable foreign key.
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys = ON")
+        cursor.close()
 
     @sqlalchemy.event.listens_for(engine, 'begin')
     def do_begin(connection):
