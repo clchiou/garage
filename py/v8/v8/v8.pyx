@@ -108,14 +108,14 @@ cdef class Isolate:
     def __enter__(self):
         assert self.isolate is NULL
 
-        LOG.info('create isolate')
+        LOG.debug('create isolate')
         cdef _Isolate.CreateParams params
         params.array_buffer_allocator = GetStatic()
         self.isolate = Isolate_New(params)
         if self.isolate is NULL:
             raise RuntimeError('cannot initialize isolate')
 
-        LOG.info('enter isolate')
+        LOG.debug('enter isolate')
         self.isolate.Enter()
 
         return self
@@ -123,10 +123,10 @@ cdef class Isolate:
     def __exit__(self, *_):
         assert self.isolate is not NULL
 
-        LOG.info('exit isolate')
+        LOG.debug('exit isolate')
         self.isolate.Exit()
 
-        LOG.info('dispose isolate')
+        LOG.debug('dispose isolate')
         self.isolate.Dispose()
         self.isolate = NULL
 
