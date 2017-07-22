@@ -134,6 +134,12 @@ public class BatchIndexer implements AutoCloseable {
         return seq;
     }
 
+    public long delete(Term[] ids) throws IOException {
+        long seq = writer.deleteDocuments(ids);
+        LOG.info("delete: doc sequence number {}", seq);
+        return seq;
+    }
+
     @Override
     public void close() throws Exception {
         LOG.info("merge index segments");
