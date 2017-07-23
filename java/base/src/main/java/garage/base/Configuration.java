@@ -116,7 +116,7 @@ public abstract class Configuration {
         for (String key : path.getParent()) {
             config = config.getChild(key, Configuration.class)
                 .orElseThrow(() -> new AssertionError(
-                    "Entry not found: path=%s" + path));
+                    "Entry not found: path=" + path));
         }
         return config;
     }
