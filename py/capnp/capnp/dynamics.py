@@ -105,14 +105,14 @@ class MessageBuilder(MessageBase):
             native.writePackedMessage(writer, self._resource)
             return writer.getArray()
 
-    def to_file(self, path):
+    def to_file(self, path, mode=0o664):
         assert self._resource is not None
-        with io.open_fd(path, os.O_WRONLY) as fd:
+        with io.open_fd(path, os.O_WRONLY | os.O_CREAT, mode) as fd:
             native.writeMessageToFd(fd, self._resource)
 
-    def to_packed_file(self, path):
+    def to_packed_file(self, path, mode=0o664):
         assert self._resource is not None
-        with io.open_fd(path, os.O_WRONLY) as fd:
+        with io.open_fd(path, os.O_WRONLY | os.O_CREAT, mode) as fd:
             native.writePackedMessageToFd(fd, self._resource)
 
     @staticmethod

@@ -27,8 +27,8 @@ def _resetting(resource):
 
 
 @contextlib.contextmanager
-def open_fd(path, flags):
-    fd = os.open(path, flags)
+def open_fd(path, flags, mode):
+    fd = os.open(path, flags, mode)
     try:
         yield fd
     finally:
@@ -48,14 +48,14 @@ def make_packed_bytes_reader(blob):
 
 @contextlib.contextmanager
 def make_file_reader(path):
-    with open_fd(path, os.O_RDONLY) as fd:
+    with open_fd(path, os.O_RDONLY, 0o777) as fd:
         with _resetting(native.StreamFdMessageReader(fd)) as reader:
             yield reader
 
 
 @contextlib.contextmanager
 def make_packed_file_reader(path):
-    with open_fd(path, os.O_RDONLY) as fd:
+    with open_fd(path, os.O_RDONLY, 0o777) as fd:
         with _resetting(native.PackedFdMessageReader(fd)) as reader:
             yield reader
 
