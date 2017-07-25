@@ -291,11 +291,18 @@ class NamedTupleMeta(type):
     @staticmethod
     def make_new(class_name, field_names):
         """Make a __new__ method for the new class."""
+        if not field_names:
+            args = ''
+        elif len(field_names) == 1:
+            # `(x)` is the same as `x` and you need the extra comma.
+            args = '{},'.format(field_names[0])
+        else:
+            args = ', '.join(field_names)
         code = (
             'def __new__(cls, {args}):\n'
             '   """Create new instance of {class_name}({args})."""\n'
             '   return tuple.__new__(cls, ({args}))\n'
-            .format(class_name=class_name, args=', '.join(field_names))
+            .format(class_name=class_name, args=args)
         )
         variables = {'__name__': class_name}
         exec(code, variables)

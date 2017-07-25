@@ -108,6 +108,9 @@ class CollectionsTest(unittest.TestCase):
             x: int
             y: int = 1
 
+        class Foo3(NamedTuple):
+            x: object
+
         self.assertTrue(hasattr(Foo, 'func'))
         self.assertEqual((Mixin, NamedTuple), Foo.__bases__)
         self.assertFalse(hasattr(Foo2, 'func'))
@@ -128,6 +131,11 @@ class CollectionsTest(unittest.TestCase):
         self.assertEqual((42, 99), foo._replace(y=99))
 
         self.assertEqual({'x': 42, 'y': 1}, dict(foo._asdict()))
+
+        self.assertEqual(
+            {'x': ((), ())},
+            dict(Foo3(x=((), ()))._asdict()),
+        )
 
     def test_named_tuple_inheritance(self):
 
