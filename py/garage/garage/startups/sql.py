@@ -18,7 +18,7 @@ class EngineComponent(components.Component):
     def __init__(
             self, *,
             module_name=None, name=None,
-            group=None,
+            group=None, arg=None,
             check_same_thread=False):
         """Create a SQLAlchemy Engine object component.
 
@@ -27,12 +27,14 @@ class EngineComponent(components.Component):
         be helpful to find_closure.
         """
 
-        if name:
-            self.__arg = '--%s-db-url' % name.replace('_', '-')
-            self.__attr = '%s_db_url' % name
+        if arg:
+            pass
+        elif name:
+            arg = '--%s-db-url' % name.replace('_', '-')
         else:
-            self.__arg = '--db-url'
-            self.__attr = 'db_url'
+            arg = '--db-url'
+        self.__arg = arg
+        self.__attr = arg[2:].replace('-', '_')
 
         group = group or module_name or __name__
 
