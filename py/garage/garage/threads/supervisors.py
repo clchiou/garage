@@ -43,15 +43,19 @@ def supervisor(num_actors, start_new_actor):
             stub = actor_futures.pop(done_actor_future)
             try:
                 done_actor_future.result()
-            except BaseException:
-                LOG.warning('actor has crashed: %s',
-                            stub._name, exc_info=True)
+            except Exception:
+                # If actor raises, say, SystemExit, supervisor will not
+                # capture it (and will exit).
+                LOG.warning(
+                    'actor has crashed: %s',
+                    stub._name, exc_info=True,
+                )
                 num_actors_crashed += 1
             else:
                 LOG.debug('actor exited normally: %s', stub._name)
                 target -= 1
 
     if num_actors_crashed >= threshold:
-        raise RuntimeError('actors have crashed: %d >= %d' %
-                           (num_actors_crashed, threshold))
+        raise RuntimeError(
+            'actors have crashed: %d >= %d' % (num_actors_crashed, threshold))
     LOG.info('exit')

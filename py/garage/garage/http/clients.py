@@ -148,8 +148,10 @@ class Client(_ClientMixin):
         try:
             with self._rate_limit:
                 if retry_count:
-                    LOG.warning('Retry %d times of %s %s',
-                                retry_count, request.method, request.uri)
+                    LOG.warning(
+                        'retry %d times: %s %s',
+                        retry_count, request.method, request.uri,
+                    )
                 response = method(request.uri, **kwargs)
                 response.raise_for_status()
                 return Response(response)
@@ -157,14 +159,17 @@ class Client(_ClientMixin):
             if exc.response is not None:
                 status_code = exc.response.status_code
             else:
-                status_code = '?'
-            LOG.warning('HTTP error with status code %s when %s %s',
-                        status_code, request.method, request.uri,
-                        exc_info=True)
+                status_code = '???'
+            LOG.warning(
+                'encounter HTTP error: status=%s, %s %s',
+                status_code, request.method, request.uri, exc_info=True,
+            )
             raise HttpError('%s %s' % (request.method, request.uri)) from exc
         except Exception:
-            LOG.warning('Generic error when %s %s',
-                        request.method, request.uri, exc_info=True)
+            LOG.warning(
+                'encounter generic error: %s %s',
+                request.method, request.uri, exc_info=True,
+            )
             raise
 
 
