@@ -20,6 +20,8 @@ class LoggingComponent(components.Component):
 
     require = components.ARGS
 
+    provide = components.make_fqname_tuple(__name__, 'level')
+
     def __init__(self, verbose=0):
         self.verbose = verbose
 
@@ -40,6 +42,7 @@ class LoggingComponent(components.Component):
         else:
             level = self.TRACE
         self.configure(level)
+        return level
 
     @classmethod
     def configure(cls, level):

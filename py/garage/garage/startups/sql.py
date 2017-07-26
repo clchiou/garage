@@ -11,7 +11,11 @@ from garage.startups.logging import LoggingComponent
 
 class EngineComponent(components.Component):
 
-    require = components.ARGS
+    require = (
+        components.ARGS,
+        # Make sure that we are executed after LoggingComponent.
+        LoggingComponent.provide.level,
+    )
 
     provide = components.make_fqname_tuple(__name__, 'engine')
 
@@ -19,7 +23,8 @@ class EngineComponent(components.Component):
             self, *,
             module_name=None, name=None,
             group=None, arg=None,
-            check_same_thread=False):
+            check_same_thread=False,
+            pragmas=()):
         """Create a SQLAlchemy Engine object component.
 
         NOTE: components.find_closure uses module_name to search for
@@ -48,6 +53,7 @@ class EngineComponent(components.Component):
             self.__group = '%s/%s' % (group, name)
 
         self.check_same_thread = check_same_thread
+        self.pragmas = pragmas
 
     def add_arguments(self, parser):
         group = parser.add_argument_group(self.__group)
@@ -68,4 +74,5 @@ class EngineComponent(components.Component):
             db_url,
             check_same_thread=self.check_same_thread,
             echo=echo,
+            pragmas=self.pragmas,
         )

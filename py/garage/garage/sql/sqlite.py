@@ -5,7 +5,12 @@ __all__ = [
 import sqlalchemy
 
 
-def create_engine(db_uri, check_same_thread=False, echo=False):
+def create_engine(
+        db_uri, *,
+        check_same_thread=False,
+        echo=False,
+        pragmas=()):
+
     engine = sqlalchemy.create_engine(
         db_uri,
         echo=echo,
@@ -21,6 +26,8 @@ def create_engine(db_uri, check_same_thread=False, echo=False):
         # Enable foreign key.
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA foreign_keys = ON")
+        for name, value in pragmas:
+            cursor.execute("PRAGMA %s = %s" % (name, value))
         cursor.close()
 
     @sqlalchemy.event.listens_for(engine, 'begin')
