@@ -97,6 +97,10 @@ class Spider:
         # Use this future to wait for completion of the crawling
         self.future = supervisor._get_future()
 
+    def stop(self, graceful=True):
+        items = self._task_queue.close(graceful)
+        LOG.info('stop spider; drop %d tasks', len(items))
+
     def crawl(self, request, estimate=None):
         """Enqueue a request for later processing."""
         if isinstance(request, str):
