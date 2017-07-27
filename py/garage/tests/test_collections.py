@@ -199,6 +199,20 @@ class CollectionsTest(unittest.TestCase):
             class Derived3(Base):
                 w: int
 
+    def test_singleton_meta(self):
+
+        xs = []
+
+        class Foo(metaclass=SingletonMeta):
+
+            def __init__(self, x):
+                xs.append(x)
+
+        f1 = Foo(1)
+        f2 = Foo(2)
+        self.assertIs(f1, f2)
+        self.assertEqual([1], xs)
+
     def test_symbols(self):
         symbols = Symbols('a', 'b', ('c', 3), d=4)
         self.assertEqual('a', symbols.a)

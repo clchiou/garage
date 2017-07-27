@@ -6,6 +6,7 @@ __all__ = [
     'DictView',
     'LoadingDict',
     'NamedTuple',
+    'SingletonMeta',
     'Symbols',
     'Trie',
     'collect',
@@ -350,6 +351,18 @@ class NamedTuple(tuple, metaclass=NamedTupleMeta):
     def __getnewargs__(self):
         """Return self as a plain tuple (used by copy and pickle)."""
         return tuple(self)
+
+
+class SingletonMeta(type):
+    """Metaclass to create singleton types."""
+
+    def __call__(cls, *args, **kwargs):
+        # Should I add a lock to make this thread-safe?
+        try:
+            instance = cls.__instance
+        except AttributeError:
+            instance = cls.__instance = super().__call__(*args, **kwargs)
+        return instance
 
 
 class Symbols:
