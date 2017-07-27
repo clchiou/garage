@@ -8,8 +8,9 @@ __all__ = [
 
 import functools
 import logging
-from collections import namedtuple
+import typing
 
+from garage.collections import NamedTuple
 from garage.http import clients
 from garage.threads import queues
 from garage.threads import supervisors
@@ -21,16 +22,15 @@ LOG = logging.getLogger(__name__)
 
 
 # Your parser may return a compatible class of this (duck typing).
-Document = namedtuple('Document', [
+class Document(NamedTuple):
 
     # The unique identity of this document (multiple URIs may point to
     # the same document).
-    'identity',
+    identity: object
 
     # Return HTTP requests and an estimate numbers of further links from
     # that document (estimates could be None).
-    'links',
-])
+    links: typing.Tuple[typing.Tuple[str, object], ...]
 
 
 class Parser:
@@ -45,26 +45,24 @@ class Parser:
         raise NotImplementedError
 
     def on_request_error(self, request, error):
-        """Called on HTTP request error.
+        """Callback on HTTP request error.
 
-           Return True for re-raising the exception.
+        Return False to suppress exception.
         """
         return True
 
     def on_parse_error(self, request, response, error):
-        """Called on error during parse().
+        """Callback on error during parse().
 
-           Return True for re-raising the exception.
+        Return False to suppress exception.
         """
         return True
 
     def on_document(self, document):
-        """Further processing of the document."""
+        """Callback to further process the document."""
 
     def on_estimate(self, estimate, document):
-        """You may use this callback to get a feedback of how accurate
-           the estimate was.
-        """
+        """Callback to assess accuracy of the estimations."""
 
 
 class Spider:
@@ -142,8 +140,10 @@ class Spider:
             return
 
         if self._identities.check_and_add(document.identity):
-            LOG.debug('exclude URIs from crawled document: %s',
-                      document.identity)
+            LOG.debug(
+                'exclude URIs from crawled document: %s',
+                document.identity,
+            )
             return
 
         for req_from_doc, estimate in document.links:
