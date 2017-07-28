@@ -33,7 +33,9 @@ class HttpError(Exception):
         super().__init__(internal_message or message)
         self.status = status
         self.headers = headers
-        self.message = message.encode('utf8')
+        if isinstance(message, str):
+            message = message.encode('utf8')
+        self.message = message
 
     def as_response(self):
         return http2.Response(
