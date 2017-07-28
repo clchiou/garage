@@ -22,7 +22,16 @@ from .schemas import Type
 
 class MessageBase:
 
-    def __init__(self, make_context):
+    def __init__(self, make_context, owned):
+        """Construct a message.
+
+        `owned` is anything that you must retain through out the entire
+        message object life cycle to prevent it from being garbage
+        collected.
+
+        Basically, the life cycle should be: owned > context > resource.
+        """
+        self._owned = owned
         self._make_context = make_context
         self._context = None
         self._resource = None
@@ -38,7 +47,10 @@ class MessageBase:
     def __exit__(self, *args):
         self._resource = None
         self._context, context = None, self._context
-        return context.__exit__(*args)
+        ret = context.__exit__(*args)
+        # You may release owned object after context is released.
+        self._owned = None
+        return ret
 
     def open(self):
         self.__enter__()
@@ -56,19 +68,19 @@ class MessageReader(MessageBase):
 
     @classmethod
     def from_bytes(cls, blob):
-        return cls(lambda: io.make_bytes_reader(blob))
+        return cls(lambda: io.make_bytes_reader(blob), blob)
 
     @classmethod
     def from_packed_bytes(cls, blob):
-        return cls(lambda: io.make_packed_bytes_reader(blob))
+        return cls(lambda: io.make_packed_bytes_reader(blob), blob)
 
     @classmethod
     def from_file(cls, path):
-        return cls(lambda: io.make_file_reader(path))
+        return cls(lambda: io.make_file_reader(path), None)
 
     @classmethod
     def from_packed_file(cls, path):
-        return cls(lambda: io.make_packed_file_reader(path))
+        return cls(lambda: io.make_packed_file_reader(path), None)
 
     def get_root(self, schema):
         assert self._resource is not None
@@ -79,7 +91,7 @@ class MessageReader(MessageBase):
 class MessageBuilder(MessageBase):
 
     def __init__(self):
-        super().__init__(io.make_bytes_builder)
+        super().__init__(io.make_bytes_builder, None)
 
     def init_root(self, schema):
         assert self._resource is not None
