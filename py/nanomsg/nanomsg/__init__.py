@@ -48,7 +48,7 @@ class Message:
         else:
             self.buffer = _nn.nn_allocmsg(size, allocation_type)
             if self.buffer is None:
-                raise NanomsgError()
+                raise NanomsgError.make(_nn.nn_errno())
         self.size = size
 
     def __repr__(self):
@@ -79,7 +79,7 @@ class Message:
             raise AssertionError
         self.buffer = _nn.nn_reallocmsg(self.buffer, size)
         if self.buffer is None:
-            raise NanomsgError()
+            raise NanomsgError.make(_nn.nn_errno())
         self.size = size
 
     def free(self):
@@ -148,67 +148,80 @@ class SocketBase:
 
     ### Configure this socket.
 
-    def getsockopt(self, level, option, optval=None, optvallen=None):
+    def getsockopt(self, level, option, option_size=64):
+
         if self.fd is None:
             raise AssertionError
 
-        opt_type = None
-        opt_unit = None
-        if _is_value_of_enum(NN_SOL_SOCKET, level):
-            option = SocketOption(option)
-            opt_type, opt_unit = NANOMSG_OPTION_METADATA[option.name]
-            if optval is None:
-                optval, optvallen = _make_buffer_for(opt_type)
-        elif (_is_value_of_enum_type(Transport, level) or
-              _is_value_of_enum_type(Protocol, level)):
-            option = TransportOption(option)
-            opt_type, opt_unit = NANOMSG_OPTION_METADATA[option.name]
-            if optval is None:
-                optval, optvallen = _make_buffer_for(opt_type)
-        elif optval is None or optvallen is None:
-            raise AssertionError('need optval and optvallen')
+        option_type = option.value.type
 
-        errors.check(_nn.nn_getsockopt(
-            self.fd, level, option, optval, optvallen))
-        if opt_type is None:
-            return
-
-        if opt_type is OptionType.NN_TYPE_INT:
-            value = optval._obj.value
-        elif opt_type is OptionType.NN_TYPE_STR:
-            size = optvallen._obj.value
-            value = optval.raw[:size].decode('ascii')
-        else:
-            raise AssertionError
-        if opt_unit is OptionUnit.NN_UNIT_BOOLEAN:
-            value = (False, True)[value]
-        return value
-
-    def setsockopt(self, level, option, optval, optvallen=None):
-        if self.fd is None:
-            raise AssertionError
-
-        # Make sure option is a valid enum member.
-        if _is_value_of_enum(NN_SOL_SOCKET, level):
-            SocketOption(option)
-        elif (_is_value_of_enum_type(Transport, level) or
-              _is_value_of_enum_type(Protocol, level)):
-            TransportOption(option)
-
-        if isinstance(optval, bool):
-            optval = ctypes.byref(ctypes.c_int(int(optval)))
+        if option_type is OptionType.NN_TYPE_INT:
+            optval = ctypes.byref(ctypes.c_int())
             optvallen = ctypes.sizeof(ctypes.c_int)
-        elif isinstance(optval, int):
-            optval = ctypes.byref(ctypes.c_int(optval))
-            optvallen = ctypes.sizeof(ctypes.c_int)
-        elif isinstance(optval, str):
-            optval = optval.encode('ascii')
 
-        if optvallen is None:
+        elif option_type is OptionType.NN_TYPE_STR:
+            optval = ctypes.create_string_buffer(option_size)
             optvallen = len(optval)
 
+        else:
+            raise AssertionError
+
+        optvallen = ctypes.byref(ctypes.c_size_t(optvallen))
+
+        errors.check(_nn.nn_getsockopt(
+            self.fd, level, option.value, optval, optvallen))
+
+        if option_type is OptionType.NN_TYPE_INT:
+            value = optval._obj.value
+
+        elif option_type is OptionType.NN_TYPE_STR:
+            size = optvallen._obj.value
+            value = optval.raw[:size].decode('ascii')
+
+        else:
+            raise AssertionError
+
+        if option.value.unit is OptionUnit.NN_UNIT_BOOLEAN:
+            value = (False, True)[value]
+
+        return value
+
+    def setsockopt(self, level, option, value):
+
+        if self.fd is None:
+            raise AssertionError
+
+        option_type = option.value.type
+
+        if isinstance(value, bool):
+            if option_type is not OptionType.NN_TYPE_INT:
+                raise ValueError('option %s is not int-typed' % option.name)
+            optval = ctypes.byref(ctypes.c_int(int(value)))
+            optvallen = ctypes.sizeof(ctypes.c_int)
+
+        elif isinstance(value, int):
+            if option_type is not OptionType.NN_TYPE_INT:
+                raise ValueError('option %s is not int-typed' % option.name)
+            optval = ctypes.byref(ctypes.c_int(value))
+            optvallen = ctypes.sizeof(ctypes.c_int)
+
+        elif isinstance(value, str):
+            if option_type is not OptionType.NN_TYPE_STR:
+                raise ValueError('option %s is not str-typed' % option.name)
+            optval = value.encode('ascii')
+            optvallen = len(optval)
+
+        elif isinstance(value, bytes):
+            if option_type is not OptionType.NN_TYPE_STR:
+                raise ValueError('option %s is not str-typed' % option.name)
+            optval = value
+            optvallen = len(optval)
+
+        else:
+            raise ValueError('unsupported type: {!r}'.format(value))
+
         errors.check(_nn.nn_setsockopt(
-            self.fd, level, option, optval, optvallen))
+            self.fd, level, option.value, optval, optvallen))
 
     ### Add endpoints to this socket.
 
@@ -257,14 +270,7 @@ class SocketBase:
     def _tx(self, nn_func, message, size, flags, ensure_size):
         if size is None:
             size = len(message)
-        nbytes = nn_func(self.fd, message, size, flags)
-        if nbytes == -1:
-            if (flags & NN_DONTWAIT) and _nn.nn_errno() == Error.EAGAIN.value:
-                raise NanomsgEagain
-            elif self.fd is None and _nn.nn_errno() == Error.EBADF.value:
-                raise Closed
-            else:
-                raise NanomsgError()
+        nbytes = errors.check(nn_func(self.fd, message, size, flags))
         if size != NN_MSG and nbytes != size and ensure_size:
             raise AssertionError('expect %d instead %d' % (size, nbytes))
         return nbytes
@@ -333,42 +339,39 @@ class OptionsProxy:
     def _setopt(self, value, level, option):
         self.socket.setsockopt(level, option, value)
 
-    def _make_getters(getter, varz):
-        # partialmethod doesn't work with property :(
-        for option in SocketOption:
-            assert option.name.startswith('NN_')
-            name = option.name[len('NN_'):].lower()
-            varz[name] = property(partial(
-                getter,
-                level=NN_SOL_SOCKET,
-                option=option,
-            ))
+    def _make(getter, setter, varz):
+        # Because partialmethod doesn't work with property...
 
-    _make_getters(_getopt, locals())
+        level_option_pairs = [
+            (NN_SUB, NN_SUB_SUBSCRIBE),
+            (NN_SUB, NN_SUB_UNSUBSCRIBE),
+            (NN_REQ, NN_REQ_RESEND_IVL),
+            (NN_SURVEYOR, NN_SURVEYOR_DEADLINE),
+            (NN_TCP, NN_TCP_NODELAY),
+            (NN_WS, NN_WS_MSG_TYPE),
+        ]
+        level_option_pairs.extend(
+            (NN_SOL_SOCKET, option)
+            for option in SocketOption
+        )
 
-    del _make_getters
-
-    def _make_setters(setter, varz):
         readonly = {
             NN_DOMAIN,
             NN_PROTOCOL,
             NN_SNDFD,
             NN_RCVFD,
         }
-        for option in SocketOption:
-            if option in readonly:
-                continue
-            assert option.name.startswith('NN_')
-            name = option.name[len('NN_'):].lower()
-            varz[name] = varz[name].setter(partial(
-                setter,
-                level=NN_SOL_SOCKET,
-                option=option,
-            ))
 
-    _make_setters(_setopt, locals())
+        for level, option in level_option_pairs:
+            name = option.name.lower()
+            prop = property(partial(getter, level=level, option=option))
+            if option not in readonly:
+                prop = prop.setter(partial(setter, level=level, option=option))
+            varz[name] = prop
 
-    del _make_setters
+    _make(_getopt, _setopt, locals())
+
+    del _make
 
 
 def device(sock1, sock2=None):
@@ -379,28 +382,3 @@ def device(sock1, sock2=None):
 
 def terminate():
     _nn.nn_term()
-
-
-def _is_value_of_enum(enum_member, value):
-    return value is enum_member or value == enum_member.value
-
-
-def _is_value_of_enum_type(enum_type, value):
-    if value in enum_type:
-        return True
-    for member in enum_type:
-        if value == member.value:
-            return True
-    return False
-
-
-def _make_buffer_for(option_type):
-    if option_type is OptionType.NN_TYPE_INT:
-        buf = ctypes.byref(ctypes.c_int())
-        size = ctypes.sizeof(ctypes.c_int)
-    elif option_type is OptionType.NN_TYPE_STR:
-        buf = ctypes.create_string_buffer(64)  # Should be large enough?
-        size = len(buf)
-    else:
-        raise ValueError(option_type)
-    return buf, ctypes.byref(ctypes.c_size_t(size))

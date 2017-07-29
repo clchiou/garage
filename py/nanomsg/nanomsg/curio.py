@@ -6,14 +6,8 @@ import curio.io
 import curio.traps
 
 from . import SocketBase
-from .constants import (
-    AF_SP,
-    NN_DONTWAIT,
-)
-from .errors import (
-    Closed,
-    NanomsgEagain,
-)
+from .constants import AF_SP, NN_DONTWAIT
+from .errors import EAGAIN
 
 
 class Socket(SocketBase):
@@ -32,26 +26,26 @@ class Socket(SocketBase):
 
     async def send(self, message, size=None, flags=0):
         if self.fd is None:
-            raise Closed
+            raise AssertionError
         if self.__sndfd_fileno is None:
-            self.__sndfd_fileno = curio.io._Fd(self.options.sndfd)
+            self.__sndfd_fileno = curio.io._Fd(self.options.nn_sndfd)
         return await self._async_tx(
             self.__sndfd_fileno, self._blocking_send, message, size, flags)
 
     async def recv(self, message=None, size=None, flags=0):
         if self.fd is None:
-            raise Closed
+            raise AssertionError
         if self.__rcvfd_fileno is None:
-            self.__rcvfd_fileno = curio.io._Fd(self.options.rcvfd)
+            self.__rcvfd_fileno = curio.io._Fd(self.options.nn_rcvfd)
         return await self._async_tx(
             self.__rcvfd_fileno, self._blocking_recv, message, size, flags)
 
     async def _async_tx(self, fileno, blocking_tx, message, size, flags):
-        flags |= NN_DONTWAIT
+        flags |= NN_DONTWAIT.value
         while True:
             if self.fd is None:
-                raise Closed
+                raise AssertionError
             try:
                 return blocking_tx(message, size, flags)
-            except NanomsgEagain:
+            except EAGAIN:
                 await curio.traps._read_wait(fileno)

@@ -1,12 +1,11 @@
 __all__ = [
     'NN_MSG',
-    'NANOMSG_OPTION_METADATA',
     # Extend in _load().
 ]
 
 from collections import defaultdict, namedtuple
 from ctypes import byref, sizeof
-from enum import IntEnum, unique
+import enum
 
 from . import _nanomsg as _nn
 
@@ -14,87 +13,127 @@ from . import _nanomsg as _nn
 NN_MSG = -1
 
 
-NANOMSG_OPTION_METADATA = {}
-
-
 NanomsgVersion = namedtuple('NanomsgVersion', 'current revision age')
 
 
+#
+# Instead of using a plain int object as enum members, we use this
+# wrapper class because Enum treats members with the same value as
+# alias (and symbol values may be the same).
+#
+class Symbol(int):
+
+    def __new__(cls, name, value):
+        self = super().__new__(cls, value)
+        self.name = name
+        return self
+
+    def __str__(self):
+        return '<%s: %d>' % (self.name, self)
+
+    __repr__ = __str__
+
+    def __hash__(self):
+        return hash(self.name)
+
+    def __eq__(self, other):
+        if not isinstance(other, Symbol):
+            return False
+        return self.name == other.name
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+
 def _load(global_vars, exposed_names):
-    int_enum_decls = [
-        # enum class         namespace                  unique  global
-        ('Domain',          'NN_NS_DOMAIN',             True,   True),
-        ('Transport',       'NN_NS_TRANSPORT',          True,   True),
-        ('Protocol',        'NN_NS_PROTOCOL',           True,   True),
-        ('OptionLevel',     'NN_NS_OPTION_LEVEL',       True,   True),
-        ('SocketOption',    'NN_NS_SOCKET_OPTION',      True,   True),
-        ('TransportOption', 'NN_NS_TRANSPORT_OPTION',   False,  True),
-        ('OptionType',      'NN_NS_OPTION_TYPE',        True,   False),
-        ('OptionUnit',      'NN_NS_OPTION_UNIT',        True,   False),
-        # NOTE: NN_NS_FLAG was expanded to ws.h and not unique anymore.
-        ('Flag',            'NN_NS_FLAG',               False,   True),
-        ('Error',           'NN_NS_ERROR',              True,   False),
-        # TODO: NN_NS_LIMIT, NN_NS_EVENT, and NN_NS_STATISTIC.
-    ]
 
     symbols = _load_symbols()
 
-    syms = symbols['NN_NS_VERSION']
+    # Create NS_VERSION.
+
+    syms = dict(symbols['NN_NS_VERSION'])
     global_vars['NS_VERSION'] = NanomsgVersion(
-        current=_find_value_by_name(syms, 'NN_VERSION_CURRENT'),
-        revision=_find_value_by_name(syms, 'NN_VERSION_REVISION'),
-        age=_find_value_by_name(syms, 'NN_VERSION_AGE'),
+        current=syms['NN_VERSION_CURRENT'],
+        revision=syms['NN_VERSION_REVISION'],
+        age=syms['NN_VERSION_AGE'],
     )
     exposed_names.append('NS_VERSION')
 
-    for enum_name, namespace, is_unique, in_global in int_enum_decls:
-        syms = symbols[namespace]
-        int_enum = IntEnum(
-            enum_name,
-            [(name, sym.value) for name, sym in syms],
-            module=__name__,
-        )
-
-        if is_unique:
-            int_enum = unique(int_enum)
-
-        global_vars[enum_name] = int_enum
-        exposed_names.append(enum_name)
-
-        # Promote enum members to the global namespace if they are
-        # useful to library users.
-        if in_global:
-            global_vars.update(int_enum.__members__)
-            exposed_names.extend(int_enum.__members__)
+    # Create NN_NS_LIMIT.
 
     for name, sym in symbols['NN_NS_LIMIT']:
         global_vars[name] = sym.value
         exposed_names.append(name)
 
-    _build_metadata(
-        symbols['NN_NS_SOCKET_OPTION'],
-        global_vars['SocketOption'],
-        global_vars['OptionType'],
-        global_vars['OptionUnit'],
-    )
+    # Create enum for the rest of namespaces.
 
-    _build_metadata(
-        symbols['NN_NS_TRANSPORT_OPTION'],
-        global_vars['TransportOption'],
-        global_vars['OptionType'],
-        global_vars['OptionUnit'],
-    )
+    # Use IntEnum when possible.
+    enum_decls = [
+        # enum name         namespace                   enum type       export?
+        ('Domain',          'NN_NS_DOMAIN',             enum.IntEnum,   True),
+        ('Transport',       'NN_NS_TRANSPORT',          enum.IntEnum,   True),
+        ('Protocol',        'NN_NS_PROTOCOL',           enum.IntEnum,   True),
+        ('OptionLevel',     'NN_NS_OPTION_LEVEL',       enum.IntEnum,   True),
+        ('SocketOption',    'NN_NS_SOCKET_OPTION',      enum.Enum,      True),
+        ('TransportOption', 'NN_NS_TRANSPORT_OPTION',   enum.Enum,      True),
+        ('OptionType',      'NN_NS_OPTION_TYPE',        enum.IntEnum,   True),
+        ('OptionUnit',      'NN_NS_OPTION_UNIT',        enum.IntEnum,   True),
+        ('Flag',            'NN_NS_FLAG',               enum.Enum,      True),
+        # Don't export error because we will create exception classes
+        # for them.
+        ('Error',           'NN_NS_ERROR',              enum.IntEnum,   False),
+        ('Event',           'NN_NS_EVENT',              enum.IntEnum,   True),
+        ('Statistic',       'NN_NS_STATISTIC',          enum.IntEnum,   True),
+    ]
 
+    for enum_name, namespace, enum_type, export_members in enum_decls:
+
+        syms = symbols[namespace]
+
+        if enum_type is enum.Enum:
+            enum_class = enum.Enum(
+                enum_name,
+                [(name, Symbol(name, sym.value)) for name, sym in syms],
+                module=__name__,
+            )
+        else:
+            assert enum_type is enum.IntEnum
+            enum_class = enum.IntEnum(
+                enum_name,
+                [(name, sym.value) for name, sym in syms],
+                module=__name__,
+            )
+
+        # Check if members are unique (no alias).
+        enum_class = enum.unique(enum_class)
+
+        global_vars[enum_name] = enum_class
+        exposed_names.append(enum_name)
+
+        if export_members:
+            global_vars.update(enum_class.__members__)
+            exposed_names.extend(enum_class.__members__)
+
+    # Sanity check...
     if len(set(exposed_names)) != len(exposed_names):
         raise AssertionError('names conflict: %r' % exposed_names)
 
+    # Attach option type and unit to the options.
 
-def _build_metadata(symbols, enum_type, option_types, option_units):
-    symbols = dict(symbols)
-    for member in enum_type:
-        sym = symbols[member.name]
-        metadata = (option_types(sym.type), option_units(sym.unit))
-        NANOMSG_OPTION_METADATA[member.name] = metadata
+    OptionType = global_vars['OptionType']
+    OptionUnit = global_vars['OptionUnit']
+
+    SocketOption = global_vars['SocketOption']
+    for name, sym in symbols['NN_NS_SOCKET_OPTION']:
+        option = SocketOption[name].value
+        option.type = OptionType(sym.type)
+        option.unit = OptionUnit(sym.unit)
+
+    TransportOption = global_vars['TransportOption']
+    for name, sym in symbols['NN_NS_TRANSPORT_OPTION']:
+        option = TransportOption[name].value
+        option.type = OptionType(sym.type)
+        option.unit = OptionUnit(sym.unit)
 
 
 def _load_symbols():
