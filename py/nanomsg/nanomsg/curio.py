@@ -2,12 +2,14 @@ __all__ = [
     'Socket',
 ]
 
+import ctypes
+
 import curio.io
 import curio.traps
 
-from . import SocketBase
+from . import Message, SocketBase
+from . import errors
 from .constants import AF_SP, NN_DONTWAIT
-from .errors import EAGAIN
 
 
 class Socket(SocketBase):
@@ -25,27 +27,49 @@ class Socket(SocketBase):
         return super().__exit__(*exc_info)  # XXX: Would this block?
 
     async def send(self, message, size=None, flags=0):
-        if self.fd is None:
-            raise AssertionError
+        errors.asserts(self.fd is not None, 'expect socket.fd')
+
         if self.__sndfd_fileno is None:
             self.__sndfd_fileno = curio.io._Fd(self.options.nn_sndfd)
-        return await self._async_tx(
-            self.__sndfd_fileno, self._blocking_send, message, size, flags)
+
+        flags |= NN_DONTWAIT
+
+        if isinstance(message, Message):
+            transmit = super()._send_message
+            args = (message, flags)
+        else:
+            if size is None:
+                size = len(message)
+            transmit = super()._send_buffer
+            args = (message, size, flags)
+
+        return await self.__transmit(self.__sndfd_fileno, transmit, args)
 
     async def recv(self, message=None, size=None, flags=0):
-        if self.fd is None:
-            raise AssertionError
+        errors.asserts(self.fd is not None, 'expect socket.fd')
+
         if self.__rcvfd_fileno is None:
             self.__rcvfd_fileno = curio.io._Fd(self.options.nn_rcvfd)
-        return await self._async_tx(
-            self.__rcvfd_fileno, self._blocking_recv, message, size, flags)
 
-    async def _async_tx(self, fileno, blocking_tx, message, size, flags):
-        flags |= NN_DONTWAIT.value
+        flags |= NN_DONTWAIT
+
+        if message is None:
+            transmit = super()._recv_message
+            args = (ctypes.c_void_p(), flags)
+        else:
+            errors.asserts(size is not None, 'expect size')
+            transmit = super()._recv_buffer
+            args = (message, size, flags)
+
+        return await self.__transmit(self.__rcvfd_fileno, transmit, args)
+
+    async def __transmit(self, fileno, transmit, args):
         while True:
             if self.fd is None:
-                raise AssertionError
+                # It's closed while we were blocked.
+                raise errors.EBADF
             try:
-                return blocking_tx(message, size, flags)
-            except EAGAIN:
-                await curio.traps._read_wait(fileno)
+                return transmit(*args)
+            except errors.EAGAIN:
+                pass
+            await curio.traps._read_wait(fileno)

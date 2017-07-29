@@ -23,8 +23,10 @@ from .errors import *
 __all__.extend(constants.__all__)
 __all__.extend(errors.__all__)
 
-if len(set(__all__)) != len(__all__):
-    raise AssertionError('names conflict: %r' % __all__)
+errors.asserts(
+    len(set(__all__)) == len(__all__),
+    'expect no variable name conflict: %r', __all__,
+)
 
 
 _PyBUF_READ = 0x100
@@ -42,18 +44,22 @@ _PyMemoryView_FromMemory.restype = ctypes.py_object
 class Message:
 
     def __init__(self, size, allocation_type=0, *, buffer=None):
-        self.buffer = None  # A safety measure when an error raised below.
         if buffer:
-            self.buffer = buffer
+            self.buffer, self.size = buffer, size
         else:
+            self.buffer, self.size = None, 0
             self.buffer = _nn.nn_allocmsg(size, allocation_type)
             if self.buffer is None:
                 raise NanomsgError.make(_nn.nn_errno())
-        self.size = size
+            self.size = size
 
     def __repr__(self):
+        if self.buffer is None:
+            ptr, size = 0, 0
+        else:
+            ptr, size = self.buffer.value, self.size
         return ('<%s addr 0x%016x, size 0x%x>' %
-                (self.__class__.__name__, self.buffer.value, self.size))
+                (self.__class__.__name__, ptr, size))
 
     def __enter__(self):
         return self
@@ -66,8 +72,7 @@ class Message:
         self.free()
 
     def as_memoryview(self):
-        if self.buffer is None:
-            raise AssertionError
+        errors.asserts(self.buffer is not None, 'expect non-None buffer')
         return _PyMemoryView_FromMemory(
             self.buffer,
             self.size,
@@ -75,18 +80,24 @@ class Message:
         )
 
     def resize(self, size):
-        if self.buffer is None:
-            raise AssertionError
-        self.buffer = _nn.nn_reallocmsg(self.buffer, size)
-        if self.buffer is None:
+        errors.asserts(self.buffer is not None, 'expect non-None buffer')
+        buffer = _nn.nn_reallocmsg(self.buffer, size)
+        if buffer is None:
             raise NanomsgError.make(_nn.nn_errno())
-        self.size = size
+        self.buffer, self.size = buffer, size
+
+    def disown(self):
+        buffer, self.buffer, self.size = self.buffer, None, 0
+        return buffer
 
     def free(self):
         if self.buffer is None:
             return
-        buffer, self.buffer = self.buffer, None
-        errors.check(_nn.nn_freemsg(buffer))
+        errors.check(_nn.nn_freemsg(self.buffer))
+        # It disowns the buffer only after nn_freemsg succeeds, but
+        # honestly, if it can't free the buffer, I am not sure what's
+        # the purpose to keep owning it (maybe for debugging?).
+        self.disown()
 
 
 class SocketBase:
@@ -96,8 +107,11 @@ class SocketBase:
         # raises exception since __del__ need at least self.fd.
         self.fd = None
 
-        if protocol is None == socket_fd is None:
-            raise AssertionError('one of protocol and socket_fd must be set')
+        errors.asserts(
+            (protocol is None) != (socket_fd is None),
+            'expect either protocol or socket_fd is set: %r, %r',
+            protocol, socket_fd,
+        )
         if protocol is not None:
             self.fd = errors.check(_nn.nn_socket(domain, protocol))
         else:
@@ -123,11 +137,13 @@ class SocketBase:
             elif isinstance(endpoint, ConnectEndpoint):
                 connects.append(endpoint.address)
             else:
-                raise AssertionError(repr(endpoint))
+                raise AssertionError
         return ('<%s fd %r, listen on %r, connect to %r>' %
                 (self.__class__.__name__, self.fd, binds, connects))
 
-    ### Manage socket life cycle.
+    #
+    # Manage socket life cycle.
+    #
 
     def __enter__(self):
         return self
@@ -142,16 +158,16 @@ class SocketBase:
     def close(self):
         if self.fd is None:
             return
-        fd, self.fd = self.fd, None
-        self.endpoints.clear()  # Make __repr__() cleaner.
-        errors.check(_nn.nn_close(fd))
+        errors.check(_nn.nn_close(self.fd))
+        self.fd = None
+        self.endpoints.clear()
 
-    ### Configure this socket.
+    #
+    # Socket options.
+    #
 
     def getsockopt(self, level, option, option_size=64):
-
-        if self.fd is None:
-            raise AssertionError
+        errors.asserts(self.fd is not None, 'expect socket.fd')
 
         option_type = option.value.type
 
@@ -187,9 +203,7 @@ class SocketBase:
         return value
 
     def setsockopt(self, level, option, value):
-
-        if self.fd is None:
-            raise AssertionError
+        errors.asserts(self.fd is not None, 'expect socket.fd')
 
         option_type = option.value.type
 
@@ -223,19 +237,19 @@ class SocketBase:
         errors.check(_nn.nn_setsockopt(
             self.fd, level, option.value, optval, optvallen))
 
-    ### Add endpoints to this socket.
+    #
+    # Endpoints.
+    #
 
     def bind(self, address):
-        if self.fd is None:
-            raise AssertionError
-        return self._make_endpoint(address, BindEndpoint, _nn.nn_bind)
+        errors.asserts(self.fd is not None, 'expect socket.fd')
+        return self.__make_endpoint(address, BindEndpoint, _nn.nn_bind)
 
     def connect(self, address):
-        if self.fd is None:
-            raise AssertionError
-        return self._make_endpoint(address, ConnectEndpoint, _nn.nn_connect)
+        errors.asserts(self.fd is not None, 'expect socket.fd')
+        return self.__make_endpoint(address, ConnectEndpoint, _nn.nn_connect)
 
-    def _make_endpoint(self, address, ep_class, ep_make):
+    def __make_endpoint(self, address, ep_class, ep_make):
         if isinstance(address, str):
             address_bytes = address.encode('ascii')
         else:
@@ -245,44 +259,50 @@ class SocketBase:
         self.endpoints[endpoint_id] = endpoint
         return endpoint
 
-    ### Transmit data.
+    #
+    # Private data transmission methods that sub-classes may call.
+    #
 
-    def _blocking_send(self, message, size, flags):
-        if self.fd is None:
-            raise AssertionError
-        if isinstance(message, Message):
-            message = message.buffer
-            size = NN_MSG
-        return self._tx(_nn.nn_send, message, size, flags, True)
+    def _send_message(self, message, flags):
+        nbytes = self._send_buffer(message.buffer, NN_MSG, flags)
+        message.disown()
+        return nbytes
 
-    def _blocking_recv(self, message, size, flags):
-        if self.fd is None:
-            raise AssertionError
-        if message is None:
-            assert size is None or size == NN_MSG
-            buffer = ctypes.c_void_p()
-            bufp = ctypes.byref(buffer)
-            size = self._tx(_nn.nn_recv, bufp, NN_MSG, flags, False)
-            return Message(buffer=buffer, size=size)
-        else:
-            return self._tx(_nn.nn_recv, message, size, flags, False)
+    def _send_buffer(self, buffer, size, flags):
+        return self.__transmit(_nn.nn_send, buffer, size, flags, True)
 
-    def _tx(self, nn_func, message, size, flags, ensure_size):
-        if size is None:
-            size = len(message)
-        nbytes = errors.check(nn_func(self.fd, message, size, flags))
+    def _recv_message(self, void_p, flags):
+        nbytes = self._recv_buffer(ctypes.byref(void_p), NN_MSG, flags)
+        return Message(buffer=void_p, size=nbytes)
+
+    def _recv_buffer(self, buffer, size, flags):
+        return self.__transmit(_nn.nn_recv, buffer, size, flags, False)
+
+    def __transmit(self, nn_func, buffer, size, flags, ensure_size):
+        nbytes = errors.check(nn_func(self.fd, buffer, size, flags))
         if size != NN_MSG and nbytes != size and ensure_size:
-            raise AssertionError('expect %d instead %d' % (size, nbytes))
+            raise AssertionError('expect size = %d, not %d' % (size, nbytes))
         return nbytes
 
 
 class Socket(SocketBase):
 
     def send(self, message, size=None, flags=0):
-        return self._blocking_send(message, size, flags)
+        errors.asserts(self.fd is not None, 'expect socket.fd')
+        if isinstance(message, Message):
+            return self._send_message(message, flags)
+        else:
+            if size is None:
+                size = len(message)
+            return self._send_buffer(message, size, flags)
 
     def recv(self, message=None, size=None, flags=0):
-        return self._blocking_recv(message, size, flags)
+        errors.asserts(self.fd is not None, 'expect socket.fd')
+        if message is None:
+            return self._recv_message(ctypes.c_void_p(), flags)
+        else:
+            errors.asserts(size is not None, 'expect size')
+            return self._recv_buffer(message, size, flags)
 
 
 class EndpointBase:

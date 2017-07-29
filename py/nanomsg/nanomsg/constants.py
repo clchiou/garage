@@ -59,7 +59,13 @@ def _load(global_vars, exposed_names):
     )
     exposed_names.append('NS_VERSION')
 
-    # Create NN_NS_LIMIT.
+    # Create NN_NS_FLAG as plain int variables.
+
+    for name, sym in symbols['NN_NS_FLAG']:
+        global_vars[name] = sym.value
+        exposed_names.append(name)
+
+    # Create NN_NS_LIMIT as plain int variables.
 
     for name, sym in symbols['NN_NS_LIMIT']:
         global_vars[name] = sym.value
@@ -78,7 +84,6 @@ def _load(global_vars, exposed_names):
         ('TransportOption', 'NN_NS_TRANSPORT_OPTION',   enum.Enum,      True),
         ('OptionType',      'NN_NS_OPTION_TYPE',        enum.IntEnum,   True),
         ('OptionUnit',      'NN_NS_OPTION_UNIT',        enum.IntEnum,   True),
-        ('Flag',            'NN_NS_FLAG',               enum.Enum,      True),
         # Don't export error because we will create exception classes
         # for them.
         ('Error',           'NN_NS_ERROR',              enum.IntEnum,   False),

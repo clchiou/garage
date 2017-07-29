@@ -50,4 +50,9 @@ def check(ret):
     return ret
 
 
+def asserts(cond, message, *args):
+    if not cond:
+        raise AssertionError(message % args)
+
+
 _create_errors(globals(), __all__)
