@@ -2,6 +2,7 @@ __all__ = [
     'ClientComponent',
 ]
 
+import functools
 import logging
 
 import nanomsg as nn
@@ -10,6 +11,7 @@ from nanomsg.curio import Socket
 from garage import components
 from garage.asyncs import queues
 from garage.asyncs.messaging import reqrep
+from garage.startups.asyncs.servers import GracefulExitComponent
 from garage.startups.asyncs.servers import ServerContainerComponent
 
 
@@ -18,130 +20,115 @@ class ClientComponent(components.Component):
     require = (
         components.ARGS,
         components.EXIT_STACK,
+        GracefulExitComponent.provide.graceful_exit,
     )
 
     provide = components.make_fqname_tuple(
         __name__,
         ServerContainerComponent.require.make_server,
-        'get_socket',
+        'socket',
         'request_queue',
     )
 
     def __init__(
             self, *,
-            module_name=None, name=None,
-            group=None,
-            queue_capacity=0,
+            module_name=None, name_prefix=None,
+            group=None, arg_prefix=None,
+            queue_capacity=32,
+            timeout=2,  # Unit: seconds.
             logger=None):
 
-        if name:
-            self.__arg = name.replace('_', '-') + '-'
-            self.__attr = name + '_'
+        if arg_prefix:
+            arg_prefix = arg_prefix + '-'
+        elif name_prefix:
+            arg_prefix = name_prefix.replace('_', '-') + '-'
         else:
-            self.__arg = ''
-            self.__attr = ''
+            arg_prefix = ''
+        self.__arg_prefix = arg_prefix
+        self.__attr_prefix = arg_prefix.replace('-', '_')
 
-        name = name or 'client'
+        if name_prefix:
+            name = name_prefix
+            name_prefix = name_prefix + '_'
+        else:
+            name = 'client'
+            name_prefix = ''
 
-        if module_name is not None:
+        if module_name or name_prefix:
             self.provide = components.make_fqname_tuple(
-                module_name,
+                module_name or __name__,
                 ServerContainerComponent.require.make_server,
-                'get_socket',
-                'request_queue',
+                '%ssocket' % name_prefix,
+                '%srequest_queue' % name_prefix,
             )
-            self.order = '%s/%s' % (module_name, name)
+            self.order = '%s/%s' % (module_name or __name__, name)
 
         self.__group = '%s/%s' % (group or module_name or __name__, name)
 
-        self.__queue_capacity = queue_capacity
+        self.queue_capacity = queue_capacity
+        self.timeout = timeout
 
         self.__logger = logger
 
     def add_arguments(self, parser):
         group = parser.add_argument_group(self.__group)
         group.add_argument(
-            '--%sbind' % self.__arg, metavar='URL', action='append',
-            help='bind socket to the URL',
+            '--%sbind' % self.__arg_prefix,
+            metavar='URL', action='append',
+            help='bind socket to URL',
         )
         group.add_argument(
-            '--%sconnect' % self.__arg, metavar='URL', action='append',
-            help='connect socket to the URL',
+            '--%sconnect' % self.__arg_prefix,
+            metavar='URL', action='append',
+            help='connect socket to URL',
         )
         group.add_argument(
-            '--%squeue-capacity' % self.__arg,
-            type=int, default=self.__queue_capacity,
+            '--%squeue-capacity' % self.__arg_prefix,
+            metavar='N', type=int, default=self.queue_capacity,
             help='set request queue capacity (default to %(default)s)',
         )
         group.add_argument(
-            '--%stimeout' % self.__arg, type=float,
-            help='set request timeout',
+            '--%stimeout' % self.__arg_prefix,
+            metavar='T', type=float, default=self.timeout,
+            help='set request timeout (default to %(default)s seconds)',
         )
-
-    class Maker:
-
-        def __init__(
-                self,
-                exit_stack,
-                bind_addresses, connect_addresses,
-                request_queue,
-                timeout):
-            self._exit_stack = exit_stack
-            self.bind_addresses = bind_addresses
-            self.connect_addresses = connect_addresses
-            self.request_queue = request_queue
-            self.timeout = timeout
-            self._socket = None
-
-        def _make(self):
-            socket = self._exit_stack.enter_context(Socket(protocol=nn.NN_REQ))
-            for url in self.bind_addresses:
-                socket.bind(url)
-            for url in self.connect_addresses:
-                socket.connect(url)
-            return socket
-
-        def make_client(self):
-            # Although it's called "make_client", we expect that it to
-            # be called only once.  If you call it multiple times, each
-            # client instance will share the same Socket object (which
-            # might not be desirable).
-            if self._socket is None:
-                self._socket = self._make()
-            return reqrep.client(
-                self._socket,
-                self.request_queue,
-                timeout=self.timeout,
-            )
-
-        def get_socket(self):
-            if self._socket is None:
-                self._socket = self._make()
-            return self._socket
 
     def make(self, require):
 
-        bind = getattr(require.args, '%sbind' % self.__attr) or ()
-        connect = getattr(require.args, '%sconnect' % self.__attr) or ()
+        bind = getattr(require.args, '%sbind' % self.__attr_prefix) or ()
+        connect = getattr(require.args, '%sconnect' % self.__attr_prefix) or ()
         if not bind and not connect:
             (self.__logger or logging).warning(
-                'clint socket is neither bound nor connected to any address')
+                'client socket is neither bound nor connected to any address')
 
-        capacity = getattr(require.args, '%squeue_capacity' % self.__attr)
+        capacity = getattr(
+            require.args, '%squeue_capacity' % self.__attr_prefix)
 
-        timeout = getattr(require.args, '%stimeout' % self.__attr)
+        # NOTE: Don't use socket timeout (NN_SNDTIMEO and NN_RCVTIMEO)
+        # because we are using non-blocking sockets.
+        timeout = getattr(require.args, '%stimeout' % self.__attr_prefix)
+        if timeout <= 0:
+            timeout = None  # No timeout.
+
+        socket = Socket(protocol=nn.NN_REQ)
+        require.exit_stack.enter_context(socket)
 
         request_queue = queues.Queue(capacity=capacity)
+        require.exit_stack.callback(request_queue.close)
 
-        maker = self.Maker(
-            require.exit_stack,
-            bind, connect,
-            request_queue,
-            timeout,
-        )
+        for url in bind:
+            socket.bind(url)
+        for url in connect:
+            socket.connect(url)
 
         return (
-            maker.make_client,
-            maker.get_socket,
-            maker.request_queue,
+            functools.partial(
+                reqrep.client_supervisor,
+                require.graceful_exit,
+                socket,
+                request_queue,
+                timeout=timeout,
+            ),
+            socket,
+            request_queue,
         )
