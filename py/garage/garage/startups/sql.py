@@ -41,16 +41,16 @@ class EngineComponent(components.Component):
         self.__arg = arg
         self.__attr = arg[2:].replace('-', '_')
 
-        group = group or module_name or __name__
+        name = name or 'engine'
 
-        if module_name is None and name is None:
-            self.__group = '%s/engine' % group
-        else:
-            module_name = module_name or __name__
-            name = name or 'engine'
-            self.provide = components.make_fqname_tuple(module_name, name)
+        if module_name is not None:
+            self.provide = components.make_fqname_tuple(
+                module_name,
+                name,
+            )
             self.order = '%s/%s' % (module_name, name)
-            self.__group = '%s/%s' % (group, name)
+
+        self.__group = '%s/%s' % (group or module_name or __name__, name)
 
         self.check_same_thread = check_same_thread
         self.pragmas = pragmas
