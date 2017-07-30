@@ -160,6 +160,10 @@ class TaskSet:
         self._graceful_exit = False
         self._spawn = spawn
 
+    def ignore_done_tasks(self):
+        """Do not track done tasks."""
+        self._done_tasks.close()
+
     def graceful_exit(self):
         self._graceful_exit = True
         # We may close the _done_tasks queue when it's CLOSED state

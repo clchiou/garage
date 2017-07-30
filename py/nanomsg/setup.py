@@ -5,6 +5,6 @@ setup(
     name = 'nanomsg',
     packages = ['nanomsg'],
     extras_require = {
-        'curio': ['curio'],
+        'curio': ['curio', 'garage[asyncs]'],
     },
 )

@@ -48,6 +48,28 @@ class SpawnTest(unittest.TestCase):
 class TaskSetTest(unittest.TestCase):
 
     @synchronous
+    async def test_ignore_done_tasks(self):
+
+        task_set = asyncs.TaskSet()
+        task_set.ignore_done_tasks()
+
+        async def func():
+            pass
+
+        async with task_set:
+
+            t1 = await task_set.spawn(func())
+            t2 = await task_set.spawn(func())
+            t3 = await task_set.spawn(func())
+
+            await t1.join()
+            await t2.join()
+            await t3.join()
+
+            # We should not have "done tasks".
+            self.assertIsNone(await task_set.next_done())
+
+    @synchronous
     async def test_graceful_exit(self):
 
         task_set = asyncs.TaskSet()
