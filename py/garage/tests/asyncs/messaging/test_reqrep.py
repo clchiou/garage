@@ -90,11 +90,8 @@ class ReqrepTest(unittest.TestCase):
             response_future = Future()
             await queue.put((b'', response_future.promise()))
 
-            try:
+            with self.assertRaises(reqrep.Unavailable):
                 await response_future.result()
-                self.fail('result() did not raise')
-            except curio.TaskTimeout:
-                pass
 
     @synchronous
     async def test_server_timeout(self):

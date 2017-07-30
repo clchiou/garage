@@ -1,23 +1,77 @@
 __all__ = [
+    'Terminated',
+    'Unavailable',
     'client',
+    'client_supervisor',
     'server',
+    # TODO: Implement server_supervisor.
 ]
 
 import logging
 
-from curio import timeout_after
+from curio import TaskTimeout, timeout_after
 
-from garage.asyncs.futures import Future
+import nanomsg
+
+from garage import asyncs
 from garage.asyncs import queues
+from garage.asyncs.futures import Future
 
 
 LOG = logging.getLogger(__name__)
 
 
+class Terminated(Exception):
+    """Client agent is terminated."""
+
+
+class Unavailable(Exception):
+    """Service is unavailable."""
+
+
+async def client_supervisor(
+    graceful_exit, socket, request_queue, *, timeout=None):
+
+    async def cleanup():
+        """Wait for the graceful exit event and then clean up itself.
+
+        It will:
+        * Close socket so that the client task will not send any further
+          requests.
+        * Close the queue so that upstream will not enqueue any further
+          requests.
+
+        The requests still in the queue will be "processed", with their
+        result being set to EBADF, since the socket is closed.  This
+        signals (and unblocks) all blocked upstream tasks.
+        """
+        try:
+            await graceful_exit.wait()
+        finally:
+            # Use 'finally' to close them even on cancellation.
+            socket.close()
+            request_queue.close()
+
+    async with await asyncs.cancelling.spawn(cleanup):
+        coro = client(socket, request_queue, timeout=timeout)
+        async with await asyncs.cancelling.spawn(coro) as client_task:
+            await client_task.join()
+
+
 async def client(socket, request_queue, *, timeout=None):
-    """Take requests from a request queue and send them to a
-       nanomsg.NN_REQ socket.
-    """
+    """Act as client-side in the reqrep protocol."""
+
+    def transform_error(exc):
+        if isinstance(exc, TaskTimeout):
+            new_exc = Unavailable()
+            new_exc.__cause__ = exc
+            return new_exc
+        elif isinstance(exc, nanomsg.EBADF):
+            new_exc = Terminated()
+            new_exc.__cause__ = exc
+            return new_exc
+        else:
+            return exc
 
     LOG.info('client: start sending requests')
     while True:
@@ -40,8 +94,11 @@ async def client(socket, request_queue, *, timeout=None):
         except Exception as exc:
             if response_promise.cancelled():
                 LOG.exception(
-                    'client: err but request is cancelled: %r', request)
-            response_promise.set_exception(exc)
+                    'client: err but request is cancelled: %r',
+                    request,
+                )
+            else:
+                response_promise.set_exception(transform_error(exc))
 
         else:
             response_promise.set_result(response)
@@ -50,12 +107,10 @@ async def client(socket, request_queue, *, timeout=None):
 
 
 async def server(socket, request_queue, *, timeout=None, error_handler=None):
-    """Receive requests from a nanomsg.NN_REP socket and put them into a
-       request queue.
+    """Act as server-side in the reqrep protocol.
 
-       Note: error_handler is not asynchronous because you should
-       probably send back error messages to clients without being
-       blocked indefinitely.
+    NOTE: error_handler is not asynchronous because you should probably
+    send back error messages without being blocked indefinitely.
     """
 
     if error_handler is None:
