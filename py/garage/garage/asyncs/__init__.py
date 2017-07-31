@@ -6,6 +6,8 @@ __all__ = [
     'cancelling',
     'select',
     'spawn',
+    # HACK!
+    'close_socket_and_wakeup_task',
 ]
 
 from collections import OrderedDict, deque
@@ -13,6 +15,8 @@ from functools import partial
 import inspect
 
 import curio
+import curio.io
+import curio.traps
 
 from garage import asserts
 
@@ -259,3 +263,38 @@ class TaskStack:
         task = await self._spawn(coro, **kwargs)
         self._tasks.append(task)
         return task
+
+
+async def close_socket_and_wakeup_task(socket):
+    """Close a socket and wake up any task blocked on it.
+
+    This is a hack to workaround the issue that when a file descriptor
+    is closed, any task blocked on it will not be waked up, and thus
+    will be blocked forever.
+
+    NOTE: There will be at most one task blocked on a file descriptor.
+    """
+    asserts.type_of(socket, curio.io.Socket)
+
+    if not socket._socket:
+        return  # It's closed already.
+
+    kernel = await curio.traps._get_kernel()
+
+    def mark_ready(task):
+        kernel._ready.append(task)
+        task.next_value = None
+        task.next_exc = None
+        task.state = 'READY'
+        task.cancel_func = None
+
+    # _fileno will be cleared after close; let's get the tasks first.
+    key = kernel._selector.get_key(socket._fileno)
+    if key:
+        rtask, wtask = key.data
+        if rtask:
+            mark_ready(rtask)
+        if wtask:
+            mark_ready(wtask)
+
+    await socket.close()
