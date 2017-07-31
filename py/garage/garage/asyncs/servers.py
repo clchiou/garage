@@ -45,12 +45,17 @@ async def serve(graceful_exit, grace_period, make_server_funcs):
         elif server.exception:
             LOG.error('server crash: %r', server, exc_info=server.exception)
         else:
-            LOG.info('notify graceful exit')
-            graceful_exit.set()
+            if not graceful_exit.is_set():
+                LOG.info('serve: notify graceful exit')
+                graceful_exit.set()
             async with curio.ignore_after(grace_period) as timeout:
                 okay = await wait_servers(servers)
             if timeout.expired:
-                LOG.info('exceed grace period %f', grace_period)
+                LOG.warning('serve: exceed grace period %f', grace_period)
+                for server in servers:
+                    if not server.terminated:
+                        LOG.warning(
+                            'serve: server is still running: %r', server)
 
         # When we leave this block, TaskStack will cancel all the
         # remaining tasks.
@@ -78,7 +83,7 @@ async def signal_handler(graceful_exit, grace_period):
         sig = await sigqueue.get()
         LOG.info('receive signal: %s', sig)
         if sig == signal.SIGINT:
-            LOG.info('notify graceful exit')
+            LOG.info('signal_handler: notify graceful exit')
             graceful_exit.set()
         elif sig == signal.SIGTERM:
             return
@@ -88,4 +93,4 @@ async def signal_handler(graceful_exit, grace_period):
             sig = await sigqueue.get()
             LOG.info('receive signal again: %s', sig)
             return
-        LOG.info('exceed grace period %f', grace_period)
+        LOG.warning('signal_handler: exceed grace period %f', grace_period)

@@ -83,12 +83,13 @@ class Server:
     @staticmethod
     async def _join(runners):
         async for runner in runners:
-            try:
-                await runner.join()
-            except Exception:
+            if runner.exception:
                 # This should not be possible as _run_handler never let
                 # exception leave it!
-                LOG.exception('error pops out from handler runner: %r', runner)
+                LOG.error(
+                    'error pops out from handler runner: %r',
+                    runner, exc_info=runner.exception,
+                )
 
     async def _run_handler(self, stream):
         LOG.info('%s %s', stream.request.method.name, stream.request.path)
