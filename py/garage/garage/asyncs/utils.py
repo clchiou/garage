@@ -47,6 +47,8 @@ async def serve(graceful_exit, make_server_socket, handle_client, *,
         import logging
         logger = logging.getLogger(__name__)
 
+    connections = {}
+
     async def accept_clients(handlers):
         async with make_server_socket() as server_socket:
             if make_ssl_context:
@@ -55,14 +57,17 @@ async def serve(graceful_exit, make_server_socket, handle_client, *,
             while True:
                 sock, addr = await server_socket.accept()
                 logger.info('serve client from: %r', addr)
-                await handlers.spawn(handle_client(sock, addr))
+                handler = await handlers.spawn(handle_client(sock, addr))
+                connections[handler] = sock
 
     async def join_client_handlers(handlers):
         async for handler in handlers:
-            try:
-                await handler.join()
-            except Exception:
-                logger.exception('err in client handler: %r', handler)
+            connections.pop(handler, None)
+            if handler.exception:
+                logger.error(
+                    'err in client handler: %r',
+                    handler, exc_info=handler.exception,
+                )
 
     async with \
             asyncs.TaskSet() as handlers, \
@@ -80,6 +85,10 @@ async def serve(graceful_exit, make_server_socket, handle_client, *,
         logger.info('initiate graceful exit')
         await acceptor.cancel()
         handlers.graceful_exit()
+        # If it's not a graceful exit, the tasks will be cancelled; so
+        # we don't need to close sockets on that case, right?
+        for conn in connections.values():
+            await asyncs.close_socket_and_wakeup_task(conn)
         await joiner.join()
 
 
