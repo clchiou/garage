@@ -6,37 +6,30 @@ import ctypes
 
 import curio.traps
 
-# For the workaround...
-from garage import asyncs
-
 from . import Message, SocketBase
 from . import errors
 from .constants import AF_SP, NN_DONTWAIT
 
 
 #
-# Note about workaround:
+# Note about the hack:
 #
 # After a file descriptor (specifically, nn_sndfd, and nn_rcvfd) is
-# added to curio's event loop, it doesn't seem to be able to detect that
-# file descriptor is closed.  As a result, __transmit will be blocked
-# forever on waiting the file descriptor becoming readable.
+# added to curio's event loop, it can't to detect when file descriptor
+# is closed.  As a result, __transmit will be blocked forever on waiting
+# the file descriptor becoming readable.
 #
-# I honestly don't know how to fix this properly, but here is a my
-# workaround: Instead of directly await'ing on _read_wait, let's spawn a
-# task for that.  And in close(), we will cancel all of these tasks, in
-# the hope that this will unblock all __transmit calls.
+# To address this issue, before we close the socket, we will get the
+# curio kernel object, and mark the blocked tasks as ready manually.
 #
 class Socket(SocketBase):
 
     def __init__(self, *, domain=AF_SP, protocol=None, socket_fd=None):
         super().__init__(domain=domain, protocol=protocol, socket_fd=socket_fd)
-        self.__tasks = asyncs.TaskSet()
-        self.__tasks.ignore_done_tasks()  # I don't care about done tasks.
-        self.__close_event = asyncs.Event()
-        # Defer creation of close_task because task spawning is async,
-        # which can't be called in __init__.
-        self.__close_task = None
+
+        # Fields for tracking info for the close-socket hack.
+        self.__kernel = None
+        self.__fds = set()
 
     async def __aenter__(self):
         return super().__enter__()
@@ -44,14 +37,28 @@ class Socket(SocketBase):
     async def __aexit__(self, *exc_info):
         return super().__exit__(*exc_info)  # XXX: Would this block?
 
-    async def __on_close(self):
-        # The context will cancel all pending tasks on its way out.
-        async with self.__tasks:
-            await self.__close_event.wait()
-
     def close(self):
-        self.__close_event.set()
+
+        # HACK: Mark tasks as ready before close the socket.
+        if self.__kernel:
+            for fd in self.__fds:
+                key = self.__kernel._selector.get_key(fd)
+                if key:
+                    rtask, wtask = key.data
+                    if rtask:
+                        self.__mark_ready(rtask)
+                    if wtask:
+                        self.__mark_ready(wtask)
+
+        # Now we may close the socket.
         super().close()
+
+    def __mark_ready(self, task):
+        self.__kernel._ready.append(task)
+        task.next_value = None
+        task.next_exc = None
+        task.state = 'READY'
+        task.cancel_func = None
 
     async def send(self, message, size=None, flags=0):
         errors.asserts(self.fd is not None, 'expect socket.fd')
@@ -97,16 +104,16 @@ class Socket(SocketBase):
             except errors.EAGAIN:
                 pass
 
-            if self.__close_task is None:
-                self.__close_task = await asyncs.spawn(
-                    self.__on_close(),
-                    daemon=True,  # We don't care about joining it.
-                )
+            kernel = await curio.traps._get_kernel()
+            assert self.__kernel in (None, kernel), (
+                'socket is accessed by different kernels: %r != %r' %
+                (self.__kernel, kernel)
+            )
 
-            task = await self.__tasks.spawn(curio.traps._read_wait(eventfd))
+            self.__kernel = kernel
+            self.__fds.add(eventfd)
             try:
-                await task.wait()
+                await curio.traps._read_wait(eventfd)
             finally:
-                # It is not strictly necessary to cancel this task here,
-                # but it is a nice thing to do.
-                await task.cancel()
+                self.__kernel = None
+                self.__fds.remove(eventfd)
