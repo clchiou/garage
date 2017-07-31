@@ -194,7 +194,7 @@ class Session:
     async def _serve_tick(self):
         try:
             data = await self._sock.recv(self.INCOMING_BUFFER_SIZE)
-        except ssl.SSLError as exc:
+        except OSError as exc:
             LOG.warning('session=%s: %r', self._id, exc)
             return False
 
@@ -277,11 +277,8 @@ class Session:
         # Unfortunately SSLSocket disallow scatter/gather sendmsg.
         try:
             await self._sock.sendall(b''.join(buffers))
-        except ssl.SSLError as exc:
+        except OSError as exc:
             LOG.warning('session=%s: %r', self._id, exc)
-            return False
-        except BrokenPipeError:
-            LOG.warning('session=%s: broken pipe', self._id)
             return False
 
         return (nghttp2_session_want_read(self._session) != 0 or
