@@ -1,5 +1,6 @@
 __all__ = [
     'Socket',
+    'terminate',
 ]
 
 import ctypes
@@ -8,6 +9,7 @@ import curio.traps
 
 from . import Message, SocketBase
 from . import errors
+from . import terminate as _terminate
 from .constants import AF_SP, NN_DONTWAIT
 
 
@@ -22,6 +24,22 @@ from .constants import AF_SP, NN_DONTWAIT
 # To address this issue, before we close the socket, we will get the
 # curio kernel object, and mark the blocked tasks as ready manually.
 #
+
+
+async def terminate():
+
+    # HACK: Mark tasks as ready before close sockets.
+    kernel = await curio.traps._get_kernel()
+    for fd, key in kernel._selector.get_map().items():
+        if isinstance(fd, Fd):
+            rtask, wtask = key.data
+            _mark_ready(kernel, rtask)
+            _mark_ready(kernel, wtask)
+
+    # Now we may close sockets.
+    _terminate()
+
+
 class Socket(SocketBase):
 
     def __init__(self, *, domain=AF_SP, protocol=None, socket_fd=None):
@@ -40,25 +58,15 @@ class Socket(SocketBase):
     def close(self):
 
         # HACK: Mark tasks as ready before close the socket.
-        if self.__kernel:
-            for fd in self.__fds:
-                key = self.__kernel._selector.get_key(fd)
-                if key:
-                    rtask, wtask = key.data
-                    if rtask:
-                        self.__mark_ready(rtask)
-                    if wtask:
-                        self.__mark_ready(wtask)
+        for fd in self.__fds:
+            key = self.__kernel._selector.get_key(fd)
+            if key:
+                rtask, wtask = key.data
+                _mark_ready(self.__kernel, rtask)
+                _mark_ready(self.__kernel, wtask)
 
         # Now we may close the socket.
         super().close()
-
-    def __mark_ready(self, task):
-        self.__kernel._ready.append(task)
-        task.next_value = None
-        task.next_exc = None
-        task.state = 'READY'
-        task.cancel_func = None
 
     async def send(self, message, size=None, flags=0):
         errors.asserts(self.fd is not None, 'expect socket.fd')
@@ -111,9 +119,26 @@ class Socket(SocketBase):
             )
 
             self.__kernel = kernel
+
+            eventfd = Fd(eventfd)
+
             self.__fds.add(eventfd)
             try:
                 await curio.traps._read_wait(eventfd)
             finally:
-                self.__kernel = None
                 self.__fds.remove(eventfd)
+
+
+# A wrapper class for separating out "our" file descriptors.
+class Fd(int):
+    pass
+
+
+def _mark_ready(kernel, task):
+    if task is None:
+        return
+    kernel._ready.append(task)
+    task.next_value = None
+    task.next_exc = None
+    task.state = 'READY'
+    task.cancel_func = None
