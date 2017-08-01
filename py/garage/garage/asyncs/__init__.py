@@ -288,13 +288,17 @@ async def close_socket_and_wakeup_task(socket):
         task.state = 'READY'
         task.cancel_func = None
 
-    # _fileno will be cleared after close; let's get the tasks first.
-    key = kernel._selector.get_key(socket._fileno)
-    if key:
+    # Wake up tasks and unregister the file from event loop.
+    fileno = socket._fileno
+    try:
+        key = kernel._selector.get_key(fileno)
         rtask, wtask = key.data
         if rtask:
             mark_ready(rtask)
         if wtask:
             mark_ready(wtask)
+        kernel._selector.unregister(fileno)
+    except KeyError:
+        pass
 
     await socket.close()

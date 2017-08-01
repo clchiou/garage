@@ -174,5 +174,55 @@ class SelectTest(unittest.TestCase):
         self.assertEqual(label, await task.join())
 
 
+@unittest.skipUnless(curio_available, 'curio unavailable')
+class AsyncsTest(unittest.TestCase):
+
+    @synchronous
+    async def test_socket_close(self):
+
+        e1 = asyncs.Event()
+        e2 = asyncs.Event()
+
+        async def use_socket(socket, event):
+            with self.assertRaisesRegex(OSError, r'Bad file descriptor'):
+                event.set()
+                await socket.recv(32)
+
+        s1, s2 = curio.socket.socketpair()
+        f1 = s1._fileno
+        f2 = s2._fileno
+
+        task1 = await asyncs.spawn(use_socket(s1, e1))
+        task2 = await asyncs.spawn(use_socket(s2, e2))
+
+        try:
+            async with curio.timeout_after(1):
+
+                await e1.wait()
+                await e2.wait()
+
+                kernel = await curio.traps._get_kernel()
+
+                self.assertIsNotNone(kernel._selector.get_key(f1))
+                self.assertIsNotNone(kernel._selector.get_key(f2))
+
+                await asyncs.close_socket_and_wakeup_task(s1)
+                await asyncs.close_socket_and_wakeup_task(s2)
+
+                with self.assertRaises(KeyError):
+                    kernel._selector.get_key(f1)
+                with self.assertRaises(KeyError):
+                    kernel._selector.get_key(f2)
+
+                await task1.join()
+                await task2.join()
+
+        finally:
+            await task1.cancel()
+            await task2.cancel()
+            await s1.close()
+            await s2.close()
+
+
 if __name__ == '__main__':
     unittest.main()
