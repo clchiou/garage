@@ -30,11 +30,14 @@ async def terminate():
 
     # HACK: Mark tasks as ready before close sockets.
     kernel = await curio.traps._get_kernel()
-    for fd, key in kernel._selector.get_map().items():
+    # Make a copy before modify it.
+    items = tuple(kernel._selector.get_map().items())
+    for fd, key in items:
         if isinstance(fd, Fd):
             rtask, wtask = key.data
             _mark_ready(kernel, rtask)
             _mark_ready(kernel, wtask)
+            kernel._selector.unregister(fd)
 
     # Now we may close sockets.
     _terminate()
@@ -46,8 +49,7 @@ class Socket(SocketBase):
         super().__init__(domain=domain, protocol=protocol, socket_fd=socket_fd)
 
         # Fields for tracking info for the close-socket hack.
-        self.__kernel = None
-        self.__fds = set()
+        self.__kernels_fds = []  # Allow duplications.
 
     async def __aenter__(self):
         return super().__enter__()
@@ -58,12 +60,15 @@ class Socket(SocketBase):
     def close(self):
 
         # HACK: Mark tasks as ready before close the socket.
-        for fd in self.__fds:
-            key = self.__kernel._selector.get_key(fd)
-            if key:
-                rtask, wtask = key.data
-                _mark_ready(self.__kernel, rtask)
-                _mark_ready(self.__kernel, wtask)
+        for kernel, fd in self.__kernels_fds:
+            try:
+                key = kernel._selector.get_key(fd)
+            except KeyError:
+                continue
+            rtask, wtask = key.data
+            _mark_ready(kernel, rtask)
+            _mark_ready(kernel, wtask)
+            kernel._selector.unregister(fd)
 
         # Now we may close the socket.
         super().close()
@@ -112,21 +117,15 @@ class Socket(SocketBase):
             except errors.EAGAIN:
                 pass
 
-            kernel = await curio.traps._get_kernel()
-            assert self.__kernel in (None, kernel), (
-                'socket is accessed by different kernels: %r != %r' %
-                (self.__kernel, kernel)
-            )
-
-            self.__kernel = kernel
-
+            # Wrap eventfd so that terminate() may find it.
             eventfd = Fd(eventfd)
 
-            self.__fds.add(eventfd)
+            pair = (await curio.traps._get_kernel(), eventfd)
+            self.__kernels_fds.append(pair)
             try:
                 await curio.traps._read_wait(eventfd)
             finally:
-                self.__fds.remove(eventfd)
+                self.__kernels_fds.remove(pair)
 
 
 # A wrapper class for separating out "our" file descriptors.

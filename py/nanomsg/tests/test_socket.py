@@ -131,8 +131,11 @@ class SocketTest(unittest.TestCase):
 
         rcvfd = socket.options.nn_rcvfd
 
+        event = curio.Event()
+
         async def recv():
             with self.assertRaises(nn.EBADF):
+                await event.set()
                 await socket.recv()
 
         async def zombify():
@@ -141,10 +144,24 @@ class SocketTest(unittest.TestCase):
             self.zombify(socket)
 
         async def run():
+
+            kernel = await curio.traps._get_kernel()
+            rcvfd = socket.options.nn_rcvfd
+
             recv_task = await curio.spawn(recv())
+
+            await event.wait()
+            self.assertIsNotNone(kernel._selector.get_key(rcvfd))
+            self.assertIn((kernel, rcvfd), socket._Socket__kernels_fds)
+
             zombify_task = await curio.spawn(zombify())
+
             await recv_task.join()
             await zombify_task.join()
+
+            with self.assertRaises(KeyError):
+                kernel._selector.get_key(rcvfd)
+            self.assertNotIn((kernel, rcvfd), socket._Socket__kernels_fds)
 
         try:
             curio.run(run())
