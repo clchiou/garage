@@ -13,6 +13,7 @@ setup(
     packages = find_packages(exclude=['tests*']),
     extras_require = {
         'asyncs': ['curio'],
+        'asyncs.messaging': ['curio', 'nanomsg'],
         'components': ['startup'],
         'formatters': ['PyYAML'],
         'http.clients': ['lxml', 'requests'],
