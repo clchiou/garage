@@ -60,6 +60,18 @@ def _serialize(value):
     return value
 
 
+def _set_root(node, leaf):
+    """Add a reference from leaf to root.
+
+    This should prevent root node from being garbage collected while
+    leaf is still alive (downside is that it may retain more memory).
+    """
+    if isinstance(leaf, (DynamicObject, DynamicListAdapter)):
+        assert leaf._root is None
+        leaf._root = node if node._root is None else node._root
+    return leaf
+
+
 register_converter(DynamicEnum, lambda e: e.get())
 register_serializer(enum.Enum, lambda e: e.value)
 
@@ -124,6 +136,7 @@ class DynamicObject(metaclass=DynamicObjectMeta):
         assert isinstance(struct, (DynamicStruct, DynamicStruct.Builder))
         self._message = None
         self._struct = struct
+        self._root = None
 
     def __del__(self):
         # Release C++ resources, just to be safe.
@@ -141,7 +154,7 @@ class DynamicObject(metaclass=DynamicObjectMeta):
             message.close()
 
     def _as_reader(self):
-        return self.__class__(self._struct.as_reader())
+        return _set_root(self, self.__class__(self._struct.as_reader()))
 
     def _serialize_asdict(self):
         odict = collections.OrderedDict()
@@ -156,7 +169,7 @@ class DynamicObject(metaclass=DynamicObjectMeta):
         camel_case = bases.snake_to_lower_camel(name)
         value = _convert(self._struct.init(camel_case, size))
         value = self.__annotations__.get(name, _identity_func)(value)
-        return value
+        return _set_root(self, value)
 
     def __getattr__(self, name):
 
@@ -185,7 +198,7 @@ class DynamicObject(metaclass=DynamicObjectMeta):
         # Apply per-struct converter.
         value = self.__annotations__.get(name, _identity_func)(value)
 
-        return value
+        return _set_root(self, value)
 
     def __setattr__(self, name, value):
 
@@ -251,6 +264,7 @@ class DynamicListAdapter(collections.MutableSequence):
     def __init__(self, list_):
         assert isinstance(list_, (DynamicList, DynamicList.Builder))
         self._list = list_
+        self._root = None
 
     def _serialize_aslist(self):
         return list(map(_serialize, self))
@@ -259,13 +273,16 @@ class DynamicListAdapter(collections.MutableSequence):
         return len(self._list)
 
     def __iter__(self):
-        yield from map(_convert, self._list)
+        for obj in map(_convert, self._list):
+            yield _set_root(self, obj)
 
     def _init(self, index, size=None):
-        return _convert(self._list.init(index, size))
+        obj = _convert(self._list.init(index, size))
+        return _set_root(self, obj)
 
     def __getitem__(self, index):
-        return _convert(self._list[index])
+        obj = _convert(self._list[index])
+        return _set_root(self, obj)
 
     def __setitem__(self, index, value):
         _setter_helper(
