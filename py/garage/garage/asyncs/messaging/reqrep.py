@@ -11,7 +11,7 @@ import logging
 
 import curio
 
-import nanomsg
+import nanomsg as nn
 
 from garage import asyncs
 from garage.asyncs import futures
@@ -34,7 +34,7 @@ def _transform_error(exc):
         new_exc = Unavailable()
         new_exc.__cause__ = exc
         return new_exc
-    elif isinstance(exc, nanomsg.EBADF):
+    elif isinstance(exc, nn.EBADF):
         new_exc = Terminated()
         new_exc.__cause__ = exc
         return new_exc
@@ -157,7 +157,7 @@ async def server(socket, request_queue, *, timeout=None, error_handler=None):
         try:
             with await socket.recv() as message:
                 request = bytes(message.as_memoryview())
-        except nanomsg.EBADF:
+        except nn.EBADF:
             break
 
         try:
@@ -181,7 +181,7 @@ async def server(socket, request_queue, *, timeout=None, error_handler=None):
 
         try:
             await socket.send(response)
-        except nanomsg.EBADF:
+        except nn.EBADF:
             LOG.debug('server: drop response: %r, %r', request, response)
             break
 

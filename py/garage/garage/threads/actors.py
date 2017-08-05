@@ -43,6 +43,7 @@ __all__ = [
     'BUILD',
     'ActorError',
     'Exit',
+    'Exited',
     'Return',
     'OneShotActor',
     'Stub',
@@ -77,6 +78,10 @@ _MAGIC = object()
 
 class ActorError(Exception):
     """A generic error of actors."""
+
+
+class Exited(ActorError):
+    """Raise when sending message to an exited actor."""
 
 
 class Exit(Exception):
@@ -126,7 +131,7 @@ class OneShotActor:
             return self._future
 
         def _send_message(self, func, args, kwargs, block=True, timeout=None):
-            raise ActorError('OneShotActor does not take additional message')
+            raise Exited('OneShotActor does not take additional message')
 
     def __init__(self, actor_func):
         self.actor_func = actor_func
@@ -367,7 +372,7 @@ class Stub(metaclass=_StubMeta):
             )
             return future
         except queues.Closed:
-            raise ActorError('actor has been killed')
+            raise Exited('actor has been killed') from None
 
 
 _Message = collections.namedtuple('_Message', 'future_ref func args kwargs')
