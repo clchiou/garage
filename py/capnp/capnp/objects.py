@@ -156,14 +156,18 @@ class DynamicObject(metaclass=DynamicObjectMeta):
     def _as_reader(self):
         return _set_root(self, self.__class__(self._struct.as_reader()))
 
-    def _serialize_asdict(self):
-        odict = collections.OrderedDict()
+    def _items(self):
         for camel_case in self._struct.keys():
             name = bases.camel_to_lower_snake(camel_case)
             # Use getattr() so that converter may participate.
             value = getattr(self, name)
-            odict[name] = _serialize(value)
-        return odict
+            yield name, value
+
+    def _serialize_asdict(self):
+        return collections.OrderedDict(
+            (name, _serialize(value))
+            for name, value in self._items()
+        )
 
     def _init(self, name, size=None):
         camel_case = bases.snake_to_lower_camel(name)
@@ -344,17 +348,26 @@ def _setter_helper(type_, target, key, value, get_obj):
                 del target[key]
 
     elif type_.kind is Type.Kind.STRUCT:
-        if not isinstance(value, collections.Mapping):
-            raise ValueError('cannot assign from: %s %s %r' %
-                             (type_, key, value))
-        if value:
+
+        if (isinstance(value, DynamicObject) and
+                type_.schema is value._struct.schema):
+            target.init(key)
+            obj = get_obj()
+            obj._struct.copy_from(value._struct)
+
+        elif isinstance(value, collections.Mapping):
             target.init(key)
             obj = get_obj()
             for k, v in value.items():
                 setattr(obj, k, v)
-        else:
+
+        elif not value:
             if key in target:
                 del target[key]
+
+        else:
+            raise ValueError(
+                'cannot assign from: %s %s %r' % (type_, key, value))
 
     else:
         raise AssertionError('cannot assign to: %s %s' % (type_, key))

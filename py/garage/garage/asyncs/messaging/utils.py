@@ -12,7 +12,7 @@ from garage.asyncs.messaging import reqrep
 class ClientBase:
     """Abstract base class for implementing reqrep client."""
 
-    def _parse_response(self, request, response_struct):
+    def _parse_response(self, request, response_message):
         """Parse response object (and may raise error)."""
         raise NotImplementedError
 

@@ -1,5 +1,7 @@
 import unittest
 
+import collections
+
 from tests.fixtures import Fixture
 
 import capnp
@@ -20,15 +22,71 @@ class DynamicsTest(Fixture):
         self.loader.close()
 
     def test_dynamic_object(self):
+
         obj = capnp.DynamicObject._make(
             capnp.MessageBuilder(),
             self.struct_schema,
         )
         obj.i8 = -1
+        obj._init('l', 1)._init(0, 1)._init(0, 1)[0] = 1
+        obj.u = {'b': False}
+
         self.assertEqual(
             self.encode('test-1.capnp', self.struct_schema, obj._struct),
             obj._message.to_bytes(),
         )
+
+        self.assertEqual(
+            collections.OrderedDict([
+                ('b', True),
+                ('i8', -1),
+                ('i16', 2),
+                ('i32', 3),
+                ('i64', 4),
+                ('u8', 0),
+                ('u16', 0),
+                ('u32', 0),
+                ('u64', 0),
+                ('f32', 0.0),
+                ('f64', 0.0),
+                ('e', 1),
+                ('l', [[[1]]]),
+                ('u', collections.OrderedDict([('b', False)])),
+                ('g', collections.OrderedDict([('i8', 0), ('f32', 0.0)])),
+            ]),
+            obj._serialize_asdict(),
+        )
+
+        self.assertEqual(
+            [
+                ('b', True),
+                ('i8', -1),
+                ('i16', 2),
+                ('i32', 3),
+                ('i64', 4),
+                ('u8', 0),
+                ('u16', 0),
+                ('u32', 0),
+                ('u64', 0),
+                ('f32', 0.0),
+                ('f64', 0.0),
+                ('e', 1),
+                ('l', obj.l),
+                ('u', obj.u),
+                ('g', obj.g),
+            ],
+            list(obj._items()),
+        )
+
+        # Test field copy.
+        o2 = capnp.DynamicObject._make(
+            capnp.MessageBuilder(),
+            self.struct_schema,
+        )
+        o2.i8 = obj.i8
+        o2.l = obj.l
+        o2.u = obj.u
+        self.assertEqual(str(obj), str(o2))
 
     def test_message_builder(self):
 
