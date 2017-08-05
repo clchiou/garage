@@ -1,6 +1,7 @@
 import unittest
 
 import collections
+import warnings
 
 from tests.fixtures import Fixture
 
@@ -22,6 +23,11 @@ class DynamicsTest(Fixture):
         self.loader.close()
 
     def test_dynamic_object(self):
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            self.run_test_dynamic_object()
+
+    def run_test_dynamic_object(self):
 
         obj = capnp.DynamicObject._make(
             capnp.MessageBuilder(),

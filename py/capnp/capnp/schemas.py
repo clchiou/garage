@@ -504,7 +504,7 @@ class Schema:
         assert self.kind is Schema.Kind.ENUM
         assert self.name is not None
         name_fixes = name_fixes or {}
-        return enum.Enum(self.name, [
+        members = [
             (
                 name_fixes.get(
                     enumerant.name,
@@ -513,7 +513,8 @@ class Schema:
                 enumerant.ordinal,
             )
             for enumerant in self.enumerants
-        ])
+        ]
+        return enum.unique(enum.Enum(self.name, members))
 
     def get_enumerant_from_ordinal(self, ordinal):
         assert self.kind is Schema.Kind.ENUM

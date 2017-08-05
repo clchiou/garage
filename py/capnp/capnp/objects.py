@@ -2,11 +2,13 @@ __all__ = [
     'DynamicObject',
     'DynamicListAdapter',
     'register_converter',
+    'register_enum',
     'register_serializer',
 ]
 
 import collections
 import enum
+import warnings
 
 from . import bases
 from .schemas import Type
@@ -72,7 +74,27 @@ def _set_root(node, leaf):
     return leaf
 
 
-register_converter(DynamicEnum, lambda e: e.get())
+_ENUM_TYPES = {}
+
+
+def register_enum(schema):
+    if schema in _ENUM_TYPES:
+        raise ValueError('cannot override: %r' % schema)
+    cls = schema.generate_enum()
+    _ENUM_TYPES[schema] = cls
+    return cls
+
+
+def convert_enum(dynamic_enum):
+    try:
+        cls = _ENUM_TYPES[dynamic_enum.schema]
+    except KeyError:
+        warnings.warn('dynamic enum is not registered: %r' % dynamic_enum)
+        return dynamic_enum.get()
+    return cls(dynamic_enum.get())
+
+
+register_converter(DynamicEnum, convert_enum)
 register_serializer(enum.Enum, lambda e: e.value)
 
 
@@ -269,6 +291,10 @@ class DynamicListAdapter(collections.MutableSequence):
         assert isinstance(list_, (DynamicList, DynamicList.Builder))
         self._list = list_
         self._root = None
+        self._convert_item = None
+
+    def __convert(self, value):
+        return (self._convert_item or _identity_func)(_convert(value))
 
     def _serialize_aslist(self):
         return list(map(_serialize, self))
@@ -277,15 +303,15 @@ class DynamicListAdapter(collections.MutableSequence):
         return len(self._list)
 
     def __iter__(self):
-        for obj in map(_convert, self._list):
+        for obj in map(self.__convert, self._list):
             yield _set_root(self, obj)
 
     def _init(self, index, size=None):
-        obj = _convert(self._list.init(index, size))
+        obj = self.__convert(self._list.init(index, size))
         return _set_root(self, obj)
 
     def __getitem__(self, index):
-        obj = _convert(self._list[index])
+        obj = self.__convert(self._list[index])
         return _set_root(self, obj)
 
     def __setitem__(self, index, value):

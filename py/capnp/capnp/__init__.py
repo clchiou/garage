@@ -17,8 +17,10 @@ __all__ = [
     'MessageBuilder',
     'MessageReader',
 
+    'DynamicListAdapter',
     'DynamicObject',
     'register_converter',
+    'register_enum',
     'register_serializer',
 ]
 
@@ -27,8 +29,10 @@ import logging
 from .dynamics import MessageBuilder
 from .dynamics import MessageReader
 
+from .objects import DynamicListAdapter
 from .objects import DynamicObject
 from .objects import register_converter
+from .objects import register_enum
 from .objects import register_serializer
 
 from .schemas import AnnotationDef
