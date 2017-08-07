@@ -240,29 +240,50 @@ class TaskStack:
 
     def __init__(self, *, spawn=spawn):
         self._tasks = None
+        self._callbacks = None
         self._spawn = spawn
 
     async def __aenter__(self):
-        asserts.none(self._tasks)
+        asserts.none(self._callbacks)
         self._tasks = deque()
+        self._callbacks = deque()
         return self
 
     async def __aexit__(self, *_):
-        asserts.not_none(self._tasks)
-        tasks, self._tasks = self._tasks, None
-        for task in reversed(tasks):
-            await task.cancel()
+        asserts.not_none(self._callbacks)
+        self._tasks = None
+        callbacks, self._callbacks = self._callbacks, None
+        for is_async, func, args, kwargs in reversed(callbacks):
+            if is_async:
+                await func(*args, **kwargs)
+            else:
+                func(*args, **kwargs)
 
     def __iter__(self):
         asserts.not_none(self._tasks)
         yield from self._tasks
 
+    async def wait_any(self):
+        asserts.not_none(self._tasks)
+        return await curio.TaskGroup(self._tasks).next_done()
+
     async def spawn(self, coro, **kwargs):
         """Spawn a new task and push it onto stack."""
-        asserts.not_none(self._tasks)
+        asserts.not_none(self._callbacks)
         task = await self._spawn(coro, **kwargs)
         self._tasks.append(task)
+        self.callback(task.cancel)
         return task
+
+    def callback(self, func, *args, **kwargs):
+        """Add asynchronous callback."""
+        asserts.not_none(self._callbacks)
+        self._callbacks.append((True, func, args, kwargs))
+
+    def sync_callback(self, func, *args, **kwargs):
+        """Add synchronous callback."""
+        asserts.not_none(self._callbacks)
+        self._callbacks.append((False, func, args, kwargs))
 
 
 async def close_socket_and_wakeup_task(socket):

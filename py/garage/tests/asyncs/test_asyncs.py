@@ -135,11 +135,18 @@ class TaskStackTest(unittest.TestCase):
             finally:
                 results.append(data)
 
-        async with asyncs.TaskStack() as stack:
-            await stack.spawn(func(1))
-            await stack.spawn(func(2))
+        async def cb(x):
+            results.append(x)
 
-        self.assertEqual([2, 1], results)
+        async with asyncs.TaskStack() as stack:
+            t1 = await stack.spawn(func(1))
+            t2 = await stack.spawn(func(2))
+            stack.callback(cb, 3)
+            stack.callback(cb, 4)
+            stack.sync_callback(results.append, 5)
+            self.assertEqual([t1, t2], list(stack))
+
+        self.assertEqual([5, 4, 3, 2, 1], results)
 
 
 @unittest.skipUnless(curio_available, 'curio unavailable')
