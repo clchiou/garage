@@ -69,14 +69,15 @@ async def serve(graceful_exit, make_server_socket, handle_client, *,
                     handler, exc_info=handler.exception,
                 )
 
-    async with \
-            asyncs.TaskSet() as handlers, \
-            await asyncs.cancelling.spawn(
-                join_client_handlers(handlers)) as joiner, \
-            await asyncs.cancelling.spawn(
-                accept_clients(handlers)) as acceptor:
+    async with asyncs.TaskSet() as handlers, asyncs.TaskStack() as stack:
 
-        task = await asyncs.select([graceful_exit.wait(), joiner, acceptor])
+        joiner = await stack.spawn(join_client_handlers(handlers))
+
+        acceptor = await stack.spawn(accept_clients(handlers))
+
+        await stack.spawn(graceful_exit.wait())
+
+        task = await stack.wait_any()
         if task in (joiner, acceptor):
             logger.error('server task is terminated: %r', task)
             return await task.join()
