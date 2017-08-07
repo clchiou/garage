@@ -36,3 +36,7 @@ class StubAdapter:
         """
         future = self._stub._send_message(func, args, kwargs, block=False)
         return futures.FutureAdapter(future)
+
+    async def _kill_and_join(self, graceful=True):
+        self._kill(graceful=graceful)
+        await self._get_future().result()
