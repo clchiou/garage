@@ -15,6 +15,13 @@ from garage.startups.asyncs.servers import GracefulExitComponent
 from garage.startups.asyncs.servers import ServerContainerComponent
 
 
+#
+# XXX This is good for statically-fixed number of client agents (and
+# their sockets) that you configure from command-line.  For dynamic
+# allocation (you want N agents/sockets, and N is known until runtime),
+# we need different mechanism/infrastructure, which I don't have any
+# great idea so far.
+#
 class ClientComponent(components.Component):
 
     require = (
