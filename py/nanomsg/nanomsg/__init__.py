@@ -158,9 +158,15 @@ class SocketBase:
     def close(self):
         if self.fd is None:
             return
-        errors.check(_nn.nn_close(self.fd))
-        self.fd = None
-        self.endpoints.clear()
+        try:
+            errors.check(_nn.nn_close(self.fd))
+        except EBADF:
+            # Suppress EBADF because socket might have been closed
+            # through some other means, like nn_term.
+            pass
+        else:
+            self.fd = None
+            self.endpoints.clear()
 
     #
     # Socket options.
