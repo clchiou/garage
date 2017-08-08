@@ -15,7 +15,7 @@ class HttpClientComponent(components.Component):
 
     require = components.ARGS
 
-    provide = components.make_fqname_tuple(__name__, 'client')
+    provide = components.make_fqname_tuple(__name__, 'http_client')
 
     def add_arguments(self, parser):
         group = parser.add_argument_group(clients.__name__)
@@ -46,10 +46,10 @@ class HttpClientComponent(components.Component):
         else:
             retry_policy = policies.NoRetry()
 
-        client = clients.Client(
+        http_client = clients.Client(
             rate_limit=rate_limit,
             retry_policy=retry_policy,
         )
-        client.headers['User-Agent'] = args.http_user_agent
+        http_client.headers['User-Agent'] = args.http_user_agent
 
-        return client
+        return http_client

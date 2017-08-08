@@ -18,7 +18,7 @@ class SpiderComponent(components.Component):
     require = components.make_fqname_tuple(
         __name__,
         components.ARGS,
-        HttpClientComponent.provide.client,
+        HttpClientComponent.provide.http_client,
         'spider_parser',
     )
 
@@ -34,5 +34,5 @@ class SpiderComponent(components.Component):
         return Spider(
             parser=require.spider_parser,
             num_spiders=require.args.num_spiders,
-            client=require.client,
+            client=require.http_client,
         )
