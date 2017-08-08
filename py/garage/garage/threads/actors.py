@@ -162,12 +162,14 @@ class OneShotActor:
     def _run_actor(self, future_ref, args, kwargs):
         if not _deref(future_ref).set_running_or_notify_cancel():
             return
+        LOG.debug('start')
         try:
             result = self.actor_func(*args, **kwargs)
         except BaseException as exc:
             _deref(future_ref).set_exception(exc)
         else:
             _deref(future_ref).set_result(result)
+        LOG.debug('exit')
 
 
 def method(func):

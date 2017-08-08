@@ -33,7 +33,6 @@ class ClientComponent(components.Component):
     provide = components.make_fqname_tuple(
         __name__,
         ServerContainerComponent.require.make_server,
-        'socket',
         'request_queue',
     )
 
@@ -41,6 +40,7 @@ class ClientComponent(components.Component):
             self, *,
             module_name=None, name_prefix=None,
             group=None, arg_prefix=None,
+            num_sockets=1,
             queue_capacity=32,
             timeout=2,  # Unit: seconds.
             logger=None):
@@ -65,13 +65,13 @@ class ClientComponent(components.Component):
             self.provide = components.make_fqname_tuple(
                 module_name or __name__,
                 ServerContainerComponent.require.make_server,
-                '%ssocket' % name_prefix,
                 '%srequest_queue' % name_prefix,
             )
             self.order = '%s/%s' % (module_name or __name__, name)
 
         self.__group = '%s/%s' % (group or module_name or __name__, name)
 
+        self.num_sockets = num_sockets
         self.queue_capacity = queue_capacity
         self.timeout = timeout
 
@@ -90,8 +90,13 @@ class ClientComponent(components.Component):
             help='connect socket to URL',
         )
         group.add_argument(
+            '--%snum-sockets' % self.__arg_prefix,
+            metavar='N', type=int, default=self.num_sockets,
+            help='set number of client sockets (default to %(default)s)',
+        )
+        group.add_argument(
             '--%squeue-capacity' % self.__arg_prefix,
-            metavar='N', type=int, default=self.queue_capacity,
+            metavar='L', type=int, default=self.queue_capacity,
             help='set request queue capacity (default to %(default)s)',
         )
         group.add_argument(
@@ -117,25 +122,34 @@ class ClientComponent(components.Component):
         if timeout <= 0:
             timeout = None  # No timeout.
 
-        socket = Socket(protocol=nn.NN_REQ)
-        require.exit_stack.enter_context(socket)
+        num_sockets = getattr(
+            require.args,
+            '%snum_sockets' % self.__attr_prefix,
+        )
 
-        request_queue = queues.Queue(capacity=capacity)
-        require.exit_stack.callback(request_queue.close)
+        sockets = []
+        for _ in range(num_sockets):
 
-        for url in bind:
-            socket.bind(url)
-        for url in connect:
-            socket.connect(url)
+            socket = Socket(protocol=nn.NN_REQ)
+            require.exit_stack.enter_context(socket)
+
+            request_queue = queues.Queue(capacity=capacity)
+            require.exit_stack.callback(request_queue.close)
+
+            for url in bind:
+                socket.bind(url)
+            for url in connect:
+                socket.connect(url)
+
+            sockets.append(socket)
 
         return (
             functools.partial(
-                reqrep.client_supervisor,
-                require.graceful_exit,
-                socket,
-                request_queue,
+                reqrep.supervise_client,
+                graceful_exit=require.graceful_exit,
+                sockets=sockets,
+                request_queue=request_queue,
                 timeout=timeout,
             ),
-            socket,
             request_queue,
         )

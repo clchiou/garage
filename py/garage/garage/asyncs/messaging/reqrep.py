@@ -2,9 +2,9 @@ __all__ = [
     'Terminated',
     'Unavailable',
     'client',
-    'client_supervisor',
+    'supervise_client',
     'server',
-    'server_supervisor',
+    'supervise_server',
 ]
 
 import logging
@@ -42,33 +42,39 @@ def _transform_error(exc):
         return exc
 
 
-async def client_supervisor(
-    graceful_exit, socket, request_queue, *, timeout=None):
+async def supervise_client(
+    *,
+    graceful_exit,
+    sockets,
+    request_queue,
+    timeout=None):
 
-    async def cleanup():
-        """Wait for the graceful exit event and then clean up itself.
+    """Wait for the graceful exit event and then clean up itself.
 
-        It will:
-        * Close socket so that the client task will not send any further
-          requests.
-        * Close the queue so that upstream will not enqueue any further
-          requests.
+    It will:
+    * Close socket so that the client task will not send any further
+      requests.
+    * Close the queue so that upstream will not enqueue any further
+      requests.
 
-        The requests still in the queue will be "processed", with their
-        result being set to EBADF, since the socket is closed.  This
-        signals (and unblocks) all blocked upstream tasks.
-        """
-        try:
-            await graceful_exit.wait()
-        finally:
-            # Use 'finally' to close them even on cancellation.
-            socket.close()
-            request_queue.close()
+    The requests still in the queue will be "processed", with their
+    result being set to EBADF, since the socket is closed.  This signals
+    and unblocks all blocked upstream tasks.
+    """
 
-    async with await asyncs.cancelling.spawn(cleanup):
-        coro = client(socket, request_queue, timeout=timeout)
-        async with await asyncs.cancelling.spawn(coro) as client_task:
-            await client_task.join()
+    async with asyncs.TaskStack() as stack:
+
+        for socket in sockets:
+            await stack.spawn(client(socket, request_queue, timeout=timeout))
+
+        stack.sync_callback(request_queue.close)
+
+        for socket in sockets:
+            stack.sync_callback(socket.close)
+
+        await stack.spawn(graceful_exit.wait())
+
+        await (await stack.wait_any()).join()
 
 
 async def client(socket, request_queue, *, timeout=None):
@@ -107,38 +113,47 @@ async def client(socket, request_queue, *, timeout=None):
     LOG.info('client: exit')
 
 
-async def server_supervisor(
-    graceful_exit, socket, request_queue, *, timeout=None, error_handler=None):
+async def supervise_server(
+    *,
+    graceful_exit,
+    sockets,
+    request_queue,
+    timeout=None,
+    error_handler=None):
 
-    async def cleanup():
-        """Wait for the graceful exit event and then clean up itself.
+    """Wait for the graceful exit event and then clean up itself.
 
-        It will:
-        * Close socket so that the server task will not recv or send any
-          further requests.
-        * Close the queue so that downstream will not dequeue any
-          request.
+    It will:
+    * Close socket so that the server task will not recv or send any
+      further requests.
+    * Close the queue so that downstream will not dequeue any request.
 
-        The requests still in the queue will be dropped (since socket is
-        closed, their response cannot be sent back to the client).
-        """
-        try:
-            await graceful_exit.wait()
-        finally:
-            # Use 'finally' to close them even on cancellation.
-            socket.close()
-            num_dropped = len(request_queue.close(graceful=False))
-            if num_dropped:
-                LOG.info('server_supervisor: drop %d requests', num_dropped)
+    The requests still in the queue will be dropped (since socket is
+    closed, their response cannot be sent back to the client).
+    """
 
-    async with await asyncs.cancelling.spawn(cleanup):
-        coro = server(
-            socket, request_queue,
-            timeout=timeout,
-            error_handler=error_handler,
-        )
-        async with await asyncs.cancelling.spawn(coro) as server_task:
-            await server_task.join()
+    def close_queue():
+        num_dropped = len(request_queue.close(graceful=False))
+        if num_dropped:
+            LOG.info('server_supervisor: drop %d requests', num_dropped)
+
+    async with asyncs.TaskStack() as stack:
+
+        for socket in sockets:
+            await stack.spawn(server(
+                socket, request_queue,
+                timeout=timeout,
+                error_handler=error_handler,
+            ))
+
+        stack.sync_callback(close_queue)
+
+        for socket in sockets:
+            stack.sync_callback(socket.close)
+
+        await stack.spawn(graceful_exit.wait())
+
+        await (await stack.wait_any()).join()
 
 
 async def server(socket, request_queue, *, timeout=None, error_handler=None):
