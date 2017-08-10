@@ -175,10 +175,19 @@ class DynamicObject(metaclass=DynamicObjectMeta):
             self._struct, self._message, message = None, None, self._message
             message.close()
 
+    @property
+    def _closed(self):
+        if self._root:
+            return self._root._closed
+        else:
+            return self._struct is None
+
     def _as_reader(self):
+        assert not self._closed
         return _set_root(self, self.__class__(self._struct.as_reader()))
 
     def _items(self):
+        assert not self._closed
         for camel_case in self._struct.keys():
             name = bases.camel_to_lower_snake(camel_case)
             # Use getattr() so that converter may participate.
@@ -186,18 +195,21 @@ class DynamicObject(metaclass=DynamicObjectMeta):
             yield name, value
 
     def _serialize_asdict(self):
+        assert not self._closed
         return collections.OrderedDict(
             (name, _serialize(value))
             for name, value in self._items()
         )
 
     def _init(self, name, size=None):
+        assert not self._closed
         camel_case = bases.snake_to_lower_camel(name)
         value = _convert(self._struct.init(camel_case, size))
         value = self.__annotations__.get(name, _identity_func)(value)
         return _set_root(self, value)
 
     def __getattr__(self, name):
+        assert not self._closed
 
         # Translate name.
         camel_case = bases.snake_to_lower_camel(name)
@@ -233,6 +245,8 @@ class DynamicObject(metaclass=DynamicObjectMeta):
             super().__setattr__(name, value)
             return
 
+        assert not self._closed
+
         camel_case = bases.snake_to_lower_camel(name)
 
         try:
@@ -255,6 +269,8 @@ class DynamicObject(metaclass=DynamicObjectMeta):
         if name.startswith('_'):
             super().__delattr__(name)
             return
+
+        assert not self._closed
 
         camel_case = bases.snake_to_lower_camel(name)
         try:
@@ -293,28 +309,40 @@ class DynamicListAdapter(collections.MutableSequence):
         self._root = None
         self._convert_item = None
 
+    @property
+    def _closed(self):
+        # A list is never a root by itself.
+        assert self._root
+        return self._root._closed
+
     def __convert(self, value):
         return (self._convert_item or _identity_func)(_convert(value))
 
     def _serialize_aslist(self):
+        assert not self._closed
         return list(map(_serialize, self))
 
     def __len__(self):
+        assert not self._closed
         return len(self._list)
 
     def __iter__(self):
+        assert not self._closed
         for obj in map(self.__convert, self._list):
             yield _set_root(self, obj)
 
     def _init(self, index, size=None):
+        assert not self._closed
         obj = self.__convert(self._list.init(index, size))
         return _set_root(self, obj)
 
     def __getitem__(self, index):
+        assert not self._closed
         obj = self.__convert(self._list[index])
         return _set_root(self, obj)
 
     def __setitem__(self, index, value):
+        assert not self._closed
         _setter_helper(
             self._list.schema.element_type,
             self._list,
