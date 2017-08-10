@@ -20,8 +20,10 @@ public class Message implements AutoCloseable {
 
     @Override
     public synchronized void close() {
-        check(NANOMSG.nn_freemsg(message));
-        message = null;
+        if (message != null) {
+            check(NANOMSG.nn_freemsg(message));
+            message = null;
+        }
     }
 
     @Override
