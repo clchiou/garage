@@ -40,6 +40,7 @@ def build(parameters):
             scripts.execute(cmd.split())
         with scripts.using_sudo():
             scripts.execute(['make', 'install'])
+            scripts.execute(['ldconfig'])
 
 
 @rule

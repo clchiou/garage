@@ -5,6 +5,7 @@ Currently we have build files for these packages:
 ```
                     C   P   PE  CY  J   JS  REV
 first party
+  capnp                     x
   garage                x
   http2                 x
   nanomsg               x
@@ -15,6 +16,7 @@ first party host tools
   buildtools            x
 
 thrid party
+  capnproto         x                       v0.6.1
   cpython           x                       3.6.1rc1
   curio                 x                   0.7
   lxml                      x               3.7.3

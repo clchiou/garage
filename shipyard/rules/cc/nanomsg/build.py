@@ -30,7 +30,7 @@ def build(parameters):
         # Don't run `ctest -C Debug .` at the moment
         with scripts.using_sudo():
             scripts.execute('cmake --build . --target install'.split())
-            scripts.execute('ldconfig'.split())
+            scripts.execute(['ldconfig'])
 
 
 @rule

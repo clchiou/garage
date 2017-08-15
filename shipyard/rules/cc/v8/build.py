@@ -91,6 +91,7 @@ def build(parameters):
             scripts.execute(['ninja', '-C', 'out.gn/x64.release'])
     with scripts.using_sudo(), scripts.directory(output):
         scripts.rsync(LIBRARIES, '/usr/local/lib')
+        scripts.execute(['ldconfig'])
 
 
 @rule

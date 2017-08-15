@@ -100,6 +100,7 @@ def build(parameters):
         if not Path('/usr/local/include/boost').exists():
             with scripts.using_sudo():
                 scripts.execute(['./b2', 'install'])
+                scripts.execute(['ldconfig'])
 
 
 @rule
