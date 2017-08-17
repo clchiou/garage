@@ -24,6 +24,7 @@ from foreman import define_rule
  .depend('//cc/nanomsg:build')
  .depend('//cc/nghttp2:build')
  .depend('//cc/v8:build')
+ .depend('//host/capnproto-java:install')
  .depend('//host/cython:install')
  .depend('//host/depot_tools:install')
  .depend('//host/node:install')

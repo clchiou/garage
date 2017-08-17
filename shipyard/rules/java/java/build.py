@@ -20,7 +20,7 @@ from templates import common
 
 
 # Copy source (because all Java projects are under one Gradle root
-# project and thus we don't copy Java projects individually)
+# project and thus we don't copy Java projects individually).
 common.define_copy_src(src_relpath='java', dst_relpath='java')
 
 
@@ -46,12 +46,12 @@ def build(parameters):
 def tapeout(parameters):
     """Tape-out Java.
 
-       NOTE: All Java package's `tapeout` rules should reverse depend on
-       this rule.
+    NOTE: All Java package's `tapeout` rules should reverse depend on
+    this rule.
     """
     with scripts.using_sudo():
         jre = parameters['jre']
         scripts.mkdir(jre)
-        # Appending '/' to src is an rsync trick
+        # Appending '/' to src is an rsync trick.
         src = parameters['//host/java:jdk'] / 'jre'
         scripts.rsync(['%s/' % src], jre)

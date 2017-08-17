@@ -30,6 +30,7 @@ thrid party
   v8                x                       5.9.61
 
 thrid party host tools
+  capnproto-java                    x       v0.1.2
   cython                        x           0.25.2
   depot_tools           x                   master
   node              x                       4.2.6 (distributed with Ubuntu 16.10)

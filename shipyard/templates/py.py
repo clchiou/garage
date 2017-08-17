@@ -96,29 +96,24 @@ def define_source_package(package, *,
         drydock_src = parameters['//base:drydock'] / relpath
         scripts.ensure_file(drydock_src / 'setup.py')
 
-        # Retrieve the Python interpreter
-        python = parameters['//py/cpython:python']
-
-        # Run `python setup.py build`
-        if not (drydock_src / 'build').exists():
-            LOG.info('build %s', package)
-            cmd = [python, 'setup.py']
-            if make_build_cmd:
-                cmd.extend(make_build_cmd(parameters))
-            else:
-                cmd.append('build')
-            with scripts.directory(drydock_src):
-                scripts.execute(cmd)
-
-        # Run `sudo python setup.py install`
         site_packages = parameters['//py/cpython:modules'] / 'site-packages'
         if not list(site_packages.glob('%s*' % package)):
-            LOG.info('install %s', package)
+            LOG.info('build %s', package)
+
+            # Use `pip install --no-deps` (as `python3 setup.py install`
+            # can't do this) so that we won't implicitly install
+            # dependencies (you must explicitly specify all them all).
+            cmd = [parameters['//py/cpython:pip'], 'install', '--no-deps']
+            if make_build_cmd:
+                for arg in make_build_cmd(parameters):
+                    cmd.append('--global-option=%s' % arg)
+            cmd.append('.')
+
             # sudo does not preserve PYTHONPATH even with '--preserve-env'.
             # Run `sudo sudo -V` for the list of preserved variables.
-            with scripts.directory(drydock_src), \
-                 scripts.using_sudo(envs=['PYTHONPATH']):
-                scripts.execute([python, 'setup.py', 'install'])
+            with scripts.directory(drydock_src):
+                with scripts.using_sudo(envs=['PYTHONPATH']):
+                    scripts.execute(cmd)
 
     @rule(name + 'tapeout')
     @rule.depend(name + 'build')

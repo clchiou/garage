@@ -6,15 +6,15 @@ from templates import common
 
 
 common.define_archive(
-    uri='http://download.oracle.com/otn-pub/java/jdk/8u121-b13/e9e7ea248e2c4826b92b3f075a80e441/jdk-8u121-linux-x64.tar.gz',
-    filename='jdk-8u121-linux-x64.tar.gz',
-    output='jdk1.8.0_121',
-    checksum='md5-91972fb4e753f1b6674c2b952d974320',
+    uri='http://download.oracle.com/otn-pub/java/jdk/8u144-b01/090f390dda5b47b9b721c7dfaa008135/jdk-8u144-linux-x64.tar.gz',
+    filename='jdk-8u144-linux-x64.tar.gz',
+    output='jdk1.8.0_144',
+    checksum='md5-2d59a3add1f213cd249a67684d4aeb83',
     wget_headers=['Cookie: oraclelicense=accept-securebackup-cookie'],
 )
 
 
-# //java/base will use this
+# //java/java will use this.
 (define_parameter.path_typed('jdk')
  .with_doc('Path to JDK.')
  .with_derive(

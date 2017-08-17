@@ -29,7 +29,7 @@ class PyTest(PrepareForeman, unittest.TestCase):
             '//base:root': Path('/path/to/root'),
             '//base:drydock': Path('/path/to/drydock'),
             '//base:drydock/rootfs': Path('/path/to/drydock/rootfs'),
-            '//py/cpython:python': Path('python'),
+            '//py/cpython:pip': Path('pip'),
             '//py/cpython:modules': Path('/path/to/modules'),
             'src': Path('/path/to/src'),
         }
@@ -43,16 +43,14 @@ class PyTest(PrepareForeman, unittest.TestCase):
             (
                 ['mkdir', '--parents', '/path/to/drydock/path/to/rules'],
                 ['rsync'],
-                ['python', 'setup.py', 'build'],
-                ['python', 'setup.py', 'install'],
+                ['pip', 'install', '--no-deps'],
                 #['rsync']
             ),
             (
                 cmds[0][0:3],
                 cmds[1][0:1],
-                cmds[2][0:3],
-                cmds[3][3:6],
-                #cmds[4][3:4],  # Empty dirs so no call to rsync
+                cmds[2][3:6],
+                #cmds[3][3:4],  # Empty dirs so no call to rsync
             ),
         )
 
