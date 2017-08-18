@@ -55,16 +55,26 @@ def build(parameters):
        NOTE: All `build` rules should depend on this rule.
     """
 
-    # Sanity check
+    # Sanity check.
     scripts.ensure_directory(parameters['root'] / '.git')
 
     scripts.install_dependencies()
 
-    # Populate drydock
+    # Populate drydock.
     for subdir in ('cc', 'host', 'java', 'py'):
         scripts.mkdir(parameters['drydock'] / subdir)
     scripts.mkdir(parameters['drydock/build'])
     scripts.mkdir(parameters['drydock/rootfs'])
+
+    # Populate output (unfortunately `output` could accidentally be
+    # owned by root for a variety of reasons, and we have to change it
+    # back).
+    with scripts.using_sudo():
+        scripts.execute([
+            'chown',
+            '--recursive', 'plumber:plumber',
+            parameters['output'],
+        ])
 
 
 @rule
@@ -72,7 +82,7 @@ def build(parameters):
 def tapeout(parameters):
     """Tape-out the base system.
 
-       NOTE: All `tapeout` rules should reverse depend on this rule.
+    NOTE: All `tapeout` rules should reverse depend on this rule.
     """
     with scripts.using_sudo():
         rootfs = parameters['drydock/rootfs']

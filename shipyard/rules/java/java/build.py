@@ -31,13 +31,21 @@ common.define_copy_src(src_relpath='java', dst_relpath='java')
 @rule.depend('copy_src')
 def build(parameters):
     """Prepare Java development environment."""
+    # Prepare build environment.
     drydock_src = parameters['//base:drydock'] / 'java'
     if not (drydock_src / 'gradlew').exists():
         with scripts.directory(drydock_src):
-            # Create gradle wrapper
+            # Create gradle wrapper.
             scripts.execute(['gradle', 'wrapper'])
-            # Download the gradle of version pinned in build.gradle
+            # Download the gradle of version pinned in build.gradle.
             scripts.execute(['./gradlew', '--version'])
+    # Copy JRE to /usr/local/lib.
+    with scripts.using_sudo():
+        jre = parameters['jre']
+        scripts.mkdir(jre)
+        # Appending '/' to src is an rsync trick.
+        src = parameters['//host/java:jdk'] / 'jre'
+        scripts.rsync(['%s/' % src], jre)
 
 
 @rule
@@ -50,8 +58,7 @@ def tapeout(parameters):
     this rule.
     """
     with scripts.using_sudo():
+        rootfs = parameters['//base:drydock/rootfs']
         jre = parameters['jre']
-        scripts.mkdir(jre)
-        # Appending '/' to src is an rsync trick.
-        src = parameters['//host/java:jdk'] / 'jre'
-        scripts.rsync(['%s/' % src], jre)
+        packages = parameters['packages']
+        scripts.rsync([jre, packages], rootfs, relative=True)

@@ -28,7 +28,7 @@ import shipyard
 @cli.argument('rule', help='set build rule')
 def main(args: ARGS):
     rules = shipyard.RuleIndex(args)
-    rules.load_build_data(args.rule)
+    rules.load_from_labels([args.rule])
     with scripts.dry_run(args.dry_run):
         return do_build(args, rules)
 
