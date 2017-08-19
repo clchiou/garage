@@ -251,14 +251,14 @@ def python_image(parameters):
     return pods.Image(app=parameters['python_app'])
 
 
-python_image.specify_image.depend('python_app/specify_app')
-python_image.write_manifest.depend('tapeout')
-
-
 @pods.pod_specifier
 def python_pod(parameters):
     """Trivial Python pod only useful for testing."""
     return pods.Pod(images=[parameters['python_image']])
 
 
+python_image.specify_image.depend('python_app/specify_app')
 python_pod.specify_pod.depend('python_image/specify_image')
+
+
+python_image.write_manifest.depend('tapeout')
