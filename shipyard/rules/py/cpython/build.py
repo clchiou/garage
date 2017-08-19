@@ -234,6 +234,12 @@ def python_app(parameters):
     return pods.App(
         exec=[str(parameters['python'])],
         environment={
+            # Unfortunately I can't make the default encoding right
+            # inside a container (`locale.getpreferredencoding(False)`
+            # is always 'ANSI_X3.4-1968').  So you have to specify
+            # encoding whenever you open a file.  Here we specify
+            # PYTHONIOENCODING so that sys.stdin and sys.stdout will be
+            # default to UTF-8.
             'PYTHONIOENCODING': 'UTF-8',
         },
     )
