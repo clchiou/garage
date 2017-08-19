@@ -52,7 +52,7 @@ def upgrade_system(parameters):
 def build(parameters):
     """Prepare for the build process.
 
-       NOTE: All `build` rules should depend on this rule.
+    NOTE: All `build` rules should depend on this rule.
     """
 
     # Sanity check.
@@ -66,10 +66,10 @@ def build(parameters):
     scripts.mkdir(parameters['drydock/build'])
     scripts.mkdir(parameters['drydock/rootfs'])
 
-    # Populate output (unfortunately `output` could accidentally be
-    # owned by root for a variety of reasons, and we have to change it
-    # back).
     with scripts.using_sudo():
+        # Populate output (unfortunately `output` could accidentally be
+        # owned by root for a variety of reasons, and we have to change
+        # it back).
         scripts.execute([
             'chown',
             '--recursive', 'plumber:plumber',
@@ -84,20 +84,40 @@ def tapeout(parameters):
 
     NOTE: All `tapeout` rules should reverse depend on this rule.
     """
+
     with scripts.using_sudo():
+
         rootfs = parameters['drydock/rootfs']
+
         scripts.rsync([to_path('etc')], rootfs)
-        scripts.rsync(['/lib/x86_64-linux-gnu', '/lib64'],
-                      rootfs, relative=True)
+
+        # Re-generate cache and then tapeout it.
+        scripts.execute(['ldconfig'])
+        scripts.rsync(['/etc/ld.so.cache'], rootfs, relative=True)
+
+        scripts.rsync(
+            ['/lib/x86_64-linux-gnu', '/lib64'],
+            rootfs,
+            relative=True,
+        )
+
         # Tapeout the entire /usr/lib/x86_64-linux-gnu might be an
-        # overkill, but it's kind hard to cherry-pick just what I need
-        scripts.rsync(['/usr/lib/x86_64-linux-gnu'],
-                      rootfs, relative=True,
-                      excludes=['/usr/lib/x86_64-linux-gnu/perl*'])
+        # overkill, but it's kind hard to cherry-pick just what I need.
+        scripts.rsync(
+            ['/usr/lib/x86_64-linux-gnu'],
+            rootfs,
+            relative=True,
+            excludes=['/usr/lib/x86_64-linux-gnu/perl*'],
+        )
+
         # Tapeout only shared libraries under /usr/local/lib, which
         # excludes Python modules (if you also want to tapeout /usr/lib,
-        # remember to only tapeout shared libraries under it)
-        scripts.rsync(Path('/usr/local/lib').glob('lib*.so*'),
-                      rootfs, relative=True)
+        # remember to only tapeout shared libraries under it).
+        scripts.rsync(
+            Path('/usr/local/lib').glob('lib*.so*'),
+            rootfs,
+            relative=True,
+        )
+
         scripts.execute(['chown', '--recursive', 'root:root', rootfs / 'etc'])
         scripts.execute(['chmod', '--recursive', 'go-w', rootfs / 'etc'])

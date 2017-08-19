@@ -231,7 +231,6 @@ def python_app(parameters):
     return pods.App(
         exec=[str(parameters['python'])],
         environment={
-            'LD_LIBRARY_PATH': str(parameters['prefix'] / 'lib'),
             'PYTHONIOENCODING': 'UTF-8',
         },
     )
