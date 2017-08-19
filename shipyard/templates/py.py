@@ -25,9 +25,9 @@ PackageRules = namedtuple('PackageRules', 'copy_src build unittest tapeout')
 
 
 @parse_common_args
-def define_package(package, *,
-                   root: 'root', name: 'name',
-                   make_build_cmd=None):
+def define_package(
+        package, *,
+        root: 'root', name: 'name', make_build_cmd=None, patterns=()):
     """Define a first-party Python package, including:
        * [NAME/]copy_src rule
        * [NAME/]build rule
@@ -38,7 +38,7 @@ def define_package(package, *,
     copy_src_rules = define_copy_src(root=root, name=name)
 
     source_package_rules = define_source_package(
-        package, name=name, make_build_cmd=make_build_cmd)
+        package, name=name, make_build_cmd=make_build_cmd, patterns=patterns)
 
     relpath = get_relpath()
 
@@ -75,14 +75,13 @@ SourcePackageRules = namedtuple('SourcePackageRules', 'build tapeout')
 
 
 @parse_common_args
-def define_source_package(package, *,
-                          name: 'name',
-                          make_build_cmd=None):
+def define_source_package(
+        package, *, name: 'name', make_build_cmd=None, patterns=()):
     """Define a Python source package, including:
-       * [NAME/]build rule
-       * [NAME/]tapeout rule
+    * [NAME/]build rule
+    * [NAME/]tapeout rule
 
-       You will need to ensure that source code is copied to drydock.
+    You will need to ensure that source code is copied to drydock.
     """
 
     relpath = get_relpath()
@@ -121,7 +120,7 @@ def define_source_package(package, *,
     @rule.reverse_depend('//py/cpython:tapeout')
     def tapeout(parameters):
         """Copy Python package build artifacts."""
-        _tapeout(parameters, package, ())
+        _tapeout(parameters, package, patterns)
 
     return SourcePackageRules(
         build=build,
@@ -133,12 +132,11 @@ PipPackageRules = namedtuple('PipPackageRules', 'build tapeout')
 
 
 @parse_common_args
-def define_pip_package(package, version, *,
-                       name: 'name',
-                       patterns=()):
+def define_pip_package(
+        package, version, *, name: 'name', patterns=()):
     """Define a third-party Python package, including:
-       * [NAME/]build rule
-       * [NAME/]tapeout rule
+    * [NAME/]build rule
+    * [NAME/]tapeout rule
     """
 
     @rule(name + 'build')
