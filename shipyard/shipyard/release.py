@@ -48,16 +48,10 @@ class ReleaseRepo:
 
         self.rules.load_from_labels(rule_list)
 
-        instructions = []
-        for i, (label, version) in enumerate(labels_versions):
-            with self.rules.using_label_path(label):
-                instructions.append(self._make_instruction(
-                    data_list[i],
-                    rule_list[i],
-                    label,
-                    version,
-                ))
-        return instructions
+        return [
+            self._make_instruction(data_list[i], rule_list[i], label, version)
+            for i, (label, version) in enumerate(labels_versions)
+        ]
 
     def load_instruction_files(self, paths):
 
@@ -78,11 +72,7 @@ class ReleaseRepo:
 
         self.rules.load_from_labels(rule for _, rule, _, _ in blobs)
 
-        instructions = []
-        for blob in blobs:
-            with self.rules.using_label_path(blob[2]):
-                instructions.append(self._make_instruction(*blob))
-        return instructions
+        return [self._make_instruction(*blob) for blob in blobs]
 
     def _make_instruction(self, data, rule, pod, version):
 
@@ -167,8 +157,10 @@ class ReleaseRepo:
 
     def _check_pod(self, rule, pod):
         pod2 = self.rules.get_rule(rule)
-        pod2 = pod2.annotations['pod-parameter']
-        pod2 = self.rules.get_parameter(pod2)
+        pod2 = self.rules.get_parameter(
+            pod2.annotations['pod-parameter'],
+            implicit_path=pod2.label.path,
+        )
         pod2 = Label.parse_name(rule.path, pod2.default['name'])
         if pod2 != pod:
             fmt = 'pod from build file differs from instruction: %s != %s'
@@ -176,8 +168,10 @@ class ReleaseRepo:
 
     def _add_default_images(self, instruction, build_image_rules):
         for rule in build_image_rules:
-            image = rule.annotations['image-parameter']
-            image = self.rules.get_parameter(image)
+            image = self.rules.get_parameter(
+                rule.annotations['image-parameter'],
+                implicit_path=rule.label.path,
+            )
             image = Label.parse_name(rule.label.path, image.default['name'])
             instruction.images.setdefault(image, instruction.version)
             instruction.image_rules[image] = rule.label
@@ -191,8 +185,10 @@ class ReleaseRepo:
                     rule,
                 ),
             )
-            app = specify_app_rule.annotations['app-parameter']
-            app = self.rules.get_parameter(app)
+            app = self.rules.get_parameter(
+                specify_app_rule.annotations['app-parameter']
+                implicit_path=specify_app_rule.label.path,
+            )
             for volume in app.default['volumes']:
                 instruction.volumes.setdefault(
                     Label.parse_name(app.label.path, volume['name']),
@@ -203,9 +199,8 @@ class ReleaseRepo:
 def execute_instructions(instructions, repo, builder):
     for instruction in instructions:
         LOG.info('execute release instruction: %s', instruction)
-        with repo.rules.using_label_path(instruction.rule):
-            if not instruction.execute(repo, builder):
-                return False  # Fail early
+        if not instruction.execute(repo, builder):
+            return False  # Fail early.
     return True
 
 

@@ -16,7 +16,6 @@ __all__ = [
 
 from collections import namedtuple
 from pathlib import Path
-import contextlib
 import json
 
 from foreman import Label
@@ -77,7 +76,6 @@ class RuleIndex:
         self.foreman = scripts.ensure_file(args.foreman)
         self.foreman_args = args.foreman_arg or ()
         self._build_data = None
-        self._label_path = None
 
     def load_from_labels(self, labels):
         """Load build data from labels."""
@@ -87,28 +85,15 @@ class RuleIndex:
         stdout = scripts.execute(cmd, capture_stdout=True).stdout
         self._build_data = json.loads(stdout.decode('utf8'))
 
-    @contextlib.contextmanager
-    def using_label_path(self, label):
-        """Use label for implicit path."""
-        asserts.none(self._label_path)
-        if isinstance(label, str):
-            self._label_path = Label.parse(label).path
-        else:
-            self._label_path = label.path
-        try:
-            yield
-        finally:
-            self._label_path = None
-
-    def get_parameter(self, label):
-        data = self._get_thing('parameters', label)
+    def get_parameter(self, label, *, implicit_path=None):
+        data = self._get_thing('parameters', label, implicit_path)
         return Parameter(
             label=Label.parse(data['label']),
             default=data.get('default'),
         )
 
-    def get_rule(self, label):
-        data = self._get_thing('rules', label)
+    def get_rule(self, label, *, implicit_path=None):
+        data = self._get_thing('rules', label, implicit_path)
         return Rule(
             label=Label.parse(data['label']),
             annotations=data['annotations'],
@@ -120,10 +105,10 @@ class RuleIndex:
             ],
         )
 
-    def _get_thing(self, kind, label):
+    def _get_thing(self, kind, label, implicit_path):
         asserts.not_none(self._build_data)
         if isinstance(label, str):
-            label = Label.parse(label, implicit_path=self._label_path)
+            label = Label.parse(label, implicit_path=implicit_path)
         label_str = str(label)
         for thing in self._build_data['//%s' % label.path][kind]:
             if thing['label'] == label_str:
@@ -153,7 +138,10 @@ def get_build_image_rules(rules, build_pod_rule):
     _ensure_rule_type(build_pod_rule, 'build_pod')
     specify_pod_rule = get_specify_pod_rule(rules, build_pod_rule)
     return [
-        rules.get_rule(dep_rule.annotations['build-image-rule'])
+        rules.get_rule(
+            dep_rule.annotations['build-image-rule'],
+            implicit_path=dep_rule.label.path,
+        )
         for dep_rule in _iter_specify_rules(rules, specify_pod_rule, 'image')
     ]
 

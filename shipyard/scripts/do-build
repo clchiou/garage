@@ -48,8 +48,10 @@ def do_build(args, rules):
     build_image_rules = shipyard.get_build_image_rules(rules, main_rule)
 
     # Find the version parameter and determine the version
-    version_label = main_rule.annotations['version-parameter']
-    version_label = rules.get_parameter(version_label)
+    version_label = rules.get_parameter(
+        main_rule.annotations['version-parameter'],
+        implicit_path=main_rule.label.path,
+    )
     version_label = version_label.label
     if args.version is not None:
         version = args.version
@@ -59,14 +61,20 @@ def do_build(args, rules):
     # Start the build!
 
     for rule in build_image_rules:
-        image_label = rule.annotations['image-parameter']
-        image_name = rules.get_parameter(image_label).default['name']
+        image_name = rules.get_parameter(
+            rule.annotations['image-parameter'],
+            implicit_path=rule.label.path,
+        )
+        image_name = image_name.default['name']
         builder.build(rule.label, extra_args=[
             '--build-name', 'build-%d-image-%s' % (version, image_name),
         ])
 
-    pod_label = main_rule.annotations['pod-parameter']
-    pod_name = rules.get_parameter(pod_label).default['name']
+    pod_name = rules.get_parameter(
+        main_rule.annotations['pod-parameter'],
+        implicit_path=main_rule.label.path,
+    )
+    pod_name = pod_name.default['name']
     builder.build(main_rule.label, extra_args=[
         '--build-name', 'build-%d-pod-%s' % (version, pod_name),
         '--parameter', '%s=%d' % (version_label, version),
