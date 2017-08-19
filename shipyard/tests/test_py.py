@@ -35,7 +35,9 @@ class PyTest(PrepareForeman, unittest.TestCase):
         }
         with scripts.dry_run(), scripts.recording_commands() as cmds:
             copy_src.build(parameters)
-            build.build(parameters)
+            msg = r'package does not seem to be installed: some_pkg'
+            with self.assertRaisesRegex(RuntimeError, msg):
+                build.build(parameters)
             tapeout.build(parameters)
 
         # Match command sequence (probably very fragile)

@@ -99,10 +99,19 @@ def define_source_package(
         if not list(site_packages.glob('%s*' % package)):
             LOG.info('build %s', package)
 
-            # Use `pip install --no-deps` (as `python3 setup.py install`
-            # can't do this) so that we won't implicitly install
-            # dependencies (you must explicitly specify all them all).
-            cmd = [parameters['//py/cpython:pip'], 'install', '--no-deps']
+            cmd = [
+                parameters['//py/cpython:pip'], 'install',
+                # Use `--no-deps` (`python3 setup.py install` doesn't
+                # support this) so that we won't implicitly install
+                # dependencies (you must explicitly specify all them
+                # all).
+                '--no-deps',
+                # Because we add a few Python package to PYTHONPATH,
+                # such as garage and startup, we need to force their
+                # installation (otherwise pip would consider them
+                # already installed).
+                '--upgrade', '--force-reinstall',
+            ]
             if make_build_cmd:
                 for arg in make_build_cmd(parameters):
                     cmd.append('--global-option=%s' % arg)
@@ -113,6 +122,11 @@ def define_source_package(
             with scripts.directory(drydock_src):
                 with scripts.using_sudo(envs=['PYTHONPATH']):
                     scripts.execute(cmd)
+
+            # Sanity check that pip actually installs the package.
+            if not list(site_packages.glob('%s*' % package)):
+                raise RuntimeError(
+                    'package does not seem to be installed: %s' % package)
 
     @rule(name + 'tapeout')
     @rule.depend(name + 'build')
