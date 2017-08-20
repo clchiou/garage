@@ -66,10 +66,10 @@ def build(parameters):
     scripts.mkdir(parameters['drydock/build'])
     scripts.mkdir(parameters['drydock/rootfs'])
 
+    # Populate output (unfortunately `output` could accidentally be
+    # absent or not owned by plumber for a variety of reasons).
+    scripts.mkdir(parameters['output'])
     with scripts.using_sudo():
-        # Populate output (unfortunately `output` could accidentally be
-        # owned by root for a variety of reasons, and we have to change
-        # it back).
         scripts.execute([
             'chown',
             '--recursive', 'plumber:plumber',

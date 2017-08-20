@@ -8,6 +8,7 @@ first party
   capnp                     x
   garage                x
   http2                 x
+  imagetools                x
   nanomsg               x
   startup               x
   v8                            x
@@ -19,6 +20,7 @@ thrid party
   capnproto         x                       v0.6.1
   cpython           x                       3.6.1rc1
   curio                 x                   0.7
+  libjpeg-turbo     x                       version bundled with distro
   lxml                      x               3.7.3
   mako                  x                   1.0.6
     markupsafe          x
