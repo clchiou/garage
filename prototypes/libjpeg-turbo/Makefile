@@ -3,7 +3,7 @@
 #
 
 CC := gcc
-CFLAGS := -std=gnu11 -Wall -Wextra $(shell pkg-config --cflags libjpeg)
+CFLAGS := -std=c11 -Wall -Wextra $(shell pkg-config --cflags libjpeg)
 LDFLAGS := $(shell pkg-config --libs libjpeg)
 
 SOURCES := $(wildcard *.c)

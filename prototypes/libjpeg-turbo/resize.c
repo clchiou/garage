@@ -1,9 +1,7 @@
 // Test program to resize a JPEG image.
 
 #include <errno.h>
-#include <setjmp.h>
 #include <stdbool.h>
-#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -17,41 +15,6 @@
 
 #define LOG(MESSAGE, ...) \
 	fprintf(stderr, "%s: %d: "  MESSAGE "\n", __FILE__, __LINE__, ##__VA_ARGS__)
-
-#define container_of(ptr, type, member) \
-	((type *)((void *)(ptr)) - offsetof(type, member))
-
-struct error_manager {
-	struct jpeg_error_mgr jpeg_error_manager;
-	jmp_buf setjmp_buffer;
-	char error_message[JMSG_LENGTH_MAX];
-};
-
-static void error_exit(j_common_ptr common_info)
-{
-	struct error_manager *error_manager = container_of(
-		common_info->err, struct error_manager, jpeg_error_manager);
-
-	common_info->err->output_message(common_info);
-
-	longjmp(error_manager->setjmp_buffer, 1);
-}
-
-static void output_message(j_common_ptr common_info)
-{
-	struct error_manager *error_manager = container_of(
-		common_info->err, struct error_manager, jpeg_error_manager);
-
-	if (error_manager->error_message[0]) {
-		// Log out the previous error message before we
-		// overwrite the error buffer it.
-		LOG("previous libjpeg error: %s",
-			error_manager->error_message);
-	}
-
-	common_info->err->format_message(
-		common_info, error_manager->error_message);
-}
 
 bool resize(const void *image, size_t image_size, size_t new_width,
 		const char *output_path)
@@ -70,24 +33,14 @@ bool resize(const void *image, size_t image_size, size_t new_width,
 
 	// Initialize error handler.
 
-	struct error_manager error_manager;
+	struct jpeg_error_mgr error_manager;
 	memset(&error_manager, 0, sizeof(error_manager));
 
-	jpeg_std_error(&error_manager.jpeg_error_manager);
-
-	error_manager.jpeg_error_manager.error_exit = error_exit;
-	error_manager.jpeg_error_manager.output_message = output_message;
-
-	// Establish setjmp return context.
-
-	if (setjmp(error_manager.setjmp_buffer)) {
-		LOG("libjpeg error: %s", error_manager.error_message);
-		goto err;
-	}
+	jpeg_std_error(&error_manager);
 
 	// Initialize decompressor.
 
-	decompressor.err = &error_manager.jpeg_error_manager;
+	decompressor.err = &error_manager;
 
 	jpeg_create_decompress(&decompressor);
 
@@ -122,7 +75,7 @@ bool resize(const void *image, size_t image_size, size_t new_width,
 
 	// Initialize compressor.
 
-	compressor.err = &error_manager.jpeg_error_manager;
+	compressor.err = &error_manager;
 
 	jpeg_create_compress(&compressor);
 
@@ -211,6 +164,7 @@ int main(int argc, char *argv[])
 
 	int fd = -1;
 	void *image = MAP_FAILED;
+	size_t image_size = 0;
 
 	// Initialize fd.
 
@@ -228,7 +182,7 @@ int main(int argc, char *argv[])
 		goto err;
 	}
 
-	size_t image_size = stat.st_size;
+	image_size = stat.st_size;
 	// Sanity check.
 	if (image_size < 16) {
 		LOG("expect image larger than 16 bytes: %zd", image_size);
