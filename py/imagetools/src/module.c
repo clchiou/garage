@@ -261,9 +261,6 @@ static bool resize_jpeg(
 //
 
 
-PyDoc_STRVAR(py_detect_format_doc, "Detect image format.");
-
-
 static PyObject *py_detect_format(PyObject* self UNUSED, PyObject *image)
 {
 	char *data = NULL;
@@ -279,14 +276,7 @@ static PyObject *py_detect_format(PyObject* self UNUSED, PyObject *image)
 }
 
 
-PyDoc_STRVAR(py_resize_doc,
-	"Resize image to desired width.\n"
-	"\n"
-	"This might clobber output_path when an error occurs."
-);
-
-
-static PyObject *py_resize(PyObject* self UNUSED, PyObject *args)
+static PyObject *py_resize_jpeg(PyObject* self UNUSED, PyObject *args)
 {
 	PyObject *ret = NULL;
 
@@ -302,7 +292,7 @@ static PyObject *py_resize(PyObject* self UNUSED, PyObject *args)
 		args, "y*iO&:resize",
 		&buffer,
 		&desired_width,
-		PyUnicode_FSConverter, &output_path
+		PyUnicode_FSConverter, (void*)&output_path
 	)) {
 		return NULL;
 	}
@@ -316,12 +306,6 @@ static PyObject *py_resize(PyObject* self UNUSED, PyObject *args)
 
 	output_path_cstr = PyBytes_AsString(output_path);
 	if (!output_path_cstr) {
-		goto err;
-	}
-
-	// We support only JPEG at the moment.
-	if (detect_format(buffer.buf, buffer.len) != FORMAT_JPEG) {
-		ERR("expect jpeg input");
 		goto err;
 	}
 
@@ -352,20 +336,17 @@ err:
 //
 
 
-PyDoc_STRVAR(MODULE_DOC, "Access native image libraries.");
-
-
 #define DEF_METHOD(name, flags) {					\
 	.ml_name = #name, 						\
 	.ml_meth = (PyCFunction)py_ ## name,				\
 	.ml_flags = flags, 						\
-	.ml_doc = py_ ## name ## _doc, 					\
+	.ml_doc = NULL, 						\
 }
 
 
 static PyMethodDef METHOD_DEFS[] = {
 	DEF_METHOD(detect_format, METH_O),
-	DEF_METHOD(resize, METH_VARARGS),
+	DEF_METHOD(resize_jpeg, METH_VARARGS),
 	{NULL, NULL, 0, NULL},
 };
 
@@ -376,7 +357,7 @@ static PyMethodDef METHOD_DEFS[] = {
 static struct PyModuleDef MODULE_DEF = {
 	.m_base = PyModuleDef_HEAD_INIT,
 	.m_name = "_imagetools",
-	.m_doc = MODULE_DOC,
+	.m_doc = NULL,
 	.m_size = -1,
 	.m_methods = METHOD_DEFS,
 	.m_slots = NULL,
