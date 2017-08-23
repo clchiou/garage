@@ -405,7 +405,8 @@ def cleanup(args: ARGS, repo):
         raise ValueError('negative keep: %d' % args.keep)
     for pod_name in repo.get_pod_names():
         LOG.info('%s - cleanup', pod_name)
-        all_pods = list(reversed(repo.iter_pods(pod_name)))
+        all_pods = list(repo.iter_pods(pod_name))
+        all_pods.reverse()
         for pod in all_pods[args.keep:]:
             undeploy_stop(pod)
             undeploy_disable(pod)
