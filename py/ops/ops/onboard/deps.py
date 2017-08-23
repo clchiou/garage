@@ -49,13 +49,18 @@ def rkt(package):
     if Path('/usr/bin/rkt').exists():
         LOG.warning('attempt to overwrite /usr/bin/rkt')
     cmds = [
-        # Don't install api and metadata service for now
+        # Don't install api and metadata service for now.
         'cp init/systemd/rkt-gc.service /lib/systemd/system'.split(),
         'cp init/systemd/rkt-gc.timer /lib/systemd/system'.split(),
         'cp init/systemd/tmpfiles.d/rkt.conf /usr/lib/tmpfiles.d'.split(),
         './scripts/setup-data-dir.sh'.split(),
-        # Install rkt only if everything above succeeds
+        # Install rkt only if everything above succeeds.
         'cp rkt /usr/bin'.split(),
+        # Fetch stage 1.
+        ['rkt', 'trust',
+         '--prefix', 'coreos.com/rkt/stage1-coreos',
+         '--skip-fingerprint-review'],
+        ['rkt', 'fetch', 'coreos.com/rkt/stage1-coreos:' + package.version],
     ]
     with scripts.using_sudo():
         for cmd in cmds:

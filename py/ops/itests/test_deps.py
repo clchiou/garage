@@ -24,6 +24,12 @@ class DepsTest(Fixture, unittest.TestCase):
         output = check_output(['rkt', 'version'])
         self.assertTrue(b'rkt Version: 1.25.0' in output, repr(output))
 
+        output = check_output(['rkt', 'image', 'list'])
+        self.assertTrue(
+            b'coreos.com/rkt/stage1-coreos:1.25.0' in output,
+            repr(output),
+        )
+
 
 if __name__ == '__main__':
     unittest.main()
