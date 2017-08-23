@@ -37,22 +37,17 @@ def do_build(args, rules):
 
     builder = shipyard.Builder(args)
 
-    # Figure out what kind of rule we are building
+    # Figure out what kind of rule we are building.
+    # TODO: If it's a build_image rule, we should set its version.
     main_rule = rules.get_rule(args.rule)
     if main_rule.annotations.get('rule-type') != 'build_pod':
-        # It's not a pod build rule - no planning required
+        # It's not a pod build rule - no planning required.
         builder.build(main_rule.label)
         return 0
 
-    # We are building a pod - let's find all build_image rules
+    # We are building a pod - let's find all build_image rules.
     build_image_rules = shipyard.get_build_image_rules(rules, main_rule)
 
-    # Find the version parameter and determine the version
-    version_label = rules.get_parameter(
-        main_rule.annotations['version-parameter'],
-        implicit_path=main_rule.label.path,
-    )
-    version_label = version_label.label
     if args.version is not None:
         version = args.version
     else:
@@ -61,13 +56,22 @@ def do_build(args, rules):
     # Start the build!
 
     for rule in build_image_rules:
+
         image_name = rules.get_parameter(
             rule.annotations['image-parameter'],
             implicit_path=rule.label.path,
         )
         image_name = image_name.default['name']
+
+        version_label = rules.get_parameter(
+            rule.annotations['version-parameter'],
+            implicit_path=rule.label.path,
+        )
+        version_label = version_label.label
+
         builder.build(rule.label, extra_args=[
             '--build-name', 'build-%d-image-%s' % (version, image_name),
+            '--parameter', '%s=%s' % (version_label, version),
         ])
 
     pod_name = rules.get_parameter(
@@ -75,9 +79,16 @@ def do_build(args, rules):
         implicit_path=main_rule.label.path,
     )
     pod_name = pod_name.default['name']
+
+    version_label = rules.get_parameter(
+        main_rule.annotations['version-parameter'],
+        implicit_path=main_rule.label.path,
+    )
+    version_label = version_label.label
+
     builder.build(main_rule.label, extra_args=[
         '--build-name', 'build-%d-pod-%s' % (version, pod_name),
-        '--parameter', '%s=%d' % (version_label, version),
+        '--parameter', '%s=%s' % (version_label, version),
     ])
 
     return 0

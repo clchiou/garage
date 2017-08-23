@@ -128,6 +128,8 @@ def image_specifier(specifier, object_name=None):
     (Image.define_parameter(specifier.__name__)
      .with_derive(with_object_name(specifier, object_name)))
 
+    define_parameter(name + 'version')
+
     specify_image = (
         define_rule(name + 'specify_image')
         .depend('//base:build')
@@ -142,8 +144,9 @@ def image_specifier(specifier, object_name=None):
         """Create Appc image manifest file."""
         LOG.info('write appc image manifest: %s', specifier.__name__)
         image = parameters[specifier.__name__]
+        image._version = parameters[name + 'version']
         utils.write_json_to(
-            image.image_manifest,
+            image.get_image_manifest(),
             parameters['//base:drydock/manifest'],
         )
 
@@ -152,6 +155,7 @@ def image_specifier(specifier, object_name=None):
     @rule.depend(name + 'write_manifest')
     @rule.annotate('rule-type', 'build_image')  # For do-build tool
     @rule.annotate('image-parameter', specifier.__name__)
+    @rule.annotate('version-parameter', name + 'version')
     def build_image(parameters):
         """Build Appc container image."""
 
@@ -244,14 +248,14 @@ def pod_specifier(specifier, object_name=None):
         for image in pod.images:
             image.load_id(parameters)
 
-        # Construct the pod object and write it out to disk
+        # Construct the pod object and write it out to disk.
         utils.write_json_to(
-            pod.pod_object,
+            pod.get_pod_object(),
             parameters['//base:output'] / 'pod.json',
         )
 
         # Copy systemd unit files; it has to matches the "unit-file"
-        # entry of unit.pod_object_entry
+        # entry of unit.get_pod_object_entry().
         if pod.systemd_units:
             scripts.rsync(
                 [unit.path for unit in pod.systemd_units],
@@ -270,8 +274,8 @@ AC_NAME_PATTERN = re.compile(r'[a-z0-9]+(-[a-z0-9]+)*')
 
 
 # Convention:
-# pod_object_entry generates sub-entry of the pod object
-# pod_manifest_entry_* generates sub-entry of the Appc pod manifest
+# get_pod_object_entry generates sub-entry of the pod object
+# get_pod_manifest_entry_* generates sub-entry of the Appc pod manifest
 
 
 class ModelObject:
@@ -281,10 +285,12 @@ class ModelObject:
 
     @classmethod
     def define_parameter(cls, name):
-        return (define_parameter(name)
-                .with_type(cls)
-                .with_parse(cls.from_dict)
-                .with_encode(cls.to_dict))
+        return (
+            define_parameter(name)
+            .with_type(cls)
+            .with_parse(cls.from_dict)
+            .with_encode(cls.to_dict)
+        )
 
     @classmethod
     def from_dict(cls, data):
@@ -358,12 +364,13 @@ class Volume(ModelObject):
         ('read_only', None),
     ]
 
-    def __init__(self, *,
-                 name,
-                 path,
-                 user='nobody', group='nogroup',
-                 data=None,
-                 read_only=True):
+    def __init__(
+            self, *,
+            name,
+            path,
+            user='nobody', group='nogroup',
+            data=None,
+            read_only=True):
         self.name = self._ensure_ac_name(name)
         self.path = path
         self.user = user
@@ -371,8 +378,7 @@ class Volume(ModelObject):
         self.data = data
         self.read_only = read_only
 
-    @property
-    def pod_object_entry(self):
+    def get_pod_object_entry(self):
         entry = {
             'name': self.name,
             'user': self.user,
@@ -382,18 +388,16 @@ class Volume(ModelObject):
             entry['data'] = self.data
         return entry
 
-    @property
-    def pod_manifest_entry_volume(self):
+    def get_pod_manifest_entry_volume(self):
         return {
-            # 'source' will be inserted by ops tool
+            # 'source' will be inserted by ops tool.
             'name': self.name,
             'kind': 'host',
             'readOnly': self.read_only,
             'recursive': True,
         }
 
-    @property
-    def pod_manifest_entry_mount_point(self):
+    def get_pod_manifest_entry_mount_point(self):
         return {
             'name': self.name,
             'path': self.path,
@@ -413,13 +417,14 @@ class App(ModelObject):
         ('volumes', [Volume]),
     ]
 
-    def __init__(self, *,
-                 name=None,
-                 exec=None,
-                 user='nobody', group='nogroup',
-                 working_directory='/',
-                 environment=None,
-                 volumes=()):
+    def __init__(
+            self, *,
+            name=None,
+            exec=None,
+            user='nobody', group='nogroup',
+            working_directory='/',
+            environment=None,
+            volumes=()):
         self._name = self._ensure_ac_name(name)
         self.exec = exec or []
         self.user = user
@@ -437,8 +442,7 @@ class App(ModelObject):
     def name(self, new_name):
         self._name = self._ensure_ac_name(new_name)
 
-    @property
-    def pod_manifest_entry(self):
+    def get_pod_manifest_entry(self):
         return {
             'exec': self.exec,
             'user': self.user,
@@ -449,7 +453,7 @@ class App(ModelObject):
                 for name in sorted(self.environment)
             ],
             'mountPoints': [
-                volume.pod_manifest_entry_mount_point
+                volume.get_pod_manifest_entry_mount_point()
                 for volume in self.volumes
             ],
         }
@@ -457,24 +461,41 @@ class App(ModelObject):
 
 class Image(ModelObject):
 
-    # TODO: Accept docker://... URI
+    # TODO: Accept docker://... URI.
+
+    #
+    # We need special treatment for should-be-writable directories, like
+    # /tmp, when rootfs is mounted as read-only, but at the moment rkt
+    # does not support tmpfs (https://github.com/rkt/rkt/issues/3547).
+    #
+    # We could work around this issue in either shipyard or ops-onboard
+    # tool.  It looks like it makes more sense to do it here; so here we
+    # go.
+    #
 
     FIELDS = [
         ('id', None),
         ('name', None),
+        ('version', None),
         ('app', App),
         ('read_only_rootfs', None),
+        # When read_only_rootfs is True, these are directories that
+        # should be made writable.
+        ('writable_directories', None),
     ]
 
-    def __init__(self, *,
-                 id=None,
-                 name=None,
-                 app,
-                 read_only_rootfs=True):
+    def __init__(
+            self, *,
+            id=None, name=None,
+            version=None,
+            app,
+            read_only_rootfs=True, writable_directories=('/tmp',)):
         self._id = id
         self._name = self._ensure_ac_identifier(name)
+        self._version = version
         self.app = app
         self.read_only_rootfs = read_only_rootfs
+        self.writable_directories = writable_directories
 
     def load_id(self, parameters):
         if self._id is None:
@@ -497,46 +518,92 @@ class Image(ModelObject):
         self._name = self._ensure_ac_identifier(new_name)
 
     @property
-    def pod_object_entry(self):
-        # image.aci is under OUTPUT/IMAGE_NAME
-        # TODO: Generate "signature" field
+    def version(self):
+        if self._version is None:
+            LOG.warning('image has no version: %s', self.name)
+        return self._version
+
+    def get_pod_object_entry(self):
+        # image.aci is under OUTPUT/IMAGE_NAME.
+        # TODO: Generate "signature" field.
         return {
             'id': self.id,
             'image': '%s/image.aci' % self.name,
         }
 
-    @property
-    def pod_manifest_entry(self):
+    def get_generated_mount_point_name(self, path):
+        """Generate mount point name (for writable directory).
+
+        Path `/foo/bar` will be named "image-name--foo-bar"; this should
+        avoid most potential name conflicts; if there still are, the
+        caller should raise an error.
+        """
+        return '%s--%s' % (self.name, '-'.join(filter(None, path.split('/'))))
+
+    def get_pod_manifest_entry(self):
         """Return an app entry embedded in pod manifest."""
+
+        app = self.app.get_pod_manifest_entry()
+
+        # Add writable directory mount points.
+        if self.read_only_rootfs and self.writable_directories:
+
+            mount_points = app['mountPoints']
+
+            mount_point_names = frozenset(mp['name'] for mp in mount_points)
+
+            for path in self.writable_directories:
+                name = self.get_generated_mount_point_name(path)
+                if name in mount_point_names:
+                    raise ValueError(
+                        'mount point name conflict: %r in %r' %
+                        (name, mount_point_names)
+                    )
+                mount_points.append({
+                    'name': name,
+                    'path': path,
+                    'readOnly': False,
+                })
+
         entry = {
             'name': self.app.name,
             'image': {
                 'name': self.name,
                 'id': self.id,
             },
-            'app': self.app.pod_manifest_entry,
+            'app': app,
             'readOnlyRootFS': self.read_only_rootfs,
         }
+
         return entry
 
-    @property
-    def image_manifest(self):
+    def get_image_manifest(self):
         """Return Appc image manifest."""
+
+        labels = [
+            {
+                'name': 'arch',
+                'value': 'amd64',
+            },
+            {
+                'name': 'os',
+                'value': 'linux',
+            },
+        ]
+
+        version = self.version
+        if version is not None:
+            labels.append({
+                'name': 'version',
+                'value': version,
+            })
+
         return {
             'acKind': 'ImageManifest',
             'acVersion': '0.8.10',
             'name': self.name,
-            'labels': [
-                {
-                    'name': 'arch',
-                    'value': 'amd64',
-                },
-                {
-                    'name': 'os',
-                    'value': 'linux',
-                },
-            ],
-            'app': self.app.pod_manifest_entry,
+            'labels': labels,
+            'app': self.app.get_pod_manifest_entry(),
         }
 
 
@@ -558,8 +625,7 @@ class SystemdUnit(ModelObject):
     def path(self):
         return to_path(self.unit_file)
 
-    @property
-    def pod_object_entry(self):
+    def get_pod_object_entry(self):
         # "unit-file" is relative path to OUTPUT; use path.name matches
         # the rsync() call above
         entry = {'unit-file': self.path.name}
@@ -577,11 +643,11 @@ class Pod(ModelObject):
         ('systemd_units', [SystemdUnit]),
     ]
 
-    def __init__(self, *,
-                 name=None,
-                 version=None,
-                 images=None,
-                 systemd_units=None):
+    def __init__(
+            self, *,
+            name=None, version=None,
+            images=None,
+            systemd_units=None):
         self._name = self._ensure_ac_name(name)
         self._version = version
         self.images = images or []
@@ -605,7 +671,7 @@ class Pod(ModelObject):
 
     @property
     def volumes(self):
-        # Collect distinct volumes
+        # Collect distinct volumes.
         if self._volumes is None:
             volumes = {
                 volume.name: volume
@@ -615,38 +681,65 @@ class Pod(ModelObject):
             self._volumes = sorted(volumes.values(), key=lambda v: v.name)
         return self._volumes
 
-    @property
-    def pod_object(self):
+    def get_pod_object(self):
         """Construct the pod object for the ops tool."""
-        return {
+
+        entry = {
             'name': self.name,
-            'version': self.version,
-            'manifest': self.pod_manifest,
+            'manifest': self.get_pod_manifest(),
             'systemd-units': [
-                unit.pod_object_entry
+                unit.get_pod_object_entry()
                 for unit in self.systemd_units
             ],
             'images': [
-                image.pod_object_entry
+                image.get_pod_object_entry()
                 for image in self.images
             ],
             'volumes': [
-                volume.pod_object_entry
+                volume.get_pod_object_entry()
                 for volume in self.volumes
             ],
         }
 
-    @property
-    def pod_manifest(self):
+        version = self.version
+        if version is not None:
+            entry['version'] = version
+
+        return entry
+
+    def get_pod_manifest(self):
+
+        volumes = [
+            volume.get_pod_manifest_entry_volume()
+            for volume in self.volumes
+        ]
+
+        generated_mount_point_names = set()
+        for image in self.images:
+            if image.read_only_rootfs and image.writable_directories:
+                for path in image.writable_directories:
+                    name = image.get_generated_mount_point_name(path)
+                    if name in generated_mount_point_names:
+                        raise ValueError(
+                            'mount point name conflict: %r in %r' %
+                            (name, generated_mount_point_names)
+                        )
+                    volumes.append({
+                        'name': name,
+                        'kind': 'empty',
+                        'readOnly': False,
+                        'recursive': True,
+                        # Althouth we specify the sticky, unfortunately
+                        # rkt doesn't support it.
+                        'mode': '1777',
+                    })
+
         return {
             'acVersion': '0.8.10',
             'acKind': 'PodManifest',
             'apps': [
-                image.pod_manifest_entry
+                image.get_pod_manifest_entry()
                 for image in self.images
             ],
-            'volumes': [
-                volume.pod_manifest_entry_volume
-                for volume in self.volumes
-            ],
+            'volumes': volumes,
         }

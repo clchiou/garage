@@ -186,7 +186,7 @@ class ReleaseRepo:
                 ),
             )
             app = self.rules.get_parameter(
-                specify_app_rule.annotations['app-parameter']
+                specify_app_rule.annotations['app-parameter'],
                 implicit_path=specify_app_rule.label.path,
             )
             for volume in app.default['volumes']:
@@ -285,10 +285,14 @@ class Instruction:
             LOG.info('skip building image: %s', image_lv)
             return
 
-        LOG.info('build image %s', image_lv)
+        LOG.info('build image %s -> %s', self.image_rules[image], image_lv)
+
+        version_label = self._get_version_label(repo, self.image_rules[image])
+
         with tempfile.TemporaryDirectory() as build_dir:
             builder.build(self.image_rules[image], extra_args=[
                 '--build-name', build_name,
+                '--parameter', '%s=%s' % (version_label, self.version),
                 '--output', build_dir,
             ])
             scripts.mkdir(image_path.parent)
@@ -298,12 +302,16 @@ class Instruction:
             )
 
     def _build_pod(self, repo, builder, build_name):
-        LOG.info('build image %s@%s', self.pod, self.version)
+
+        LOG.info('build pod %s -> %s@%s', self.rule, self.pod, self.version)
+
+        version_label = self._get_version_label(repo, self.rule)
+
         with tempfile.TemporaryDirectory() as build_dir:
 
             # Builder is running in a container and so symlinks won't
             # work; to work around this, we copy files to build_dir (and
-            # for now all we need to copy is `image-name/sha512`)
+            # for now all we need to copy is `image-name/sha512`).
             for image in self.images:
                 image_path = self._get_image_path(repo, image)
                 scripts.mkdir(build_dir / image.name)
@@ -311,10 +319,11 @@ class Instruction:
 
             builder.build(self.rule, extra_args=[
                 '--build-name', build_name,
+                '--parameter', '%s=%s' % (version_label, self.version),
                 '--output', build_dir,
             ])
 
-            # Undo the workaround
+            # Undo the workaround.
             for image in self.images:
                 scripts.rm(build_dir / image.name, recursive=True)
 
@@ -322,15 +331,31 @@ class Instruction:
             scripts.mkdir(pod_path.parent)
             scripts.cp(build_dir, pod_path, recursive=True)
 
-            # Create symlink to images
+            # Create symlink to images.
             for image in self.images:
                 image_path = self._get_image_path(repo, image)
-                scripts.symlink_relative(image_path, pod_path / image.name)
+                link_path = pod_path / image.name
+                if link_path.exists():
+                    LOG.warning('refuse to overwrite: %s', link_path)
+                    continue
+                scripts.symlink_relative(image_path, link_path)
 
-            # Create symlink to volumes
+            # Create symlink to volumes.
             for volume in self.volumes:
                 volume_path = self._get_volume_path(repo, volume)
-                scripts.symlink_relative(volume_path, pod_path / volume.name)
+                link_path = pod_path / volume.name
+                if link_path.exists():
+                    LOG.warning('refuse to overwrite: %s', link_path)
+                    continue
+                scripts.symlink_relative(volume_path, link_path)
+
+    @staticmethod
+    def _get_version_label(repo, rule):
+        version_parameter = repo.rules.get_parameter(
+            repo.rules.get_rule(rule).annotations['version-parameter'],
+            implicit_path=rule.path,
+        )
+        return version_parameter.label
 
 
 def get_git_stamp(path):

@@ -32,8 +32,9 @@ class AppTest(PrepareForeman, unittest.TestCase):
     )
 
     TEST_IMAGE._id = 'sha512-...'
+    TEST_IMAGE._version = 'image-version-1'
 
-    APP_ENTRY = {
+    APP_ENTRY_1 = {
         'exec': ['/bin/bash'],
         'user': 'nobody',
         'group': 'nogroup',
@@ -58,6 +59,36 @@ class AppTest(PrepareForeman, unittest.TestCase):
         ],
     }
 
+    APP_ENTRY_2 = {
+        'exec': ['/bin/bash'],
+        'user': 'nobody',
+        'group': 'nogroup',
+        'workingDirectory': '/',
+        'environment': [
+            {
+                'name': 'PATH',
+                'value': '/bin:/usr/bin',
+            },
+        ],
+        'mountPoints': [
+            {
+                'name': 'data',
+                'path': '/var/data',
+                'readOnly': True,
+            },
+            {
+                'name': 'log',
+                'path': '/var/log',
+                'readOnly': False,
+            },
+            {
+                'name': 'example.com/worker-image--tmp',
+                'path': '/tmp',
+                'readOnly': False,
+            },
+        ],
+    }
+
     IMAGE_MANIFEST = {
         'acKind': 'ImageManifest',
         'acVersion': '0.8.10',
@@ -71,8 +102,12 @@ class AppTest(PrepareForeman, unittest.TestCase):
                 'name': 'os',
                 'value': 'linux',
             },
+            {
+                'name': 'version',
+                'value': 'image-version-1',
+            },
         ],
-        'app': APP_ENTRY,
+        'app': APP_ENTRY_1,
     }
 
     TEST_SYSTEMD_UNIT = pods.SystemdUnit(
@@ -86,7 +121,7 @@ class AppTest(PrepareForeman, unittest.TestCase):
         systemd_units=[TEST_SYSTEMD_UNIT],
     )
 
-    TEST_POD._version = 1
+    TEST_POD._version = 'pod-version-1'
 
     POD_MANIFEST = {
         'acVersion': '0.8.10',
@@ -98,7 +133,7 @@ class AppTest(PrepareForeman, unittest.TestCase):
                     'name': 'example.com/worker-image',
                     'id': 'sha512-...',
                 },
-                'app': APP_ENTRY,
+                'app': APP_ENTRY_2,
                 'readOnlyRootFS': True,
             },
         ],
@@ -115,12 +150,19 @@ class AppTest(PrepareForeman, unittest.TestCase):
                 'readOnly': False,
                 'recursive': True,
             },
+            {
+                'name': 'example.com/worker-image--tmp',
+                'kind': 'empty',
+                'readOnly': False,
+                'recursive': True,
+                'mode': '1777',
+            },
         ],
     }
 
     POD_OBJECT = {
         'name': 'application',
-        'version': 1,
+        'version': 'pod-version-1',
         'systemd-units': [
             {
                 'unit-file': 'foo.service',
@@ -162,11 +204,20 @@ class AppTest(PrepareForeman, unittest.TestCase):
         self.assertEqual(dict_1, dict_2)
 
     def test_image(self):
-        self.assertEqual(self.IMAGE_MANIFEST, self.TEST_IMAGE.image_manifest)
+        self.assertEqual(
+            self.IMAGE_MANIFEST,
+            self.TEST_IMAGE.get_image_manifest(),
+        )
 
     def test_pod(self):
-        self.assertEqual(self.POD_MANIFEST, self.TEST_POD.pod_manifest)
-        self.assertEqual(self.POD_OBJECT, self.TEST_POD.pod_object)
+        self.assertEqual(
+            self.POD_MANIFEST,
+            self.TEST_POD.get_pod_manifest(),
+        )
+        self.assertEqual(
+            self.POD_OBJECT,
+            self.TEST_POD.get_pod_object(),
+        )
 
 
 if __name__ == '__main__':
