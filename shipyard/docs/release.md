@@ -43,7 +43,7 @@ We have three types of artifacts that need to be managed:
 * Pods
 
 All three of them are versioned, and we use symlink to make references
-among them.  The directory structure would be like:
+among them.  The directory structure is:
 
 * `images/${LABEL_PATH}/${IMAGE_NAME}/${IMAGE_VERSION}/...`
   + `sha512`: Checksum of `image.aci` **before** it is compressed.
@@ -79,3 +79,53 @@ infer metadata encoded in path.
 NOTE: We record source code revisions in instruction files, but at the
 moment release tool does not check out specific revision prior to build.
 Instead, release tool always builds from the working tree for now.
+
+A release instruction looks like this:
+```
+---
+# Store this at `pods/py/cpython/python/3.6.yaml` and release
+# tool may deduce label path and pod name.
+
+# Rule to build this pod (note that rule name prefix "python_pod"
+# differs from the name of the pod "python" - they don't need to be the
+# same).
+rule: python_pod/build_pod
+
+# This is usually not necessary since release tool will deduce the
+# correct images to build from the pod rule.
+# images:
+#   "//some/package:image_name/build_image": image_version
+
+# Also, release tool will deduce volumes from the build rule, but
+# occasionally you may want to include data volumes as well.  Note that
+# the labels here refer to files under the `volumes` directory, not to
+# files in the shipyard.
+# volumes:
+#   "//some/package:volume_name": volume_version
+```
+
+You may generate a release instruction with this command:
+```
+scripts/release \
+  --release-root /path/to/releases \
+  gen-inst \
+  //py/cpython:python@3.6 \
+  //py/cpython:python_pod/build_pod
+```
+
+Then you may build it with:
+```
+scripts/release \
+  --release-root /path/to/releases \
+  build \
+  --builder-arg=--builder=builder-image \
+  //py/cpython:python@3.6
+```
+
+NOTE: In build files, `name` attribute of `pods.Image` and `pods.Volume`
+are used as symlink name in the pod directory; so be careful as you
+should avoid any name conflicts between the two.
+
+(By the way, because `volume.name` is used as symlink file name, the
+`volume.data` attribute, which is a path, will usually start with
+`volume.name`.)
