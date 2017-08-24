@@ -24,6 +24,19 @@ class AppTest(PrepareForeman, unittest.TestCase):
                 read_only=False,
             ),
         ],
+        ports=[
+            pods.Port(
+                name='https',
+                protocol='tcp',
+                port=443,
+                host_port=443,
+            ),
+            pods.Port(
+                name='health',
+                protocol='udp',
+                port=40000,
+            ),
+        ],
     )
 
     TEST_IMAGE = pods.Image(
@@ -57,6 +70,18 @@ class AppTest(PrepareForeman, unittest.TestCase):
                 'readOnly': False,
             },
         ],
+        'ports': [
+            {
+                'name': 'https',
+                'port': 443,
+                'protocol': 'tcp',
+            },
+            {
+                'name': 'health',
+                'port': 40000,
+                'protocol': 'udp',
+            },
+        ],
     }
 
     APP_ENTRY_2 = {
@@ -85,6 +110,18 @@ class AppTest(PrepareForeman, unittest.TestCase):
                 'name': 'example.com/worker-image--tmp',
                 'path': '/tmp',
                 'readOnly': False,
+            },
+        ],
+        'ports': [
+            {
+                'name': 'https',
+                'port': 443,
+                'protocol': 'tcp',
+            },
+            {
+                'name': 'health',
+                'port': 40000,
+                'protocol': 'udp',
             },
         ],
     }
@@ -156,6 +193,12 @@ class AppTest(PrepareForeman, unittest.TestCase):
                 'readOnly': False,
                 'recursive': True,
                 'mode': '1777',
+            },
+        ],
+        'ports': [
+            {
+                'name': 'https',
+                'hostPort': 443,
             },
         ],
     }

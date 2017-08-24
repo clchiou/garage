@@ -5,6 +5,7 @@ __all__ = [
     'App',
     'Image',
     'Pod',
+    'Port',
     'SystemdUnit',
     'Volume',
     # Build rule template as decorator
@@ -405,6 +406,47 @@ class Volume(ModelObject):
         }
 
 
+class Port(ModelObject):
+
+    FIELDS = [
+        ('name', None),
+        ('protocol', None),
+        ('port', None),
+        ('host_port', None),
+        # TODO: Add `count` field.
+    ]
+
+    def __init__(
+            self, *,
+            name,
+            protocol,
+            port,
+            host_port=None):
+        self.name = self._ensure_ac_name(name)
+        if protocol not in ('tcp', 'udp'):
+            raise ValueError('unsupported protocol: %s' % protocol)
+        self.protocol = protocol
+        self.port = port
+        self.host_port = host_port
+
+    def get_pod_manifest_entry_port(self):
+        """Return declared port (for app entry)."""
+        return {
+            'name': self.name,
+            'port': self.port,
+            'protocol': self.protocol,
+        }
+
+    def get_pod_manifest_entry_exposed_port(self):
+        """Return exposed port (for pod entry)."""
+        if self.host_port is None:
+            raise AssertionError('no host port')
+        return {
+            'name': self.name,
+            'hostPort': self.host_port,
+        }
+
+
 class App(ModelObject):
 
     FIELDS = [
@@ -415,6 +457,7 @@ class App(ModelObject):
         ('working_directory', None),
         ('environment', Environment),
         ('volumes', [Volume]),
+        ('ports', [Port]),
     ]
 
     def __init__(
@@ -424,7 +467,8 @@ class App(ModelObject):
             user='nobody', group='nogroup',
             working_directory='/',
             environment=None,
-            volumes=()):
+            volumes=(),
+            ports=()):
         self._name = self._ensure_ac_name(name)
         self.exec = exec or []
         self.user = user
@@ -432,6 +476,7 @@ class App(ModelObject):
         self.working_directory = working_directory
         self.environment = environment or {}
         self.volumes = volumes or []
+        self.ports = ports or []
 
     @property
     def name(self):
@@ -455,6 +500,10 @@ class App(ModelObject):
             'mountPoints': [
                 volume.get_pod_manifest_entry_mount_point()
                 for volume in self.volumes
+            ],
+            'ports': [
+                port.get_pod_manifest_entry_port()
+                for port in self.ports
             ],
         }
 
@@ -742,4 +791,10 @@ class Pod(ModelObject):
                 for image in self.images
             ],
             'volumes': volumes,
+            'ports': [
+                port.get_pod_manifest_entry_exposed_port()
+                for image in self.images
+                for port in image.app.ports
+                if port.host_port
+            ],
         }
