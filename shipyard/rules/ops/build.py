@@ -11,10 +11,9 @@ from garage import scripts
 from templates import common
 
 
-# Because distro does not install these by default
+# Because distro does not install these by default.
 common.define_distro_packages([
     'python3-setuptools',
-    'zip',
 ])
 
 
@@ -51,37 +50,19 @@ def package(parameters):
 
     drydock_src = parameters['//base:drydock'] / get_relpath()
 
-    # Use the distro python3 for ops-onboard zipapp, not the python3 we
-    # build from source (which is for containers)
-    python = '/usr/bin/python3'
-
     ops_onboard = drydock_src / 'ops-onboard'
     if not ops_onboard.exists():
-
-        # Because zip insists to add '.zip' suffix :(
-        ops_onboard_zip = ops_onboard.with_suffix('.zip')
-
-        with scripts.directory(drydock_src / 'py' / 'ops'):
-            # Clean up any previous build - just in case
-            scripts.rm('build', recursive=True)
-            scripts.execute([
-                python, 'setup.py', 'build', 'bdist_zipapp', '--output',
-                ops_onboard_zip,
-            ])
-
-        with scripts.directory(drydock_src / 'py' / 'garage'):
-            # Clean up any previous build - just in case
-            scripts.rm('build', recursive=True)
-            scripts.execute([
-                python, 'setup.py', 'build', 'bdist_zipapp', '--output',
-                ops_onboard_zip,
-            ])
-
-        # startup is not using buildtools (bdist_zipapp) yet
-        with scripts.directory(drydock_src / 'py' / 'startup'):
-            scripts.execute([
-                'zip', '--grow', '-r', ops_onboard_zip, 'startup.py'])
-
-        scripts.mv(ops_onboard_zip, ops_onboard)
+        for path in ('py/startup', 'py/garage', 'py/ops'):
+            with scripts.directory(drydock_src / path):
+                # Clean up any previous build - just in case.
+                scripts.rm('build', recursive=True)
+                scripts.execute([
+                    # Use distro's Python interpreter for ops-onboard
+                    # zipapp, not the one we build from source (which is
+                    # for containers).
+                    '/usr/bin/python3',
+                    'setup.py', 'build', 'bdist_zipapp',
+                    '--output', ops_onboard,
+                ])
 
     scripts.cp(ops_onboard, parameters['//base:output'] / 'ops-onboard')
