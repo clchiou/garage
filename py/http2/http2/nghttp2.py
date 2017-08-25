@@ -152,6 +152,7 @@ class nghttp2_settings_id(IntEnum):
 class nghttp2_error_code(IntEnum):
     NGHTTP2_NO_ERROR = 0x00
     NGHTTP2_INTERNAL_ERROR = 0x02
+    NGHTTP2_SETTINGS_TIMEOUT = 0x04
 
 
 @declare_enum
