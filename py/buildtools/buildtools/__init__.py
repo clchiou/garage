@@ -16,6 +16,8 @@ import os.path
 import stat
 import sys
 import tempfile
+import zipfile
+from pathlib import Path
 from subprocess import check_call, check_output
 
 from collections import namedtuple
@@ -148,32 +150,34 @@ def make_bdist_zipapp(*, python='/usr/bin/env python3',
                         func=func,
                     ))
 
+            def open_zip_archive(file, mode):
+                # It seems that Python interpreter can only load
+                # DEFLATE-compressed zip file.
+                return zipfile.ZipFile(
+                    file, mode=mode,
+                    compression=zipfile.ZIP_DEFLATED,
+                )
+
+            def add_content(zip_archive):
+                for child in Path(install_dir).rglob('*'):
+                    arcname = child.relative_to(install_dir)
+                    zip_archive.write(str(child), str(arcname))
+
             if os.path.exists(self.output):
                 log.info('appending %s' % self.output)
-                output = os.path.abspath(self.output)
-                # Sadly, if output file name is not suffixed with zip,
-                # zip secretly appends it for you.  And that is why we
-                # do this double-rename workaround :(
-                output_zip = output + '.zip'
-                os.rename(output, output_zip)
-                check_call(
-                    ['zip', '--grow', '-r', output_zip, '.'],
-                    cwd=install_dir,
-                )
-                os.rename(output_zip, output)
+                with open_zip_archive(self.output, 'a') as zip_archive:
+                    add_content(zip_archive)
             else:
                 log.info('generating %s' % self.output)
                 with open(self.output, 'wb') as output_file:
                     output_file.write(b'#!%s\n' % self.python.encode('utf-8'))
-                    # flush() to ensure `zip` contents is after me
+                    # Call flush() to ensure that zip content is after
+                    # shebang.
                     output_file.flush()
-                    check_call(
-                        ['zip', '-r', '-', '.'],
-                        stdout=output_file,
-                        cwd=install_dir,
-                    )
+                    with open_zip_archive(output_file, 'w') as zip_archive:
+                        add_content(zip_archive)
 
-            # chmod a+x
+            # Do `chmod a+x`.
             mode = os.stat(self.output).st_mode
             os.chmod(self.output, stat.S_IMODE(mode) | 0o111)
 
