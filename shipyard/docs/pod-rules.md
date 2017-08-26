@@ -8,7 +8,7 @@ build rules:
   tools may deduce their relationship without being bound to build them
   together.
 
-* `write_manifest` (and maybe `write_image`) should depend on the actual
+* `write_manifest` (and maybe `build_image`) should depend on the actual
   build and tapeout rules of the packages so that when you are building
   images, correct packages are built.
 

@@ -56,3 +56,16 @@ The build phase is sequenced as:
   * `//your/app:POD/build_pod`
     Bundle together configuration files and application image(s) into a
     pod (a tightly-coupled group of containers).
+
+### Data pipeline
+
+The data that are fed into the pods are not generated along with pods
+because in practice code and data are usually generated at different
+times, at different places.  In development, we usually create these
+data manually, with mocks and test samples; whereas in production, we
+would prefer a more automatic and stable process to generate these data.
+This process is referred to as "data pipeline".  While not the entire
+pipeline can be defined as shipyard build rules, we try to define it as
+much as practical.  These build rules are usually annotated with rule
+type `build_volume` (because the primary means for a pod to consume data
+is through data volumes).
