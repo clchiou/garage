@@ -92,9 +92,11 @@ A release instruction looks like this:
 rule: python_pod/build_pod
 
 # This is usually not necessary since release tool will deduce the
-# correct images to build from the pod rule.
+# correct images to build from the pod rule (note: this is not the
+# `build_image` rule, but is the label that refers to the image under
+# the `images` directory).
 # images:
-#   "//some/package:image_name/build_image": image_version
+#   "//some/package:image_name": image_version
 
 # Also, release tool will deduce volumes from the build rule, but
 # occasionally you may want to include data volumes as well.  Note that
