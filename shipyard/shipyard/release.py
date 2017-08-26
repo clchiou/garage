@@ -1,7 +1,11 @@
 __all__ = [
+
     'ReleaseRepo',
-    'Instruction',
+
+    'PodInstruction',
+    'SimpleInstruction',
     'execute_instructions',
+
     'get_git_stamp',
     'get_hg_stamp',
 ]
@@ -76,6 +80,11 @@ class ReleaseRepo:
 
     def _make_instruction(self, data, rule, pod, version):
 
+        # If it's not a build_pod rule, make a non-pod instruction.
+        rule_type = self.rules.get_rule(rule).annotations.get('rule-type')
+        if rule_type != 'build_pod':
+            return SimpleInstruction(rule=rule, target=pod, version=version)
+
         self._check_pod(rule, pod)
 
         build_image_rules = shipyard.get_build_image_rules(
@@ -83,7 +92,7 @@ class ReleaseRepo:
             self.rules.get_rule(rule),
         )
 
-        instruction = Instruction(
+        instruction = PodInstruction(
             rule=rule,
             pod=pod,
             version=version,
@@ -204,36 +213,27 @@ def execute_instructions(instructions, repo, builder):
     return True
 
 
-class Instruction:
+class PodInstruction:
+    """Release instruction of pods.
 
-    rule: Label
-    pod: Label  # (rule label path, pod name)
-    version: str
-    images: dict  # Map (image label path, image name) to version
-    image_rules: dict  # Map to build_image rules
-    volumes: dict  # Map (app label path, volume name) to version
+    It tracks extra info for building images, etc.
+    """
 
     def __init__(self, **kwargs):
-
-        for name, type_ in self.__annotations__.items():
-            if name not in kwargs:
-                raise ValueError('missing field: %r' % name)
-            value = kwargs[name]
-            if not isinstance(value, type_):
-                raise ValueError(
-                    '%r is not %s-typed: %r' % (name, type_.__name__, value))
-
-        unknown_names = set(kwargs).difference_update(self.__annotations__)
-        if unknown_names:
-            raise ValueError(
-                'unknown names: %s' % ', '.join(sorted(unknown_names)))
-
-        self.rule = kwargs['rule']
-        self.pod = kwargs['pod']
-        self.version = kwargs['version']
-        self.images = kwargs['images']
-        self.image_rules = kwargs['image_rules']
-        self.volumes = kwargs['volumes']
+        # Pod build rule.
+        self.rule = asserts.type_of(kwargs.pop('rule'), Label)
+        # Label that refers to the pod (not pod build rule).
+        self.pod = asserts.type_of(kwargs.pop('pod'), Label)
+        # Pod version.
+        self.version = kwargs.pop('version')
+        # Map image label to version.
+        self.images = kwargs.pop('images')
+        # Buile rules of the images.
+        self.image_rules = kwargs.pop('image_rules')
+        # Map volume label to version.
+        self.volumes = kwargs.pop('volumes')
+        if kwargs:
+            raise ValueError('unknown names: %s' % ', '.join(sorted(kwargs)))
 
     def __str__(self):
         return '%s@%s' % (self.pod, self.version)
@@ -303,7 +303,7 @@ class Instruction:
 
     def _build_pod(self, repo, builder, build_name):
 
-        LOG.info('build pod %s -> %s@%s', self.rule, self.pod, self.version)
+        LOG.info('build pod %s -> %s', self.rule, self)
 
         version_label = self._get_version_label(repo, self.rule)
 
@@ -356,6 +356,34 @@ class Instruction:
             implicit_path=rule.path,
         )
         return version_parameter.label
+
+
+class SimpleInstruction:
+    """Release instruction of a single build rule."""
+
+    def __init__(self, *, rule, target, version):
+        self.rule = rule
+        self.target = target
+        self.version = version
+
+    def __str__(self):
+        return '%s@%s' % (self.target, self.version)
+
+    def execute(self, repo, builder):
+        LOG.info('build %s -> %s', self.rule, self)
+        build_name = 'build-%d' % datetime.datetime.now().timestamp()
+        # FIXME: This is probably confusing: although this is not a pod,
+        # we still output to pod directory.  We do this just because it
+        # is convenient, and we should find a proper location.
+        target_path = (
+            repo.root / 'pods' /
+            self.target.path / self.target.name / self.version
+        )
+        builder.build(self.rule, extra_args=[
+            '--build-name', build_name,
+            '--output', target_path,
+        ])
+        return True
 
 
 def get_git_stamp(path):
