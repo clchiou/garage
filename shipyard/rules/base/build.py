@@ -12,13 +12,18 @@ from foreman import define_parameter, rule, to_path
  .with_default(Path(__file__).parent.parent.parent.parent))
 
 
+(define_parameter.path_typed('input')
+ .with_doc('Path to the directory input data.')
+ .with_default(Path.home() / 'input'))
+
+
 (define_parameter.path_typed('drydock')
- .with_doc('Path to the directory for intermediate build artifacts.')
+ .with_doc('Path to the directory of intermediate build artifacts.')
  .with_default(Path.home() / 'drydock'))
 
 
 (define_parameter.path_typed('output')
- .with_doc('Path to the directory for final build artifacts.')
+ .with_doc('Path to the directory of final build artifacts.')
  .with_default(Path.home() / 'output'))
 
 
