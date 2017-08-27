@@ -32,6 +32,12 @@ LOG = logging.getLogger(__name__)
 OPS_ROOT = scripts.ensure_path(os.environ.get('OPS_ROOT'))
 
 
+argument_kind = cli.argument(
+    '--kind', choices=('pods', 'volumes'), default='pods',
+    help='set instruction kind (default to %(default)s)',
+)
+
+
 argument_podv = cli.argument(
     'podv', nargs='+',
     help='add versioned pod label to build (format: "//label@version")',
@@ -56,6 +62,7 @@ def parse_podv(podv):
     '--repo', metavar=('SCM', 'PATH'), nargs=2, action='append',
     help='add source repo to revision stamp (SCM: git, hg)',
 )
+@argument_kind
 @cli.argument(
     'podv', help='set versioned pod label (format: "//label@version")',
 )
@@ -100,8 +107,10 @@ def generate_instruction(args: ARGS):
     )
 
     label, version = parse_podv(args.podv)
-    path = (args.release_root / 'pods' /
-            label.path / label.name / (version + '.yaml'))
+    path = shipyard.release.ReleaseRepo.get_instruction_path(
+        args.release_root, args.kind,
+        label, version,
+    )
     if path.exists():
         LOG.warning('overwrite %s', path)
     with scripts.dry_run(args.dry_run):
@@ -114,6 +123,7 @@ def generate_instruction(args: ARGS):
 @cli.command('build', help='build pods')
 @shipyard.argument_foreman
 @shipyard.argument_builder
+@argument_kind
 @argument_podv
 def build(args: ARGS):
     """Build pods from versioned labels."""
@@ -123,7 +133,7 @@ def build(args: ARGS):
     repo = shipyard.release.ReleaseRepo(args.release_root, rules)
 
     labels_versions = parse_podv_list(args.podv)
-    instructions = repo.load_instructions(labels_versions)
+    instructions = repo.load_instructions(args.kind, labels_versions)
 
     with scripts.dry_run(args.dry_run):
         okay = shipyard.release.execute_instructions(

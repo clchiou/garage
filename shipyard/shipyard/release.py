@@ -29,20 +29,23 @@ LOG = logging.getLogger(__name__)
 
 class ReleaseRepo:
 
+    @staticmethod
+    def get_instruction_path(root, kind, label, version):
+        # Don's use with_suffix('.yaml') because version may contain
+        # dots, e.g., "1.0.3".
+        return root / kind / label.path / label.name / (version + '.yaml')
+
     def __init__(self, release_root, rules):
         self.root = scripts.ensure_path(release_root)
         self.rules = rules
 
-    def load_instructions(self, labels_versions):
+    def load_instructions(self, kind, labels_versions):
 
         data_list = []
         rule_list = []
         for label, version in labels_versions:
             LOG.info('load release %s@%s', label, version)
-            # Don's use with_suffix('.yaml') because version may contain
-            # dots, e.g., 1.0.3
-            path = (self.root / 'pods' /
-                    label.path / label.name / (version + '.yaml'))
+            path = self.get_instruction_path(self.root, kind, label, version)
             data = yaml.load(path.read_text())
             rule = data.get('rule')
             if not rule:
@@ -79,11 +82,24 @@ class ReleaseRepo:
         return [self._make_instruction(*blob) for blob in blobs]
 
     def _make_instruction(self, data, rule, pod, version):
-
-        # If it's not a build_pod rule, make a non-pod instruction.
         rule_type = self.rules.get_rule(rule).annotations.get('rule-type')
-        if rule_type != 'build_pod':
-            return SimpleInstruction(rule=rule, target=pod, version=version)
+        if rule_type == 'build_pod':
+            return self._make_pod_instruction(data, rule, pod, version)
+        elif rule_type == 'build_volume':
+            return SimpleInstruction(
+                kind='volumes',
+                rule=rule, target=pod, version=version,
+            )
+        else:
+            # FIXME: This is probably confusing: although this is not a
+            # pod, we still put it to `pods` directory.  We do this just
+            # because it is convenient, not because it is right.
+            return SimpleInstruction(
+                kind='pods',
+                rule=rule, target=pod, version=version,
+            )
+
+    def _make_pod_instruction(self, data, rule, pod, version):
 
         self._check_pod(rule, pod)
 
@@ -361,7 +377,8 @@ class PodInstruction:
 class SimpleInstruction:
     """Release instruction of a single build rule."""
 
-    def __init__(self, *, rule, target, version):
+    def __init__(self, *, kind, rule, target, version):
+        self.kind = kind
         self.rule = rule
         self.target = target
         self.version = version
@@ -372,16 +389,13 @@ class SimpleInstruction:
     def execute(self, repo, builder):
         LOG.info('build %s -> %s', self.rule, self)
         build_name = 'build-%d' % datetime.datetime.now().timestamp()
-        # FIXME: This is probably confusing: although this is not a pod,
-        # we still output to pod directory.  We do this just because it
-        # is convenient, and we should find a proper location.
-        target_path = (
-            repo.root / 'pods' /
+        output_path = (
+            repo.root / self.kind /
             self.target.path / self.target.name / self.version
         )
         builder.build(self.rule, extra_args=[
             '--build-name', build_name,
-            '--output', target_path,
+            '--output', output_path,
         ])
         return True
 
