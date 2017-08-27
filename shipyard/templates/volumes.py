@@ -118,7 +118,8 @@ def _add_member(parameters, member_spec, tarball):
 
     elif content_path_parameter is not None:
         content_path = parameters[content_path_parameter]
-        tarinfo = tarball.gettarinfo(name=content_path, arcname=path)
+        # XXX `gettarinfo` of Python 3.5 doesn't accept path-like.
+        tarinfo = tarball.gettarinfo(name=str(content_path), arcname=path)
         fileobj = None
 
     else:
@@ -159,8 +160,9 @@ def _add_member(parameters, member_spec, tarball):
     if content_path and content_path.is_dir():
         for child_path in content_path.rglob('*'):
 
+            # XXX `gettarinfo` of Python 3.5 doesn't accept path-like.
             child_tarinfo = tarball.gettarinfo(
-                name=child_path,
+                name=str(child_path),
                 arcname=str(path / child_path.relative_to(content_path)),
             )
 
