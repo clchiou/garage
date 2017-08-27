@@ -422,7 +422,8 @@ def get_git_stamp(path):
         cmd = ['git', 'status', '--porcelain']
         status = scripts.execute(cmd, capture_stdout=True).stdout
         for status_line in status.decode('utf8').split('\n'):
-            if not status_line.startswith('  '):
+            # Be careful of empty line!
+            if status_line and not status_line.startswith('  '):
                 dirty = True
                 break
 
