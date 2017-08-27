@@ -191,8 +191,8 @@ def build(parameters):
 def tapeout(parameters):
     """Tape-out CPython.
 
-       NOTE: All Python module's `tapeout` rules should reverse depend
-       on this rule.
+    NOTE: All Python module's `tapeout` rules should reverse depend on
+    this rule.
     """
 
     LOG.info('tapeout cpython modules')
@@ -225,13 +225,14 @@ def tapeout(parameters):
     tapeout_files(parameters, execs)
 
 
-### Other build rules
+### Python pod build rules (useful for testing).
 
 
 @pods.app_specifier
 def python_app(parameters):
     """Default App object for Python container image."""
     return pods.App(
+        name='python',
         exec=[str(parameters['python'])],
         environment={
             # Unfortunately I can't make the default encoding right
@@ -248,13 +249,19 @@ def python_app(parameters):
 @pods.image_specifier
 def python_image(parameters):
     """Default Python container image."""
-    return pods.Image(app=parameters['python_app'])
+    return pods.Image(
+        name='python',
+        app=parameters['python_app'],
+    )
 
 
 @pods.pod_specifier
 def python_pod(parameters):
     """Trivial Python pod only useful for testing."""
-    return pods.Pod(images=[parameters['python_image']])
+    return pods.Pod(
+        name='python',
+        images=[parameters['python_image']],
+    )
 
 
 python_image.specify_image.depend('python_app/specify_app')

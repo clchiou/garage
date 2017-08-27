@@ -15,13 +15,11 @@ __all__ = [
 ]
 
 from collections import OrderedDict, namedtuple
-import functools
 import hashlib
 import json
 import logging
 import re
 
-from garage import asserts
 from garage import scripts
 
 from foreman import define_parameter, define_rule, rule, to_path
@@ -61,42 +59,15 @@ LOG = logging.getLogger(__name__)
 #
 
 
-def specifier_decorator(decorator):
-    def wrapper(specifier_or_object_name):
-        if isinstance(specifier_or_object_name, str):
-            return functools.partial(
-                decorator,
-                object_name=specifier_or_object_name,
-            )
-        else:
-            return decorator(specifier_or_object_name)
-    return wrapper
-
-
-def with_object_name(specifier, object_name):
-    """Wrap a specifier and insert a default object name."""
-    if not object_name:
-        # AC name does not accept underscore character
-        object_name = specifier.__name__.replace('_', '-')
-    def wrapper(parameters):
-        obj = specifier(parameters)
-        if obj._name is None:
-            obj._name = object_name
-        return obj
-    return wrapper
-
-
 AppRules = namedtuple('AppRules', 'specify_app')
 
 
-@specifier_decorator
-def app_specifier(specifier, object_name=None):
+def app_specifier(specifier):
     """Define NAME/specify_app rule."""
 
     name = specifier.__name__ + '/'
 
-    (App.define_parameter(specifier.__name__)
-     .with_derive(with_object_name(specifier, object_name)))
+    App.define_parameter(specifier.__name__).with_derive(specifier)
 
     specify_app = (
         define_rule(name + 'specify_app')
@@ -112,22 +83,22 @@ ImageRules = namedtuple(
     'ImageRules', 'specify_image write_manifest build_image')
 
 
-@specifier_decorator
-def image_specifier(specifier, object_name=None):
-    """Define these rules:
-       * NAME/specify_image
-       * NAME/write_manifest
-       * NAME/build_image
+def image_specifier(specifier):
+    """Define these rules.
 
-       The output will be written to OUTPUT/IMAGE_NAME directory.
+    The rules include:
+    * NAME/specify_image
+    * NAME/write_manifest
+    * NAME/build_image
+
+    The output will be written to OUTPUT/IMAGE_NAME directory.
     """
 
     # TODO: Encrypt and/or sign the image
 
     name = specifier.__name__ + '/'
 
-    (Image.define_parameter(specifier.__name__)
-     .with_derive(with_object_name(specifier, object_name)))
+    Image.define_parameter(specifier.__name__).with_derive(specifier)
 
     define_parameter(name + 'version')
 
@@ -215,18 +186,16 @@ def _compute_sha512(sha512_file_path):
 PodRules = namedtuple('PodRules', 'specify_pod build_pod')
 
 
-@specifier_decorator
-def pod_specifier(specifier, object_name=None):
+def pod_specifier(specifier):
     """Define NAME/build_pod rule.
 
-       The output will be written to OUTPUT directory (note that images
-       are written to OUTPUT/IMAGE_NAME).
+    The output will be written to OUTPUT directory (note that images are
+    written to OUTPUT/IMAGE_NAME).
     """
 
     name = specifier.__name__ + '/'
 
-    (Pod.define_parameter(specifier.__name__)
-     .with_derive(with_object_name(specifier, object_name)))
+    Pod.define_parameter(specifier.__name__).with_derive(specifier)
 
     define_parameter(name + 'version')
 
@@ -462,14 +431,14 @@ class App(ModelObject):
 
     def __init__(
             self, *,
-            name=None,
+            name,
             exec=None,
             user='nobody', group='nogroup',
             working_directory='/',
             environment=None,
             volumes=(),
             ports=()):
-        self._name = self._ensure_ac_name(name)
+        self.name = self._ensure_ac_name(name)
         self.exec = exec or []
         self.user = user
         self.group = group
@@ -477,15 +446,6 @@ class App(ModelObject):
         self.environment = environment or {}
         self.volumes = volumes or []
         self.ports = ports or []
-
-    @property
-    def name(self):
-        asserts.not_none(self._name)
-        return self._name
-
-    @name.setter
-    def name(self, new_name):
-        self._name = self._ensure_ac_name(new_name)
 
     def get_pod_manifest_entry(self):
         return {
@@ -535,12 +495,13 @@ class Image(ModelObject):
 
     def __init__(
             self, *,
-            id=None, name=None,
+            id=None,
+            name,
             version=None,
             app,
             read_only_rootfs=True, writable_directories=('/tmp',)):
         self._id = id
-        self._name = self._ensure_ac_identifier(name)
+        self.name = self._ensure_ac_identifier(name)
         self._version = version
         self.app = app
         self.read_only_rootfs = read_only_rootfs
@@ -556,15 +517,6 @@ class Image(ModelObject):
         if self._id is None:
             LOG.warning('image has no id: %s', self.name)
         return self._id
-
-    @property
-    def name(self):
-        asserts.not_none(self._name)
-        return self._name
-
-    @name.setter
-    def name(self, new_name):
-        self._name = self._ensure_ac_identifier(new_name)
 
     @property
     def version(self):
@@ -694,23 +646,14 @@ class Pod(ModelObject):
 
     def __init__(
             self, *,
-            name=None, version=None,
+            name, version=None,
             images=None,
             systemd_units=None):
-        self._name = self._ensure_ac_name(name)
+        self.name = self._ensure_ac_name(name)
         self._version = version
         self.images = images or []
         self.systemd_units = systemd_units or []
         self._volumes = None
-
-    @property
-    def name(self):
-        asserts.not_none(self._name)
-        return self._name
-
-    @name.setter
-    def name(self, new_name):
-        self._name = self._ensure_ac_name(new_name)
 
     @property
     def version(self):
