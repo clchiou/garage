@@ -60,12 +60,13 @@ def safe_copy(srcs, dst_dir):
     'server_dir', type=Path, help='provide directory of server credentials')
 @cli.argument(
     'client_dir', type=Path, help='provide directory of client credentials')
+@cli.argument('config', help='provide config file name')
 @cli.argument('client', help='provide client name')
 @cli.argument('output', type=Path, help='set output .ovpn file')
 def make_ovpn(args: ARGS):
     """Make .ovpn file."""
     parts = [
-        args.client_dir / (args.client + '.conf'),
+        args.client_dir / args.config,
         args.server_dir / 'ca.crt',
         args.client_dir / (args.client + '.crt'),
         args.client_dir / (args.client + '.key'),

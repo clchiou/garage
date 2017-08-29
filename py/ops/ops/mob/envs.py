@@ -165,6 +165,8 @@ def generate_user_data(args: ARGS):
             local_vm['network-interface'],
             local_vm['ip-address'],
         )
+    else:
+        cloudinit_args['local_vm'] = None
 
     cloudinit_args['output'] = env_dir / 'cloud-init' / config['output']
 
@@ -201,6 +203,7 @@ def copy_server(args: ARGS):
 
 @cli.command('make-ovpn', help='make .ovpn file')
 @argument_env
+@cli.argument('config', help='provide config file name')
 @cli.argument('client', help='provide client name')
 def make_ovpn(args: ARGS):
     """Make .ovpn file."""
