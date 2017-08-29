@@ -82,6 +82,11 @@ class ReleaseRepo:
         return [self._make_instruction(*blob) for blob in blobs]
 
     def _make_instruction(self, data, rule, pod, version):
+
+        # Check if instruction file overwrites pod and version.
+        pod = data.get('pod', pod)
+        version = data.get('version', version)
+
         rule_type = self.rules.get_rule(rule).annotations.get('rule-type')
         if rule_type == 'build_pod':
             return self._make_pod_instruction(data, rule, pod, version)
