@@ -67,6 +67,12 @@ This example generates a staging-like environment.
   * Easy RSA CA directory.
   * `env.sh`.
 
+* Create symlink to pod release channel (this is for deploying pods with
+  Ansible playbook):
+  ```
+  ln -s /path/to/ops/releases/channels/staging pods
+  ```
+
 * Configure OpenVPN server:
   * Edit `openvpn/cadir/vars`.
   * Generate credentials.
