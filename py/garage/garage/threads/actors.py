@@ -103,9 +103,11 @@ class OneShotActor:
     """
 
     @classmethod
-    def from_func(cls, actor_func):
+    def from_func(cls, actor_func, *, name=None):
+        if isinstance(actor_func, str):
+            return functools.partial(cls.from_func, name=actor_func)
         stub_maker = cls(actor_func)
-        names = utils.generate_names(name=actor_func.__name__)
+        names = utils.generate_names(name=name or actor_func.__name__)
         def make(*args, **kwargs):
             return build(
                 stub_maker,
