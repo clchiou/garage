@@ -1,10 +1,9 @@
 """\
 Legacy HTTP server.
 
-This module is based standard library's HTTP server implementation, and
-thus is not suitable for any serious use, but on the bright side, since
-it has not external dependency, you may find it useful in some extreme
-circumstances.
+This module uses standard library's HTTP server implementation, and thus
+is not suitable for heavy loads, but on the bright side, since it has no
+external dependency, you may find it useful in extreme circumstances.
 """
 
 __all__ = [
@@ -98,7 +97,7 @@ def api_server(*,
                 response = json.dumps(response).encode('utf8')
             except futures.TimeoutError:
                 LOG.error('timeout on processing request: %r', request)
-                self.__send_error(HTTPStatus.GATEWAY_TIMEOUT)
+                self.__send_error(HTTPStatus.SERVICE_UNAVAILABLE)
                 return
             except Exception:
                 LOG.exception('fail to process request: %r', request)
@@ -117,7 +116,7 @@ def api_server(*,
             self.end_headers()
 
         def log_request(self, code='-', size='-'):
-            pass  # Silence BaseHTTPRequestHandler
+            pass  # Silence BaseHTTPRequestHandler.
 
     with Server(address, Handler) as server:
         LOG.info('serve HTTP on %s:%s', *server.socket.getsockname())
