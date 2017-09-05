@@ -43,14 +43,20 @@ def resize(image, desired_width, output_path):
     clobber output file on error.  If clobbering output is not an issue,
     you may use resize_unsafe, which is faster.
     """
-    _, tmp_path = tempfile.mkstemp()
+
+    tmp_path = None
     try:
+        fd, tmp_path = tempfile.mkstemp()
+        os.close(fd)  # Close fd immediately (don't leak it!).
+
         dimension = resize_unsafe(image, desired_width, tmp_path)
         os.rename(tmp_path, output_path)
         tmp_path = None
+
     finally:
         if tmp_path is not None:
             os.remove(tmp_path)
+
     return dimension
 
 
