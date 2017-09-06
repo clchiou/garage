@@ -32,7 +32,7 @@ from garage.threads import signals
 from startup import startup
 
 
-API_NAME = 'envoy-supervisor'
+API_NAME = 'envoy_supervisor'
 API_VERSION = 0
 
 
