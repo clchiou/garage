@@ -133,7 +133,7 @@ class ApiHandlerComponent(components.Component):
         )
         group.add_argument(
             '--envoy-arg', metavar='ARG', action='append',
-            help='add envoy argument',
+            help='add envoy argument as: --envoy-arg=--arg=value',
         )
 
     def check_arguments(self, parser, args):
@@ -267,7 +267,14 @@ class EnvoySupervisor:
     def __init__(self, envoy_path, envoy_args):
         self.done = False
         self._envoy_path = str(envoy_path.resolve())
-        self._envoy_args = tuple(envoy_args)
+        self._envoy_args = []
+        for arg in envoy_args:
+            # While we use `=` here, note that envoy doesn't accept `=`
+            # in an argument though.
+            if '=' in arg:
+                self._envoy_args.extend(arg.rsplit('=', 1))
+            else:
+                self._envoy_args.append(arg)
         self._restart_epoch = 0
         self._proc_entries = []
 
