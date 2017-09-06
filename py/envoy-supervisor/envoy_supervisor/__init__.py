@@ -49,15 +49,11 @@ def collect_actors(actor_stubs: [ACTOR]) -> ACTORS:
     return actor_stubs
 
 
-class SignalHandlerComponent(components.Component):
+class SignalQueueComponent(components.Component):
 
-    require = components.make_fqname_tuple(
-        __name__,
-        components.EXIT_STACK,
-        'request_queue',
-    )
+    require = components.EXIT_STACK
 
-    provide = ACTOR
+    provide = components.make_fqname_tuple(__name__, 'signal_queue')
 
     def make(self, require):
 
@@ -69,13 +65,7 @@ class SignalHandlerComponent(components.Component):
         signal_queue = signals.SignalQueue()
         require.exit_stack.callback(signal_queue.close)
 
-        handler = signal_handler(
-            signal_queue,
-            require.request_queue,
-        )
-        require.exit_stack.callback(wait_actor, handler)
-
-        return handler
+        return signal_queue
 
 
 class ApiServerComponent(components.Component):
@@ -116,6 +106,7 @@ class ApiHandlerComponent(components.Component):
     require = components.make_fqname_tuple(
         __name__,
         components.EXIT_STACK,
+        'signal_queue',
         'supervisor',
     )
 
@@ -131,7 +122,11 @@ class ApiHandlerComponent(components.Component):
         request_queue = queues.Queue()
         require.exit_stack.callback(request_queue.close)
 
-        handler = api_handler(request_queue, require.supervisor)
+        handler = api_handler(
+            request_queue=request_queue,
+            signal_queue=require.signal_queue,
+            supervisor=require.supervisor,
+        )
         require.exit_stack.callback(wait_actor, handler)
 
         return handler, request_queue
@@ -169,9 +164,10 @@ class SupervisorComponent(components.Component):
 @cli.command(API_NAME)
 @cli.component(ApiHandlerComponent)
 @cli.component(ApiServerComponent)
-@cli.component(SignalHandlerComponent)
+@cli.component(SignalQueueComponent)
 def main(actor_stubs: ACTORS,
-         request_queue: ApiHandlerComponent.provide.request_queue):
+         request_queue: ApiHandlerComponent.provide.request_queue,
+         signal_queue: SignalQueueComponent.provide.signal_queue):
     try:
         # Wait for any actor exits.
         futs = [actor_stub._get_future() for actor_stub in actor_stubs]
@@ -179,41 +175,13 @@ def main(actor_stubs: ACTORS,
     except KeyboardInterrupt:
         LOG.info('user requests shutdown')
     finally:
-        signals.SignalQueue().close()
         request_queue.close()
+        signal_queue.close()
     return 0
 
 
-@actors.OneShotActor.from_func('signal')
-def signal_handler(signal_queue, request_queue):
-
-    while True:
-        try:
-            signum = signal_queue.get()
-        except queues.Closed:
-            break
-
-        LOG.info('receive signal: %s', signum)
-
-        if signum is not signal.Signals.SIGCHLD:
-            continue  # Ignore any other signals.
-
-        try:
-            request_queue.put(
-                ({'method': 'check_terminated'}, futures.Future()),
-                # It's probably a bad idea to block signal handler.
-                block=False,
-            )
-        except queues.Full:
-            LOG.error('cannot notify SIGCHLD')
-        except queues.Closed:
-            break
-
-    LOG.info('exit')
-
-
 @actors.OneShotActor.from_func
-def api_handler(request_queue, supervisor):
+def api_handler(*, request_queue, signal_queue, supervisor):
 
     LOG.info('start serving requests')
 
@@ -225,10 +193,34 @@ def api_handler(request_queue, supervisor):
             'check_terminated': supervisor.check_terminated,
         }
 
+        #
+        # The api_handler actor handles two queues simultaneously (it
+        # achieves this by busy polling the queues).  While this might
+        # not be the most elegant solution, it is probably better than
+        # spawning another thread just for pumping items from the signal
+        # queue to the request queue.
+        #
+
         while not supervisor.done:
 
+            # Handle signal - don't block on it.
+
             try:
-                request, response_future = request_queue.get()
+                signum = signal_queue.get(block=False)
+            except queues.Empty:
+                pass
+            except queues.Closed:
+                break
+            else:
+                LOG.info('receive signal: %s', signum)
+                supervisor.handle_signal(signum)
+
+            # Handle incoming requests - block on it for 0.5 seconds.
+
+            try:
+                request, response_future = request_queue.get(timeout=0.5)
+            except queues.Empty:
+                continue
             except queues.Closed:
                 break
 
@@ -333,6 +325,13 @@ class EnvoySupervisor:
         finally:
             if config_path is not None:
                 os.remove(config_path)
+
+    def handle_signal(self, signum):
+        if signum is signal.Signals.SIGCHLD:
+            try:
+                self.check_terminated()
+            except Exception:
+                LOG.exception('err while check terminated')
 
     def check_terminated(self):
         """Check for terminated child processes."""
