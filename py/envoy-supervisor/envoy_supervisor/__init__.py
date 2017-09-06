@@ -13,12 +13,12 @@ __all__ = [
 
 from concurrent import futures
 from pathlib import Path
+import functools
 import json
 import logging
-import os
+import re
 import signal
 import subprocess
-import tempfile
 import threading
 
 from garage import asserts
@@ -107,7 +107,7 @@ class ApiHandlerComponent(components.Component):
         __name__,
         components.EXIT_STACK,
         'signal_queue',
-        'supervisor',
+        'make_supervisor',
     )
 
     provide = components.make_fqname_tuple(
@@ -125,7 +125,7 @@ class ApiHandlerComponent(components.Component):
         handler = api_handler(
             request_queue=request_queue,
             signal_queue=require.signal_queue,
-            supervisor=require.supervisor,
+            make_supervisor=require.make_supervisor,
         )
         require.exit_stack.callback(wait_actor, handler)
 
@@ -136,10 +136,14 @@ class SupervisorComponent(components.Component):
 
     require = components.ARGS
 
-    provide = components.make_fqname_tuple(__name__, 'supervisor')
+    provide = components.make_fqname_tuple(__name__, 'make_supervisor')
 
     def add_arguments(self, parser):
         group = parser.add_argument_group(__name__ + '/supervisor')
+        group.add_argument(
+            '--config-dir', type=Path, metavar='DIR', required=True,
+            help='provide path to config store directory.',
+        )
         group.add_argument(
             '--envoy', type=Path, metavar='PATH',
             default=Path('/usr/local/bin/envoy'),
@@ -151,11 +155,15 @@ class SupervisorComponent(components.Component):
         )
 
     def check_arguments(self, parser, args):
+        if not args.config_dir.is_dir():
+            parser.error('--config-dir expect a dir: %s' % args.config_dir)
         if not args.envoy.is_file():
             parser.error('--envoy expect a file: %s' % args.envoy)
 
     def make(self, require):
-        return EnvoySupervisor(
+        return functools.partial(
+            EnvoySupervisor,
+            config_dir=require.args.config_dir,
             envoy_path=require.args.envoy,
             envoy_args=require.args.envoy_arg or (),
         )
@@ -181,14 +189,28 @@ def main(actor_stubs: ACTORS,
 
 
 @actors.OneShotActor.from_func
-def api_handler(*, request_queue, signal_queue, supervisor):
+def api_handler(*, request_queue, signal_queue, make_supervisor):
 
     LOG.info('start serving requests')
 
-    with supervisor:
+    with make_supervisor() as supervisor:
+
+        # Launch one with the default config.
+        ret = supervisor.spawn_default()
+        if ret is None:
+            LOG.warning('no default envoy is spawned')
+        else:
+            LOG.info('spawn a default envoy: %r', ret)
 
         # Whitelist methods that can be called from remote.
         methods = {
+            # Config file management.
+            'list_configs': supervisor.list_configs,
+            'add_config': supervisor.add_config,
+            'remove_config': supervisor.remove_config,
+            'set_default_config': supervisor.set_default_config,
+            # Envoy process management.
+            'list_procs': supervisor.list_procs,
             'spawn': supervisor.spawn,
             'check_terminated': supervisor.check_terminated,
         }
@@ -266,9 +288,24 @@ def api_handler(*, request_queue, signal_queue, supervisor):
 
 class EnvoySupervisor:
 
-    def __init__(self, *, envoy_path, envoy_args):
+    def __init__(self, *, config_dir, envoy_path, envoy_args):
+
         self.done = False
+
+        self._config_dir = config_dir.resolve()
+
+        self._configs = {}  # Map config name to path.
+        for path in self._config_dir.iterdir():
+            config_name = EnvoySupervisor._maybe_get_config_name(path)
+            if config_name is not None:
+                LOG.info('load config: %s', config_name)
+                self._configs[config_name] = self._config_dir / path
+
+        self._default = EnvoySupervisor._load_default(self._config_dir)
+        LOG.info('default config: %s', self._default)
+
         self._envoy_path = str(envoy_path.resolve())
+
         self._envoy_args = []
         for arg in envoy_args:
             # While we use `=` here, note that envoy doesn't accept `=`
@@ -277,7 +314,9 @@ class EnvoySupervisor:
                 self._envoy_args.extend(arg.rsplit('=', 1))
             else:
                 self._envoy_args.append(arg)
+
         self._restart_epoch = 0
+
         self._proc_entries = []
 
     def __enter__(self):
@@ -294,39 +333,199 @@ class EnvoySupervisor:
         for proc_entry in proc_entries:
             proc_entry.close()
 
-    def spawn(self, *, config):
-        """Spawn a new child process."""
+    #
+    # Config file management.
+    #
+
+    CONFIG_DEFAULT = 'default'
+
+    CONFIG_FILENAME_PREFIX = 'config-'
+    CONFIG_FILENAME_SUFFIX = '.json'
+
+    # For now, only permit a narrow set of names.
+    CONFIG_NAME_PATTERN = re.compile(r'[a-z0-9]+(?:-[a-z0-9]+)*')
+
+    @classmethod
+    def _is_config_name(cls, maybe_name):
+        return bool(cls.CONFIG_NAME_PATTERN.fullmatch(maybe_name))
+
+    @classmethod
+    def _maybe_get_config_name(cls, maybe_config_path):
+        filename = maybe_config_path.name
+        if not filename.startswith(cls.CONFIG_FILENAME_PREFIX):
+            return None
+        if not filename.endswith(cls.CONFIG_FILENAME_SUFFIX):
+            return None
+        prefix_len = len(cls.CONFIG_FILENAME_PREFIX)
+        suffix_len = len(cls.CONFIG_FILENAME_SUFFIX)
+        maybe_name = filename[prefix_len:-suffix_len]
+        if not cls._is_config_name(maybe_name):
+            return None
+        # Okay, it is a config file and this is a config name.
+        return maybe_name
+
+    @classmethod
+    def _load_default(cls, config_dir):
+        path = config_dir / cls.CONFIG_DEFAULT
+        if not path.is_symlink():
+            return None
+        return cls._maybe_get_config_name(path.resolve())
+
+    def list_configs(self):
+        """List config files."""
+        asserts.precond(not self.done, 'supervisor is done')
+        return {
+            'configs': {
+                name: {
+                    'path': str(path),
+                    'default': name == self._default,
+                }
+                for name, path in self._configs.items()
+            },
+        }
+
+    def add_config(self, *, name, config):
+        """Add a config file."""
         asserts.precond(not self.done, 'supervisor is done')
 
-        proc = config_path = None
+        if name in self._configs:
+            raise KeyError('refuse to overwrite config: %r' % name)
+
+        if not self._is_config_name(name):
+            raise KeyError('not a valid config name: %r' % name)
+        config_path = self._to_config_path(name)
+        # Sanity check - path should not be "taken".
+        asserts.precond(
+            not config_path.exists(),
+            'expect non-existence: %s', config_path,
+        )
+
         try:
+            config_path.write_text(json.dumps(config))
+        except Exception:
+            config_path.unlink()
+            raise
+
+        self._configs[name] = config_path.resolve()
+
+        LOG.info('add config: %s', name)
+        return {}
+
+    def remove_config(self, *, name):
+        """Remove a config file by name."""
+        asserts.precond(not self.done, 'supervisor is done')
+
+        config_path = self._get_config_path(name)
+
+        config_path.unlink()
+        self._configs.pop(name)
+
+        if name == self._default:
+            # Remove the "default" symlink file (this is optional).
+            self._default = None
             try:
-                fd, config_path = tempfile.mkstemp(
-                    prefix='config-',
-                    suffix='.json',
+                self._default_path.unlink()
+            except OSError:
+                LOG.warning(
+                    'cannot remove default config symlink: %s',
+                    self._default_path, exc_info=True,
                 )
-                os.close(fd)  # Close fd immediately (don't leak it!).
 
-                with open(config_path, 'w') as config_file:
-                    json.dump(config, config_file)
+        LOG.info('remove config: %s', name)
+        return {}
 
-                proc = self._start_envoy(config_path)
-                pid = proc.pid
+    def set_default_config(self, *, name):
+        """Set default config name."""
+        asserts.precond(not self.done, 'supervisor is done')
 
-                self._proc_entries.append(EnvoyProcEntry(proc, config_path))
+        config_path = self._get_config_path(name)
 
-                proc = config_path = None
+        next_default = self._default_path.with_suffix('.next')
+        if next_default.exists():
+            next_default.unlink()
 
-                return {'pid': pid}
+        next_default.symlink_to(config_path.name)
 
-            finally:
-                if proc is not None:
-                    wait_proc(proc)
-        finally:
-            if config_path is not None:
-                os.remove(config_path)
+        next_default.rename(self._default_path)
+
+        self._default = name
+
+        LOG.info('set default config to: %s', name)
+        return {}
+
+    @property
+    def _default_path(self):
+        return self._config_dir / self.CONFIG_DEFAULT
+
+    def _to_config_path(self, name):
+        filename = '%s%s%s' % (
+            self.CONFIG_FILENAME_PREFIX,
+            name,
+            self.CONFIG_FILENAME_SUFFIX,
+        )
+        return self._config_dir / filename
+
+    def _get_config_path(self, name):
+        if not self._is_config_name(name):
+            raise KeyError('not a valid config name: %r' % name)
+        config_path = self._configs[name]
+        asserts.precond(
+            config_path.exists(),
+            'expect file existence: %s', config_path,
+        )
+        return config_path
+
+    #
+    # Envoy process management.
+    #
+
+    def list_procs(self):
+        """List supervised child processes."""
+        asserts.precond(not self.done, 'supervisor is done')
+        return {
+            'procs': [
+                {
+                    'config_name': proc_entry.config_name,
+                    'pid': proc_entry.proc.pid,
+                    'restart_epoch': proc_entry.restart_epoch,
+                }
+                for proc_entry in self._proc_entries
+            ],
+        }
+
+    def spawn_default(self):
+        """Spawn a new envoy process with the default config.
+
+        This method is not called from remote.
+        """
+        if not self._default:
+            return None
+        return self.spawn(config_name=self._default)
+
+    def spawn(self, *, config_name):
+        """Spawn a new envoy process with the given config."""
+        asserts.precond(not self.done, 'supervisor is done')
+
+        config_path = self._get_config_path(config_name)
+
+        proc, restart_epoch = self._start_envoy(config_path)
+        try:
+            pid = proc.pid
+            self._proc_entries.append(EnvoyProcEntry(
+                config_name=config_name,
+                proc=proc,
+                restart_epoch=restart_epoch,
+            ))
+            return {'pid': pid, 'restart_epoch': restart_epoch}
+        except Exception:
+            wait_proc(proc)
+            raise
 
     def handle_signal(self, signum):
+        """Handle signal.
+
+        This method is not called from remote.
+        """
         if signum is signal.Signals.SIGCHLD:
             try:
                 self.check_terminated()
@@ -379,18 +578,18 @@ class EnvoySupervisor:
             proc.pid, restart_epoch,
         )
 
-        return proc
+        return proc, restart_epoch
 
 
 class EnvoyProcEntry:
 
-    def __init__(self, proc, config_path):
+    def __init__(self, *, config_name, proc, restart_epoch):
+        self.config_name = config_name
         self.proc = proc
-        self.config_path = config_path
+        self.restart_epoch = restart_epoch
 
     def close(self):
         wait_proc(self.proc)
-        os.remove(self.config_path)
 
 
 def wait_actor(actor):
