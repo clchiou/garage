@@ -57,10 +57,14 @@ class SignalQueueComponent(components.Component):
 
     def make(self, require):
 
-        # The default SIGCHLD handler is SIG_IGN, and we need to
-        # uninstall that.
-        require.exit_stack.enter_context(
-            signals.uninstall_handlers(signal.SIGCHLD))
+        require.exit_stack.enter_context(signals.uninstall_handlers(
+            # The default SIGCHLD handler is SIG_IGN, and we need to
+            # uninstall that.
+            signal.SIGCHLD,
+            # We will handle SIGINT and SIGTERM ourselves.
+            signal.SIGINT,
+            signal.SIGTERM,
+        ))
 
         signal_queue = signals.SignalQueue()
         require.exit_stack.callback(signal_queue.close)
@@ -180,8 +184,6 @@ def main(actor_stubs: ACTORS,
         # Wait for any actor exits.
         futs = [actor_stub._get_future() for actor_stub in actor_stubs]
         next(futures.as_completed(futs))
-    except KeyboardInterrupt:
-        LOG.info('user requests shutdown')
     finally:
         request_queue.close()
         signal_queue.close()
@@ -234,7 +236,6 @@ def api_handler(*, request_queue, signal_queue, make_supervisor):
             except queues.Closed:
                 break
             else:
-                LOG.info('receive signal: %s', signum)
                 supervisor.handle_signal(signum)
 
             # Handle incoming requests - block on it for 0.5 seconds.
@@ -526,11 +527,15 @@ class EnvoySupervisor:
 
         This method is not called from remote.
         """
+        LOG.info('receive signal: %s', signum)
         if signum is signal.Signals.SIGCHLD:
             try:
                 self.check_terminated()
             except Exception:
                 LOG.exception('err while check terminated')
+        elif signum in (signal.Signals.SIGINT, signal.Signals.SIGTERM):
+            LOG.info('user requests shutdown')
+            raise actors.Exit
 
     def check_terminated(self):
         """Check for terminated child processes."""
