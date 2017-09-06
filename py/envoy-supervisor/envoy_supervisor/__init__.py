@@ -113,9 +113,10 @@ class ApiServerComponent(components.Component):
 
 class ApiHandlerComponent(components.Component):
 
-    require = (
-        components.ARGS,
+    require = components.make_fqname_tuple(
+        __name__,
         components.EXIT_STACK,
+        'supervisor',
     )
 
     provide = components.make_fqname_tuple(
@@ -124,8 +125,26 @@ class ApiHandlerComponent(components.Component):
         'request_queue',
     )
 
+    def make(self, require):
+
+        # At the moment we just use a plain queue.
+        request_queue = queues.Queue()
+        require.exit_stack.callback(request_queue.close)
+
+        handler = api_handler(request_queue, require.supervisor)
+        require.exit_stack.callback(wait_actor, handler)
+
+        return handler, request_queue
+
+
+class SupervisorComponent(components.Component):
+
+    require = components.ARGS
+
+    provide = components.make_fqname_tuple(__name__, 'supervisor')
+
     def add_arguments(self, parser):
-        group = parser.add_argument_group(__name__ + '/handler')
+        group = parser.add_argument_group(__name__ + '/supervisor')
         group.add_argument(
             '--envoy', type=Path, metavar='PATH',
             default=Path('/usr/local/bin/envoy'),
@@ -141,19 +160,10 @@ class ApiHandlerComponent(components.Component):
             parser.error('--envoy expect a file: %s' % args.envoy)
 
     def make(self, require):
-
-        # At the moment we just use a plain queue.
-        request_queue = queues.Queue()
-        require.exit_stack.callback(request_queue.close)
-
-        handler = api_handler(
-            request_queue,
-            require.args.envoy,
-            require.args.envoy_arg or (),
+        return EnvoySupervisor(
+            envoy_path=require.args.envoy,
+            envoy_args=require.args.envoy_arg or (),
         )
-        require.exit_stack.callback(wait_actor, handler)
-
-        return handler, request_queue
 
 
 @cli.command(API_NAME)
@@ -202,12 +212,12 @@ def signal_handler(signal_queue, request_queue):
     LOG.info('exit')
 
 
-@actors.OneShotActor.from_func('handler')
-def api_handler(request_queue, envoy_path, envoy_args):
+@actors.OneShotActor.from_func
+def api_handler(request_queue, supervisor):
 
     LOG.info('start serving requests')
 
-    with EnvoySupervisor(envoy_path, envoy_args) as supervisor:
+    with supervisor:
 
         # Whitelist methods that can be called from remote.
         methods = {
@@ -264,7 +274,7 @@ def api_handler(request_queue, envoy_path, envoy_args):
 
 class EnvoySupervisor:
 
-    def __init__(self, envoy_path, envoy_args):
+    def __init__(self, *, envoy_path, envoy_args):
         self.done = False
         self._envoy_path = str(envoy_path.resolve())
         self._envoy_args = []
