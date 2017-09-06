@@ -167,6 +167,8 @@ class OneShotActor:
         LOG.debug('start')
         try:
             result = self.actor_func(*args, **kwargs)
+        except Exit:
+            _deref(future_ref).set_result(None)
         except BaseException as exc:
             _deref(future_ref).set_exception(exc)
         else:
