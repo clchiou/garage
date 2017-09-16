@@ -247,7 +247,7 @@ def build(stub_cls, *,
 def make_maker(basename, capacity=0):
     """Return a default classmethod `make` that wraps `build`."""
 
-    names = names = utils.generate_names(name=basename)
+    names = utils.generate_names(name=basename)
 
     @classmethod
     def make(cls, *args, **kwargs):
