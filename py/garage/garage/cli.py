@@ -11,6 +11,7 @@ __all__ = [
     'command',
     'argument',
     'component',
+    'defaults',
     'sub_command_info',
     'sub_command',
     'verbosity',
