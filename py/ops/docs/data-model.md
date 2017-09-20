@@ -81,6 +81,24 @@ Here is an example of the pod description:
             ...
         ],
 
+        # Optional: Series of port allocations.
+        #
+        # You may specify more flexible port allocations here than in
+        # the "manifest" section (where you may only specify 1:1 port
+        # mapping).
+        "ports": [
+            {
+                # Required.
+                "name": "web",
+
+                # Required: A list of host ports that, at deploy time,
+                # ops picks an unallocated one, and assigns it to the
+                # pod.
+                "host-ports": [8443, 8444],
+            },
+            ...
+        ],
+
         # Required: The "abstract" Appc pod manifest.
         "manifest": {
             "acVersion": "0.8.10",

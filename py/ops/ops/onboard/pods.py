@@ -103,13 +103,30 @@ def deploy_create_pod_manifest(repo, pod):
     LOG.info('%s - create pod manifest', pod)
     scripts.ensure_directory(repo.get_pod_dir(pod))
 
-    # Deployment-time volume allocation
+    # Deployment-time volume allocation.
     get_volume_path = lambda volume: pod.pod_volumes_path / volume.name
 
-    # Deployment-time port allocation
+    # Deployment-time port allocation.
     ports = repo.get_ports()
     def get_host_port(port_name):
-        port_number = ports.next_available_port()
+
+        for port_allocation in pod.ports:
+            if port_allocation.name == port_name:
+                break
+        else:
+            port_allocation = None
+
+        if port_allocation:
+            for port_number in port_allocation.host_ports:
+                if not ports.is_allocated(port_number):
+                    break
+            else:
+                raise RuntimeError(
+                    'no host port reserved for %s is available' % port_name)
+
+        else:
+            port_number = ports.next_available_port()
+
         LOG.info('%s - allocate port %d for %s', pod, port_number, port_name)
         ports.register(ports.Port(
             pod_name=pod.name,

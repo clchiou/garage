@@ -20,7 +20,7 @@ class ReposTest(unittest.TestCase):
             }),
             ('pod-1', 1002, {
                 'ports': [
-                    {'name': 'http', 'hostPort': 8000},
+                    {'name': 'http', 'hostPort': 8001},
                     {'name': 'tcp', 'hostPort': 32766},
                 ],
             }),
@@ -28,13 +28,19 @@ class ReposTest(unittest.TestCase):
         self.assertEqual(
             [
                 ('pod-1', 1001, 'http', 8000),
-                ('pod-1', 1002, 'http', 8000),
                 ('pod-1', 1001, 'tcp', 30000),
+                ('pod-1', 1002, 'http', 8001),
                 ('pod-1', 1002, 'tcp', 32766),
             ],
             list(ports),
         )
         self.assertEqual(32766, ports._last_port)
+
+        self.assertTrue(ports.is_allocated(8000))
+        self.assertTrue(ports.is_allocated(8001))
+        self.assertTrue(ports.is_allocated(30000))
+        self.assertTrue(ports.is_allocated(32766))
+        self.assertFalse(ports.is_allocated(32767))
 
         # next_available_port is not stateful - may called repeatedly.
         self.assertEqual(32767, ports.next_available_port())
@@ -49,13 +55,14 @@ class ReposTest(unittest.TestCase):
         self.assertEqual(
             [
                 ('pod-1', 1001, 'http', 8000),
-                ('pod-1', 1002, 'http', 8000),
                 ('pod-1', 1001, 'tcp', 30000),
+                ('pod-1', 1002, 'http', 8001),
                 ('pod-1', 1002, 'tcp', 32766),
                 ('pod-1', 1003, 'scp', 32767),
             ],
             list(ports),
         )
+        self.assertTrue(ports.is_allocated(32767))
         self.assertEqual(32767, ports._last_port)
         self.assertEqual(30001, ports.next_available_port())
 

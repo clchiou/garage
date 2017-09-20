@@ -81,10 +81,10 @@ class PodsPortsTest(Fixture, unittest.TestCase):
             [
                 'test-ports-pod:1001 http 8000',
                 'test-ports-pod:1001 https 8443',
-                'test-ports-pod:1002 http 8000',
-                'test-ports-pod:1002 https 8443',
                 'test-ports-pod:1001 service1 30000',
                 'test-ports-pod:1001 service2 30001',
+                'test-ports-pod:1002 http 8001',
+                'test-ports-pod:1002 https 8444',
                 'test-ports-pod:1002 service1 30002',
                 'test-ports-pod:1002 service2 30003',
             ],
@@ -97,8 +97,8 @@ class PodsPortsTest(Fixture, unittest.TestCase):
         self.assertEqual(['test-ports-pod:1002'], self.list_pods())
         self.assertEqual(
             [
-                'test-ports-pod:1002 http 8000',
-                'test-ports-pod:1002 https 8443',
+                'test-ports-pod:1002 http 8001',
+                'test-ports-pod:1002 https 8444',
                 'test-ports-pod:1002 service1 30002',
                 'test-ports-pod:1002 service2 30003',
             ],
@@ -118,12 +118,12 @@ class PodsPortsTest(Fixture, unittest.TestCase):
             [
                 'test-ports-pod:1001 http 8000',
                 'test-ports-pod:1001 https 8443',
-                'test-ports-pod:1002 http 8000',
-                'test-ports-pod:1002 https 8443',
-                'test-ports-pod:1002 service1 30002',
-                'test-ports-pod:1002 service2 30003',
                 'test-ports-pod:1001 service1 30004',
                 'test-ports-pod:1001 service2 30005',
+                'test-ports-pod:1002 http 8001',
+                'test-ports-pod:1002 https 8444',
+                'test-ports-pod:1002 service1 30002',
+                'test-ports-pod:1002 service2 30003',
             ],
             self.list_ports(),
         )
@@ -135,6 +135,24 @@ class PodsPortsTest(Fixture, unittest.TestCase):
         self.undeploy('test-ports-pod:1002')
         self.assertEqual([], self.list_pods())
         self.assertEqual([], self.list_ports())
+
+    def test_0008_redeploy_v1002(self):
+        self.deploy(self.testdata_path / 'test_pods_ports/1002.json')
+        self.assertEqual(
+            [
+                'test-ports-pod:1002',
+            ],
+            self.list_pods(),
+        )
+        self.assertEqual(
+            [
+                'test-ports-pod:1002 http 8000',
+                'test-ports-pod:1002 https 8443',
+                'test-ports-pod:1002 service1 30000',
+                'test-ports-pod:1002 service2 30001',
+            ],
+            self.list_ports(),
+        )
 
 
 if __name__ == '__main__':

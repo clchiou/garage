@@ -103,14 +103,15 @@ class Pod(ModelObject):
         'systemd-units': ModelObject.is_type_of(list),
         'images': ModelObject.is_type_of(list),
         'volumes': ModelObject.is_type_of(list),
+        'ports': ModelObject.is_type_of(list),
         'manifest': ModelObject.is_type_of(dict),
     }
 
     def __init__(self, pod_data, pod_path):
         """Create a pod object.
 
-           pod_data: Data loaded from pod.json.
-           pod_path: Path to the directory of the pod.
+        pod_data: Data loaded from pod.json.
+        pod_path: Path to the directory of the pod.
         """
         self.path = pod_path
 
@@ -127,6 +128,8 @@ class Pod(ModelObject):
             Image(data, self) for data in pod_data.get('images', ()))
         self.volumes = tuple(
             Volume(data, self) for data in pod_data.get('volumes', ()))
+        self.ports = tuple(
+            Port(data) for data in pod_data.get('ports', ()))
 
         self.manifest = pod_data['manifest']
 
@@ -136,7 +139,7 @@ class Pod(ModelObject):
     def to_pod_data(self):
         """Do a "reverse" of __init__.
 
-           This returns a shallow copy - be careful if you modify it!
+        This returns a shallow copy - be careful if you modify it!
         """
         return {
             'name': self.name,
@@ -145,13 +148,14 @@ class Pod(ModelObject):
                 map(SystemdUnit.to_pod_data, self.systemd_units)),
             'images': list(map(Image.to_pod_data, self.images)),
             'volumes': list(map(Volume.to_pod_data, self.volumes)),
+            'ports': list(map(Port.to_pod_data, self.ports)),
             'manifest': self.manifest,
         }
 
     def morph_into_local_pod(self, pod_path):
         """Change paths under the assumption that this pod is entirely
-           stored locally in a pod directory (all URI properties will be
-           unset).
+        stored locally in a pod directory (all URI properties will be
+        unset).
         """
         self.path = pod_path
         for unit in self.systemd_units:
@@ -163,25 +167,25 @@ class Pod(ModelObject):
 
     def make_local_pod(self, pod_path):
         """Make another pod object at a local directory, assuming that
-           all URIs "do not exist".
+        all URIs "do not exist".
 
-           This is useful if this pod object is loaded from a deploy
-           bundle, and we are copying everything the a pod directory.
+        This is useful if this pod object is loaded from a deploy
+        bundle, and we are copying everything the a pod directory.
         """
         pod = Pod(self.to_pod_data(), pod_path)
         pod.morph_into_local_pod(pod.path)
         return pod
 
-    def make_manifest(self, *,
-                      # Provide deployment-time information
-                      get_volume_path,
-                      get_host_port):
+    def make_manifest(
+            self, *,
+            # Provide deployment-time information.
+            get_volume_path, get_host_port):
         """Make Appc pod manifest."""
 
-        # Make a copy before modifying it
+        # Make a copy before modifying it.
         manifest = copy.deepcopy(self.manifest)
 
-        # Insert volume source path
+        # Insert volume source path.
         appc_volumes = {
             appc_volume['name']: appc_volume
             for appc_volume in manifest.get('volumes', ())
@@ -196,13 +200,13 @@ class Pod(ModelObject):
                 raise ValueError('volume source was set: %s' % volume.name)
             appc_volume['source'] = str(get_volume_path(volume))
 
-        # Collect port names from apps
+        # Collect port names from apps.
         port_names = set()
         for app in manifest.get('apps', ()):
             for port in app.get('app', {}).get('ports', ()):
                 port_names.add(port['name'])
 
-        # Insert host ports
+        # Insert host ports.
         if port_names:
             ports = manifest.setdefault('ports', [])
             defined_port_names = frozenset(port['name'] for port in ports)
@@ -245,21 +249,21 @@ class Pod(ModelObject):
 class SystemdUnit(ModelObject):
     """A SystemdUnit object has these properties:
 
-       * unit_name
-       * instances:
-         If this unit is templated, it's an array of instantiated unit
-         names, or else it is an empty array
-       * unit_names:
-         If this unit is templated, it's an alias to instances, or else
-         it is an one element array of unit_name
+    * unit_name
+    * instances:
+      If this unit is templated, it's an array of instantiated unit
+      names, or else it is an empty array
+    * unit_names:
+      If this unit is templated, it's an alias to instances, or else it
+      is an one element array of unit_name
 
-       (Path under /etc/systemd/system)
-       * unit_path
-       * dropin_path
+    (Path under /etc/systemd/system)
+    * unit_path
+    * dropin_path
 
-       (One of the two must be present)
-       * unit_file_path: Path to the unit file
-       * unit_file_uri: URI of the unit file
+    (One of the two must be present)
+    * unit_file_path: Path to the unit file
+    * unit_file_uri: URI of the unit file
     """
 
     FIELDS = {
@@ -375,7 +379,7 @@ class Image(ModelObject):
 
     def morph_into_local_pod(self, pod_path):
         # Assume first 16 characters of sha512 is sufficient to avoid
-        # name conflicts
+        # name conflicts.
         new_name = self.id[:(7+16)]
         if self.image_path:
             self._image = os.path.join(
@@ -436,6 +440,24 @@ class Volume(ModelObject):
             self.data_uri = None
 
 
+class Port(ModelObject):
+
+    FIELDS = {
+        'name': (ModelObject.is_type_of(str), ModelObject.is_ac_name),
+        'host-ports': ModelObject.is_type_of(list),
+    }
+
+    def __init__(self, port_data):
+        self.name = port_data['name']
+        self.host_ports = port_data['host-ports']
+
+    def to_pod_data(self):
+        return {
+            'name': self.name,
+            'host-ports': list(self.host_ports),
+        }
+
+
 URI_SCHEME_PATTERN = re.compile(r'(\w+)://')
 
 
@@ -444,6 +466,6 @@ def is_uri(path_or_uri, uri_schemes):
     if match:
         if match.group(1) not in uri_schemes:
             raise ValueError('unsupported uri scheme: %s' % match.group(1))
-        return True  # Assume it's URI
+        return True  # Assume it's a URI.
     else:
         return False

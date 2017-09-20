@@ -36,6 +36,12 @@ class AppTest(PrepareForeman, unittest.TestCase):
                 protocol='udp',
                 port=40000,
             ),
+            pods.Port(
+                name='ftp',
+                protocol='udp',
+                port=21,
+                host_ports=(1021, 1022, 1023),
+            ),
         ],
     )
 
@@ -81,6 +87,11 @@ class AppTest(PrepareForeman, unittest.TestCase):
                 'port': 40000,
                 'protocol': 'udp',
             },
+            {
+                'name': 'ftp',
+                'port': 21,
+                'protocol': 'udp',
+            },
         ],
     }
 
@@ -121,6 +132,11 @@ class AppTest(PrepareForeman, unittest.TestCase):
             {
                 'name': 'health',
                 'port': 40000,
+                'protocol': 'udp',
+            },
+            {
+                'name': 'ftp',
+                'port': 21,
                 'protocol': 'udp',
             },
         ],
@@ -228,6 +244,12 @@ class AppTest(PrepareForeman, unittest.TestCase):
                 'name': 'log',
                 'user': 'nobody',
                 'group': 'nogroup',
+            },
+        ],
+        'ports': [
+            {
+                'name': 'ftp',
+                'host-ports': [1021, 1022, 1023],
             },
         ],
         'manifest': POD_MANIFEST,

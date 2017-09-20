@@ -39,6 +39,7 @@ class ModelsTest(unittest.TestCase):
                 systemd_units=(),
                 images=(),
                 volumes=(),
+                ports=(),
                 manifest={},
             ),
             pod,
@@ -84,6 +85,12 @@ class ModelsTest(unittest.TestCase):
                         'name': 'volume-2',
                         'data': 'http://host/path/to/data.tar.gz?y=3',
                         'checksum': 'sha512-ghi',
+                    },
+                ],
+                'ports': [
+                    {
+                        'name': 'web',
+                        'host-ports': [443],
                     },
                 ],
                 'manifest': {
@@ -145,6 +152,12 @@ class ModelsTest(unittest.TestCase):
                         'name': 'volume-2',
                         'data': 'volume-data/volume-2.tar.gz',
                         'checksum': 'sha512-ghi',
+                    },
+                ],
+                'ports': [
+                    {
+                        'name': 'web',
+                        'host-ports': [443],
                     },
                 ],
                 'manifest': {

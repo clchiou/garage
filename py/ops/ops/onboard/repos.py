@@ -136,14 +136,14 @@ class Repo:
 class Ports:
     """Index of port number allocations.
 
-       Port numbers of this range [30000, 32768) are reserved for
-       allocation at deployment time.  It is guaranteed that allocated
-       port numbers are unique among all deployed pods so that reverting
-       a pod version would not result in port number conflicts.
+    Port numbers of this range [30000, 32768) are reserved for
+    allocation at deployment time.  It is guaranteed that allocated port
+    numbers are unique among all deployed pods so that reverting a pod
+    version would not result in port number conflicts.
 
-       On the other hand, port numbers out of this range are expected to
-       be assigned statically in pod manifests - they might conflict if
-       not planned and coordinated carefully.
+    On the other hand, port numbers out of this range are expected to be
+    assigned statically in pod manifests - they might conflict if not
+    planned and coordinated carefully.
     """
 
     PORT_MIN = 30000
@@ -159,7 +159,7 @@ class Ports:
     def __init__(self, pods_and_manifests):
         """Build index from generated pod manifest of deployed pods."""
         self._allocated_ports = {}
-        self._static_ports = []
+        self._static_ports = {}
         for pod_name, pod_version, manifest in pods_and_manifests:
             for port_data in manifest.get('ports', ()):
                 port = self.Port(
@@ -173,16 +173,19 @@ class Ports:
                         raise ValueError('duplicated port: {}'.format(port))
                     self._allocated_ports[port.port] = port
                 else:
-                    self._static_ports.append(port)
+                    if port.port in self._static_ports:
+                        raise ValueError('duplicated port: {}'.format(port))
+                    self._static_ports[port.port] = port
         if self._allocated_ports:
             self._last_port = max(self._allocated_ports)
         else:
             self._last_port = -1
 
     def __iter__(self):
-        yield from self._static_ports
-        for port in sorted(self._allocated_ports):
-            yield self._allocated_ports[port]
+        ports = list(self._static_ports.values())
+        ports.extend(self._allocated_ports.values())
+        ports.sort()
+        yield from ports
 
     def next_available_port(self):
         """Return next unallocated port number."""
@@ -203,9 +206,13 @@ class Ports:
 
     def register(self, port):
         """Claim a port as allocated."""
-        if not self.PORT_MIN <= port.port < self.PORT_MAX:
-            raise ValueError('not in reserved port range: {}'.format(port))
-        if port.port in self._allocated_ports:
+        if self.is_allocated(port.port):
             raise ValueError('port has been allocated: {}'.format(port))
         self._allocated_ports[port.port] = port
         self._last_port = max(self._last_port, port.port)
+
+    def is_allocated(self, port_number):
+        return (
+            port_number in self._static_ports or
+            port_number in self._allocated_ports
+        )

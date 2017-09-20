@@ -382,7 +382,7 @@ class Port(ModelObject):
         ('protocol', None),
         ('port', None),
         ('host_port', None),
-        # TODO: Add `count` field.
+        ('host_ports', None),
     ]
 
     def __init__(
@@ -390,13 +390,27 @@ class Port(ModelObject):
             name,
             protocol,
             port,
-            host_port=None):
+            host_port=None, host_ports=()):
         self.name = self._ensure_ac_name(name)
         if protocol not in ('tcp', 'udp'):
             raise ValueError('unsupported protocol: %s' % protocol)
         self.protocol = protocol
         self.port = port
+        if host_port is not None and host_ports:
+            raise ValueError(
+                'both host_port and host_ports are set: %r, %r' %
+                (host_port, host_ports),
+            )
         self.host_port = host_port
+        self.host_ports = host_ports
+
+    def get_pod_object_entry(self):
+        if not self.host_ports:
+            raise AssertionError('no host ports')
+        return {
+            'name': self.name,
+            'host-ports': list(self.host_ports),
+        }
 
     def get_pod_manifest_entry_port(self):
         """Return declared port (for app entry)."""
@@ -690,6 +704,12 @@ class Pod(ModelObject):
             'volumes': [
                 volume.get_pod_object_entry()
                 for volume in self.volumes
+            ],
+            'ports': [
+                port.get_pod_object_entry()
+                for image in self.images
+                for port in image.app.ports
+                if port.host_ports
             ],
         }
 
