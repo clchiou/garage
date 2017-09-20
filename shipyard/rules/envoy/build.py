@@ -1,11 +1,9 @@
-"""Build envoy image and pod."""
+"""Build envoy image."""
 
 from foreman import define_parameter, rule
 
 from garage import asserts
 from garage import scripts
-
-from templates import pods
 
 
 (define_parameter('version')
@@ -55,31 +53,3 @@ def trim_usr(parameters):
     with scripts.using_sudo():
         scripts.rm(rootfs / 'usr/lib', recursive=True)
         scripts.rm(rootfs / 'usr/local/lib', recursive=True)
-
-
-@pods.app_specifier
-def envoy_app(parameters):
-    """Default App object for envoy container image."""
-    return pods.App(
-        name='envoy',
-        exec=['/usr/local/bin/envoy'],
-    )
-
-
-@pods.image_specifier
-def envoy_image(parameters):
-    """Default envoy container image."""
-    return pods.Image(
-        name='envoy',
-        app=parameters['envoy_app'],
-    )
-
-
-# TODO: Build pod (where should I pull configuration file from?).
-
-
-envoy_image.specify_image.depend('envoy_app/specify_app')
-
-
-envoy_image.write_manifest.depend('trim_usr')
-envoy_image.write_manifest.depend('tapeout')
