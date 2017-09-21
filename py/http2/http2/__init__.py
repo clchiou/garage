@@ -203,7 +203,14 @@ class Session:
             LOG.info('session=%s: connection is closed', self._id)
             return False
 
-        rc = nghttp2_session_mem_recv(self._session, data, len(data))
+        try:
+            rc = nghttp2_session_mem_recv(self._session, data, len(data))
+        except Nghttp2Error as exc:
+            if exc.error_code == NGHTTP2_ERR_BAD_CLIENT_MAGIC:
+                LOG.warning('session=%s: bad client magic', self._id)
+                return False
+            raise
+
         if rc != len(data):
             # In the current implementation, nghttp2_session_mem_recv
             # always tries to processes all input data normally.
