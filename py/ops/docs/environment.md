@@ -35,6 +35,9 @@ assume the paths under an environment directory.
   * `openvpn/clients`: (generated) client credentials
   * `openvpn/servers`: (generated) server credentials
 * `scripts/env.sh`: set up the environment
+* `shipyard/...`: data for shipyard builders
+  * `shipyard/image-data/...`
+  * `shipyard/volume-data/...`
 * `pods/...`: deployment bundles of pods
 
 ### User data configuration file
