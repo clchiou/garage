@@ -2,6 +2,7 @@ __all__ = [
     'Session',
     'SessionError',
     'Stream',
+    'StreamClosed',
     # HTTP/2 entities
     'Request',
     'Response',
@@ -64,6 +65,10 @@ class SessionError(Exception):
     pass
 
 
+class StreamClosed(SessionError):
+    pass
+
+
 class Method(enum.Enum):
     OPTIONS = b'OPTIONS'
     GET = b'GET'
@@ -83,9 +88,9 @@ class Scheme(enum.Enum):
 class Session:
     """Represent an HTTP/2 session to the server.
 
-       You spawn a serve() task which will process the HTTP/2 traffic,
-       and you interact with the serve() task via the public interface
-       of the Session object.
+    You spawn a serve() task which will process the HTTP/2 traffic, and
+    you interact with the serve() task via the public interface of the
+    Session object.
     """
 
     INCOMING_BUFFER_SIZE = 65536  # TCP packet <= 64KB
@@ -471,7 +476,11 @@ class Stream:
 
     def __init__(self, session, stream_id):
 
+        # Store a copy of session ID so that we may print stream even
+        # after the session is clsoed.
+        self._session_id = session._id
         self._id = stream_id
+
         self._session = session  # Cyclic reference :(
 
         self.request = None
@@ -479,6 +488,13 @@ class Stream:
         self._data_chunks = []
 
         self.response = None  # Own response
+
+    def __str__(self):
+        return '<Stream session=%s stream=%d>' % (self._session_id, self._id)
+
+    # For these callbacks (the `_on_X` methods), Session should not call
+    # them after the stream is closed; otherwise it is a bug, and thus
+    # we raise AssertionError.
 
     def _on_header(self, name, values):
         asserts.not_none(self._session)
@@ -504,17 +520,22 @@ class Stream:
 
     def _on_close(self, error_code):
         asserts.not_none(self._session)
-        LOG.debug('session=%s, stream=%d: close due to %d',
-                  self._session._id, self._id, error_code)
+        LOG.debug('%s: close due to %d', self, error_code)
         self._session = None  # Break cycle
+
+    # For the submit_X methods below, it is possible that that are
+    # called after the stream is closed; thus we throw StreamClosed.
+
+    def _ensure_not_closed(self):
+        if self._session is None:
+            raise StreamClosed
 
     # Non-blocking version of submit() that should be called in the
     # Session object's callback functions.
     def _submit_response_nowait(self, response):
-        asserts.not_none(self._session)
+        self._ensure_not_closed()
         asserts.in_(self.response, (None, response))
-        LOG.debug('session=%s, stream=%d: submit response',
-                  self._session._id, self._id)
+        LOG.debug('%s: submit response', self)
         owners = []
         nva, nvlen = response._make_headers(self._session, owners)
         try:
@@ -537,11 +558,10 @@ class Stream:
     async def submit_push_promise(self, request, response):
         """Push resource to client.
 
-           Note that this must be used before submit().
+        Note that this must be used before submit().
         """
-        asserts.not_none(self._session)
-        LOG.debug('session=%s, stream=%d: submit push promise',
-                  self._session._id, self._id)
+        self._ensure_not_closed()
+        LOG.debug('%s: submit push promise', self)
 
         owners = []
         nva, nvlen = request._make_headers(self._session, owners)
@@ -553,8 +573,7 @@ class Stream:
             nva, nvlen,
             None,
         )
-        LOG.debug('session=%s, stream=%d: push promise stream: %d',
-                  self._session._id, self._id, promised_stream_id)
+        LOG.debug('%s: push promise stream: %d', self, promised_stream_id)
 
         promised_stream = self._session._make_stream(promised_stream_id)
         promised_stream.response = response
@@ -562,7 +581,7 @@ class Stream:
         await self._session._sendall()
 
     async def submit_rst_stream(self, error_code=NGHTTP2_INTERNAL_ERROR):
-        asserts.not_none(self._session)
+        self._ensure_not_closed()
         self._session._rst_stream(self._id, error_code)
         await self._session._sendall()
 

@@ -92,17 +92,31 @@ class Server:
                 )
 
     async def _run_handler(self, stream):
-        LOG.info('%s %s', stream.request.method.name, stream.request.path)
+        LOG.info(
+            '%s: %s %s',
+            stream, stream.request.method.name, stream.request.path,
+        )
         try:
             async with curio.timeout_after(self.timeout):
                 await self.handler(stream)
+        except http2.StreamClosed:
+            LOG.warning(
+                'stream is closed: %s: %s %s',
+                stream, stream.request.method.name, stream.request.path,
+            )
         except HttpError as exc:
             if isinstance(exc, ClientError):
                 LOG.warning(
-                    'request handler rejects request because %s: %r',
-                    exc, self.handler, exc_info=True)
+                    'request handler rejects request because %s: %s: %s %s',
+                    exc,
+                    stream, stream.request.method.name, stream.request.path,
+                    exc_info=True,
+                )
             else:
-                LOG.exception('request handler errs: %r', self.handler)
+                LOG.exception(
+                    'request handler throws: %s: %s %s',
+                    stream, stream.request.method.name, stream.request.path,
+                )
             # If a response has been submitted, at this point all we can
             # do is rst_stream
             if stream.response:
@@ -110,7 +124,10 @@ class Server:
             else:
                 await stream.submit_response(exc.as_response())
         except Exception:
-            LOG.exception('request handler errs: %r', self.handler)
+            LOG.exception(
+                'request handler errs: %s: %s %s',
+                stream, stream.request.method.name, stream.request.path,
+            )
             # If a response has been submitted, at this point all we can
             # do is rst_stream
             if stream.response:
