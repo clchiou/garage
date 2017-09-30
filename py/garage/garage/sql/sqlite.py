@@ -25,9 +25,9 @@ def create_engine(
         dbapi_connection.isolation_level = None
         # Enable foreign key.
         cursor = dbapi_connection.cursor()
-        cursor.execute("PRAGMA foreign_keys = ON")
+        cursor.execute('PRAGMA foreign_keys = ON')
         for name, value in pragmas:
-            cursor.execute("PRAGMA %s = %s" % (name, value))
+            cursor.execute('PRAGMA %s = %s' % (name, value))
         cursor.close()
 
     @sqlalchemy.event.listens_for(engine, 'begin')
