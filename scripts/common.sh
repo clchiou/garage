@@ -34,6 +34,21 @@ trace_exec() {
   "${@}"
 }
 
+confirm_continue() {
+  if ! tty -s; then
+    return
+  fi
+  local decision
+  read -p 'continue? [yN]: ' decision
+  case "${decision}" in
+    [Yy]*)
+      return;;
+    *)
+      show 'quit!'
+      exit;;
+  esac
+}
+
 confirm_exec() {
   if tty -s; then
     local decision
