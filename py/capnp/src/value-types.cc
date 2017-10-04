@@ -115,7 +115,7 @@ struct VoidFromPythonNone {
 
 // Convert capnp::Void to Python None
 struct VoidToPythonNone {
-  static PyObject* convert(const capnp::Void& void_) { return Py_None; }
+  static PyObject* convert(const capnp::Void& void_) { Py_RETURN_NONE; }
 };
 
 // Convert kj and capnp string-like object to Python str
@@ -151,7 +151,7 @@ struct MaybeToPython {
   static PyObject* convert(kj::Maybe<T> maybe) {
     KJ_IF_MAYBE(ptr, maybe) { return boost::python::incref(boost::python::object(*ptr).ptr()); }
     else {
-      return Py_None;
+      Py_RETURN_NONE;
     }
   }
 };
