@@ -105,33 +105,43 @@ class Server:
                 stream, stream.request.method.name, stream.request.path,
             )
         except HttpError as exc:
+            response = exc.as_response()
             if isinstance(exc, ClientError):
                 LOG.warning(
-                    'request handler rejects request because %s: %s: %s %s',
+                    'request handler rejects request because %s: %s: %s %s %s',
                     exc,
                     stream, stream.request.method.name, stream.request.path,
+                    response.status,
                     exc_info=True,
                 )
             else:
                 LOG.exception(
-                    'request handler throws: %s: %s %s',
+                    'request handler throws: %s: %s %s %s',
                     stream, stream.request.method.name, stream.request.path,
+                    response.status,
                 )
-            # If a response has been submitted, at this point all we can
-            # do is rst_stream
-            if stream.response:
-                await stream.submit_rst_stream()
-            else:
-                await stream.submit_response(exc.as_response())
+            await self._submit_error(stream, response)
         except Exception:
             LOG.exception(
                 'request handler errs: %s: %s %s',
                 stream, stream.request.method.name, stream.request.path,
             )
-            # If a response has been submitted, at this point all we can
-            # do is rst_stream
+            await self._submit_error(
+                stream,
+                http2.Response(status=http2.Status.INTERNAL_SERVER_ERROR),
+            )
+
+    async def _submit_error(self, stream, response):
+        try:
             if stream.response:
+                # If a response has been submitted, at this point all we can
+                # do is rst_stream.
                 await stream.submit_rst_stream()
             else:
-                await stream.submit_response(
-                    http2.Response(status=http2.Status.INTERNAL_SERVER_ERROR))
+                await stream.submit_response(response)
+        except http2.StreamClosed:
+            LOG.warning(
+                'stream is closed before error could be sent: %s: %s %s %s',
+                stream, stream.request.method.name, stream.request.path,
+                response.status,
+            )
