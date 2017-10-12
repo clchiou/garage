@@ -477,11 +477,13 @@ def _actor_message_loop_impl(msg_queue, future_ref):
                 # and carry on.
                 LOG.error('cannot append message %r due to %r',
                           ret.message_data, exc)
+            del ret
         except BaseException as exc:
             _deref(msg.future_ref).set_exception(exc)
             raise
         else:
             _deref(msg.future_ref).set_result(result)
+            del result
         del msg
 
 
