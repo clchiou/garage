@@ -27,4 +27,4 @@ async def device(socket1, socket2):
         pass
     finally:
         if not future.done():
-            warnings.warn('actor %s is still running', stub._name)
+            warnings.warn('actor %s is still running' % stub._name)
