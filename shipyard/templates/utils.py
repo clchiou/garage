@@ -4,6 +4,7 @@ __all__ = [
     'parse_common_args',
     'tapeout_files',
     'write_json_to',
+    'render_template',
 ]
 
 import functools
@@ -60,3 +61,32 @@ def write_json_to(obj, path):
     with scripts.ensure_path(path).open('w') as json_file:
         json_file.write(json.dumps(obj, indent=4, sort_keys=True))
         json_file.write('\n')
+
+
+def render_template(
+        parameters, *,
+        template_path,
+        template_dirs=(),
+        template_vars=(),
+        output_path):
+    """Render a template file (with Mako)."""
+    cmd = [
+        scripts.ensure_file(
+            parameters['//host/cpython:python'],
+        ),
+        scripts.ensure_file(
+            parameters['//base:root'] /
+            'shipyard/scripts/render-template',
+        ),
+    ]
+    for dir_path in template_dirs:
+        cmd.append('--template-dir')
+        cmd.append(dir_path)
+    for name, value in template_vars:
+        cmd.append('--template-var')
+        cmd.append(name)
+        cmd.append(json.dumps(value))
+    cmd.append('--output')
+    cmd.append(output_path.absolute())
+    cmd.append(template_path.absolute())
+    scripts.execute(cmd)
