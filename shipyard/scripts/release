@@ -64,6 +64,10 @@ def parse_podv(podv):
 )
 @argument_kind
 @cli.argument(
+    '--default', metavar='PATH',
+    help='provide default values to the instruction',
+)
+@cli.argument(
     'podv', help='set versioned pod label (format: "//label@version")',
 )
 @cli.argument(
@@ -79,6 +83,16 @@ def generate_instruction(args: ARGS):
         ('rule', args.rule),
         ('revisions', []),
     ])
+    if args.default:
+        # Restrict default to these fields.
+        default = yaml.load(Path(args.default).read_text())
+        for block_name in ('images', 'volumes', 'parameters'):
+            block = default.get(block_name)
+            if block:
+                instruction_data[block_name] = OrderedDict(
+                    (name, block[name])
+                    for name in sorted(block)
+                )
 
     revisions = instruction_data['revisions']
     source_repos = [('git', ROOT)]
