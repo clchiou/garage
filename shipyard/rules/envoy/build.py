@@ -1,9 +1,11 @@
-"""Build envoy image."""
+"""Build (standard) envoy image."""
 
 from foreman import define_parameter, rule
 
 from garage import asserts
 from garage import scripts
+
+from templates import pods
 
 
 (define_parameter('version')
@@ -53,3 +55,57 @@ def trim_usr(parameters):
     with scripts.using_sudo():
         scripts.rm(rootfs / 'usr/lib', recursive=True)
         scripts.rm(rootfs / 'usr/local/lib', recursive=True)
+
+
+@pods.app_specifier
+def envoy_app(parameters):
+    return pods.App(
+        name='envoy',
+        exec=[
+            '/usr/local/bin/envoy',
+            '--config-path', '/srv/envoy/config.yaml',
+        ],
+        # XXX: /dev/console is only writable by root unfortunately.
+        user='root', group='root',
+        volumes=[
+            pods.Volume(
+                name='envoy-volume',
+                path='/srv/envoy',
+                data='envoy-volume/envoy-config.tar.gz',
+            ),
+        ],
+        ports=[
+            # Serve HTTPS on host port 443.
+            pods.Port(
+                name='web',
+                protocol='tcp',
+                port=8443,
+                host_port=443,
+            ),
+            # Serve admin interface on an deploy-time allocated port.
+            pods.Port(
+                name='admin',
+                protocol='tcp',
+                port=9000,
+            ),
+        ],
+    )
+
+
+@pods.image_specifier
+def envoy_image(parameters):
+    return pods.Image(
+        name='envoy',
+        app=parameters['envoy_app'],
+        # XXX: envoy needs writable access to /dev/shm for the hot
+        # restart shared memory region (although I am not using that
+        # feature, it seems not possible to disable that).
+        read_only_rootfs=False,
+    )
+
+
+envoy_image.specify_image.depend('envoy_app/specify_app')
+
+
+envoy_image.write_manifest.depend('trim_usr')
+envoy_image.write_manifest.depend('tapeout')
