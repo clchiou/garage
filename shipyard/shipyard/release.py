@@ -113,6 +113,7 @@ class ReleaseRepo:
             return SimpleInstruction(
                 kind='pods',
                 rule=rule, target=pod, version=version,
+                parameters=parameters,
             )
 
     def _make_pod_instruction(self, data, rule, pod, version, parameters):
