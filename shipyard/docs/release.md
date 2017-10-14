@@ -129,6 +129,10 @@ rule: python_pod/build_pod
 # files in the shipyard.
 # volumes:
 #   "//some/package:volume_name": volume_version
+
+# You may specify parameters as well.
+# parameters:
+#  "//some/package:parameter_name": parameter_value
 ```
 
 You may generate a release instruction with this command:

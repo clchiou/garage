@@ -87,13 +87,24 @@ class ReleaseRepo:
         pod = data.get('pod', pod)
         version = data.get('version', version)
 
+        parameters = [
+            (Label.parse(label, implicit_path=rule.path), value)
+            for label, value in sorted(data.get('parameters', {}).items())
+        ]
+        parameters.sort()
+
         rule_type = self.rules.get_rule(rule).annotations.get('rule-type')
         if rule_type == 'build_pod':
-            return self._make_pod_instruction(data, rule, pod, version)
+            return self._make_pod_instruction(
+                data,
+                rule, pod, version,
+                parameters,
+            )
         elif rule_type == 'build_volume':
             return SimpleInstruction(
                 kind='volumes',
                 rule=rule, target=pod, version=version,
+                parameters=parameters,
             )
         else:
             # FIXME: This is probably confusing: although this is not a
@@ -104,7 +115,7 @@ class ReleaseRepo:
                 rule=rule, target=pod, version=version,
             )
 
-    def _make_pod_instruction(self, data, rule, pod, version):
+    def _make_pod_instruction(self, data, rule, pod, version, parameters):
 
         self._check_pod(rule, pod)
 
@@ -134,6 +145,7 @@ class ReleaseRepo:
                 parse_label(l1): parse_label(l2)
                 for l1, l2 in pod_parameter.default['volume_mapping']
             },
+            parameters=parameters,
         )
 
         self._add_default_images(instruction, build_image_rules)
@@ -266,6 +278,7 @@ class PodInstruction:
         # Map volume label to version.
         self.volumes = kwargs.pop('volumes')
         self.volume_mapping = kwargs.pop('volume_mapping')
+        self.parameters = kwargs.pop('parameters')
         if kwargs:
             raise ValueError('unknown names: %s' % ', '.join(sorted(kwargs)))
 
@@ -329,11 +342,14 @@ class PodInstruction:
         version_label = self._get_version_label(repo, self.image_rules[image])
 
         with tempfile.TemporaryDirectory() as build_dir:
-            builder.build(self.image_rules[image], extra_args=[
-                '--build-name', build_name,
-                '--parameter', '%s=%s' % (version_label, self.version),
-                '--output', build_dir,
-            ])
+            builder.build(self.image_rules[image], extra_args=add_parameters(
+                [
+                    '--build-name', build_name,
+                    '--parameter', '%s=%s' % (version_label, self.version),
+                    '--output', build_dir,
+                ],
+                self.parameters,
+            ))
             scripts.mkdir(image_path.parent)
             scripts.cp(
                 Path(build_dir) / image.name, image_path,
@@ -356,11 +372,14 @@ class PodInstruction:
                 scripts.mkdir(build_dir / image.name)
                 scripts.cp(image_path / 'sha512', build_dir / image.name)
 
-            builder.build(self.rule, extra_args=[
-                '--build-name', build_name,
-                '--parameter', '%s=%s' % (version_label, self.version),
-                '--output', build_dir,
-            ])
+            builder.build(self.rule, extra_args=add_parameters(
+                [
+                    '--build-name', build_name,
+                    '--parameter', '%s=%s' % (version_label, self.version),
+                    '--output', build_dir,
+                ],
+                self.parameters,
+            ))
 
             # Undo the workaround.
             for image in self.images:
@@ -400,11 +419,12 @@ class PodInstruction:
 class SimpleInstruction:
     """Release instruction of a single build rule."""
 
-    def __init__(self, *, kind, rule, target, version):
+    def __init__(self, *, kind, rule, target, version, parameters):
         self.kind = kind
         self.rule = rule
         self.target = target
         self.version = version
+        self.parameters = parameters
 
     def __str__(self):
         return '%s@%s' % (self.target, self.version)
@@ -416,10 +436,13 @@ class SimpleInstruction:
             repo.root / self.kind /
             self.target.path / self.target.name / self.version
         )
-        builder.build(self.rule, extra_args=[
-            '--build-name', build_name,
-            '--output', output_path,
-        ])
+        builder.build(self.rule, extra_args=add_parameters(
+            [
+                '--build-name', build_name,
+                '--output', output_path,
+            ],
+            self.parameters,
+        ))
         return True
 
 
@@ -477,3 +500,10 @@ def get_hg_stamp(path):
         dirty = bool(dirty.strip())
 
     return url, revision, dirty
+
+
+def add_parameters(extra_args, parameters):
+    for label, value in parameters:
+        extra_args.append('--parameter')
+        extra_args.append('%s=%s' % (label, value))
+    return extra_args
