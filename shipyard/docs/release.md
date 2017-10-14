@@ -127,6 +127,12 @@ rule: python_pod/build_pod
 # occasionally you may want to include data volumes as well.  Note that
 # the labels here refer to files under the `volumes` directory, not to
 # files in the shipyard.
+#
+# NOTE: This may feel strange, but if the volume is mapped, you should
+# put the map-from volume here, not map-to volume; for example, if
+# //package:volume is mapped to //staging-package:staging-volume, you
+# should put //package:volume here.
+#
 # volumes:
 #   "//some/package:volume_name": volume_version
 
