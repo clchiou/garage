@@ -5,10 +5,12 @@ __all__ = [
     'tapeout_files',
     'write_json_to',
     'render_template',
+    'render_template_to_path',
 ]
 
 import functools
 import json
+import tempfile
 
 from garage import scripts
 
@@ -63,7 +65,14 @@ def write_json_to(obj, path):
         json_file.write('\n')
 
 
-def render_template(
+def render_template(parameters, **kwargs):
+    with tempfile.NamedTemporaryFile() as output:
+        output_path = scripts.ensure_path(output.name)
+        render_template_to_path(parameters, output_path=output_path, **kwargs)
+        return output_path.read_text()
+
+
+def render_template_to_path(
         parameters, *,
         template_path,
         template_dirs=(),
@@ -87,6 +96,6 @@ def render_template(
         cmd.append(name)
         cmd.append(json.dumps(value))
     cmd.append('--output')
-    cmd.append(output_path.absolute())
-    cmd.append(template_path.absolute())
+    cmd.append(output_path)
+    cmd.append(template_path)
     scripts.execute(cmd)
