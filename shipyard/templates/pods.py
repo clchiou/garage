@@ -656,17 +656,20 @@ class Pod(ModelObject):
         ('version', None),
         ('images', [Image]),
         ('systemd_units', [SystemdUnit]),
+        ('volume_mapping', None),
     ]
 
     def __init__(
             self, *,
             name, version=None,
             images=None,
-            systemd_units=None):
+            systemd_units=None,
+            volume_mapping=None):
         self.name = self._ensure_ac_name(name)
         self._version = version
         self.images = images or []
         self.systemd_units = systemd_units or []
+        self.volume_mapping = volume_mapping or []
         self._volumes = None
 
     @property

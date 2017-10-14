@@ -108,23 +108,31 @@ class ReleaseRepo:
 
         self._check_pod(rule, pod)
 
+        pod_parameter = self._get_pod_parameter(rule)
+
         build_image_rules = shipyard.get_build_image_rules(
             self.rules,
             self.rules.get_rule(rule),
         )
+
+        parse_label = lambda l: Label.parse(l, implicit_path=rule.path)
 
         instruction = PodInstruction(
             rule=rule,
             pod=pod,
             version=version,
             images={
-                Label.parse(label, implicit_path=rule.path): version
+                parse_label(label): version
                 for label, version in data.get('images', {}).items()
             },
             image_rules={},  # Set it in _add_default_images()
             volumes={
-                Label.parse(label, implicit_path=rule.path): version
+                parse_label(label): version
                 for label, version in data.get('volumes', {}).items()
+            },
+            volume_mapping={
+                parse_label(l1): parse_label(l2)
+                for l1, l2 in pod_parameter.default['volume_mapping']
             },
         )
 
@@ -185,12 +193,16 @@ class ReleaseRepo:
 
         return rule, pod, version
 
-    def _check_pod(self, rule, pod):
-        pod2 = self.rules.get_rule(rule)
-        pod2 = self.rules.get_parameter(
-            pod2.annotations['pod-parameter'],
-            implicit_path=pod2.label.path,
+    def _get_pod_parameter(self, rule):
+        pod = self.rules.get_rule(rule)
+        pod = self.rules.get_parameter(
+            pod.annotations['pod-parameter'],
+            implicit_path=pod.label.path,
         )
+        return pod
+
+    def _check_pod(self, rule, pod):
+        pod2 = self._get_pod_parameter(rule)
         pod2 = Label.parse_name(rule.path, pod2.default['name'])
         if pod2 != pod:
             fmt = 'pod from build file differs from instruction: %s != %s'
@@ -253,6 +265,7 @@ class PodInstruction:
         self.image_rules = kwargs.pop('image_rules')
         # Map volume label to version.
         self.volumes = kwargs.pop('volumes')
+        self.volume_mapping = kwargs.pop('volume_mapping')
         if kwargs:
             raise ValueError('unknown names: %s' % ', '.join(sorted(kwargs)))
 
@@ -271,9 +284,12 @@ class PodInstruction:
         # Check if all volumes are present
         okay = True
         for volume in sorted(self.volumes):
-            if not self._get_volume_path(repo, volume).exists():
-                volume_lv = '%s@%s' % (volume, self.volumes[volume])
-                LOG.error('volume does not exist: %s', volume_lv)
+            path = self._get_volume_path(repo, volume)
+            if not path.exists():
+                LOG.error(
+                    'volume does not exist: %s@%s %s',
+                    volume, self.volumes[volume], path
+                )
                 okay = False
         if not okay:
             return False
@@ -296,8 +312,10 @@ class PodInstruction:
                 image.path / image.name / self.images[image])
 
     def _get_volume_path(self, repo, volume):
-        return (repo.root / 'volumes' /
-                volume.path / volume.name / self.volumes[volume])
+        version = self.volumes[volume]
+        if volume in self.volume_mapping:
+            volume = self.volume_mapping[volume]
+        return repo.root / 'volumes' / volume.path / volume.name / version
 
     def _build_image(self, repo, builder, build_name, image):
         image_lv = '%s@%s' % (image, self.images[image])
