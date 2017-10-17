@@ -6,10 +6,10 @@ from templates import common
 
 
 common.define_archive(
-    uri='http://download.oracle.com/otn-pub/java/jdk/8u144-b01/090f390dda5b47b9b721c7dfaa008135/jdk-8u144-linux-x64.tar.gz',
-    filename='jdk-8u144-linux-x64.tar.gz',
-    output='jdk1.8.0_144',
-    checksum='md5-2d59a3add1f213cd249a67684d4aeb83',
+    uri='http://download.oracle.com/otn-pub/java/jdk/8u152-b16/aa0333dd3019491ca4f6ddbe78cdb6d0/jdk-8u152-linux-x64.tar.gz',
+    filename='jdk-8u152-linux-x64.tar.gz',
+    output='jdk1.8.0_152',
+    checksum='md5-20dddd28ced3179685a5f58d3fcbecd8',
     wget_headers=['Cookie: oraclelicense=accept-securebackup-cookie'],
 )
 
