@@ -59,6 +59,8 @@ def tapeout(parameters):
     """
     with scripts.using_sudo():
         rootfs = parameters['//base:drydock/rootfs']
-        jre = parameters['jre']
+        srcs = [parameters['jre']]
         packages = parameters['packages']
-        scripts.rsync([jre, packages], rootfs, relative=True)
+        if packages.exists():
+            srcs.append(packages)
+        scripts.rsync(srcs, rootfs, relative=True)
