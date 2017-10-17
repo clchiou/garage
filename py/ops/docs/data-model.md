@@ -57,7 +57,7 @@ Here is an example of the pod description:
         #
         # Each volume entry here must have a corresponding host-kind
         # volume entry in the pod manifest of which "source" attribute
-        # must not be set and will be inserted by ops tool.
+        # might not be set (which will be inserted by ops tool).
         #
         # They are _NOT_ shared across versions of pod, though; if you
         # want to share stateful data across versions of pod, you

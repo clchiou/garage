@@ -196,9 +196,8 @@ class Pod(ModelObject):
                 raise ValueError('no pod volume: %s' % volume.name)
             if appc_volume['kind'] != 'host':
                 raise ValueError('non-host volume: %s' % volume.name)
-            if 'source' in appc_volume:
-                raise ValueError('volume source was set: %s' % volume.name)
-            appc_volume['source'] = str(get_volume_path(volume))
+            if 'source' not in appc_volume:
+                appc_volume['source'] = str(get_volume_path(volume))
 
         # Collect port names from apps.
         port_names = set()

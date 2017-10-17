@@ -20,8 +20,9 @@ class AppTest(PrepareForeman, unittest.TestCase):
             ),
             pods.Volume(
                 name='log',
-                path='/var/log',
+                path='/var/log/host',
                 read_only=False,
+                host_path='/var/log',
             ),
         ],
         ports=[
@@ -75,7 +76,7 @@ class AppTest(PrepareForeman, unittest.TestCase):
             },
             {
                 'name': 'log',
-                'path': '/var/log',
+                'path': '/var/log/host',
                 'readOnly': False,
             },
         ],
@@ -118,7 +119,7 @@ class AppTest(PrepareForeman, unittest.TestCase):
             },
             {
                 'name': 'log',
-                'path': '/var/log',
+                'path': '/var/log/host',
                 'readOnly': False,
             },
             {
@@ -205,6 +206,7 @@ class AppTest(PrepareForeman, unittest.TestCase):
             {
                 'name': 'log',
                 'kind': 'host',
+                'source': '/var/log',
                 'readOnly': False,
                 'recursive': True,
             },

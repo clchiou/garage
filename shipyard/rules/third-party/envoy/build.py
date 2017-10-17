@@ -107,5 +107,5 @@ def envoy_image(parameters):
 envoy_image.specify_image.depend('envoy_app/specify_app')
 
 
-envoy_image.write_manifest.depend('trim_usr')
 envoy_image.write_manifest.depend('tapeout')
+envoy_image.write_manifest.depend('trim_usr')

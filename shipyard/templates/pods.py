@@ -331,6 +331,7 @@ class Volume(ModelObject):
         ('user', None),
         ('group', None),
         ('data', None),
+        ('host_path', None),
         ('read_only', None),
     ]
 
@@ -340,12 +341,19 @@ class Volume(ModelObject):
             path,
             user='nobody', group='nogroup',
             data=None,
+            host_path=None,
             read_only=True):
+        if data and host_path:
+            raise ValueError(
+                'both data and host_path are set: %r, %r' %
+                (data, host_path)
+            )
         self.name = self._ensure_ac_name(name)
         self.path = path
         self.user = user
         self.group = group
         self.data = data
+        self.host_path = host_path
         self.read_only = read_only
 
     def get_pod_object_entry(self):
@@ -359,13 +367,16 @@ class Volume(ModelObject):
         return entry
 
     def get_pod_manifest_entry_volume(self):
-        return {
-            # 'source' will be inserted by ops tool.
+        entry = {
+            # 'source' may be inserted by ops tool.
             'name': self.name,
             'kind': 'host',
             'readOnly': self.read_only,
             'recursive': True,
         }
+        if self.host_path:
+            entry['source'] = self.host_path
+        return entry
 
     def get_pod_manifest_entry_mount_point(self):
         return {
