@@ -441,6 +441,7 @@ class App(ModelObject):
         ('environment', Environment),
         ('volumes', [Volume]),
         ('ports', [Port]),
+        ('extra_app_entry_fields', None),
     ]
 
     def __init__(
@@ -451,7 +452,8 @@ class App(ModelObject):
             working_directory='/',
             environment=None,
             volumes=(),
-            ports=()):
+            ports=(),
+            extra_app_entry_fields=None):
         self.name = self._ensure_ac_name(name)
         self.exec = exec or []
         self.user = user
@@ -460,9 +462,12 @@ class App(ModelObject):
         self.environment = environment or {}
         self.volumes = volumes or []
         self.ports = ports or []
+        self.extra_app_entry_fields = extra_app_entry_fields or {}
 
     def get_pod_manifest_entry(self):
-        return {
+        # Make a copy first (it's a shallow copy though).
+        entry = dict(self.extra_app_entry_fields)
+        entry.update({
             'exec': self.exec,
             'user': self.user,
             'group': self.group,
@@ -479,7 +484,8 @@ class App(ModelObject):
                 port.get_pod_manifest_entry_port()
                 for port in self.ports
             ],
-        }
+        })
+        return entry
 
 
 class Image(ModelObject):

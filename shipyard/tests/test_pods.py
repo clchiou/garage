@@ -43,6 +43,9 @@ class AppTest(PrepareForeman, unittest.TestCase):
                 host_ports=(1021, 1022, 1023),
             ),
         ],
+        extra_app_entry_fields={
+            'isolators': [],
+        },
     )
 
     TEST_IMAGE = pods.Image(
@@ -93,6 +96,7 @@ class AppTest(PrepareForeman, unittest.TestCase):
                 'protocol': 'udp',
             },
         ],
+        'isolators': [],
     }
 
     APP_ENTRY_2 = {
@@ -140,6 +144,7 @@ class AppTest(PrepareForeman, unittest.TestCase):
                 'protocol': 'udp',
             },
         ],
+        'isolators': [],
     }
 
     IMAGE_MANIFEST = {
