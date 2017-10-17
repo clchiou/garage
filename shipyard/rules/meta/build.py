@@ -9,6 +9,7 @@ from foreman import define_rule
  .depend('//py/capnp:build')
  .depend('//py/garage:build')
  .depend('//py/http2:build')
+ .depend('//py/imagetools:build')
  .depend('//py/nanomsg:build')
  .depend('//py/startup:build')
  .depend('//py/v8:build')
@@ -17,7 +18,7 @@ from foreman import define_rule
 
 
 (define_rule('third-party')
- .with_doc('Build all third-party packages, including all host tools.')
+ .with_doc('Build all third-party packages and third-party host tools.')
  .depend('configure-boost')
  .depend('//cc/boost:build')
  .depend('//cc/capnproto:build')
@@ -28,8 +29,11 @@ from foreman import define_rule
  .depend('//host/cpython:install')
  .depend('//host/cython:install')
  .depend('//host/depot_tools:install')
+ .depend('//host/gradle:install')
+ .depend('//host/java:install')
  .depend('//host/mako:install')
  .depend('//host/node:install')
+ .depend('//java/java:build')
  .depend('//py/cpython:build')
  .depend('//py/curio:build')
  .depend('//py/lxml:build')
