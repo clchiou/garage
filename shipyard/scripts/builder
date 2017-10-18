@@ -21,17 +21,33 @@ argument_common = cli.combine_decorators(
     cli.argument(
         '--builder', required=True, help='set builder image'),
     cli.argument(
-        '--volume', action='append', help='add data volume'),
+        '--env-var', metavar='NAME=VALUE', action='append',
+        help='add environment variable',
+    ),
+    cli.argument(
+        '--volume', action='append',
+        help='add data volume',
+    ),
     cli.argument(
         '--preserve-container', action='store_true',
-        help='do not remove container on exit'),
+        help='do not remove container on exit',
+    ),
 )
+
+
+def add_environment_variables(cmd, args):
+    if args.env_var:
+        for pair in args.env_var:
+            cmd.append('--env')
+            cmd.append(pair)
+    return cmd
 
 
 @cli.command(help='run builder interactively')
 @argument_common
-def run(builder, cmd):
+def run(args: ARGS, builder, cmd):
     """Run an interactive session in a builder container."""
+    add_environment_variables(cmd, args)
     cmd.extend(['--interactive', '--tty', builder, '/bin/bash'])
     scripts.execute(cmd)
     return 0
@@ -53,6 +69,7 @@ def run(builder, cmd):
     'rule', nargs='+', help='add build rule')
 def build(args: ARGS, builder, cmd):
     """Execute one or more build rules."""
+    add_environment_variables(cmd, args)
     if args.output:
         output = Path(args.output).resolve()
         cmd.extend(['--volume', '%s:/home/plumber/output:rw' % output])
