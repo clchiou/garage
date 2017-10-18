@@ -33,6 +33,7 @@ from foreman import define_rule
  .depend('//host/java:install')
  .depend('//host/mako:install')
  .depend('//host/node:install')
+ .depend('//host/ruamel.yaml:install')
  .depend('//java/java:build')
  .depend('//py/cpython:build')
  .depend('//py/curio:build')
