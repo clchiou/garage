@@ -244,7 +244,10 @@ class ReleaseRepo:
                 specify_app_rule.annotations['app-parameter'],
                 implicit_path=specify_app_rule.label.path,
             )
+            # Include only volumes that provide `data` path.
             for volume in app.default['volumes']:
+                if not volume.get('data'):
+                    continue
                 instruction.volumes.setdefault(
                     Label.parse_name(app.label.path, volume['name']),
                     instruction.version,
