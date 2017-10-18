@@ -124,7 +124,7 @@ def generate(args: ARGS):
             root=args.root,
             env=args.env,
             private_key=env_dir / 'keys/current/id_ecdsa',
-            inventory=env_dir / 'hosts',
+            inventory=env_dir / 'hosts.yaml',
         ),
     )
 

@@ -26,7 +26,7 @@ don't need to provide all file paths to scripts, and instead scripts may
 assume the paths under an environment directory.
 
 * `cloud-init/...`: cloud-init user data
-* `host`: Ansible inventory file
+* `hosts.yaml`: Ansible inventory file
 * `keys`: SSH keys
   * `keys/current`: symlink to the keys directory
   * `keys/YYYYMM`: keys directory
@@ -111,7 +111,7 @@ This example generates a staging-like environment.
   * `keys/current/id_ecdsa.pub`.
   * `cloud-init/staging-001.yaml`.
 
-* Add the new machine's IP address to `/etc/hosts`.
+* (Optional) Add the new machine's IP address to `/etc/hosts`.
 
 * Add the new machine's IP address to `~/.ssh/config`:
   ```
@@ -121,12 +121,16 @@ This example generates a staging-like environment.
       IdentityFile /path/to/ops/envs/staging/keys/current/id_ecdsa
   ```
 
-* Add the new machine to Ansible's `hosts` file:
+* Add the new machine to Ansible's `hosts.yaml` file:
   ```
   # Inventory of staging environment.
-
-  [staging]
-  staging-001
+  all:
+    hosts:
+      staging-001:
+    children:
+      staging:
+        hosts:
+          staging-001:
   ```
 
 * Now, use your configuration management tool to provision the new
