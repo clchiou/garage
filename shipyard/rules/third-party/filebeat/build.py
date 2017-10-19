@@ -43,6 +43,9 @@ def tapeout(parameters):
         scripts.mkdir(output / 'data')
         scripts.mkdir(output / 'logs')
 
+        # Filebeat requires most of the files owned by the same user.
+        scripts.execute(['chown', '--recursive', 'root:root', output])
+
 
 @rule
 @rule.depend('//base:tapeout')
@@ -65,29 +68,31 @@ def filebeat_app(parameters):
         # Filebeat needs read permission on log files.
         user='root', group='root',
         working_directory='/opt/filebeat',
+        # Filebeat requires most of the files owned by the same user.
         volumes=[
             pods.Volume(
                 name='config-volume',
                 path='/opt/filebeat/config',
                 data='config-volume/config.tar.gz',
-                # Filebeat requires config files owned by the same user
-                # running this process.
                 user='root', group='root',
             ),
             pods.Volume(
                 name='data-volume',
                 path='/opt/filebeat/data',
                 read_only=False,
+                user='root', group='root',
             ),
             pods.Volume(
                 name='logs-volume',
                 path='/opt/filebeat/logs',
                 read_only=False,
+                user='root', group='root',
             ),
             pods.Volume(
                 name='host-logs-volume',
                 path='/var/log',
                 host_path='/var/log',
+                user='root', group='root',
             ),
         ],
     )
