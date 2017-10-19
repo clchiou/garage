@@ -146,13 +146,18 @@ def image_specifier(specifier):
             LOG.warning('overwrite: %s', image_path)
         image_checksum_path = output_dir / 'sha512'
 
-        scripts.pipeline(
-            [
-                lambda: scripts.tar_create(
+        def tar_create():
+            # Use sudo in case there are non-readable files.
+            with scripts.using_sudo():
+                scripts.tar_create(
                     image_data_dir, ['manifest', 'rootfs'],
                     tarball_path=None,
                     tar_extra_flags=['--numeric-owner'],
-                ),
+                )
+
+        scripts.pipeline(
+            [
+                tar_create,
                 lambda: _compute_sha512(image_checksum_path),
                 lambda: scripts.gzip(speed=9),
             ],
