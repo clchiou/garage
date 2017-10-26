@@ -27,7 +27,7 @@ def tapeout(parameters):
 
     # Just a sanity check.
     asserts.in_(
-        'envoy version: %s/Clean/RELEASE' % parameters['version'],
+        'envoy  version: %s/Clean/RELEASE' % parameters['version'],
         (scripts.execute([envoy_path, '--version'], capture_stdout=True)
          .stdout.decode('ascii')),
     )
