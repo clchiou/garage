@@ -9,7 +9,7 @@ from pathlib import Path
 from garage import cli, scripts
 from garage.components import ARGS
 
-from . import deps, locks, pods, repos
+from . import alerts, deps, locks, pods, repos
 
 
 @cli.command('list', help='list allocated ports')
@@ -36,6 +36,7 @@ def ports(args: ARGS):
     help='set root directory of repos (default %(default)s)'
 )
 @cli.sub_command_info('entity', 'system entity to be operated on')
+@cli.sub_command(alerts.alerts)
 @cli.sub_command(deps.deps)
 @cli.sub_command(ports)
 @cli.sub_command(pods.pods)
