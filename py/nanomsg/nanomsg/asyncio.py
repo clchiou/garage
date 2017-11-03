@@ -5,7 +5,7 @@ __all__ = [
 import asyncio
 import ctypes
 
-from . import Message, SocketBase
+from . import Message, MessageBuffer, SocketBase
 from . import errors
 from .constants import AF_SP, NN_DONTWAIT
 
@@ -58,6 +58,8 @@ class Socket(SocketBase):
 
     async def send(self, message, size=None, flags=0):
         errors.asserts(self.fd is not None, 'expect socket.fd')
+        errors.asserts(
+            not isinstance(message, Message), 'send does not accept Message')
 
         if self.__sndfd_manager is None:
             self.__sndfd_manager = FileDescriptorManager(
@@ -69,8 +71,8 @@ class Socket(SocketBase):
 
         flags |= NN_DONTWAIT
 
-        if isinstance(message, Message):
-            transmit = super()._send_message
+        if isinstance(message, MessageBuffer):
+            transmit = super()._send_message_buffer
             args = (message, flags)
         else:
             if size is None:
@@ -83,6 +85,8 @@ class Socket(SocketBase):
 
     async def recv(self, message=None, size=None, flags=0):
         errors.asserts(self.fd is not None, 'expect socket.fd')
+        errors.asserts(
+            not isinstance(message, Message), 'recv does not accept Message')
 
         if self.__rcvfd_manager is None:
             self.__rcvfd_manager = FileDescriptorManager(
@@ -95,7 +99,7 @@ class Socket(SocketBase):
         flags |= NN_DONTWAIT
 
         if message is None:
-            transmit = super()._recv_message
+            transmit = super()._recv_message_buffer
             args = (ctypes.c_void_p(), flags)
         else:
             errors.asserts(size is not None, 'expect size')
