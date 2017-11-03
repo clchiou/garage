@@ -14,16 +14,13 @@ from . import (
 )
 from .constants import (
     AF_SP,
+    AF_SP_RAW,
     NN_DONTWAIT,
 )
 
 
-async def device(sock1, sock2):
-    """Re-implement nn_device without threads.
-
-    NOTE: This implementation lacks many sanity checks that nn_device
-    perform at the moment.
-    """
+async def device(sock1, sock2=None):
+    """Re-implement nn_device without threads."""
 
     def test_fd(sock, fd_name):
         try:
@@ -40,6 +37,19 @@ async def device(sock1, sock2):
                     await s2.sendmsg(message)
             except errors.EBADF:
                 break
+
+    errors.asserts(
+        sock1.options.nn_domain == AF_SP_RAW,
+        'expect raw socket: %r', sock1,
+    )
+    errors.asserts(
+        sock2 is None or sock2.options.nn_domain == AF_SP_RAW,
+        'expect raw socket: %r', sock2,
+    )
+
+    if sock2 is None:
+        await forward(sock1, sock1)
+        return
 
     async with curio.TaskGroup() as group:
         okay = False

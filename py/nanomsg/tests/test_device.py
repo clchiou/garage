@@ -8,6 +8,38 @@ import nanomsg as nn
 
 class DeviceTest(unittest.TestCase):
 
+    def test_loopback(self):
+
+        num_clients = 5
+        countdown = curio.Semaphore(1 - num_clients)
+
+        sockets = []
+
+        async def client(url, expect):
+            try:
+                async with make_sock(nn.NN_REQ) as sock, sock.connect(url):
+                    await sock.send(expect)
+                    with await sock.recv() as msg:
+                        actual = bytes(msg.as_memoryview())
+                        self.assertEqual(expect, actual)
+            finally:
+                await countdown.release()
+
+        async def run_device(url):
+            async with make_raw_sock(nn.NN_REP) as sock, sock.bind(url):
+                sockets.append(sock)
+                await device(sock)
+
+        async def run():
+            async with curio.TaskGroup() as group:
+                for i in range(num_clients):
+                    await group.spawn(client('inproc://loopback', b'%d' % i)),
+                await group.spawn(run_device('inproc://loopback'))
+                await group.spawn(close_sockets(countdown, sockets))
+                await group.join()
+
+        curio.run(run())
+
     def test_reqrep(self):
 
         num_clients = 5
