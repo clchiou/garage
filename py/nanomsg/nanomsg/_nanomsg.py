@@ -51,6 +51,12 @@ class nn_pollfd(ctypes.Structure):
 
 
 def _load(libnanomsg, global_vars, exposed_names):
+    #
+    # NOTE: Use c_void_p instead of c_char_p so that Python does not
+    # convert variables to/from bytes automatically.  While this might
+    # be inconvenient, it is probably the correct behavior (especially
+    # for nn_allocmsg allocated space).
+    #
     decls = [
         # Errors.
         ('nn_errno', [], c_int),

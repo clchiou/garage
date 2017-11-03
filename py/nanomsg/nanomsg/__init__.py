@@ -10,6 +10,7 @@ __all__ = [
 ]
 
 import ctypes
+import enum
 from collections import OrderedDict
 from functools import partial
 
@@ -46,7 +47,7 @@ class MessageBuffer:
     """Abstraction on top of nn_allocmsg, etc."""
 
     def __init__(self, size, allocation_type=0, *, buffer=None):
-        if buffer:
+        if buffer is not None:
             self.buffer, self.size = buffer, size
         else:
             self.buffer, self.size = None, 0
@@ -105,20 +106,26 @@ class MessageBuffer:
 class Message:
     """Abstraction on top of nn_msghdr.
 
-    nn_msghdr is pretty configurable, but here we only support one (most
-    common?) configuration that allocates both message header and body
-    with nn_allocmsg.
+    It manages two nanomsg structures: control and message; each
+    structure stored in of the three states:
+
+    * NULL: This is the initial state.  One special thing of this state
+      is that if the structure is passed to nn_recvmsg, nn_recvmsg will
+      allocate memory space for the structure (thus changing it to OWNER
+      state).
+
+    * OWNER: The space of the structure is allocated by nn_allocmsg, and
+      is owned will be released by Message.
+
+    * BORROWER.
     """
 
+    class ResourceState(enum.Enum):
+        NULL = 'NULL'
+        OWNER = 'OWNER'
+        BORROWER = 'BORROWER'
+
     def __init__(self):
-
-        self._control = ctypes.c_void_p()
-        self._message = ctypes.c_void_p()
-        self.size = 0
-
-        self._io_vector = _nn.nn_iovec()
-        self._io_vector.iov_base = ctypes.addressof(self._message)
-        self._io_vector.iov_len = NN_MSG
 
         self._message_header = _nn.nn_msghdr()
         ctypes.memset(
@@ -126,17 +133,56 @@ class Message:
             0x0,
             ctypes.sizeof(self._message_header),
         )
-        self._message_header.msg_control = ctypes.addressof(self._control)
-        self._message_header.msg_controllen = NN_MSG
+
+        self._io_vector = _nn.nn_iovec()
         self._message_header.msg_iov = ctypes.pointer(self._io_vector)
         self._message_header.msg_iovlen = 1
 
+        self._control = ctypes.c_void_p()
+        self._message_header.msg_control = ctypes.addressof(self._control)
+        self._message_header.msg_controllen = NN_MSG
+
+        self._message = ctypes.c_void_p()
+        self.size = 0
+        self._io_vector.iov_base = ctypes.addressof(self._message)
+        self._io_vector.iov_len = NN_MSG
+
+    @property
+    def _control_state(self):
+        if self._control is None:
+            return Message.ResourceState.BORROWER
+        elif self._control:
+            return Message.ResourceState.OWNER
+        else:
+            return Message.ResourceState.NULL
+
+    @property
+    def _message_state(self):
+        if self._message is None:
+            return Message.ResourceState.BORROWER
+        elif self._message:
+            return Message.ResourceState.OWNER
+        else:
+            return Message.ResourceState.NULL
+
     def __repr__(self):
-        return '<%s control 0x%016x, message 0x%016x, size 0x%x>' % (
+
+        cstate = self._control_state
+        if cstate is Message.ResourceState.BORROWER:
+            cptr = self._message_header.msg_control
+        else:
+            cptr = self._control.value or 0
+
+        mstate = self._message_state
+        if mstate is Message.ResourceState.BORROWER:
+            mptr = self._io_vector.iov_base
+        else:
+            mptr = self._message.value or 0
+
+        return '<%s control %s 0x%016x, message %s 0x%016x, size 0x%x>' % (
             self.__class__.__name__,
-            self._control.value or 0,
-            self._message.value or 0,
-            self.size,
+            cstate.name, cptr,
+            mstate.name, mptr, self.size,
         )
 
     def __enter__(self):
@@ -151,38 +197,89 @@ class Message:
 
     @property
     def nn_msghdr(self):
-        errors.asserts(
-            self._message_header is not None, 'expect non-None msghdr')
         return self._message_header
 
     def as_memoryview(self):
-        errors.asserts(self.size, 'expect non-zero message size')
+        if self._message_state is Message.ResourceState.BORROWER:
+            mptr = self._io_vector.iov_base
+        else:
+            mptr = self._message
         return _PyMemoryView_FromMemory(
-            self._message,
+            mptr,
             self.size,
             _PyBUF_READ | _PyBUF_WRITE,
         )
 
+    @staticmethod
+    def _addr_to_ptr(addr):
+        # This is idempotent (so it is safe even if addr is c_void_p).
+        return ctypes.cast(addr, ctypes.c_void_p)
+
+    @staticmethod
+    def _bytes_to_ptr(bytes_):
+        return ctypes.cast(ctypes.c_char_p(bytes_), ctypes.c_void_p)
+
+    def adopt_control(self, control, owner):
+        self._free_control()
+        if owner:
+            self._control = self._addr_to_ptr(control)
+            self._message_header.msg_control = ctypes.addressof(self._control)
+            self._message_header.msg_controllen = NN_MSG
+        else:
+            self._control = None
+            self._message_header.msg_control = self._bytes_to_ptr(control)
+            self._message_header.msg_controllen = len(control)
+
+    def adopt_message(self, message, size, owner):
+        self._free_message()
+        if owner:
+            self._message = self._addr_to_ptr(message)
+            self.size = size
+            self._io_vector.iov_base = ctypes.addressof(self._message)
+            self._io_vector.iov_len = NN_MSG
+        else:
+            self._message = None
+            self.size = size
+            self._io_vector.iov_base = self._bytes_to_ptr(message)
+            self._io_vector.iov_len = size
+
+    def _free_control(self):
+        rc = 0
+        if self._control_state is Message.ResourceState.OWNER:
+            rc = _nn.nn_freemsg(self._control)
+        self.disown_control()
+        errors.check(rc)
+
+    def _free_message(self):
+        rc = 0
+        if self._message_state is Message.ResourceState.OWNER:
+            rc = _nn.nn_freemsg(self._message)
+        self.disown_message()
+        errors.check(rc)
+
+    def disown_control(self):
+        state = self._control_state
+        control, self._control = self._control, ctypes.c_void_p()
+        self._message_header.msg_control = ctypes.addressof(self._control)
+        self._message_header.msg_controllen = NN_MSG
+        return control, state is Message.ResourceState.OWNER
+
+    def disown_message(self):
+        state = self._message_state
+        message, self._message = self._message, ctypes.c_void_p()
+        size, self.size = self.size, 0
+        self._io_vector.iov_base = ctypes.addressof(self._message)
+        self._io_vector.iov_len = NN_MSG
+        return message, size, state is Message.ResourceState.OWNER
+
     def disown(self):
-        self._control.value = None
-        self._message.value = None
-        self.size = 0
-        self._message_header = None
-        self._io_vector = None
+        return self.disown_control(), self.disown_message()
 
     def free(self):
-        self.size = 0
-        self._message_header = None
-        self._io_vector = None
-        rc1 = rc2 = 0
-        if self._control:
-            rc1 = _nn.nn_freemsg(self._control)
-            self._control.value = None
-        if self._message:
-            rc2 = _nn.nn_freemsg(self._message)
-            self._message.value = None
-        errors.check(rc1)
-        errors.check(rc2)
+        try:
+            self._free_control()
+        finally:
+            self._free_message()
 
 
 class SocketBase:
