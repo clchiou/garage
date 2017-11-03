@@ -3,9 +3,8 @@ __all__ = [
 ]
 
 import asyncio
-import ctypes
 
-from . import Message, MessageBuffer, SocketBase
+from . import SocketBase
 from . import errors
 from .constants import AF_SP, NN_DONTWAIT
 
@@ -57,10 +56,6 @@ class Socket(SocketBase):
         return super().__exit__(*exc_info)  # XXX: Would this block?
 
     async def send(self, message, size=None, flags=0):
-        errors.asserts(self.fd is not None, 'expect socket.fd')
-        errors.asserts(
-            not isinstance(message, Message), 'send does not accept Message')
-
         if self.__sndfd_manager is None:
             self.__sndfd_manager = FileDescriptorManager(
                 self.options.nn_sndfd,
@@ -68,26 +63,14 @@ class Socket(SocketBase):
                 self.__loop.add_reader,
                 self.__loop.remove_reader,
             )
-
-        flags |= NN_DONTWAIT
-
-        if isinstance(message, MessageBuffer):
-            transmit = super()._send_message_buffer
-            args = (message, flags)
-        else:
-            if size is None:
-                size = len(message)
-            transmit = super()._send_buffer
-            args = (message, size, flags)
-
         with self.__sndfd_manager:
-            return await self.__transmit(self.__sndfd_ready, transmit, args)
+            return await self.__transmit(
+                self.__sndfd_ready,
+                self._send,
+                (message, size, flags | NN_DONTWAIT),
+            )
 
     async def recv(self, message=None, size=None, flags=0):
-        errors.asserts(self.fd is not None, 'expect socket.fd')
-        errors.asserts(
-            not isinstance(message, Message), 'recv does not accept Message')
-
         if self.__rcvfd_manager is None:
             self.__rcvfd_manager = FileDescriptorManager(
                 self.options.nn_rcvfd,
@@ -95,19 +78,12 @@ class Socket(SocketBase):
                 self.__loop.add_reader,
                 self.__loop.remove_reader,
             )
-
-        flags |= NN_DONTWAIT
-
-        if message is None:
-            transmit = super()._recv_message_buffer
-            args = (ctypes.c_void_p(), flags)
-        else:
-            errors.asserts(size is not None, 'expect size')
-            transmit = super()._recv_buffer
-            args = (message, size, flags)
-
         with self.__rcvfd_manager:
-            return await self.__transmit(self.__rcvfd_ready, transmit, args)
+            return await self.__transmit(
+                self.__rcvfd_ready,
+                self._recv,
+                (message, size, flags | NN_DONTWAIT),
+            )
 
     async def __transmit(self, ready, transmit, args):
         while True:

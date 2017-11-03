@@ -354,31 +354,71 @@ class SocketBase:
     # Private data transmission methods that sub-classes may call.
     #
 
-    def _send_message_buffer(self, message, flags):
-        nbytes = self._send_buffer(message.buffer, NN_MSG, flags)
-        message.disown()
+    def _send(self, message, size, flags):
+        errors.asserts(self.fd is not None, 'expect socket.fd')
+        errors.asserts(
+            not isinstance(message, Message),
+            'send does not accept Message',
+        )
+        if isinstance(message, MessageBuffer):
+            errors.asserts(size is None, 'expect size is None')
+            size = NN_MSG
+            nbytes = errors.check(
+                _nn.nn_send(self.fd, message.buffer, size, flags))
+            message.disown()
+        else:
+            if size is None:
+                size = len(message)
+            nbytes = errors.check(
+                _nn.nn_send(self.fd, message, size, flags))
+        errors.asserts(
+            size in (NN_MSG, nbytes),
+            'expect sending %d bytes, not %d' % (size, nbytes),
+        )
         return nbytes
 
-    def _send_message(self, message, flags):
-        size = message.size
+    def _recv(self, message, size, flags):
+        errors.asserts(self.fd is not None, 'expect socket.fd')
+        errors.asserts(
+            not isinstance(message, Message),
+            'recv does not accept Message',
+        )
+        if message is None:
+            buffer = ctypes.c_void_p()
+            nbytes = errors.check(
+                _nn.nn_recv(self.fd, ctypes.byref(buffer), NN_MSG, flags))
+            return MessageBuffer(buffer=buffer, size=nbytes)
+        else:
+            errors.asserts(size is not None, 'expect size')
+            return errors.check(
+                _nn.nn_recv(self.fd, message, size, flags))
+
+    def _sendmsg(self, message, flags):
+        errors.asserts(self.fd is not None, 'expect socket.fd')
+        errors.asserts(
+            isinstance(message, Message),
+            'sendmsg only accepts Message',
+        )
+        errors.asserts(message.size, 'expect size')
         nbytes = errors.check(_nn.nn_sendmsg(
             self.fd,
-            ctypes.pointer(message.nn_msghdr),
+            ctypes.byref(message.nn_msghdr),
             flags,
         ))
+        size = message.size  # Copy size before disown clears it.
         message.disown()
-        if nbytes != size:
-            raise AssertionError('expect size = %d, not %d' % (size, nbytes))
+        errors.asserts(
+            size == nbytes,
+            'expect sending %d bytes, not %d' % (size, nbytes),
+        )
         return nbytes
 
-    def _send_buffer(self, buffer, size, flags):
-        return self.__transmit(_nn.nn_send, buffer, size, flags, True)
-
-    def _recv_message_buffer(self, void_p, flags):
-        nbytes = self._recv_buffer(ctypes.byref(void_p), NN_MSG, flags)
-        return MessageBuffer(buffer=void_p, size=nbytes)
-
-    def _recv_message(self, message, flags):
+    def _recvmsg(self, message, flags):
+        errors.asserts(self.fd is not None, 'expect socket.fd')
+        errors.asserts(
+            message is None or isinstance(message, Message),
+            'recvmsg only accepts Message',
+        )
         if message is None:
             message = Message()
             return_message = True
@@ -386,7 +426,7 @@ class SocketBase:
             return_message = False
         nbytes = errors.check(_nn.nn_recvmsg(
             self.fd,
-            ctypes.pointer(message.nn_msghdr),
+            ctypes.byref(message.nn_msghdr),
             flags | NN_DONTWAIT,
         ))
         message.size = nbytes
@@ -395,38 +435,20 @@ class SocketBase:
         else:
             return nbytes
 
-    def _recv_buffer(self, buffer, size, flags):
-        return self.__transmit(_nn.nn_recv, buffer, size, flags, False)
-
-    def __transmit(self, nn_func, buffer, size, flags, ensure_size):
-        nbytes = errors.check(nn_func(self.fd, buffer, size, flags))
-        if size != NN_MSG and nbytes != size and ensure_size:
-            raise AssertionError('expect size = %d, not %d' % (size, nbytes))
-        return nbytes
-
 
 class Socket(SocketBase):
 
     def send(self, message, size=None, flags=0):
-        errors.asserts(self.fd is not None, 'expect socket.fd')
-        errors.asserts(
-            not isinstance(message, Message), 'send does not accept Message')
-        if isinstance(message, MessageBuffer):
-            return self._send_message_buffer(message, flags)
-        else:
-            if size is None:
-                size = len(message)
-            return self._send_buffer(message, size, flags)
+        return self._send(message, size, flags)
 
     def recv(self, message=None, size=None, flags=0):
-        errors.asserts(self.fd is not None, 'expect socket.fd')
-        errors.asserts(
-            not isinstance(message, Message), 'recv does not accept Message')
-        if message is None:
-            return self._recv_message_buffer(ctypes.c_void_p(), flags)
-        else:
-            errors.asserts(size is not None, 'expect size')
-            return self._recv_buffer(message, size, flags)
+        return self._recv(message, size, flags)
+
+    def sendmsg(self, message, flags=0):
+        return self._sendmsg(message, flags)
+
+    def recvmsg(self, message=None, flags=0):
+        return self._recvmsg(message, flags)
 
 
 class EndpointBase:

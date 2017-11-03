@@ -4,14 +4,10 @@ __all__ = [
     'terminate',
 ]
 
-import ctypes
-
 import curio
 import curio.traps
 
 from . import (
-    Message,
-    MessageBuffer,
     SocketBase,
     errors,
     terminate as _terminate,
@@ -19,11 +15,6 @@ from . import (
 from .constants import (
     AF_SP,
     NN_DONTWAIT,
-    NN_MSG,
-)
-from ._nanomsg import (
-    nn_recvmsg,
-    nn_sendmsg,
 )
 
 
@@ -124,59 +115,30 @@ class Socket(SocketBase):
         super().close()
 
     async def send(self, message, size=None, flags=0):
-        errors.asserts(self.fd is not None, 'expect socket.fd')
-        errors.asserts(
-            not isinstance(message, Message), 'send does not accept Message')
-
-        flags |= NN_DONTWAIT
-
-        if isinstance(message, MessageBuffer):
-            transmit = super()._send_message_buffer
-            args = (message, flags)
-        else:
-            if size is None:
-                size = len(message)
-            transmit = super()._send_buffer
-            args = (message, size, flags)
-
-        return await self.__transmit(self.options.nn_sndfd, transmit, args)
-
-    async def recv(self, message=None, size=None, flags=0):
-        errors.asserts(self.fd is not None, 'expect socket.fd')
-        errors.asserts(
-            not isinstance(message, Message), 'recv does not accept Message')
-
-        flags |= NN_DONTWAIT
-
-        if message is None:
-            transmit = super()._recv_message_buffer
-            args = (ctypes.c_void_p(), flags)
-        else:
-            errors.asserts(size is not None, 'expect size')
-            transmit = super()._recv_buffer
-            args = (message, size, flags)
-
-        return await self.__transmit(self.options.nn_rcvfd, transmit, args)
-
-    async def sendmsg(self, message, flags=0):
-        errors.asserts(self.fd is not None, 'expect socket.fd')
-        errors.asserts(
-            isinstance(message, Message), 'sendmsg accepts only Message')
         return await self.__transmit(
             self.options.nn_sndfd,
-            self._send_message,
+            self._send,
+            (message, size, flags | NN_DONTWAIT),
+        )
+
+    async def recv(self, message=None, size=None, flags=0):
+        return await self.__transmit(
+            self.options.nn_rcvfd,
+            self._recv,
+            (message, size, flags | NN_DONTWAIT),
+        )
+
+    async def sendmsg(self, message, flags=0):
+        return await self.__transmit(
+            self.options.nn_sndfd,
+            self._sendmsg,
             (message, flags | NN_DONTWAIT),
         )
 
     async def recvmsg(self, message=None, flags=0):
-        errors.asserts(self.fd is not None, 'expect socket.fd')
-        errors.asserts(
-            message is None or isinstance(message, Message),
-            'recvmsg accepts only Message: %r', message,
-        )
         return await self.__transmit(
             self.options.nn_rcvfd,
-            self._recv_message,
+            self._recvmsg,
             (message, flags | NN_DONTWAIT),
         )
 
