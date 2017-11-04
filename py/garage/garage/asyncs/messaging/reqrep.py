@@ -146,6 +146,9 @@ async def server(
                 break
             with message:
                 response_message = nn.Message()
+                # NOTE: It is important to set control header in the
+                # response message from the request so that response can
+                # be correctly routed back to the right sender.
                 response_message.adopt_control(*message.disown_control())
                 request = bytes(message.as_memoryview())
 
