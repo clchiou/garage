@@ -45,7 +45,7 @@ class ReqrepTest(unittest.TestCase):
             client_socket.connect(self.url)
             client_queue = Queue()
             client_task = await stack.spawn(
-                reqrep.client(asyncs.Event(), client_socket, client_queue))
+                reqrep.client(asyncs.Event(), [client_socket], client_queue))
 
             server_socket.bind(self.url)
             server_queue = Queue()
@@ -71,7 +71,7 @@ class ReqrepTest(unittest.TestCase):
             socket.connect(self.url)
             queue = Queue()
             client_task = await stack.spawn(
-                reqrep.client(asyncs.Event(), socket, queue, timeout=0.01))
+                reqrep.client(asyncs.Event(), [socket], queue, timeout=0.01))
 
             response_future = Future()
             await queue.put((b'', response_future.promise()))

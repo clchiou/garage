@@ -145,7 +145,7 @@ class ClientComponent(components.Component):
 
         return (
             functools.partial(
-                reqrep.supervise_client,
+                reqrep.client,
                 graceful_exit=require.graceful_exit,
                 sockets=sockets,
                 request_queue=request_queue,

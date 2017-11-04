@@ -42,8 +42,12 @@ def _transform_error(exc):
         return exc
 
 
-async def client(graceful_exit, socket, request_queue, timeout=None):
+async def client(graceful_exit, sockets, request_queue, timeout=None):
     """Act as client-side in the reqrep protocol.
+
+    NOTE: Because we want end-to-end functionality (non-raw sockets), a
+    socket can only handle one request at a time; to overcome this, we
+    use a pool of sockets.
 
     In additional to handling requests, this waits for the graceful exit
     event and then clean up itself.
@@ -59,10 +63,11 @@ async def client(graceful_exit, socket, request_queue, timeout=None):
     and unblocks all blocked upstream tasks.
     """
 
-    asserts.equal(socket.options.nn_domain, nn.AF_SP)
-    asserts.equal(socket.options.nn_protocol, nn.NN_REQ)
+    for socket in sockets:
+        asserts.equal(socket.options.nn_domain, nn.AF_SP)
+        asserts.equal(socket.options.nn_protocol, nn.NN_REQ)
 
-    async def pump_requests():
+    async def pump_requests(socket):
         LOG.info('client: start sending requests to: %s', socket)
         while True:
 
@@ -96,9 +101,11 @@ async def client(graceful_exit, socket, request_queue, timeout=None):
         LOG.info('client: stop sending requests to: %s', socket)
 
     async with asyncs.TaskStack() as stack:
-        await stack.spawn(pump_requests())
+        for socket in sockets:
+            await stack.spawn(pump_requests(socket))
         stack.sync_callback(request_queue.close)
-        stack.sync_callback(socket.close)
+        for socket in sockets:
+            stack.sync_callback(socket.close)
         await stack.spawn(graceful_exit.wait())
         await (await stack.wait_any()).join()
 

@@ -52,7 +52,7 @@ async def echo_client(graceful_exit, port, message):
     async with Socket(protocol=nn.NN_REQ) as socket, TaskStack() as stack:
         socket.connect('tcp://127.0.0.1:%d' % port)
         queue = Queue()
-        await stack.spawn(reqrep.client(graceful_exit, socket, queue))
+        await stack.spawn(reqrep.client(graceful_exit, [socket], queue))
         async with Future() as response_future:
             await queue.put((request, response_future.promise()))
             response = await response_future.result()
