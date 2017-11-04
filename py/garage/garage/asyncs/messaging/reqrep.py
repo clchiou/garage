@@ -4,15 +4,16 @@ __all__ = [
     'client',
     'supervise_client',
     'server',
-    'supervise_server',
 ]
 
 import logging
+import time
 
 import curio
 
 import nanomsg as nn
 
+from garage import asserts
 from garage import asyncs
 from garage.asyncs import futures
 from garage.asyncs import queues
@@ -34,7 +35,7 @@ def _transform_error(exc):
         new_exc = Unavailable()
         new_exc.__cause__ = exc
         return new_exc
-    elif isinstance(exc, nn.EBADF):
+    elif isinstance(exc, (nn.EBADF, queues.Closed)):
         new_exc = Terminated()
         new_exc.__cause__ = exc
         return new_exc
@@ -113,91 +114,118 @@ async def client(socket, request_queue, *, timeout=None):
     LOG.info('client: exit')
 
 
-async def supervise_server(
-    *,
-    graceful_exit,
-    sockets,
-    request_queue,
-    timeout=None,
-    error_handler=None):
+async def server(
+    graceful_exit, socket, request_queue, timeout=None, error_handler=None):
 
-    """Wait for the graceful exit event and then clean up itself.
+    """Act as server-side in the reqrep protocol.
 
-    It will:
-    * Close socket so that the server task will not recv or send any
-      further requests.
+    NOTE: error_handler is not asynchronous because you should probably
+    send back error messages without being blocked indefinitely.
+
+    In additional to handling requests, this waits for the graceful exit
+    event and then clean up itself.
+
+    When cleaning up, it:
+    * Close socket so that the pump_requests will not recv new requests
+      and will exit.
     * Close the queue so that downstream will not dequeue any request.
 
     The requests still in the queue will be dropped (since socket is
     closed, their response cannot be sent back to the client).
     """
 
-    def close_queue():
-        num_dropped = len(request_queue.close(graceful=False))
-        if num_dropped:
-            LOG.info('server_supervisor: drop %d requests', num_dropped)
-
-    async with asyncs.TaskStack() as stack:
-
-        for socket in sockets:
-            await stack.spawn(server(
-                socket, request_queue,
-                timeout=timeout,
-                error_handler=error_handler,
-            ))
-
-        stack.sync_callback(close_queue)
-
-        for socket in sockets:
-            stack.sync_callback(socket.close)
-
-        await stack.spawn(graceful_exit.wait())
-
-        await (await stack.wait_any()).join()
-
-
-async def server(socket, request_queue, *, timeout=None, error_handler=None):
-    """Act as server-side in the reqrep protocol.
-
-    NOTE: error_handler is not asynchronous because you should probably
-    send back error messages without being blocked indefinitely.
-    """
+    asserts.equal(socket.options.nn_domain, nn.AF_SP_RAW)
+    asserts.equal(socket.options.nn_protocol, nn.NN_REP)
 
     if error_handler is None:
         error_handler = lambda *_: None
 
-    LOG.info('server: start receiving requests')
-    while True:
+    async def pump_requests(handlers):
+        LOG.info('server: start receiving requests from: %s', socket)
+        while True:
 
-        try:
-            with await socket.recv() as message:
+            try:
+                message = await socket.recvmsg()
+            except nn.EBADF:
+                break
+            with message:
+                response_message = nn.Message()
+                response_message.adopt_control(*message.disown_control())
                 request = bytes(message.as_memoryview())
-        except nn.EBADF:
-            break
+
+            # Enqueue request here rather than in handle_request so that
+            # pump_requests may apply back pressure to socket.
+            begin_time = time.perf_counter()
+            try:
+                response_future = futures.Future()
+                async with curio.timeout_after(timeout):
+                    await request_queue.put((
+                        request,
+                        response_future.promise(),
+                    ))
+            except Exception as exc:
+                await on_error(exc, request, response_message)
+                continue
+
+            await handlers.spawn(handle_request(
+                begin_time,
+                request,
+                response_future,
+                response_message,
+            ))
+
+        LOG.info('server: stop receiving requests from: %s', socket)
+
+    async def handle_request(
+        begin_time, request, response_future, response_message):
+
+        if timeout is not None:
+            remaining_time = timeout - (time.perf_counter() - begin_time)
+            if remaining_time <= 0:
+                response_future.cancel()
+                await on_error(Unavailable(), request, response_message)
+                return
+        else:
+            remaining_time = None
 
         try:
-            async with curio.timeout_after(timeout):
-                async with futures.Future() as response_future:
-                    try:
-                        await request_queue.put((
-                            request,
-                            response_future.promise(),
-                        ))
-                    except queues.Closed:
-                        LOG.debug('server: drop request: %r', request)
-                        break
-                    response = await response_future.result()
-
+            async with curio.timeout_after(remaining_time), response_future:
+                response = await response_future.result()
         except Exception as exc:
-            response = error_handler(request, _transform_error(exc))
-            if response is None:
-                raise
-            LOG.exception('server: err when processing request: %r', request)
+            await on_error(exc, request, response_message)
+        else:
+            await send_response(request, response, response_message)
 
+    async def on_error(exc, request, response_message):
+        LOG.exception('server: err when processing request: %r', request)
+        error_response = error_handler(request, _transform_error(exc))
+        if error_response is not None:
+            await send_response(request, error_response, response_message)
+
+    async def send_response(request, response, response_message):
+        response_message.adopt_message(response, len(response), False)
         try:
-            await socket.send(response)
+            await socket.sendmsg(response_message)
         except nn.EBADF:
             LOG.debug('server: drop response: %r, %r', request, response)
-            break
 
-    LOG.info('server: exit')
+    async def join_handlers(handlers):
+        async for handler in handlers:
+            if handler.exception:
+                LOG.error(
+                    'server: err in request handler',
+                    exc_info=handler.exception,
+                )
+
+    def close_queue():
+        num_dropped = len(request_queue.close(graceful=False))
+        if num_dropped:
+            LOG.info('server: drop %d requests', num_dropped)
+
+    async with asyncs.TaskSet() as handlers, asyncs.TaskStack() as stack:
+        await stack.spawn(join_handlers(handlers))
+        await stack.spawn(pump_requests(handlers))
+        stack.sync_callback(close_queue)
+        stack.sync_callback(socket.close)
+        await stack.spawn(graceful_exit.wait())
+        await (await stack.wait_any()).join()
