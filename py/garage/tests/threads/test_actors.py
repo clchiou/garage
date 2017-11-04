@@ -301,5 +301,22 @@ class OneShotActorTest(unittest.TestCase):
         self.assertEqual(15, stub._get_future().result())
 
 
+class StubPoolTest(unittest.TestCase):
+
+    def test_stub_pool(self):
+
+        pool = actors.StubPool([Greeter('John'), Greeter('Paul')])
+        self.assertEqual(
+            ['Hello John', 'Hello Paul'],
+            [pool.greet().result(), pool.greet().result()],
+        )
+
+        pool._kill()
+        pool._get_future().result()
+
+        with self.assertRaisesRegex(RuntimeError, 'no stub available'):
+            pool.greet()
+
+
 if __name__ == '__main__':
     unittest.main()

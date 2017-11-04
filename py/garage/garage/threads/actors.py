@@ -47,6 +47,7 @@ __all__ = [
     'Return',
     'OneShotActor',
     'Stub',
+    'StubPool',
     'method',
     'build',
     'make_maker',
@@ -176,6 +177,83 @@ class OneShotActor:
         else:
             _deref(future_ref).set_result(result)
         LOG.debug('exit')
+
+
+class StubPool:
+    """Manage a pool of same-type stubs.
+
+    This also fakes an appearance that as if it is a stub.
+    """
+
+    def __init__(self, stubs):
+
+        self._stubs = collections.deque(stubs)
+
+        self._name = '%s(%s)' % (
+            self.__class__.__name__,
+            ', '.join(stub._name for stub in self._stubs),
+        )
+
+        # This is pretty naive so far: the pool is "done" when all stubs
+        # are done, and it won't tell you whether actors err or not.
+        self.__lock = threading.Lock()
+        self.__counter = len(self._stubs)
+        self.__future = Future()
+        for stub in self._stubs:
+            stub._get_future().add_done_callback(self.__done_callback)
+
+        # Check at the end not at the beginning because actor threads
+        # may die during the __init__ function execution.
+        for stub in self._stubs:
+            if stub._get_future().done():
+                raise RuntimeError('actor is already dead: %s', stub._name)
+
+    def __done_callback(self, _):
+        with self.__lock:
+            self.__counter -= 1
+            if self.__counter <= 0:
+                self.__future.set_result(None)
+
+    def _next_stub(self):
+        # XXX: This implements a "naive" round-robin that it distributes
+        # work to actors regardless they are still busy or not, which
+        # might result in volatile latency distribution.
+        while self._stubs:
+            # Find next "alive" stub.
+            stub = self._stubs[0]
+            if not stub._get_future().done():
+                self._stubs.rotate(-1)
+                return stub
+            # We assume a stub should never exit, but bad things happen.
+            # Let's remove it and carry on.  (In the future we might
+            # re-spawn new stubs?)
+            exc = stub._get_future().exception()
+            if exc:
+                LOG.error('stub errs: %s', stub._name, exc_info=exc)
+            else:
+                LOG.error('stub exits: %s', stub._name)
+            self._stubs.popleft()
+        raise RuntimeError('no stub available')
+
+    def __getattr__(self, name):
+        asserts.precond(
+            not name.startswith('_'),
+            'not support `%s` attribute for now', name,
+        )
+        stub = self._next_stub()
+        return getattr(stub, name)
+
+    def _kill(self, graceful=True):
+        for stub in self._stubs:
+            stub._kill(graceful=graceful)
+
+    def _get_future(self):
+        return self.__future
+
+    def _send_message(self, func, args, kwargs, block=True, timeout=None):
+        stub = self._next_stub()
+        return stub._send_message(
+            func, args, kwargs, block=block, timeout=timeout)
 
 
 def method(func):

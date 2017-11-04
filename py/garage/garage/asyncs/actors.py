@@ -15,11 +15,11 @@ class StubAdapter:
     """
 
     def __init__(self, stub):
-        super().__setattr__('_stub', stub)
+        self._stub = stub
 
     def __getattr__(self, name):
         method = getattr(self._stub, name)
-        # Simple foolproof detection of non-message-sending access
+        # Simple foolproof detection of non-message-sending access.
         if name.startswith('_'):
             return method
         return lambda *args, **kwargs: \
