@@ -52,11 +52,12 @@ class Worker(actors.Stub, actor=_Worker):
 
 class WorkerPool:
 
-    worker_names = utils.generate_names(name='executor')
+    DEFAULT_WORKER_NAMES = utils.generate_names(name='executor')
 
-    def __init__(self):
+    def __init__(self, *, worker_names=None):
         self._lock = threading.Lock()
         self._pool = collections.deque()
+        self._worker_names = worker_names or WorkerPool.DEFAULT_WORKER_NAMES
 
     def __bool__(self):
         with self._lock:
@@ -79,9 +80,11 @@ class WorkerPool:
         """Called by executor to acquire more workers."""
         with self._lock:
             if not self._pool:
-                return actors.build(Worker,
-                                    name=next(self.worker_names),
-                                    set_pthread_name=True)
+                return actors.build(
+                    Worker,
+                    name=next(self._worker_names),
+                    set_pthread_name=True,
+                )
             return self._pool.popleft()
 
     def return_to_pool(self, workers):
