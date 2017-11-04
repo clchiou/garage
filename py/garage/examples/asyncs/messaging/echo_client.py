@@ -14,6 +14,7 @@ from garage.asyncs import TaskStack
 from garage.asyncs.futures import Future
 from garage.asyncs.messaging import reqrep
 from garage.asyncs.queues import Queue
+from garage.startups.asyncs.servers import GracefulExitComponent
 from garage.startups.asyncs.servers import ServerContainerComponent
 
 
@@ -22,7 +23,10 @@ LOG = logging.getLogger(__name__)
 
 class ClientComponent(components.Component):
 
-    require = components.ARGS
+    require = (
+        components.ARGS,
+        GracefulExitComponent.provide.graceful_exit,
+    )
 
     provide = ServerContainerComponent.require.make_server
 
@@ -36,16 +40,19 @@ class ClientComponent(components.Component):
             help="""set message contents""")
 
     def make(self, require):
-        return partial(echo_client, require.args.port, require.args.message)
+        return partial(
+            echo_client,
+            require.graceful_exit, require.args.port, require.args.message,
+        )
 
 
-async def echo_client(port, message):
+async def echo_client(graceful_exit, port, message):
     request = message.encode('utf8')
     LOG.info('connect to local TCP port: %d', port)
     async with Socket(protocol=nn.NN_REQ) as socket, TaskStack() as stack:
         socket.connect('tcp://127.0.0.1:%d' % port)
         queue = Queue()
-        await stack.spawn(reqrep.client(socket, queue))
+        await stack.spawn(reqrep.client(graceful_exit, socket, queue))
         async with Future() as response_future:
             await queue.put((request, response_future.promise()))
             response = await response_future.result()
