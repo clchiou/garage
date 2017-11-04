@@ -26,22 +26,6 @@ class ReqrepTest(unittest.TestCase):
         self.url = URL_BASE + str(random.randint(0, 65536))
 
     @synchronous
-    async def test_cancel_client(self):
-        socket = Socket(protocol=nn.NN_REQ)
-        async with socket, asyncs.TaskStack() as stack:
-            socket.connect(self.url)
-            queue = Queue()
-            client_task = await stack.spawn(reqrep.client(socket, queue))
-
-            response_future = Future()
-            await queue.put((b'', response_future.promise()))
-
-            await client_task.cancel()
-
-            self.assertTrue(response_future.running())
-            self.assertTrue(client_task.cancelled)
-
-    @synchronous
     async def test_cancel_server(self):
         socket = Socket(domain=nn.AF_SP_RAW, protocol=nn.NN_REP)
         async with socket, asyncs.TaskStack() as stack:
@@ -61,7 +45,7 @@ class ReqrepTest(unittest.TestCase):
             client_socket.connect(self.url)
             client_queue = Queue()
             client_task = await stack.spawn(
-                reqrep.client(client_socket, client_queue))
+                reqrep.client(asyncs.Event(), client_socket, client_queue))
 
             server_socket.bind(self.url)
             server_queue = Queue()
@@ -87,7 +71,7 @@ class ReqrepTest(unittest.TestCase):
             socket.connect(self.url)
             queue = Queue()
             client_task = await stack.spawn(
-                reqrep.client(socket, queue, timeout=0.01))
+                reqrep.client(asyncs.Event(), socket, queue, timeout=0.01))
 
             response_future = Future()
             await queue.put((b'', response_future.promise()))

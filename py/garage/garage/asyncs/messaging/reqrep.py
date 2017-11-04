@@ -2,7 +2,6 @@ __all__ = [
     'Terminated',
     'Unavailable',
     'client',
-    'supervise_client',
     'server',
 ]
 
@@ -43,17 +42,14 @@ def _transform_error(exc):
         return exc
 
 
-async def supervise_client(
-    *,
-    graceful_exit,
-    sockets,
-    request_queue,
-    timeout=None):
+async def client(graceful_exit, socket, request_queue, timeout=None):
+    """Act as client-side in the reqrep protocol.
 
-    """Wait for the graceful exit event and then clean up itself.
+    In additional to handling requests, this waits for the graceful exit
+    event and then clean up itself.
 
-    It will:
-    * Close socket so that the client task will not send any further
+    When cleaning up, it:
+    * Close socket so that pump_requests will not send any further
       requests.
     * Close the queue so that upstream will not enqueue any further
       requests.
@@ -63,55 +59,48 @@ async def supervise_client(
     and unblocks all blocked upstream tasks.
     """
 
-    async with asyncs.TaskStack() as stack:
+    asserts.equal(socket.options.nn_domain, nn.AF_SP)
+    asserts.equal(socket.options.nn_protocol, nn.NN_REQ)
 
-        for socket in sockets:
-            await stack.spawn(client(socket, request_queue, timeout=timeout))
+    async def pump_requests():
+        LOG.info('client: start sending requests to: %s', socket)
+        while True:
 
-        stack.sync_callback(request_queue.close)
+            try:
+                request, response_promise = await request_queue.get()
+            except queues.Closed:
+                break
 
-        for socket in sockets:
-            stack.sync_callback(socket.close)
+            if not response_promise.set_running_or_notify_cancel():
+                LOG.debug('client: drop request: %r', request)
+                continue
 
-        await stack.spawn(graceful_exit.wait())
+            try:
+                async with curio.timeout_after(timeout):
+                    await socket.send(request)
+                    with await socket.recv() as message:
+                        response = bytes(message.as_memoryview())
 
-        await (await stack.wait_any()).join()
+            except Exception as exc:
+                if response_promise.cancelled():
+                    LOG.exception(
+                        'client: err but request is cancelled: %r',
+                        request,
+                    )
+                else:
+                    response_promise.set_exception(_transform_error(exc))
 
-
-async def client(socket, request_queue, *, timeout=None):
-    """Act as client-side in the reqrep protocol."""
-
-    LOG.info('client: start sending requests')
-    while True:
-
-        try:
-            request, response_promise = await request_queue.get()
-        except queues.Closed:
-            break
-
-        if not response_promise.set_running_or_notify_cancel():
-            LOG.debug('client: drop request: %r', request)
-            continue
-
-        try:
-            async with curio.timeout_after(timeout):
-                await socket.send(request)
-                with await socket.recv() as message:
-                    response = bytes(message.as_memoryview())
-
-        except Exception as exc:
-            if response_promise.cancelled():
-                LOG.exception(
-                    'client: err but request is cancelled: %r',
-                    request,
-                )
             else:
-                response_promise.set_exception(_transform_error(exc))
+                response_promise.set_result(response)
 
-        else:
-            response_promise.set_result(response)
+        LOG.info('client: stop sending requests to: %s', socket)
 
-    LOG.info('client: exit')
+    async with asyncs.TaskStack() as stack:
+        await stack.spawn(pump_requests())
+        stack.sync_callback(request_queue.close)
+        stack.sync_callback(socket.close)
+        await stack.spawn(graceful_exit.wait())
+        await (await stack.wait_any()).join()
 
 
 async def server(
