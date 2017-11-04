@@ -97,9 +97,11 @@ class Return(Exception):
 
 
 class OneShotActor:
-    """A special kind of actor that processes one type of message and
-    processes one message only (but I would prefer not to use metaclass
-    in this simpler case).
+    """A special kind of actor for "one-shot" task.
+
+    It processes one type of message and one message only (thus the name
+    one-shot).  By the for, for this simpler case, I would prefer not to
+    use metaclass.
     """
 
     @classmethod
@@ -262,16 +264,15 @@ def make_maker(basename, capacity=0):
 
 
 def inject(args, kwargs, extra_args=None, extra_kwargs=None):
-    """Inject additional args/kwargs into the args/kwargs that will be
-       sent to the actor.
+    """Inject additional args/kwargs to actor's __init__.
 
-       In order to support build(), Stub.__init__ method's signature is
-       slightly more complex than you might expect.  If you would like
-       to override Stub.__init__, use this function to inject additional
-       args/kwargs that you would like to send to the actor's __init__.
+    In order to support build(), Stub.__init__ method's signature is
+    slightly more complex than you might expect.  If you would like to
+    override Stub.__init__, use this function to inject additional
+    args/kwargs that you would like to send to the actor's __init__.
 
-       You may use this to pass the stub object to the actor, but bear
-       in mind that this might cause unnecessary object retention.
+    You may use this to pass the stub object to the actor, but bear in
+    mind that this might cause unnecessary object retention.
     """
     if args and args[0] is BUILD:
         if extra_args:
@@ -307,8 +308,11 @@ class Stub(metaclass=_StubMeta):
     #
 
     def __init__(self, *args, **kwargs):
-        """Start the actor thread, and then block on actor object's
-           __init__ and re-raise the exception if it fails."""
+        """Initialize actor.
+
+        This starts the actor thread, and then blocks on actor object's
+        __init__ (and re-raise the exception if it fails).
+        """
         actor_cls = Stub.ACTORS.get(type(self))
         if not actor_cls:
             raise ActorError(
@@ -346,15 +350,14 @@ class Stub(metaclass=_StubMeta):
     def _kill(self, graceful=True):
         """Set the kill flag of the actor thread.
 
-           If graceful is True (the default), the actor will be dead
-           after it processes the remaining messages in the queue.
-           Otherwise it will be dead after it finishes processing the
-           current message.
+        If graceful is True (the default), the actor will be dead after
+        it processes the remaining messages in the queue.  Otherwise it
+        will be dead after it finishes processing the current message.
 
-           Note that this method does not block even when the queue is
-           full (in other words, you can't implement kill on top of the
-           normal message sending without the possibility that caller
-           being blocked).
+        Note that this method does not block even when the queue is full
+        (in other words, you can't implement kill on top of the normal
+        message sending without the possibility that caller being
+        blocked).
         """
         for msg in self.__msg_queue.close(graceful=graceful):
             _deref(msg.future_ref).cancel()
@@ -362,8 +365,8 @@ class Stub(metaclass=_StubMeta):
     def _get_future(self):
         """Return the future object that represents actor's liveness.
 
-           Note: Cancelling this future object is not going to kill this
-           actor.  You should call kill() instead.
+        Note: Cancelling this future object is not going to kill this
+        actor.  You should call kill() instead.
         """
         return self.__future
 
