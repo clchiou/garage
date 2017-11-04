@@ -169,13 +169,13 @@ class Message:
 
         cstate = self._control_state
         if cstate is Message.ResourceState.BORROWER:
-            cptr = self._message_header.msg_control
+            cptr = self._message_header.msg_control or 0
         else:
             cptr = self._control.value or 0
 
         mstate = self._message_state
         if mstate is Message.ResourceState.BORROWER:
-            mptr = self._io_vector.iov_base
+            mptr = self._io_vector.iov_base or 0
         else:
             mptr = self._message.value or 0
 
@@ -496,7 +496,6 @@ class SocketBase:
             isinstance(message, Message),
             'sendmsg only accepts Message',
         )
-        errors.asserts(message.size, 'expect size')
         nbytes = errors.check(_nn.nn_sendmsg(
             self.fd,
             ctypes.byref(message.nn_msghdr),
