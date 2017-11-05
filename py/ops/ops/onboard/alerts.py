@@ -4,6 +4,7 @@ __all__ = [
 
 from pathlib import Path
 import json
+import os
 import urllib.request
 
 from garage import asserts, cli, scripts
@@ -33,6 +34,10 @@ def _get(config, *fields):
 @cli.argument(
     '--level', choices=('info', 'good', 'warning', 'error'),
     help='set alert level'
+)
+@cli.argument(
+    '--hostname',
+    help='set hostname'
 )
 @cli.argument(
     '--systemd-service-result',
@@ -65,18 +70,30 @@ def send(args: ARGS):
     else:
         level = 'info'
 
+    hostname = args.hostname or os.uname().nodename
+
     message = {
         # Should we make these configurable?
         'username': 'ops-onboard',
         'icon_emoji': ':robot_face:',
         'attachments': [
             {
-                'fallback': '%s: %s' % (args.title, args.description),
+                'fallback': '%s: %s: %s' % (
+                    hostname,
+                    args.title,
+                    args.description,
+                ),
                 'color': SLACK_COLOR_TABLE[level],
                 'fields': [
                     {
                         'title': args.title,
                         'value': args.description,
+                        'short': True,
+                    },
+                    {
+                        'title': 'Host',
+                        'value': hostname,
+                        'short': True,
                     },
                 ],
             },
