@@ -40,6 +40,7 @@ class ClientComponent(components.Component):
             self, *,
             module_name=None, name_prefix=None,
             group=None, arg_prefix=None,
+            bind=(), connect=(),
             num_sockets=1,
             queue_capacity=32,
             timeout=2,  # Unit: seconds.
@@ -71,6 +72,8 @@ class ClientComponent(components.Component):
 
         self.__group = '%s/%s' % (group or module_name or __name__, name)
 
+        self.bind = bind
+        self.connect = connect
         self.num_sockets = num_sockets
         self.queue_capacity = queue_capacity
         self.timeout = timeout
@@ -82,12 +85,14 @@ class ClientComponent(components.Component):
         group.add_argument(
             '--%sbind' % self.__arg_prefix,
             metavar='URL', action='append',
-            help='bind socket to URL',
+            help=('bind socket to URL and overwrite default: %s' %
+                  (', '.join(self.bind) or 'none')),
         )
         group.add_argument(
             '--%sconnect' % self.__arg_prefix,
             metavar='URL', action='append',
-            help='connect socket to URL',
+            help=('connect socket to URL and overwrite default: %s' %
+                  (', '.join(self.connect) or 'none')),
         )
         group.add_argument(
             '--%snum-sockets' % self.__arg_prefix,
@@ -107,8 +112,16 @@ class ClientComponent(components.Component):
 
     def make(self, require):
 
-        bind = getattr(require.args, '%sbind' % self.__attr_prefix) or ()
-        connect = getattr(require.args, '%sconnect' % self.__attr_prefix) or ()
+        bind = (
+            getattr(require.args, '%sbind' % self.__attr_prefix) or
+            self.bind
+        )
+
+        connect = (
+            getattr(require.args, '%sconnect' % self.__attr_prefix) or
+            self.connect
+        )
+
         if not bind and not connect:
             (self.__logger or logging).warning(
                 'client socket is neither bound nor connected to any address')
