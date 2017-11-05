@@ -83,6 +83,18 @@ class CollectionsTest(unittest.TestCase):
         with self.assertRaises(AssertionError):
             DictBuilder().if_(True).else_().elif_(True)
 
+    def test_lru_cache(self):
+        cache = LruCache(2)
+        cache['a'] = 1
+        cache['b'] = 2
+        self.assertEqual([('a', 1), ('b', 2)], list(cache._cache.items()))
+        cache['c'] = 3  # 'a' should be evicted.
+        self.assertEqual([('b', 2), ('c', 3)], list(cache._cache.items()))
+        self.assertEqual(2, cache['b']) # 'b' should be moved to last.
+        self.assertEqual([('c', 3), ('b', 2)], list(cache._cache.items()))
+        cache['d'] = 4  # 'c' should be evicted.
+        self.assertEqual([('b', 2), ('d', 4)], list(cache._cache.items()))
+
     # Use new annotation syntax available since Python 3.6
     def test_named_tuple(self):
 

@@ -5,6 +5,7 @@ __all__ = [
     'DictBuilder',
     'DictView',
     'LoadingDict',
+    'LruCache',
     'NamedTuple',
     'SingletonMeta',
     'Symbols',
@@ -209,6 +210,27 @@ class LoadingDict(UserDict):
         value = self.load(key)
         self[key] = value
         return value
+
+
+class LruCache:
+
+    def __init__(self, capacity):
+        self.capacity = capacity
+        self._cache = OrderedDict()
+
+    def __contains__(self, key):
+        return key in self._cache
+
+    def __getitem__(self, key):
+        value = self._cache[key]
+        self._cache.move_to_end(key)
+        return value
+
+    def __setitem__(self, key, value):
+        self._cache[key] = value
+        self._cache.move_to_end(key)
+        while len(self._cache) > self.capacity:
+            self._cache.popitem(last=False)
 
 
 class NamedTupleMeta(type):
