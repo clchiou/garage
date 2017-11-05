@@ -114,7 +114,7 @@ Priority.LOWEST = Priority(object())
 Priority.HIGHEST = Priority(object())
 
 
-def generate_names(name_format='{name}-{serial:02d}', **kwargs):
+def generate_names(*, name_format='{name}-{serial:02d}', **kwargs):
     """Useful for generate names of an actor with a serial number."""
     serial = kwargs.pop('serial', None) or AtomicInt(1)
     while True:
