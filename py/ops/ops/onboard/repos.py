@@ -6,7 +6,7 @@ __all__ = [
     'Repo',
 ]
 
-from collections import namedtuple
+from collections import defaultdict, namedtuple
 import enum
 import json
 import logging
@@ -116,6 +116,22 @@ class Repo:
 
     def get_pod_dir(self, pod):
         return self._get_pod_dir(pod.name, pod.version)
+
+    def get_images(self):
+        """Return a (deployed) image-to-pods table."""
+        table = defaultdict(list)
+        for name in self.get_pod_names():
+            for pod_dir in self._get_pod_dirs(name):
+                manifest_path = pod_dir / models.POD_JSON
+                if not manifest_path.exists():
+                    continue
+                version = pod_dir.name
+                manifest = json.loads(manifest_path.read_text())
+                for image in manifest.get('images', ()):
+                    table[image['id']].append((name, version))
+        for podvs in table.values():
+            podvs.sort()
+        return table
 
     def get_ports(self):
         """Return an index of port allocations."""

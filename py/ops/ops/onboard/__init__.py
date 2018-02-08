@@ -12,6 +12,28 @@ from garage.components import ARGS
 from . import alerts, deps, locks, pods, repos
 
 
+@cli.command('list', help='list deployed images')
+def list_images(args: ARGS):
+    """List deployed images."""
+    table = repos.Repo(args.root).get_images()
+    for image_id in sorted(table):
+        podvs = table[image_id]
+        if podvs:
+            podvs = ' '.join('%s:%s' % pv for pv in podvs)
+            print('%s %s' % (image_id, podvs))
+        else:
+            print(image_id)
+    return 0
+
+
+@cli.command(help='manage deployed images')
+@cli.sub_command_info('operation', 'operation on images')
+@cli.sub_command(list_images)
+def images(args: ARGS):
+    """Managa deployed images."""
+    return args.operation()
+
+
 @cli.command('list', help='list allocated ports')
 def list_ports(args: ARGS):
     """List ports allocated to deployed pods."""
@@ -38,6 +60,7 @@ def ports(args: ARGS):
 @cli.sub_command_info('entity', 'system entity to be operated on')
 @cli.sub_command(alerts.alerts)
 @cli.sub_command(deps.deps)
+@cli.sub_command(images)
 @cli.sub_command(ports)
 @cli.sub_command(pods.pods)
 def main(args: ARGS):

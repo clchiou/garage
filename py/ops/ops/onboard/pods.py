@@ -262,8 +262,13 @@ def undeploy_remove(repo, pod):
     """Remove container images and the pod directory."""
     LOG.info('%s - remove pod', pod)
 
+    image_to_pod_table = repo.get_images()
+
     # Undo deploy_fetch
     for image in pod.images:
+        if len(image_to_pod_table[image.id]) > 1:
+            LOG.debug('not remove image which is still in use: %s', image.id)
+            continue
         cmd = ['rkt', 'image', 'rm', image.id]
         if scripts.execute(cmd, check=False).returncode != 0:
             LOG.warning('cannot remove image: %s', image.id)
