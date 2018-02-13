@@ -2,6 +2,7 @@
 
 __all__ = [
     'define_archive',
+    'define_local_archive',
     'define_copy_src',
     'define_distro_packages',
     'define_git_repo',
@@ -38,8 +39,8 @@ def define_archive(*, name: 'name',
                    checksum=None,
                    wget_headers=()):
     """Define an archive, including:
-       * [NAME/]archive_info parameter
-       * [NAME/]download rule
+    * [NAME/]archive_info parameter
+    * [NAME/]download rule
     """
 
     relpath = get_relpath()
@@ -79,6 +80,54 @@ def define_archive(*, name: 'name',
     return ArchiveRules(download=download)
 
 
+@utils.parse_common_args
+def define_local_archive(*, name: 'name', path, output, checksum=None):
+    """Define a local archive, including:
+    * [NAME/]archive_info parameter
+    * [NAME/]download rule
+
+    NOTE: `path` parameter is relative to //base:input.
+    """
+
+    path = scripts.ensure_path(path)
+
+    relpath = get_relpath()
+
+    (define_parameter.namedtuple_typed(ArchiveInfo, name + 'archive_info')
+     .with_doc('Archive info.')
+     .with_default(ArchiveInfo(
+         uri=scripts.ensure_str(path),
+         filename=path.name,
+         output=output,
+         checksum=checksum,
+     ))
+    )
+
+    @rule(name + 'download')
+    @rule.depend('//base:build')
+    def download(parameters):
+        """Extract local archive."""
+
+        archive_info = parameters[name + 'archive_info']
+
+        drydock_src = parameters['//base:drydock'] / relpath
+        scripts.mkdir(drydock_src)
+
+        archive_path = scripts.ensure_file(
+            parameters['//base:input'] / archive_info.uri)
+
+        output_path = drydock_src / archive_info.output
+        if not output_path.exists():
+            LOG.info('extract archive: %s', archive_path)
+            if archive_path.suffix == '.zip':
+                scripts.unzip(archive_path, drydock_src)
+            else:
+                scripts.tar_extract(archive_path, drydock_src)
+            scripts.ensure_directory(output_path)
+
+    return ArchiveRules(download=download)
+
+
 CopySrcRules = namedtuple('CopySrcRules', 'copy_src')
 
 
@@ -105,8 +154,8 @@ def define_copy_src(*, root: 'root', name: 'name',
                     src_relpath=None, dst_relpath=None):
     """Define [NAME/]copy_src rule.
 
-       This is most likely to be useful to other rule templates, not to
-       your build rules.
+    This is most likely to be useful to other rule templates, not to
+    your build rules.
     """
 
     relpath = get_relpath()

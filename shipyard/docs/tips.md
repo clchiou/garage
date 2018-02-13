@@ -6,7 +6,13 @@
     ./scripts/builder build --preserve-container ...
     docker commit -c 'CMD ["/bin/bash"]' BUILD_ID TAG
 
-  These steps are automated in `scripts/make-builder.sh`.
+  These steps are automated:
+
+    ./scripts/make-builder.sh \
+        "${BUILDER_DOCKER_REPO}:${VERSION_TAG}" \
+        "${BASE_BUILDER}" \
+        --volume /path/to/local/jdk/copies:/home/plumber/input/jdk:ro \
+        //meta:third-party
 
 * You may reduce developer build time even further by disabling release
   build:
