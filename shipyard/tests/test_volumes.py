@@ -1,5 +1,6 @@
 import unittest
 
+import datetime
 import subprocess
 import tarfile
 import tempfile
@@ -20,8 +21,7 @@ class VolumesTest(unittest.TestCase):
             'testdata': Path(__file__).parent / 'testdata',
         }
 
-        # 2000-01-02 03:04
-        mtime = 946800240
+        mtime = int(datetime.datetime(2000, 1, 2, 3, 4).timestamp())
 
         # Test case: empty spec.
 
