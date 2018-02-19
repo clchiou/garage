@@ -2,8 +2,8 @@
 
 from foreman import define_parameter, rule
 
-from garage import asserts
 from garage import scripts
+from garage.assertions import ASSERT
 
 from templates import pods
 
@@ -26,7 +26,7 @@ def tapeout(parameters):
     scripts.ensure_file(envoy_path)
 
     # Just a sanity check.
-    asserts.in_(
+    ASSERT.in_(
         'envoy  version: %s/Clean/RELEASE' % parameters['version'],
         (scripts.execute([envoy_path, '--version'], capture_stdout=True)
          .stdout.decode('ascii')),

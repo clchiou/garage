@@ -6,7 +6,9 @@ from pathlib import Path
 import json
 import logging
 
-from garage import asserts, cli, scripts
+from garage import cli
+from garage import scripts
+from garage.assertions import ASSERT
 from garage.components import ARGS
 
 from ops import models
@@ -62,13 +64,13 @@ def deploy_copy(repo, bundle_pod):
 
         # Copy systemd unit files
         scripts.mkdir(local_pod.pod_systemd_path)
-        asserts.equal(
+        ASSERT.equal(
             len(bundle_pod.systemd_units),
             len(local_pod.systemd_units),
         )
         pairs = zip(bundle_pod.systemd_units, local_pod.systemd_units)
         for bundle_unit, local_unit in pairs:
-            asserts.equal(bundle_unit.unit_name, local_unit.unit_name)
+            ASSERT.equal(bundle_unit.unit_name, local_unit.unit_name)
             _cp_or_wget(bundle_unit, 'unit_file', local_unit.unit_file_path)
             if local_unit.checksum:
                 scripts.ensure_checksum(
@@ -76,10 +78,10 @@ def deploy_copy(repo, bundle_pod):
 
         # Copy image files (but if it's URI, leave it to `rkt fetch`)
         scripts.mkdir(local_pod.pod_images_path)
-        asserts.equal(len(bundle_pod.images), len(local_pod.images))
+        ASSERT.equal(len(bundle_pod.images), len(local_pod.images))
         pairs = zip(bundle_pod.images, local_pod.images)
         for bundle_image, local_image in pairs:
-            asserts.equal(bundle_image.id, local_image.id)
+            ASSERT.equal(bundle_image.id, local_image.id)
             if bundle_image.image_path:
                 scripts.cp(bundle_image.image_path, local_image.image_path)
             if bundle_image.signature:
@@ -87,10 +89,10 @@ def deploy_copy(repo, bundle_pod):
 
         # Copy volume data
         scripts.mkdir(local_pod.pod_volume_data_path)
-        asserts.equal(len(bundle_pod.volumes), len(local_pod.volumes))
+        ASSERT.equal(len(bundle_pod.volumes), len(local_pod.volumes))
         pairs = zip(bundle_pod.volumes, local_pod.volumes)
         for bundle_volume, local_volume in pairs:
-            asserts.equal(bundle_volume.name, local_volume.name)
+            ASSERT.equal(bundle_volume.name, local_volume.name)
             _cp_or_wget(bundle_volume, 'data', local_volume.data_path)
             if local_volume.checksum:
                 scripts.ensure_checksum(
@@ -175,7 +177,7 @@ def deploy_fetch(pod):
                 cmd.append('--insecure-options=image')
             cmd.append(image.image_path)
         else:
-            asserts.true(image.image_uri)
+            ASSERT.true(image.image_uri)
             if image.image_uri.startswith('docker://'):
                 cmd.append('--insecure-options=image')
             cmd.append(image.image_uri)
@@ -334,7 +336,7 @@ def deploy(args: ARGS, repo):
     if pod_state in (repos.PodState.DEPLOYED, repos.PodState.STARTED):
         LOG.info('%s - pod has been deployed', pod)
         return 0
-    asserts.is_(pod_state, repos.PodState.UNDEPLOYED)
+    ASSERT.is_(pod_state, repos.PodState.UNDEPLOYED)
 
     LOG.info('%s - deploy', pod)
     try:
@@ -366,7 +368,7 @@ def start(args: ARGS, repo):
         LOG.info('%s - pod has been started', args.tag)
         if not args.force:
             return 0
-    asserts.postcond(
+    ASSERT(
         args.force or pod_state is repos.PodState.DEPLOYED,
         'expect pod_state %r is %r',
         pod_state, repos.PodState.DEPLOYED,

@@ -62,7 +62,7 @@ import types
 import weakref
 from concurrent.futures import Future
 
-from garage import asserts
+from garage.assertions import ASSERT
 
 from . import queues
 from . import utils
@@ -236,7 +236,7 @@ class StubPool:
         raise RuntimeError('no stub available')
 
     def __getattr__(self, name):
-        asserts.precond(
+        ASSERT(
             not name.startswith('_'),
             'not support `%s` attribute for now', name,
         )
@@ -503,7 +503,7 @@ def _actor_message_loop(msg_queue, future_ref):
             _deref(msg.future_ref).cancel()
         _deref(future_ref).set_exception(exc)
     else:
-        asserts.true(msg_queue.is_closed())
+        ASSERT.true(msg_queue.is_closed())
         _deref(future_ref).set_result(None)
     LOG.debug('exit')
 

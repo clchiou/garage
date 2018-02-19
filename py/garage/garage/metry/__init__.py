@@ -14,7 +14,7 @@ import functools
 import logging
 import threading
 
-from garage import asserts
+from garage.assertions import ASSERT
 from garage.collections import Trie
 
 from . import measures
@@ -47,7 +47,7 @@ class MetryTree:
         return metry
 
     def initialize(self):
-        asserts.false(self._initialized)
+        ASSERT.false(self._initialized)
         for metry in self._trie.values():
             metry.initialize()
         self._initialized = True
@@ -74,7 +74,7 @@ class Metry:
     def enabled(self):
         if self._enabled is not None:
             return self._enabled
-        asserts.false(self._initialized)
+        ASSERT.false(self._initialized)
         for metry in self._metry_tree.get_parents(self):
             if metry._enabled is not None:
                 return metry._enabled
@@ -82,7 +82,7 @@ class Metry:
 
     @enabled.setter
     def enabled(self, enabled):
-        asserts.false(self._initialized)
+        ASSERT.false(self._initialized)
         self._enabled = enabled
 
     def get_or_add_measure(self, name, make):
@@ -93,13 +93,13 @@ class Metry:
             return measure
 
     def add_reporter(self, reporter):
-        asserts.false(self._initialized)
+        ASSERT.false(self._initialized)
         if self._reporters is None:
             self._reporters = []
         self._reporters.append(reporter)
 
     def initialize(self):
-        asserts.false(self._initialized)
+        ASSERT.false(self._initialized)
         for metry in self._metry_tree.get_parents(self):
             if self._enabled is None and metry._enabled is not None:
                 self._enabled = metry._enabled

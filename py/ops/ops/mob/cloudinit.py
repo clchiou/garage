@@ -7,7 +7,9 @@ import logging
 
 import yaml
 
-from garage import asserts, cli, scripts
+from garage import cli
+from garage import scripts
+from garage.assertions import ASSERT
 from garage.components import ARGS
 
 from . import keys
@@ -75,9 +77,9 @@ def generate_user_data(args: ARGS):
         })
 
     # Insert `ssh-authorized-keys` to account plumber
-    asserts.equal(len(user_data['users']), 1)
+    ASSERT.equal(len(user_data['users']), 1)
     plumber = user_data['users'][0]
-    asserts.equal(plumber['name'], 'plumber')
+    ASSERT.equal(plumber['name'], 'plumber')
     public_keys = plumber['ssh-authorized-keys']
     for public_key in args.ssh_authorized_key:
         public_key = scripts.ensure_file(public_key)

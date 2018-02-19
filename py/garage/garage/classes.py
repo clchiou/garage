@@ -9,7 +9,7 @@ __all__ = [
 
 import functools
 
-from garage import asserts
+from garage.assertions import ASSERT
 
 
 class LazyAttrs:
@@ -56,8 +56,8 @@ def memorize(method):
 
        Note: method's name _must_ be the same as the property name.
     """
-    asserts.not_type_of(method, property)
-    asserts.not_equal(method.__name__, '<lambda>')
+    ASSERT.not_type_of(method, property)
+    ASSERT.not_equal(method.__name__, '<lambda>')
     @functools.wraps(method)
     def wrapper(self):
         value = method(self)

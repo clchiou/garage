@@ -11,7 +11,7 @@ import logging
 import pickle
 from multiprocessing.connection import Client
 
-from garage import asserts
+from garage.assertions import ASSERT
 
 
 LOG = logging.getLogger(__name__)
@@ -114,9 +114,10 @@ class Vars:
 
     def __getattr__(self, name):
         response, err = self._stub({'command': 'get', 'name': name})
-        asserts.postcond(
+        ASSERT(
             ('value' in response) != bool(err),
-            'expect either %r or %r but not both', response, err)
+            'expect either %r or %r but not both', response, err,
+        )
         if err:
             raise AttributeError('cannot get %r due to %s' % (name, err))
         return response.get('value')
@@ -143,9 +144,10 @@ class Funcs:
     def _call_stub(self, name, *args, **kwargs):
         response, err = self._stub(
             {'command': 'call', 'name': name, 'args': args, 'kwargs': kwargs})
-        asserts.postcond(
+        ASSERT(
             ('value' in response) != bool(err),
-            'expect either %r or %r but not both', response, err)
+            'expect either %r or %r but not both', response, err,
+        )
         if err:
             raise RpcError('cannot call %r due to %s' % (name, err))
         return response.get('value')

@@ -22,7 +22,7 @@ import enum
 
 import curio.traps
 
-from garage import asserts
+from garage.assertions import ASSERT
 
 from . import base
 
@@ -119,9 +119,9 @@ class Future:
         def _set(self, result, exception):
             if self._future._state is State.CANCELLED:
                 return
-            asserts.is_not(self._future._state, State.FINISHED)
-            asserts.false(self._future.done())
-            asserts.false(self._future._done.is_set())
+            ASSERT.is_not(self._future._state, State.FINISHED)
+            ASSERT.false(self._future.done())
+            ASSERT.false(self._future._done.is_set())
             self._future._result = result
             self._future._exception = exception
             self._future._state = State.FINISHED
@@ -175,16 +175,16 @@ class Future:
         elif self._state is State.RUNNING:
             return False
         elif self._state is State.CANCELLED:
-            asserts.true(self._done.is_set())
+            ASSERT.true(self._done.is_set())
             return True
         else:
-            asserts.is_(self._state, State.FINISHED)
-            asserts.true(self._done.is_set())
+            ASSERT.is_(self._state, State.FINISHED)
+            ASSERT.true(self._done.is_set())
             return False
 
     async def result(self):
         await self._done.wait()
-        asserts.true(self.done())
+        ASSERT.true(self.done())
         if self._state is State.CANCELLED:
             raise CancelledError
         elif self._exception is not None:
@@ -194,7 +194,7 @@ class Future:
 
     async def exception(self):
         await self._done.wait()
-        asserts.true(self.done())
+        ASSERT.true(self.done())
         if self._state is State.CANCELLED:
             raise CancelledError
         else:
@@ -291,7 +291,7 @@ class DeferredFuture:
         elif self._state is State.CANCELLED:
             return True
         else:
-            asserts.is_(self._state, State.FINISHED)
+            ASSERT.is_(self._state, State.FINISHED)
             return False
 
     async def result(self):
@@ -308,7 +308,7 @@ class DeferredFuture:
         return self._exception
 
     async def _evaluate(self):
-        asserts.is_(self._state, State.PENDING)
+        ASSERT.is_(self._state, State.PENDING)
         self._state = State.RUNNING
         try:
             self._result = await self._coro_func(*self._args, **self._kwargs)

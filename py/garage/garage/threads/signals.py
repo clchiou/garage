@@ -11,7 +11,7 @@ import signal
 import struct
 import threading
 
-from garage import asserts
+from garage.assertions import ASSERT
 from garage.collections import SingletonMeta
 
 from . import queues
@@ -46,7 +46,7 @@ class SignalQueue(metaclass=SingletonMeta):
     def __init__(self, capacity=None):
 
         current_thread = threading.current_thread()
-        asserts.precond(
+        ASSERT(
             current_thread.ident == threading.main_thread().ident,
             'expect signal queue be initialized in the main thread, not %r',
             current_thread,
@@ -70,7 +70,7 @@ class SignalQueue(metaclass=SingletonMeta):
             last_fd = signal.set_wakeup_fd(wfd)
             stack.callback(restore_wakeup_fd, last_fd, wfd)
 
-            asserts.postcond(
+            ASSERT(
                 last_fd == -1,
                 'expect no signal wakeup fd being set: %d', last_fd,
             )

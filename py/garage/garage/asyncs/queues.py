@@ -10,7 +10,7 @@ __all__ = [
 
 import collections
 
-from garage import asserts
+from garage.assertions import ASSERT
 from garage.threads.queues import Closed, Empty, Full
 
 from . import base
@@ -89,7 +89,7 @@ class QueueBase:
         while self.is_empty():
             if self.is_closed():
                 raise Closed
-            asserts.false(self.__has_item.is_set())
+            ASSERT.false(self.__has_item.is_set())
             await self.__has_item.wait()
         return self.get_nowait()
 
@@ -99,7 +99,7 @@ class QueueBase:
                 raise Closed
             if not self.is_full():
                 break
-            asserts.false(self.__has_vacancy.is_set())
+            ASSERT.false(self.__has_vacancy.is_set())
             await self.__has_vacancy.wait()
         self.put_nowait(item)
 
@@ -113,7 +113,7 @@ class QueueBase:
             if self.is_closed():
                 raise Closed
             raise Empty
-        asserts.true(self.__has_item.is_set())
+        ASSERT.true(self.__has_item.is_set())
         item = self._get(self.__queue)
         self.__has_vacancy.set()
         if self.is_empty():
@@ -126,7 +126,7 @@ class QueueBase:
             raise Closed
         if self.is_full():
             raise Full
-        asserts.true(self.__has_vacancy.is_set())
+        ASSERT.true(self.__has_vacancy.is_set())
         self._put(self.__queue, item)
         self.__has_item.set()
         if self.is_full():

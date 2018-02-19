@@ -25,7 +25,7 @@ from collections import (
     UserDict,
 )
 
-from garage import asserts
+from garage.assertions import ASSERT
 
 
 def is_ordered(lst, key=None, strict=False):
@@ -142,13 +142,13 @@ class DictBuilder:
         self._predicate = True
 
     def if_(self, condition):
-        asserts.none(self._state)
+        ASSERT.none(self._state)
         self._state = 'if'
         self._branch_chosen = self._predicate = condition
         return self
 
     def elif_(self, condition):
-        asserts.equal(self._state, 'if')
+        ASSERT.equal(self._state, 'if')
         if self._branch_chosen:
             self._predicate = False
         else:
@@ -156,7 +156,7 @@ class DictBuilder:
         return self
 
     def else_(self):
-        asserts.equal(self._state, 'if')
+        ASSERT.equal(self._state, 'if')
         self._state = 'else'
         if self._branch_chosen:
             self._predicate = False
@@ -165,7 +165,7 @@ class DictBuilder:
         return self
 
     def end(self):
-        asserts.in_(self._state, ('if', 'else'))
+        ASSERT.in_(self._state, ('if', 'else'))
         self._state = None
         self._branch_chosen = False
         self._predicate = True

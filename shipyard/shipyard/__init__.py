@@ -20,9 +20,9 @@ import json
 
 from foreman import Label
 
-from garage import asserts
 from garage import cli
 from garage import scripts
+from garage.assertions import ASSERT
 
 
 ROOT = Path(__file__).absolute().parent.parent.parent
@@ -106,7 +106,7 @@ class RuleIndex:
         )
 
     def _get_thing(self, kind, label, implicit_path):
-        asserts.not_none(self._build_data)
+        ASSERT.not_none(self._build_data)
         if isinstance(label, str):
             label = Label.parse(label, implicit_path=implicit_path)
         label_str = str(label)

@@ -26,7 +26,7 @@ import sys
 
 from startup import startup
 
-from garage import asserts
+from garage.assertions import ASSERT
 from garage.collections import unique
 import garage.components
 
@@ -123,7 +123,7 @@ class DecoratorChain:
         return self
 
     def sub_command(self, subcmd):
-        asserts.type_of(subcmd, Command)
+        ASSERT.type_of(subcmd, Command)
         self._subcmds.append(subcmd)
         return self
 

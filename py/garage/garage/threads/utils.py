@@ -12,7 +12,7 @@ import functools
 import logging
 import threading
 
-from garage import asserts
+from garage.assertions import ASSERT
 
 
 LOG = logging.getLogger(__name__)
@@ -67,7 +67,7 @@ class Priority:
     """
 
     def __init__(self, priority):
-        asserts.type_of(priority, collections.Hashable)
+        ASSERT.type_of(priority, collections.Hashable)
         self._priority = priority
 
     def __str__(self):

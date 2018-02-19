@@ -13,7 +13,7 @@ import urllib.parse
 
 import http2
 
-from garage import asserts
+from garage.assertions import ASSERT
 
 from . import servers
 
@@ -94,7 +94,7 @@ def _rfc_7231_date(now=None):
     if not now:
         now = datetime.datetime.utcnow()
     # We can't handle non-UTC time zone at the moment.
-    asserts.none(now.tzinfo)
+    ASSERT.none(now.tzinfo)
     formatted = RFC_7231_FORMAT.format(
         year=now.year,
         month=RFC_7231_MONTHS[now.month - 1],

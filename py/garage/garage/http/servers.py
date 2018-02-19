@@ -12,8 +12,8 @@ import curio
 
 import http2
 
-from garage import asserts
 from garage import asyncs
+from garage.assertions import ASSERT
 
 
 LOG = logging.getLogger(__name__)
@@ -50,7 +50,7 @@ class ClientError(HttpError):
 
     @staticmethod
     def assert_status(status):
-        asserts.precond(400 <= status < 500, 'expect 4xx status: %s', status)
+        ASSERT(400 <= status < 500, 'expect 4xx status: %s', status)
 
 
 class ServerError(HttpError):
@@ -58,7 +58,7 @@ class ServerError(HttpError):
 
     @staticmethod
     def assert_status(status):
-        asserts.precond(500 <= status < 600, 'expect 5xx status: %s', status)
+        ASSERT(500 <= status < 600, 'expect 5xx status: %s', status)
 
 
 class Server:

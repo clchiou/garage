@@ -6,8 +6,8 @@ import errno
 import fcntl
 import os
 
-from garage import asserts
 from garage import scripts
+from garage.assertions import ASSERT
 
 
 class FileLock:
@@ -25,7 +25,7 @@ class FileLock:
         if scripts.is_dry_run():
             return True
 
-        asserts.false(self.locked)
+        ASSERT.false(self.locked)
 
         if not self._lock_file_path.exists():
             with scripts.using_sudo():
@@ -50,7 +50,7 @@ class FileLock:
         if scripts.is_dry_run():
             return
 
-        asserts.true(self.locked)
+        ASSERT.true(self.locked)
 
         fd, self._fd = self._fd, None
         try:

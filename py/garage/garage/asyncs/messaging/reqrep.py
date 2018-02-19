@@ -12,8 +12,8 @@ import curio
 
 import nanomsg as nn
 
-from garage import asserts
 from garage import asyncs
+from garage.assertions import ASSERT
 from garage.asyncs import futures
 from garage.asyncs import queues
 
@@ -64,8 +64,8 @@ async def client(graceful_exit, sockets, request_queue, timeout=None):
     """
 
     for socket in sockets:
-        asserts.equal(socket.options.nn_domain, nn.AF_SP)
-        asserts.equal(socket.options.nn_protocol, nn.NN_REQ)
+        ASSERT.equal(socket.options.nn_domain, nn.AF_SP)
+        ASSERT.equal(socket.options.nn_protocol, nn.NN_REQ)
 
     async def pump_requests(socket):
         LOG.info('client: start sending requests to: %s', socket)
@@ -130,8 +130,8 @@ async def server(
     closed, their response cannot be sent back to the client).
     """
 
-    asserts.equal(socket.options.nn_domain, nn.AF_SP_RAW)
-    asserts.equal(socket.options.nn_protocol, nn.NN_REP)
+    ASSERT.equal(socket.options.nn_domain, nn.AF_SP_RAW)
+    ASSERT.equal(socket.options.nn_protocol, nn.NN_REP)
 
     if error_handler is None:
         error_handler = lambda *_: None

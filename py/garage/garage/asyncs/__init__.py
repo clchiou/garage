@@ -18,7 +18,7 @@ import curio
 import curio.io
 import curio.traps
 
-from garage import asserts
+from garage.assertions import ASSERT
 
 from . import queues
 from .base import Event  # Create an alias to base.Event
@@ -71,7 +71,7 @@ def _send(send, arg):
 
 def _throw(throw, type_, *args):
     # I assume curio doesn't pass any other args
-    asserts.precond(not args, 'not expect args for throw(): %r', args)
+    ASSERT(not args, 'not expect args for throw(): %r', args)
     if type_ is curio.TaskCancelled or type(type_) is curio.TaskCancelled:
         # Raise asyncs.TaskCancelled in task's coroutine but raise
         # curio.TaskCancelled in the curio main loop.
@@ -184,10 +184,10 @@ class TaskSet:
             await task.cancel()
 
     async def spawn(self, coro, **kwargs):
-        asserts.precond(not self._graceful_exit, '%s is closing', self)
+        ASSERT(not self._graceful_exit, '%s is closing', self)
         task = await self._spawn(coro, **kwargs)
-        asserts.false(task._taskgroup)
-        asserts.false(task._ignore_result)
+        ASSERT.false(task._taskgroup)
+        ASSERT.false(task._ignore_result)
         self._pending_tasks[task] = None  # Dummy value
         task._taskgroup = self.TaskGroupAdapter(self)
         return task
@@ -244,13 +244,13 @@ class TaskStack:
         self._spawn = spawn
 
     async def __aenter__(self):
-        asserts.none(self._callbacks)
+        ASSERT.none(self._callbacks)
         self._tasks = deque()
         self._callbacks = deque()
         return self
 
     async def __aexit__(self, *_):
-        asserts.not_none(self._callbacks)
+        ASSERT.not_none(self._callbacks)
         self._tasks = None
         callbacks, self._callbacks = self._callbacks, None
         for is_async, func, args, kwargs in reversed(callbacks):
@@ -260,16 +260,16 @@ class TaskStack:
                 func(*args, **kwargs)
 
     def __iter__(self):
-        asserts.not_none(self._tasks)
+        ASSERT.not_none(self._tasks)
         yield from self._tasks
 
     async def wait_any(self):
-        asserts.not_none(self._tasks)
+        ASSERT.not_none(self._tasks)
         return await curio.TaskGroup(self._tasks).next_done()
 
     async def spawn(self, coro, **kwargs):
         """Spawn a new task and push it onto stack."""
-        asserts.not_none(self._callbacks)
+        ASSERT.not_none(self._callbacks)
         task = await self._spawn(coro, **kwargs)
         self._tasks.append(task)
         self.callback(task.cancel)
@@ -277,12 +277,12 @@ class TaskStack:
 
     def callback(self, func, *args, **kwargs):
         """Add asynchronous callback."""
-        asserts.not_none(self._callbacks)
+        ASSERT.not_none(self._callbacks)
         self._callbacks.append((True, func, args, kwargs))
 
     def sync_callback(self, func, *args, **kwargs):
         """Add synchronous callback."""
-        asserts.not_none(self._callbacks)
+        ASSERT.not_none(self._callbacks)
         self._callbacks.append((False, func, args, kwargs))
 
 
@@ -295,7 +295,7 @@ async def close_socket_and_wakeup_task(socket):
 
     NOTE: There will be at most one task blocked on a file descriptor.
     """
-    asserts.type_of(socket, curio.io.Socket)
+    ASSERT.type_of(socket, curio.io.Socket)
 
     if not socket._socket:
         return  # It's closed already.

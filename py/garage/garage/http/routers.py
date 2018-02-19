@@ -11,7 +11,7 @@ from collections import OrderedDict
 
 import http2
 
-from garage import asserts
+from garage.assertions import ASSERT
 from garage.http.servers import ClientError
 
 
@@ -57,7 +57,7 @@ class ApiRouter:
     def add_handler(self, name, handler):
         LOG.info('%s/%d: add handler %r', self.name, self.version, name)
         name = name.encode('ascii')
-        asserts.not_in(name, self.handlers)
+        ASSERT.not_in(name, self.handlers)
         self.handlers[name] = handler
 
     async def __call__(self, stream):
@@ -129,7 +129,7 @@ class PrefixRouter:
                  self.__class__.__name__, method.name, prefix)
         if isinstance(prefix, str):
             prefix = prefix.encode('ascii')
-        asserts.precond(
+        ASSERT(
             all(not prefix.startswith(p) or prefix == p
                 for p in self.handlers),
             'prefix %r is hidden by one of the handler prefixes: %r',
@@ -138,7 +138,7 @@ class PrefixRouter:
         if prefix not in self.handlers:
             self.handlers[prefix] = {}
         handlers = self.handlers[prefix]
-        asserts.not_in(method, handlers)  # No overwrite
+        ASSERT.not_in(method, handlers)  # No overwrite
         handlers[method] = handler
 
     async def __call__(self, stream):

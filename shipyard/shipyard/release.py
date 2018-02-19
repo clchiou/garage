@@ -18,8 +18,8 @@ import yaml
 
 from foreman import Label
 
-from garage import asserts
 from garage import scripts
+from garage.assertions import ASSERT
 
 import shipyard
 
@@ -270,9 +270,9 @@ class PodInstruction:
 
     def __init__(self, **kwargs):
         # Pod build rule.
-        self.rule = asserts.type_of(kwargs.pop('rule'), Label)
+        self.rule = ASSERT.type_of(kwargs.pop('rule'), Label)
         # Label that refers to the pod (not pod build rule).
-        self.pod = asserts.type_of(kwargs.pop('pod'), Label)
+        self.pod = ASSERT.type_of(kwargs.pop('pod'), Label)
         # Pod version.
         self.version = kwargs.pop('version')
         # Map image label to version.
@@ -489,7 +489,7 @@ def get_hg_stamp(path):
         for remote in remotes.decode('utf8').split('\n'):
             remote = remote.split()
             if remote[0] == 'default':
-                asserts.equal(remote[1], '=')
+                ASSERT.equal(remote[1], '=')
                 url = remote[2]
                 break
         else:

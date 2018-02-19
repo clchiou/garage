@@ -7,7 +7,9 @@ import json
 import os
 import urllib.request
 
-from garage import asserts, cli, scripts
+from garage import cli
+from garage import scripts
+from garage.assertions import ASSERT
 from garage.components import ARGS
 
 
@@ -21,7 +23,7 @@ SLACK_COLOR_TABLE = {
 
 def _get(config, *fields):
     for field in fields:
-        asserts.in_(field, config)
+        ASSERT.in_(field, config)
         config = config[field]
     return config
 

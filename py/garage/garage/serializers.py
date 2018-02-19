@@ -19,7 +19,7 @@ __all__ = [
 
 from collections import OrderedDict, namedtuple
 
-from garage import asserts
+from garage.assertions import ASSERT
 
 
 class Record:
@@ -45,13 +45,13 @@ class Record:
            present.
         """
         def __init__(self, *field_list):
-            asserts.greater(len(field_list), 1)
+            ASSERT.greater(len(field_list), 1)
             self.field_list = field_list
 
     class Either:
         """Annotate an exclusive group of fields."""
         def __init__(self, *field_list):
-            asserts.greater(len(field_list), 1)
+            ASSERT.greater(len(field_list), 1)
             self.field_list = field_list
 
     def __init__(self, *decls):

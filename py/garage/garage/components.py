@@ -42,7 +42,7 @@ from collections import namedtuple
 
 from startup import startup as startup_
 
-from garage import asserts
+from garage.assertions import ASSERT
 
 
 LOG = logging.getLogger(__name__)
@@ -55,18 +55,18 @@ class Fqname(str):
     def parse(cls, fqname_str):
         if isinstance(fqname_str, cls):
             return fqname_str
-        asserts.type_of(fqname_str, str)
+        ASSERT.type_of(fqname_str, str)
         index = fqname_str.index(':')
         return cls(fqname_str[:index], fqname_str[index+1:])
 
     def __new__(cls, module_name, name):
-        asserts.type_of(module_name, str)
+        ASSERT.type_of(module_name, str)
 
         # Handle `[name]`-style annotation of name
         read_all = isinstance(name, list) and len(name) == 1
         if read_all:
             name = name[0]
-        asserts.type_of(name, str)
+        ASSERT.type_of(name, str)
 
         self = super().__new__(cls, '%s:%s' % (module_name, name))
         self.module_name = module_name
@@ -132,7 +132,7 @@ def _get_require_as_tuple(comp):
     # Special case for just a Fqname
     if isinstance(comp.require, Fqname):
         return (comp.require,)
-    asserts.type_of(comp.require, tuple)
+    ASSERT.type_of(comp.require, tuple)
     return comp.require
 
 
@@ -140,7 +140,7 @@ def _get_provide_for_annotation(comp):
     # Special case for just a Fqname
     if isinstance(comp.provide, Fqname):
         return comp.provide
-    asserts.type_of(comp.provide, tuple)
+    ASSERT.type_of(comp.provide, tuple)
     # Special case for one-element tuple: We de-tuple it so that your
     # make() function could just return `x` instead of `(x,)`
     if len(comp.provide) == 1:
@@ -152,7 +152,7 @@ def _get_provide_as_tuple(comp):
     # Special case for just a Fqname
     if isinstance(comp.provide, Fqname):
         return (comp.provide,)
-    asserts.type_of(comp.provide, tuple)
+    ASSERT.type_of(comp.provide, tuple)
     return comp.provide
 
 
@@ -160,13 +160,13 @@ def bind(component, startup=startup_, next_startup=None, parser_=PARSER):
     """Bind a component object to a startup dependency graph."""
 
     if isinstance(component, type):
-        asserts.precond(
+        ASSERT(
             issubclass(component, Component),
             'expect Component subclass, not %r', component,
         )
         component = component()
 
-    asserts.type_of(component, Component)
+    ASSERT.type_of(component, Component)
 
     next_startup = next_startup or startup
 
@@ -203,8 +203,8 @@ def bind(component, startup=startup_, next_startup=None, parser_=PARSER):
         annotations['__check_args'] = CHECK_ARGS
 
     for fqname in _get_require_as_tuple(component):
-        asserts.type_of(fqname, Fqname)
-        asserts.not_in(fqname.name, annotations)
+        ASSERT.type_of(fqname, Fqname)
+        ASSERT.not_in(fqname.name, annotations)
         annotations[fqname.name] = fqname.as_annotation()
 
     provide = _get_provide_for_annotation(component)

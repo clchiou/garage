@@ -5,7 +5,7 @@ __all__ = [
 import logging
 from concurrent import futures
 
-from garage import asserts
+from garage.assertions import ASSERT
 from garage.threads import actors
 
 
@@ -18,7 +18,7 @@ def supervisor(num_actors, start_new_actor):
        alive at any time; however, if half of actors died, it dies, too.
     """
     # TODO: Implement more re-start/exit strategy.
-    asserts.greater(num_actors, 0)
+    ASSERT.greater(num_actors, 0)
     LOG.info('start')
 
     actor_futures = {}

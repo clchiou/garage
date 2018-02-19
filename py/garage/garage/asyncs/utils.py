@@ -9,8 +9,8 @@ from functools import wraps
 from curio import socket
 import curio
 
-from garage import asserts
 from garage import asyncs
+from garage.assertions import ASSERT
 
 
 def make_server_socket(
@@ -82,7 +82,7 @@ async def serve(graceful_exit, make_server_socket, handle_client, *,
             logger.error('server task is terminated: %r', task)
             return await task.join()
 
-        asserts.true(graceful_exit.is_set())
+        ASSERT.true(graceful_exit.is_set())
         logger.info('initiate graceful exit')
         await acceptor.cancel()
         handlers.graceful_exit()

@@ -26,7 +26,7 @@ from curio import socket
 from curio import ssl
 import curio
 
-from garage import asserts
+from garage.assertions import ASSERT
 from garage.asyncs import queues
 
 from .nghttp2 import *
@@ -271,7 +271,7 @@ class Session:
             return await self._sendall_impl()
 
     async def _sendall_impl(self):
-        asserts.not_none(self._session)
+        ASSERT.not_none(self._session)
 
         buffers = []
         total_length = 0
@@ -307,7 +307,7 @@ class Session:
                 try:
                     self = ctypes.cast(args[-1], py_object_p).contents.value
                     # Callbacks should not be nested
-                    asserts.none(self._current_callback)
+                    ASSERT.none(self._current_callback)
                     self._current_callback = py_func.__name__
                     try:
                         return py_func(self, session, *args[:-1])
@@ -497,19 +497,19 @@ class Stream:
     # we raise AssertionError.
 
     def _on_header(self, name, values):
-        asserts.not_none(self._session)
-        asserts.none(self.request)
+        ASSERT.not_none(self._session)
+        ASSERT.none(self.request)
         for value in values:
             self._headers.append((name, value))
 
     def _on_data(self, data):
-        asserts.not_none(self._session)
-        asserts.none(self.request)
+        ASSERT.not_none(self._session)
+        ASSERT.none(self.request)
         self._data_chunks.append(data)
 
     def _on_request_done(self):
-        asserts.not_none(self._session)
-        asserts.none(self.request)
+        ASSERT.not_none(self._session)
+        ASSERT.none(self.request)
         if self._data_chunks:
             body = b''.join(self._data_chunks)
         else:
@@ -519,7 +519,7 @@ class Stream:
         del self._data_chunks
 
     def _on_close(self, error_code):
-        asserts.not_none(self._session)
+        ASSERT.not_none(self._session)
         LOG.debug('%s: close due to %d', self, error_code)
         self._session = None  # Break cycle
 
@@ -534,7 +534,7 @@ class Stream:
     # Session object's callback functions.
     def _submit_response_nowait(self, response):
         self._ensure_not_closed()
-        asserts.in_(self.response, (None, response))
+        ASSERT.in_(self.response, (None, response))
         LOG.debug('%s: submit response', self)
         owners = []
         nva, nvlen = response._make_headers(self._session, owners)
@@ -621,7 +621,7 @@ class Stream:
                 return bytes(data), 0
 
         async def write(self, data):
-            asserts.precond(
+            ASSERT(
                 not self._aborted and not self._closed,
                 'expect Buffer state: not %r and not %r == True',
                 self._aborted, self._closed,
@@ -637,7 +637,7 @@ class Stream:
         # could be blocked on socket.recv() and make no progress.
 
         async def abort(self):
-            asserts.precond(
+            ASSERT(
                 not self._aborted and not self._closed,
                 'expect Buffer state: not %r and not %r == True',
                 self._aborted, self._closed,
@@ -647,7 +647,7 @@ class Stream:
             self._stream = None  # Break cycle
 
         async def close(self):
-            asserts.precond(
+            ASSERT(
                 not self._aborted and not self._closed,
                 'expect Buffer state: not %r and not %r == True',
                 self._aborted, self._closed,
@@ -739,8 +739,8 @@ class Request(Entity):
         return 4 + len(self.headers)
 
     def _iter_headers(self, session):
-        asserts.not_none(session._scheme)
-        asserts.not_none(session._host)
+        ASSERT.not_none(session._scheme)
+        ASSERT.not_none(session._host)
         yield (b':method', self.method.value)
         yield (b':scheme', (self.scheme or session._scheme).value)
         yield (b':authority', self.authority or session._host)

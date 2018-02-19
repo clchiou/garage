@@ -15,8 +15,8 @@ import pwd
 import tarfile
 from pathlib import Path
 
-from garage import asserts
 from garage import datetimes
+from garage.assertions import ASSERT
 
 
 def fill_tarball(parameters, spec, tarball):
@@ -42,7 +42,7 @@ def _add_member(parameters, member_spec, tarball):
 
     path = member_spec['path']
 
-    asserts.precond(
+    ASSERT(
         not path.startswith('/'),
         'expect relative path: %s', path,
     )
@@ -52,7 +52,7 @@ def _add_member(parameters, member_spec, tarball):
     kind = member_spec.get('kind')
 
     if kind is not None:
-        asserts.in_(kind, MEMBER_KINDS)
+        ASSERT.in_(kind, MEMBER_KINDS)
 
     owner = member_spec.get('owner')
     uid = member_spec.get('uid')
@@ -65,7 +65,7 @@ def _add_member(parameters, member_spec, tarball):
     if uid is None and owner is not None:
         uid = pwd.getpwnam(owner).pw_uid
 
-    asserts.precond(
+    ASSERT(
         (owner is None) == (uid is None),
         'expect both or neither of owner and uid: %s, %s', owner, uid,
     )
@@ -76,7 +76,7 @@ def _add_member(parameters, member_spec, tarball):
     if gid is None and group is not None:
         gid = grp.getgrnam(group).gr_gid
 
-    asserts.precond(
+    ASSERT(
         (group is None) == (gid is None),
         'expect both or neither of group and gid: %s, %s', group, gid,
     )
@@ -94,7 +94,7 @@ def _add_member(parameters, member_spec, tarball):
 
     content_path_parameter = member_spec.get('content_path_parameter')
 
-    asserts.precond(
+    ASSERT(
         content is None or content_path_parameter is None,
         'expect at most one of content and content_path_parameter',
     )
@@ -103,10 +103,10 @@ def _add_member(parameters, member_spec, tarball):
 
     if content is not None:
 
-        asserts.not_none(mode)
-        asserts.not_none(kind)
-        asserts.not_none(owner)
-        asserts.not_none(group)
+        ASSERT.not_none(mode)
+        ASSERT.not_none(kind)
+        ASSERT.not_none(owner)
+        ASSERT.not_none(group)
 
         content_bytes = content.encode(content_encoding)
 
@@ -135,19 +135,19 @@ def _add_member(parameters, member_spec, tarball):
 
     if kind is not None:
         predicate, member_type = MEMBER_KINDS[kind]
-        asserts.precond(
+        ASSERT(
             content_path is None or predicate(content_path),
             'expect %s-kind: %s', kind, content_path,
         )
         tarinfo.type = member_type
 
     if owner is not None:
-        asserts.not_none(uid)
+        ASSERT.not_none(uid)
         tarinfo.uname = owner
         tarinfo.uid = uid
 
     if group is not None:
-        asserts.not_none(gid)
+        ASSERT.not_none(gid)
         tarinfo.gname = group
         tarinfo.gid = gid
 
@@ -167,12 +167,12 @@ def _add_member(parameters, member_spec, tarball):
             )
 
             if owner is not None:
-                asserts.not_none(uid)
+                ASSERT.not_none(uid)
                 child_tarinfo.uname = owner
                 child_tarinfo.uid = uid
 
             if group is not None:
-                asserts.not_none(gid)
+                ASSERT.not_none(gid)
                 child_tarinfo.gname = group
                 child_tarinfo.gid = gid
 
@@ -180,7 +180,7 @@ def _add_member(parameters, member_spec, tarball):
 
 
 def _add_tarinfo(tarinfo, path, fileobj, tarball):
-    asserts.precond(
+    ASSERT(
         path is None or fileobj is None,
         'expect at most one of path and fileobj',
     )

@@ -23,7 +23,7 @@ try:
 except ImportError:
     fromstring = None
 
-from garage import asserts
+from garage.assertions import ASSERT
 from garage.http import policies
 
 
@@ -250,7 +250,7 @@ class Response:
             parser = _get_parser(None)
             return fromstring(html, parser)
 
-        asserts.none(errors)
+        ASSERT.none(errors)
 
         parser = _get_parser(encoding or self.encoding)
         return fromstring(self.content, parser)
