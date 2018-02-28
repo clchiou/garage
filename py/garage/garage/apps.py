@@ -132,6 +132,13 @@ class Application:
         self._using_part_names = []
         self._using_parts = None
 
+    def __repr__(self):
+        return '<%s.%s 0x%x %r>' % (
+            self.__module__, self.__class__.__qualname__,
+            id(self),
+            self.main,
+        )
+
     def with_prog(self, prog):
         self._prog = prog
         return self
@@ -190,7 +197,7 @@ class Application:
 
         # Firstly, configure command-line parser.
         parser = argparse.ArgumentParser(
-            prog=self.get_prog(argv[0]),
+            prog=self.get_prog(os.path.basename(argv[0])),
             description=self.get_description(),
         )
         parser.add_argument(
