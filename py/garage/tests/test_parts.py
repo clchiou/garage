@@ -3,9 +3,44 @@ import unittest
 import functools
 from collections import defaultdict
 
-from garage import parts
+from tests.availability import startup_available
+
+if startup_available:
+    from garage import parts
+
+    PLIST = parts.PartList('a.b.c', [
+        ('sub_part_1', parts.AUTO),
+        ('sub_part_2', parts.AUTO),
+        ('final_part', parts.AUTO),
+        ('some_part', parts.AUTO),
+    ])
+
+    def make_sub_part_1() -> PLIST.sub_part_1:
+        return 'part from make_sub_part_1'
+
+    def make_sub_part_1_another() -> PLIST.sub_part_1:
+        return 'part from make_sub_part_1_another'
+
+    def make_sub_part_1_yet_another() -> PLIST.sub_part_1:
+        return 'part from make_sub_part_1_yet_another'
+
+    def make_sub_part_2() -> PLIST.sub_part_2:
+        return 'part from make_sub_part_2'
+
+    def make_all_sub_parts() -> (PLIST.sub_part_1, PLIST.sub_part_2):
+        return (
+            'part 1 from make_all_sub_parts',
+            'part 2 from make_all_sub_parts',
+        )
+
+    def make_final_part(
+            sub_part_1: [PLIST.sub_part_1],
+            sub_part_2: PLIST.sub_part_2,
+            ) -> PLIST.final_part:
+        return 'part from make_final_part'
 
 
+@unittest.skipUnless(startup_available, 'startup unavailable')
 class PartsTest(unittest.TestCase):
 
     def test_part_name(self):
@@ -288,44 +323,6 @@ class PartsTest(unittest.TestCase):
                 {},
             ),
         )
-
-
-PLIST = parts.PartList('a.b.c', [
-    ('sub_part_1', parts.AUTO),
-    ('sub_part_2', parts.AUTO),
-    ('final_part', parts.AUTO),
-    ('some_part', parts.AUTO),
-])
-
-
-def make_sub_part_1() -> PLIST.sub_part_1:
-    return 'part from make_sub_part_1'
-
-
-def make_sub_part_1_another() -> PLIST.sub_part_1:
-    return 'part from make_sub_part_1_another'
-
-
-def make_sub_part_1_yet_another() -> PLIST.sub_part_1:
-    return 'part from make_sub_part_1_yet_another'
-
-
-def make_sub_part_2() -> PLIST.sub_part_2:
-    return 'part from make_sub_part_2'
-
-
-def make_all_sub_parts() -> (PLIST.sub_part_1, PLIST.sub_part_2):
-    return (
-        'part 1 from make_all_sub_parts',
-        'part 2 from make_all_sub_parts',
-    )
-
-
-def make_final_part(
-        sub_part_1: [PLIST.sub_part_1],
-        sub_part_2: PLIST.sub_part_2,
-        ) -> PLIST.final_part:
-    return 'part from make_final_part'
 
 
 if __name__ == '__main__':
