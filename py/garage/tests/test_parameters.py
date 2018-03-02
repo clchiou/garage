@@ -1,5 +1,7 @@
 import unittest
 
+import typing
+
 from garage import parameters
 
 
@@ -51,6 +53,48 @@ class ParametersTest(unittest.TestCase):
         pattern = r'expect .*-typed value instead of 1'
         with self.assertRaisesRegex(AssertionError, pattern):
             bp.unsafe_set(1)
+
+    def test_infer_vector_type(self):
+
+        self.assertIs(
+            typing.Tuple[int],
+            parameters.infer_vector_type((1,)),
+        )
+
+        self.assertIs(
+            typing.Tuple[str, float],
+            parameters.infer_vector_type(('x', 3.14)),
+        )
+
+        with self.assertRaises(AssertionError):
+            parameters.infer_vector_type([1])
+
+        with self.assertRaisesRegex(AssertionError, r'expect non-empty'):
+            parameters.infer_vector_type(())
+
+    def test_infer_matrix_type(self):
+
+        self.assertIs(
+            typing.List[typing.Tuple[int]],
+            parameters.infer_matrix_type([1]),
+        )
+
+        self.assertIs(
+            typing.List[typing.Tuple[int, str]],
+            parameters.infer_matrix_type([(1, '')]),
+        )
+
+        with self.assertRaisesRegex(AssertionError, r'expect same cell type'):
+            parameters.infer_matrix_type([1, ''])
+
+        with self.assertRaisesRegex(AssertionError, r'expect same cell type'):
+            parameters.infer_matrix_type([(1, ''), ('', 1)])
+
+        with self.assertRaises(AssertionError):
+            parameters.infer_matrix_type((1,))
+
+        with self.assertRaisesRegex(AssertionError, r'expect non-empty'):
+            parameters.infer_matrix_type([])
 
 
 if __name__ == '__main__':
