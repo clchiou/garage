@@ -147,11 +147,16 @@ class ParameterDescriptor:
         raise NotImplementedError
 
     def format_help(self, parameter):
+        if parameter.unit:
+            default = 'default: %s %s' % (
+                self.show(parameter.default), parameter.unit)
+        else:
+            default = 'default: %s' % self.show(parameter.default)
         doc = parameter.doc
         if doc is None:
-            doc = 'default: %s' % self.show(parameter.default)
+            doc = default
         else:
-            doc = '%s (default: %s)' % (doc, self.show(parameter.default))
+            doc = '%s (%s)' % (doc, default)
         return doc
 
     def add_argument_to(self, flag, parameter, parser):
@@ -307,9 +312,10 @@ class Parameter:
     to have a default value.
     """
 
-    def __init__(self, descriptor, default, doc):
+    def __init__(self, descriptor, default, unit, doc):
         descriptor.validate(default)
         self.default = default
+        self.unit = unit
         self.doc = doc
         self.descriptor = descriptor
         self._value = default
@@ -382,7 +388,7 @@ def define_namespace(doc=None):
     return Namespace(ParameterNamespace(doc))
 
 
-def define(default, doc=None, type=None):
+def define(default, doc=None, type=None, unit=None):
     """Define a parameter.
 
     The parameter type is inferred from the default value unless
@@ -392,7 +398,7 @@ def define(default, doc=None, type=None):
         _MATRIX_PARAMETER_DESCRIPTORS,
         _VECTOR_PARAMETER_DESCRIPTORS,
         _SCALAR_PARAMETER_DESCRIPTORS,
-        default, doc, type,
+        default, doc, type, unit
     )
 
 
@@ -400,7 +406,7 @@ def _define_parameter(
         matrix_descriptors,
         vector_descriptors,
         scalar_descriptors,
-        default, doc, type):
+        default, doc, type, unit):
 
     type = type or default.__class__
 
@@ -432,7 +438,7 @@ def _define_parameter(
     else:
         ASSERT.fail('expect scalar, vector, or matrix: %r %r', type, default)
 
-    return Parameter(descriptor, default, doc)
+    return Parameter(descriptor, default, unit, doc)
 
 
 def get_or_make_scalar_parameter_descriptor(
