@@ -42,7 +42,6 @@ async def echo_server(
             resposne_promise.set_result(request)
 
 
-@apps.with_prog('echo-server')
 @apps.with_selected_makers({servers.PARTS.server: all})
 def main(_, serve: servers.PARTS.serve):
     return 0 if curio.run(serve()) else 1

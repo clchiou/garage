@@ -22,7 +22,6 @@ async def dummy_server() -> servers.PARTS.server:
         LOG.info('main_server: exit')
 
 
-@apps.with_prog('dummy-server')
 @apps.with_selected_makers({servers.PARTS.server: all})
 def main(_, serve: servers.PARTS.serve):
     return 0 if curio.run(serve()) else 1
