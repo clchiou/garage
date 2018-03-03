@@ -4,23 +4,16 @@ import logging
 
 import curio
 
-from garage import cli
-from garage import components
-from garage.startups.asyncs.servers import ServerContainerComponent
+from garage import apps
+from garage import parts
+from garage.partdefs.asyncs import servers
 
 
 LOG = logging.getLogger(__name__)
 
 
-class ServerComponent(components.Component):
-
-    provide = ServerContainerComponent.require.make_server
-
-    def make(self, require):
-        return dummy_server
-
-
-async def dummy_server():
+@parts.register_maker
+async def dummy_server() -> servers.PARTS.server:
     try:
         duration = 10
         LOG.info('sleep for %d seconds and then exit...', duration)
@@ -29,12 +22,12 @@ async def dummy_server():
         LOG.info('main_server: exit')
 
 
-@cli.command('dummy-server')
-@cli.component(ServerContainerComponent)
-@cli.component(ServerComponent)
-def main(serve: ServerContainerComponent.provide.serve):
+@apps.with_prog('dummy-server')
+@apps.with_selected_makers({servers.PARTS.server: all})
+@apps.using_parts(serve=servers.PARTS.serve)
+def main(_, serve):
     return 0 if curio.run(serve()) else 1
 
 
 if __name__ == '__main__':
-    main()
+    apps.run(main)
