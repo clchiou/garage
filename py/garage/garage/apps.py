@@ -11,7 +11,6 @@ need four pieces being initialized before start:
 
 __all__ = [
     'run',
-    'using_parts',
     'with_apps',
     'with_argument',
     'with_defaults',
@@ -80,8 +79,8 @@ def with_input_parts(input_parts):
 def with_part_names(*part_names):
     """Add part names for garage.parts.assemble.
 
-    Call this instead of using_parts when you want to assemble these
-    parts but do not want them to be passed to main.
+    Call this  when you want to assemble these parts but do not want
+    them to be passed to main.
     """
     return lambda main: _ensure_app(main).with_part_names(*part_names)
 
@@ -89,11 +88,6 @@ def with_part_names(*part_names):
 def with_selected_makers(selected_makers):
     """Update selected maker for garage.parts.assemble."""
     return lambda main: _ensure_app(main).with_selected_makers(selected_makers)
-
-
-def using_parts(**using_part_names):
-    """Assemble and pass these parts to application.main."""
-    return lambda main: _ensure_app(main).using_parts(**using_part_names)
 
 
 class Application:
@@ -109,7 +103,7 @@ class Application:
 
     def __init__(self, main):
 
-        self.main = main
+        self._main = main
 
         # For argparse.ArgumentParser.
         self._prog = None
@@ -128,15 +122,18 @@ class Application:
         self._input_parts = {}
         self._selected_makers = {}
 
-        # Let main function use these parts.
-        self._using_part_names = []
+        # Inject these parts when calling the main function.
+        self._using_part_names = tuple(
+            (input_spec.parameter, input_spec.part_name)
+            for input_spec in parts.parse_maker_spec(self._main).input_specs
+        )
         self._using_parts = None
 
     def __repr__(self):
         return '<%s.%s 0x%x %r>' % (
             self.__module__, self.__class__.__qualname__,
             id(self),
-            self.main,
+            self._main,
         )
 
     def with_prog(self, prog):
@@ -179,15 +176,11 @@ class Application:
         self._selected_makers.update(selected_makers)
         return self
 
-    def using_parts(self, **using_part_names):
-        self._using_part_names.extend(using_part_names.items())
-        return self
-
     def get_prog(self, argv0=None):
-        return self._prog or argv0 or self.main.__name__
+        return self._prog or argv0 or self._main.__name__
 
     def get_description(self):
-        return self.main.__doc__ or sys.modules[self.main.__module__].__doc__
+        return self._main.__doc__ or sys.modules[self._main.__module__].__doc__
 
     def get_help(self):
         return self._help or self.get_description()
@@ -243,7 +236,7 @@ class Application:
                 app.configure_parser(subparser)
 
     def assemble_parts(self, exit_stack):
-        """Assemble parts and provide them to using_parts."""
+        """Assemble parts and fill up self._using_parts."""
         part_names = set()
         input_parts = {apps.PARTS.exit_stack: exit_stack}
         selected_makers = {}
@@ -292,7 +285,7 @@ class Application:
             self._using_parts is not None,
             'expect context being set up before calling app: %r', self,
         )
-        return self.main(args, **self._using_parts)
+        return self._main(args, **self._using_parts)
 
 
 def run(main, argv=None):

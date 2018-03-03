@@ -43,8 +43,7 @@ async def echo_client(
 
 @apps.with_prog('echo-client')
 @apps.with_selected_makers({servers.PARTS.server: all})
-@apps.using_parts(serve=servers.PARTS.serve)
-def main(_, serve):
+def main(_, serve: servers.PARTS.serve):
     return 0 if curio.run(serve()) else 1
 
 
