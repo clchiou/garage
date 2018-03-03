@@ -1,6 +1,5 @@
 """Sample NN_REP server that echos requests."""
 
-from functools import partial
 import logging
 
 import curio
@@ -8,42 +7,30 @@ import curio
 from nanomsg.curio import Socket
 import nanomsg as nn
 
-from garage import cli
-from garage import components
+from garage import apps
+from garage import parameters
+from garage import parts
 from garage.asyncs import TaskStack
 from garage.asyncs.messaging import reqrep
 from garage.asyncs.queues import Closed, Queue
-from garage.startups.asyncs.servers import GracefulExitComponent
-from garage.startups.asyncs.servers import ServerContainerComponent
+from garage.partdefs.asyncs import servers
 
 
 LOG = logging.getLogger(__name__)
 
 
-class ServerComponent(components.Component):
-
-    require = (
-        components.ARGS,
-        GracefulExitComponent.provide.graceful_exit,
-    )
-
-    provide = ServerContainerComponent.require.make_server
-
-    def add_arguments(self, parser):
-        group = parser.add_argument_group(__name__)
-        group.add_argument(
-            '--port', default=25000, type=int,
-            help="""set port (default to %(default)s)""")
-
-    def make(self, require):
-        return partial(echo_server, require.graceful_exit, require.args.port)
+PARAMS = parameters.get(__name__)
+PARAMS.port = parameters.define(25000, 'set port')
 
 
-async def echo_server(graceful_exit, port):
-    LOG.info('serving at local TCP port: %d', port)
+@parts.register_maker
+async def echo_server(
+    graceful_exit: servers.PARTS.graceful_exit,
+    ) -> servers.PARTS.server:
+    LOG.info('serving at local TCP port: %d', PARAMS.port.get())
     socket = Socket(domain=nn.AF_SP_RAW, protocol=nn.NN_REP)
     async with socket, TaskStack() as stack:
-        socket.bind('tcp://127.0.0.1:%d' % port)
+        socket.bind('tcp://127.0.0.1:%d' % PARAMS.port.get())
         queue = Queue()
         await stack.spawn(reqrep.server(graceful_exit, socket, queue))
         while True:
@@ -55,12 +42,12 @@ async def echo_server(graceful_exit, port):
             resposne_promise.set_result(request)
 
 
-@cli.command('echo-server')
-@cli.component(ServerContainerComponent)
-@cli.component(ServerComponent)
-def main(serve: ServerContainerComponent.provide.serve):
+@apps.with_prog('echo-server')
+@apps.with_selected_makers({servers.PARTS.server: all})
+@apps.using_parts(serve=servers.PARTS.serve)
+def main(_, serve):
     return 0 if curio.run(serve()) else 1
 
 
 if __name__ == '__main__':
-    main()
+    apps.run(main)

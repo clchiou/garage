@@ -1,56 +1,38 @@
 """Sample NN_REQ client."""
 
-from functools import partial
 import logging
 
 import curio
 
-from nanomsg.curio import Socket
 import nanomsg as nn
+from nanomsg.curio import Socket
 
-from garage import cli
-from garage import components
+from garage import apps
+from garage import parameters
+from garage import parts
 from garage.asyncs import TaskStack
 from garage.asyncs.futures import Future
 from garage.asyncs.messaging import reqrep
 from garage.asyncs.queues import Queue
-from garage.startups.asyncs.servers import GracefulExitComponent
-from garage.startups.asyncs.servers import ServerContainerComponent
+from garage.partdefs.asyncs import servers
 
 
 LOG = logging.getLogger(__name__)
 
 
-class ClientComponent(components.Component):
-
-    require = (
-        components.ARGS,
-        GracefulExitComponent.provide.graceful_exit,
-    )
-
-    provide = ServerContainerComponent.require.make_server
-
-    def add_arguments(self, parser):
-        group = parser.add_argument_group(__name__)
-        group.add_argument(
-            '--port', type=int, default=25000,
-            help="""set port (default to %(default)s)""")
-        group.add_argument(
-            'message', type=str,
-            help="""set message contents""")
-
-    def make(self, require):
-        return partial(
-            echo_client,
-            require.graceful_exit, require.args.port, require.args.message,
-        )
+PARAMS = parameters.get(__name__)
+PARAMS.port = parameters.define(25000, 'set port')
+PARAMS.message = parameters.define('', 'set message to send')
 
 
-async def echo_client(graceful_exit, port, message):
-    request = message.encode('utf8')
-    LOG.info('connect to local TCP port: %d', port)
+@parts.register_maker
+async def echo_client(
+    graceful_exit: servers.PARTS.graceful_exit,
+    ) -> servers.PARTS.server:
+    request = PARAMS.message.get().encode('utf8')
+    LOG.info('connect to local TCP port: %d', PARAMS.port.get())
     async with Socket(protocol=nn.NN_REQ) as socket, TaskStack() as stack:
-        socket.connect('tcp://127.0.0.1:%d' % port)
+        socket.connect('tcp://127.0.0.1:%d' % PARAMS.port.get())
         queue = Queue()
         await stack.spawn(reqrep.client(graceful_exit, [socket], queue))
         async with Future() as response_future:
@@ -59,12 +41,12 @@ async def echo_client(graceful_exit, port, message):
         LOG.info('receive resposne: %r', response)
 
 
-@cli.command('echo-client')
-@cli.component(ServerContainerComponent)
-@cli.component(ClientComponent)
-def main(serve: ServerContainerComponent.provide.serve):
+@apps.with_prog('echo-client')
+@apps.with_selected_makers({servers.PARTS.server: all})
+@apps.using_parts(serve=servers.PARTS.serve)
+def main(_, serve):
     return 0 if curio.run(serve()) else 1
 
 
 if __name__ == '__main__':
-    main()
+    apps.run(main)
