@@ -18,15 +18,15 @@ LOG = logging.getLogger(__name__)
 
 
 # The root node of the supervisor tree
-async def serve(graceful_exit, grace_period, make_server_funcs):
+async def serve(graceful_exit, grace_period, server_coros):
 
     okay = NOT_OKAY
 
     async with asyncs.TaskStack() as servers:
 
         LOG.info('start servers: pid=%d', os.getpid())
-        for make_server in make_server_funcs:
-            await servers.spawn(make_server())
+        for server_coro in server_coros:
+            await servers.spawn(server_coro)
         all_tasks = list(servers)
 
         # Also spawn default signal handler.

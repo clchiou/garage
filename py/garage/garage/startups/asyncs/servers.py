@@ -44,5 +44,5 @@ class ServerContainerComponent(components.Component):
             servers.serve,
             require.graceful_exit,
             require.args.grace_period,
-            require.make_server,
+            [make_server() for make_server in require.make_server],
         )

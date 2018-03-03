@@ -8,7 +8,7 @@ from garage.asyncs import servers
 
 PARTS = parts.PartList(servers.__name__, [
     ('graceful_exit', parts.AUTO),
-    ('make_server', parts.AUTO),
+    ('server', parts.AUTO),
     ('serve', parts.AUTO),
 ])
 
@@ -27,11 +27,11 @@ def make_graceful_exit() -> PARTS.graceful_exit:
 @parts.register_maker
 def make_serve(
         graceful_exit: PARTS.graceful_exit,
-        make_server_funcs: [PARTS.make_server],
+        server_coros: [PARTS.server],
     ) -> PARTS.serve:
     return functools.partial(
         servers.serve,
         graceful_exit=graceful_exit,
         grace_period=PARAMS.grace_period.get(),
-        make_server_funcs=make_server_funcs,
+        server_coros=server_coros,
     )

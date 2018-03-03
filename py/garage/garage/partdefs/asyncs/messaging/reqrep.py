@@ -1,4 +1,3 @@
-import functools
 import logging
 import typing
 
@@ -41,7 +40,7 @@ def define_maker(part_list, params):
     def make_client(
             exit_stack: apps.PARTS.exit_stack,
             graceful_exit: servers.PARTS.graceful_exit,
-        ) -> (servers.PARTS.make_server, part_list.request_queue):
+        ) -> (servers.PARTS.server, part_list.request_queue):
 
         bind_addresses = params.bind.get()
         connect_addresses = params.connect.get()
@@ -68,14 +67,13 @@ def define_maker(part_list, params):
                 socket.connect(url)
             sockets.append(socket)
 
-        make_server = functools.partial(
-            reqrep.client,
+        coro = reqrep.client(
             graceful_exit=graceful_exit,
             sockets=sockets,
             request_queue=request_queue,
             timeout=timeout,
         )
 
-        return make_server, request_queue
+        return coro, request_queue
 
     return make_client
