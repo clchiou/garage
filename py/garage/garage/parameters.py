@@ -160,9 +160,15 @@ class ParameterDescriptor:
         return doc
 
     def add_argument_to(self, flag, parameter, parser):
+        #
+        # Do not it call with `type=self.parse` because when nargs > 1,
+        # ArgumentParser applies `type` on each argument values rather
+        # than applying `type` on them as a single tuple.
+        #
         # Do not provide parameter.default to parser.add_argument as we
         # check `args.var_name is None` at later point to know whether
         # a parameter is overridden from command-line.
+        #
         parser.add_argument(
             flag,
             action=self.action,
