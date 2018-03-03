@@ -24,6 +24,7 @@ __all__ = [
 
 import inspect
 from collections import defaultdict
+from collections import namedtuple
 
 from garage.assertions import ASSERT
 
@@ -141,6 +142,67 @@ class PartList:
         return part_list
 
 
+MakerSpec = namedtuple('MakerSpec', [
+    'input_specs',  # List of InputSpec.
+    'output_specs',  # List of part names that this function makes.
+])
+
+
+InputSpec = namedtuple('InputSpec', [
+    'parameter',  # Name of function's parameter.
+    'part_name',  # Part name annotated to this parameter.
+    'is_all'  # True if it is `[x]`-annotated.
+])
+
+
+def parse_maker_spec(maker):
+    """Return MakerSpec of `maker`."""
+
+    sig = inspect.signature(maker)
+
+    input_specs = []
+    for parameter in sig.parameters.values():
+        if parameter.annotation is sig.empty:
+            # We should probably not err out here because maker could be
+            # a wrapper, and this parameter is bound to some default (if
+            # not, eventually an error will be raised when this maker is
+            # called).
+            continue
+        is_all = isinstance(parameter.annotation, list)
+        if is_all:
+            ASSERT(
+                len(parameter.annotation) == 1,
+                'expect `[x]`-form annotation, not: %r', parameter.annotation,
+            )
+            part_name = parameter.annotation[0]
+        else:
+            part_name = parameter.annotation
+        input_specs.append(InputSpec(
+            parameter=parameter.name,
+            part_name=ASSERT.type_of(part_name, str),
+            is_all=is_all,
+        ))
+    input_specs = tuple(input_specs)
+
+    if sig.return_annotation is sig.empty:
+        # While a maker should usually be annotated with return values,
+        # we let the caller decide whether the case of no annotation is
+        # an error or not.
+        output_specs = ()
+    elif isinstance(sig.return_annotation, tuple):
+        output_specs = tuple(
+            ASSERT.type_of(output_part_name, str)
+            for output_part_name in sig.return_annotation
+        )
+    else:
+        output_specs = (ASSERT.type_of(sig.return_annotation, str),)
+
+    return MakerSpec(
+        input_specs=input_specs,
+        output_specs=output_specs,
+    )
+
+
 # Table of output part name -> maker -> list of input part names.
 _MAKER_TABLE = defaultdict(dict)
 
@@ -151,39 +213,16 @@ def register_maker(maker):
 
 
 def _register_maker(maker_table, maker):
-
-    sig = inspect.signature(maker)
-
-    input_part_names = []
-    for parameter in sig.parameters.values():
-        if parameter.annotation is sig.empty:
-            # We should probably not err out here because maker could be
-            # a wrapper, and this parameter is bound to some default (if
-            # not, eventually an error will be raised when this maker is
-            # called).
-            continue
-        if isinstance(parameter.annotation, list):
-            ASSERT(
-                len(parameter.annotation) == 1,
-                'expect `[x]`-form annotation, not: %r', parameter.annotation,
-            )
-            part_name = parameter.annotation[0]
-        else:
-            part_name = parameter.annotation
-        input_part_names.append(ASSERT.type_of(part_name, str))
-
+    maker_spec = parse_maker_spec(maker)
     ASSERT(
-        sig.return_annotation is not sig.empty,
+        maker_spec.output_specs,
         'expect maker be annotated on its return value: %r', maker,
     )
-    if isinstance(sig.return_annotation, tuple):
-        for output_part_name in sig.return_annotation:
-            ASSERT.type_of(output_part_name, str)
-            maker_table[output_part_name][maker] = input_part_names
-    else:
-        ASSERT.type_of(sig.return_annotation, str)
-        maker_table[sig.return_annotation][maker] = input_part_names
-
+    for output_part_name in maker_spec.output_specs:
+        maker_table[output_part_name][maker] = [
+            input_spec.part_name
+            for input_spec in maker_spec.input_specs
+        ]
     return maker
 
 
