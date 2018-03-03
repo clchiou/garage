@@ -18,6 +18,7 @@ setup(
         'formatters': ['PyYAML'],
         'http.clients': ['lxml', 'requests'],
         'http.servers': ['http2'],
+        'parts': ['startup'],
         'sql': ['SQLAlchemy'],
     },
 )
