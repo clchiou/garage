@@ -79,7 +79,7 @@ def with_input_parts(input_parts):
 def with_part_names(*part_names):
     """Add part names for garage.parts.assemble.
 
-    Call this  when you want to assemble these parts but do not want
+    Call this when you want to assemble these parts but do not want
     them to be passed to main.
     """
     return lambda main: _ensure_app(main).with_part_names(*part_names)
@@ -123,10 +123,7 @@ class Application:
         self._selected_makers = {}
 
         # Inject these parts when calling the main function.
-        self._using_part_names = tuple(
-            (input_spec.parameter, input_spec.part_name)
-            for input_spec in parts.parse_maker_spec(self._main).input_specs
-        )
+        self._using_part_specs = parts.parse_maker_spec(self._main).input_specs
         self._using_parts = None
 
     def __repr__(self):
@@ -237,7 +234,7 @@ class Application:
 
     def assemble_parts(self, exit_stack):
         """Assemble parts and fill up self._using_parts."""
-        part_names = set()
+        part_names = []
         input_parts = {apps.PARTS.exit_stack: exit_stack}
         selected_makers = {}
         self.collect_for_assemble(part_names, input_parts, selected_makers)
@@ -254,8 +251,8 @@ class Application:
         to be called, and thus we collect stuff from all sub-apps.
         """
 
-        part_names.update(self._part_names)
-        part_names.update(pn for _, pn in self._using_part_names)
+        part_names.extend(self._part_names)
+        part_names.extend(self._using_part_specs)
 
         # Sanity check that you do not override "the" exit stack.
         ASSERT.not_in(apps.PARTS.exit_stack, self._input_parts)
@@ -272,8 +269,8 @@ class Application:
         """Provide parts to using_parts of this and all sub-apps."""
         ASSERT.none(self._using_parts)
         self._using_parts = {
-            name: values[part_name]
-            for name, part_name in self._using_part_names
+            spec.parameter: values[spec.part_name]
+            for spec in self._using_part_specs
         }
         if self._app_group:
             for app in self._app_group.applications:

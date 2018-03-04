@@ -281,7 +281,10 @@ def find_sources(part_names, input_parts, maker_table, selected_makers):
 
     queue = []
     for part_name in part_names:
-        if isinstance(part_name, list):
+        if isinstance(part_name, InputSpec):
+            is_all = part_name.is_all
+            part_name = part_name.part_name
+        elif isinstance(part_name, list):
             ASSERT.equal(1, len(part_name))
             part_name = part_name[0]
             is_all = True
