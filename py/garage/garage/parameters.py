@@ -26,6 +26,7 @@ __all__ = [
     'define',
     'define_namespace',
     'get',
+    'set_namespace',
 ]
 
 import enum
@@ -367,6 +368,26 @@ def _get_or_make_namespace(root_namespace, module_name, doc):
     except KeyError:
         root_namespace[module_name] = namespace = ParameterNamespace(doc)
     return Namespace(namespace)
+
+
+def set_namespace(module_name, namespace):
+    """Set (module-level) parameter namespace."""
+    ASSERT.type_of(namespace, Namespace)
+    nspace = namespace._namespace
+    if module_name == '__main__':
+        ASSERT(
+            not (set(_ROOT_NAMESPACE) & set(nspace)),
+            'expect not overriding module-level namespace: %s', module_name,
+        )
+        _ROOT_NAMESPACE.parameters.update(nspace.parameters)
+        return Namespace(_ROOT_NAMESPACE)
+    else:
+        ASSERT(
+            module_name not in _ROOT_NAMESPACE,
+            'expect not overriding module-level namespace: %s', module_name,
+        )
+        _ROOT_NAMESPACE[module_name] = nspace
+        return namespace
 
 
 _SCALAR_PARAMETER_DESCRIPTORS = {
