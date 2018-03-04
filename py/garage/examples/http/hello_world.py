@@ -1,12 +1,13 @@
-#!/usr/bin/env python3
+"""Demonstration of garage.http.legacy.
 
-"""Demonstration of garage.http.legacy."""
+Example of accessing the web service:
+    curl -XPOST http://127.0.0.1:8080/
+"""
 
 from concurrent import futures
 import functools
 
-from garage import cli
-from garage.components import ARGS
+from garage import apps
 from garage.http import legacy
 from garage.threads import actors
 from garage.threads import queues
@@ -16,24 +17,27 @@ from garage.threads import queues
 def api_handler(request_queue):
     try:
         while True:
-            request, response_future = request_queue.get()
+            _, response_future = request_queue.get()
             response_future.set_result('hello world')
     except queues.Closed:
         pass
 
 
-@cli.command()
-@cli.argument('--address', default='127.0.0.1',
-              help="""set server address (default to %(default)s)""")
-@cli.argument('--port', type=int, default=8080,
-              help="""set server port (default to %(default)s)""")
-@cli.argument('--certificate',
-              help="""set HTTP server certificate""")
-@cli.argument('--private-key',
-              help="""set HTTP server private key""")
-@cli.argument('--client-authentication', action='store_true',
-              help="""enable client authentication""")
-def hello_world(args: ARGS):
+@apps.with_argument(
+    '--address', default='127.0.0.1',
+    help="""set server address (default to %(default)s)""")
+@apps.with_argument(
+    '--port', type=int, default=8080,
+    help="""set server port (default to %(default)s)""")
+@apps.with_argument(
+    '--certificate', help="""set HTTP server certificate""")
+@apps.with_argument(
+    '--private-key', help="""set HTTP server private key""")
+@apps.with_argument(
+    '--client-authentication', action='store_true',
+    help="""enable client authentication""")
+def main(args):
+    """Demonstration of garage.http.legacy."""
 
     request_queue = queues.Queue()
 
@@ -65,6 +69,8 @@ def hello_world(args: ARGS):
     for fut in futures.as_completed(futs):
         fut.result()
 
+    return 0
+
 
 if __name__ == '__main__':
-    hello_world()
+    apps.run(main)
