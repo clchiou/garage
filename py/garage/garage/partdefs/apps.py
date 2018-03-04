@@ -1,6 +1,5 @@
-from garage import parts
+from garage import apps
 
 
-PARTS = parts.PartList(__name__, [
-    ('exit_stack', parts.AUTO),
-])
+# Re-export it here.
+PARTS = apps.PARTS

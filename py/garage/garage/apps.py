@@ -10,10 +10,12 @@ need four pieces being initialized before start:
 """
 
 __all__ = [
+    'App',
     'run',
     'with_apps',
     'with_argument',
     'with_defaults',
+    'with_description',
     'with_help',
     'with_input_parts',
     'with_log_level',
@@ -32,18 +34,27 @@ import threading
 from garage import parameters
 from garage import parts
 from garage.assertions import ASSERT
-from garage.partdefs import apps
+
+
+PARTS = parts.PartList(__name__, [
+    ('exit_stack', parts.AUTO),
+])
 
 
 def _ensure_app(main):
-    if not isinstance(main, Application):
-        main = Application(main)
+    if not isinstance(main, App):
+        main = App(main)
     return main
 
 
 def with_prog(prog):
     """Set application name of argparse.ArgumentParser."""
     return lambda main: _ensure_app(main).with_prog(prog)
+
+
+def with_description(description):
+    """Set description of argparse.ArgumentParser."""
+    return lambda main: _ensure_app(main).with_description(description)
 
 
 def with_help(help):
@@ -53,7 +64,8 @@ def with_help(help):
 
 def with_argument(*args, **kwargs):
     """Add argument to argparse.ArgumentParser."""
-    return lambda main: _ensure_app(main).with_argument(*args, **kwargs)
+    return lambda main: _ensure_app(main)._with_argument_for_decorator(
+        *args, **kwargs)
 
 
 def with_defaults(**defaults):
@@ -61,9 +73,9 @@ def with_defaults(**defaults):
     return lambda main: _ensure_app(main).with_defaults(**defaults)
 
 
-def with_apps(dest, help, *applications):
+def with_apps(dest, help, *apps):
     """Set a group of applications under this one."""
-    return lambda main: _ensure_app(main).with_apps(dest, help, *applications)
+    return lambda main: _ensure_app(main).with_apps(dest, help, *apps)
 
 
 def with_log_level(log_level):
@@ -90,16 +102,16 @@ def with_selected_makers(selected_makers):
     return lambda main: _ensure_app(main).with_selected_makers(selected_makers)
 
 
-class Application:
+class App:
     """Represent an application."""
 
     class Group:
         """Represent a group of applications."""
 
-        def __init__(self, dest, help, applications):
+        def __init__(self, dest, help, apps):
             self.dest = dest
             self.help = help
-            self.applications = applications
+            self.apps = apps
 
     def __init__(self, main):
 
@@ -107,6 +119,7 @@ class Application:
 
         # For argparse.ArgumentParser.
         self._prog = None
+        self._description = None
         self._help = None
         self._arguments = []
         self._defaults = {}
@@ -133,28 +146,40 @@ class Application:
             self._main,
         )
 
+    # Provide both fluent interface and decorator chain interface.
+
     def with_prog(self, prog):
         self._prog = prog
+        return self
+
+    def with_description(self, description):
+        self._description = description
         return self
 
     def with_help(self, help):
         self._help = help
         return self
 
-    def with_argument(self, *args, **kwargs):
+    # Decorator chain style of with_argument.
+    def _with_argument_for_decorator(self, *args, **kwargs):
         # This is intended to be used in decorator chains; thus the
         # order is usually reversed (so prepend here, not append).
         self._arguments.insert(0, (args, kwargs))
+        return self
+
+    # Fluent style of with_argument.
+    def with_argument(self, *args, **kwargs):
+        self._arguments.append((args, kwargs))
         return self
 
     def with_defaults(self, **defaults):
         self._defaults.update(defaults)
         return self
 
-    def with_apps(self, dest, help, *applications):
-        applications = [_ensure_app(app) for app in applications]
-        ASSERT(applications, 'expect at least one app: %r', applications)
-        self._app_group = self.Group(dest, help, applications)
+    def with_apps(self, dest, help, *apps):
+        apps = [_ensure_app(app) for app in apps]
+        ASSERT(apps, 'expect at least one app: %r', apps)
+        self._app_group = self.Group(dest, help, apps)
         return self
 
     def with_log_level(self, log_level):
@@ -177,7 +202,9 @@ class Application:
         return self._prog or argv0 or self._main.__name__
 
     def get_description(self):
-        return self._main.__doc__ or sys.modules[self._main.__module__].__doc__
+        return (self._description or
+                self._main.__doc__ or
+                sys.modules[self._main.__module__].__doc__)
 
     def get_help(self):
         return self._help or self.get_description()
@@ -223,7 +250,7 @@ class Application:
             # http://bugs.python.org/issue9253
             subparsers.dest = self._app_group.dest
             subparsers.required = True
-            for app in self._app_group.applications:
+            for app in self._app_group.apps:
                 subparser = subparsers.add_parser(
                     app.get_prog(),
                     description=app.get_description(),
@@ -235,7 +262,7 @@ class Application:
     def assemble_parts(self, exit_stack):
         """Assemble parts and fill up self._using_parts."""
         part_names = []
-        input_parts = {apps.PARTS.exit_stack: exit_stack}
+        input_parts = {PARTS.exit_stack: exit_stack}
         selected_makers = {}
         self.collect_for_assemble(part_names, input_parts, selected_makers)
         return parts.assemble(
@@ -255,13 +282,13 @@ class Application:
         part_names.extend(self._using_part_specs)
 
         # Sanity check that you do not override "the" exit stack.
-        ASSERT.not_in(apps.PARTS.exit_stack, self._input_parts)
+        ASSERT.not_in(PARTS.exit_stack, self._input_parts)
         input_parts.update(self._input_parts)
 
         selected_makers.update(self._selected_makers)
 
         if self._app_group:
-            for app in self._app_group.applications:
+            for app in self._app_group.apps:
                 app.collect_for_assemble(
                     part_names, input_parts, selected_makers)
 
@@ -273,7 +300,7 @@ class Application:
             for spec in self._using_part_specs
         }
         if self._app_group:
-            for app in self._app_group.applications:
+            for app in self._app_group.apps:
                 app.provide_parts(values)
 
     def __call__(self, args):
