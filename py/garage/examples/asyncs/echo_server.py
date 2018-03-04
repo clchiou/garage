@@ -3,8 +3,6 @@
 import functools
 import logging
 
-import curio
-
 from garage import apps
 from garage import parameters
 from garage import parts
@@ -38,10 +36,5 @@ async def handle(client_sock, client_addr):
     LOG.info('close connection to: %s', client_addr)
 
 
-@apps.with_selected_makers({servers.PARTS.server: all})
-def main(_, serve: servers.PARTS.serve):
-    return 0 if curio.run(serve()) else 1
-
-
 if __name__ == '__main__':
-    apps.run(main)
+    apps.run(apps.App(servers.main).with_description(__doc__))

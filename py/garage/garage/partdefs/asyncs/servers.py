@@ -1,5 +1,7 @@
 import functools
 
+import curio
+
 from garage import asyncs
 from garage import parameters
 from garage import parts
@@ -35,3 +37,13 @@ def make_serve(
         grace_period=PARAMS.grace_period.get(),
         server_coros=server_coros,
     )
+
+
+#
+# A stock main function.
+#
+# NOTE: Do not decorate it with `@apps`, which creates an apps.App
+# object, because it might be shared in multiple places, and if they all
+# decorate it further, they will be modifying the same apps.App object.
+def main(_, serve: PARTS.serve):
+    return 0 if curio.run(serve()) else 1
