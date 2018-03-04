@@ -71,6 +71,9 @@ class ParameterNamespace:
         self.doc = doc
         self.parameters = OrderedDict()
 
+    def __bool__(self):
+        return bool(self.parameters)
+
     def items(self):
         return self.parameters.items()
 
@@ -607,6 +610,9 @@ def add_arguments_to(parser):
 
 def _add_arguments_to(root_namespace, parser):
 
+    if not root_namespace:
+        return []
+
     group = parser.add_argument_group(
         __name__,
         'module-level parameters',
@@ -685,6 +691,9 @@ def _add_args_to(namespace, parts, parser, parameter_list):
 
 def read_parameters_from(args, parameter_list):
     """Read parameter values from data sources."""
+
+    if not parameter_list:
+        return
 
     if args.parameter_file:
         parameter_table = {
