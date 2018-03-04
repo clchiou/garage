@@ -34,8 +34,8 @@ if startup_available:
         )
 
     def make_final_part(
-            sub_part_1: [PLIST.sub_part_1],
-            sub_part_2: PLIST.sub_part_2,
+            sub_part_1: PLIST.sub_part_1,
+            sub_part_2: [PLIST.sub_part_2],
             ) -> PLIST.final_part:
         return 'part from make_final_part'
 
@@ -108,12 +108,23 @@ class PartsTest(unittest.TestCase):
         def f2(x):
             pass
 
+        def f3(xs: [plist.x]) -> plist.y:
+            pass
+
         maker_table = defaultdict(dict)
         parts._register_maker(maker_table, func)
         parts._register_maker(maker_table, f1)
         parts._register_maker(maker_table, f2)
+        parts._register_maker(maker_table, f3)
         self.assertEqual(
-            {plist.y: {func: [plist.x], f1: [plist.x], f2: [plist.x]}},
+            {
+                plist.y: {
+                    func: (parts.InputSpec('x', plist.x, False),),
+                    f1: (parts.InputSpec('x', plist.x, False),),
+                    f2: (parts.InputSpec('x', plist.x, False),),
+                    f3: (parts.InputSpec('xs', plist.x, True),),
+                },
+            },
             maker_table,
         )
 
@@ -159,6 +170,24 @@ class PartsTest(unittest.TestCase):
             parts.find_sources(
                 [PLIST.final_part],
                 {},
+                maker_table,
+                {},
+            ),
+        )
+
+        maker_table = defaultdict(dict)
+        parts._register_maker(maker_table, make_sub_part_2)
+        parts._register_maker(maker_table, make_all_sub_parts)
+
+        self.assert_sources_equal(
+            [
+                (None, (PLIST.sub_part_2, 'world')),
+                (make_sub_part_2, None),
+                (make_all_sub_parts, None),
+            ],
+            parts.find_sources(
+                [[PLIST.sub_part_2]],  # Test [x] annotation.
+                {PLIST.sub_part_2: 'world'},
                 maker_table,
                 {},
             ),
@@ -264,8 +293,7 @@ class PartsTest(unittest.TestCase):
             ))
 
     def assert_sources_equal(self, expect, actual):
-        key = lambda blob: (str(blob[0]), blob[1])
-        self.assertEqual(sorted(expect, key=key), sorted(actual, key=key))
+        self.assertEqual(sorted(expect, key=str), sorted(actual, key=str))
 
     def test_assemble(self):
 

@@ -203,7 +203,7 @@ def parse_maker_spec(maker):
     )
 
 
-# Table of output part name -> maker -> list of input part names.
+# Table of output part name -> maker -> list of InputSpec.
 _MAKER_TABLE = defaultdict(dict)
 
 
@@ -219,10 +219,7 @@ def _register_maker(maker_table, maker):
         'expect maker be annotated on its return value: %r', maker,
     )
     for output_part_name in maker_spec.output_specs:
-        maker_table[output_part_name][maker] = [
-            input_spec.part_name
-            for input_spec in maker_spec.input_specs
-        ]
+        maker_table[output_part_name][maker] = maker_spec.input_specs
     return maker
 
 
@@ -246,8 +243,12 @@ def assemble(part_names, *, input_parts=None, selected_makers=None):
             another_part_name: all,  # All makers are selected.
         }
 
-    NOTE: It is an error when both an input part is provided and a maker
-    is registered for that part name.
+    `assemble` errs when there are multiple sources for one part unless
+    either caller explicitly allows it or a maker is annotated with [x]
+    on the part (a source is either a maker provide the part of an input
+    part provided by caller).  This restriction is to protect the case
+    when accidentally multiple parts are produced, but only one of them
+    is consumed.
     """
     return _assemble(
         _MAKER_TABLE,
@@ -278,28 +279,38 @@ def find_sources(part_names, input_parts, maker_table, selected_makers):
     A source is either a maker, or a part provided by the caller.
     """
 
-    part_names = set(part_names)
+    queue = []
+    for part_name in part_names:
+        if isinstance(part_name, list):
+            ASSERT.equal(1, len(part_name))
+            part_name = part_name[0]
+            is_all = True
+        else:
+            is_all = False
+        queue.append((ASSERT.type_of(part_name, str), is_all))
 
     seen_part_names = set()
 
     yielded_makers = set()
 
-    def maybe_yield_maker(maker, input_part_names):
+    def maybe_yield_maker(maker, input_specs):
         if maker not in yielded_makers:
-            part_names.update(input_part_names)
+            for input_spec in input_specs:
+                queue.append((input_spec.part_name, input_spec.is_all))
             yielded_makers.add(maker)
             yield maker, None
 
-    while part_names:
+    while queue:
 
-        part_name = part_names.pop()
+        part_name, is_all = queue.pop(0)
         if part_name in seen_part_names:
             continue
 
         seen_part_names.add(part_name)
 
-        # No maker is registered for this part; try input parts.
-        if part_name not in maker_table:
+        maker_to_input_specs = maker_table.get(part_name)
+        if maker_to_input_specs is None:
+            # No maker is registered for this part; try input parts.
             ASSERT(
                 part_name in input_parts,
                 'expect part %s from caller', part_name,
@@ -307,38 +318,40 @@ def find_sources(part_names, input_parts, maker_table, selected_makers):
             yield None, (part_name, input_parts[part_name])
             continue
 
-        # Try registered maker(s).
-        ASSERT(
-            part_name not in input_parts,
-            'expect part %s by maker, not from caller', part_name,
-        )
-        maker_to_input_part_names = maker_table[part_name]
+        # Okay, some makers are registered for this part; let's check
+        # whether we want them all or not.
 
-        # Easy, only one maker is registered for this part.
-        if len(maker_to_input_part_names) == 1:
-            yield from maybe_yield_maker(
-                *next(iter(maker_to_input_part_names.items())))
+        selected = selected_makers.get(part_name)
+        if selected is all:
+            is_all = True
+
+        if is_all:
+            # We want them all; let's check input part before we check
+            # registered makers.
+            if part_name in input_parts:
+                yield None, (part_name, input_parts[part_name])
+        else:
+            # Assert that there is only one source - the maker.
+            ASSERT(
+                part_name not in input_parts,
+                'expect part %s by maker, not from caller', part_name,
+            )
+
+        if is_all or len(maker_to_input_specs) == 1:
+            for maker, input_specs in maker_to_input_specs.items():
+                yield from maybe_yield_maker(maker, input_specs)
             continue
 
         # It is getting complex as multiple makers are registered for
-        # this part.
-        selected = selected_makers.get(part_name)
+        # this part, and we don't want them all.
         ASSERT(
             selected is not None,
             'expect caller to select maker(s) for %s', part_name,
         )
-
-        # Okay, the caller wants them all.
-        if selected is all:
-            for maker, input_part_names in maker_to_input_part_names.items():
-                yield from maybe_yield_maker(maker, input_part_names)
-            continue
-
-        # Try the selected makers.
         for maker in selected:
-            input_part_names = maker_to_input_part_names.get(maker)
+            input_specs = maker_to_input_specs.get(maker)
             ASSERT(
-                input_part_names is not None,
+                input_specs is not None,
                 'expect maker to be registered: %r', maker,
             )
-            yield from maybe_yield_maker(maker, input_part_names)
+            yield from maybe_yield_maker(maker, input_specs)
