@@ -40,8 +40,8 @@ def make_ssl_context(certfile, keyfile, *, client_authentication=False):
 
 
 @actors.OneShotActor.from_func
-def api_server(*,
-        name=__name__, version='<?>',
+def api_server(
+        *, name=__name__, version='<?>',
         address,
         make_ssl_context=None,
         request_queue, request_timeout=None):
@@ -69,7 +69,16 @@ def api_server(*,
             LOG.info('serve request from %s:%s', *self.client_address)
 
             try:
-                length = int(self.headers.get('content-length'))
+                length = self.headers.get('content-length')
+                if length is None:
+                    # Do it the slow way...
+                    for header, value in self.headers.items():
+                        if header.lower() == 'content-length':
+                            length = value
+                            break
+                    else:
+                        length = 0
+                length = int(length)
                 if length <= 0:
                     request = None
                 else:
