@@ -6,14 +6,15 @@ __all__ = [
 
 from pathlib import Path
 
-from garage import cli, scripts
-from garage.components import ARGS
+from garage import apps
+from garage import scripts
 
 from . import alerts, deps, locks, pods, repos
 
 
-@cli.command('list', help='list deployed images')
-def list_images(args: ARGS):
+@apps.with_prog('list')
+@apps.with_help('list deployed images')
+def list_images(args):
     """List deployed images."""
     table = repos.Repo(args.root).get_images()
     for image_id in sorted(table):
@@ -26,16 +27,19 @@ def list_images(args: ARGS):
     return 0
 
 
-@cli.command(help='manage deployed images')
-@cli.sub_command_info('operation', 'operation on images')
-@cli.sub_command(list_images)
-def images(args: ARGS):
+@apps.with_help('manage deployed images')
+@apps.with_apps(
+    'operation', 'operation on images',
+    list_images,
+)
+def images(args):
     """Managa deployed images."""
-    return args.operation()
+    return args.operation(args)
 
 
-@cli.command('list', help='list allocated ports')
-def list_ports(args: ARGS):
+@apps.with_prog('list')
+@apps.with_help('list allocated ports')
+def list_ports(args):
     """List ports allocated to deployed pods."""
     for port in repos.Repo(args.root).get_ports():
         print('%s:%s %s %d' %
@@ -43,27 +47,34 @@ def list_ports(args: ARGS):
     return 0
 
 
-@cli.command(help='manage host ports')
-@cli.sub_command_info('operation', 'operation on ports')
-@cli.sub_command(list_ports)
-def ports(args: ARGS):
+@apps.with_help('manage host ports')
+@apps.with_apps(
+    'operation', 'operation on ports',
+    list_ports,
+)
+def ports(args):
     """Manage host ports allocated to pods."""
-    return args.operation()
+    return args.operation(args)
 
 
-@cli.command('ops-onboard')
-@cli.argument('--dry-run', action='store_true', help='do not execute commands')
-@cli.argument(
+@apps.with_prog('ops-onboard')
+@apps.with_argument(
+    '--dry-run', action='store_true',
+    help='do not execute commands',
+)
+@apps.with_argument(
     '--root', metavar='PATH', type=Path, default=Path('/var/lib/ops'),
     help='set root directory of repos (default %(default)s)'
 )
-@cli.sub_command_info('entity', 'system entity to be operated on')
-@cli.sub_command(alerts.alerts)
-@cli.sub_command(deps.deps)
-@cli.sub_command(images)
-@cli.sub_command(ports)
-@cli.sub_command(pods.pods)
-def main(args: ARGS):
+@apps.with_apps(
+    'entity', 'system entity to be operated on',
+    alerts.alerts,
+    deps.deps,
+    images,
+    ports,
+    pods.pods,
+)
+def main(args):
     """Onboard operations tool."""
     with scripts.dry_run(args.dry_run):
         scripts.ensure_not_root()
@@ -73,7 +84,7 @@ def main(args: ARGS):
             lock = locks.FileLock(repos.Repo.get_lock_path(args.root))
         if not lock or lock.acquire():
             try:
-                return args.entity()
+                return args.entity(args)
             finally:
                 if lock:
                     lock.release()

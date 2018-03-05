@@ -5,8 +5,8 @@ __all__ = [
 from pathlib import Path
 import logging
 
-from garage import cli, scripts
-from garage.components import ARGS
+from garage import apps
+from garage import scripts
 
 
 LOG = logging.getLogger(__name__)
@@ -34,9 +34,10 @@ def ssh_user_key_filename(algorithm):
     return 'id_' + algorithm
 
 
-@cli.command('gen-host-key', help='generate host keys')
-@cli.argument('output_dir', type=Path, help='set output directory')
-def generate_host_key(args: ARGS):
+@apps.with_prog('gen-host-key')
+@apps.with_help('generate host keys')
+@apps.with_argument('output_dir', type=Path, help='set output directory')
+def generate_host_key(args):
     """Generate SSH host keys with ssh-keygen."""
 
     key_paths = [
@@ -67,9 +68,10 @@ def generate_host_key(args: ARGS):
     return 0
 
 
-@cli.command('gen-user-key', help='generate user key pair')
-@cli.argument('output_dir', type=Path, help='set output directory')
-def generate_user_key(args: ARGS):
+@apps.with_prog('gen-user-key')
+@apps.with_help('generate user key pair')
+@apps.with_argument('output_dir', type=Path, help='set output directory')
+def generate_user_key(args):
     """Generate SSH key pair with ssh-keygen."""
     key_path = args.output_dir / ssh_user_key_filename(USER_KEY_ALGORITHM)
     if key_path.exists():
@@ -86,10 +88,12 @@ def generate_user_key(args: ARGS):
     return 0
 
 
-@cli.command(help='manage security keys')
-@cli.sub_command_info('operation', 'operation on keys')
-@cli.sub_command(generate_host_key)
-@cli.sub_command(generate_user_key)
-def keys(args: ARGS):
+@apps.with_help('manage security keys')
+@apps.with_apps(
+    'operation', 'operation on keys',
+    generate_host_key,
+    generate_user_key,
+)
+def keys(args):
     """Manage security keys."""
-    return args.operation()
+    return args.operation(args)

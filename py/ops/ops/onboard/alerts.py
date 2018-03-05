@@ -7,10 +7,9 @@ import json
 import os
 import urllib.request
 
-from garage import cli
+from garage import apps
 from garage import scripts
 from garage.assertions import ASSERT
-from garage.components import ARGS
 
 
 SLACK_COLOR_TABLE = {
@@ -28,32 +27,32 @@ def _get(config, *fields):
     return config
 
 
-@cli.command(help='send alert')
-@cli.argument(
+@apps.with_help('send alert')
+@apps.with_argument(
     '--config', type=Path, default='/etc/ops/config.json',
     help='set config file path (default to %(default)s)'
 )
-@cli.argument(
+@apps.with_argument(
     '--level', choices=('info', 'good', 'warning', 'error'),
     help='set alert level'
 )
-@cli.argument(
+@apps.with_argument(
     '--hostname',
     help='set hostname'
 )
-@cli.argument(
+@apps.with_argument(
     '--systemd-service-result',
     help='provide service result for deriving alert level'
 )
-@cli.argument(
+@apps.with_argument(
     '--title', required=True,
     help='set title of alert message',
 )
-@cli.argument(
+@apps.with_argument(
     '--description', required=True,
     help='set alert description',
 )
-def send(args: ARGS):
+def send(args):
     """Send alert."""
 
     config = json.loads(scripts.ensure_file(args.config).read_text())
@@ -112,10 +111,12 @@ def send(args: ARGS):
     return 0
 
 
-@cli.command(help='manage alerts')
-@cli.defaults(no_locking_required=True)
-@cli.sub_command_info('operation', 'operation on alerts')
-@cli.sub_command(send)
-def alerts(args: ARGS):
+@apps.with_help('manage alerts')
+@apps.with_defaults(no_locking_required=True)
+@apps.with_apps(
+    'operation', 'operation on alerts',
+    send,
+)
+def alerts(args):
     """Manage alerts."""
-    return args.operation()
+    return args.operation(args)

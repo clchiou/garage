@@ -6,10 +6,9 @@ from pathlib import Path
 import json
 import logging
 
-from garage import cli
+from garage import apps
 from garage import scripts
 from garage.assertions import ASSERT
-from garage.components import ARGS
 
 from ops import models
 from . import repos
@@ -285,10 +284,14 @@ def undeploy_remove(repo, pod):
 ### Command-line interface
 
 
-argument_tag = cli.argument('tag', help='set pod tag (format "name:version")')
+with_argument_tag = apps.with_argument(
+    'tag',
+    help='set pod tag (format "name:version")',
+)
 
 
-@cli.command('list', help='list deployed pods')
+@apps.with_prog('list')
+@apps.with_help('list deployed pods')
 def list_pods(repo):
     """List deployed pods."""
     for pod_name in repo.get_pod_names():
@@ -297,31 +300,34 @@ def list_pods(repo):
     return 0
 
 
-@cli.command('is-undeployed', help='check if a pod is undeployed')
-@argument_tag
-def is_undeployed(args: ARGS, repo):
+@apps.with_prog('is-undeployed')
+@apps.with_help('check if a pod is undeployed')
+@with_argument_tag
+def is_undeployed(args, repo):
     """Check if a pod is undeployed."""
     return _check_pod_state(repo, args.tag, (repos.PodState.UNDEPLOYED,))
 
 
-@cli.command('is-deployed', help='check if a pod is deployed or started')
-@argument_tag
-def is_deployed(args: ARGS, repo):
+@apps.with_prog('is-deployed')
+@apps.with_help('check if a pod is deployed or started')
+@with_argument_tag
+def is_deployed(args, repo):
     """Check if a pod is deployed or started."""
     return _check_pod_state(
         repo, args.tag, (repos.PodState.DEPLOYED, repos.PodState.STARTED))
 
 
-@cli.command('is-started', help='check if a pod is started')
-@argument_tag
-def is_started(args: ARGS, repo):
+@apps.with_prog('is-started')
+@apps.with_help('check if a pod is started')
+@with_argument_tag
+def is_started(args, repo):
     """Check if a pod is started."""
     return _check_pod_state(repo, args.tag, (repos.PodState.STARTED,))
 
 
-@cli.command(help='deploy a pod')
-@cli.argument('pod_file', type=Path, help='set path to the pod file')
-def deploy(args: ARGS, repo):
+@apps.with_help('deploy a pod')
+@apps.with_argument('pod_file', type=Path, help='set path to the pod file')
+def deploy(args, repo):
     """Deploy a pod from a bundle."""
 
     pod_file = args.pod_file
@@ -351,13 +357,13 @@ def deploy(args: ARGS, repo):
     return 0
 
 
-@cli.command(help='start a pod')
-@cli.argument(
+@apps.with_help('start a pod')
+@apps.with_argument(
     '--force', action='store_true',
     help='force start even if the pod has been started'
 )
-@argument_tag
-def start(args: ARGS, repo):
+@with_argument_tag
+def start(args, repo):
     """Start a deployed pod."""
 
     pod_state = repo.get_pod_state(args.tag)
@@ -387,9 +393,9 @@ def start(args: ARGS, repo):
     return 0
 
 
-@cli.command(help='stop a pod')
-@argument_tag
-def stop(args: ARGS, repo):
+@apps.with_help('stop a pod')
+@with_argument_tag
+def stop(args, repo):
     """Stop a started pod."""
     try:
         pod = repo.get_pod_from_tag(args.tag)
@@ -402,9 +408,9 @@ def stop(args: ARGS, repo):
     return 0
 
 
-@cli.command(help='undeploy a pod')
-@argument_tag
-def undeploy(args: ARGS, repo):
+@apps.with_help('undeploy a pod')
+@with_argument_tag
+def undeploy(args, repo):
     """Undeploy a deployed pod."""
     try:
         pod = repo.get_pod_from_tag(args.tag)
@@ -418,12 +424,12 @@ def undeploy(args: ARGS, repo):
     return 0
 
 
-@cli.command(help='clean up pods')
-@cli.argument(
+@apps.with_help('clean up pods')
+@apps.with_argument(
     '--keep', type=int, default=8,
     help='keep latest number of versions (default to %(default)d)'
 )
-def cleanup(args: ARGS, repo):
+def cleanup(args, repo):
     """Clean up undeployed pods."""
     if args.keep < 0:
         raise ValueError('negative keep: %d' % args.keep)
@@ -438,21 +444,23 @@ def cleanup(args: ARGS, repo):
     return 0
 
 
-@cli.command(help='manage pods')
-@cli.sub_command_info('operation', 'operation on pods')
-@cli.sub_command(list_pods)
-@cli.sub_command(is_undeployed)
-@cli.sub_command(is_deployed)
-@cli.sub_command(is_started)
-@cli.sub_command(deploy)
-@cli.sub_command(start)
-@cli.sub_command(stop)
-@cli.sub_command(undeploy)
-@cli.sub_command(cleanup)
-def pods(args: ARGS):
+@apps.with_help('manage pods')
+@apps.with_apps(
+    'operation', 'operation on pods',
+    list_pods,
+    is_undeployed,
+    is_deployed,
+    is_started,
+    deploy,
+    start,
+    stop,
+    undeploy,
+    cleanup,
+)
+def pods(args):
     """Manage containerized application pods."""
     repo = repos.Repo(args.root)
-    return args.operation(repo=repo)
+    return args.operation(args, repo=repo)
 
 
 ### Helper functions

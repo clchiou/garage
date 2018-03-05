@@ -4,23 +4,28 @@ __all__ = [
     'main',
 ]
 
-from garage import cli, scripts
-from garage.components import ARGS
+from garage import apps
+from garage import scripts
 
 from . import cloudinit, envs, keys, localvms, openvpn, pods
 
 
-@cli.command('ops-mob')
-@cli.argument('--dry-run', action='store_true', help='do not execute commands')
-@cli.sub_command_info('entity', 'system entity to be operated on')
-@cli.sub_command(envs.envs)
-@cli.sub_command(cloudinit.cloudinit)
-@cli.sub_command(keys.keys)
-@cli.sub_command(localvms.localvms)
-@cli.sub_command(openvpn.openvpn)
-@cli.sub_command(pods.pods)
-def main(args: ARGS):
+@apps.with_prog('ops-mob')
+@apps.with_argument(
+    '--dry-run', action='store_true',
+    help='do not execute commands',
+)
+@apps.with_apps(
+    'entity', 'system entity to be operated on',
+    envs.envs,
+    cloudinit.cloudinit,
+    keys.keys,
+    localvms.localvms,
+    openvpn.openvpn,
+    pods.pods,
+)
+def main(args):
     """MOB operations tool."""
     with scripts.dry_run(args.dry_run):
         scripts.ensure_not_root()
-        return args.entity()
+        return args.entity(args)

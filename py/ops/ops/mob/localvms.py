@@ -7,39 +7,39 @@ import logging
 import re
 import time
 
-from garage import cli, scripts
-from garage.components import ARGS
+from garage import apps
+from garage import scripts
 
 
 LOG = logging.getLogger(__name__)
 
 
-@cli.command(help='create virtual machine')
-@cli.argument(
+@apps.with_help('create virtual machine')
+@apps.with_argument(
     '--virtual-machines-dir', required=True, type=Path,
     help='provide path to VirtualBox virtual machines directory',
 )
-@cli.argument(
+@apps.with_argument(
     '--name', required=True,
     help='set virtual machine name',
 )
-@cli.argument(
+@apps.with_argument(
     '--image', required=True, type=Path,
     help='''provide path to virtual machine image to copy from (probably
             in VMDK format)
          ''',
 )
-@cli.argument(
+@apps.with_argument(
     '--seed', required=True, type=Path,
     help='provide path to ISO image of cloud-init user data',
 )
-@cli.argument(
+@apps.with_argument(
     '--ip-address', required=True,
     help='''provide the IP address of host-only interface (this should
             match the IP address recorded in the seed)
          ''',
 )
-def create(args: ARGS):
+def create(args):
     """Create virtual machine and initialize it with cloud-init."""
 
     scripts.ensure_file(args.image)
@@ -169,9 +169,12 @@ def wait_for_vm_poweroff(name):
     return False
 
 
-@cli.command('local-vms', help='manage local virtual machines')
-@cli.sub_command_info('operation', 'operation on virtual machines')
-@cli.sub_command(create)
-def localvms(args: ARGS):
+@apps.with_prog('local-vms')
+@apps.with_help('manage local virtual machines')
+@apps.with_apps(
+    'operation', 'operation on virtual machines',
+    create,
+)
+def localvms(args):
     """Manage local virtual machines."""
-    return args.operation()
+    return args.operation(args)

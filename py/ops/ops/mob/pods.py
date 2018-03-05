@@ -5,15 +5,15 @@ __all__ = [
 from pathlib import Path
 import json
 
-from garage import cli
-from garage.components import ARGS
+from garage import apps
 
 from ops import models
 
 
-@cli.command('read-tag', help='read tag in pod file')
-@cli.argument('pod_file', type=Path, help='provide pod file path')
-def read_tag(args: ARGS):
+@apps.with_prog('read-tag')
+@apps.with_help('read tag in pod file')
+@apps.with_argument('pod_file', type=Path, help='provide pod file path')
+def read_tag(args):
     """Read tag in pod file (useful in scripting)."""
     pod_file = args.pod_file
     if pod_file.is_dir():
@@ -24,9 +24,11 @@ def read_tag(args: ARGS):
     return 0
 
 
-@cli.command(help='manage pods')
-@cli.sub_command_info('operation', 'operation on pods')
-@cli.sub_command(read_tag)
-def pods(args: ARGS):
+@apps.with_help('manage pods')
+@apps.with_apps(
+    'operation', 'operation on pods',
+    read_tag,
+)
+def pods(args):
     """Manage containerized application pods."""
-    return args.operation()
+    return args.operation(args)

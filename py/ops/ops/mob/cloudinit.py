@@ -7,10 +7,9 @@ import logging
 
 import yaml
 
-from garage import cli
+from garage import apps
 from garage import scripts
 from garage.assertions import ASSERT
-from garage.components import ARGS
 
 from . import keys
 
@@ -18,19 +17,20 @@ from . import keys
 LOG = logging.getLogger(__name__)
 
 
-@cli.command('gen-user-data', help='generate user data')
-@cli.argument(
+@apps.with_prog('gen-user-data')
+@apps.with_help('generate user data')
+@apps.with_argument(
     '--ssh-host-key',
     nargs=3, metavar=('ALGORITHM', 'PRIVATE_KEY', 'PUBLIC_KEY'),
     action='append', required=True,
     help='add SSH host key for authenticating server',
 )
-@cli.argument(
+@apps.with_argument(
     '--ssh-authorized-key',
     metavar='PATH', type=Path, action='append', required=True,
     help='add SSH authorized key for authenticating client',
 )
-@cli.argument(
+@apps.with_argument(
     '--local-vm',
     nargs=4, metavar=('HOSTNAME', 'FQDN', 'INTERFACE', 'IP_ADDRESS'),
     help='''set additional data for local VirtualBox machine, which
@@ -38,18 +38,18 @@ LOG = logging.getLogger(__name__)
             its IP address
          '''
 )
-@cli.argument(
+@apps.with_argument(
     'output', type=Path,
     help='set output YAML file path',
 )
-def generate_user_data(args: ARGS):
+def generate_user_data(args):
     """Generate cloud-init user data.
 
-       SSH host key is a tuple of algorithm, private key file, and
-       public key file.  "algorithm" is what you chose when generating
-       the key pair, and should be one of dsa, ecdsa, ed25519, or rsa.
+    SSH host key is a tuple of algorithm, private key file, and public
+    key file.  "algorithm" is what you chose when generating the key
+    pair, and should be one of dsa, ecdsa, ed25519, or rsa.
 
-       SSH authorized key is your public key for password-less login.
+    SSH authorized key is your public key for password-less login.
     """
 
     templates_dir = Path(__file__).parent / 'templates'
@@ -137,9 +137,12 @@ def generate_user_data(args: ARGS):
     return 0
 
 
-@cli.command('cloud-init', help='manage cloud-init data')
-@cli.sub_command_info('operation', 'operation on cloud-init data')
-@cli.sub_command(generate_user_data)
-def cloudinit(args: ARGS):
+@apps.with_prog('cloud-init')
+@apps.with_help('manage cloud-init data')
+@apps.with_apps(
+    'operation', 'operation on cloud-init data',
+    generate_user_data,
+)
+def cloudinit(args):
     """Manage cloud-init data."""
-    return args.operation()
+    return args.operation(args)

@@ -10,8 +10,8 @@ import os
 
 import yaml
 
-from garage import cli, scripts
-from garage.components import ARGS
+from garage import apps
+from garage import scripts
 
 from . import cloudinit, keys, openvpn
 
@@ -21,7 +21,7 @@ LOG = logging.getLogger(__name__)
 
 # Root directory of all environments
 OPS_ROOT = scripts.ensure_path(os.environ.get('OPS_ROOT'))
-argument_root = cli.argument(
+with_argument_root = apps.with_argument(
     '--root', metavar='PATH', type=Path,
     required=not OPS_ROOT, default=OPS_ROOT,
     help='''set root directory of ops data (default from OPS_ROOT
@@ -31,7 +31,7 @@ argument_root = cli.argument(
 
 # Currently activated environment
 OPS_ENV = os.environ.get('OPS_ENV')
-argument_env = cli.argument(
+with_argument_env = apps.with_argument(
     '--env', required=not OPS_ENV, default=OPS_ENV,
     help='''choose an environment (default from OPS_ENV environment
             variable, which is %(default)s)'''
@@ -41,17 +41,19 @@ argument_env = cli.argument(
 ENVS_DIR = 'envs'
 
 
-@cli.command('list', help='list environments')
-def list_envs(args: ARGS):
+@apps.with_prog('list')
+@apps.with_help('list environments')
+def list_envs(args):
     """List environments."""
     for filename in sorted((args.root / ENVS_DIR).iterdir()):
         print(filename.name)
     return 0
 
 
-@cli.command('gen', help='generate environment')
-@cli.argument('env', help='set name of the new environment')
-def generate(args: ARGS):
+@apps.with_prog('gen')
+@apps.with_help('generate environment')
+@apps.with_argument('env', help='set name of the new environment')
+def generate(args):
     """Generate environment."""
 
     generated_at = datetime.datetime.utcnow().isoformat()
@@ -131,10 +133,11 @@ def generate(args: ARGS):
     return 0
 
 
-@cli.command('gen-user-data', help='generate cloud-init user data')
-@argument_env
-@cli.argument('config', type=Path, help='set config file path')
-def generate_user_data(args: ARGS):
+@apps.with_prog('gen-user-data')
+@apps.with_help('generate cloud-init user data')
+@with_argument_env
+@apps.with_argument('config', type=Path, help='set config file path')
+def generate_user_data(args):
     """Generate cloud-init user data."""
 
     config = yaml.load(args.config.read_text())
@@ -176,10 +179,11 @@ def generate_user_data(args: ARGS):
     ))
 
 
-@cli.command('copy-client', help='copy generated openvpn client data')
-@argument_env
-@cli.argument('client', help='provide client name')
-def copy_client(args: ARGS):
+@apps.with_prog('copy-client')
+@apps.with_help('copy generated openvpn client data')
+@with_argument_env
+@apps.with_argument('client', help='provide client name')
+def copy_client(args):
     """Copy generated OpenVPN client data to another directory."""
     env_dir = args.root / ENVS_DIR / args.env
     return openvpn.copy_client(args=Namespace(
@@ -189,9 +193,10 @@ def copy_client(args: ARGS):
     ))
 
 
-@cli.command('copy-server', help='copy generated openvpn server data')
-@argument_env
-def copy_server(args: ARGS):
+@apps.with_prog('copy-server')
+@apps.with_help('copy generated openvpn server data')
+@with_argument_env
+def copy_server(args):
     """Copy generated OpenVPN server data to another directory."""
     env_dir = args.root / ENVS_DIR / args.env
     return openvpn.copy_server(args=Namespace(
@@ -201,11 +206,12 @@ def copy_server(args: ARGS):
     ))
 
 
-@cli.command('make-ovpn', help='make .ovpn file')
-@argument_env
-@cli.argument('config', help='provide config file name')
-@cli.argument('client', help='provide client name')
-def make_ovpn(args: ARGS):
+@apps.with_prog('make-ovpn')
+@apps.with_help('make .ovpn file')
+@with_argument_env
+@apps.with_argument('config', help='provide config file name')
+@apps.with_argument('client', help='provide client name')
+def make_ovpn(args):
     """Make .ovpn file."""
     env_dir = args.root / ENVS_DIR / args.env
     clients = env_dir / 'openvpn' / 'clients'
@@ -217,15 +223,17 @@ def make_ovpn(args: ARGS):
     ))
 
 
-@cli.command(help='manage ops environments')
-@argument_root
-@cli.sub_command_info('operation', 'operation on environment')
-@cli.sub_command(list_envs)
-@cli.sub_command(generate)
-@cli.sub_command(generate_user_data)
-@cli.sub_command(copy_client)
-@cli.sub_command(copy_server)
-@cli.sub_command(make_ovpn)
-def envs(args: ARGS):
+@apps.with_help('manage ops environments')
+@with_argument_root
+@apps.with_apps(
+    'operation', 'operation on environment',
+    list_envs,
+    generate,
+    generate_user_data,
+    copy_client,
+    copy_server,
+    make_ovpn,
+)
+def envs(args):
     """Manage ops environments."""
-    return args.operation()
+    return args.operation(args)

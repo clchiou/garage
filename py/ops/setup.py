@@ -27,6 +27,6 @@ setup(
         ],
     },
     install_requires = [
-        'garage[components]',
+        'garage[parts]',
     ],
 )

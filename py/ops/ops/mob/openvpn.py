@@ -5,18 +5,19 @@ __all__ = [
 from pathlib import Path
 import logging
 
-from garage import cli, scripts
-from garage.components import ARGS
+from garage import apps
+from garage import scripts
 
 
 LOG = logging.getLogger(__name__)
 
 
-@cli.command('copy-client', help='copy generated client data')
-@cli.argument('cadir', type=Path, help='provide easy-rsa cadir')
-@cli.argument('client', help='provide client name')
-@cli.argument('target', type=Path, help='set target directory')
-def copy_client(args: ARGS):
+@apps.with_prog('copy-client')
+@apps.with_help('copy generated client data')
+@apps.with_argument('cadir', type=Path, help='provide easy-rsa cadir')
+@apps.with_argument('client', help='provide client name')
+@apps.with_argument('target', type=Path, help='set target directory')
+def copy_client(args):
     """Copy generated client data to another directory."""
     srcs = [
         args.cadir / 'keys' / file
@@ -25,10 +26,11 @@ def copy_client(args: ARGS):
     return 0 if safe_copy(srcs, args.target) else 1
 
 
-@cli.command('copy-server', help='copy generated server data')
-@cli.argument('cadir', type=Path, help='provide easy-rsa cadir')
-@cli.argument('target', type=Path, help='set target directory')
-def copy_server(args: ARGS):
+@apps.with_prog('copy-server')
+@apps.with_help('copy generated server data')
+@apps.with_argument('cadir', type=Path, help='provide easy-rsa cadir')
+@apps.with_argument('target', type=Path, help='set target directory')
+def copy_server(args):
     """Copy generated server data to another directory."""
     srcs = [
         args.cadir / 'keys' / file
@@ -55,15 +57,16 @@ def safe_copy(srcs, dst_dir):
     return True
 
 
-@cli.command('make-ovpn', help='make .ovpn file')
-@cli.argument(
+@apps.with_prog('make-ovpn')
+@apps.with_help('make .ovpn file')
+@apps.with_argument(
     'server_dir', type=Path, help='provide directory of server credentials')
-@cli.argument(
+@apps.with_argument(
     'client_dir', type=Path, help='provide directory of client credentials')
-@cli.argument('config', help='provide config file name')
-@cli.argument('client', help='provide client name')
-@cli.argument('output', type=Path, help='set output .ovpn file')
-def make_ovpn(args: ARGS):
+@apps.with_argument('config', help='provide config file name')
+@apps.with_argument('client', help='provide client name')
+@apps.with_argument('output', type=Path, help='set output .ovpn file')
+def make_ovpn(args):
     """Make .ovpn file."""
     parts = [
         args.client_dir / args.config,
@@ -96,15 +99,17 @@ def make_ovpn(args: ARGS):
     return 0
 
 
-@cli.command(help='manage openvpn')
-@cli.sub_command_info('operation', 'operation on openvpn')
-@cli.sub_command(copy_client)
-@cli.sub_command(copy_server)
-@cli.sub_command(make_ovpn)
-def openvpn(args: ARGS):
+@apps.with_help('manage openvpn')
+@apps.with_apps(
+    'operation', 'operation on openvpn',
+    copy_client,
+    copy_server,
+    make_ovpn,
+)
+def openvpn(args):
     """Manage OpenVPN.
 
        We assume that you are using easy-rsa because that seems to be
        what OpenVPN recommends.
     """
-    return args.operation()
+    return args.operation(args)

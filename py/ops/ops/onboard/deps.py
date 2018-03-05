@@ -8,8 +8,8 @@ import urllib.parse
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from garage import cli, scripts
-from garage.components import ARGS
+from garage import apps
+from garage import scripts
 
 
 LOG = logging.getLogger(__name__)
@@ -69,8 +69,9 @@ def rkt(package):
         scripts.systemctl_start('rkt-gc.timer')
 
 
-@cli.command('list', help='list supported external packages')
-def list_():
+@apps.with_prog('list')
+@apps.with_help('list supported external packages')
+def list_(_):
     """List supported external packages."""
     for package_name in sorted(PACKAGES):
         package = PACKAGES[package_name]
@@ -78,10 +79,16 @@ def list_():
     return 0
 
 
-@cli.command(help='install external package')
-@cli.argument('--tarball', metavar='PATH', help='use local tarball instead')
-@cli.argument('package', help='choose package (format: "name:version")')
-def install(args: ARGS):
+@apps.with_help('install external package')
+@apps.with_argument(
+    '--tarball', metavar='PATH',
+    help='use local tarball instead',
+)
+@apps.with_argument(
+    'package',
+    help='choose package (format: "name:version")',
+)
+def install(args):
     """Install external package."""
 
     package_name, package_version = args.package.split(':', maxsplit=1)
@@ -115,14 +122,16 @@ def install(args: ARGS):
     return 0
 
 
-@cli.command(help='manage external dependencies')
-@cli.defaults(no_locking_required=True)
-@cli.sub_command_info('operation', 'operation on external dependencies')
-@cli.sub_command(list_)
-@cli.sub_command(install)
-def deps(args: ARGS):
+@apps.with_help('manage external dependencies')
+@apps.with_defaults(no_locking_required=True)
+@apps.with_apps(
+    'operation', 'operation on external dependencies',
+    list_,
+    install,
+)
+def deps(args):
     """\
     Manage external dependencies that will not be installed from distro
     package manager.
     """
-    return args.operation()
+    return args.operation(args)
