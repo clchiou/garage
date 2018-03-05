@@ -95,7 +95,7 @@ class PartsTest(unittest.TestCase):
         self.assertEqual('j.k.l:pl3.pl2.pl1.x', plist4.pl3.pl2.pl1.x)
         self.assertEqual('j.k.l:pl3.pl2.pl1.Y', plist4.pl3.pl2.pl1.y)
 
-    def test_register_maker_on_wrapper(self):
+    def test_define_maker_on_wrapper(self):
 
         plist = parts.PartList('foo', [('x', parts.AUTO), ('y', parts.AUTO)])
 
@@ -112,10 +112,10 @@ class PartsTest(unittest.TestCase):
             pass
 
         maker_table = defaultdict(dict)
-        parts._register_maker(maker_table, func)
-        parts._register_maker(maker_table, f1)
-        parts._register_maker(maker_table, f2)
-        parts._register_maker(maker_table, f3)
+        parts._define_maker(maker_table, func)
+        parts._define_maker(maker_table, f1)
+        parts._define_maker(maker_table, f2)
+        parts._define_maker(maker_table, f3)
         self.assertEqual(
             {
                 plist.y: {
@@ -131,9 +131,9 @@ class PartsTest(unittest.TestCase):
     def test_find_sources(self):
 
         maker_table = defaultdict(dict)
-        parts._register_maker(maker_table, make_sub_part_1)
-        parts._register_maker(maker_table, make_sub_part_2)
-        parts._register_maker(maker_table, make_final_part)
+        parts._define_maker(maker_table, make_sub_part_1)
+        parts._define_maker(maker_table, make_sub_part_2)
+        parts._define_maker(maker_table, make_final_part)
 
         self.assert_sources_equal(
             [
@@ -159,8 +159,8 @@ class PartsTest(unittest.TestCase):
             ))
 
         maker_table = defaultdict(dict)
-        parts._register_maker(maker_table, make_all_sub_parts)
-        parts._register_maker(maker_table, make_final_part)
+        parts._define_maker(maker_table, make_all_sub_parts)
+        parts._define_maker(maker_table, make_final_part)
 
         self.assert_sources_equal(
             [
@@ -176,8 +176,8 @@ class PartsTest(unittest.TestCase):
         )
 
         maker_table = defaultdict(dict)
-        parts._register_maker(maker_table, make_sub_part_2)
-        parts._register_maker(maker_table, make_all_sub_parts)
+        parts._define_maker(maker_table, make_sub_part_2)
+        parts._define_maker(maker_table, make_all_sub_parts)
 
         self.assert_sources_equal(
             [
@@ -196,7 +196,7 @@ class PartsTest(unittest.TestCase):
     def test_find_sources_with_input_parts(self):
 
         maker_table = defaultdict(dict)
-        parts._register_maker(maker_table, make_final_part)
+        parts._define_maker(maker_table, make_final_part)
 
         self.assert_sources_equal(
             [
@@ -222,8 +222,8 @@ class PartsTest(unittest.TestCase):
             ))
 
         maker_table = defaultdict(dict)
-        parts._register_maker(maker_table, make_final_part)
-        parts._register_maker(maker_table, make_sub_part_1)
+        parts._define_maker(maker_table, make_final_part)
+        parts._define_maker(maker_table, make_sub_part_1)
 
         pattern = r'expect part a.b.c:sub_part_1 by maker, not from caller'
         with self.assertRaisesRegex(AssertionError, pattern):
@@ -237,10 +237,10 @@ class PartsTest(unittest.TestCase):
     def test_find_sources_with_selected_makers(self):
 
         maker_table = defaultdict(dict)
-        parts._register_maker(maker_table, make_sub_part_1)
-        parts._register_maker(maker_table, make_sub_part_1_another)
-        parts._register_maker(maker_table, make_sub_part_2)
-        parts._register_maker(maker_table, make_final_part)
+        parts._define_maker(maker_table, make_sub_part_1)
+        parts._define_maker(maker_table, make_sub_part_1_another)
+        parts._define_maker(maker_table, make_sub_part_2)
+        parts._define_maker(maker_table, make_final_part)
 
         self.assert_sources_equal(
             [
@@ -298,9 +298,9 @@ class PartsTest(unittest.TestCase):
     def test_assemble(self):
 
         maker_table = defaultdict(dict)
-        parts._register_maker(maker_table, make_sub_part_1)
-        parts._register_maker(maker_table, make_sub_part_2)
-        parts._register_maker(maker_table, make_final_part)
+        parts._define_maker(maker_table, make_sub_part_1)
+        parts._define_maker(maker_table, make_sub_part_2)
+        parts._define_maker(maker_table, make_final_part)
 
         self.assertEqual(
             {
@@ -317,8 +317,8 @@ class PartsTest(unittest.TestCase):
         )
 
         maker_table = defaultdict(dict)
-        parts._register_maker(maker_table, make_all_sub_parts)
-        parts._register_maker(maker_table, make_final_part)
+        parts._define_maker(maker_table, make_all_sub_parts)
+        parts._define_maker(maker_table, make_final_part)
 
         self.assertEqual(
             {
@@ -335,8 +335,8 @@ class PartsTest(unittest.TestCase):
         )
 
         maker_table = defaultdict(dict)
-        parts._register_maker(maker_table, make_sub_part_1)
-        parts._register_maker(maker_table, make_final_part)
+        parts._define_maker(maker_table, make_sub_part_1)
+        parts._define_maker(maker_table, make_final_part)
 
         self.assertEqual(
             {

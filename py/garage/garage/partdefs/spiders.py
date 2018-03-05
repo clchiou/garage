@@ -10,13 +10,13 @@ PARTS = parts.PartList(spiders.__name__, [
 ])
 
 
-PARAMS = parameters.get(
+PARAMS = parameters.define_namespace(
     spiders.__name__, 'web spider framework')
-PARAMS.num_spiders = parameters.define(
+PARAMS.num_spiders = parameters.create(
     8, 'set number of spider threads')
 
 
-@parts.register_maker
+@parts.define_maker
 def make_spider(
         client: clients.PARTS.client, parser: PARTS.parser) -> PARTS.spider:
     return spiders.Spider(

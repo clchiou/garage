@@ -9,25 +9,25 @@ from garage import parts
 from garage.partdefs.asyncs import servers
 
 
-def define_parts(module_name):
+def create_parts(module_name):
     return parts.PartList(module_name, [
         ('handler', parts.AUTO),
         ('logger', parts.AUTO),
     ])
 
 
-def define_params(*, host='', port=80):
-    params = parameters.define_namespace('create async http(s) server')
-    params.host = parameters.define(host, 'let server bind to this address')
-    params.port = parameters.define(port, 'let server listen to this port')
-    params.certificate = parameters.define('', 'set server TLS certificate')
-    params.private_key = parameters.define('', 'set server TLS private key')
-    params.enable_client_authentication = parameters.define(
+def create_params(*, host='', port=80):
+    params = parameters.create_namespace('create async http(s) server')
+    params.host = parameters.create(host, 'let server bind to this address')
+    params.port = parameters.create(port, 'let server listen to this port')
+    params.certificate = parameters.create('', 'set server TLS certificate')
+    params.private_key = parameters.create('', 'set server TLS private key')
+    params.enable_client_authentication = parameters.create(
         False, 'enable authenticate client certificate')
     return params
 
 
-def define_maker(part_list, params):
+def create_maker(part_list, params):
 
     def make_server(
             graceful_exit: servers.PARTS.graceful_exit,

@@ -38,7 +38,7 @@ class ParametersTest(unittest.TestCase):
 
     def test_parameter(self):
 
-        bp = parameters.define(False)
+        bp = parameters.create(False)
 
         bp.set(True)
         self.assertTrue(bp.get())

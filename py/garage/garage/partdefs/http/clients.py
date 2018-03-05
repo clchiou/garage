@@ -9,17 +9,17 @@ PARTS = parts.PartList(clients.__name__, [
 ])
 
 
-PARAMS = parameters.get(
+PARAMS = parameters.define_namespace(
     clients.__name__, 'http client library')
-PARAMS.user_agent = parameters.define(
+PARAMS.user_agent = parameters.create(
     'Mozilla/5.0', 'set HTTP user agent')
-PARAMS.max_requests = parameters.define(
+PARAMS.max_requests = parameters.create(
     0, 'set max concurrent HTTP requests where 0 means unlimited')
-PARAMS.num_retries = parameters.define(
+PARAMS.num_retries = parameters.create(
     0, 'set retries where 0 means no retry')
 
 
-@parts.register_maker
+@parts.define_maker
 def make_client() -> PARTS.client:
 
     if PARAMS.max_requests.get() > 0:

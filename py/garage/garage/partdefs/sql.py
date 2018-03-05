@@ -8,23 +8,23 @@ from garage import parts
 from garage.assertions import ASSERT
 
 
-def define_parts(module_name):
+def create_parts(module_name):
     return parts.PartList(module_name, [
         ('engine', parts.AUTO),
     ])
 
 
-def define_params(*, check_same_thread=False, pragmas=()):
-    params = parameters.define_namespace('create SQLAlchemy Engine object')
-    params.db_url = parameters.define(
+def create_params(*, check_same_thread=False, pragmas=()):
+    params = parameters.create_namespace('create SQLAlchemy Engine object')
+    params.db_url = parameters.create(
         'sqlite:///:memory:',
         'set database URL',
     )
-    params.check_same_thread = parameters.define(
+    params.check_same_thread = parameters.create(
         check_same_thread,
         'check database connection created and used in the same thread',
     )
-    params.pragmas = parameters.define(
+    params.pragmas = parameters.create(
         pragmas,
         type=typing.List[typing.Tuple[str, str]],
         doc='add pragma setting(s) to database',
@@ -32,7 +32,7 @@ def define_params(*, check_same_thread=False, pragmas=()):
     return params
 
 
-def define_maker(part_list, params):
+def create_maker(part_list, params):
 
     def make_engine() -> part_list.engine:
         db_url = params.db_url.get()

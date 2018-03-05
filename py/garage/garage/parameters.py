@@ -23,10 +23,9 @@ We might loose these constraints later after we try more use cases.
 """
 
 __all__ = [
-    'define',
+    'create',
+    'create_namespace',
     'define_namespace',
-    'get',
-    'set_namespace',
 ]
 
 import enum
@@ -358,38 +357,35 @@ class Parameter:
 _ROOT_NAMESPACE = ParameterNamespace()
 
 
-def get(module_name, doc=None):
-    """Get (module-level) parameter namespace."""
-    return _get_or_make_namespace(_ROOT_NAMESPACE, module_name, doc)
+def define_namespace(module_name, doc=None, *, namespace=None):
+    """Define (module-level) parameter namespace."""
+    return _define_namespace(_ROOT_NAMESPACE, module_name, doc, namespace)
 
 
-def _get_or_make_namespace(root_namespace, module_name, doc):
+def _define_namespace(root_namespace, module_name, doc, namespace):
+
+    # Make special case for __main__.
     if module_name == '__main__':
+        if namespace is not None:
+            nspace = ASSERT.type_of(namespace, Namespace)._namespace
+            ASSERT(
+                not (set(root_namespace) & set(nspace)),
+                'expect not overriding module-level namespace: %r vs %r',
+                root_namespace.parameters, nspace.parameters,
+            )
+            root_namespace.parameters.update(nspace.parameters)
         return Namespace(root_namespace)
-    try:
-        namespace = root_namespace[module_name]
-    except KeyError:
-        root_namespace[module_name] = namespace = ParameterNamespace(doc)
-    return Namespace(namespace)
 
-
-def set_namespace(module_name, namespace):
-    """Set (module-level) parameter namespace."""
-    ASSERT.type_of(namespace, Namespace)
-    nspace = namespace._namespace
-    if module_name == '__main__':
-        ASSERT(
-            not (set(_ROOT_NAMESPACE) & set(nspace)),
-            'expect not overriding module-level namespace: %s', module_name,
-        )
-        _ROOT_NAMESPACE.parameters.update(nspace.parameters)
-        return Namespace(_ROOT_NAMESPACE)
+    ASSERT(
+        module_name not in root_namespace,
+        'expect not redefining namespace: %s', module_name,
+    )
+    if namespace is None:
+        root_namespace[module_name] = nspace = ParameterNamespace(doc)
+        return Namespace(nspace)
     else:
-        ASSERT(
-            module_name not in _ROOT_NAMESPACE,
-            'expect not overriding module-level namespace: %s', module_name,
-        )
-        _ROOT_NAMESPACE[module_name] = nspace
+        ASSERT.type_of(namespace, Namespace)
+        root_namespace[module_name] = namespace._namespace
         return namespace
 
 
@@ -413,18 +409,18 @@ _VECTOR_PARAMETER_DESCRIPTORS = {}
 _MATRIX_PARAMETER_DESCRIPTORS = {}
 
 
-def define_namespace(doc=None):
-    """Define a parameter (sub-)namespace."""
+def create_namespace(doc=None):
+    """Create a parameter (sub-)namespace."""
     return Namespace(ParameterNamespace(doc))
 
 
-def define(default, doc=None, type=None, unit=None):
-    """Define a parameter.
+def create(default, doc=None, type=None, unit=None):
+    """Create a parameter.
 
     The parameter type is inferred from the default value unless
     overridden.
     """
-    return _define_parameter(
+    return _create_parameter(
         _MATRIX_PARAMETER_DESCRIPTORS,
         _VECTOR_PARAMETER_DESCRIPTORS,
         _SCALAR_PARAMETER_DESCRIPTORS,
@@ -432,7 +428,7 @@ def define(default, doc=None, type=None, unit=None):
     )
 
 
-def _define_parameter(
+def _create_parameter(
         matrix_descriptors,
         vector_descriptors,
         scalar_descriptors,
@@ -443,7 +439,7 @@ def _define_parameter(
     if issubclass(type, list):
         if not isinstance(type, typing.GenericMeta):
             type = infer_matrix_type(default)
-        descriptor = get_or_make_matrix_parameter_descriptor(
+        descriptor = define_matrix_descriptor(
             matrix_descriptors,
             vector_descriptors,
             scalar_descriptors,
@@ -453,14 +449,14 @@ def _define_parameter(
     elif issubclass(type, tuple):
         if not isinstance(type, typing.GenericMeta):
             type = infer_vector_type(default)
-        descriptor = get_or_make_vector_parameter_descriptor(
+        descriptor = define_vector_descriptor(
             vector_descriptors,
             scalar_descriptors,
             type,
         )
 
     elif is_scalar_type(type):
-        descriptor = get_or_make_scalar_parameter_descriptor(
+        descriptor = define_scalar_descriptor(
             scalar_descriptors,
             type,
         )
@@ -471,7 +467,7 @@ def _define_parameter(
     return Parameter(descriptor, default, unit, doc)
 
 
-def get_or_make_scalar_parameter_descriptor(
+def define_scalar_descriptor(
         scalar_descriptors,
         type):
     # Create scalar descriptor on-the-fly for enum types.
@@ -485,14 +481,14 @@ def get_or_make_scalar_parameter_descriptor(
     return scalar_descriptors[type]
 
 
-def get_or_make_vector_parameter_descriptor(
+def define_vector_descriptor(
         vector_descriptors,
         scalar_descriptors,
         type):
     descriptor = vector_descriptors.get(type)
     if descriptor is None:
         cds = tuple(
-            get_or_make_scalar_parameter_descriptor(
+            define_scalar_descriptor(
                 scalar_descriptors,
                 cell_type,
             )
@@ -502,7 +498,7 @@ def get_or_make_vector_parameter_descriptor(
     return descriptor
 
 
-def get_or_make_matrix_parameter_descriptor(
+def define_matrix_descriptor(
         matrix_descriptors,
         vector_descriptors,
         scalar_descriptors,
@@ -512,21 +508,21 @@ def get_or_make_matrix_parameter_descriptor(
         vector_type = type.__args__[0]
         if not issubclass(vector_type, typing.Tuple):
             descriptor = OneDimensionalMatrixParameterDescriptor(
-                get_or_make_scalar_parameter_descriptor(
+                define_scalar_descriptor(
                     scalar_descriptors,
                     vector_type,
                 ),
             )
         elif len(vector_type.__args__) == 1:
             descriptor = OneDimensionalMatrixParameterDescriptor(
-                get_or_make_scalar_parameter_descriptor(
+                define_scalar_descriptor(
                     scalar_descriptors,
                     vector_type.__args__[0],
                 ),
             )
         else:
             descriptor = MatrixParameterDescriptor(
-                get_or_make_vector_parameter_descriptor(
+                define_vector_descriptor(
                     vector_descriptors,
                     scalar_descriptors,
                     vector_type,

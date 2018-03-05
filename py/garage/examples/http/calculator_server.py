@@ -1,7 +1,7 @@
 """Calculator web service.
 
 Example of accessing the web service:
-    echo '{"operands": [1, 2, 3]}' | nghttp -v -d - http://127.0.0.1/1/add
+    echo '{"operands": [1, 2, 3]}' | nghttp -v -d - http://127.0.0.1:8080/1/add
 """
 
 import json
@@ -22,16 +22,19 @@ from garage.partdefs.http import servers as http_servers
 LOG = logging.getLogger(__name__)
 
 
-PARTS = http_servers.define_parts(__name__)
+PARTS = http_servers.create_parts(__name__)
 
 
-PARAMS = parameters.set_namespace(__name__, http_servers.define_params())
+PARAMS = parameters.define_namespace(
+    __name__,
+    namespace=http_servers.create_params(port=8080),
+)
 
 
-parts.register_maker(http_servers.define_maker(PARTS, PARAMS))
+parts.define_maker(http_servers.create_maker(PARTS, PARAMS))
 
 
-@parts.register_maker
+@parts.define_maker
 def make_handler() -> PARTS.handler:
     router = routers.ApiRouter(name='calculator', version=1)
     router.add_handler('add', handlers.ApiEndpointHandler(

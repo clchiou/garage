@@ -15,18 +15,18 @@ PARTS = parts.PartList(servers.__name__, [
 ])
 
 
-PARAMS = parameters.get(
+PARAMS = parameters.define_namespace(
     servers.__name__, 'async servers')
-PARAMS.grace_period = parameters.define(
+PARAMS.grace_period = parameters.create(
     5, unit='second', doc='grace period for shutting down servers')
 
 
-@parts.register_maker
+@parts.define_maker
 def make_graceful_exit() -> PARTS.graceful_exit:
     return asyncs.Event()
 
 
-@parts.register_maker
+@parts.define_maker
 def make_serve(
         graceful_exit: PARTS.graceful_exit,
         server_coros: [PARTS.server],

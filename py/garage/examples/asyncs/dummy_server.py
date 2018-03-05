@@ -12,7 +12,7 @@ from garage.partdefs.asyncs import servers
 LOG = logging.getLogger(__name__)
 
 
-@parts.register_maker
+@parts.define_maker
 async def dummy_server() -> servers.PARTS.server:
     try:
         duration = 10

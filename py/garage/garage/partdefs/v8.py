@@ -9,6 +9,6 @@ PARTS = parts.PartList(v8.__name__, [
 ])
 
 
-@parts.register_maker
+@parts.define_maker
 def make_v8(exit_stack: apps.PARTS.exit_stack) -> PARTS.v8:
     return exit_stack.enter_context(v8.V8())

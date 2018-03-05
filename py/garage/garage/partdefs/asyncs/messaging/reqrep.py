@@ -12,30 +12,30 @@ from garage.partdefs import apps
 from garage.partdefs.asyncs import servers
 
 
-def define_parts(module_name):
+def create_parts(module_name):
     return parts.PartList(module_name, [
         ('request_queue', parts.AUTO),
     ])
 
 
-def define_params(
+def create_params(
         *, bind=(), connect=(), num_sockets=1, capacity=32, timeout=2):
-    params = parameters.define_namespace(
+    params = parameters.create_namespace(
         'create nanomsg socket client object')
-    params.bind = parameters.define(
+    params.bind = parameters.create(
         bind, type=typing.List[str], doc='add URL to bind socket to')
-    params.connect = parameters.define(
+    params.connect = parameters.create(
         connect, type=typing.List[str], doc='add URL to connect socket to')
-    params.num_sockets = parameters.define(
+    params.num_sockets = parameters.create(
         num_sockets, 'set number of client sockets')
-    params.capacity = parameters.define(
+    params.capacity = parameters.create(
         capacity, 'set request queue capacity')
-    params.timeout = parameters.define(
+    params.timeout = parameters.create(
         timeout, unit='second', doc='set request timeout')
     return params
 
 
-def define_maker(part_list, params):
+def create_maker(part_list, params):
 
     def make_client(
             exit_stack: apps.PARTS.exit_stack,

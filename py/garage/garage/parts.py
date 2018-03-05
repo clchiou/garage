@@ -19,7 +19,7 @@ __all__ = [
     'AUTO',
     'PartList',
     'assemble',
-    'register_maker',
+    'define_maker',
 ]
 
 import inspect
@@ -207,12 +207,12 @@ def parse_maker_spec(maker):
 _MAKER_TABLE = defaultdict(dict)
 
 
-def register_maker(maker):
+def define_maker(maker):
     """Register a part maker function."""
-    return _register_maker(_MAKER_TABLE, maker)
+    return _define_maker(_MAKER_TABLE, maker)
 
 
-def _register_maker(maker_table, maker):
+def _define_maker(maker_table, maker):
     maker_spec = parse_maker_spec(maker)
     ASSERT(
         maker_spec.output_specs,

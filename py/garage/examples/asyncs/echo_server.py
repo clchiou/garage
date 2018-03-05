@@ -13,11 +13,11 @@ from garage.partdefs.asyncs import servers
 LOG = logging.getLogger(__name__)
 
 
-PARAMS = parameters.get(__name__)
-PARAMS.port = parameters.define(25000, 'set port')
+PARAMS = parameters.define_namespace(__name__)
+PARAMS.port = parameters.create(25000, 'set port')
 
 
-@parts.register_maker
+@parts.define_maker
 def make_server(
         graceful_exit: servers.PARTS.graceful_exit) -> servers.PARTS.server:
     return utils.serve(

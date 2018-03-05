@@ -11,13 +11,13 @@ PARTS = parts.PartList(executors.__name__, [
 ])
 
 
-PARAMS = parameters.get(
+PARAMS = parameters.define_namespace(
     executors.__name__, 'executor backed by global thread pool')
-PARAMS.num_workers = parameters.define(
+PARAMS.num_workers = parameters.create(
     8, 'set number of worker threads per executor')
 
 
-@parts.register_maker
+@parts.define_maker
 def make() -> (PARTS.worker_pool, PARTS.make_executor):
     worker_pool = executors.WorkerPool()
     make_executor = functools.partial(
