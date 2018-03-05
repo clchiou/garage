@@ -305,13 +305,13 @@ class App:
             for app in self._app_group.apps:
                 app.provide_parts(values)
 
-    def __call__(self, args):
+    def __call__(self, args, **kwargs):
         """Run the main function."""
         ASSERT(
             self._using_parts is not None,
             'expect context being set up before calling app: %r', self,
         )
-        return self._main(args, **self._using_parts)
+        return self._main(args, **kwargs, **self._using_parts)
 
 
 def run(main, argv=None):
