@@ -5,9 +5,8 @@
 You may use this as a guide to upgrade third-party packages.
 """
 
-from garage import cli
-from garage.components import ARGS
-from garage.startups.http.clients import HttpClientComponent
+from garage import apps
+from garage.partdefs.http import clients
 
 
 DEPS = [
@@ -46,13 +45,11 @@ DEPS = [
 URL_BASE = 'https://mvnrepository.com/artifact/'
 
 
-@cli.command('list-deps')
-@cli.argument(
+@apps.with_argument(
     '--latest', type=int, default=2,
     help='show latest N versions (default to %(default)s)',
 )
-@cli.component(HttpClientComponent)
-def list_deps(args: ARGS, client: HttpClientComponent.provide.client):
+def main(args, client: clients.PARTS.client):
     for pkg in DEPS:
         response = client.get(URL_BASE + pkg.replace(':', '/'))
         doc = response.dom()
@@ -69,4 +66,4 @@ def list_deps(args: ARGS, client: HttpClientComponent.provide.client):
 
 
 if __name__ == '__main__':
-    list_deps()
+    apps.run(main)
