@@ -11,6 +11,7 @@ need four pieces being initialized before start:
 
 __all__ = [
     'App',
+    'ensure_app',
     'run',
     'with_apps',
     'with_argument',
@@ -41,7 +42,8 @@ PARTS = parts.PartList(__name__, [
 ])
 
 
-def _ensure_app(main):
+def ensure_app(main):
+    """Ensure main is an App object."""
     if not isinstance(main, App):
         main = App(main)
     return main
@@ -49,43 +51,43 @@ def _ensure_app(main):
 
 def with_prog(prog):
     """Set application name of argparse.ArgumentParser."""
-    return lambda main: _ensure_app(main).with_prog(prog)
+    return lambda main: ensure_app(main).with_prog(prog)
 
 
 def with_description(description):
     """Set description of argparse.ArgumentParser."""
-    return lambda main: _ensure_app(main).with_description(description)
+    return lambda main: ensure_app(main).with_description(description)
 
 
 def with_help(help):
     """Set help message of argparse.ArgumentParser."""
-    return lambda main: _ensure_app(main).with_help(help)
+    return lambda main: ensure_app(main).with_help(help)
 
 
 def with_argument(*args, **kwargs):
     """Add argument to argparse.ArgumentParser."""
-    return lambda main: _ensure_app(main)._with_argument_for_decorator(
+    return lambda main: ensure_app(main)._with_argument_for_decorator(
         *args, **kwargs)
 
 
 def with_defaults(**defaults):
     """Update defaults of argparse.ArgumentParser."""
-    return lambda main: _ensure_app(main).with_defaults(**defaults)
+    return lambda main: ensure_app(main).with_defaults(**defaults)
 
 
 def with_apps(dest, help, *apps):
     """Set a group of applications under this one."""
-    return lambda main: _ensure_app(main).with_apps(dest, help, *apps)
+    return lambda main: ensure_app(main).with_apps(dest, help, *apps)
 
 
 def with_log_level(log_level):
     """Set default logging level."""
-    return lambda main: _ensure_app(main).with_log_level(log_level)
+    return lambda main: ensure_app(main).with_log_level(log_level)
 
 
 def with_input_parts(input_parts):
     """Update input parts for garage.parts.assemble."""
-    return lambda main: _ensure_app(main).with_input_parts(input_parts)
+    return lambda main: ensure_app(main).with_input_parts(input_parts)
 
 
 def with_part_names(*part_names):
@@ -94,12 +96,12 @@ def with_part_names(*part_names):
     Call this when you want to assemble these parts but do not want
     them to be passed to main.
     """
-    return lambda main: _ensure_app(main).with_part_names(*part_names)
+    return lambda main: ensure_app(main).with_part_names(*part_names)
 
 
 def with_selected_makers(selected_makers):
     """Update selected maker for garage.parts.assemble."""
-    return lambda main: _ensure_app(main).with_selected_makers(selected_makers)
+    return lambda main: ensure_app(main).with_selected_makers(selected_makers)
 
 
 class App:
@@ -177,7 +179,7 @@ class App:
         return self
 
     def with_apps(self, dest, help, *apps):
-        apps = [_ensure_app(app) for app in apps]
+        apps = [ensure_app(app) for app in apps]
         ASSERT(apps, 'expect at least one app: %r', apps)
         self._app_group = self.Group(dest, help, apps)
         return self
@@ -318,7 +320,7 @@ def run(main, argv=None):
     An application can be merely a callable that takes `args` as its
     sole argument and returns and integral status code.
     """
-    main = _ensure_app(main)
+    main = ensure_app(main)
     with contextlib.ExitStack() as exit_stack:
         args = main.prepare(
             argv=sys.argv if argv is None else argv,
