@@ -15,6 +15,7 @@ __all__ = [
     'run',
     'with_apps',
     'with_argument',
+    'with_decorators',
     'with_defaults',
     'with_description',
     'with_help',
@@ -47,6 +48,15 @@ def ensure_app(main):
     if not isinstance(main, App):
         main = App(main)
     return main
+
+
+def with_decorators(*decorators):
+    """Combine a series of decorators."""
+    def combined(main):
+        for decorator in reversed(decorators):
+            main = decorator(main)
+        return main
+    return combined
 
 
 def with_prog(prog):
