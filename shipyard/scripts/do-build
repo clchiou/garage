@@ -12,21 +12,19 @@ sys.path.append(str(ROOT / 'py' / 'garage'))
 sys.path.append(str(ROOT / 'py' / 'startup'))
 sys.path.append(str(ROOT / 'shipyard'))
 
-from garage import cli
+from garage import apps
 from garage import scripts
-from garage.components import ARGS
 
 import shipyard
 
 
-@cli.command('do-build')
-@cli.argument(
+@apps.with_argument(
     '--dry-run', action='store_true', help='do not really launch builders')
-@cli.argument('--version', help='set build version')
-@shipyard.argument_foreman
-@shipyard.argument_builder
-@cli.argument('rule', help='set build rule')
-def main(args: ARGS):
+@apps.with_argument('--version', help='set build version')
+@shipyard.with_foreman_argument
+@shipyard.with_builder_argument
+@apps.with_argument('rule', help='set build rule')
+def main(args):
     rules = shipyard.RuleIndex(args)
     rules.load_from_labels([args.rule])
     with scripts.dry_run(args.dry_run):
@@ -95,4 +93,4 @@ def do_build(args, rules):
 
 
 if __name__ == '__main__':
-    main()
+    apps.run(main)

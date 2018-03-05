@@ -6,12 +6,12 @@ rule templates for helping you write build rules).
 __all__ = [
     'Builder',
     'RuleIndex',
-    'argument_foreman',
-    'argument_builder',
     'get_build_image_rules',
     'get_specify_app_rule',
     'get_specify_image_rule',
     'get_specify_pod_rule',
+    'with_builder_argument',
+    'with_foreman_argument',
 ]
 
 from collections import namedtuple
@@ -20,7 +20,7 @@ import json
 
 from foreman import Label
 
-from garage import cli
+from garage import apps
 from garage import scripts
 from garage.assertions import ASSERT
 
@@ -33,24 +33,24 @@ DEFAULT_FOREMAN = ROOT / 'shipyard' / 'scripts' / 'foreman.sh'
 DEFAULT_BUILDER = ROOT / 'shipyard' / 'scripts' / 'builder'
 
 
-argument_foreman = cli.combine_decorators(
-    cli.argument(
+with_foreman_argument = apps.with_decorators(
+    apps.with_argument(
         '--foreman', metavar='PATH', type=Path, default=DEFAULT_FOREMAN,
         help='provide path to the foreman script (default %(default)s)',
     ),
-    cli.argument(
+    apps.with_argument(
         '--foreman-arg', metavar='ARG', action='append',
         help='add command-line argument to foreman script',
     ),
 )
 
 
-argument_builder = cli.combine_decorators(
-    cli.argument(
+with_builder_argument = apps.with_decorators(
+    apps.with_argument(
         '--builder', metavar='PATH', type=Path, default=DEFAULT_BUILDER,
         help='provide path to the builder script (default %(default)s)',
     ),
-    cli.argument(
+    apps.with_argument(
         '--builder-arg', metavar='ARG', action='append',
         help='add command-line argument to builder script',
     ),

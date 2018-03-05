@@ -10,25 +10,28 @@ ROOT = Path(__file__).absolute().parent.parent.parent
 sys.path.append(str(ROOT / 'py' / 'garage'))
 sys.path.append(str(ROOT / 'py' / 'startup'))
 
-from garage import cli
+from garage import apps
 from garage import scripts
-from garage.components import ARGS
 
 
-argument_common = cli.combine_decorators(
-    cli.argument(
-        '--build-name', help='set build container name'),
-    cli.argument(
-        '--builder', required=True, help='set builder image'),
-    cli.argument(
+with_common_arguments = apps.with_decorators(
+    apps.with_argument(
+        '--build-name',
+        help='set build container name',
+    ),
+    apps.with_argument(
+        '--builder', required=True,
+        help='set builder image',
+    ),
+    apps.with_argument(
         '--env-var', metavar='NAME=VALUE', action='append',
         help='add environment variable',
     ),
-    cli.argument(
+    apps.with_argument(
         '--volume', action='append',
         help='add data volume',
     ),
-    cli.argument(
+    apps.with_argument(
         '--preserve-container', action='store_true',
         help='do not remove container on exit',
     ),
@@ -43,9 +46,9 @@ def add_environment_variables(cmd, args):
     return cmd
 
 
-@cli.command(help='run builder interactively')
-@argument_common
-def run(args: ARGS, builder, cmd):
+@apps.with_help('run builder interactively')
+@with_common_arguments
+def run(args, builder, cmd):
     """Run an interactive session in a builder container."""
     add_environment_variables(cmd, args)
     cmd.extend(['--interactive', '--tty', builder, '/bin/bash'])
@@ -55,19 +58,19 @@ def run(args: ARGS, builder, cmd):
 
 # While you could do `--foreman=--path=/some/path`, for convenience, we
 # denormalize --path, --parameter, and rule argument of foreman.
-@cli.command(help='execute build rules')
-@argument_common
-@cli.argument(
+@apps.with_help('execute build rules')
+@with_common_arguments
+@apps.with_argument(
     '--path', action='append', help='add foreman search path')
-@cli.argument(
+@apps.with_argument(
     '--parameter', action='append', help='add parameter to foreman')
-@cli.argument(
+@apps.with_argument(
     '--foreman', action='append', help='send argument to foreman')
-@cli.argument(
+@apps.with_argument(
     '--output', help='set output directory path')
-@cli.argument(
+@apps.with_argument(
     'rule', nargs='+', help='add build rule')
-def build(args: ARGS, builder, cmd):
+def build(args, builder, cmd):
     """Execute one or more build rules."""
     add_environment_variables(cmd, args)
     if args.output:
@@ -87,13 +90,10 @@ def build(args: ARGS, builder, cmd):
     return 0
 
 
-@cli.command('builder')
-@cli.argument(
+@apps.with_argument(
     '--dry-run', action='store_true', help='do not really launch containers')
-@cli.sub_command_info('action', 'builder action')
-@cli.sub_command(run)
-@cli.sub_command(build)
-def main(args: ARGS):
+@apps.with_apps('action', 'builder action', run, build)
+def main(args):
     with scripts.dry_run(args.dry_run):
         # Construct build name
         build_name = args.build_name
@@ -109,7 +109,7 @@ def main(args: ARGS):
         for volume in args.volume or ():
             cmd.extend(['--volume', volume])
         # Execute the action
-        rc = args.action(builder=args.builder, cmd=cmd)
+        rc = args.action(args, builder=args.builder, cmd=cmd)
         if not args.preserve_container:
             # Don't remove builder on crash so that you may examine it
             scripts.execute(['docker', 'rm', build_name])
@@ -117,4 +117,4 @@ def main(args: ARGS):
 
 
 if __name__ == '__main__':
-    main()
+    apps.run(main)
