@@ -20,7 +20,7 @@ __all__ = [
     'with_description',
     'with_help',
     'with_input_parts',
-    'with_log_level',
+    'with_logging_level',
     'with_part_names',
     'with_prog',
     'with_selected_makers',
@@ -90,9 +90,9 @@ def with_apps(dest, help, *apps):
     return lambda main: ensure_app(main).with_apps(dest, help, *apps)
 
 
-def with_log_level(log_level):
+def with_logging_level(logging_level):
     """Set default logging level."""
-    return lambda main: ensure_app(main).with_log_level(log_level)
+    return lambda main: ensure_app(main).with_logging_level(logging_level)
 
 
 def with_input_parts(input_parts):
@@ -140,7 +140,7 @@ class App:
         self._app_group = None
 
         # For logging.
-        self._log_level = logging.INFO
+        self._logging_level = logging.INFO
 
         # For garage.parts.
         self._part_names = set()
@@ -194,8 +194,8 @@ class App:
         self._app_group = self.Group(dest, help, apps)
         return self
 
-    def with_log_level(self, log_level):
-        self._log_level = log_level
+    def with_logging_level(self, logging_level):
+        self._logging_level = logging_level
         return self
 
     def with_input_parts(self, input_parts):
@@ -243,7 +243,7 @@ class App:
 
         # Thirdly, set up the "global" stuff.
         # Configure logging as soon as possible.
-        configure_logging(self._log_level, args.verbose)
+        configure_logging(self._logging_level, args.verbose)
         # Then read parameter values.
         parameters.read_parameters_from(args, parameter_list)
         # Assemble parts for applications.
