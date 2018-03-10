@@ -1,3 +1,4 @@
+import functools
 import logging
 import typing
 
@@ -12,16 +13,21 @@ from garage.partdefs import apps
 from garage.partdefs.asyncs import servers
 
 
-def create_parts(module_name):
+def create_client_parts(module_name):
     return parts.PartList(module_name, [
         ('request_queue', parts.AUTO),
     ])
 
 
-def create_params(
+def create_server_parts(module_name):
+    return parts.PartList(module_name, [
+        ('request_queue', parts.AUTO),
+    ])
+
+
+def create_client_params(
         *, bind=(), connect=(), num_sockets=1, capacity=32, timeout=2):
-    params = parameters.create_namespace(
-        'create nanomsg socket client object')
+    params = parameters.create_namespace('create NN_REQ client')
     params.bind = parameters.create(
         bind, type=typing.List[str], doc='add URL to bind socket to')
     params.connect = parameters.create(
@@ -35,9 +41,22 @@ def create_params(
     return params
 
 
-def create_maker(part_list, params):
+def create_server_params(*, bind=(), connect=(), capacity=32, timeout=2):
+    params = parameters.create_namespace('create NN_REP server')
+    params.bind = parameters.create(
+        bind, type=typing.List[str], doc='add URL to bind socket to')
+    params.connect = parameters.create(
+        connect, type=typing.List[str], doc='add URL to connect socket to')
+    params.capacity = parameters.create(
+        capacity, 'set request queue capacity')
+    params.timeout = parameters.create(
+        timeout, unit='second', doc='set request timeout')
+    return params
 
-    def make_client(
+
+def _create_maker(part_list, params, get_num_sockets, make_socket, make_coro):
+
+    def make(
             exit_stack: apps.PARTS.exit_stack,
             graceful_exit: servers.PARTS.graceful_exit,
         ) -> (servers.PARTS.server, part_list.request_queue):
@@ -56,18 +75,19 @@ def create_maker(part_list, params):
         if timeout <= 0:
             timeout = None  # No timeout.
 
+        request_queue = queues.Queue(capacity=params.capacity.get())
+        exit_stack.callback(request_queue.close)
+
         sockets = []
-        for _ in range(params.num_sockets.get()):
-            request_queue = queues.Queue(capacity=params.capacity.get())
-            exit_stack.callback(request_queue.close)
-            socket = exit_stack.enter_context(Socket(protocol=nn.NN_REQ))
+        for _ in range(get_num_sockets()):
+            socket = exit_stack.enter_context(make_socket())
             for url in bind_addresses:
                 socket.bind(url)
             for url in connect_addresses:
                 socket.connect(url)
             sockets.append(socket)
 
-        coro = reqrep.client(
+        coro = make_coro(
             graceful_exit=graceful_exit,
             sockets=sockets,
             request_queue=request_queue,
@@ -76,4 +96,28 @@ def create_maker(part_list, params):
 
         return coro, request_queue
 
-    return make_client
+    return make
+
+
+def create_client_maker(part_list, params):
+    return _create_maker(
+        part_list,
+        params,
+        params.num_sockets.get,
+        functools.partial(Socket, protocol=nn.NN_REQ),
+        reqrep.client,
+    )
+
+
+def create_server_maker(part_list, params, *, error_handler=None):
+    return _create_maker(
+        part_list,
+        params,
+        lambda: 1,
+        functools.partial(Socket, domain=nn.AF_SP_RAW, protocol=nn.NN_REP),
+        lambda sockets, **kwargs: reqrep.server(
+            socket=sockets[0],
+            error_handler=error_handler,
+            **kwargs,
+        ),
+    )

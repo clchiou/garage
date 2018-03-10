@@ -13,24 +13,23 @@ from garage.partdefs.asyncs.messaging import reqrep
 LOG = logging.getLogger(__name__)
 
 
-PARTS = reqrep.create_parts(__name__)
+PARTS = reqrep.create_client_parts(__name__)
 
 
 PARAMS = parameters.define_namespace(__name__)
 PARAMS.message = parameters.create('', 'set message to send')
-PARAMS.echo_client = reqrep.create_params(connect=('tcp://127.0.0.1:25000',))
+PARAMS.echo_client = reqrep.create_client_params(
+    connect=('tcp://127.0.0.1:25000',))
 
 
-parts.define_maker(reqrep.create_maker(PARTS, PARAMS.echo_client))
+parts.define_maker(reqrep.create_client_maker(PARTS, PARAMS.echo_client))
 
 
 @parts.define_maker
-async def echo_client(
-    request_queue: PARTS.request_queue,
-    ) -> servers.PARTS.server:
+async def echo_client(queue: PARTS.request_queue) -> servers.PARTS.server:
     request = PARAMS.message.get().encode('utf8')
     async with futures.Future() as response_future:
-        await request_queue.put((request, response_future.promise()))
+        await queue.put((request, response_future.promise()))
         response = await response_future.result()
     LOG.info('receive resposne: %r', response)
 
