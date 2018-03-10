@@ -78,8 +78,8 @@ async def endpoint_add(request):
 
 
 if __name__ == '__main__':
+    parts.define_part(PARTS.logger, LOG)
     apps.run(
         apps.App(asyncs_servers.main)
         .with_description('Calculator web service.')
-        .with_input_parts({PARTS.logger: LOG})
     )

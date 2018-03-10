@@ -20,8 +20,10 @@ __all__ = [
     'PartList',
     'assemble',
     'define_maker',
+    'define_part',
 ]
 
+import functools
 import inspect
 from collections import defaultdict
 from collections import namedtuple
@@ -221,6 +223,34 @@ def _define_maker(maker_table, maker):
     for output_part_name in maker_spec.output_specs:
         maker_table[output_part_name][maker] = maker_spec.input_specs
     return maker
+
+
+def define_part(part_name, *part):
+    """Register a part.
+
+    You either call it as a decorator, like,
+      @define_part(part_name)
+      def part():
+          pass
+    Or as a "define" expression, like,
+      part = define_part(part_name, part)
+
+    NOTE: This is just a wrapper of define_maker because `Startup.set`
+    does not support setting values multiple times at the moment.
+    """
+
+    if not part:
+        return functools.partial(define_part, part_name)
+
+    ASSERT.equal(1, len(part))
+    part = part[0]
+
+    def make_part() -> part_name:
+        return part
+
+    define_maker(make_part)
+
+    return part
 
 
 def assemble(part_names, *, input_parts=None, selected_makers=None):

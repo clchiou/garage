@@ -19,7 +19,6 @@ __all__ = [
     'with_defaults',
     'with_description',
     'with_help',
-    'with_input_parts',
     'with_logging_level',
     'with_part_names',
     'with_prog',
@@ -95,11 +94,6 @@ def with_logging_level(logging_level):
     return lambda main: ensure_app(main).with_logging_level(logging_level)
 
 
-def with_input_parts(input_parts):
-    """Update input parts for garage.parts.assemble."""
-    return lambda main: ensure_app(main).with_input_parts(input_parts)
-
-
 def with_part_names(*part_names):
     """Add part names for garage.parts.assemble.
 
@@ -144,7 +138,6 @@ class App:
 
         # For garage.parts.
         self._part_names = set()
-        self._input_parts = {}
         self._selected_makers = {}
 
         # Inject these parts when calling the main function.
@@ -196,10 +189,6 @@ class App:
 
     def with_logging_level(self, logging_level):
         self._logging_level = logging_level
-        return self
-
-    def with_input_parts(self, input_parts):
-        self._input_parts.update(input_parts)
         return self
 
     def with_part_names(self, *part_names):
@@ -274,16 +263,15 @@ class App:
     def assemble_parts(self, exit_stack):
         """Assemble parts and fill up self._using_parts."""
         part_names = []
-        input_parts = {PARTS.exit_stack: exit_stack}
         selected_makers = {}
-        self.collect_for_assemble(part_names, input_parts, selected_makers)
+        self.collect_for_assemble(part_names, selected_makers)
         return parts.assemble(
             part_names=part_names,
-            input_parts=input_parts,
+            input_parts={PARTS.exit_stack: exit_stack},
             selected_makers=selected_makers,
         )
 
-    def collect_for_assemble(self, part_names, input_parts, selected_makers):
+    def collect_for_assemble(self, part_names, selected_makers):
         """Collect stuff for assemble() recursively.
 
         Unfortunately there is no way for me to know which app is going
@@ -293,16 +281,11 @@ class App:
         part_names.extend(self._part_names)
         part_names.extend(self._using_part_specs)
 
-        # Sanity check that you do not override "the" exit stack.
-        ASSERT.not_in(PARTS.exit_stack, self._input_parts)
-        input_parts.update(self._input_parts)
-
         selected_makers.update(self._selected_makers)
 
         if self._app_group:
             for app in self._app_group.apps:
-                app.collect_for_assemble(
-                    part_names, input_parts, selected_makers)
+                app.collect_for_assemble(part_names, selected_makers)
 
     def provide_parts(self, values):
         """Provide parts to using_parts of this and all sub-apps."""
