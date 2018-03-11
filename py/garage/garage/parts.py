@@ -20,6 +20,7 @@ __all__ = [
     'PartList',
     'assemble',
     'define_maker',
+    'define_makers',
     'define_part',
 ]
 
@@ -207,6 +208,12 @@ def parse_maker_spec(maker):
 
 # Table of output part name -> maker -> list of InputSpec.
 _MAKER_TABLE = defaultdict(dict)
+
+
+def define_makers(makers):
+    """Register a collection of part maker functions."""
+    for maker in makers:
+        define_maker(maker)
 
 
 def define_maker(maker):
