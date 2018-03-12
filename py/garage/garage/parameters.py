@@ -478,6 +478,9 @@ def define_scalar_descriptor(
             show=lambda value: value.name,
             metavar='{%s}' % ','.join(m.name for m in type),
         )
+    # pathlib returns platform-dependent subclass of Path.
+    if issubclass(type, Path):
+        type = Path
     return scalar_descriptors[type]
 
 
