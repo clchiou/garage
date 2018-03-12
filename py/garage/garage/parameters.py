@@ -148,6 +148,12 @@ class ParameterDescriptor:
         """
         raise NotImplementedError
 
+    def translate(self, value):
+        """Translate a value (from JSON or YAML parser) to a suitable
+        parameter value, and raise when value is incomprehensible.
+        """
+        raise NotImplementedError
+
     def validate(self, value):
         """Raise on invalid parameter value."""
         raise NotImplementedError
@@ -186,9 +192,12 @@ class ParameterDescriptor:
 
 class ScalarParameterDescriptor(ParameterDescriptor):
 
-    def __init__(self, type, *, parse=None, show=str, metavar=None):
+    def __init__(
+            self, type, *,
+            parse=None, translate=None, show=str, metavar=None):
         self._type = type
         self._parse = parse or type
+        self._translate = translate
         self._show = show
         self._metavar = metavar or self._type.__name__.upper()
 
@@ -209,6 +218,11 @@ class ScalarParameterDescriptor(ParameterDescriptor):
 
     def parse(self, arg_value):
         return self._parse(arg_value)
+
+    def translate(self, value):
+        if self._translate:
+            value = self._translate(value)
+        return value
 
     def validate(self, value):
         ASSERT.type_of(value, self._type)
@@ -253,6 +267,13 @@ class VectorParameterDescriptor(ParameterDescriptor):
             for descriptor, cell in zip(self._cell_descriptors, arg_value)
         )
 
+    def translate(self, value):
+        self._assert_dimension(value)
+        return tuple(
+            descriptor.translate(cell)
+            for descriptor, cell in zip(self._cell_descriptors, value)
+        )
+
     def validate(self, value):
         self._assert_dimension(value)
         for descriptor, cell in zip(self._cell_descriptors, value):
@@ -282,6 +303,9 @@ class MatrixParameterDescriptor(ParameterDescriptor):
     def parse(self, arg_value):
         return list(map(self._vector_descriptor.parse, arg_value))
 
+    def translate(self, value):
+        return list(map(self._vector_descriptor.translate, value))
+
     def validate(self, value):
         for vector in value:
             self._vector_descriptor.validate(vector)
@@ -309,6 +333,9 @@ class OneDimensionalMatrixParameterDescriptor(ParameterDescriptor):
 
     def parse(self, arg_value):
         return list(map(self._cell_descriptor.parse, arg_value))
+
+    def translate(self, value):
+        return list(map(self._cell_descriptor.translate, value))
 
     def validate(self, value):
         for cell in value:
@@ -485,6 +512,7 @@ def define_scalar_descriptor(
         scalar_descriptors[type] = ScalarParameterDescriptor(
             type=type,
             parse=type.__getitem__,
+            translate=type.__getitem__,
             show=lambda value: value.name,
             metavar='{%s}' % ','.join(m.name for m in type),
         )
@@ -736,6 +764,7 @@ def _read_parameters(path, parameter_values, parts, parameter_table):
             _read_parameters(path, value, parts, parameter_table)
         else:
             parameter_name, parameter = entry
+            value = parameter.descriptor.translate(value)
             LOG.debug('from file %s: %s = %r', path, parameter_name, value)
             parameter.set(value)
         parts.pop()
