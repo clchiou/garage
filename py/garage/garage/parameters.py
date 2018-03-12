@@ -11,7 +11,10 @@ Parameters are grouped by a (hierarchy of) namespaces.
 For now, parameters have a few deliberately-made design constraints:
   * It only supports scalar, vector, and matrix parameter value types,
     and does not provide interface for adding custom parameter types.
-    * Scalar types are: bool, int, float, str, Enum, and Path.
+    * Scalar types are: bool, dict, int, float, str, Enum, and Path.
+      * We treat dict as a black box without imposing constraints on its
+        keys or values; thus it makes sense to declare dict as a scalar
+        type in this context.
     * Vector is typing.Tuple[scalar_types].
     * Matrix is typing.List[scalar or typing.Tuple[scalar_types]].
   * It does not read parameter values from the environment because:
@@ -28,11 +31,11 @@ __all__ = [
     'define_namespace',
 ]
 
+import collections
 import enum
 import json
 import logging
 import typing
-from collections import OrderedDict
 from pathlib import Path
 
 try:
@@ -68,7 +71,7 @@ class ParameterNamespace:
 
     def __init__(self, doc=None):
         self.doc = doc
-        self.parameters = OrderedDict()
+        self.parameters = collections.OrderedDict()
 
     def __bool__(self):
         return bool(self.parameters)
@@ -400,6 +403,13 @@ _SCALAR_PARAMETER_DESCRIPTORS = {
     int: ScalarParameterDescriptor(int),
     str: ScalarParameterDescriptor(str, show=repr),
     Path: ScalarParameterDescriptor(Path),
+    # Make an exception for dict-like types.
+    collections.Mapping: ScalarParameterDescriptor(
+        type=collections.Mapping,
+        parse=json.loads,
+        show=json.dumps,
+        metavar='JSON_STR',
+    ),
 }
 
 
@@ -481,6 +491,8 @@ def define_scalar_descriptor(
     # pathlib returns platform-dependent subclass of Path.
     if issubclass(type, Path):
         type = Path
+    elif issubclass(type, collections.Mapping):
+        type = collections.Mapping
     return scalar_descriptors[type]
 
 
@@ -535,7 +547,7 @@ def define_matrix_descriptor(
     return descriptor
 
 
-_SCALAR_TYPES = (bool, float, int, str, Path, enum.Enum)
+_SCALAR_TYPES = (bool, float, int, str, Path, enum.Enum, collections.Mapping)
 
 
 def is_scalar_type(type):
