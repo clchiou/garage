@@ -8,10 +8,10 @@ from garage import parts
 from garage.assertions import ASSERT
 
 
-def create_parts(module_name):
-    return parts.PartList(module_name, [
-        ('engine', parts.AUTO),
-    ])
+def create_parts(module_name=None):
+    part_list = parts.Parts(module_name)
+    part_list.engine = parts.AUTO
+    return part_list
 
 
 def create_params(*, check_same_thread=False, pragmas=()):

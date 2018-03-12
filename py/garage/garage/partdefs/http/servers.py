@@ -9,11 +9,11 @@ from garage import parts
 from garage.partdefs.asyncs import servers
 
 
-def create_parts(module_name):
-    return parts.PartList(module_name, [
-        ('handler', parts.AUTO),
-        ('logger', parts.AUTO),
-    ])
+def create_parts(module_name=None):
+    part_list = parts.Parts(module_name)
+    part_list.handler = parts.AUTO
+    part_list.logger = parts.AUTO
+    return part_list
 
 
 def create_params(*, host='', port=80):

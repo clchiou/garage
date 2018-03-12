@@ -18,9 +18,8 @@ class LogLevel(enum.Enum):
     CRITICAL = logging.CRITICAL
 
 
-PARTS = parts.PartList('garage.loggers', [
-    ('set_logging_levels', parts.AUTO),
-])
+PARTS = parts.Parts('garage.loggers')
+PARTS.set_logging_levels = parts.AUTO
 
 
 PARAMS = parameters.define_namespace(

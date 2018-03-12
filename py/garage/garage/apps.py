@@ -37,9 +37,8 @@ from garage import parts
 from garage.assertions import ASSERT
 
 
-PARTS = parts.PartList(__name__, [
-    ('exit_stack', parts.AUTO),
-])
+PARTS = parts.Parts(__name__)
+PARTS.exit_stack = parts.AUTO
 
 
 def ensure_app(main):

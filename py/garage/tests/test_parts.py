@@ -8,12 +8,11 @@ from tests.availability import startup_available
 if startup_available:
     from garage import parts
 
-    PLIST = parts.PartList('a.b.c', [
-        ('sub_part_1', parts.AUTO),
-        ('sub_part_2', parts.AUTO),
-        ('final_part', parts.AUTO),
-        ('some_part', parts.AUTO),
-    ])
+    PLIST = parts.Parts('a.b.c')
+    PLIST.sub_part_1 = parts.AUTO
+    PLIST.sub_part_2 = parts.AUTO
+    PLIST.final_part = parts.AUTO
+    PLIST.some_part = parts.AUTO
 
     def make_sub_part_1() -> PLIST.sub_part_1:
         return 'part from make_sub_part_1'
@@ -43,42 +42,35 @@ if startup_available:
 @unittest.skipUnless(startup_available, 'startup unavailable')
 class PartsTest(unittest.TestCase):
 
-    def test_part_name(self):
+    def test_parts(self):
 
-        pn = parts.PartName('a.b.c', 'z')
-        self.assertEqual('a.b.c:z', pn)
-        self.assertEqual('a.b.c', pn.module_name)
-        self.assertEqual('z', pn.name)
+        def make_plist1(module_name=None):
+            plist = parts.Parts(module_name)
+            plist.x = parts.AUTO
+            plist.y = 'Y'
+            return plist
 
-        pn = pn._rebase('d.e.f', 'x.y')
-        self.assertEqual('d.e.f:x.y.z', pn)
-        self.assertEqual('d.e.f', pn.module_name)
-        self.assertEqual('x.y.z', pn.name)
+        def make_plist2(module_name=None):
+            plist = parts.Parts(module_name)
+            plist.pl1 = make_plist1()
+            plist.z = parts.AUTO
+            return plist
 
-        pattern = r'expect name not start with underscore: _x'
-        with self.assertRaisesRegex(AssertionError, pattern):
-            parts.PartName('a.b.c', '_x')
+        def make_plist3(module_name=None):
+            plist = parts.Parts(module_name)
+            plist.pl1 = make_plist1()
+            plist.pl2 = make_plist2()
+            return plist
 
-    def test_part_list(self):
+        def make_plist4(module_name=None):
+            plist = parts.Parts(module_name)
+            plist.pl3 = make_plist3()
+            return plist
 
-        plist1 = parts.PartList('a.b.c', [
-            ('x', parts.AUTO),
-            ('y', 'Y'),
-        ])
-
-        plist2 = parts.PartList('d.e.f', [
-            ('pl1', plist1),
-            ('z', parts.AUTO),
-        ])
-
-        plist3 = parts.PartList('g.h.i', [
-            ('pl1', plist1),
-            ('pl2', plist2),
-        ])
-
-        plist4 = parts.PartList('j.k.l', [
-            ('pl3', plist3),
-        ])
+        plist1 = make_plist1('a.b.c')
+        plist2 = make_plist2('d.e.f')
+        plist3 = make_plist3('g.h.i')
+        plist4 = make_plist4('j.k.l')
 
         self.assertEqual('a.b.c:x', plist1.x)
         self.assertEqual('a.b.c:Y', plist1.y)
@@ -97,7 +89,9 @@ class PartsTest(unittest.TestCase):
 
     def test_define_maker_on_wrapper(self):
 
-        plist = parts.PartList('foo', [('x', parts.AUTO), ('y', parts.AUTO)])
+        plist = parts.Parts('foo')
+        plist.x = parts.AUTO
+        plist.y = parts.AUTO
 
         def func(x: plist.x, arg) -> plist.y:
             pass

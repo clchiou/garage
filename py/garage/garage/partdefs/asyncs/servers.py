@@ -8,11 +8,10 @@ from garage import parts
 from garage.asyncs import servers
 
 
-PARTS = parts.PartList(servers.__name__, [
-    ('graceful_exit', parts.AUTO),
-    ('server', parts.AUTO),
-    ('serve', parts.AUTO),
-])
+PARTS = parts.Parts(servers.__name__)
+PARTS.graceful_exit = parts.AUTO
+PARTS.server = parts.AUTO
+PARTS.run_servers = parts.AUTO
 
 
 PARAMS = parameters.define_namespace(
@@ -27,10 +26,10 @@ def make_graceful_exit() -> PARTS.graceful_exit:
 
 
 @parts.define_maker
-def make_serve(
+def make_run_servers(
         graceful_exit: PARTS.graceful_exit,
         server_coros: [PARTS.server],
-    ) -> PARTS.serve:
+    ) -> PARTS.run_servers:
     return functools.partial(
         servers.serve,
         graceful_exit=graceful_exit,
@@ -45,5 +44,5 @@ def make_serve(
 # NOTE: Do not decorate it with `@apps`, which creates an apps.App
 # object, because it might be shared in multiple places, and if they all
 # decorate it further, they will be modifying the same apps.App object.
-def main(_, serve: PARTS.serve):
-    return 0 if curio.run(serve()) else 1
+def main(_, run_servers: PARTS.run_servers):
+    return 0 if curio.run(run_servers()) else 1

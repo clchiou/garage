@@ -4,9 +4,8 @@ from garage.http import clients
 from garage.http import policies
 
 
-PARTS = parts.PartList(clients.__name__, [
-    ('client', parts.AUTO),
-])
+PARTS = parts.Parts(clients.__name__)
+PARTS.client = parts.AUTO
 
 
 PARAMS = parameters.define_namespace(

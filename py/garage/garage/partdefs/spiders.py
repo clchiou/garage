@@ -4,10 +4,9 @@ from garage import spiders
 from garage.partdefs.http import clients
 
 
-PARTS = parts.PartList(spiders.__name__, [
-    ('parser', parts.AUTO),
-    ('spider', parts.AUTO),
-])
+PARTS = parts.Parts(spiders.__name__)
+PARTS.parser = parts.AUTO
+PARTS.spider = parts.AUTO
 
 
 PARAMS = parameters.define_namespace(

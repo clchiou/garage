@@ -4,9 +4,8 @@ from garage import parts
 from garage.partdefs import apps
 
 
-PARTS = parts.PartList(multiprocessing.__name__, [
-    ('python2', parts.AUTO),
-])
+PARTS = parts.Parts(multiprocessing.__name__)
+PARTS.python2 = parts.AUTO
 
 
 PARAMS = parameters.define_namespace(

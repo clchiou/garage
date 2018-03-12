@@ -17,7 +17,7 @@ easier to type "part" than "component").
 
 __all__ = [
     'AUTO',
-    'PartList',
+    'Parts',
     'assemble',
     'define_maker',
     'define_makers',
@@ -26,6 +26,7 @@ __all__ = [
 
 import functools
 import inspect
+from collections import OrderedDict
 from collections import defaultdict
 from collections import namedtuple
 
@@ -48,101 +49,91 @@ def _assert_name(name):
 
 # Make it a subclass of str so that `startup` accepts it.
 class PartName(str):
-    """Represent a part's name.
-
-    It is composed of a module name and a name, joined by a colon.
-    """
-
-    __slots__ = ('_colon_index',)
-
-    def __new__(cls, module_name, name):
-        # Handle `[name]`-style annotation of name.
-        if isinstance(name, list) and len(name) == 1:
-            name = name[0]
-        self = super().__new__(cls, ':'.join((
-            module_name,
-            _assert_name(name),
-        )))
-        self._colon_index = len(module_name)
-        return self
-
-    def __repr__(self):
-        return '<%s.%s \'%s\'>' % (
-            self.__module__, self.__class__.__qualname__,
-            self,
-        )
-
-    @property
-    def module_name(self):
-        return self[:self._colon_index]
-
-    @property
-    def name(self):
-        return self[self._colon_index+1:]
-
-    def _rebase(self, module_name, prefix):
-        """Replace the module name and prepend a prefix."""
-        return PartName(
-            module_name,
-            '.'.join((_assert_name(prefix), self.name)),
-        )
+    pass
 
 
-class PartList:
+class Parts:
     """List of part names.
 
-    To create a part list, you provide the module name and a list of
-    entries where each entry is either a name or another part list:
-        # Assume __name__ == 'some.module'
-        PartList(__name__, [
-            ('name_1', AUTO),
-            ('name_2', 'some_part_name'),
-            ('sub_list', another_part_list),
-        ])
+    To create a part list, you (optionally) provide the module name, and
+    then assign each part as follows:
+      # Assume __name__ == 'some.module'
+      part_list = Parts(__name__)
+      part_list.name_1 = AUTO
+      part_list.name_2 = 'some_part_name'
+      part_list.sub_list = another_part_list
 
     Then you may refer to these part names like this:
-        assert part_list.name_1 == 'some.module:name_1'
-        assert part_list.name_2 == 'some.module:some_part_name'
+      assert part_list.name_1 == 'some.module:name_1'
+      assert part_list.name_2 == 'some.module:some_part_name'
 
-    NOTE: If another part list is referred in the list, it will be
-    copied and rebased (i.e., all part names will be nested under the
-    new part list).
+    A part list is either orphaned or adopted.  If it is an orphan, you
+    cannot read its part names.  It is adopted if it is created with a
+    module name, or is assigned to a non-orphan part list.  A part list
+    can only be adopted once.
     """
+
+    def __init__(self, module_name=None):
+        super().__setattr__('_parent', module_name)
+        super().__setattr__('_part_names', OrderedDict())
+        super().__setattr__('_resolved', None)
 
     def __repr__(self):
         return '<%s.%s 0x%x %s>' % (
             self.__module__, self.__class__.__qualname__, id(self),
             ' '.join(
-                '%s=%s' % (attr_name, self.__dict__[attr_name])
-                for attr_name in self._attr_names
+                '%s=%s' % (attr_name, part_name)
+                for attr_name, part_name in self._part_names.items()
             ),
         )
 
-    def __init__(self, module_name, entries):
-        self._attr_names = []
-        for attr_name, entry in entries:
-            _assert_name(attr_name)
-            if entry is AUTO:
-                value = PartName(module_name, attr_name)
-            elif isinstance(entry, PartList):
-                value = entry._rebase(module_name, attr_name)
-            elif isinstance(entry, PartName):
-                value = entry
-            else:
-                value = PartName(module_name, entry)
-            self.__dict__[attr_name] = value
-            self._attr_names.append(attr_name)
+    def __getattr__(self, attr_name):
+        _assert_name(attr_name)
+        try:
+            part_name = self._part_names[attr_name]
+        except KeyError:
+            msg = '%r has no part %r' % (self.__class__.__name__, attr_name)
+            raise AttributeError(msg) from None
+        if part_name.__class__ is str:
+            self._part_names[attr_name] = part_name = self._resolve(part_name)
+        return part_name
 
-    def _rebase(self, module_name, prefix):
-        """Rebase part names recursively."""
-        # HACK: Call PartList constructor with empty entries, and then
-        # fill the entries here to prevent "double" recursion.
-        part_list = PartList(None, ())
-        for attr_name in self._attr_names:
-            value = self.__dict__[attr_name]
-            part_list.__dict__[attr_name] = value._rebase(module_name, prefix)
-            part_list._attr_names.append(attr_name)
-        return part_list
+    def __setattr__(self, attr_name, part_name):
+        if attr_name in self.__dict__:
+            return super().__setattr__(attr_name, part_name)
+        _assert_name(attr_name)
+        if part_name is AUTO:
+            part_name = attr_name
+        if isinstance(part_name, Parts):
+            part_name._adopt_by(self, attr_name)
+        else:
+            ASSERT.is_(part_name.__class__, str)
+        self._part_names[attr_name] = part_name
+
+    def _adopt_by(self, parent, edge):
+        ASSERT(not self._parent, 'expect orphan: %r', self)
+        self._parent = (parent, edge)
+
+    def _resolve(self, part_name):
+        if not self._resolved:
+            module_name = None
+            pieces = []
+            obj = self
+            while True:
+                parent = obj._parent
+                ASSERT(parent, 'expect non-orphan: %r, %r', self, obj)
+                if isinstance(parent, str):
+                    module_name = parent
+                    break
+                else:
+                    obj, edge = parent
+                    pieces.append(edge)
+            if pieces:
+                pieces.reverse()
+                self._resolved = '%s:%s.' % (module_name, '.'.join(pieces))
+            else:
+                self._resolved = module_name + ':'
+        return PartName(self._resolved + part_name)
 
 
 MakerSpec = namedtuple('MakerSpec', [

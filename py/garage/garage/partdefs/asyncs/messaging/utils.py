@@ -3,11 +3,11 @@ from garage import parts
 from garage.partdefs.asyncs.messaging import reqrep
 
 
-def create_parts(module_name):
-    return parts.PartList(module_name, [
-        ('client', parts.AUTO),
-        ('conn', reqrep.create_client_parts(module_name)),
-    ])
+def create_parts(module_name=None):
+    part_list = parts.Parts(module_name)
+    part_list.client = parts.AUTO
+    part_list.conn = reqrep.create_client_parts()
+    return part_list
 
 
 def create_params(*, packed=False, **reqrep_params):

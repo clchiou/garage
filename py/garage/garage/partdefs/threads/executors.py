@@ -5,10 +5,9 @@ from garage import parts
 from garage.threads import executors
 
 
-PARTS = parts.PartList(executors.__name__, [
-    ('worker_pool', parts.AUTO),
-    ('make_executor', parts.AUTO),
-])
+PARTS = parts.Parts(executors.__name__)
+PARTS.worker_pool = parts.AUTO
+PARTS.make_executor = parts.AUTO
 
 
 PARAMS = parameters.define_namespace(
