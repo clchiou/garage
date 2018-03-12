@@ -12,6 +12,7 @@ class Assertions:
     def __call__(self, cond, message, *args):
         if not cond:
             raise self._exc_type(message % args)
+        return cond
 
     def fail(self, message, *args):
         raise self._exc_type(message % args)
