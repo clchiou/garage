@@ -429,7 +429,7 @@ _SCALAR_PARAMETER_DESCRIPTORS = {
     float: ScalarParameterDescriptor(float),
     int: ScalarParameterDescriptor(int),
     str: ScalarParameterDescriptor(str, show=repr),
-    Path: ScalarParameterDescriptor(Path),
+    Path: ScalarParameterDescriptor(Path, translate=Path),
     # Make an exception for dict-like types.
     collections.Mapping: ScalarParameterDescriptor(
         type=collections.Mapping,
