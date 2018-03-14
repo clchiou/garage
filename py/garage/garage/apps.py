@@ -247,8 +247,12 @@ class App:
             parser.add_argument(*add_argument_args, **add_argument_kwargs)
         if self._app_group:
             subparsers = parser.add_subparsers(help=self._app_group.help)
-            # http://bugs.python.org/issue9253
             subparsers.dest = self._app_group.dest
+            # TODO: We need to explicitly set `required` (see [1] for
+            # more).  This bug is fixed in Python 3.7 (see [2]).  We may
+            # remove this once we upgrade everywhere to Python 3.7.
+            # [1] http://bugs.python.org/issue9253
+            # [2] https://bugs.python.org/issue26510
             subparsers.required = True
             for app in self._app_group.apps:
                 subparser = subparsers.add_parser(
