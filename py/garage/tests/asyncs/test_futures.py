@@ -13,6 +13,9 @@ if curio_available:
     from garage.asyncs.futures import FutureAdapter
     from garage.asyncs.futures import DeferredFuture
     from garage.asyncs.utils import synchronous
+else:
+    def synchronous(func):
+        return func
 
 
 @unittest.skipUnless(curio_available, 'curio unavailable')

@@ -13,6 +13,9 @@ if curio_available and nanomsg_available:
     from garage.asyncs.messaging import reqrep
     from garage.asyncs.queues import Queue, ZeroQueue
     from garage.asyncs.utils import synchronous
+else:
+    def synchronous(func):
+        return func
 
 
 URL_BASE = 'inproc://test_reqrep/'

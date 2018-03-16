@@ -8,6 +8,9 @@ if curio_available:
     import curio
     from garage.asyncs import base
     from garage.asyncs.utils import synchronous
+else:
+    def synchronous(func):
+        return func
 
 
 @unittest.skipUnless(curio_available, 'curio unavailable')

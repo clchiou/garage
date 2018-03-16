@@ -7,6 +7,9 @@ if curio_available:
     from garage.threads import actors
     from garage.asyncs.actors import StubAdapter
     from garage.asyncs.utils import synchronous
+else:
+    def synchronous(func):
+        return func
 
 
 @unittest.skipUnless(curio_available, 'curio unavailable')
