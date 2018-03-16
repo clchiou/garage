@@ -1,9 +1,5 @@
 """ops-mob scripts."""
 
-__all__ = [
-    'main',
-]
-
 from garage import apps
 from garage import scripts
 
@@ -29,3 +25,7 @@ def main(args):
     with scripts.dry_run(args.dry_run):
         scripts.ensure_not_root()
         return args.entity(args)
+
+
+def run_main():
+    apps.run(main)

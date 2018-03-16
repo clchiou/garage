@@ -1,5 +1,1 @@
-from garage import apps
-from . import main
-
-
-apps.run(main)
+from . import run_main; run_main()

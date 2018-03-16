@@ -8,8 +8,8 @@ setup(
     description = 'Operations tool',
     entry_points = {
         'console_scripts': [
-            'ops-mob = ops.mob:main',
-            'ops-onboard = ops.onboard:main',
+            'ops-mob = ops.mob:run_main',
+            'ops-onboard = ops.onboard:run_main',
         ],
     },
     cmdclass = {

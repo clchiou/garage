@@ -1,9 +1,5 @@
 """ops-onboard scripts."""
 
-__all__ = [
-    'main',
-]
-
 from pathlib import Path
 
 from garage import apps
@@ -93,3 +89,7 @@ def main(args):
             logger = logging.getLogger(__name__)
             logger.error('cannot lock repo: %s', args.root)
             return 1
+
+
+def run_main():
+    apps.run(main)
