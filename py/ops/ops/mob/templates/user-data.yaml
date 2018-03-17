@@ -15,10 +15,6 @@ users:
     shell: /bin/bash
     ssh-authorized-keys: []
 
-packages:
-  # Install Python2 for Ansible
-  - python
-
 runcmd:
   # Enable the most basic firewall configuration
   - ufw enable
