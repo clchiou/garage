@@ -14,7 +14,8 @@ setup(
     },
     cmdclass = {
         # For packaging self-contained ops-onboard tool
-        'bdist_zipapp': buildtools.make_bdist_zipapp(main='ops.onboard:main'),
+        'bdist_zipapp':
+            buildtools.make_bdist_zipapp(main='ops.onboard:run_main'),
     },
     packages = [
         'ops',
