@@ -294,7 +294,7 @@ with_argument_tag = apps.with_argument(
 
 @apps.with_prog('list')
 @apps.with_help('list deployed pods')
-def list_pods(repo):
+def list_pods(_, repo):
     """List deployed pods."""
     for pod_name in repo.get_pod_names():
         for pod in repo.iter_pods(pod_name):
