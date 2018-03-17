@@ -59,6 +59,7 @@ class ModelsTest(unittest.TestCase):
                     },
                     {
                         'unit-file': 'http://host/path/to/bar.service?x=1',
+                        'starting': False,
                         'checksum': 'sha512-456',
                     },
                 ],
@@ -120,12 +121,14 @@ class ModelsTest(unittest.TestCase):
                     {
                         'name': 'foo',
                         'unit-file': 'systemd/example-foo-1.0.1@.service',
+                        'starting': True,
                         'checksum': 'sha512-123',
                         'instances': [1, 2, 3],
                     },
                     {
                         'name': 'bar',
                         'unit-file': 'systemd/example-bar-1.0.1.service',
+                        'starting': False,
                         'checksum': 'sha512-456',
                     },
                 ],

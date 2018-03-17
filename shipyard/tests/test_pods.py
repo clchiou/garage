@@ -232,6 +232,7 @@ class AppTest(PrepareForeman, unittest.TestCase):
         'systemd-units': [
             {
                 'unit-file': 'foo.service',
+                'starting': True,
                 'instances': [1, 2, 3],
             },
         ],

@@ -268,6 +268,7 @@ class SystemdUnit(ModelObject):
     FIELDS = {
         'name': ModelObject.is_type_of(str),
         'unit-file': ModelObject.is_type_of(str),
+        'starting': ModelObject.is_type_of(bool),
         'checksum': ModelObject.is_type_of(str),
         'instances': ModelObject.is_type_of(int, list),
     }
@@ -288,6 +289,7 @@ class SystemdUnit(ModelObject):
         self._unit_file = unit_data['unit-file']
         self._path_or_uri('unit_file', pod.path, self._unit_file,
                           self.SUPPORTED_URI_SCHEMES)
+        self.starting = unit_data.get('starting', True)
         self.checksum = unit_data.get('checksum')
         self._warn_if_uri_no_checksum('unit_file')
 
@@ -333,6 +335,7 @@ class SystemdUnit(ModelObject):
             DictBuilder()
             .setitem('name', self.name)
             .setitem('unit-file', self._unit_file)
+            .setitem('starting', self.starting)
             .if_(self.checksum).setitem('checksum', self.checksum).end()
             .if_(self._instances).setitem('instances', self._instances).end()
             .dict

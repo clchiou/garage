@@ -210,6 +210,8 @@ def deploy_start(pod):
     """Start systemd units of the pod."""
     LOG.info('%s - start pod', pod)
     for unit in pod.systemd_units:
+        if not unit.starting:
+            continue
         # State: enabled -> active
         _change_unit_state(
             unit,

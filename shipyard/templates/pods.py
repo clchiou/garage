@@ -651,11 +651,13 @@ class SystemdUnit(ModelObject):
 
     FIELDS = [
         ('unit_file', None),
+        ('starting', None),
         ('instances', None),
     ]
 
-    def __init__(self, *, unit_file, instances=None):
+    def __init__(self, *, unit_file, starting=True, instances=None):
         self.unit_file = unit_file
+        self.starting = starting
         self.instances = instances
 
     @property
@@ -665,7 +667,7 @@ class SystemdUnit(ModelObject):
     def get_pod_object_entry(self):
         # "unit-file" is relative path to OUTPUT; use path.name matches
         # the rsync() call above
-        entry = {'unit-file': self.path.name}
+        entry = {'unit-file': self.path.name, 'starting': self.starting}
         if self.instances:
             entry['instances'] = self.instances
         return entry
