@@ -39,6 +39,10 @@ LOG = logging.getLogger(__name__)
          '''
 )
 @apps.with_argument(
+    '--password',
+    help='set login password, which should only be used in testing',
+)
+@apps.with_argument(
     'output', type=Path,
     help='set output YAML file path',
 )
@@ -118,6 +122,13 @@ def generate_user_data(args):
     else:
         user_data.pop('hostname')
         user_data.pop('fqdn')
+
+    if args.password:
+        LOG.warning('use password login, which is insecure')
+        user_data['chpasswd'] = {
+            'list': 'plumber:%s\n' % args.password,
+            'expire': False,
+        }
 
     user_data_yaml = yaml.dump(user_data)
 
