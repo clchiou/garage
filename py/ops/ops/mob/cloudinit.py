@@ -99,20 +99,21 @@ def generate_user_data(args):
         # I need this because I couldn't configure host-only network
         # interface from cloud-init metadata.  Also, note that you
         # should not set `gateway` for the host-only interface.
-        cfg = (templates_dir / '99-host-only.cfg').read_text().format(
+        cfg = (templates_dir / '99-host-only.yaml').read_text().format(
             interface=interface,
             ip_address=ip_address,
-            ip_address_parts=ip_address.split('.'),
         )
         user_data.setdefault('write_files', []).append({
-            'path': '/etc/network/interfaces.d/99-host-only.cfg',
+            'path': '/etc/netplan/99-host-only.yaml',
             'owner': 'root:root',
             'permissions': '0644',
             'content': cfg,
         })
 
-        # Insert `ifup ${interface}` into `runcmd`
-        user_data['runcmd'].append('ifup %s' % interface)
+        # Do this for the first boot in case the host-only interface is
+        # not brought up.
+        user_data['runcmd'].append('netplan generate')
+        user_data['runcmd'].append('netplan apply')
 
     else:
         user_data.pop('hostname')

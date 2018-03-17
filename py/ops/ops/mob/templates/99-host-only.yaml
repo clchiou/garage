@@ -1,0 +1,7 @@
+# VirtualBox host-only network interface
+
+network:
+  version: 2
+  ethernets:
+    {interface}:
+      addresses: [{ip_address}/24]
