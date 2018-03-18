@@ -18,7 +18,7 @@ common.define_archive(
 @rule
 @rule.depend('//base:build')
 @rule.depend('download')
-def build(parameters):
+def build(_):
     pass  # Nothing here for now.
 
 
@@ -27,7 +27,7 @@ def build(parameters):
 @rule.reverse_depend('//base:tapeout')
 def tapeout(parameters):
     with scripts.using_sudo():
-        input = (
+        input_path = (
             parameters['//base:drydock'] / get_relpath() /
             parameters['archive_info'].output
         )
@@ -36,7 +36,7 @@ def tapeout(parameters):
         scripts.mkdir(output)
 
         # Appending '/' to src is an rsync trick.
-        scripts.rsync(['%s/' % input], output)
+        scripts.rsync(['%s/' % input_path], output)
 
         # `config`, `data`, and `logs` are provided by application pod.
         scripts.mkdir(output / 'config')
@@ -57,7 +57,7 @@ def trim(parameters):
 
 
 @pods.app_specifier
-def filebeat_app(parameters):
+def filebeat_app(_):
     return pods.App(
         name='filebeat',
         exec=[
@@ -70,12 +70,6 @@ def filebeat_app(parameters):
         working_directory='/opt/filebeat',
         # Filebeat requires most of the files owned by the same user.
         volumes=[
-            pods.Volume(
-                name='config-volume',
-                path='/opt/filebeat/config',
-                data='config-volume/config.tar.gz',
-                user='root', group='root',
-            ),
             pods.Volume(
                 name='data-volume',
                 path='/opt/filebeat/data',
@@ -96,21 +90,3 @@ def filebeat_app(parameters):
             ),
         ],
     )
-
-
-@pods.image_specifier
-def filebeat_image(parameters):
-    return pods.Image(
-        name='filebeat',
-        app=parameters['filebeat_app'],
-        # Kibana needs to write to `optimize` directory.
-        read_only_rootfs=False,
-    )
-
-
-filebeat_image.specify_image.depend('filebeat_app/specify_app')
-
-
-filebeat_image.write_manifest.depend('//base:tapeout')
-filebeat_image.write_manifest.depend('tapeout')
-filebeat_image.write_manifest.depend('trim')
