@@ -13,20 +13,20 @@ class DepsTest(Fixture, unittest.TestCase):
         # Ensure rkt is not installed
         self.assertEqual(1, call(['which', 'rkt']))
 
-        # The current latest version is 1.25.0
+        # The current latest version is 1.29.0
         cmd = ('python3 -m ops.onboard --verbose deps install rkt:latest'
                .split())
         # Save test time if we have a local tarball
-        if os.path.exists('/tmp/tarballs/rkt-v1.25.0.tar.gz'):
-            cmd.extend(['--tarball', '/tmp/tarballs/rkt-v1.25.0.tar.gz'])
+        if os.path.exists('/tmp/tarballs/rkt-v1.29.0.tar.gz'):
+            cmd.extend(['--tarball', '/tmp/tarballs/rkt-v1.29.0.tar.gz'])
         check_call(cmd)
 
         output = check_output(['rkt', 'version'])
-        self.assertTrue(b'rkt Version: 1.25.0' in output, repr(output))
+        self.assertTrue(b'rkt Version: 1.29.0' in output, repr(output))
 
         output = check_output(['rkt', 'image', 'list'])
         self.assertTrue(
-            b'coreos.com/rkt/stage1-coreos:1.25.0' in output,
+            b'coreos.com/rkt/stage1-coreos:1.29.0' in output,
             repr(output),
         )
 
