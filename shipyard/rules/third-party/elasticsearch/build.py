@@ -24,7 +24,7 @@ common.define_archive(
 @rule.depend('//base:build')
 @rule.depend('//java/java:build')
 @rule.depend('download')
-def build(parameters):
+def build(_):
     pass  # Nothing here for now.
 
 
@@ -34,7 +34,7 @@ def build(parameters):
 @rule.reverse_depend('//java/java:tapeout')
 def tapeout(parameters):
     with scripts.using_sudo():
-        input = (
+        input_path = (
             parameters['//base:drydock'] / get_relpath() /
             parameters['archive_info'].output
         )
@@ -54,9 +54,9 @@ def tapeout(parameters):
         # Copy `lib`, `modules`, and `plugins`.
         scripts.rsync(
             [
-                input / 'lib',
-                input / 'modules',
-                input / 'plugins',
+                input_path / 'lib',
+                input_path / 'modules',
+                input_path / 'plugins',
             ],
             output,
         )
@@ -138,11 +138,6 @@ def elasticsearch_app(parameters):
         working_directory='/opt/elasticsearch',
         volumes=[
             pods.Volume(
-                name='config-volume',
-                path='/opt/elasticsearch/config',
-                data='config-volume/config.tar.gz',
-            ),
-            pods.Volume(
                 name='data-volume',
                 path='/opt/elasticsearch/data',
                 read_only=False,
@@ -184,19 +179,3 @@ def elasticsearch_app(parameters):
             ],
         },
     )
-
-
-@pods.image_specifier
-def elasticsearch_image(parameters):
-    return pods.Image(
-        name='elasticsearch',
-        app=parameters['elasticsearch_app'],
-    )
-
-
-elasticsearch_image.specify_image.depend('elasticsearch_app/specify_app')
-
-
-elasticsearch_image.write_manifest.depend('//base:tapeout')
-elasticsearch_image.write_manifest.depend('//java/java:tapeout')
-elasticsearch_image.write_manifest.depend('tapeout')
