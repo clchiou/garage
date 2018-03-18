@@ -17,10 +17,6 @@ class VolumesTest(unittest.TestCase):
 
     def do_test_fill_tarball(self, tarball_path):
 
-        parameters = {
-            'testdata': Path(__file__).parent / 'testdata',
-        }
-
         mtime = int(datetime.datetime(2000, 1, 2, 3, 4).timestamp())
 
         # Test case: empty spec.
@@ -30,7 +26,7 @@ class VolumesTest(unittest.TestCase):
             ],
         }
         with tarfile.open(tarball_path, 'w') as tarball:
-            volumes.fill_tarball(parameters, spec, tarball)
+            volumes.fill_tarball(spec, tarball)
 
         self.assertEqual(
             b'',
@@ -69,7 +65,7 @@ class VolumesTest(unittest.TestCase):
             ],
         }
         with tarfile.open(tarball_path, 'w') as tarball:
-            volumes.fill_tarball(parameters, spec, tarball)
+            volumes.fill_tarball(spec, tarball)
 
         self.assertEqual(
             (b'drwxrwxrwt root/root         0 2000-01-02 03:04 tmp/\n'
@@ -78,7 +74,7 @@ class VolumesTest(unittest.TestCase):
             self._list_tarball(tarball_path),
         )
 
-        # Test case: content_path_parameter.
+        # Test case: content_path.
 
         spec = {
             'members': [
@@ -86,12 +82,12 @@ class VolumesTest(unittest.TestCase):
                     'path': '.',
                     'owner': 'nobody',
                     'group': 'nogroup',
-                    'content_path_parameter': 'testdata',
+                    'content_path': Path(__file__).parent / 'testdata',
                 },
             ],
         }
         with tarfile.open(tarball_path, 'w') as tarball:
-            volumes.fill_tarball(parameters, spec, tarball)
+            volumes.fill_tarball(spec, tarball)
 
         self.assertRegex(
             self._list_tarball(tarball_path),

@@ -9,23 +9,55 @@ __all__ = [
     'fill_tarball',
 ]
 
-import grp
 import io
-import pwd
 import tarfile
 from pathlib import Path
 
-from garage import datetimes
 from garage.assertions import ASSERT
 
+from templates import filespecs
 
-def fill_tarball(parameters, spec, tarball):
+
+def fill_tarball(spec, tarball):
     """Fill tarball content from the spec.
 
     The spec object is usually loaded from a JSON or YAML file.
     """
     for member_spec in spec.get('members', ()):
-        _add_member(parameters, member_spec, tarball)
+        _add_member(member_spec, tarball)
+
+
+def _add_member(member_spec, tarball):
+    """Add a member to tarball from the spec."""
+
+    spec = filespecs.make_filespec(**member_spec)
+
+    tarinfo, input_path, fileobj = _make_tarinfo(tarball, spec)
+
+    # Skip adding '.', which seems to be a nice thing to do.
+    if spec.path != Path('.'):
+        _add_file(tarinfo, input_path, fileobj, tarball)
+
+    if input_path and input_path.is_dir():
+        for child_path in input_path.rglob('*'):
+
+            relpath = child_path.relative_to(input_path)
+
+            # XXX `gettarinfo` of Python 3.5 doesn't accept path-like.
+            child_tarinfo = tarball.gettarinfo(
+                name=str(child_path),
+                arcname=str(spec.path / relpath),
+            )
+
+            if spec.owner is not None:
+                child_tarinfo.uname = spec.owner
+                child_tarinfo.uid = spec.uid
+
+            if spec.group is not None:
+                child_tarinfo.gname = spec.group
+                child_tarinfo.gid = spec.gid
+
+            _add_file(child_tarinfo, child_path, None, tarball)
 
 
 # Only two kinds are supported at the moment.
@@ -35,157 +67,61 @@ MEMBER_KINDS = {
 }
 
 
-def _add_member(parameters, member_spec, tarball):
-    """Add a member to tarball from the spec."""
+def _make_tarinfo(tarball, spec):
+    """Make TarInfo object from spec."""
 
-    # Read member metadata.
-
-    path = member_spec['path']
-
-    ASSERT(
-        not path.startswith('/'),
-        'expect relative path: %s', path,
-    )
-
-    mode = member_spec.get('mode')  # This is the permission bits.
-    mtime = member_spec.get('mtime', int(datetimes.utcnow().timestamp()))
-    kind = member_spec.get('kind')
-
-    if kind is not None:
-        ASSERT.in_(kind, MEMBER_KINDS)
-
-    owner = member_spec.get('owner')
-    uid = member_spec.get('uid')
-    group = member_spec.get('group')
-    gid = member_spec.get('gid')
-
-    if owner is None and uid is not None:
-        owner = pwd.getpwuid(uid).pw_name
-
-    if uid is None and owner is not None:
-        uid = pwd.getpwnam(owner).pw_uid
-
-    ASSERT(
-        (owner is None) == (uid is None),
-        'expect both or neither of owner and uid: %s, %s', owner, uid,
-    )
-
-    if group is None and gid is not None:
-        group = grp.getgrgid(gid).gr_name
-
-    if gid is None and group is not None:
-        gid = grp.getgrnam(group).gr_gid
-
-    ASSERT(
-        (group is None) == (gid is None),
-        'expect both or neither of group and gid: %s, %s', group, gid,
-    )
-
-    #
-    # Read member content.
-    #
-    # We support two ways to specify member content at the moment:
-    #   * Define in-place: `content`.
-    #   * Read from a path parameter: `content_path_parameter`.
-    #
-
-    content = member_spec.get('content')
-    content_encoding = member_spec.get('content_encoding', 'utf-8')
-
-    content_path_parameter = member_spec.get('content_path_parameter')
-
-    ASSERT(
-        content is None or content_path_parameter is None,
-        'expect at most one of content and content_path_parameter',
-    )
-
-    # Create TarInfo object.
-
-    if content is not None:
-
-        ASSERT.not_none(mode)
-        ASSERT.not_none(kind)
-        ASSERT.not_none(owner)
-        ASSERT.not_none(group)
-
-        content_bytes = content.encode(content_encoding)
-
-        content_path = None
-        tarinfo = tarfile.TarInfo(path)
-        fileobj = io.BytesIO(content_bytes)
-
+    if spec.content is not None:
+        content_bytes = spec.content.encode(spec.content_encoding)
+        # XXX Python 3.5 probably doesn't accept path-like.
+        tarinfo = tarfile.TarInfo(str(spec.path))
         tarinfo.size = len(content_bytes)
-
-    elif content_path_parameter is not None:
-        content_path = parameters[content_path_parameter]
+        input_path = None
+        fileobj = io.BytesIO(content_bytes)
+    elif spec.content_path is not None:
         # XXX `gettarinfo` of Python 3.5 doesn't accept path-like.
-        tarinfo = tarball.gettarinfo(name=str(content_path), arcname=path)
+        tarinfo = tarball.gettarinfo(
+            name=str(spec.content_path), arcname=spec.path)
+        input_path = spec.content_path
         fileobj = None
-
     else:
-        content_path = None
-        tarinfo = tarfile.TarInfo(path)
+        # XXX Python 3.5 probably doesn't accept path-like.
+        tarinfo = tarfile.TarInfo(str(spec.path))
+        input_path = None
         fileobj = None
 
-    if mode is not None:
-        tarinfo.mode = mode
+    if spec.mode is not None:
+        tarinfo.mode = spec.mode
 
     if not tarinfo.mtime:
-        tarinfo.mtime = mtime
+        tarinfo.mtime = spec.mtime
 
-    if kind is not None:
-        predicate, member_type = MEMBER_KINDS[kind]
+    if spec.kind is not None:
+        predicate, member_type = MEMBER_KINDS[spec.kind]
         ASSERT(
-            content_path is None or predicate(content_path),
-            'expect %s-kind: %s', kind, content_path,
+            input_path is None or predicate(input_path),
+            'expect %s-kind: %s', spec.kind, input_path,
         )
         tarinfo.type = member_type
 
-    if owner is not None:
-        ASSERT.not_none(uid)
-        tarinfo.uname = owner
-        tarinfo.uid = uid
+    if spec.owner is not None:
+        tarinfo.uname = spec.owner
+        tarinfo.uid = spec.uid
 
-    if group is not None:
-        ASSERT.not_none(gid)
-        tarinfo.gname = group
-        tarinfo.gid = gid
+    if spec.group is not None:
+        tarinfo.gname = spec.group
+        tarinfo.gid = spec.gid
 
-    # Finally, add TarInfo object to the tarball.
-
-    # Skip adding '.', which seems to be a nice thing to do.
-    if path != '.':
-        _add_tarinfo(tarinfo, content_path, fileobj, tarball)
-
-    if content_path and content_path.is_dir():
-        for child_path in content_path.rglob('*'):
-
-            # XXX `gettarinfo` of Python 3.5 doesn't accept path-like.
-            child_tarinfo = tarball.gettarinfo(
-                name=str(child_path),
-                arcname=str(path / child_path.relative_to(content_path)),
-            )
-
-            if owner is not None:
-                ASSERT.not_none(uid)
-                child_tarinfo.uname = owner
-                child_tarinfo.uid = uid
-
-            if group is not None:
-                ASSERT.not_none(gid)
-                child_tarinfo.gname = group
-                child_tarinfo.gid = gid
-
-            _add_tarinfo(child_tarinfo, child_path, None, tarball)
+    return tarinfo, input_path, fileobj
 
 
-def _add_tarinfo(tarinfo, path, fileobj, tarball):
+def _add_file(tarinfo, path, fileobj, tarball):
+    """Add file to tarball, either from path or fileobj."""
     ASSERT(
         path is None or fileobj is None,
         'expect at most one of path and fileobj',
     )
     if path is not None and path.is_file():
-        with path.open('rb') as fileobj:
-            tarball.addfile(tarinfo, fileobj=fileobj)
+        with path.open('rb') as input_file:
+            tarball.addfile(tarinfo, fileobj=input_file)
     else:
         tarball.addfile(tarinfo, fileobj=fileobj)
