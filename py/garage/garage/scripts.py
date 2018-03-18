@@ -360,7 +360,7 @@ def cp(src, dst, *, recursive=False, preserve=()):
 
 def git_clone(repo, local_path=None, checkout=None):
     if local_path:
-        local_path.mkdir(parents=True)
+        mkdir(local_path)
     with directory(local_path):
         cmd = ['git', 'clone', repo]
         if local_path:
