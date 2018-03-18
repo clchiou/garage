@@ -5,7 +5,24 @@ __all__ = [
 from pathlib import Path
 import logging
 
-import yaml
+# Prefer ruamel.yaml over PyYAML.
+try:
+    from ruamel.yaml import YAML
+    import io
+
+    _YAML = YAML()
+
+    def yaml_dump(data):
+        with io.StringIO() as output:
+            _YAML.dump(data, output)
+            return output.getvalue()
+
+    yaml_load = _YAML.load
+
+except ImportError:
+    import yaml
+    yaml_dump = yaml.dump
+    yaml_load = yaml.load
 
 from garage import apps
 from garage import scripts
@@ -58,7 +75,7 @@ def generate_user_data(args):
 
     templates_dir = Path(__file__).parent / 'templates'
 
-    user_data = yaml.load((templates_dir / 'user-data.yaml').read_text())
+    user_data = yaml_load((templates_dir / 'user-data.yaml').read_text())
 
     key_algorithms = frozenset(algo for algo, _ in keys.HOST_KEYS)
 
@@ -130,7 +147,7 @@ def generate_user_data(args):
             'expire': False,
         }
 
-    user_data_yaml = yaml.dump(user_data)
+    user_data_yaml = yaml_dump(user_data)
 
     if args.output.exists():
         LOG.warning('attempt to overwrite: %s', args.output)

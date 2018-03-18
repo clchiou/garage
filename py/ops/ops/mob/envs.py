@@ -171,9 +171,7 @@ def generate_user_data(args):
     else:
         cloudinit_args['local_vm'] = None
 
-    password = config.get('password')
-    if password:
-        cloudinit_args['password'] = password
+    cloudinit_args['password'] = config.get('password')
 
     cloudinit_args['output'] = env_dir / 'cloud-init' / config['output']
 
