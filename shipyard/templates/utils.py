@@ -5,6 +5,7 @@ __all__ = [
 
     'load_inventory',
 
+    'tapeout_filespecs',
     'tapeout_files',
 
     'write_json_to',
@@ -19,6 +20,9 @@ import os
 import tempfile
 
 from garage import scripts
+from garage.assertions import ASSERT
+
+from templates import filespecs
 
 
 def parse_common_args(template):
@@ -75,6 +79,35 @@ def load_inventory(parameters, inventory_path=None):
     with scripts.redirecting(input=inventory_path.read_bytes()):
         cmd = [parameters['//host/cpython:python'], '-c', YAML_TO_JSON]
         return json.loads(scripts.execute(cmd, capture_stdout=True).stdout)
+
+
+def tapeout_filespecs(parameters, top_path, spec_dicts):
+    """Generate and tapeout files from file spec."""
+    rootfs = parameters['//base:drydock/rootfs']
+    top_path = scripts.ensure_path(top_path)
+    ASSERT.false(top_path.is_absolute())
+    top_path = rootfs / top_path
+    with scripts.using_sudo():
+        scripts.mkdir(top_path)
+        for spec_dict in spec_dicts:
+            spec = filespecs.make_filespec(**spec_dict)
+            path = top_path / spec.path
+            if spec.kind == 'file':
+                if spec.content is not None:
+                    scripts.tee(
+                        spec.content.encode(spec.content_encoding), path)
+                else:
+                    ASSERT.not_none(spec.content_path)
+                    scripts.cp(spec.content_path, path)
+            else:
+                scripts.mkdir(path)
+            # Ignore spec.mtime...
+            if spec.mode is not None:
+                scripts.execute(['chmod', '0%o' % spec.mode, path])
+            if spec.owner:
+                scripts.execute(['chown', spec.owner, path])
+            if spec.group:
+                scripts.execute(['chgrp', spec.group, path])
 
 
 def tapeout_files(parameters, paths, excludes=()):
