@@ -781,7 +781,7 @@ def _load_file(path):
         load_funcs.append(('JSON', json.loads))
         if yaml:
             load_funcs.append(('YAML', yaml.safe_load))
-    content = path.read_text()
+    content = path.read_text(encoding='utf8')
     for kind, load_func in load_funcs:
         try:
             return load_func(content)
