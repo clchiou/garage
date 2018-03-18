@@ -18,7 +18,7 @@ common.define_archive(
 @rule
 @rule.depend('//base:build')
 @rule.depend('download')
-def build(parameters):
+def build(_):
     pass  # Nothing here for now.
 
 
@@ -27,7 +27,7 @@ def build(parameters):
 @rule.reverse_depend('//base:tapeout')
 def tapeout(parameters):
     with scripts.using_sudo():
-        input = (
+        input_path = (
             parameters['//base:drydock'] / get_relpath() /
             parameters['archive_info'].output
         )
@@ -41,7 +41,7 @@ def tapeout(parameters):
         scripts.mkdir(output / 'logs')
 
         scripts.rsync(
-            [input / fn for fn in (
+            [input_path / fn for fn in (
                 'node',
                 'node_modules',
                 'optimize',
@@ -59,7 +59,7 @@ def tapeout(parameters):
 
 
 @pods.app_specifier
-def kibana_app(parameters):
+def kibana_app(_):
     return pods.App(
         name='kibana',
         exec=[
@@ -68,11 +68,6 @@ def kibana_app(parameters):
         ],
         working_directory='/opt/kibana',
         volumes=[
-            pods.Volume(
-                name='config-volume',
-                path='/opt/kibana/config',
-                data='config-volume/config.tar.gz',
-            ),
             pods.Volume(
                 name='data-volume',
                 path='/opt/kibana/data',
@@ -93,20 +88,3 @@ def kibana_app(parameters):
             ),
         ],
     )
-
-
-@pods.image_specifier
-def kibana_image(parameters):
-    return pods.Image(
-        name='kibana',
-        app=parameters['kibana_app'],
-        # Kibana needs to write to `optimize` directory.
-        read_only_rootfs=False,
-    )
-
-
-kibana_image.specify_image.depend('kibana_app/specify_app')
-
-
-kibana_image.write_manifest.depend('//base:tapeout')
-kibana_image.write_manifest.depend('tapeout')
