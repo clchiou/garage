@@ -35,22 +35,21 @@ always practical to strive for this level of generality.
 For now, we use two types of pod variant (variants share the same the
 pod name, and are distinguished by version suffix):
 
-* Same image and same volumes: this is the most generic pod that can be
-  executed in all environments (i.e., no variant).
+* Same code and same static data: This is the most generic pod that can
+  be executed in all environments (i.e., no variant).
 
-* Same image but different volumes: note that images are the "code" part
-  of a pod and volumes are the "data" part.  This type of pods basically
-  has the code that is generic enough to be executed in all environments
-  if proper input data is provided.
+* Same code but different static data: This type of pods usually has the
+  code that is generic enough to be executed in all environments when
+  proper config data is provided.
 
 For the second type, the pod built for the production environment is
 considered the canonical pod, and the pods built for other environments
 are considered variants of the canonical pod and are versioned by adding
 environment name, like `1.0.0-staging`.
 
-If even the images are different, pods will be considered different, and
-be assigned different names (hopefully we can minimize the number of
-this type of pods).
+If even the code is different under different environments, pods should
+be considered different, and be assigned different names (hopefully we
+can minimize the number of this type of pods).
 
 #### Exception to the only-deploying-pods norm
 
