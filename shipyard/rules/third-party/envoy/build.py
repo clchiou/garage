@@ -68,6 +68,10 @@ def envoy_app(parameters):
         # XXX: /dev/console is only writable by root unfortunately.
         user='root', group='root',
         volumes=[
+            # TODO: Although we are working on reducing the number of
+            # data volumes, we keep this one to maintain the ability of
+            # hot-switching clusters via altering symlink.  In the
+            # long-run, we will (should?) replace envoy with haproxy.
             pods.Volume(
                 name='envoy-volume',
                 path='/srv/envoy',
