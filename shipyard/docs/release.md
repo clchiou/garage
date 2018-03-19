@@ -84,6 +84,25 @@ among them.  The directory structure is:
 * `channels/${CHANNEL}/${LABEL_PATH}/${POD_NAME}`:
   + Symlink to pod (represent the current version of this pod).
 
+### Management of data input to builds
+
+Input to builds includes code and data.  The code part is tracked and
+versioned in source repos.  The data part, such as config file and key
+files, is managed separately from the source repos; its directory
+structure is quite simple at the moment:
+
+* `defaults/pods/${LABEL_PATH}/${POD_NAME}.yaml`
+  Defaults for creating pod release instruction.
+
+* `defaults/volumes/${LABEL_PATH}/${VOLUME_NAME}.yaml`
+  Defaults for creating volume release instruction.
+
+* `image-data/${LABEL_PATH}/${IMAGE_NAME}/...`
+  Data input to image builds.
+
+* `volume-data/${LABEL_PATH}/${VOLUME_NAME}/...`
+  Data input to volume builds.
+
 
 ### Release process
 
