@@ -146,6 +146,23 @@ def generate_instruction(args):
     return 0
 
 
+@apps.with_prog('cat-inst')
+@apps.with_help('print out instruction file')
+@with_argument_kind
+@apps.with_argument(
+    'podv', help='set versioned pod label (format: "//label@version")',
+)
+def cat_instruction(args):
+    """Print out instruction file."""
+    label, version = parse_podv(args.podv)
+    path = shipyard.release.ReleaseRepo.get_instruction_path(
+        args.release_root, args.kind,
+        label, version,
+    )
+    print(path.read_text(), end='')
+    return 0
+
+
 @apps.with_help('build pods')
 @shipyard.with_foreman_argument
 @shipyard.with_builder_argument
@@ -253,6 +270,7 @@ def bind(args):
 @apps.with_apps(
     'action', 'release management action',
     generate_instruction,
+    cat_instruction,
     build,
     build_instructions,
     bind,
