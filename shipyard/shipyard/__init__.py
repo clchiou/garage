@@ -6,6 +6,8 @@ rule templates for helping you write build rules).
 __all__ = [
     'Builder',
     'RuleIndex',
+    'find_default_path',
+    'find_input_path',
     'get_build_image_rules',
     'get_specify_app_rule',
     'get_specify_image_rule',
@@ -54,6 +56,12 @@ with_builder_argument = apps.with_decorators(
         '--builder-arg', metavar='ARG', action='append',
         help='add command-line argument to builder script',
     ),
+)
+
+
+with_argument_input = apps.with_argument(
+    '--input-root', metavar='PATH', type=Path, action='append',
+    help='add input root path',
 )
 
 
@@ -114,6 +122,26 @@ class RuleIndex:
             if thing['label'] == label_str:
                 return thing
         raise KeyError(label)
+
+
+def find_default_path(input_roots, kind, label):
+    for input_root in input_roots:
+        path = (
+            input_root / 'defaults' / kind / label.path /
+            ('%s.yaml' % label.name)
+        )
+        if path.exists():
+            return path
+    return None
+
+
+def find_input_path(input_roots, kind, label):
+    ASSERT.in_(kind, ('image-data', 'volume-data'))
+    for input_root in input_roots:
+        input_path = Path(kind) / label.path / label.name
+        if (input_root / input_path).exists():
+            return input_root, input_path
+    return None, None
 
 
 Dependency = namedtuple('Dependency', [

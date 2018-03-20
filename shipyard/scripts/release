@@ -63,6 +63,7 @@ def parse_podv(podv):
     help='add source repo to revision stamp (SCM: git, hg)',
 )
 @with_argument_kind
+@shipyard.with_argument_input
 @apps.with_argument(
     '--default', metavar='PATH',
     help='provide default values to the instruction',
@@ -76,16 +77,28 @@ def parse_podv(podv):
 def generate_instruction(args):
     """Generate instruction file."""
 
-    # Preserve order and human readability (PyYAML sucks in this regard)
+    # Preserve order for readability (PyYAML sucks in this regard).
     yaml.SafeDumper.add_representer(OrderedDict, represent_mapping)
+
+    label, version = parse_podv(args.podv)
 
     instruction_data = OrderedDict([
         ('rule', args.rule),
         ('revisions', []),
     ])
+
+    default_path = None
     if args.default:
+        default_path = Path(args.default)
+    elif args.input_root:
+        # If no default from command-line, look up one from input.
+        default_path = shipyard.find_default_path(
+            args.input_root, args.kind, label)
+        if default_path is not None:
+            LOG.info('use default: %s', default_path)
+    if default_path is not None:
+        default = yaml.load(default_path.read_text())
         # Restrict default to these fields.
-        default = yaml.load(Path(args.default).read_text())
         for block_name in ('images', 'volumes', 'parameters'):
             block = default.get(block_name)
             if block:
@@ -120,7 +133,6 @@ def generate_instruction(args):
         indent=2,
     )
 
-    label, version = parse_podv(args.podv)
     path = shipyard.release.ReleaseRepo.get_instruction_path(
         args.release_root, args.kind,
         label, version,
@@ -138,6 +150,7 @@ def generate_instruction(args):
 @shipyard.with_foreman_argument
 @shipyard.with_builder_argument
 @with_argument_kind
+@shipyard.with_argument_input
 @with_argument_podv
 def build(args):
     """Build pods from versioned labels."""
@@ -151,7 +164,7 @@ def build(args):
 
     with scripts.dry_run(args.dry_run):
         okay = shipyard.release.execute_instructions(
-            instructions, repo, builder)
+            instructions, repo, builder, args.input_root or ())
     return 0 if okay else 1
 
 
@@ -159,6 +172,7 @@ def build(args):
 @apps.with_help('build pods from instruction files')
 @shipyard.with_foreman_argument
 @shipyard.with_builder_argument
+@shipyard.with_argument_input
 @apps.with_argument(
     'instruction', type=Path, nargs='+',
     help='provide path to release instruction file',
@@ -174,7 +188,7 @@ def build_instructions(args):
 
     with scripts.dry_run(args.dry_run):
         okay = shipyard.release.execute_instructions(
-            instructions, repo, builder)
+            instructions, repo, builder, args.input_root or ())
     return 0 if okay else 1
 
 

@@ -180,7 +180,7 @@ class ReleaseRepo:
             LOG.debug('try to infer instruction data from %s', relpath)
             parts = relpath.parts
             if parts[0] != 'pods':
-                raise ValueError('invalid relative path: %s', relpath)
+                raise ValueError('invalid relative path: %s' % relpath)
             inferred_pod = '//%s:%s' % ('/'.join(parts[1:-2]), parts[-2])
             inferred_version = relpath.stem
 
@@ -254,10 +254,10 @@ class ReleaseRepo:
                 )
 
 
-def execute_instructions(instructions, repo, builder):
+def execute_instructions(instructions, repo, builder, input_roots):
     for instruction in instructions:
         LOG.info('execute release instruction: %s', instruction)
-        if not instruction.execute(repo, builder):
+        if not instruction.execute(repo, builder, input_roots):
             return False  # Fail early.
     return True
 
@@ -289,16 +289,16 @@ class PodInstruction:
     def __str__(self):
         return '%s@%s' % (self.pod, self.version)
 
-    def execute(self, repo, builder):
+    def execute(self, repo, builder, input_roots):
 
         build_name = 'build-%d' % datetime.datetime.now().timestamp()
 
-        # Build pod if it is not present
+        # Build pod if it is not present.
         if self._get_pod_path(repo).exists():
             LOG.info('skip building pod: %s@%s', self.pod, self.version)
             return True
 
-        # Check if all volumes are present
+        # Check if all volumes are present.
         okay = True
         for volume in sorted(self.volumes):
             path = self._get_volume_path(repo, volume)
@@ -311,11 +311,11 @@ class PodInstruction:
         if not okay:
             return False
 
-        # Build images that are not present
+        # Build images that are not present.
         for image in sorted(self.images):
-            self._build_image(repo, builder, build_name, image)
+            self._build_image(repo, builder, build_name, image, input_roots)
 
-        # Finally we build the pod
+        # Finally we build the pod.
         self._build_pod(repo, builder, build_name)
 
         return True
@@ -334,7 +334,7 @@ class PodInstruction:
             volume = self.volume_mapping[volume]
         return repo.root / 'volumes' / volume.path / volume.name / version
 
-    def _build_image(self, repo, builder, build_name, image):
+    def _build_image(self, repo, builder, build_name, image, input_roots):
         image_lv = '%s@%s' % (image, self.images[image])
         image_path = self._get_image_path(repo, image)
         if image_path.exists():
@@ -346,14 +346,22 @@ class PodInstruction:
         version_label = self._get_version_label(repo, self.image_rules[image])
 
         with tempfile.TemporaryDirectory() as build_dir:
-            builder.build(self.image_rules[image], extra_args=add_parameters(
-                [
-                    '--build-name', build_name,
-                    '--parameter', '%s=%s' % (version_label, self.version),
-                    '--output', build_dir,
-                ],
-                self.parameters,
-            ))
+
+            args = [
+                '--build-name', build_name,
+                '--parameter', '%s=%s' % (version_label, self.version),
+                '--output', build_dir,
+            ]
+
+            input_root, input_path = shipyard.find_input_path(
+                input_roots, 'image-data', image)
+            if input_root is not None:
+                LOG.info('use image data: %s %s', input_root, input_path)
+                args.extend(['--input', input_root, input_path])
+
+            add_parameters(args, self.parameters)
+
+            builder.build(self.image_rules[image], extra_args=args)
             scripts.mkdir(image_path.parent)
             scripts.cp(
                 Path(build_dir) / image.name, image_path,
@@ -433,20 +441,30 @@ class SimpleInstruction:
     def __str__(self):
         return '%s@%s' % (self.target, self.version)
 
-    def execute(self, repo, builder):
+    def execute(self, repo, builder, input_roots):
         LOG.info('build %s -> %s', self.rule, self)
         build_name = 'build-%d' % datetime.datetime.now().timestamp()
         output_path = (
             repo.root / self.kind /
             self.target.path / self.target.name / self.version
         )
-        builder.build(self.rule, extra_args=add_parameters(
-            [
-                '--build-name', build_name,
-                '--output', output_path,
-            ],
-            self.parameters,
-        ))
+
+        args = [
+            '--build-name', build_name,
+            '--output', output_path,
+        ]
+
+        if self.kind == 'volumes':
+            input_root, input_path = shipyard.find_input_path(
+                input_roots, 'volume-data', self.target)
+            if input_root is not None:
+                LOG.info('use volume data: %s %s', input_root, input_path)
+                args.extend(['--input', input_root, input_path])
+
+        add_parameters(args, self.parameters)
+
+        builder.build(self.rule, extra_args=args)
+
         return True
 
 

@@ -67,12 +67,22 @@ def run(args, builder, cmd):
 @apps.with_argument(
     '--foreman', action='append', help='send argument to foreman')
 @apps.with_argument(
+    # Split the whole path into two parts so that symlinks from/to
+    # within INPUT_ROOT still work.
+    '--input', metavar=('ROOT', 'PATH'), nargs=2,
+    help='set input path at ROOT/PATH')
+@apps.with_argument(
     '--output', help='set output directory path')
 @apps.with_argument(
     'rule', nargs='+', help='add build rule')
 def build(args, builder, cmd):
     """Execute one or more build rules."""
     add_environment_variables(cmd, args)
+    if args.input:
+        cmd.extend([
+            '--volume',
+            '%s:/home/plumber/input:ro' % Path(args.input[0]).resolve(),
+        ])
     if args.output:
         output = Path(args.output).resolve()
         cmd.extend(['--volume', '%s:/home/plumber/output:rw' % output])
@@ -80,6 +90,11 @@ def build(args, builder, cmd):
         builder,
         '/home/plumber/garage/shipyard/scripts/foreman.sh', 'build',
     ])
+    if args.input:
+        cmd.extend([
+            '--parameter',
+            '//base:input=/home/plumber/input/%s' % args.input[1],
+        ])
     for path in args.path or ():
         cmd.extend(['--path', path])
     for parameter in args.parameter or ():
@@ -109,11 +124,11 @@ def main(args):
         for volume in args.volume or ():
             cmd.extend(['--volume', volume])
         # Execute the action
-        rc = args.action(args, builder=args.builder, cmd=cmd)
+        status = args.action(args, builder=args.builder, cmd=cmd)
         if not args.preserve_container:
             # Don't remove builder on crash so that you may examine it
             scripts.execute(['docker', 'rm', build_name])
-        return rc
+        return status
 
 
 if __name__ == '__main__':
