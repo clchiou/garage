@@ -99,15 +99,21 @@ def tapeout_filespecs(parameters, top_path, spec_dicts):
                 else:
                     ASSERT.not_none(spec.content_path)
                     scripts.cp(spec.content_path, path)
+                recursive = []
             else:
                 scripts.mkdir(path)
+                if spec.content_path:
+                    ASSERT.true(spec.content_path.is_dir())
+                    # Appending '/' to src is an rsync trick.
+                    scripts.rsync(['%s/' % spec.content_path], path)
+                recursive = ['--recursive']
             # Ignore spec.mtime...
             if spec.mode is not None:
                 scripts.execute(['chmod', '0%o' % spec.mode, path])
             if spec.owner:
-                scripts.execute(['chown', spec.owner, path])
+                scripts.execute(['chown'] + recursive + [spec.owner, path])
             if spec.group:
-                scripts.execute(['chgrp', spec.group, path])
+                scripts.execute(['chgrp'] + recursive + [spec.group, path])
 
 
 def tapeout_files(parameters, paths, excludes=()):
