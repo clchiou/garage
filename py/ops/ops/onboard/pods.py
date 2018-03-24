@@ -196,6 +196,8 @@ def deploy_enable(pod):
         with scripts.using_sudo():
             scripts.cp(unit.unit_file_path, unit.unit_path)
             _make_dropin_file(pod, unit)
+    scripts.systemctl_daemon_reload()
+    for unit in pod.systemd_units:
         # State: disabled -> enabled
         _change_unit_state(
             unit,
@@ -255,10 +257,12 @@ def undeploy_disable(pod):
             scripts.systemctl_is_enabled,
             scripts.systemctl_disable,
         )
+    for unit in pod.systemd_units:
         # Remove unit files
         with scripts.using_sudo():
             scripts.rm(unit.unit_path)
             scripts.rm(unit.dropin_path, recursive=True)
+    scripts.systemctl_daemon_reload()
 
 
 def undeploy_remove(repo, pod):

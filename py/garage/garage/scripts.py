@@ -29,6 +29,7 @@ __all__ = [
     'rsync',
     'symlink',
     'symlink_relative',
+    'systemctl_daemon_reload',
     'systemctl_disable',
     'systemctl_enable',
     'systemctl_is_active',
@@ -442,6 +443,10 @@ def symlink_relative(target, link_name):
     relpath = os.path.relpath(target, link_name.parent)
     with directory(link_name.parent):
         symlink(relpath, link_name.name)
+
+
+def systemctl_daemon_reload():
+    return execute(['systemctl', '--quiet', 'daemon-reload'])
 
 
 def _systemctl(command, name):
