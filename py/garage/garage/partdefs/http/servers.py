@@ -16,10 +16,14 @@ def create_parts(module_name=None):
     return part_list
 
 
-def create_params(*, host='', port=80):
+def create_params(*, host='', port=80, reuse_address=True, reuse_port=False):
     params = parameters.create_namespace('create async http(s) server')
     params.host = parameters.create(host, 'let server bind to this address')
     params.port = parameters.create(port, 'let server listen to this port')
+    params.reuse_address = parameters.create(
+        reuse_address, 'enable SO_REUSEADDR option')
+    params.reuse_port = parameters.create(
+        reuse_port, 'enable SO_REUSEPORT option')
     params.certificate = parameters.create('', 'set server TLS certificate')
     params.private_key = parameters.create('', 'set server TLS private key')
     params.enable_client_authentication = parameters.create(
@@ -38,6 +42,8 @@ def create_maker(part_list, params):
         make_server_socket = functools.partial(
             garage.asyncs.utils.make_server_socket,
             address=(params.host.get(), params.port.get()),
+            reuse_address=params.reuse_address.get(),
+            reuse_port=params.reuse_port.get(),
         )
 
         certificate = params.certificate.get()
