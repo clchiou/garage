@@ -187,7 +187,8 @@ def deploy_install_units(pod):
         with scripts.using_sudo():
             scripts.cp(unit.unit_file_path, unit.unit_path)
             _make_dropin_file(pod, unit)
-    scripts.systemctl_daemon_reload()
+    with scripts.using_sudo():
+        scripts.systemctl_daemon_reload()
 
 
 def deploy_enable(pod, *, predicate=None):
@@ -196,9 +197,11 @@ def deploy_enable(pod, *, predicate=None):
     predicate = predicate or pod.should_but_not_enabled
     for instance in pod.filter_instances(predicate):
         LOG.info('%s - enable unit instance: %s', pod, instance.unit_name)
-        scripts.systemctl_enable(instance.unit_name)
-        if not scripts.systemctl_is_enabled(instance.unit_name):
-            raise RuntimeError('unit %s is not enabled' % instance.unit_name)
+        with scripts.using_sudo():
+            scripts.systemctl_enable(instance.unit_name)
+            if not scripts.systemctl_is_enabled(instance.unit_name):
+                raise RuntimeError(
+                    'unit %s is not enabled' % instance.unit_name)
 
 
 def deploy_start(pod, *, predicate=None):
@@ -207,9 +210,11 @@ def deploy_start(pod, *, predicate=None):
     predicate = predicate or pod.should_but_not_started
     for instance in pod.filter_instances(predicate):
         LOG.info('%s - start unit instance: %s', pod, instance.unit_name)
-        scripts.systemctl_start(instance.unit_name)
-        if not scripts.systemctl_is_active(instance.unit_name):
-            raise RuntimeError('unit %s is not started' % instance.unit_name)
+        with scripts.using_sudo():
+            scripts.systemctl_start(instance.unit_name)
+            if not scripts.systemctl_is_active(instance.unit_name):
+                raise RuntimeError(
+                    'unit %s is not started' % instance.unit_name)
 
 
 ### Undeploy
@@ -226,9 +231,10 @@ def undeploy_stop(pod, *, predicate=None):
     LOG.info('%s - stop pod units', pod)
     for instance in pod.filter_instances(predicate):
         LOG.info('%s - stop unit instance: %s', pod, instance.unit_name)
-        scripts.systemctl_stop(instance.unit_name)
-        if scripts.systemctl_is_active(instance.unit_name):
-            LOG.warning('unit %s is still active', instance.unit_name)
+        with scripts.checking(False), scripts.using_sudo():
+            scripts.systemctl_stop(instance.unit_name)
+            if scripts.systemctl_is_active(instance.unit_name):
+                LOG.warning('unit %s is still active', instance.unit_name)
 
 
 def undeploy_disable(pod, *, predicate=None):
@@ -236,9 +242,10 @@ def undeploy_disable(pod, *, predicate=None):
     LOG.info('%s - disable pod units', pod)
     for instance in pod.filter_instances(predicate):
         LOG.info('%s - disable unit instance: %s', pod, instance.unit_name)
-        scripts.systemctl_disable(instance.unit_name)
-        if scripts.systemctl_is_enabled(instance.unit_name):
-            LOG.warning('unit %s is still enabled', instance.unit_name)
+        with scripts.checking(False), scripts.using_sudo():
+            scripts.systemctl_disable(instance.unit_name)
+            if scripts.systemctl_is_enabled(instance.unit_name):
+                LOG.warning('unit %s is still enabled', instance.unit_name)
 
 
 def undeploy_remove(repo, pod):
@@ -250,7 +257,8 @@ def undeploy_remove(repo, pod):
         with scripts.using_sudo():
             scripts.rm(unit.unit_path)
             scripts.rm(unit.dropin_path, recursive=True)
-    scripts.systemctl_daemon_reload()
+    with scripts.checking(False), scripts.using_sudo():
+        scripts.systemctl_daemon_reload()
 
     image_to_pod_table = repo.get_images()
 
