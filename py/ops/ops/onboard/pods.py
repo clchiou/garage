@@ -301,6 +301,17 @@ def list_pods(_, repo):
     return 0
 
 
+@apps.with_prog('list-units')
+@apps.with_help('list systemd units of deployed pods')
+def list_units(_, repo):
+    """List systemd units of deployed pods."""
+    for pod_name in repo.get_pod_names():
+        for pod in repo.iter_pods(pod_name):
+            for instance in pod.iter_instances():
+                print('%s %s' % (pod, instance.unit_name))
+    return 0
+
+
 @apps.with_prog('is-deployed')
 @apps.with_help('check if a pod is deployed')
 @with_argument_tag
@@ -474,6 +485,7 @@ def cleanup(args, repo):
 @apps.with_apps(
     'operation', 'operation on pods',
     list_pods,
+    list_units,
     is_deployed,
     is_enabled,
     is_started,
