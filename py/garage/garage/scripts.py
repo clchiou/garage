@@ -2,6 +2,7 @@
 
 __all__ = [
     # Context manipulation
+    'checking',
     'directory',
     'dry_run',
     'get_stdin',
@@ -76,6 +77,7 @@ LOCAL = threading.local()
 
 
 # Context entries
+CHECKING = 'checking'
 DIRECTORY = 'directory'
 DRY_RUN = 'dry_run'
 RECORDING_COMMANDS = 'recording_commands'
@@ -107,6 +109,11 @@ def _enter_context(cxt, retval=None):
         yield retval
     finally:
         stack.pop()
+
+
+def checking(check):
+    """Set check for execute()."""
+    return _enter_context({CHECKING: check})
 
 
 def directory(path):
@@ -209,7 +216,7 @@ def execute(args, *, check=True, capture_stdout=False, capture_stderr=False):
 
     return subprocess.run(
         cmd,
-        check=check,
+        check=context.get(CHECKING, check),
         cwd=ensure_str(cwd),  # PathLike will be added to Python 3.6
         **redirect,
     )
