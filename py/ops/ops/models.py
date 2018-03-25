@@ -250,8 +250,8 @@ class Pod(ModelObject):
             for instance in unit.instances:
                 yield instance
 
-    def filter_instances(self, predicte):
-        return filter(predicte, self.iter_instances())
+    def filter_instances(self, predicate):
+        return filter(predicate, self.iter_instances())
 
     @staticmethod
     def should_but_not_enabled(instance):
@@ -268,6 +268,22 @@ class Pod(ModelObject):
             instance.start and
             not scripts.systemctl_is_active(instance.unit_name)
         )
+
+    def is_enabled(self, *, predicate=None):
+        predicate = predicate or self.should_but_not_enabled
+        enabled = True
+        for instance in self.filter_instances(predicate):
+            LOG.debug('unit is not enabled: %s', instance.unit_name)
+            enabled = False
+        return enabled
+
+    def is_started(self, *, predicate=None):
+        predicate = predicate or self.should_but_not_started
+        started = True
+        for instance in self.filter_instances(predicate):
+            LOG.debug('unit is not started: %s', instance.unit_name)
+            started = False
+        return started
 
 
 class SystemdUnit(ModelObject):

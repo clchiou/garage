@@ -190,19 +190,23 @@ def deploy_install_units(pod):
     scripts.systemctl_daemon_reload()
 
 
-def deploy_enable(pod):
-    """Enable default systemd units."""
-    LOG.info('%s - enable pod', pod)
-    for instance in pod.filter_instances(pod.should_but_not_enabled):
+def deploy_enable(pod, *, predicate=None):
+    """Enable default systemd unit instances."""
+    LOG.info('%s - enable pod units', pod)
+    predicate = predicate or pod.should_but_not_enabled
+    for instance in pod.filter_instances(predicate):
+        LOG.info('%s - enable unit instance: %s', pod, instance.unit_name)
         scripts.systemctl_enable(instance.unit_name)
         if not scripts.systemctl_is_enabled(instance.unit_name):
             raise RuntimeError('unit %s is not enabled' % instance.unit_name)
 
 
-def deploy_start(pod):
-    """Start default systemd units."""
-    LOG.info('%s - start pod', pod)
-    for instance in pod.filter_instances(pod.should_but_not_started):
+def deploy_start(pod, *, predicate=None):
+    """Start default systemd unit instances."""
+    LOG.info('%s - start pod units', pod)
+    predicate = predicate or pod.should_but_not_started
+    for instance in pod.filter_instances(predicate):
+        LOG.info('%s - start unit instance: %s', pod, instance.unit_name)
         scripts.systemctl_start(instance.unit_name)
         if not scripts.systemctl_is_active(instance.unit_name):
             raise RuntimeError('unit %s is not started' % instance.unit_name)
@@ -217,19 +221,21 @@ def deploy_start(pod):
 # state beforehand.
 
 
-def undeploy_stop(pod):
+def undeploy_stop(pod, *, predicate=None):
     """Stop all systemd units of the pod (regardless default)."""
-    LOG.info('%s - stop pod', pod)
-    for instance in pod.iter_instances():
+    LOG.info('%s - stop pod units', pod)
+    for instance in pod.filter_instances(predicate):
+        LOG.info('%s - stop unit instance: %s', pod, instance.unit_name)
         scripts.systemctl_stop(instance.unit_name)
         if scripts.systemctl_is_active(instance.unit_name):
             LOG.warning('unit %s is still active', instance.unit_name)
 
 
-def undeploy_disable(pod):
+def undeploy_disable(pod, *, predicate=None):
     """Disable all systemd units of the pod (regardless default)."""
-    LOG.info('%s - disable pod', pod)
-    for instance in pod.iter_instances():
+    LOG.info('%s - disable pod units', pod)
+    for instance in pod.filter_instances(predicate):
+        LOG.info('%s - disable unit instance: %s', pod, instance.unit_name)
         scripts.systemctl_disable(instance.unit_name)
         if scripts.systemctl_is_enabled(instance.unit_name):
             LOG.warning('unit %s is still enabled', instance.unit_name)
@@ -267,6 +273,18 @@ def undeploy_remove(repo, pod):
 ### Command-line interface
 
 
+with_argument_instance = apps.with_decorators(
+    apps.with_argument(
+        '--instance-all', action='store_true',
+        help='select all instances',
+    ),
+    apps.with_argument(
+        '--instance', action='append',
+        help='select instance(s)',
+    ),
+)
+
+
 with_argument_tag = apps.with_argument(
     'tag',
     help='set pod tag (format "name:version")',
@@ -283,43 +301,45 @@ def list_pods(_, repo):
     return 0
 
 
-@apps.with_prog('is-undeployed')
-@apps.with_help('check if a pod is undeployed')
-@with_argument_tag
-def is_undeployed(args, repo):
-    """Check if a pod is undeployed."""
-    if not repo.get_pod_state(args.tag) & repos.PodState.DEPLOYED:
-        return 0
-    else:
-        return 1
-
-
 @apps.with_prog('is-deployed')
 @apps.with_help('check if a pod is deployed')
 @with_argument_tag
 def is_deployed(args, repo):
     """Check if a pod is deployed."""
-    return _check_pod_state(repo, args.tag, repos.PodState.DEPLOYED)
+    if repo.is_pod_tag_deployed(args.tag):
+        return 0
+    else:
+        return 1
 
 
 @apps.with_prog('is-enabled')
-@apps.with_help('check if a pod is enabled')
+@apps.with_help('check if default unit instances are enabled')
+@with_argument_instance
 @with_argument_tag
 def is_enabled(args, repo):
-    """Check if a pod is enabled."""
-    return _check_pod_state(repo, args.tag, repos.PodState.ENABLED)
+    """Check if default unit instances are enabled."""
+    return _check_pod_state(args, repo, models.Pod.is_enabled)
 
 
 @apps.with_prog('is-started')
-@apps.with_help('check if a pod is started')
+@apps.with_help('check if default unit instances are started')
+@with_argument_instance
 @with_argument_tag
 def is_started(args, repo):
-    """Check if a pod is started."""
-    return _check_pod_state(repo, args.tag, repos.PodState.STARTED)
+    """Check if default unit instances are started."""
+    return _check_pod_state(args, repo, models.Pod.is_started)
 
 
-def _check_pod_state(repo, tag, state):
-    return 0 if repo.get_pod_state(tag) & state else 1
+def _check_pod_state(args, repo, check_state):
+    try:
+        pod = repo.get_pod_from_tag(args.tag)
+    except FileNotFoundError:
+        LOG.debug('no pod dir for: %s', args.tag)
+        return 1
+    if check_state(pod, predicate=_make_instance_predicate(args)):
+        return 0
+    else:
+        return 1
 
 
 @apps.with_help('deploy a pod')
@@ -339,8 +359,7 @@ def deploy(args, repo):
 
     pod = bundle_pod.make_local_pod(repo.get_pod_dir(bundle_pod))
 
-    pod_state = repo.get_pod_state(pod)
-    if pod_state & repos.PodState.DEPLOYED:
+    if repo.is_pod_deployed(pod):
         LOG.info('%s - pod has been deployed', pod)
         return 0
 
@@ -359,6 +378,7 @@ def deploy(args, repo):
 
 
 @apps.with_help('enable a pod')
+@with_argument_instance
 @with_argument_tag
 def enable(args, repo):
     """Enable a deployed pod."""
@@ -367,6 +387,7 @@ def enable(args, repo):
 
 
 @apps.with_help('start a pod')
+@with_argument_instance
 @with_argument_tag
 def start(args, repo):
     """Start a deployed pod."""
@@ -374,21 +395,20 @@ def start(args, repo):
 
 
 def _deploy_operation(args, repo, operator_name, operator, reverse_operator):
-    pod_state = repo.get_pod_state(args.tag)
-    if not pod_state & repos.PodState.DEPLOYED:
-        LOG.error('%s - pod has not been deployed', args.tag)
-        return 1
     pod = repo.get_pod_from_tag(args.tag)
     LOG.info('%s - %s', pod, operator_name)
     try:
-        operator(pod)
+        operator(pod, predicate=_make_instance_predicate(args))
     except Exception:
+        # XXX I do not know if this is a good idea, but on error, I will
+        # reverse (disable or stop) all instances.
         reverse_operator(pod)
         raise
     return 0
 
 
 @apps.with_help('stop a pod')
+@with_argument_instance
 @with_argument_tag
 def stop(args, repo):
     """Stop a pod."""
@@ -396,6 +416,7 @@ def stop(args, repo):
 
 
 @apps.with_help('disable a pod')
+@with_argument_instance
 @with_argument_tag
 def disable(args, repo):
     """Disable a pod."""
@@ -409,7 +430,7 @@ def _undeploy_operation(args, repo, operator_name, operator):
         LOG.warning('%s - pod has not been deployed', args.tag)
         return 0
     LOG.info('%s - %s', pod, operator_name)
-    operator(pod)
+    operator(pod, predicate=_make_instance_predicate(args))
     return 0
 
 
@@ -453,7 +474,6 @@ def cleanup(args, repo):
 @apps.with_apps(
     'operation', 'operation on pods',
     list_pods,
-    is_undeployed,
     is_deployed,
     is_enabled,
     is_started,
@@ -472,6 +492,17 @@ def pods(args):
 
 
 ### Helper functions
+
+
+def _make_instance_predicate(args):
+    if args.instance_all:
+        predicate = lambda _: True
+    elif args.instance:
+        instance_vars = set(args.instance)
+        predicate = lambda instance: instance.var in instance_vars
+    else:
+        predicate = None
+    return predicate
 
 
 def _list_image_ids():

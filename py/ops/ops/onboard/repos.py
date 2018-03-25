@@ -1,13 +1,11 @@
 """Pod repository."""
 
 __all__ = [
-    'PodState',
     'Ports',
     'Repo',
 ]
 
 from collections import defaultdict, namedtuple
-import enum
 import json
 import logging
 
@@ -21,19 +19,6 @@ VERSION = 1
 
 
 LOG = logging.getLogger(__name__)
-
-
-class PodState(enum.Flag):
-    """Pod states:
-    * DEPLOYED: All pod data (unit files, container images, etc.) are
-      installed.
-    * ENABLED: All systemd units are enabled.
-    * STARTED: All systemd units are started (active).
-    """
-    NONE = 0
-    DEPLOYED = enum.auto()
-    ENABLED = enum.auto()
-    STARTED = enum.auto()
 
 
 class Repo:
@@ -87,52 +72,6 @@ class Repo:
         scripts.ensure_directory(pod_dir)
         return self._get_pod(pod_dir)
 
-    def get_pod_state(self, pod_or_tag):
-        if isinstance(pod_or_tag, str):
-            pod = None
-            pod_name, version = pod_or_tag.rsplit(':', 1)
-        else:
-            pod = pod_or_tag
-            pod_name = pod_or_tag.name
-            version = pod_or_tag.version
-
-        pod_dir = self._get_pod_dir(pod_name, version)
-        if not pod_dir.exists() and pod is None:
-            LOG.warning('unable to read pod state: %s:%s', pod_name, version)
-            return PodState.NONE
-        if pod is None:
-            pod = self._get_pod(pod_dir)
-
-        state = PodState.NONE
-
-        all_deployed = True
-        if not pod_dir.exists():
-            LOG.debug('no pod dir: %s', pod)
-            all_deployed = False
-        # TODO: Check whether all images are fetched.
-        for unit in pod.systemd_units:
-            if not unit.is_installed():
-                LOG.debug('unit is not installed: %s', unit.unit_name)
-                all_deployed = False
-        if all_deployed:
-            state |= PodState.DEPLOYED
-
-        all_enabled = True
-        for instance in pod.filter_instances(pod.should_but_not_enabled):
-            LOG.debug('unit is not enabled: %s', instance.unit_name)
-            all_enabled = False
-        if all_enabled:
-            state |= PodState.ENABLED
-
-        all_started = True
-        for instance in pod.filter_instances(pod.should_but_not_started):
-            LOG.debug('unit is not started: %s', instance.unit_name)
-            all_started = False
-        if all_started:
-            state |= PodState.STARTED
-
-        return state
-
     def get_pod_dir(self, pod):
         return self._get_pod_dir(pod.name, pod.version)
 
@@ -166,6 +105,27 @@ class Repo:
                         json.loads(manifest_path.read_text()),
                     ))
         return Ports(pods_and_manifests)
+
+    def is_pod_tag_deployed(self, tag):
+        try:
+            pod = self.get_pod_from_tag(tag)
+        except FileNotFoundError:
+            LOG.debug('no such pod: %s', tag)
+            return False
+        return self.is_pod_deployed(pod)
+
+    def is_pod_deployed(self, pod):
+        deployed = True
+        pod_dir = self.get_pod_dir(pod)
+        if not pod_dir.exists():
+            LOG.debug('no pod dir: %s', pod_dir)
+            deployed = False
+        # TODO: Check whether all images are fetched.
+        for unit in pod.systemd_units:
+            if not unit.is_installed():
+                LOG.debug('unit is not installed: %s', unit.unit_name)
+                deployed = False
+        return deployed
 
 
 class Ports:

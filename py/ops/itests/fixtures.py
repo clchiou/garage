@@ -6,6 +6,7 @@ __all__ = [
 
 import getpass
 import json
+import sys
 import unittest
 from pathlib import Path
 from subprocess import call, check_call, check_output
@@ -82,13 +83,7 @@ class Fixture:
         output = output.decode('ascii').split('\n')
         return list(filter(None, map(str.strip, output)))
 
-    def is_undeployed(self, pod_name):
-        cmd = self.OPS_CMD + ['pods', 'is-undeployed', pod_name]
-        return call(cmd, cwd=str(self.root_path)) == 0
-
     def is_deployed(self, pod_name):
-        # By the way, because we mock out systemctl, pod state cannot be
-        # detected correctly
         cmd = self.OPS_CMD + ['pods', 'is-deployed', pod_name]
         return call(cmd, cwd=str(self.root_path)) == 0
 
@@ -115,24 +110,29 @@ class Fixture:
 
     def deploy(self, pod_file):
         cmd = self.OPS_CMD + ['pods', 'deploy', str(pod_file)]
-        check_call(cmd, cwd=str(self.root_path))
+        self._check_call(cmd, cwd=str(self.root_path))
 
-    def enable(self, tag):
-        cmd = self.OPS_CMD + ['pods', 'enable', tag]
-        check_call(cmd, cwd=str(self.root_path))
+    def enable(self, tag, *, extra_args=()):
+        cmd = self.OPS_CMD + ['pods', 'enable', tag] + list(extra_args)
+        self._check_call(cmd, cwd=str(self.root_path))
 
-    def start(self, tag):
-        cmd = self.OPS_CMD + ['pods', 'start', tag]
-        check_call(cmd, cwd=str(self.root_path))
+    def start(self, tag, *, extra_args=()):
+        cmd = self.OPS_CMD + ['pods', 'start', tag] + list(extra_args)
+        self._check_call(cmd, cwd=str(self.root_path))
 
-    def stop(self, tag):
-        cmd = self.OPS_CMD + ['pods', 'stop', tag]
-        check_call(cmd, cwd=str(self.root_path))
+    def stop(self, tag, *, extra_args=()):
+        cmd = self.OPS_CMD + ['pods', 'stop', tag] + list(extra_args)
+        self._check_call(cmd, cwd=str(self.root_path))
 
-    def disable(self, tag):
-        cmd = self.OPS_CMD + ['pods', 'disable', tag]
-        check_call(cmd, cwd=str(self.root_path))
+    def disable(self, tag, *, extra_args=()):
+        cmd = self.OPS_CMD + ['pods', 'disable', tag] + list(extra_args)
+        self._check_call(cmd, cwd=str(self.root_path))
 
     def undeploy(self, pod_file):
         cmd = self.OPS_CMD + ['pods', 'undeploy', str(pod_file)]
-        check_call(cmd, cwd=str(self.root_path))
+        self._check_call(cmd, cwd=str(self.root_path))
+
+    @staticmethod
+    def _check_call(cmd, *, cwd):
+        print('exec: %s' % ' '.join(cmd), file=sys.stderr)
+        check_call(cmd, cwd=cwd)

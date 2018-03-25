@@ -32,6 +32,11 @@ class PodsTest(Fixture, unittest.TestCase):
         self.start('test-pod:1001')
         self.assert_started('1001')
 
+        # Re-start should be a no-ops.
+        self.start('test-pod:1001')
+        self.start('test-pod:1001')
+        self.assert_started('1001')
+
         self.assertEqual(
             ['test-pod:1001'],
             self.list_pods(),
@@ -51,6 +56,48 @@ class PodsTest(Fixture, unittest.TestCase):
 
         self.start('test-pod:1002')
         self.assert_started('1002')
+
+        self.start('test-pod:1002', extra_args=['--instance-all'])
+        all_units = {
+            'test-pod-replicated-1002@x.service',
+            'test-pod-replicated-1002@y.service',
+            'test-pod-replicated-1002@z.service',
+        }
+        self.assertTrue(
+            all_units.issubset(self.systemd_started),
+            str(self.systemd_started),
+        )
+
+        self.stop('test-pod:1002')
+        self.assertTrue(
+            all_units.isdisjoint(self.systemd_started),
+            str(self.systemd_started),
+        )
+
+        self.start('test-pod:1002', extra_args=['--instance', 'z'])
+        other_than_z = {
+            'test-pod-replicated-1002@x.service',
+            'test-pod-replicated-1002@y.service',
+        }
+        only_z = {
+            'test-pod-replicated-1002@z.service',
+        }
+        self.assertTrue(
+            other_than_z.isdisjoint(self.systemd_started),
+            str(self.systemd_started),
+        )
+        self.assertTrue(
+            only_z.issubset(self.systemd_started),
+            str(self.systemd_started),
+        )
+
+        self.stop('test-pod:1002', extra_args=['--instance', 'z'])
+        self.assertTrue(
+            all_units.isdisjoint(self.systemd_started),
+            str(self.systemd_started),
+        )
+
+        self.start('test-pod:1002')
 
         self.assertEqual(
             ['test-pod:1001', 'test-pod:1002'],
@@ -206,10 +253,12 @@ class PodsTest(Fixture, unittest.TestCase):
                 'test-pod-simple-1001.service',
                 'test-pod-complex-1001.service',
             },
+            'enable-not': set(),
             'start': {
                 'test-pod-simple-1001.service',
                 'test-pod-complex-1001.service',
             },
+            'start-not': set(),
         },
         '1002': {
             'enable': {
@@ -217,17 +266,24 @@ class PodsTest(Fixture, unittest.TestCase):
                 'test-pod-replicated-1002@y.service',
                 'test-pod-replicated-1002@z.service',
             },
+            'enable-not': set(),
             'start': {
                 'test-pod-replicated-1002@x.service',
+            },
+            'start-not': {
+                'test-pod-replicated-1002@y.service',
+                'test-pod-replicated-1002@z.service',
             },
         },
         '1003': {
             'enable': {
                 'test-pod-volume-1003.service',
             },
+            'enable-not': set(),
             'start': {
                 'test-pod-volume-1003.service',
             },
+            'start-not': set(),
         },
     }
 
@@ -247,11 +303,21 @@ class PodsTest(Fixture, unittest.TestCase):
             data.issubset(self.systemd_enabled),
             str(self.systemd_enabled),
         )
+        data = self.UNIT_NAMES[version]['enable-not']
+        self.assertTrue(
+            data.isdisjoint(self.systemd_enabled),
+            str(self.systemd_enabled),
+        )
 
     def assert_started(self, version):
         data = self.UNIT_NAMES[version]['start']
         self.assertTrue(
             data.issubset(self.systemd_started),
+            str(self.systemd_started),
+        )
+        data = self.UNIT_NAMES[version]['start-not']
+        self.assertTrue(
+            data.isdisjoint(self.systemd_started),
             str(self.systemd_started),
         )
 
