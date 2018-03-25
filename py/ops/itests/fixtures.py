@@ -5,6 +5,7 @@ __all__ = [
 ]
 
 import getpass
+import json
 import unittest
 from pathlib import Path
 from subprocess import call, check_call, check_output
@@ -28,16 +29,25 @@ class Fixture:
         cls.testdata_path = Path(__file__).parent / 'testdata'
         assert cls.testdata_path.is_dir()
 
-        # Install the fake systemctl because you can't run systemd in a
-        # Docker container (can you?)
-        check_call(['sudo', 'cp', '/bin/true', '/usr/local/bin/systemctl'])
-
     @classmethod
     def tearDownClass(cls):
-        # Uninstall the fake systemctl
-        check_call(['sudo', 'rm', '/usr/local/bin/systemctl'])
+        pass  # Nothing here at the moment.
 
     # Helper methods.
+
+    @property
+    def systemd_enabled(self):
+        path = Path('/tmp/ops_runner_state.json')
+        if not path.exists():
+            return set()
+        return set(json.loads(path.read_text())['systemd_enabled'])
+
+    @property
+    def systemd_started(self):
+        path = Path('/tmp/ops_runner_state.json')
+        if not path.exists():
+            return set()
+        return set(json.loads(path.read_text())['systemd_started'])
 
     def assertDir(self, path):
         self.assertTrue(Path(path).is_dir())
@@ -62,7 +72,7 @@ class Fixture:
 
     # `ops-onboard pods` commands and other helpers.
 
-    OPS_CMD = ['python3', '-m', 'ops.onboard', '-v']
+    OPS_CMD = ['python3', '-m', 'itests.ops_runner', '-v']
 
     def list_pods(self):
         output = check_output(
@@ -107,14 +117,20 @@ class Fixture:
         cmd = self.OPS_CMD + ['pods', 'deploy', str(pod_file)]
         check_call(cmd, cwd=str(self.root_path))
 
+    def enable(self, tag):
+        cmd = self.OPS_CMD + ['pods', 'enable', tag]
+        check_call(cmd, cwd=str(self.root_path))
+
     def start(self, tag):
-        # Use `--force` because we mock out systemctl and thus pod state
-        # cannot be detected correctly
-        cmd = self.OPS_CMD + ['pods', 'start', '--force', tag]
+        cmd = self.OPS_CMD + ['pods', 'start', tag]
         check_call(cmd, cwd=str(self.root_path))
 
     def stop(self, tag):
         cmd = self.OPS_CMD + ['pods', 'stop', tag]
+        check_call(cmd, cwd=str(self.root_path))
+
+    def disable(self, tag):
+        cmd = self.OPS_CMD + ['pods', 'disable', tag]
         check_call(cmd, cwd=str(self.root_path))
 
     def undeploy(self, pod_file):

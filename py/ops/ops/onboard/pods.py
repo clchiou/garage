@@ -22,6 +22,7 @@ LOG = logging.getLogger(__name__)
 #   deploy_create_pod_manifest
 #   deploy_create_volumes
 #   deploy_fetch
+#   deploy_install_units
 # and
 #   undeploy_remove
 # are inverse operations to each other.
@@ -30,7 +31,7 @@ LOG = logging.getLogger(__name__)
 ### Deploy
 
 
-def deploy_copy(repo, bundle_pod):
+def deploy_copy(_, bundle_pod, local_pod):
     """Copy pod data from bundle to the pod directory, and return a new
        pod object representing the pod directory.
 
@@ -44,12 +45,6 @@ def deploy_copy(repo, bundle_pod):
        * volume-data/...
     """
     LOG.info('%s - copy', bundle_pod)
-
-    pod_dir = repo.get_pod_dir(bundle_pod)
-    if pod_dir.exists():
-        raise RuntimeError('attempt to overwrite dir: %s' % pod_dir)
-
-    local_pod = bundle_pod.make_local_pod(pod_dir)
 
     with scripts.using_sudo():
 
@@ -183,45 +178,34 @@ def deploy_fetch(pod):
         scripts.execute(cmd)
 
 
-def deploy_enable(pod):
-    """Copy systemd unit files to /etc and enable units (but do not
-       start them yet).
-    """
-    LOG.info('%s - enable pod', pod)
+def deploy_install_units(pod):
+    """Install and load systemd units."""
     for unit in pod.systemd_units:
-        # Copy unit files
         # TODO: Don't use `systemctl link` for now and figure out why it
-        # doesn't behave as I expect
+        # doesn't behave as I expect.
         scripts.ensure_file(unit.unit_file_path)
         with scripts.using_sudo():
             scripts.cp(unit.unit_file_path, unit.unit_path)
             _make_dropin_file(pod, unit)
     scripts.systemctl_daemon_reload()
-    for unit in pod.systemd_units:
-        # State: disabled -> enabled
-        _change_unit_state(
-            unit,
-            'disabled',
-            lambda name: not scripts.systemctl_is_enabled(name),
-            scripts.systemctl_enable,
-        )
-        _ensure_unit_state(unit, 'enabled', scripts.systemctl_is_enabled)
+
+
+def deploy_enable(pod):
+    """Enable default systemd units."""
+    LOG.info('%s - enable pod', pod)
+    for instance in pod.filter_instances(pod.should_but_not_enabled):
+        scripts.systemctl_enable(instance.unit_name)
+        if not scripts.systemctl_is_enabled(instance.unit_name):
+            raise RuntimeError('unit %s is not enabled' % instance.unit_name)
 
 
 def deploy_start(pod):
-    """Start systemd units of the pod."""
+    """Start default systemd units."""
     LOG.info('%s - start pod', pod)
-    for unit in pod.systemd_units:
-        if not unit.starting:
-            continue
-        # State: enabled -> active
-        _change_unit_state(
-            unit,
-            'enabled',
-            scripts.systemctl_is_enabled,
-            scripts.systemctl_start,
-        )
-        _ensure_unit_state(unit, 'active', scripts.systemctl_is_active)
+    for instance in pod.filter_instances(pod.should_but_not_started):
+        scripts.systemctl_start(instance.unit_name)
+        if not scripts.systemctl_is_active(instance.unit_name):
+            raise RuntimeError('unit %s is not started' % instance.unit_name)
 
 
 ### Undeploy
@@ -234,44 +218,37 @@ def deploy_start(pod):
 
 
 def undeploy_stop(pod):
-    """Stop systemd units of the pod."""
+    """Stop all systemd units of the pod (regardless default)."""
     LOG.info('%s - stop pod', pod)
-    for unit in pod.systemd_units:
-        # State: active -> enabled
-        _change_unit_state(
-            unit,
-            'active',
-            scripts.systemctl_is_active,
-            scripts.systemctl_stop,
-        )
+    for instance in pod.iter_instances():
+        scripts.systemctl_stop(instance.unit_name)
+        if scripts.systemctl_is_active(instance.unit_name):
+            LOG.warning('unit %s is still active', instance.unit_name)
 
 
 def undeploy_disable(pod):
-    """Disable systemd units and remove unit files from /etc."""
+    """Disable all systemd units of the pod (regardless default)."""
     LOG.info('%s - disable pod', pod)
-    for unit in pod.systemd_units:
-        # State: enabled -> disabled
-        _change_unit_state(
-            unit,
-            'enabled',
-            scripts.systemctl_is_enabled,
-            scripts.systemctl_disable,
-        )
-    for unit in pod.systemd_units:
-        # Remove unit files
-        with scripts.using_sudo():
-            scripts.rm(unit.unit_path)
-            scripts.rm(unit.dropin_path, recursive=True)
-    scripts.systemctl_daemon_reload()
+    for instance in pod.iter_instances():
+        scripts.systemctl_disable(instance.unit_name)
+        if scripts.systemctl_is_enabled(instance.unit_name):
+            LOG.warning('unit %s is still enabled', instance.unit_name)
 
 
 def undeploy_remove(repo, pod):
     """Remove container images and the pod directory."""
     LOG.info('%s - remove pod', pod)
 
+    # Undo deploy_install_units.
+    for unit in pod.systemd_units:
+        with scripts.using_sudo():
+            scripts.rm(unit.unit_path)
+            scripts.rm(unit.dropin_path, recursive=True)
+    scripts.systemctl_daemon_reload()
+
     image_to_pod_table = repo.get_images()
 
-    # Undo deploy_fetch
+    # Undo deploy_fetch.
     for image in pod.images:
         if len(image_to_pod_table[image.id]) > 1:
             LOG.debug('not remove image which is still in use: %s', image.id)
@@ -281,7 +258,7 @@ def undeploy_remove(repo, pod):
             LOG.warning('cannot remove image: %s', image.id)
 
     # Undo deploy_copy and related actions, and if this is the last pod,
-    # remove the pods directory, too
+    # remove the pods directory, too.
     with scripts.using_sudo():
         scripts.rm(repo.get_pod_dir(pod), recursive=True)
         scripts.rmdir(repo.get_pods_dir(pod.name))
@@ -311,16 +288,26 @@ def list_pods(_, repo):
 @with_argument_tag
 def is_undeployed(args, repo):
     """Check if a pod is undeployed."""
-    return _check_pod_state(repo, args.tag, (repos.PodState.UNDEPLOYED,))
+    if not repo.get_pod_state(args.tag) & repos.PodState.DEPLOYED:
+        return 0
+    else:
+        return 1
 
 
 @apps.with_prog('is-deployed')
-@apps.with_help('check if a pod is deployed or started')
+@apps.with_help('check if a pod is deployed')
 @with_argument_tag
 def is_deployed(args, repo):
-    """Check if a pod is deployed or started."""
-    return _check_pod_state(
-        repo, args.tag, (repos.PodState.DEPLOYED, repos.PodState.STARTED))
+    """Check if a pod is deployed."""
+    return _check_pod_state(repo, args.tag, repos.PodState.DEPLOYED)
+
+
+@apps.with_prog('is-enabled')
+@apps.with_help('check if a pod is enabled')
+@with_argument_tag
+def is_enabled(args, repo):
+    """Check if a pod is enabled."""
+    return _check_pod_state(repo, args.tag, repos.PodState.ENABLED)
 
 
 @apps.with_prog('is-started')
@@ -328,7 +315,11 @@ def is_deployed(args, repo):
 @with_argument_tag
 def is_started(args, repo):
     """Check if a pod is started."""
-    return _check_pod_state(repo, args.tag, (repos.PodState.STARTED,))
+    return _check_pod_state(repo, args.tag, repos.PodState.STARTED)
+
+
+def _check_pod_state(repo, tag, state):
+    return 0 if repo.get_pod_state(tag) & state else 1
 
 
 @apps.with_help('deploy a pod')
@@ -341,21 +332,25 @@ def deploy(args, repo):
         pod_file = pod_file / models.POD_JSON
     scripts.ensure_file(pod_file)
 
-    pod_data = json.loads(pod_file.read_text())
-    pod = models.Pod(pod_data, pod_file.parent.absolute())
+    bundle_pod = models.Pod(
+        json.loads(pod_file.read_text()),
+        pod_file.parent.absolute(),
+    )
+
+    pod = bundle_pod.make_local_pod(repo.get_pod_dir(bundle_pod))
 
     pod_state = repo.get_pod_state(pod)
-    if pod_state in (repos.PodState.DEPLOYED, repos.PodState.STARTED):
+    if pod_state & repos.PodState.DEPLOYED:
         LOG.info('%s - pod has been deployed', pod)
         return 0
-    ASSERT.is_(pod_state, repos.PodState.UNDEPLOYED)
 
     LOG.info('%s - deploy', pod)
     try:
-        pod = deploy_copy(repo, pod)
+        deploy_copy(repo, bundle_pod, pod)
         deploy_create_pod_manifest(repo, pod)
         deploy_create_volumes(pod)
         deploy_fetch(pod)
+        deploy_install_units(pod)
     except Exception:
         undeploy_remove(repo, pod)
         raise
@@ -363,54 +358,58 @@ def deploy(args, repo):
     return 0
 
 
+@apps.with_help('enable a pod')
+@with_argument_tag
+def enable(args, repo):
+    """Enable a deployed pod."""
+    return _deploy_operation(
+        args, repo, 'enable', deploy_enable, undeploy_disable)
+
+
 @apps.with_help('start a pod')
-@apps.with_argument(
-    '--force', action='store_true',
-    help='force start even if the pod has been started'
-)
 @with_argument_tag
 def start(args, repo):
     """Start a deployed pod."""
+    return _deploy_operation(args, repo, 'start', deploy_start, undeploy_stop)
 
+
+def _deploy_operation(args, repo, operator_name, operator, reverse_operator):
     pod_state = repo.get_pod_state(args.tag)
-    if pod_state is repos.PodState.UNDEPLOYED:
+    if not pod_state & repos.PodState.DEPLOYED:
         LOG.error('%s - pod has not been deployed', args.tag)
         return 1
-    elif pod_state is repos.PodState.STARTED:
-        LOG.info('%s - pod has been started', args.tag)
-        if not args.force:
-            return 0
-    ASSERT(
-        args.force or pod_state is repos.PodState.DEPLOYED,
-        'expect pod_state %r is %r',
-        pod_state, repos.PodState.DEPLOYED,
-    )
-
     pod = repo.get_pod_from_tag(args.tag)
-    LOG.info('%s - start', pod)
+    LOG.info('%s - %s', pod, operator_name)
     try:
-        deploy_enable(pod)
-        deploy_start(pod)
+        operator(pod)
     except Exception:
-        undeploy_stop(pod)
-        undeploy_disable(pod)
+        reverse_operator(pod)
         raise
-
     return 0
 
 
 @apps.with_help('stop a pod')
 @with_argument_tag
 def stop(args, repo):
-    """Stop a started pod."""
+    """Stop a pod."""
+    return _undeploy_operation(args, repo, 'stop', undeploy_stop)
+
+
+@apps.with_help('disable a pod')
+@with_argument_tag
+def disable(args, repo):
+    """Disable a pod."""
+    return _undeploy_operation(args, repo, 'disable', undeploy_disable)
+
+
+def _undeploy_operation(args, repo, operator_name, operator):
     try:
         pod = repo.get_pod_from_tag(args.tag)
     except FileNotFoundError:
         LOG.warning('%s - pod has not been deployed', args.tag)
         return 0
-    LOG.info('%s - stop', pod)
-    undeploy_stop(pod)
-    undeploy_disable(pod)
+    LOG.info('%s - %s', pod, operator_name)
+    operator(pod)
     return 0
 
 
@@ -456,10 +455,13 @@ def cleanup(args, repo):
     list_pods,
     is_undeployed,
     is_deployed,
+    is_enabled,
     is_started,
     deploy,
+    enable,
     start,
     stop,
+    disable,
     undeploy,
     cleanup,
 )
@@ -470,10 +472,6 @@ def pods(args):
 
 
 ### Helper functions
-
-
-def _check_pod_state(repo, tag, states):
-    return 0 if repo.get_pod_state(tag) in states else 1
 
 
 def _list_image_ids():
@@ -533,24 +531,3 @@ def _make_dropin_file(pod, unit):
          .encode('ascii')),
         unit.dropin_path / '10-pod-manifest.conf',
     )
-
-
-def _ensure_unit_state(unit, state_name, predicate):
-    errors = []
-    for unit_name in unit.unit_names:
-        if not predicate(unit_name):
-            errors.append(unit_name)
-    if errors:
-        raise RuntimeError(
-            'unit is not %s: %s' % (state_name, ', '.join(errors)))
-
-
-def _change_unit_state(unit, state_name, predicate, actuator):
-    for unit_name in unit.unit_names:
-        if predicate(unit_name):
-            with scripts.using_sudo():
-                actuator(unit_name)
-            if predicate(unit_name):
-                LOG.warning('unit is still %s: %s', state_name, unit_name)
-        else:
-            LOG.warning('unit is not %s: %s', state_name, unit_name)

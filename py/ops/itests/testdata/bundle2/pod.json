@@ -4,6 +4,7 @@
     "systemd-units": [
         {
             "unit-file": "replicated.service",
+            "start": [true, false, false],
             "instances": ["x", "y", "z"]
         }
     ],

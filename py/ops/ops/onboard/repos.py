@@ -16,26 +16,24 @@ from garage import scripts
 from ops import models
 
 
-# This is the version of the file layout
+# This is the version of the file layout.
 VERSION = 1
 
 
 LOG = logging.getLogger(__name__)
 
 
-class PodState(enum.Enum):
+class PodState(enum.Flag):
+    """Pod states:
+    * DEPLOYED: All pod data (unit files, container images, etc.) are
+      installed.
+    * ENABLED: All systemd units are enabled.
+    * STARTED: All systemd units are started (active).
     """
-    Pods go through this state transition:
-
-        +---deploy---+  +--start--+
-        |            v  |         v
-      UNDEPLOYED   DEPLOYED     STARTED
-        ^            |  ^         |
-        +--undeploy--+  +--stop---+
-    """
-    UNDEPLOYED = 'undeployed'
-    DEPLOYED = 'deployed'
-    STARTED = 'started'
+    NONE = 0
+    DEPLOYED = enum.auto()
+    ENABLED = enum.auto()
+    STARTED = enum.auto()
 
 
 class Repo:
@@ -99,20 +97,41 @@ class Repo:
             version = pod_or_tag.version
 
         pod_dir = self._get_pod_dir(pod_name, version)
-        if not pod_dir.exists():
-            return PodState.UNDEPLOYED
-
+        if not pod_dir.exists() and pod is None:
+            LOG.warning('unable to read pod state: %s:%s', pod_name, version)
+            return PodState.NONE
         if pod is None:
             pod = self._get_pod(pod_dir)
 
-        all_active = True
-        for unit in pod.systemd_units:
-            for unit_name in unit.unit_names:
-                if not scripts.systemctl_is_active(unit_name):
-                    LOG.debug('unit is not active: %s', unit_name)
-                    all_active = False
+        state = PodState.NONE
 
-        return PodState.STARTED if all_active else PodState.DEPLOYED
+        all_deployed = True
+        if not pod_dir.exists():
+            LOG.debug('no pod dir: %s', pod)
+            all_deployed = False
+        # TODO: Check whether all images are fetched.
+        for unit in pod.systemd_units:
+            if not unit.is_installed():
+                LOG.debug('unit is not installed: %s', unit.unit_name)
+                all_deployed = False
+        if all_deployed:
+            state |= PodState.DEPLOYED
+
+        all_enabled = True
+        for instance in pod.filter_instances(pod.should_but_not_enabled):
+            LOG.debug('unit is not enabled: %s', instance.unit_name)
+            all_enabled = False
+        if all_enabled:
+            state |= PodState.ENABLED
+
+        all_started = True
+        for instance in pod.filter_instances(pod.should_but_not_started):
+            LOG.debug('unit is not started: %s', instance.unit_name)
+            all_started = False
+        if all_started:
+            state |= PodState.STARTED
+
+        return state
 
     def get_pod_dir(self, pod):
         return self._get_pod_dir(pod.name, pod.version)

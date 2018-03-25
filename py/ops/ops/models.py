@@ -12,6 +12,7 @@ import re
 import urllib.parse
 from pathlib import Path
 
+from garage import scripts
 from garage.assertions import ASSERT
 from garage.collections import DictBuilder
 
@@ -244,6 +245,30 @@ class Pod(ModelObject):
     def pod_volume_data_path(self):
         return self.path / VOLUME_DATA
 
+    def iter_instances(self):
+        for unit in self.systemd_units:
+            for instance in unit.instances:
+                yield instance
+
+    def filter_instances(self, predicte):
+        return filter(predicte, self.iter_instances())
+
+    @staticmethod
+    def should_but_not_enabled(instance):
+        """Return True when an instance should be but is not enabled."""
+        return (
+            instance.enable and
+            not scripts.systemctl_is_enabled(instance.unit_name)
+        )
+
+    @staticmethod
+    def should_but_not_started(instance):
+        """Return True when an instance should be but is not started."""
+        return (
+            instance.start and
+            not scripts.systemctl_is_active(instance.unit_name)
+        )
+
 
 class SystemdUnit(ModelObject):
     """A SystemdUnit object has these properties:
@@ -268,7 +293,8 @@ class SystemdUnit(ModelObject):
     FIELDS = {
         'name': ModelObject.is_type_of(str),
         'unit-file': ModelObject.is_type_of(str),
-        'starting': ModelObject.is_type_of(bool),
+        'enable': ModelObject.is_type_of(bool, list),
+        'start': ModelObject.is_type_of(bool, list),
         'checksum': ModelObject.is_type_of(str),
         'instances': ModelObject.is_type_of(int, list),
     }
@@ -284,12 +310,20 @@ class SystemdUnit(ModelObject):
     # the same as the name part of the unit file path in the pod.json)
     UNIT_NAME_FORMAT = '{pod_name}-{unit_name}-{version}{templated}{suffix}'
 
+    Instance = collections.namedtuple('Instance', [
+        'var',
+        'unit_name',
+        'enable',
+        'start',
+    ])
+
     def __init__(self, unit_data, pod):
 
         self._unit_file = unit_data['unit-file']
         self._path_or_uri('unit_file', pod.path, self._unit_file,
                           self.SUPPORTED_URI_SCHEMES)
-        self.starting = unit_data.get('starting', True)
+        self.enable = unit_data.get('enable', True)
+        self.start = unit_data.get('start', True)
         self.checksum = unit_data.get('checksum')
         self._warn_if_uri_no_checksum('unit_file')
 
@@ -301,31 +335,65 @@ class SystemdUnit(ModelObject):
 
         self.name = unit_data.get('name', path.stem)
 
-        instances = self._instances = unit_data.get('instances', ())
-        if isinstance(instances, int):
-            if instances < 1:
-                raise ValueError('invalid instances: %d' % instances)
-            instances = range(instances)
-        self.instances = tuple(
-            self.UNIT_NAME_FORMAT.format(
-                pod_name=pod.name,
-                unit_name=self.name,
-                version=pod.version,
-                templated='@%s' % instance,
-                suffix=path.suffix,
-            )
-            for instance in instances
-        )
+        # Keep a copy in self._instance for to_pod_data().
+        self._instances = unit_data.get('instances', ())
 
-        templated = bool(self.instances)
+        if isinstance(self._instances, int):
+            ASSERT.greater_or_equal(self._instances, 1)
+            instance_vars = range(self._instances)
+        else:
+            instance_vars = self._instances
+
+        is_templated = bool(instance_vars)
+
         self.unit_name = self.UNIT_NAME_FORMAT.format(
             pod_name=pod.name,
             unit_name=self.name,
             version=pod.version,
-            templated='@' if templated else '',
+            templated='@' if is_templated else '',
             suffix=path.suffix,
         )
-        self.unit_names = self.instances if templated else (self.unit_name,)
+
+        if is_templated:
+            if isinstance(self.enable, bool):
+                enable = [self.enable] * len(instance_vars)
+            else:
+                enable = self.enable
+            ASSERT.equal(len(enable), len(instance_vars))
+            if isinstance(self.start, bool):
+                start = [self.start] * len(instance_vars)
+            else:
+                start = self.start
+            ASSERT.equal(len(start), len(instance_vars))
+        else:
+            enable = ASSERT.type_of(self.enable, bool)
+            start = ASSERT.type_of(self.start, bool)
+
+        if is_templated:
+            self.instances = [
+                self.Instance(
+                    var=var,
+                    unit_name=self.UNIT_NAME_FORMAT.format(
+                        pod_name=pod.name,
+                        unit_name=self.name,
+                        version=pod.version,
+                        templated='@%s' % var,
+                        suffix=path.suffix,
+                    ),
+                    enable=enable[i],
+                    start=start[i],
+                )
+                for i, var in enumerate(instance_vars)
+            ]
+        else:
+            self.instances = [
+                self.Instance(
+                    var=None,
+                    unit_name=self.unit_name,
+                    enable=enable,
+                    start=start,
+                )
+            ]
 
         self.unit_path = self.UNITS_DIRECTORY / self.unit_name
         self.dropin_path = self.unit_path.with_name(self.unit_path.name + '.d')
@@ -335,7 +403,8 @@ class SystemdUnit(ModelObject):
             DictBuilder()
             .setitem('name', self.name)
             .setitem('unit-file', self._unit_file)
-            .setitem('starting', self.starting)
+            .setitem('enable', self.enable)
+            .setitem('start', self.start)
             .if_(self.checksum).setitem('checksum', self.checksum).end()
             .if_(self._instances).setitem('instances', self._instances).end()
             .dict
@@ -345,6 +414,16 @@ class SystemdUnit(ModelObject):
         self._unit_file = os.path.join(SYSTEMD, self.unit_name)
         self.unit_file_path = pod_path / self._unit_file
         self.unit_file_uri = None
+
+    def is_installed(self):
+        """Return True when unit is installed.
+
+        NOTE: Our term "installed", which merely means that unit files
+        are copied to the right places, is the same as "loaded", which
+        means systemd has parsed these unit files.
+        """
+        # TODO: Replace is_installed with is_loaded.
+        return self.unit_path.exists() and self.dropin_path.exists()
 
 
 class Image(ModelObject):

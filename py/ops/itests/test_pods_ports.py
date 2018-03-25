@@ -92,7 +92,6 @@ class PodsPortsTest(Fixture, unittest.TestCase):
         )
 
     def test_0005_undeploy_v1001(self):
-        self.stop('test-ports-pod:1001')
         self.undeploy('test-ports-pod:1001')
         self.assertEqual(['test-ports-pod:1002'], self.list_pods())
         self.assertEqual(
@@ -129,9 +128,7 @@ class PodsPortsTest(Fixture, unittest.TestCase):
         )
 
     def test_0007_undeploy_all(self):
-        self.stop('test-ports-pod:1001')
         self.undeploy('test-ports-pod:1001')
-        self.stop('test-ports-pod:1002')
         self.undeploy('test-ports-pod:1002')
         self.assertEqual([], self.list_pods())
         self.assertEqual([], self.list_ports())

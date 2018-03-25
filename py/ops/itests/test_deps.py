@@ -14,7 +14,7 @@ class DepsTest(Fixture, unittest.TestCase):
         self.assertEqual(1, call(['which', 'rkt']))
 
         # The current latest version is 1.29.0
-        cmd = ('python3 -m ops.onboard --verbose deps install rkt:latest'
+        cmd = ('python3 -m itests.ops_runner --verbose deps install rkt:latest'
                .split())
         # Save test time if we have a local tarball
         if os.path.exists('/tmp/tarballs/rkt-v1.29.0.tar.gz'):

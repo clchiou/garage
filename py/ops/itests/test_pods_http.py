@@ -44,7 +44,6 @@ class PodsHttpTest(Fixture, unittest.TestCase):
             self.assertNotDir(dir_path)
 
         self.deploy(self.testdata_path / 'bundle4')
-        self.start('test-http-pod:1001')
 
         for service in services:
             self.assertFile(service)
@@ -58,7 +57,6 @@ class PodsHttpTest(Fixture, unittest.TestCase):
         )
 
     def test_0002_undeploy_pod(self):
-        self.stop('test-http-pod:1001')
         self.undeploy('test-http-pod:1001')
         self.assertEqual([], self.list_pods())
 

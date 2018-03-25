@@ -26,8 +26,15 @@ Here is an example of the pod description:
                 # an URI.
                 "unit-file": "path/to/unit-file",
 
-                # Optional: Start unit after enabled (default to true).
-                "starting": false,
+                # Optional: Enable unit by default (default to true).
+                # If this unit is templated, this could be an array of
+                # booleans.
+                "enable": [true, false, false],
+
+                # Optional: Start unit by default (default to true).
+                # If this unit is templated, this could be an array of
+                # booleans.
+                "start": false,
 
                 # Optional: Checksum of the unit file.
                 "checksum": "sha512-XXX",

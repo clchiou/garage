@@ -59,7 +59,8 @@ class ModelsTest(unittest.TestCase):
                     },
                     {
                         'unit-file': 'http://host/path/to/bar.service?x=1',
-                        'starting': False,
+                        'enable': False,
+                        'start': False,
                         'checksum': 'sha512-456',
                     },
                 ],
@@ -121,14 +122,16 @@ class ModelsTest(unittest.TestCase):
                     {
                         'name': 'foo',
                         'unit-file': 'systemd/example-foo-1.0.1@.service',
-                        'starting': True,
+                        'enable': True,
+                        'start': True,
                         'checksum': 'sha512-123',
                         'instances': [1, 2, 3],
                     },
                     {
                         'name': 'bar',
                         'unit-file': 'systemd/example-bar-1.0.1.service',
-                        'starting': False,
+                        'enable': False,
+                        'start': False,
                         'checksum': 'sha512-456',
                     },
                 ],
@@ -236,7 +239,7 @@ class ModelsTest(unittest.TestCase):
             dict(
                 unit_file_path=pod_path / 'example.service',
                 unit_name='xy-example-1001.service',
-                instances=(),
+                _instances=(),
                 unit_path=Path('/etc/systemd/system/xy-example-1001.service'),
                 dropin_path=Path(
                     '/etc/systemd/system/xy-example-1001.service.d'),
@@ -247,52 +250,40 @@ class ModelsTest(unittest.TestCase):
             dict(
                 unit_file_path=pod_path / 'sample.timer',
                 unit_name='xy-sample-1001.timer',
-                instances=(),
+                _instances=(),
             ),
             pod.systemd_units[1],
         )
         self.assertObjectFields(
             dict(
                 unit_name='xy-example-1001@.service',
-                instances=(
-                    'xy-example-1001@0.service',
-                ),
+                _instances=1,
             ),
             pod.systemd_units[2],
         )
         self.assertObjectFields(
             dict(
                 unit_name='xy-example-1001@.service',
-                instances=(
-                    'xy-example-1001@0.service',
-                    'xy-example-1001@1.service',
-                    'xy-example-1001@2.service',
-                ),
+                _instances=3,
             ),
             pod.systemd_units[3],
         )
         self.assertObjectFields(
             dict(
                 unit_name='xy-example-1001@.service',
-                instances=(
-                    'xy-example-1001@8000.service',
-                ),
+                _instances=[8000],
             ),
             pod.systemd_units[4],
         )
         self.assertObjectFields(
             dict(
                 unit_name='xy-example-1001@.service',
-                instances=(
-                    'xy-example-1001@a.service',
-                    'xy-example-1001@b.service',
-                    'xy-example-1001@c.service',
-                ),
+                _instances=['a', 'b', 'c'],
             ),
             pod.systemd_units[5],
         )
 
-        with self.assertRaisesRegex(ValueError, 'invalid instances: 0'):
+        with self.assertRaisesRegex(AssertionError, 'expect 0 >= 1'):
             models.SystemdUnit(
                 {'unit-file': 'example.service', 'instances': 0}, pod)
 
