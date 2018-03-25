@@ -349,7 +349,8 @@ class SystemdUnit(ModelObject):
         else:
             path = self.unit_file_path
 
-        self.name = unit_data.get('name', path.stem)
+        # Strip '@' in case you add one to the end.
+        self.name = unit_data.get('name', path.stem).rstrip('@')
 
         # Keep a copy in self._instance for to_pod_data().
         self._instances = unit_data.get('instances', ())

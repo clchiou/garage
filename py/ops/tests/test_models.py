@@ -225,7 +225,7 @@ class ModelsTest(unittest.TestCase):
                     'instances': [8000],
                 },
                 {
-                    'unit-file': 'example.service',
+                    'unit-file': 'example@.service',
                     'instances': ['a', 'b', 'c'],
                 },
             ],
@@ -281,6 +281,17 @@ class ModelsTest(unittest.TestCase):
                 _instances=['a', 'b', 'c'],
             ),
             pod.systemd_units[5],
+        )
+        self.assertEqual(
+            [
+                'xy-example-1001@a.service',
+                'xy-example-1001@b.service',
+                'xy-example-1001@c.service',
+            ],
+            [
+                instance.unit_name
+                for instance in pod.systemd_units[5].instances
+            ],
         )
 
         with self.assertRaisesRegex(AssertionError, 'expect 0 >= 1'):
