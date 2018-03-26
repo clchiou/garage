@@ -132,8 +132,9 @@ def deploy_create_pod_manifest(repo, pod):
         ))
         return port_number
 
-    # Generate Appc pod manifest
-    manifest = json.dumps(
+    # Generate Appc pod manifest.  Note that we allocate ports once per
+    # pod; all unit instances will be sharing these ports.
+    manifest_base = json.dumps(
         pod.make_manifest(
             get_volume_path=get_volume_path,
             get_host_port=get_host_port,
@@ -142,7 +143,17 @@ def deploy_create_pod_manifest(repo, pod):
         sort_keys=True,
     )
     with scripts.using_sudo():
-        scripts.tee(manifest.encode('ascii'), pod.pod_manifest_path)
+        scripts.tee(manifest_base.encode('ascii'), pod.pod_manifest_path)
+        scripts.mkdir(pod.pod_manifests_path)
+        for instance in pod.iter_instances():
+            # TODO It might not be a great idea to do text substitution
+            # on JSON string, but it seems to be the only way to
+            # customize pod instances, and probably relatively safe to
+            # do.  Hopefully I will find another way without text
+            # substitution.
+            manifest = instance.resolve_specifier(manifest_base)
+            path = pod.get_pod_manifest_path(instance)
+            scripts.tee(manifest.encode('ascii'), path)
 
 
 def deploy_create_volumes(pod):
@@ -256,7 +267,8 @@ def undeploy_remove(repo, pod):
     for unit in pod.systemd_units:
         with scripts.using_sudo():
             scripts.rm(unit.unit_path)
-            scripts.rm(unit.dropin_path, recursive=True)
+            for instance in unit.instances:
+                scripts.rm(instance.dropin_path, recursive=True)
     with scripts.checking(False), scripts.using_sudo():
         scripts.systemctl_daemon_reload()
 
@@ -288,7 +300,7 @@ with_argument_instance = apps.with_decorators(
     ),
     apps.with_argument(
         '--instance', action='append',
-        help='select instance(s)',
+        help='select instance(s) by name (the part after "@")',
     ),
 )
 
@@ -518,8 +530,8 @@ def _make_instance_predicate(args):
     if args.instance_all:
         predicate = lambda _: True
     elif args.instance:
-        instance_vars = set(args.instance)
-        predicate = lambda instance: instance.var in instance_vars
+        instance_names = set(args.instance)
+        predicate = lambda instance: instance.name in instance_names
     else:
         predicate = None
     return predicate
@@ -574,11 +586,15 @@ def _create_volume(volume_root, volume):
 
 
 def _make_dropin_file(pod, unit):
-    scripts.mkdir(unit.dropin_path)
-    scripts.tee(
-        (('[Service]\n'
-          'Environment="POD_MANIFEST={pod_manifest}"\n')
-         .format(pod_manifest=pod.pod_manifest_path)
-         .encode('ascii')),
-        unit.dropin_path / '10-pod-manifest.conf',
+    contents = (
+        '[Service]\n'
+        'Environment="POD_MANIFEST={pod_manifest}"\n'
     )
+    for instance in unit.instances:
+        scripts.mkdir(instance.dropin_path)
+        scripts.tee(
+            (contents
+             .format(pod_manifest=pod.get_pod_manifest_path(instance))
+             .encode('ascii')),
+            instance.dropin_path / '10-pod-manifest.conf',
+        )

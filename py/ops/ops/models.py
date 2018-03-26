@@ -230,6 +230,13 @@ class Pod(ModelObject):
         return self.path / POD_MANIFEST_JSON
 
     @property
+    def pod_manifests_path(self):
+        return self.path / 'pod-manifests'
+
+    def get_pod_manifest_path(self, instance):
+        return self.pod_manifests_path / (instance.unit_name + '.json')
+
+    @property
     def pod_systemd_path(self):
         return self.path / SYSTEMD
 
@@ -289,21 +296,22 @@ class Pod(ModelObject):
 class SystemdUnit(ModelObject):
     """A SystemdUnit object has these properties:
 
-    * unit_name
-    * instances:
-      If this unit is templated, it's an array of instantiated unit
-      names, or else it is an empty array
-    * unit_names:
-      If this unit is templated, it's an alias to instances, or else it
-      is an one element array of unit_name
-
-    (Path under /etc/systemd/system)
+    * unit_name: Base part of unit_path; if this unit is templated, this
+      is the template unit name (e.g., foo@.service).
     * unit_path
-    * dropin_path
+    * instances: If this unit is templated, it is a list of instantiated
+      units; else it is a list of just the unit itself.
 
-    (One of the two must be present)
-    * unit_file_path: Path to the unit file
-    * unit_file_uri: URI of the unit file
+    An instance object has:
+      * unit_name: Base part of unit_path; if this unit is templated,
+        this is the instantiated unit name (e.g., foo@bar.service).
+      * Path under /etc/systemd/system:
+        * unit_path
+        * dropin_path
+
+    Source of the unit file; one of the two must be present:
+    * unit_file_path: Path to the unit file in the bundle.
+    * unit_file_uri: URI of the unit file to fetch from.
     """
 
     FIELDS = {
@@ -324,14 +332,42 @@ class SystemdUnit(ModelObject):
 
     # We encode pod information into unit name (and thus it will not be
     # the same as the name part of the unit file path in the pod.json)
-    UNIT_NAME_FORMAT = '{pod_name}-{unit_name}-{version}{templated}{suffix}'
+    UNIT_NAME_FORMAT = '{pod_name}-{stem}-{version}{templated}{suffix}'
 
-    Instance = collections.namedtuple('Instance', [
-        'var',
-        'unit_name',
-        'enable',
-        'start',
-    ])
+    class Instance:
+
+        # Although we could match the escape sequence and specifier with
+        # some regex ninjutsu, we choose not of that, but a less fancy
+        # approach.
+        _INSTANCE_NAME_PATTERN = re.compile(r'%+i')
+
+        def __init__(self, *, name, unit_name, enable, start):
+            self.name = name
+            self.unit_name = unit_name
+            self.dropin_path = SystemdUnit.UNITS_DIRECTORY / (unit_name + '.d')
+            self.enable = enable
+            self.start = start
+
+        def resolve_specifier(self, contents):
+            """Resolve %i with instance name."""
+            if self.name is None:
+                # Do not resolve since this is not templated.
+                return contents
+            positions = []
+            for match in self._INSTANCE_NAME_PATTERN.finditer(contents):
+                begin, end = match.span()
+                if (end - begin) % 2 == 0:
+                    positions.append(end - 2)
+            pieces = []
+            name = str(self.name)
+            begin = 0
+            for end in positions:
+                if begin < end:
+                    pieces.append(contents[begin:end])
+                pieces.append(name)
+                begin = end + 2
+            pieces.append(contents[begin:])
+            return ''.join(pieces)
 
     def __init__(self, unit_data, pod):
 
@@ -357,31 +393,32 @@ class SystemdUnit(ModelObject):
 
         if isinstance(self._instances, int):
             ASSERT.greater_or_equal(self._instances, 1)
-            instance_vars = range(self._instances)
+            instance_names = range(self._instances)
         else:
-            instance_vars = self._instances
+            instance_names = self._instances
 
-        is_templated = bool(instance_vars)
+        is_templated = bool(instance_names)
 
         self.unit_name = self.UNIT_NAME_FORMAT.format(
             pod_name=pod.name,
-            unit_name=self.name,
+            stem=self.name,
             version=pod.version,
             templated='@' if is_templated else '',
             suffix=path.suffix,
         )
+        self.unit_path = self.UNITS_DIRECTORY / self.unit_name
 
         if is_templated:
             if isinstance(self.enable, bool):
-                enable = [self.enable] * len(instance_vars)
+                enable = [self.enable] * len(instance_names)
             else:
                 enable = self.enable
-            ASSERT.equal(len(enable), len(instance_vars))
+            ASSERT.equal(len(enable), len(instance_names))
             if isinstance(self.start, bool):
-                start = [self.start] * len(instance_vars)
+                start = [self.start] * len(instance_names)
             else:
                 start = self.start
-            ASSERT.equal(len(start), len(instance_vars))
+            ASSERT.equal(len(start), len(instance_names))
         else:
             enable = ASSERT.type_of(self.enable, bool)
             start = ASSERT.type_of(self.start, bool)
@@ -389,31 +426,28 @@ class SystemdUnit(ModelObject):
         if is_templated:
             self.instances = [
                 self.Instance(
-                    var=var,
+                    name=name,
                     unit_name=self.UNIT_NAME_FORMAT.format(
                         pod_name=pod.name,
-                        unit_name=self.name,
+                        stem=self.name,
                         version=pod.version,
-                        templated='@%s' % var,
+                        templated='@%s' % name,
                         suffix=path.suffix,
                     ),
                     enable=enable[i],
                     start=start[i],
                 )
-                for i, var in enumerate(instance_vars)
+                for i, name in enumerate(instance_names)
             ]
         else:
             self.instances = [
                 self.Instance(
-                    var=None,
+                    name=None,
                     unit_name=self.unit_name,
                     enable=enable,
                     start=start,
                 )
             ]
-
-        self.unit_path = self.UNITS_DIRECTORY / self.unit_name
-        self.dropin_path = self.unit_path.with_name(self.unit_path.name + '.d')
 
     def to_pod_data(self):
         return (
@@ -440,7 +474,10 @@ class SystemdUnit(ModelObject):
         means systemd has parsed these unit files.
         """
         # TODO: Replace is_installed with is_loaded.
-        return self.unit_path.exists() and self.dropin_path.exists()
+        return (
+            self.unit_path.exists() and
+            all(instance.dropin_path.exists() for instance in self.instances)
+        )
 
 
 class Image(ModelObject):

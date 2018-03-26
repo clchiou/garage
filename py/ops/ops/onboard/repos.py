@@ -93,17 +93,25 @@ class Repo:
 
     def get_ports(self):
         """Return an index of port allocations."""
+
         pods_and_manifests = []
-        for name in self.get_pod_names():
-            for pod_dir in self._get_pod_dirs(name):
-                manifest_path = pod_dir / models.POD_MANIFEST_JSON
-                if manifest_path.exists():
-                    version = pod_dir.name
-                    pods_and_manifests.append((
-                        name,
-                        version,
-                        json.loads(manifest_path.read_text()),
-                    ))
+
+        def add_manifest(pod, manifest_path):
+            if not manifest_path.exists():
+                # While we are deploying this pod, its pod manifest may
+                # have not been generated yet and we cannot add it to
+                # the port index.
+                LOG.debug('no such manifest: %s', manifest_path)
+                return
+            manifest = json.loads(manifest_path.read_text())
+            pods_and_manifests.append((pod.name, pod.version, manifest))
+
+        for pod_name in self.get_pod_names():
+            for pod in self.iter_pods(pod_name):
+                add_manifest(pod, pod.pod_manifest_path)
+                for instance in pod.iter_instances():
+                    add_manifest(pod, pod.get_pod_manifest_path(instance))
+
         return Ports(pods_and_manifests)
 
     def is_pod_tag_deployed(self, tag):
@@ -164,13 +172,35 @@ class Ports:
                     port=int(port_data['hostPort']),
                 )
                 if self.PORT_MIN <= port.port < self.PORT_MAX:
-                    if port.port in self._allocated_ports:
-                        raise ValueError('duplicated port: {}'.format(port))
-                    self._allocated_ports[port.port] = port
+                    prev = self._allocated_ports.get(port.port)
+                    if prev is not None:
+                        if prev == port:
+                            # If it is from the same pod, I assume you
+                            # know what you are doing (you've enabled
+                            # SO_REUSEPORT, right?) and just issue a
+                            # warning.
+                            LOG.warning('duplicated port: %s', port)
+                        else:
+                            raise ValueError(
+                                'duplicated port: {}'.format(port))
+                    else:
+                        LOG.debug('add port: %s', port)
+                        self._allocated_ports[port.port] = port
                 else:
-                    if port.port in self._static_ports:
-                        raise ValueError('duplicated port: {}'.format(port))
-                    self._static_ports[port.port] = port
+                    prev = self._static_ports.get(port.port)
+                    if prev is not None:
+                        if prev == port:
+                            # If it is from the same pod, I assume you
+                            # know what you are doing (you've enabled
+                            # SO_REUSEPORT, right?) and just issue a
+                            # warning.
+                            LOG.warning('duplicated static port: %s', port)
+                        else:
+                            raise ValueError(
+                                'duplicated static port: {}'.format(port))
+                    else:
+                        LOG.debug('add static port: %s', port)
+                        self._static_ports[port.port] = port
         if self._allocated_ports:
             self._last_port = max(self._allocated_ports)
         else:

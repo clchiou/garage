@@ -241,8 +241,6 @@ class ModelsTest(unittest.TestCase):
                 unit_name='xy-example-1001.service',
                 _instances=(),
                 unit_path=Path('/etc/systemd/system/xy-example-1001.service'),
-                dropin_path=Path(
-                    '/etc/systemd/system/xy-example-1001.service.d'),
             ),
             pod.systemd_units[0],
         )
@@ -353,6 +351,23 @@ class ModelsTest(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, 'unsupported uri scheme'):
             models.Image({'id': '', 'image': 'ftp://xyz'}, pod)
+
+    def test_instance_resolve_specifier(self):
+
+        instance = models.SystemdUnit.Instance(
+            name=None, unit_name='foo.service', enable=True, start=True)
+        self.assertEqual('%i', instance.resolve_specifier('%i'))
+
+        instance = models.SystemdUnit.Instance(
+            name='bar', unit_name='foo@.service', enable=True, start=True)
+        self.assertEqual('', instance.resolve_specifier(''))
+        self.assertEqual('spam\negg', instance.resolve_specifier('spam\negg'))
+        self.assertEqual('bar\nbar', instance.resolve_specifier('%i\n%i'))
+        self.assertEqual('bar', instance.resolve_specifier('%i'))
+        self.assertEqual('%%i', instance.resolve_specifier('%%i'))
+        self.assertEqual('%%bar', instance.resolve_specifier('%%%i'))
+        self.assertEqual('%%%%i', instance.resolve_specifier('%%%%i'))
+        self.assertEqual('%%%%bar', instance.resolve_specifier('%%%%%i'))
 
     def test_volume(self):
         pod_data = dict(

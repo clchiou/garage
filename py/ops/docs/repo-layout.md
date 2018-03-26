@@ -11,7 +11,10 @@ the layout is:
 
 * `pod.json` describes everything about the pod.
 
-* `pod-manifest.json` is the generated Appc pod manifest.
+* `pod-manifest.json` is the generated Appc pod manifest, in case you
+  want to launch a pod without providing systemd units.
+* `pod-manifests/${UNIT_NAME}.json` is the generated Appc pod manifest
+  for each unit instance.
 
 * `images/${NAME}.aci` are Appc images.
 

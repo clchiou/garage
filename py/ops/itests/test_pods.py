@@ -247,6 +247,21 @@ class PodsTest(Fixture, unittest.TestCase):
         ],
     }
 
+    UNIT_DROPINS = {
+        '1001': [
+            '/etc/systemd/system/test-pod-simple-1001.service.d',
+            '/etc/systemd/system/test-pod-complex-1001.service.d',
+        ],
+        '1002': [
+            '/etc/systemd/system/test-pod-replicated-1002@x.service.d',
+            '/etc/systemd/system/test-pod-replicated-1002@y.service.d',
+            '/etc/systemd/system/test-pod-replicated-1002@z.service.d',
+        ],
+        '1003': [
+            '/etc/systemd/system/test-pod-volume-1003.service.d',
+        ],
+    }
+
     UNIT_NAMES = {
         '1001': {
             'enable': {
@@ -288,14 +303,16 @@ class PodsTest(Fixture, unittest.TestCase):
     }
 
     def assert_unit_installed(self, version):
-        for service in self.UNIT_FILES[version]:
-            self.assertFile(service)
-            self.assertDir('%s.d' % service)
+        for path in self.UNIT_FILES[version]:
+            self.assertFile(path)
+        for path in self.UNIT_DROPINS[version]:
+            self.assertDir(path)
 
     def assert_unit_uninstalled(self, version):
-        for service in self.UNIT_FILES[version]:
-            self.assertNotFile(service)
-            self.assertNotDir('%s.d' % service)
+        for path in self.UNIT_FILES[version]:
+            self.assertNotFile(path)
+        for path in self.UNIT_DROPINS[version]:
+            self.assertNotDir(path)
 
     def assert_enabled(self, version):
         data = self.UNIT_NAMES[version]['enable']
@@ -337,7 +354,14 @@ class PodsTest(Fixture, unittest.TestCase):
 
     def assert_1001_deployed(self):
         self.assertFile('/var/lib/ops/v1/pods/test-pod/1001/pod.json')
-        self.assertFile('/var/lib/ops/v1/pods/test-pod/1001/pod-manifest.json')
+        self.assertFile(
+            '/var/lib/ops/v1/pods/test-pod/1001/pod-manifest.json')
+        self.assertFile(
+            '/var/lib/ops/v1/pods/test-pod/1001/pod-manifests/'
+            'test-pod-simple-1001.service.json')
+        self.assertFile(
+            '/var/lib/ops/v1/pods/test-pod/1001/pod-manifests/'
+            'test-pod-complex-1001.service.json')
         self.assertNotDir('/var/lib/ops/v1/pods/test-pod/1001/volumes')
         self.assert_unit_installed('1001')
 
@@ -347,7 +371,17 @@ class PodsTest(Fixture, unittest.TestCase):
 
     def assert_1002_deployed(self):
         self.assertFile('/var/lib/ops/v1/pods/test-pod/1002/pod.json')
-        self.assertFile('/var/lib/ops/v1/pods/test-pod/1002/pod-manifest.json')
+        self.assertFile(
+            '/var/lib/ops/v1/pods/test-pod/1002/pod-manifest.json')
+        self.assertFile(
+            '/var/lib/ops/v1/pods/test-pod/1002/pod-manifests/'
+            'test-pod-replicated-1002@x.service.json')
+        self.assertFile(
+            '/var/lib/ops/v1/pods/test-pod/1002/pod-manifests/'
+            'test-pod-replicated-1002@y.service.json')
+        self.assertFile(
+            '/var/lib/ops/v1/pods/test-pod/1002/pod-manifests/'
+            'test-pod-replicated-1002@z.service.json')
         self.assertNotDir('/var/lib/ops/v1/pods/test-pod/1002/volumes')
         self.assert_unit_installed('1002')
 
@@ -360,7 +394,11 @@ class PodsTest(Fixture, unittest.TestCase):
 
     def assert_1003_deployed(self):
         self.assertFile('/var/lib/ops/v1/pods/test-pod/1003/pod.json')
-        self.assertFile('/var/lib/ops/v1/pods/test-pod/1003/pod-manifest.json')
+        self.assertFile(
+            '/var/lib/ops/v1/pods/test-pod/1003/pod-manifest.json')
+        self.assertFile(
+            '/var/lib/ops/v1/pods/test-pod/1003/pod-manifests/'
+            'test-pod-volume-1003.service.json')
         # These volumes should match pod.json.
         self.assertDir('/var/lib/ops/v1/pods/test-pod/1003/volumes/volume-1')
         self.assertDir('/var/lib/ops/v1/pods/test-pod/1003/volumes/volume-2')
