@@ -8,6 +8,7 @@ __all__ = [
     'get_stdin',
     'get_stdout',
     'is_dry_run',
+    'prepending',
     'recording_commands',
     'redirecting',
     'using_sudo',
@@ -80,6 +81,7 @@ LOCAL = threading.local()
 CHECKING = 'checking'
 DIRECTORY = 'directory'
 DRY_RUN = 'dry_run'
+PREPENDING = 'prepending'
 RECORDING_COMMANDS = 'recording_commands'
 REDIRECTING = 'redirecting'
 USING_SUDO = 'using_sudo'
@@ -134,6 +136,11 @@ def is_dry_run():
     return _get_context().get(DRY_RUN, False)
 
 
+def prepending(prefix):
+    """Prefix commands."""
+    return _enter_context({PREPENDING: list(prefix)})
+
+
 def recording_commands():
     """Record the commands executed (this cannot be nested)."""
     ASSERT.not_in(RECORDING_COMMANDS, _get_context())
@@ -181,6 +188,9 @@ def make_command(args):
             if value:
                 sudo_args.append('%s=%s' % (name, value))
         args[:0] = sudo_args
+    prefix = context.get(PREPENDING)
+    if prefix:
+        args[:0] = prefix
     return args
 
 

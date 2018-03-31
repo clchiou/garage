@@ -30,6 +30,16 @@ class ScriptsTest(unittest.TestCase):
             )
             with scripts.using_sudo(False):
                 self.assertEqual(['ls'], scripts.make_command(['ls']))
+            with scripts.prepending(['ssh', 'localhost']):
+                self.assertEqual(
+                    ['ssh', 'localhost', 'sudo', '--non-interactive', 'ls'],
+                    scripts.make_command(['ls']),
+                )
+                with scripts.prepending([]):
+                    self.assertEqual(
+                        ['sudo', '--non-interactive', 'ls'],
+                        scripts.make_command(['ls']),
+                    )
 
     def test_context(self):
 
