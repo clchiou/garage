@@ -313,22 +313,42 @@ with_argument_tag = apps.with_argument(
 
 @apps.with_prog('list')
 @apps.with_help('list deployed pods')
-def list_pods(_, repo):
+@apps.with_argument(
+    '--show-state', action='store_true',
+    help='also print unit state',
+)
+def list_pods(args, repo):
     """List deployed pods."""
     for pod_name in repo.get_pod_names():
         for pod in repo.iter_pods(pod_name):
-            print(pod)
+            row = [pod]
+            if args.show_state:
+                if pod.is_enabled():
+                    row.append('enabled')
+                if pod.is_started():
+                    row.append('started')
+            print(*row)
     return 0
 
 
 @apps.with_prog('list-units')
 @apps.with_help('list systemd units of deployed pods')
-def list_units(_, repo):
+@apps.with_argument(
+    '--show-state', action='store_true',
+    help='also print unit state',
+)
+def list_units(args, repo):
     """List systemd units of deployed pods."""
     for pod_name in repo.get_pod_names():
         for pod in repo.iter_pods(pod_name):
             for instance in pod.iter_instances():
-                print('%s %s' % (pod, instance.unit_name))
+                row = [pod, instance.unit_name]
+                if args.show_state:
+                    if scripts.systemctl_is_enabled(instance.unit_name):
+                        row.append('enabled')
+                    if scripts.systemctl_is_active(instance.unit_name):
+                        row.append('started')
+                print(*row)
     return 0
 
 
