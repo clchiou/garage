@@ -737,6 +737,12 @@ class Pod(ModelObject):
             'volumes': [
                 volume.get_pod_object_entry()
                 for volume in self.volumes
+                # NOTE: We do not need to allocate stateful volumes if
+                # host paths are assigned to them, because in this case,
+                # container runtime can handle this volume all by itself
+                # (i.e., we only need to keep a volume record in pod
+                # manifest below, not here).
+                if not volume.host_path
             ],
             'ports': [
                 port.get_pod_object_entry()

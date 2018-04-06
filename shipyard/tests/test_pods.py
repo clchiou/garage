@@ -249,11 +249,6 @@ class AppTest(PrepareForeman, unittest.TestCase):
                 'user': 'nobody',
                 'group': 'nogroup',
             },
-            {
-                'name': 'log',
-                'user': 'nobody',
-                'group': 'nogroup',
-            },
         ],
         'ports': [
             {
