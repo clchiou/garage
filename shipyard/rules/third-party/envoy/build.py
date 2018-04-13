@@ -68,6 +68,11 @@ def envoy_app(parameters):
         # XXX: /dev/console is only writable by root unfortunately.
         user='root', group='root',
         volumes=[
+            pods.Volume(
+                name='etc-hosts-volume',
+                path='/etc/hosts',
+                host_path='/etc/hosts',
+            ),
             # TODO: Although we are working on reducing the number of
             # data volumes, we keep this one to maintain the ability of
             # hot-switching clusters via altering symlink.  In the

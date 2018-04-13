@@ -69,6 +69,11 @@ def kibana_app(_):
         working_directory='/opt/kibana',
         volumes=[
             pods.Volume(
+                name='etc-hosts-volume',
+                path='/etc/hosts',
+                host_path='/etc/hosts',
+            ),
+            pods.Volume(
                 name='data-volume',
                 path='/opt/kibana/data',
                 read_only=False,

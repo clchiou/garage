@@ -138,6 +138,11 @@ def elasticsearch_app(parameters):
         working_directory='/opt/elasticsearch',
         volumes=[
             pods.Volume(
+                name='etc-hosts-volume',
+                path='/etc/hosts',
+                host_path='/etc/hosts',
+            ),
+            pods.Volume(
                 name='data-volume',
                 path='/opt/elasticsearch/data',
                 read_only=False,

@@ -71,6 +71,11 @@ def filebeat_app(_):
         # Filebeat requires most of the files owned by the same user.
         volumes=[
             pods.Volume(
+                name='etc-hosts-volume',
+                path='/etc/hosts',
+                host_path='/etc/hosts',
+            ),
+            pods.Volume(
                 name='data-volume',
                 path='/opt/filebeat/data',
                 read_only=False,
@@ -86,7 +91,6 @@ def filebeat_app(_):
                 name='host-logs-volume',
                 path='/var/log',
                 host_path='/var/log',
-                user='root', group='root',
             ),
         ],
     )
