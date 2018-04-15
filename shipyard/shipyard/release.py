@@ -43,7 +43,8 @@ class ReleaseRepo:
             if path.exists():
                 paths[kind] = path
         if not paths:
-            raise FileNotFoundError
+            raise FileNotFoundError(
+                'expect instructions under: %s %s %s' % (root, label, version))
         if len(paths) > 1:
             raise RuntimeError(
                 'expect unique instruction: %s' % sorted(paths.values()))
