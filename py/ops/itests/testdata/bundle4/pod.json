@@ -1,5 +1,5 @@
 {
-    "name": "test-http-pod",
+    "name": "//foo/bar:test-http-pod",
     "version": 1001,
     "systemd-units": [
         {

@@ -307,7 +307,7 @@ with_argument_instance = apps.with_decorators(
 
 with_argument_tag = apps.with_argument(
     'tag',
-    help='set pod tag (format "name:version")',
+    help='set pod tag (format "name@version")',
 )
 
 
@@ -319,8 +319,8 @@ with_argument_tag = apps.with_argument(
 )
 def list_pods(args, repo):
     """List deployed pods."""
-    for pod_name in repo.get_pod_names():
-        for pod in repo.iter_pods(pod_name):
+    for pod_dir_name in repo.get_pod_dir_names():
+        for pod in repo.iter_pods(pod_dir_name):
             row = [pod]
             if args.show_state:
                 if pod.is_enabled():
@@ -339,8 +339,8 @@ def list_pods(args, repo):
 )
 def list_units(args, repo):
     """List systemd units of deployed pods."""
-    for pod_name in repo.get_pod_names():
-        for pod in repo.iter_pods(pod_name):
+    for pod_dir_name in repo.get_pod_dir_names():
+        for pod in repo.iter_pods(pod_dir_name):
             for instance in pod.iter_instances():
                 row = [pod, instance.unit_name]
                 if args.show_state:
@@ -510,9 +510,9 @@ def cleanup(args, repo):
     """Clean up undeployed pods."""
     if args.keep < 0:
         raise ValueError('negative keep: %d' % args.keep)
-    for pod_name in repo.get_pod_names():
-        LOG.info('%s - cleanup', pod_name)
-        all_pods = list(repo.iter_pods(pod_name))
+    for pod_dir_name in repo.get_pod_dir_names():
+        LOG.info('%s - cleanup', pod_dir_name)
+        all_pods = list(repo.iter_pods(pod_dir_name))
         all_pods.reverse()
         for pod in all_pods[args.keep:]:
             undeploy_stop(pod)

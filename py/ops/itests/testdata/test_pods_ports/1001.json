@@ -1,5 +1,5 @@
 {
-    "name": "test-ports-pod",
+    "name": "//foo/bar:test-ports-pod",
     "version": 1001,
     "manifest": {
         "apps": [

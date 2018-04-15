@@ -24,6 +24,11 @@ LOG = logging.getLogger(__name__)
 AC_NAME_PATTERN = re.compile(r'[a-z0-9]+(-[a-z0-9]+)*')
 
 
+POD_NAME_PATTERN = '//{ac_name}(/{ac_name})*:{ac_name}'
+POD_NAME_PATTERN = re.compile(
+    POD_NAME_PATTERN.format(ac_name=AC_NAME_PATTERN.pattern))
+
+
 # Layout inside a pod directory
 POD_JSON = 'pod.json'
 POD_MANIFEST_JSON = 'pod-manifest.json'
@@ -31,6 +36,39 @@ SYSTEMD = 'systemd'
 IMAGES = 'images'
 VOLUMES = 'volumes'
 VOLUME_DATA = 'volume-data'
+
+
+class PodName(str):
+    """Format: `//pod/path:name`."""
+
+    __slots__ = ('_colon_index',)
+
+    def __new__(cls, name):
+        ASSERT.true(name.startswith('//'))  # Just a sanity check.
+        self = super().__new__(cls, name)
+        self._colon_index = name.index(':')
+        return self
+
+    @property
+    def path(self):
+        return self[2:self._colon_index]
+
+    @property
+    def name(self):
+        return self[self._colon_index+1:]
+
+    def make_suitable_for_filename(self):
+        """Make it suitable to be a part of file name.
+
+        Note that theoretically it may lead to name conflicts but in
+        practice this should not concern us, as double dash '--' is not
+        commonly used "organically"; for example, all three of the pod
+        names are transformed into the same unit name string:
+          * //awesome/project:cool-stuff
+          * //awesome--project:cool-stuff
+          * //awesome:project--cool-stuff
+        """
+        return '%s--%s' % (self.path.replace('/', '--'), self.name)
 
 
 class ModelObject:
@@ -48,6 +86,11 @@ class ModelObject:
     def is_ac_name(property_name, name):
         if not AC_NAME_PATTERN.fullmatch(name):
             return 'invalid name for %r: %s' % (property_name, name)
+
+    @staticmethod
+    def is_pod_name(property_name, name):
+        if not POD_NAME_PATTERN.fullmatch(name):
+            return 'invalid pod name for %r: %s' % (property_name, name)
 
     def __new__(cls, model_data, *_):
         errors = []
@@ -99,7 +142,7 @@ class ModelObject:
 class Pod(ModelObject):
 
     FIELDS = {
-        'name': (ModelObject.is_type_of(str), ModelObject.is_ac_name),
+        'name': (ModelObject.is_type_of(str), ModelObject.is_pod_name),
         'version': ModelObject.is_type_of(str, int),
         'systemd-units': ModelObject.is_type_of(list),
         'images': ModelObject.is_type_of(list),
@@ -116,7 +159,7 @@ class Pod(ModelObject):
         """
         self.path = pod_path
 
-        self.name = pod_data['name']
+        self.name = PodName(pod_data['name'])
         self.version = str(pod_data['version'])
 
         self.systemd_units = tuple(
@@ -135,7 +178,7 @@ class Pod(ModelObject):
         self.manifest = pod_data['manifest']
 
     def __str__(self):
-        return '%s:%s' % (self.name, self.version)
+        return '%s@%s' % (self.name, self.version)
 
     def to_pod_data(self):
         """Do a "reverse" of __init__.
@@ -332,7 +375,7 @@ class SystemdUnit(ModelObject):
 
     # We encode pod information into unit name (and thus it will not be
     # the same as the name part of the unit file path in the pod.json)
-    UNIT_NAME_FORMAT = '{pod_name}-{stem}-{version}{templated}{suffix}'
+    UNIT_NAME_FORMAT = '{pod_name}--{stem}--{version}{templated}{suffix}'
 
     class Instance:
 
@@ -397,10 +440,12 @@ class SystemdUnit(ModelObject):
         else:
             instance_names = self._instances
 
+        pod_unit_name = pod.name.make_suitable_for_filename()
+
         is_templated = bool(instance_names)
 
         self.unit_name = self.UNIT_NAME_FORMAT.format(
-            pod_name=pod.name,
+            pod_name=pod_unit_name,
             stem=self.name,
             version=pod.version,
             templated='@' if is_templated else '',
@@ -428,7 +473,7 @@ class SystemdUnit(ModelObject):
                 self.Instance(
                     name=name,
                     unit_name=self.UNIT_NAME_FORMAT.format(
-                        pod_name=pod.name,
+                        pod_name=pod_unit_name,
                         stem=self.name,
                         version=pod.version,
                         templated='@%s' % name,

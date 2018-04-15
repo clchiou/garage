@@ -30,11 +30,11 @@ class PodsHttpTest(Fixture, unittest.TestCase):
 
     def test_0001_deploy_pod(self):
         dir_paths = [
-            '/var/lib/ops/v1/pods/test-http-pod/1001',
-            '/var/lib/ops/v1/pods/test-http-pod/1001/volumes/volume-1',
+            '/var/lib/ops/v1/pods/foo--bar--test-http-pod/1001',
+            '/var/lib/ops/v1/pods/foo--bar--test-http-pod/1001/volumes/volume-1',
         ]
         services = [
-            '/etc/systemd/system/test-http-pod-volume-1001.service',
+            '/etc/systemd/system/foo--bar--test-http-pod--volume--1001.service',
         ]
 
         for service in services:
@@ -53,11 +53,11 @@ class PodsHttpTest(Fixture, unittest.TestCase):
 
         self.assertEqualContents(
             self.testdata_path / 'bundle3/volume.service',
-            '/etc/systemd/system/test-http-pod-volume-1001.service',
+            '/etc/systemd/system/foo--bar--test-http-pod--volume--1001.service',
         )
 
     def test_0002_undeploy_pod(self):
-        self.undeploy('test-http-pod:1001')
+        self.undeploy('//foo/bar:test-http-pod@1001')
         self.assertEqual([], self.list_pods())
 
 

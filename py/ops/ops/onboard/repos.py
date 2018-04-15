@@ -34,59 +34,68 @@ class Repo:
     def __init__(self, root_dir):
         self._pods = self.get_repo_dir(root_dir) / 'pods'
 
-    def get_pods_dir(self, pod_name):
+    def get_pods_dir(self, pod_dir_name):
         """Return path to the directory of pods."""
-        return self._pods / pod_name
+        if isinstance(pod_dir_name, models.PodName):
+            pod_dir_name = pod_dir_name.make_suitable_for_filename()
+        return self._pods / pod_dir_name
 
-    def _get_pod_dirs(self, pod_name):
+    def _get_pod_dirs(self, pod_dir_name):
         """Return paths to the pod directory."""
-        pods_dir = self.get_pods_dir(pod_name)
+        pods_dir = self.get_pods_dir(pod_dir_name)
         try:
             return sorted(pods_dir.iterdir(), key=lambda p: p.name)
         except FileNotFoundError:
             LOG.warning('cannot list directory: %s', pods_dir)
             return []
 
-    def _get_pod_dir(self, pod_name, version):
-        return self._pods / pod_name / version
+    def _get_pod_dir(self, pod_dir_name, version):
+        return self._pods / pod_dir_name / version
 
     @staticmethod
     def _get_pod(pod_dir):
         pod_data = json.loads((pod_dir / models.POD_JSON).read_text())
         return models.Pod(pod_data, pod_dir)
 
-    def get_pod_names(self):
+    def get_pod_dir_names(self):
         try:
             return sorted(path.name for path in self._pods.iterdir())
         except FileNotFoundError:
             LOG.warning('cannot list directory: %s', self._pods)
             return []
 
-    def iter_pods(self, pod_name):
-        for pod_dir in self._get_pod_dirs(pod_name):
+    def iter_pods(self, pod_dir_name):
+        for pod_dir in self._get_pod_dirs(pod_dir_name):
             yield self._get_pod(pod_dir)
 
     def get_pod_from_tag(self, tag):
-        pod_name, version = tag.rsplit(':', 1)
-        pod_dir = self._get_pod_dir(pod_name, version)
+        pod_name, version = tag.rsplit('@', 1)
+        pod_dir = self._get_pod_dir(
+            models.PodName(pod_name).make_suitable_for_filename(),
+            version,
+        )
         scripts.ensure_directory(pod_dir)
         return self._get_pod(pod_dir)
 
     def get_pod_dir(self, pod):
-        return self._get_pod_dir(pod.name, pod.version)
+        return self._get_pod_dir(
+            pod.name.make_suitable_for_filename(),
+            pod.version,
+        )
 
     def get_images(self):
         """Return a (deployed) image-to-pods table."""
         table = defaultdict(list)
-        for name in self.get_pod_names():
-            for pod_dir in self._get_pod_dirs(name):
+        for pod_dir_name in self.get_pod_dir_names():
+            for pod_dir in self._get_pod_dirs(pod_dir_name):
                 manifest_path = pod_dir / models.POD_JSON
                 if not manifest_path.exists():
                     continue
                 version = pod_dir.name
                 manifest = json.loads(manifest_path.read_text())
+                pod_name = models.PodName(manifest['name'])
                 for image in manifest.get('images', ()):
-                    table[image['id']].append((name, version))
+                    table[image['id']].append((pod_name, version))
         for podvs in table.values():
             podvs.sort()
         return table
@@ -106,8 +115,8 @@ class Repo:
             manifest = json.loads(manifest_path.read_text())
             pods_and_manifests.append((pod.name, pod.version, manifest))
 
-        for pod_name in self.get_pod_names():
-            for pod in self.iter_pods(pod_name):
+        for pod_dir_name in self.get_pod_dir_names():
+            for pod in self.iter_pods(pod_dir_name):
                 add_manifest(pod, pod.pod_manifest_path)
                 for instance in pod.iter_instances():
                     add_manifest(pod, pod.get_pod_manifest_path(instance))

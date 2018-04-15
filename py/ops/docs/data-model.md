@@ -9,8 +9,11 @@ and allocated port numbers.
 Here is an example of the pod description:
 
     {
+        # NOTE: Unless otherwise specified, names are AC name.
+        # https://github.com/appc/spec/blob/master/spec/types.md#ac-name-type
+
         # Required.
-        "name": "example-pod",
+        "name": "//pod/path:example-pod",
 
         # Required, integer or string.
         "version": 1001,

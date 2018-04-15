@@ -16,7 +16,7 @@ def list_images(args):
     for image_id in sorted(table):
         podvs = table[image_id]
         if podvs:
-            podvs = ' '.join('%s:%s' % pv for pv in podvs)
+            podvs = ' '.join('%s@%s' % pv for pv in podvs)
             print('%s %s' % (image_id, podvs))
         else:
             print(image_id)
@@ -38,7 +38,7 @@ def images(args):
 def list_ports(args):
     """List ports allocated to deployed pods."""
     for port in repos.Repo(args.root).get_ports():
-        print('%s:%s %s %d' %
+        print('%s@%s %s %d' %
               (port.pod_name, port.pod_version, port.name, port.port))
     return 0
 

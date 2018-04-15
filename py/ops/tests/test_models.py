@@ -15,26 +15,35 @@ class ModelsTest(unittest.TestCase):
         with self.assertRaisesRegex(KeyError, 'name'):
             models.Pod({}, pod_path)
         with self.assertRaisesRegex(KeyError, 'version'):
-            models.Pod({'name': 'example'}, pod_path)
+            models.Pod({'name': '//foo:bar'}, pod_path)
         with self.assertRaisesRegex(
-                ValueError, 'invalid name for \'name\': x--y'):
-            models.Pod({'name': 'x--y', 'version': 1001}, pod_path)
+                ValueError, 'invalid pod name for \'name\': //a:x--y'):
+            models.Pod({'name': '//a:x--y', 'version': 1001}, pod_path)
+        with self.assertRaisesRegex(
+                ValueError, 'invalid pod name for \'name\': //a--b:x-y'):
+            models.Pod({'name': '//a--b:x-y', 'version': 1001}, pod_path)
+        with self.assertRaisesRegex(
+                ValueError, 'invalid pod name for \'name\': xy'):
+            models.Pod({'name': 'xy', 'version': 1001}, pod_path)
+        with self.assertRaisesRegex(
+                ValueError, 'invalid pod name for \'name\': //a/b:'):
+            models.Pod({'name': '//a/b:', 'version': 1001}, pod_path)
         with self.assertRaisesRegex(ValueError, 'unknown field \'x\''):
             models.Pod({'name': 'x-y', 'version': 1, 'x': 1}, pod_path)
 
         pod = models.Pod(
             dict(
-                name='xy',
+                name='//ab:xy',
                 version=1001,
                 manifest={},
             ),
             pod_path,
         )
-        self.assertEqual('xy:1001', str(pod))
+        self.assertEqual('//ab:xy@1001', str(pod))
         self.assertObjectFields(
             dict(
                 path=pod_path,
-                name='xy',
+                name='//ab:xy',
                 version='1001',
                 systemd_units=(),
                 images=(),
@@ -49,7 +58,7 @@ class ModelsTest(unittest.TestCase):
         bundle_pod_path = Path('/path/to/bundle')
         bundle_pod = models.Pod(
             {
-                'name': 'example',
+                'name': '//foo/bar:example',
                 'version': '1.0.1',
                 'systemd-units': [
                     {
@@ -116,12 +125,13 @@ class ModelsTest(unittest.TestCase):
 
         self.assertEqual(
             {
-                'name': 'example',
+                'name': '//foo/bar:example',
                 'version': '1.0.1',
                 'systemd-units': [
                     {
                         'name': 'foo',
-                        'unit-file': 'systemd/example-foo-1.0.1@.service',
+                        'unit-file':
+                        'systemd/foo--bar--example--foo--1.0.1@.service',
                         'enable': True,
                         'start': True,
                         'checksum': 'sha512-123',
@@ -129,7 +139,8 @@ class ModelsTest(unittest.TestCase):
                     },
                     {
                         'name': 'bar',
-                        'unit-file': 'systemd/example-bar-1.0.1.service',
+                        'unit-file':
+                        'systemd/foo--bar--example--bar--1.0.1.service',
                         'enable': False,
                         'start': False,
                         'checksum': 'sha512-456',
@@ -174,11 +185,11 @@ class ModelsTest(unittest.TestCase):
         )
 
         self.assertEqual(
-            pod_path / 'systemd/example-foo-1.0.1@.service',
+            pod_path / 'systemd/foo--bar--example--foo--1.0.1@.service',
             pod.systemd_units[0].unit_file_path,
         )
         self.assertEqual(
-            pod_path / 'systemd/example-bar-1.0.1.service',
+            pod_path / 'systemd/foo--bar--example--bar--1.0.1.service',
             pod.systemd_units[1].unit_file_path,
         )
 
@@ -203,7 +214,7 @@ class ModelsTest(unittest.TestCase):
     def test_systemd_unit(self):
 
         pod_data = {
-            'name': 'xy',
+            'name': '//x:y',
             'version': '1001',
             'systemd-units': [
                 {
@@ -238,53 +249,54 @@ class ModelsTest(unittest.TestCase):
         self.assertObjectFields(
             dict(
                 unit_file_path=pod_path / 'example.service',
-                unit_name='xy-example-1001.service',
+                unit_name='x--y--example--1001.service',
                 _instances=(),
-                unit_path=Path('/etc/systemd/system/xy-example-1001.service'),
+                unit_path=
+                Path('/etc/systemd/system/x--y--example--1001.service'),
             ),
             pod.systemd_units[0],
         )
         self.assertObjectFields(
             dict(
                 unit_file_path=pod_path / 'sample.timer',
-                unit_name='xy-sample-1001.timer',
+                unit_name='x--y--sample--1001.timer',
                 _instances=(),
             ),
             pod.systemd_units[1],
         )
         self.assertObjectFields(
             dict(
-                unit_name='xy-example-1001@.service',
+                unit_name='x--y--example--1001@.service',
                 _instances=1,
             ),
             pod.systemd_units[2],
         )
         self.assertObjectFields(
             dict(
-                unit_name='xy-example-1001@.service',
+                unit_name='x--y--example--1001@.service',
                 _instances=3,
             ),
             pod.systemd_units[3],
         )
         self.assertObjectFields(
             dict(
-                unit_name='xy-example-1001@.service',
+                unit_name='x--y--example--1001@.service',
                 _instances=[8000],
             ),
             pod.systemd_units[4],
         )
         self.assertObjectFields(
             dict(
-                unit_name='xy-example-1001@.service',
+                unit_name='x--y--example--1001@.service',
                 _instances=['a', 'b', 'c'],
             ),
             pod.systemd_units[5],
         )
         self.assertEqual(
             [
-                'xy-example-1001@a.service',
-                'xy-example-1001@b.service',
-                'xy-example-1001@c.service',
+                'x--y--example--1001@a.service',
+                'x--y--example--1001@b.service',
+                'x--y--example--1001@c.service',
             ],
             [
                 instance.unit_name
@@ -306,7 +318,7 @@ class ModelsTest(unittest.TestCase):
 
     def test_image(self):
         pod_data = dict(
-            name='xy',
+            name='//x:y',
             version='1.0.1',
             images=[
                 {'id': 'sha512-XXX', 'image': 'http://localhost/image.aci'},
@@ -371,7 +383,7 @@ class ModelsTest(unittest.TestCase):
 
     def test_volume(self):
         pod_data = dict(
-            name='xy',
+            name='//x:y',
             version=1001,
             volumes=[dict(name='x', data='y')],
             manifest={},
