@@ -35,17 +35,31 @@ class ReleaseRepo:
         # dots, e.g., "1.0.3".
         return root / kind / label.path / label.name / (version + '.yaml')
 
+    @staticmethod
+    def detect_instruction_path(root, label, version):
+        paths = {}
+        for kind in ('pods', 'volumes'):
+            path = ReleaseRepo.get_instruction_path(root, kind, label, version)
+            if path.exists():
+                paths[kind] = path
+        if not paths:
+            raise FileNotFoundError
+        if len(paths) > 1:
+            raise RuntimeError(
+                'expect unique instruction: %s' % sorted(paths.values()))
+        return paths.popitem()
+
     def __init__(self, release_root, rules):
         self.root = scripts.ensure_path(release_root)
         self.rules = rules
 
-    def load_instructions(self, kind, labels_versions):
+    def load_instructions(self, labels_versions):
 
         data_list = []
         rule_list = []
         for label, version in labels_versions:
             LOG.info('load release %s@%s', label, version)
-            path = self.get_instruction_path(self.root, kind, label, version)
+            _, path = self.detect_instruction_path(self.root, label, version)
             data = yaml.load(path.read_text())
             rule = data.get('rule')
             if not rule:
@@ -107,7 +121,7 @@ class ReleaseRepo:
                 parameters=parameters,
             )
         else:
-            # FIXME: This is probably confusing: although this is not a
+            # FIXME: This is probably confusing: Although this is not a
             # pod, we still put it to `pods` directory.  We do this just
             # because it is convenient, not because it is right.
             return SimpleInstruction(
@@ -215,7 +229,7 @@ class ReleaseRepo:
         return pod
 
     def _check_pod(self, rule, pod):
-        pod2 = Label.parse(self._get_pod_parameter(rule).default['name'])
+        pod2 = self.rules.get_pod_name(self.rules.get_rule(rule))
         if pod2 != pod:
             fmt = 'pod from build file differs from instruction: %s != %s'
             raise ValueError(fmt % (pod2, pod))

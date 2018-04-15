@@ -31,12 +31,6 @@ LOG = logging.getLogger(__name__)
 OPS_ROOT = scripts.ensure_path(os.environ.get('OPS_ROOT'))
 
 
-with_argument_kind = apps.with_argument(
-    '--kind', choices=('pods', 'volumes'), default='pods',
-    help='set instruction kind (default to %(default)s)',
-)
-
-
 with_argument_podv = apps.with_argument(
     'podv', nargs='+',
     help='add versioned pod label to build (format: "//label@version")',
@@ -58,21 +52,21 @@ def parse_podv(podv):
 
 @apps.with_prog('gen-inst')
 @apps.with_help('generate instruction file')
+@shipyard.with_foreman_argument
 @apps.with_argument(
     '--repo', metavar=('SCM', 'PATH'), nargs=2, action='append',
     help='add source repo to revision stamp (SCM: git, hg)',
 )
-@with_argument_kind
 @shipyard.with_argument_input
 @apps.with_argument(
     '--default', metavar='PATH',
     help='provide default values to the instruction',
 )
 @apps.with_argument(
-    'podv', help='set versioned pod label (format: "//label@version")',
+    'rule', help='set pod build rule',
 )
 @apps.with_argument(
-    'rule', help='set pod build rule',
+    'version', help='set pod version',
 )
 def generate_instruction(args):
     """Generate instruction file."""
@@ -80,20 +74,37 @@ def generate_instruction(args):
     # Preserve order for readability (PyYAML sucks in this regard).
     yaml.SafeDumper.add_representer(OrderedDict, represent_mapping)
 
-    label, version = parse_podv(args.podv)
-
     instruction_data = OrderedDict([
         ('rule', args.rule),
         ('revisions', []),
     ])
+
+    rules = shipyard.RuleIndex(args)
+    rules.load_from_labels([args.rule])
+    rule_obj = rules.get_rule(args.rule)
+    # FIXME: This is probably confusing: For build rules that are not
+    # annotated with rule-type, we treat it as a build_pod rule for
+    # convenience.
+    rule_type = rule_obj.annotations.get('rule-type', 'build_pod')
+    if rule_type == 'build_pod':
+        label = rules.get_pod_name(rule_obj)
+        kind = 'pods'
+    elif rule_type == 'build_volume':
+        label = Label.parse(
+            rule_obj.annotations['volume-name'],
+            implicit_path=rule_obj.label.path,
+        )
+        kind = 'volumes'
+    else:
+        raise ValueError(
+            'expect build_pod or build_volume type of rule: %s' % args.rule)
 
     default_path = None
     if args.default:
         default_path = Path(args.default)
     elif args.input_root:
         # If no default from command-line, look up one from input.
-        default_path = shipyard.find_default_path(
-            args.input_root, args.kind, label)
+        default_path = shipyard.find_default_path(args.input_root, kind, label)
         if default_path is not None:
             LOG.info('use default: %s', default_path)
     if default_path is not None:
@@ -134,9 +145,7 @@ def generate_instruction(args):
     )
 
     path = shipyard.release.ReleaseRepo.get_instruction_path(
-        args.release_root, args.kind,
-        label, version,
-    )
+        args.release_root, kind, label, args.version)
     if path.exists():
         LOG.warning('overwrite %s', path)
     with scripts.dry_run(args.dry_run):
@@ -148,17 +157,14 @@ def generate_instruction(args):
 
 @apps.with_prog('cat-inst')
 @apps.with_help('print out instruction file')
-@with_argument_kind
 @apps.with_argument(
     'podv', help='set versioned pod label (format: "//label@version")',
 )
 def cat_instruction(args):
     """Print out instruction file."""
     label, version = parse_podv(args.podv)
-    path = shipyard.release.ReleaseRepo.get_instruction_path(
-        args.release_root, args.kind,
-        label, version,
-    )
+    _, path = shipyard.release.ReleaseRepo.detect_instruction_path(
+        args.release_root, label, version)
     print(path.read_text(), end='')
     return 0
 
@@ -166,7 +172,6 @@ def cat_instruction(args):
 @apps.with_help('build pods')
 @shipyard.with_foreman_argument
 @shipyard.with_builder_argument
-@with_argument_kind
 @shipyard.with_argument_input
 @with_argument_podv
 def build(args):
@@ -177,7 +182,7 @@ def build(args):
     repo = shipyard.release.ReleaseRepo(args.release_root, rules)
 
     labels_versions = parse_podv_list(args.podv)
-    instructions = repo.load_instructions(args.kind, labels_versions)
+    instructions = repo.load_instructions(labels_versions)
 
     with scripts.dry_run(args.dry_run):
         okay = shipyard.release.execute_instructions(

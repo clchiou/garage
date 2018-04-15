@@ -45,6 +45,8 @@ common.define_copy_src(
 @rule.depend('garage/copy_src')
 @rule.depend('startup/copy_src')
 @rule.depend('ops/copy_src')
+# Add annotation for release tool.
+@rule.annotate('pod-name', '//ops:ops-onboard')
 def package(parameters):
     """Create ops-onboard zipapp."""
 

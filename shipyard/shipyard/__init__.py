@@ -123,6 +123,29 @@ class RuleIndex:
                 return thing
         raise KeyError(label)
 
+    def get_pod_name(self, rule_obj):
+        pod_names = set()
+
+        pod_parameter_label = rule_obj.annotations.get('pod-parameter')
+        if pod_parameter_label is not None:
+            pod_parameter = self.get_parameter(
+                pod_parameter_label,
+                implicit_path=rule_obj.label.path,
+            )
+            pod_names.add(pod_parameter.default['name'])
+
+        pod_name = rule_obj.annotations.get('pod-name')
+        if pod_name is not None:
+            pod_names.add(pod_name)
+
+        if len(pod_names) != 1:
+            raise AssertionError(
+                'expect exactly one pod name from annotation: %s' %
+                sorted(pod_names)
+            )
+
+        return Label.parse(pod_names.pop())
+
 
 def find_default_path(input_roots, kind, label):
     for input_root in input_roots:
