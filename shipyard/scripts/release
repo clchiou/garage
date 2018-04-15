@@ -31,9 +31,15 @@ LOG = logging.getLogger(__name__)
 OPS_ROOT = scripts.ensure_path(os.environ.get('OPS_ROOT'))
 
 
-with_argument_podv = apps.with_argument(
+with_argument_podv_list = apps.with_argument(
     'podv', nargs='+',
-    help='add versioned pod label to build (format: "//label@version")',
+    help='add versioned pod label (format: "//label@version")',
+)
+
+
+with_argument_podv = apps.with_argument(
+    'podv',
+    help='set versioned pod label (format: "//label@version")',
 )
 
 
@@ -157,9 +163,7 @@ def generate_instruction(args):
 
 @apps.with_prog('cat-inst')
 @apps.with_help('print out instruction file')
-@apps.with_argument(
-    'podv', help='set versioned pod label (format: "//label@version")',
-)
+@with_argument_podv
 def cat_instruction(args):
     """Print out instruction file."""
     label, version = parse_podv(args.podv)
@@ -169,11 +173,23 @@ def cat_instruction(args):
     return 0
 
 
+@apps.with_prog('read-kind')
+@apps.with_help('print the kind of the instruction')
+@with_argument_podv
+def read_kind(args):
+    """Print the kind of the instruction."""
+    label, version = parse_podv(args.podv)
+    kind, _ = shipyard.release.ReleaseRepo.detect_instruction_path(
+        args.release_root, label, version)
+    print(kind)
+    return 0
+
+
 @apps.with_help('build pods')
 @shipyard.with_foreman_argument
 @shipyard.with_builder_argument
 @shipyard.with_argument_input
-@with_argument_podv
+@with_argument_podv_list
 def build(args):
     """Build pods from versioned labels."""
 
@@ -216,7 +232,7 @@ def build_instructions(args):
 
 @apps.with_help('bind release channel to pod versions')
 @apps.with_argument('channel', help='set release channel to bind')
-@with_argument_podv
+@with_argument_podv_list
 def bind(args):
     """Bind release channel to a specific pod versions."""
 
@@ -276,6 +292,7 @@ def bind(args):
     'action', 'release management action',
     generate_instruction,
     cat_instruction,
+    read_kind,
     build,
     build_instructions,
     bind,
