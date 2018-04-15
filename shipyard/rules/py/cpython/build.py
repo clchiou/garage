@@ -259,7 +259,7 @@ def python_image(parameters):
 def python_pod(parameters):
     """Trivial Python pod only useful for testing."""
     return pods.Pod(
-        name='python',
+        name='//py/cpython:python',
         images=[parameters['python_image']],
     )
 

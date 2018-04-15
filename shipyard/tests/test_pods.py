@@ -175,7 +175,7 @@ class AppTest(PrepareForeman, unittest.TestCase):
     )
 
     TEST_POD = pods.Pod(
-        name='application',
+        name='//foo/bar:application',
         images=[TEST_IMAGE],
         systemd_units=[TEST_SYSTEMD_UNIT],
     )
@@ -227,7 +227,7 @@ class AppTest(PrepareForeman, unittest.TestCase):
     }
 
     POD_OBJECT = {
-        'name': 'application',
+        'name': '//foo/bar:application',
         'version': 'pod-version-1',
         'systemd-units': [
             {

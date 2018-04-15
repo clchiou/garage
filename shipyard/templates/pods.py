@@ -248,6 +248,11 @@ AC_IDENTIFIER_PATTERN = re.compile(r'[a-z0-9]+([-._~/][a-z0-9]+)*')
 AC_NAME_PATTERN = re.compile(r'[a-z0-9]+(-[a-z0-9]+)*')
 
 
+POD_NAME_PATTERN = '//{ac_name}(/{ac_name})*:{ac_name}'
+POD_NAME_PATTERN = re.compile(
+    POD_NAME_PATTERN.format(ac_name=AC_NAME_PATTERN.pattern))
+
+
 # Convention:
 # get_pod_object_entry generates sub-entry of the pod object
 # get_pod_manifest_entry_* generates sub-entry of the Appc pod manifest
@@ -311,6 +316,12 @@ class ModelObject:
     def _ensure_ac_name(name):
         if name is not None and not AC_NAME_PATTERN.fullmatch(name):
             raise ValueError('not valid AC name: %s' % name)
+        return name
+
+    @staticmethod
+    def _ensure_pod_name(name):
+        if name is not None and not POD_NAME_PATTERN.fullmatch(name):
+            raise ValueError('not valid pod name: %s' % name)
         return name
 
 
@@ -682,6 +693,8 @@ class SystemdUnit(ModelObject):
 class Pod(ModelObject):
 
     FIELDS = [
+        # NOTE: Unlike other names, pod name is not an AC name and has
+        # format '//pod/path:name'.
         ('name', None),
         ('version', None),
         ('images', [Image]),
@@ -695,7 +708,7 @@ class Pod(ModelObject):
             images=None,
             systemd_units=None,
             volume_mapping=None):
-        self.name = self._ensure_ac_name(name)
+        self.name = self._ensure_pod_name(name)
         self._version = version
         self.images = images or []
         self.systemd_units = systemd_units or []

@@ -215,8 +215,7 @@ class ReleaseRepo:
         return pod
 
     def _check_pod(self, rule, pod):
-        pod2 = self._get_pod_parameter(rule)
-        pod2 = Label.parse_name(rule.path, pod2.default['name'])
+        pod2 = Label.parse(self._get_pod_parameter(rule).default['name'])
         if pod2 != pod:
             fmt = 'pod from build file differs from instruction: %s != %s'
             raise ValueError(fmt % (pod2, pod))

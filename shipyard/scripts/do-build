@@ -4,6 +4,7 @@
 
 from pathlib import Path
 import datetime
+import re
 import sys
 
 ROOT = Path(__file__).absolute().parent.parent.parent
@@ -85,7 +86,8 @@ def do_build(args, rules):
     version_label = version_label.label
 
     builder.build(main_rule.label, extra_args=[
-        '--build-name', 'build-%d-pod-%s' % (version, pod_name),
+        '--build-name',
+        'build-%d-pod-%s' % (version, re.sub(r'[^a-zA-Z0-9]', '-', pod_name)),
         '--parameter', '%s=%s' % (version_label, version),
     ])
 
