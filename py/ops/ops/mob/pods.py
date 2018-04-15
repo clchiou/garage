@@ -12,6 +12,10 @@ from ops import models
 
 @apps.with_prog('read-tag')
 @apps.with_help('read tag in pod file')
+@apps.with_argument(
+    '--suitable-for-filename', action='store_true',
+    help='transform tag value to be suitable for filename',
+)
 @apps.with_argument('pod_file', type=Path, help='provide pod file path')
 def read_tag(args):
     """Read tag in pod file (useful in scripting)."""
@@ -20,7 +24,10 @@ def read_tag(args):
         pod_file = pod_file / models.POD_JSON
     pod_data = json.loads(pod_file.read_text())
     pod = models.Pod(pod_data, pod_file.parent.absolute())
-    print(pod)
+    if args.suitable_for_filename:
+        print('%s--%s' % (pod.name.make_suitable_for_filename(), pod.version))
+    else:
+        print(pod)
     return 0
 
 
