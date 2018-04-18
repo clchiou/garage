@@ -58,6 +58,23 @@ and thus cannot be deployed as pods (a prominent example is the ops
 tool).  These are an exception to the norm, and are deployed through
 configuration management tool.
 
+#### Versioning convention
+
+NOTE: This is just a convention at the moment; do not try to parse
+version string in scripts.
+
+We choose version in the form of `YY.DDD.X`, where:
+* `YY` is the last two digits of the year.
+* `DDD` is the day of the year, from 001 to 366.
+* `X` is the patch number, from 0 to 9.
+
+The patch number 0 is considered the base release, and whenever you want
+to release a bug fix to the base release, you increment the patch number
+by one.  We only reserve one digit for the patch number, but if you need
+to release ten or more bug fixes, you may use more digits in the patch
+number.  However, this usually indicates that you did not do enough
+integration test when preparing the base release (shame on you!).
+
 
 ### Management of artifacts
 
