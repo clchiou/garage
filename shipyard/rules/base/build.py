@@ -29,7 +29,7 @@ from foreman import define_parameter, rule, to_path
 
 (define_parameter.bool_typed('release')
  .with_doc('Enable release mode for builds.')
- .with_default(True))
+ .with_default(False))
 
 
 # Handy derived parameters
