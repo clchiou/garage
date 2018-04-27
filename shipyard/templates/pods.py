@@ -723,7 +723,7 @@ class VolumeSpec(ModelObject):
     ]
 
     def __init__(self, *, name, tarball_filename, filespecs):
-        self.name = name
+        self.name = self._ensure_ac_name(name)
         self.tarball_filename = tarball_filename
         self.filespecs = filespecs
 

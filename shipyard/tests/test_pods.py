@@ -326,7 +326,7 @@ class VolumeSpecTest(unittest.TestCase):
 
     def test_volumespec_from_dict(self):
         volumespec = pods.VolumeSpec.from_dict({
-            'name': '//foo:bar',
+            'name': 'foo',
             'tarball_filename': 'foo.tar.gz',
             'filespecs': [
                 {
@@ -337,7 +337,7 @@ class VolumeSpecTest(unittest.TestCase):
         })
         self.assertEqual(
             {
-                'name': '//foo:bar',
+                'name': 'foo',
                 'tarball_filename': 'foo.tar.gz',
                 'filespecs': [
                     self.FILESPEC_DICT_1,
@@ -348,7 +348,7 @@ class VolumeSpecTest(unittest.TestCase):
 
     def test_volumespec(self):
         volumespec = pods.VolumeSpec(
-            name='//foo:bar',
+            name='foo',
             tarball_filename='foo.tar.gz',
             filespecs=[
                 pods.FileSpec(path='foo/bar', mtime=1001),
@@ -356,7 +356,7 @@ class VolumeSpecTest(unittest.TestCase):
         )
         self.assertEqual(
             {
-                'name': '//foo:bar',
+                'name': 'foo',
                 'tarball_filename': 'foo.tar.gz',
                 'filespecs': [
                     self.FILESPEC_DICT_1,

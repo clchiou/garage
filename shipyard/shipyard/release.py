@@ -142,6 +142,11 @@ class ReleaseRepo:
             self.rules.get_rule(rule),
         )
 
+        build_volume_rules = shipyard.get_build_volume_rules(
+            self.rules,
+            self.rules.get_rule(rule),
+        )
+
         parse_label = lambda l: Label.parse(l, implicit_path=rule.path)
 
         instruction = PodInstruction(
@@ -152,7 +157,7 @@ class ReleaseRepo:
                 parse_label(label): version
                 for label, version in data.get('images', {}).items()
             },
-            image_rules={},  # Set it in _add_default_images()
+            image_rules={},  # Set it in _add_default_images().
             volumes={
                 parse_label(label): version
                 for label, version in data.get('volumes', {}).items()
@@ -161,11 +166,14 @@ class ReleaseRepo:
                 parse_label(l1): parse_label(l2)
                 for l1, l2 in pod_parameter.default['volume_mapping']
             },
+            volume_rules={},  # Set in _add_volume_rules().
             parameters=parameters,
         )
 
         self._add_default_images(instruction, build_image_rules)
         self._add_default_volumes(instruction, build_image_rules)
+
+        self._add_volume_rules(instruction, build_volume_rules)
 
         return instruction
 
@@ -267,6 +275,15 @@ class ReleaseRepo:
                     instruction.version,
                 )
 
+    def _add_volume_rules(self, instruction, build_volume_rules):
+        for rule in build_volume_rules:
+            volume = self.rules.get_parameter(
+                rule.annotations['volume-parameter'],
+                implicit_path=rule.label.path,
+            )
+            volume = Label.parse_name(rule.label.path, volume.default['name'])
+            instruction.volume_rules[volume] = rule.label
+
 
 def execute_instructions(instructions, repo, builder, input_roots):
     for instruction in instructions:
@@ -296,6 +313,7 @@ class PodInstruction:
         # Map volume label to version.
         self.volumes = kwargs.pop('volumes')
         self.volume_mapping = kwargs.pop('volume_mapping')
+        self.volume_rules = kwargs.pop('volume_rules')
         self.parameters = kwargs.pop('parameters')
         if kwargs:
             raise ValueError('unknown names: %s' % ', '.join(sorted(kwargs)))
@@ -307,32 +325,28 @@ class PodInstruction:
 
         build_name = 'build-%d' % datetime.datetime.now().timestamp()
 
-        # Build pod if it is not present.
+        # Skip building pod if it is present.
         if self._get_pod_path(repo).exists():
             LOG.info('skip building pod: %s@%s', self.pod, self.version)
             return True
-
-        # Check if all volumes are present.
-        okay = True
-        for volume in sorted(self.volumes):
-            path = self._get_volume_path(repo, volume)
-            if not path.exists():
-                LOG.error(
-                    'volume does not exist: %s@%s %s',
-                    volume, self.volumes[volume], path
-                )
-                okay = False
-        if not okay:
-            return False
 
         # Build images that are not present.
         for image in sorted(self.images):
             self._build_image(repo, builder, build_name, image, input_roots)
 
+        # Build volumes that are not present.
+        for volume in sorted(self.volumes):
+            self._build_volume(repo, builder, build_name, volume, input_roots)
+
         # Finally we build the pod.
         self._build_pod(repo, builder, build_name)
 
         return True
+
+    def _get_mapped_to_volume_label(self, volume):
+        while volume in self.volume_mapping:
+            volume = self.volume_mapping[volume]
+        return volume
 
     def _get_pod_path(self, repo):
         return (repo.root / 'pods' /
@@ -344,8 +358,7 @@ class PodInstruction:
 
     def _get_volume_path(self, repo, volume):
         version = self.volumes[volume]
-        if volume in self.volume_mapping:
-            volume = self.volume_mapping[volume]
+        volume = self._get_mapped_to_volume_label(volume)
         return repo.root / 'volumes' / volume.path / volume.name / version
 
     def _build_image(self, repo, builder, build_name, image, input_roots):
@@ -381,6 +394,42 @@ class PodInstruction:
                 Path(build_dir) / image.name, image_path,
                 recursive=True,
             )
+
+    def _build_volume(self, repo, builder, build_name, original, input_roots):
+        volume = self._get_mapped_to_volume_label(original)
+        volume_lv = '%s@%s' % (volume, self.volumes[original])
+        volume_path = self._get_volume_path(repo, original)
+        if volume_path.exists():
+            LOG.info('skip building volume: %s', volume_lv)
+            return
+
+        LOG.info('build volume %s -> %s', self.volume_rules[volume], volume_lv)
+
+        version_label = self._get_version_label(
+            repo, self.volume_rules[volume])
+
+        tarball_filename = self._get_volume_tarball_filename(
+            repo, self.volume_rules[volume])
+
+        with tempfile.TemporaryDirectory() as build_dir:
+
+            args = [
+                '--build-name', build_name,
+                '--parameter', '%s=%s' % (version_label, self.version),
+                '--output', build_dir,
+            ]
+
+            input_root, input_path = shipyard.find_input_path(
+                input_roots, 'volume-data', volume)
+            if input_root is not None:
+                LOG.info('use volume data: %s %s', input_root, input_path)
+                args.extend(['--input', input_root, input_path])
+
+            add_parameters(args, self.parameters)
+
+            builder.build(self.volume_rules[volume], extra_args=args)
+            scripts.mkdir(volume_path)
+            scripts.cp(Path(build_dir) / tarball_filename, volume_path)
 
     def _build_pod(self, repo, builder, build_name):
 
@@ -440,6 +489,14 @@ class PodInstruction:
             implicit_path=rule.path,
         )
         return version_parameter.label
+
+    @staticmethod
+    def _get_volume_tarball_filename(repo, rule):
+        volume_parameter = repo.rules.get_parameter(
+            repo.rules.get_rule(rule).annotations['volume-parameter'],
+            implicit_path=rule.path,
+        )
+        return volume_parameter.default['tarball_filename']
 
 
 class SimpleInstruction:

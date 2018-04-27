@@ -9,6 +9,7 @@ __all__ = [
     'find_default_path',
     'find_input_path',
     'get_build_image_rules',
+    'get_build_volume_rules',
     'get_specify_app_rule',
     'get_specify_image_rule',
     'get_specify_pod_rule',
@@ -155,7 +156,10 @@ class RuleIndex:
             volume_parameter_label,
             implicit_path=rule_obj.label.path,
         )
-        return Label.parse(volume_parameter.default['name'])
+        return Label.parse_name(
+            rule_obj.label.path,
+            volume_parameter.default['name'],
+        )
 
 
 def find_default_path(input_roots, kind, label):
@@ -197,14 +201,23 @@ Rule = namedtuple('Rule', [
 
 
 def get_build_image_rules(rules, build_pod_rule):
+    return _get_build_rules_for_kind(rules, build_pod_rule, 'image')
+
+
+def get_build_volume_rules(rules, build_pod_rule):
+    return _get_build_rules_for_kind(rules, build_pod_rule, 'volume')
+
+
+def _get_build_rules_for_kind(rules, build_pod_rule, kind):
     _ensure_rule_type(build_pod_rule, 'build_pod')
     specify_pod_rule = get_specify_pod_rule(rules, build_pod_rule)
+    annotation_name = 'build-%s-rule' % kind
     return [
         rules.get_rule(
-            dep_rule.annotations['build-image-rule'],
+            dep_rule.annotations[annotation_name],
             implicit_path=dep_rule.label.path,
         )
-        for dep_rule in _iter_specify_rules(rules, specify_pod_rule, 'image')
+        for dep_rule in _iter_specify_rules(rules, specify_pod_rule, kind)
     ]
 
 
@@ -229,9 +242,10 @@ def _get_specify_rule(rules, build_rule, kind):
 
 
 def _iter_specify_rules(rules, build_rule, kind):
+    target_rule_type = 'specify_' + kind
     for dep in build_rule.all_dependencies:
         dep_rule = rules.get_rule(dep.label)
-        if dep_rule.annotations.get('rule-type') == 'specify_' + kind:
+        if dep_rule.annotations.get('rule-type') == target_rule_type:
             yield dep_rule
 
 
