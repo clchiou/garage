@@ -1,5 +1,7 @@
 import unittest
 
+from pathlib import Path
+
 from templates import pods
 
 from tests.fixtures import PrepareForeman
@@ -286,6 +288,81 @@ class AppTest(PrepareForeman, unittest.TestCase):
         self.assertEqual(
             self.POD_OBJECT,
             self.TEST_POD.get_pod_object(),
+        )
+
+
+class VolumeSpecTest(unittest.TestCase):
+
+    FILESPEC_DICT_1 = {
+        'path': Path('foo/bar'),
+        'mode': None,
+        'mtime': 1001,
+        'kind': None,
+        'owner': None,
+        'uid': None,
+        'group': None,
+        'gid': None,
+        'content': None,
+        'content_path': None,
+        'content_encoding': 'utf-8',
+    }
+
+    def test_filespec_from_dict(self):
+        filespec = pods.FileSpec.from_dict({
+            'path': 'foo/bar',
+            'mtime': 1001,
+        })
+        self.assertEqual(
+            self.FILESPEC_DICT_1,
+            pods.FileSpec.to_dict(filespec),
+        )
+
+    def test_filespec(self):
+        filespec = pods.FileSpec(path='foo/bar', mtime=1001)
+        self.assertEqual(
+            self.FILESPEC_DICT_1,
+            pods.FileSpec.to_dict(filespec),
+        )
+
+    def test_volumespec_from_dict(self):
+        volumespec = pods.VolumeSpec.from_dict({
+            'name': '//foo:bar',
+            'tarball_filename': 'foo.tar.gz',
+            'filespecs': [
+                {
+                    'path': 'foo/bar',
+                    'mtime': 1001,
+                },
+            ],
+        })
+        self.assertEqual(
+            {
+                'name': '//foo:bar',
+                'tarball_filename': 'foo.tar.gz',
+                'filespecs': [
+                    self.FILESPEC_DICT_1,
+                ],
+            },
+            pods.VolumeSpec.to_dict(volumespec),
+        )
+
+    def test_volumespec(self):
+        volumespec = pods.VolumeSpec(
+            name='//foo:bar',
+            tarball_filename='foo.tar.gz',
+            filespecs=[
+                pods.FileSpec(path='foo/bar', mtime=1001),
+            ],
+        )
+        self.assertEqual(
+            {
+                'name': '//foo:bar',
+                'tarball_filename': 'foo.tar.gz',
+                'filespecs': [
+                    self.FILESPEC_DICT_1,
+                ],
+            },
+            pods.VolumeSpec.to_dict(volumespec),
         )
 
 

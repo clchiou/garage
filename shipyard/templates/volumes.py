@@ -7,6 +7,7 @@ module.
 
 __all__ = [
     'fill_tarball',
+    'apply_filespec_to_tarball',
 ]
 
 import io
@@ -24,14 +25,11 @@ def fill_tarball(spec, tarball):
     The spec object is usually loaded from a JSON or YAML file.
     """
     for member_spec in spec.get('members', ()):
-        _add_member(member_spec, tarball)
+        spec = filespecs.make_filespec(member_spec)
+        apply_filespec_to_tarball(spec, tarball)
 
 
-def _add_member(member_spec, tarball):
-    """Add a member to tarball from the spec."""
-
-    spec = filespecs.make_filespec(**member_spec)
-
+def apply_filespec_to_tarball(spec, tarball):
     tarinfo, input_path, fileobj = _make_tarinfo(tarball, spec)
 
     # Skip adding '.', which seems to be a nice thing to do.

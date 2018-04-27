@@ -1,16 +1,20 @@
 """Build rule template for and object model of images and pods."""
 
 __all__ = [
-    # Object model
+    # Pod object model.
     'App',
     'Image',
     'Pod',
     'Port',
     'SystemdUnit',
     'Volume',
-    # Build rule template as decorator
+    # Volume object model.
+    'FileSpec',
+    'VolumeSpec',
+    # Build rule template as decorator.
     'app_specifier',
     'image_specifier',
+    'volume_specifier',
     'pod_specifier',
 ]
 
@@ -19,12 +23,15 @@ import hashlib
 import json
 import logging
 import re
+import tarfile
 
 from garage import scripts
 
 from foreman import define_parameter, define_rule, rule, to_path
 
+from . import filespecs as filespecs_lib
 from . import utils
+from .volumes import apply_filespec_to_tarball
 
 
 LOG = logging.getLogger(__name__)
@@ -72,7 +79,7 @@ def app_specifier(specifier):
     specify_app = (
         define_rule(name + 'specify_app')
         .depend('//base:build')
-        .with_annotation('rule-type', 'specify_app')  # For do-build tool
+        .with_annotation('rule-type', 'specify_app')  # For release tool.
         .with_annotation('app-parameter', specifier.__name__)
     )
 
@@ -105,7 +112,7 @@ def image_specifier(specifier):
     specify_image = (
         define_rule(name + 'specify_image')
         .depend('//base:build')
-        .with_annotation('rule-type', 'specify_image')  # For do-build tool
+        .with_annotation('rule-type', 'specify_image')  # For release tool.
         .with_annotation('build-image-rule', name + 'build_image')
     )
 
@@ -123,9 +130,9 @@ def image_specifier(specifier):
         )
 
     @rule(name + 'build_image')
-    @rule.depend(name + 'specify_image')  # For release tool
+    @rule.depend(name + 'specify_image')  # For release tool.
     @rule.depend(name + 'write_manifest')
-    @rule.annotate('rule-type', 'build_image')  # For do-build tool
+    @rule.annotate('rule-type', 'build_image')  # For release tool.
     @rule.annotate('image-parameter', specifier.__name__)
     @rule.annotate('version-parameter', name + 'version')
     def build_image(parameters):
@@ -188,6 +195,49 @@ def _compute_sha512(sha512_file_path):
     sha512_file_path.write_text('%s\n' % hasher.hexdigest())
 
 
+VolumeRules = namedtuple('VolumeRules', 'specify_volume build_volume')
+
+
+def volume_specifier(specifier):
+    """Define NAME/build_volume rule.
+
+    The output will be written to OUTPUT/VOLUME_NAME directory.
+    """
+
+    name = specifier.__name__ + '/'
+
+    VolumeSpec.define_parameter(specifier.__name__).with_derive(specifier)
+
+    define_parameter(name + 'version')
+
+    specify_volume = (
+        define_rule(name + 'specify_volume')
+        .depend('//base:build')
+        .with_annotation('rule-type', 'specify_volume')  # For release tool.
+        .with_annotation('build-volume-rule', name + 'build_volume')
+    )
+
+    @rule(name + 'build_volume')
+    @rule.depend(name + 'specify_volume')
+    @rule.annotate('rule-type', 'build_volume')  # For release tool.
+    @rule.annotate('volume-parameter', specifier.__name__)
+    @rule.annotate('version-parameter', name + 'version')
+    def build_volume(parameters):
+        """Build volume tarball."""
+        volumespec = parameters[specifier.__name__]
+        tarball_path = (
+            parameters['//base:output'] / volumespec.tarball_filename)
+        # XXX `open` of Python 3.5 doesn't accept path-like.
+        with tarfile.open(str(tarball_path), 'x:gz') as tarball:
+            for filespec in volumespec.filespecs:
+                apply_filespec_to_tarball(filespec, tarball)
+
+    return VolumeRules(
+        specify_volume=specify_volume,
+        build_volume=build_volume,
+    )
+
+
 PodRules = namedtuple('PodRules', 'specify_pod build_pod')
 
 
@@ -207,12 +257,12 @@ def pod_specifier(specifier):
     specify_pod = (
         define_rule(name + 'specify_pod')
         .depend('//base:build')
-        .with_annotation('rule-type', 'specify_pod')  # For do-build tool
+        .with_annotation('rule-type', 'specify_pod')  # For release tool.
     )
 
     @rule(name + 'build_pod')
     @rule.depend(name + 'specify_pod')
-    @rule.annotate('rule-type', 'build_pod')  # For do-build tool
+    @rule.annotate('rule-type', 'build_pod')  # For release tool.
     @rule.annotate('pod-parameter', specifier.__name__)
     @rule.annotate('version-parameter', name + 'version')
     def build_pod(parameters):
@@ -653,6 +703,29 @@ class Image(ModelObject):
             'labels': labels,
             'app': self.app.get_pod_manifest_entry(),
         }
+
+
+class FileSpec(filespecs_lib.FileSpec, ModelObject):
+
+    FIELDS = [(field, None) for field in filespecs_lib.FileSpec._fields]
+
+    def __new__(cls, **spec_data):
+        spec_data = filespecs_lib.populate_filespec(spec_data)
+        return super().__new__(cls, **spec_data)
+
+
+class VolumeSpec(ModelObject):
+
+    FIELDS = [
+        ('name', None),
+        ('tarball_filename', None),
+        ('filespecs', [FileSpec]),
+    ]
+
+    def __init__(self, *, name, tarball_filename, filespecs):
+        self.name = name
+        self.tarball_filename = tarball_filename
+        self.filespecs = filespecs
 
 
 class SystemdUnit(ModelObject):

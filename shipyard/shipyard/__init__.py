@@ -146,6 +146,17 @@ class RuleIndex:
 
         return Label.parse(pod_names.pop())
 
+    def get_volume_name(self, rule_obj):
+        volume_parameter_label = rule_obj.annotations.get('volume-parameter')
+        if volume_parameter_label is None:
+            raise AssertionError(
+                'expect volume name from annotation: {}'.format(rule_obj))
+        volume_parameter = self.get_parameter(
+            volume_parameter_label,
+            implicit_path=rule_obj.label.path,
+        )
+        return Label.parse(volume_parameter.default['name'])
+
 
 def find_default_path(input_roots, kind, label):
     for input_root in input_roots:

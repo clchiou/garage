@@ -90,7 +90,7 @@ def tapeout_filespecs(parameters, top_path, spec_dicts):
     with scripts.using_sudo():
         scripts.mkdir(top_path)
         for spec_dict in spec_dicts:
-            spec = filespecs.make_filespec(**spec_dict)
+            spec = filespecs.make_filespec(spec_dict)
             path = top_path / spec.path
             if spec.kind == 'file':
                 if spec.content is not None:

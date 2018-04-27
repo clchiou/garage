@@ -96,10 +96,7 @@ def generate_instruction(args):
         label = rules.get_pod_name(rule_obj)
         kind = 'pods'
     elif rule_type == 'build_volume':
-        label = Label.parse(
-            rule_obj.annotations['volume-name'],
-            implicit_path=rule_obj.label.path,
-        )
+        label = rules.get_volume_name(rule_obj)
         kind = 'volumes'
     else:
         raise ValueError(
