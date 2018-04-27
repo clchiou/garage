@@ -6,27 +6,30 @@ import tarfile
 import tempfile
 from pathlib import Path
 
+from templates import filespecs
 from templates import volumes
+
+
+def apply_specs(specs, tarball):
+    for spec in specs:
+        spec = filespecs.make_filespec(spec)
+        volumes.apply_filespec_to_tarball(spec, tarball)
 
 
 class VolumesTest(unittest.TestCase):
 
-    def test_fill_tarball(self):
+    def test_apply_filespec_to_tarball(self):
         with tempfile.NamedTemporaryFile() as temp_tar:
-            self.do_test_fill_tarball(temp_tar.name)
+            self.do_test_apply_filespec_to_tarball(temp_tar.name)
 
-    def do_test_fill_tarball(self, tarball_path):
+    def do_test_apply_filespec_to_tarball(self, tarball_path):
 
         mtime = int(datetime.datetime(2000, 1, 2, 3, 4).timestamp())
 
         # Test case: empty spec.
 
-        spec = {
-            'members': [
-            ],
-        }
         with tarfile.open(tarball_path, 'w') as tarball:
-            volumes.fill_tarball(spec, tarball)
+            apply_specs([], tarball)
 
         self.assertEqual(
             b'',
@@ -35,37 +38,35 @@ class VolumesTest(unittest.TestCase):
 
         # Test case: in-place content.
 
-        spec = {
-            'members': [
-                {
-                    'path': 'tmp',
-                    'mode': 0o1777,
-                    'mtime': mtime,
-                    'kind': 'dir',
-                    'uid': 0,
-                    'gid': 0,
-                },
-                {
-                    'path': 'tmp/foo.txt',
-                    'mode': 0o644,
-                    'mtime': mtime,
-                    'kind': 'file',
-                    'owner': 'nobody',
-                    'group': 'nogroup',
-                },
-                {
-                    'path': 'bar.txt',
-                    'mode': 0o600,
-                    'mtime': mtime,
-                    'kind': 'file',
-                    'owner': 'nobody',
-                    'group': 'nogroup',
-                    'content': 'hello world',
-                },
-            ],
-        }
+        specs = [
+            {
+                'path': 'tmp',
+                'mode': 0o1777,
+                'mtime': mtime,
+                'kind': 'dir',
+                'uid': 0,
+                'gid': 0,
+            },
+            {
+                'path': 'tmp/foo.txt',
+                'mode': 0o644,
+                'mtime': mtime,
+                'kind': 'file',
+                'owner': 'nobody',
+                'group': 'nogroup',
+            },
+            {
+                'path': 'bar.txt',
+                'mode': 0o600,
+                'mtime': mtime,
+                'kind': 'file',
+                'owner': 'nobody',
+                'group': 'nogroup',
+                'content': 'hello world',
+            },
+        ]
         with tarfile.open(tarball_path, 'w') as tarball:
-            volumes.fill_tarball(spec, tarball)
+            apply_specs(specs, tarball)
 
         self.assertEqual(
             (b'drwxrwxrwt root/root         0 2000-01-02 03:04 tmp/\n'
@@ -76,18 +77,16 @@ class VolumesTest(unittest.TestCase):
 
         # Test case: content_path.
 
-        spec = {
-            'members': [
-                {
-                    'path': '.',
-                    'owner': 'nobody',
-                    'group': 'nogroup',
-                    'content_path': Path(__file__).parent / 'testdata',
-                },
-            ],
-        }
+        specs = [
+            {
+                'path': '.',
+                'owner': 'nobody',
+                'group': 'nogroup',
+                'content_path': Path(__file__).parent / 'testdata',
+            },
+        ]
         with tarfile.open(tarball_path, 'w') as tarball:
-            volumes.fill_tarball(spec, tarball)
+            apply_specs(specs, tarball)
 
         self.assertRegex(
             self._list_tarball(tarball_path),

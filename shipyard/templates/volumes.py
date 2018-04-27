@@ -6,7 +6,6 @@ module.
 """
 
 __all__ = [
-    'fill_tarball',
     'apply_filespec_to_tarball',
 ]
 
@@ -15,18 +14,6 @@ import tarfile
 from pathlib import Path
 
 from garage.assertions import ASSERT
-
-from templates import filespecs
-
-
-def fill_tarball(spec, tarball):
-    """Fill tarball content from the spec.
-
-    The spec object is usually loaded from a JSON or YAML file.
-    """
-    for member_spec in spec.get('members', ()):
-        spec = filespecs.make_filespec(member_spec)
-        apply_filespec_to_tarball(spec, tarball)
 
 
 def apply_filespec_to_tarball(spec, tarball):
