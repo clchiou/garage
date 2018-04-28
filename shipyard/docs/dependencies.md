@@ -17,6 +17,7 @@ first party host tools
   buildtools            x
 
 thrid party
+  boost             x                       1.67.0
   capnproto         x                       v0.6.1
   cpython           x                       3.7.0b3
   curio                 x                   0.7

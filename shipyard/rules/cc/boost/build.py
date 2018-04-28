@@ -14,10 +14,10 @@ from templates import common
 
 
 common.define_archive(
-    uri='https://sourceforge.net/projects/boost/files/boost/1.63.0/boost_1_63_0.tar.bz2/download',
-    filename='boost_1_63_0.tar.bz2',
-    output='boost_1_63_0',
-    checksum='md5-1c837ecd990bb022d07e7aab32b09847',
+    uri='https://dl.bintray.com/boostorg/release/1.67.0/source/boost_1_67_0.tar.bz2',
+    filename='boost_1_67_0.tar.bz2',
+    output='boost_1_67_0',
+    checksum='md5-ced776cb19428ab8488774e1415535ab',
 )
 
 
