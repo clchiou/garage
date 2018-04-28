@@ -8,11 +8,10 @@
 
   These steps are automated:
 
-    ./scripts/make-builder.sh \
+    ./scripts/do-make-builder.sh \
         "${BUILDER_DOCKER_REPO}:${VERSION_TAG}" \
         "${BASE_BUILDER}" \
-        --volume /path/to/local/jdk/copies:/home/plumber/input/jdk:ro \
-        //meta:third-party
+        "/path/to/local/warehouse"
 
 * You may reduce developer build time even further by disabling release
   build:
