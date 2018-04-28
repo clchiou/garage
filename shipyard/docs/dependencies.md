@@ -29,7 +29,7 @@ thrid party
     markupsafe          x
   nanomsg           x                       b7fd165c20f2fa86192a19e3db2bed46bfadd025 (not far from 1.0.0)
   nghttp2           x                       v1.20.0
-  pyyaml                    x               3.12
+  pyyaml                    x               b6cbfeec35e019734263a8f4e6a3340e94fe0a4f (recent master that supports python 3.7)
   requests              x                   2.13.0
   sqlalchemy                x               1.2.7
   v8                x                       5.9.61
