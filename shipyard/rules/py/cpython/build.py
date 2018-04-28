@@ -27,14 +27,14 @@ LOG = logging.getLogger(__name__)
 Version = namedtuple('Version', 'major minor')
 (define_parameter.namedtuple_typed(Version, 'version')
  .with_doc('CPython version.')
- .with_default(Version('3', '6')))
+ .with_default(Version('3', '7')))
 
 
 define_archive(
-    uri='https://www.python.org/ftp/python/3.6.1/Python-3.6.1rc1.tar.xz',
-    filename='Python-3.6.1rc1.tar.xz',
-    output='Python-3.6.1rc1',
-    checksum='md5-5919c290d3727d81c3472e6c46fd78b6',
+    uri='https://www.python.org/ftp/python/3.7.0/Python-3.7.0b3.tar.xz',
+    filename='Python-3.7.0b3.tar.xz',
+    output='Python-3.7.0b3',
+    checksum='md5-1a9dca37ccfddea7b9f9ee65789e7036',
 )
 
 
@@ -56,8 +56,8 @@ define_parameter.list_typed('configuration').with_default([
 ### Dependencies
 
 
-# This list is derived from running `apt-get build-dep python3.6` on
-# Ubuntu 16.10 (not all packages are included)
+# This list is derived from running `apt-get build-dep python3.7` on
+# Ubuntu 18.04 (not all packages are included)
 define_distro_packages([
     # Build tool
     'autoconf',
@@ -76,7 +76,7 @@ define_distro_packages([
     'libc6-dev',
     'libmpc3',
     'libmpdec-dev',
-    'libmpfr4',
+    'libmpfr6',
     'libmpx2',
     'libsigsegv2',
     # Compression

@@ -18,7 +18,7 @@ first party host tools
 
 thrid party
   capnproto         x                       v0.6.1
-  cpython           x                       3.6.1rc1
+  cpython           x                       3.7.0b3
   curio                 x                   0.7
   envoy             x                       f8dbb065177e61d3b6fc74eda59c59732b07dfbd (not far from v1.4.0)
   libjpeg-turbo     x                       version bundled with distro
