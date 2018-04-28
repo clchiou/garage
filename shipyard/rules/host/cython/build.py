@@ -4,7 +4,7 @@ from garage import scripts
 
 
 PACKAGE = 'cython'
-VERSION = '0.25.2'
+VERSION = '0.28.2'
 
 
 @rule
