@@ -6,10 +6,10 @@ from templates import common
 
 
 common.define_archive(
-    uri='https://services.gradle.org/distributions/gradle-3.4.1-bin.zip',
-    filename='gradle-3.4.1-bin.zip',
-    output='gradle-3.4.1',
-    checksum='md5-ccfa2f8bbfd572dea495e17b0079ec03',
+    uri='https://services.gradle.org/distributions/gradle-4.7-bin.zip',
+    filename='gradle-4.7-bin.zip',
+    output='gradle-4.7',
+    checksum='md5-3e5af867778cd0a8e00e62257f426e09',
 )
 
 

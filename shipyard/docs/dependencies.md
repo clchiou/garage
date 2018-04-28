@@ -38,6 +38,7 @@ thrid party host tools
   capnproto-java                    x       v0.1.2
   cython                        x           0.28.2
   depot_tools           x                   master
+  gradle                            x       4.7
   node              x                       4.2.6 (distributed with Ubuntu 16.10)
     npm                                 x   3.5.2
 

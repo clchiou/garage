@@ -85,5 +85,5 @@ allprojects {
 // It is silly to track the gradle wrapper in the version control.
 // Run `gradle wrapper` to generate the wrapper instead.
 task wrapper(type: Wrapper) {
-    gradleVersion = '4.0.1'
+    gradleVersion = '4.7'
 }
