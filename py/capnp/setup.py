@@ -26,7 +26,7 @@ setup(
             ],
             include_dirs = CAPNP.include_dirs,
             library_dirs = CAPNP.library_dirs,
-            libraries = ['boost_python3'] + CAPNP.libraries,
+            libraries = ['boost_python37'] + CAPNP.libraries,
             extra_compile_args = ['-std=c++11'] + CAPNP.extra_compile_args,
         ),
     ],
