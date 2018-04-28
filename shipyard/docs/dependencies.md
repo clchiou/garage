@@ -31,7 +31,7 @@ thrid party
   nghttp2           x                       v1.20.0
   pyyaml                    x               3.12
   requests              x                   2.13.0
-  sqlalchemy                x               1.1.6
+  sqlalchemy                x               1.2.7
   v8                x                       5.9.61
 
 thrid party host tools
