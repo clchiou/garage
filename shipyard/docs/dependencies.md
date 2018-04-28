@@ -22,6 +22,7 @@ thrid party
   cpython           x                       3.7.0b3
   curio                 x                   0.7
   envoy             x                       f8dbb065177e61d3b6fc74eda59c59732b07dfbd (not far from v1.4.0)
+  jdk                               x       10.0.1
   libjpeg-turbo     x                       version bundled with distro
   lxml                      x               3.7.3
   mako                  x                   1.0.6
