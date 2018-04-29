@@ -56,6 +56,42 @@ def parse_podv(podv):
     return label, version
 
 
+@apps.with_prog('read-prop')
+@apps.with_help('read build rule property')
+@shipyard.with_foreman_argument
+@apps.with_argument(
+    'property', choices=('rule-type', 'label'),
+    help='choose property',
+)
+@apps.with_argument(
+    'rule', help='set pod build rule',
+)
+def read_property(args):
+    """Read build rule property."""
+    rules = shipyard.RuleIndex(args)
+    rules.load_from_labels([args.rule])
+    rule_obj = rules.get_rule(args.rule)
+    rule_type = rule_obj.annotations.get('rule-type')
+    if args.property == 'rule-type':
+        if rule_type is not None:
+            print(rule_type)
+        else:
+            LOG.warning('rule %s has no rule-type annotation', args.rule)
+    elif args.property == 'label':
+        # FIXME: This is probably confusing: For build rules that are
+        # not annotated with rule-type, we treat it as a build_pod rule
+        # for convenience.
+        if rule_type == 'build_pod' or rule_type is None:
+            print(rules.get_pod_name(rule_obj))
+        elif rule_type == 'build_volume':
+            print(rules.get_volume_name(rule_obj))
+        else:
+            LOG.warning('label is undefined for rule %s', args.rule)
+    else:
+        raise AssertionError
+    return 0
+
+
 @apps.with_prog('gen-inst')
 @apps.with_help('generate instruction file')
 @shipyard.with_foreman_argument
@@ -170,18 +206,6 @@ def cat_instruction(args):
     return 0
 
 
-@apps.with_prog('read-kind')
-@apps.with_help('print the kind of the instruction')
-@with_argument_podv
-def read_kind(args):
-    """Print the kind of the instruction."""
-    label, version = parse_podv(args.podv)
-    kind, _ = shipyard.release.ReleaseRepo.detect_instruction_path(
-        args.release_root, label, version)
-    print(kind)
-    return 0
-
-
 @apps.with_help('build pods')
 @shipyard.with_foreman_argument
 @shipyard.with_builder_argument
@@ -287,9 +311,9 @@ def bind(args):
 )
 @apps.with_apps(
     'action', 'release management action',
+    read_property,
     generate_instruction,
     cat_instruction,
-    read_kind,
     build,
     build_instructions,
     bind,
