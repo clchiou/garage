@@ -25,7 +25,7 @@ thrid party
   jdk                               x       10.0.1
   libjpeg-turbo     x                       version bundled with distro
   lxml                      x               4.2.1
-  mako                  x                   1.0.6
+  mako                  x                   1.0.7
     markupsafe          x
   nanomsg           x                       b7fd165c20f2fa86192a19e3db2bed46bfadd025 (not far from 1.0.0)
   nghttp2           x                       v1.20.0
