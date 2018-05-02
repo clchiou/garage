@@ -7,7 +7,7 @@ __all__ = [
     'set_pthread_name',
 ]
 
-import collections
+import collections.abc
 import functools
 import logging
 import threading
@@ -67,7 +67,7 @@ class Priority:
     """
 
     def __init__(self, priority):
-        ASSERT.type_of(priority, collections.Hashable)
+        ASSERT.type_of(priority, collections.abc.Hashable)
         self._priority = priority
 
     def __str__(self):

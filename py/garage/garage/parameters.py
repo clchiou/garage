@@ -32,6 +32,7 @@ __all__ = [
 ]
 
 import collections
+import collections.abc
 import enum
 import json
 import logging
@@ -431,8 +432,8 @@ _SCALAR_PARAMETER_DESCRIPTORS = {
     str: ScalarParameterDescriptor(str, show=repr),
     Path: ScalarParameterDescriptor(Path, translate=Path),
     # Make an exception for dict-like types.
-    collections.Mapping: ScalarParameterDescriptor(
-        type=collections.Mapping,
+    collections.abc.Mapping: ScalarParameterDescriptor(
+        type=collections.abc.Mapping,
         parse=json.loads,
         show=json.dumps,
         metavar='JSON_STR',
@@ -519,8 +520,8 @@ def define_scalar_descriptor(
     # pathlib returns platform-dependent subclass of Path.
     if issubclass(type, Path):
         type = Path
-    elif issubclass(type, collections.Mapping):
-        type = collections.Mapping
+    elif issubclass(type, collections.abc.Mapping):
+        type = collections.abc.Mapping
     return scalar_descriptors[type]
 
 
@@ -575,7 +576,8 @@ def define_matrix_descriptor(
     return descriptor
 
 
-_SCALAR_TYPES = (bool, float, int, str, Path, enum.Enum, collections.Mapping)
+_SCALAR_TYPES = (
+    bool, float, int, str, Path, enum.Enum, collections.abc.Mapping)
 
 
 def is_scalar_type(type):

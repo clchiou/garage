@@ -7,6 +7,7 @@ __all__ = [
 ]
 
 import collections
+import collections.abc
 import enum
 import warnings
 
@@ -301,7 +302,7 @@ register_converter(DynamicStruct.Builder, DynamicObjectMeta.convert_struct)
 register_serializer(DynamicObject, DynamicObject._serialize_asdict)
 
 
-class DynamicListAdapter(collections.MutableSequence):
+class DynamicListAdapter(collections.abc.MutableSequence):
 
     def __init__(self, list_):
         assert isinstance(list_, (DynamicList, DynamicList.Builder))
@@ -409,7 +410,7 @@ def _setter_helper(type_, target, key, value, get_obj):
             obj = get_obj()
             obj._struct.copy_from(value._struct)
 
-        elif isinstance(value, collections.Mapping):
+        elif isinstance(value, collections.abc.Mapping):
             target.init(key)
             obj = get_obj()
             for k, v in value.items():

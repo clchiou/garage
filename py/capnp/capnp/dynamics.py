@@ -10,6 +10,7 @@ __all__ = [
 ]
 
 import collections
+import collections.abc
 import enum
 import os
 
@@ -207,12 +208,12 @@ class DynamicEnum:
         return hash(self.enumerant.ordinal)
 
 
-class DynamicList(collections.Sequence):
+class DynamicList(collections.abc.Sequence):
 
     # NOTE: Since Cap'n Proto doesn't seem to allow List(AnyPointer), we
     # don't have to handle that in DynamicList.
 
-    class Builder(collections.MutableSequence):
+    class Builder(collections.abc.MutableSequence):
 
         def __init__(self, schema, list_):
             assert schema.kind is Schema.Kind.LIST
@@ -349,9 +350,9 @@ class DynamicList(collections.Sequence):
         return hash(self._values)
 
 
-class DynamicStruct(collections.Mapping):
+class DynamicStruct(collections.abc.Mapping):
 
-    class Builder(collections.MutableMapping):
+    class Builder(collections.abc.MutableMapping):
 
         def __init__(self, schema, struct):
             assert schema.kind is Schema.Kind.STRUCT

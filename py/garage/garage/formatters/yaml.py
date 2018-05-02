@@ -6,7 +6,7 @@ __all__ = [
     'represent_mapping',
 ]
 
-import collections
+import collections.abc
 import datetime
 import enum
 
@@ -42,7 +42,7 @@ def represent_enum(dumper, value):
 
 def represent_mapping(dumper, value, flow_style=None):
     """Derived from BaseRepresenter.represent_mapping."""
-    ASSERT.type_of(value, collections.Mapping)
+    ASSERT.type_of(value, collections.abc.Mapping)
     pairs = []
     tag = 'tag:yaml.org,2002:map'
     node = yaml.MappingNode(tag, pairs, flow_style=flow_style)

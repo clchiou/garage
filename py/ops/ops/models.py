@@ -4,7 +4,7 @@ __all__ = [
     'Pod',
 ]
 
-import collections
+import collections.abc
 import copy
 import logging
 import os.path
@@ -99,7 +99,7 @@ class ModelObject:
                 errors.append('unknown field %r' % name)
                 continue
             checks = cls.FIELDS[name]
-            if not isinstance(checks, collections.Iterable):
+            if not isinstance(checks, collections.abc.Iterable):
                 checks = [checks]
             for check in checks:
                 error = check(name, value)
