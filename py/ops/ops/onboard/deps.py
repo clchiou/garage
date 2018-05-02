@@ -40,9 +40,9 @@ def define_package(**kwargs):
 
 
 @define_package(
-    version='1.29.0',
-    uri='https://github.com/rkt/rkt/releases/download/v1.29.0/rkt-v1.29.0.tar.gz',
-    checksum='sha512-80d669b97f5739e5d594828ff3d0a02db59dadd179b90a0f192b24fdabf14709d96329c3d09a8b4fc3f3e07874f551f48118e0b62400e53e5df2b8c574e7a841',
+    version='1.30.0',
+    uri='https://github.com/rkt/rkt/releases/download/v1.30.0/rkt-v1.30.0.tar.gz',
+    checksum='sha512-f5451234761825380179122a73799864c155b68cc52ce204e4361f60b87bdf8a48fb9c9b991d7f600d8bf8948c4bb2ed118bb5874eb9fc7699620913c2ace754',
     strip_components=1,
 )
 def rkt(package):
