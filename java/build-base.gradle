@@ -8,17 +8,19 @@
 ext {
     // Enumerate version of all dependency here.
     args4jVersion = '2.33'
-    capnprotoVersion = '0.1.2'
-    daggerVersion = '2.11'
+    capnprotoVersion = '0.1.3'
+    daggerVersion = '2.15'
     findbugsVersion = '3.0.2'
-    guavaVersion = '22.0'
-    jnaVersion = '4.4.0'
-    jooqVersion = '3.9.3'
-    junitVersion = '5.0.0-M5'
+    guavaVersion = '25.0-jre'
+    jnaVersion = '4.5.1'
+    jooqVersion = '3.10.6'
+    junitVersion = '5.2.0'
+    // XXX Don't upgrade Lucene for now; otherwise you need to handle
+    // backward compatibility of index format.
     luceneVersion = '6.6.0'
     slf4jVersion = '1.7.25'
-    snakeyamlVersion = '1.18'
-    sqliteJdbcVersion = '3.19.3'
+    snakeyamlVersion = '1.21'
+    sqliteJdbcVersion = '3.21.0.1'
 }
 
 allprojects {
@@ -27,7 +29,6 @@ allprojects {
     apply plugin: 'java'
     apply plugin: 'net.ltgt.apt'
     apply plugin: 'nu.studer.jooq'
-    apply plugin: 'org.junit.platform.gradle.plugin'
 
     sourceCompatibility = '1.8'
     targetCompatibility = '1.8'
@@ -58,6 +59,10 @@ allprojects {
 
     // Since We don't have a capnp plugin yet, we add srcDir here.
     sourceSets.main.java.srcDir new File(buildDir, 'generated/source/capnp/main')
+
+    test {
+        useJUnitPlatform()
+    }
 
     shadowJar {
         // Don't know what are these - just remove them.

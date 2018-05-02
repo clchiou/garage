@@ -28,7 +28,6 @@ DEPS = [
 
     'org.junit.jupiter:junit-jupiter-api',
     'org.junit.jupiter:junit-jupiter-engine',
-    'org.junit.platform:junit-platform-gradle-plugin',
 
     'org.apache.lucene:lucene-core',
     'org.apache.lucene:lucene-queryparser',
