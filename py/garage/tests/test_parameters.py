@@ -57,7 +57,7 @@ class ParametersTest(unittest.TestCase):
     def test_infer_vector_type(self):
 
         self.assertIs(
-            typing.Tuple[int],
+            typing.Tuple[(int,)],
             parameters.infer_vector_type((1,)),
         )
 

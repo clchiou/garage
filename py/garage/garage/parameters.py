@@ -420,6 +420,30 @@ def _define_namespace(root_namespace, module_name, doc, namespace):
         return namespace
 
 
+# XXX PEP 560 / Python 3.7 removes typing.GenericMeta, making it harder
+# to categorize types (e.g., is it a typing.List?).  For now, we will
+# just work around this issue in _is_generic_type, _is_list_type, and
+# _is_tuple_type.
+
+
+def _is_generic_type(type):
+    return isinstance(type, typing._GenericAlias)
+
+
+def _is_list_type(type):
+    if isinstance(type, typing._GenericAlias):
+        return type.__origin__ is list
+    else:
+        return issubclass(type, list)
+
+
+def _is_tuple_type(type):
+    if isinstance(type, typing._GenericAlias):
+        return type.__origin__ is tuple
+    else:
+        return issubclass(type, tuple)
+
+
 _SCALAR_PARAMETER_DESCRIPTORS = {
     bool: ScalarParameterDescriptor(
         type=bool,
@@ -474,8 +498,8 @@ def _create_parameter(
 
     type = type or default.__class__
 
-    if issubclass(type, list):
-        if not isinstance(type, typing.GenericMeta):
+    if _is_list_type(type):
+        if not _is_generic_type(type):
             type = infer_matrix_type(default)
         descriptor = define_matrix_descriptor(
             matrix_descriptors,
@@ -484,8 +508,8 @@ def _create_parameter(
             type,
         )
 
-    elif issubclass(type, tuple):
-        if not isinstance(type, typing.GenericMeta):
+    elif _is_tuple_type(type):
+        if not _is_generic_type(type):
             type = infer_vector_type(default)
         descriptor = define_vector_descriptor(
             vector_descriptors,
@@ -508,6 +532,7 @@ def _create_parameter(
 def define_scalar_descriptor(
         scalar_descriptors,
         type):
+    ASSERT.false(_is_generic_type(type))
     # Create scalar descriptor on-the-fly for enum types.
     if type not in scalar_descriptors and issubclass(type, enum.Enum):
         scalar_descriptors[type] = ScalarParameterDescriptor(
@@ -550,7 +575,7 @@ def define_matrix_descriptor(
     descriptor = matrix_descriptors.get(type)
     if descriptor is None:
         vector_type = type.__args__[0]
-        if not issubclass(vector_type, typing.Tuple):
+        if not _is_tuple_type(vector_type):
             descriptor = OneDimensionalMatrixParameterDescriptor(
                 define_scalar_descriptor(
                     scalar_descriptors,
@@ -581,7 +606,7 @@ _SCALAR_TYPES = (
 
 
 def is_scalar_type(type):
-    return issubclass(type, _SCALAR_TYPES)
+    return not _is_generic_type(type) and issubclass(type, _SCALAR_TYPES)
 
 
 def infer_vector_type(value):
