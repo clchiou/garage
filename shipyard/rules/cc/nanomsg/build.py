@@ -8,7 +8,7 @@ from templates import common
 common.define_git_repo(
     repo='https://github.com/nanomsg/nanomsg.git',
     # A recent commit not far from version 1.0.0
-    treeish='b7fd165c20f2fa86192a19e3db2bed46bfadd025',
+    treeish='1.1.2',
 )
 
 

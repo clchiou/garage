@@ -27,8 +27,8 @@ thrid party
   lxml                      x               4.2.1
   mako                  x                   1.0.7
     markupsafe          x
-  nanomsg           x                       b7fd165c20f2fa86192a19e3db2bed46bfadd025 (not far from 1.0.0)
   nghttp2           x                       v1.20.0
+  nanomsg           x                       1.1.2
   pyyaml                    x               b6cbfeec35e019734263a8f4e6a3340e94fe0a4f (recent master that supports python 3.7)
   requests              x                   2.13.0
   sqlalchemy                x               1.2.7
