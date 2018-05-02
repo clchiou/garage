@@ -16,6 +16,9 @@ first party
 first party host tools
   buildtools            x
 
+base system
+  ubuntu                                    18.04
+
 thrid party
   boost             x                       1.67.0
   capnproto         x                       v0.6.1
@@ -39,8 +42,8 @@ thrid party host tools
   cython                        x           0.28.2
   depot_tools           x                   master
   gradle                            x       4.7
-  node              x                       4.2.6 (distributed with Ubuntu 16.10)
-    npm                                 x   3.5.2
+  node              x                       version bundled with distro
+    npm                                 x
 
 C  = C/C++
 
