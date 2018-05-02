@@ -129,7 +129,8 @@ cdef extern from 'include/v8.h' namespace 'v8::V8':
 
     cdef bool Initialize()
 
-    cdef bool InitializeICU(const char* icu_data_file)
+    cdef bool InitializeICUDefaultLocation(
+        const char* exec_path, const char* icu_data_file)
 
     cdef void InitializeExternalStartupData(
         const char* natives_blob, const char* snapshot_blob)

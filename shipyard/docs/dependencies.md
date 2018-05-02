@@ -35,7 +35,7 @@ thrid party
   pyyaml                    x               b6cbfeec35e019734263a8f4e6a3340e94fe0a4f (recent master that supports python 3.7)
   requests              x                   2.18.4
   sqlalchemy                x               1.2.7
-  v8                x                       5.9.61
+  v8                x                       6.6.346 (revision d500271571b92cb18dcd7b15885b51e8f437d640)
 
 thrid party host tools
   capnproto-java                    x       v0.1.2

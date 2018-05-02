@@ -8,10 +8,12 @@ from templates import common
 
 
 # Find the current releases here: https://omahaproxy.appspot.com/
-(define_parameter('version')
- .with_doc('V8 version.')
+# In Chromium's DEPS file you may find V8's revision.
+(define_parameter('revision')
+ .with_doc('V8 revision.')
  .with_type(str)
- .with_default('5.9.61'))
+ # Version 6.6.346.
+ .with_default('d500271571b92cb18dcd7b15885b51e8f437d640'))
 
 
 common.define_distro_packages([
@@ -26,19 +28,16 @@ common.define_distro_packages([
 (define_parameter.path_typed('output')
  .with_doc('Path to V8 build output directory.')
  .with_derive(
-     lambda ps: ps['//base:drydock'] / get_relpath() / 'out.gn/x64.release'))
-
-
-ARGS_GN_FORMAT = '''\
-allow_posix_link_time_opt = {release}
-is_component_build = true
-is_debug = false
-is_official_build = {release}
-target_cpu = "x64"
-'''
+     lambda ps:
+     ps['//base:drydock'] / get_relpath() /
+     'out.gn' /
+     ('x64.release' if ps['//base:release'] else 'x64.debug')
+ )
+)
 
 
 LIBRARIES = [
+    'libc++.so',
     'libicui18n.so',
     'libicuuc.so',
     'libv8_libbase.so',
@@ -57,9 +56,11 @@ def fetch(parameters):
         scripts.mkdir(drydock_src.parent)
         with scripts.directory(drydock_src.parent):
             scripts.execute(['fetch', 'v8'])
-        with scripts.directory(drydock_src):
-            scripts.execute(['git', 'checkout', parameters['version']])
-            scripts.execute(['gclient', 'sync'])
+            scripts.execute([
+                'gclient',
+                'sync',
+                '--revision', parameters['revision'],
+            ])
 
 
 @rule
@@ -67,28 +68,25 @@ def fetch(parameters):
 @rule.depend('install_packages')
 def build(parameters):
     drydock_src = parameters['//base:drydock'] / get_relpath()
-    output = drydock_src / 'out.gn/x64.release'
+    output = parameters['output']
     if not (output / 'args.gn').exists():
         scripts.mkdir(output)
-        #
-        # TODO: Fix release build
-        # 2017-03-23: I encountered two issues during release build:
-        #
-        # * LLVMgold.so was not downloaded by the build tool; I solved
-        #   this by manually running:
-        #   GYP_DEFINES='cfi_vptr=1' v8/gypfiles/download_gold_plugin.py
-        #
-        # * Build crashed when generating sanpshot_blob.bin with:
-        #   python ../../tools/run.py ./mksnapshot --startup_src gen/snapshot.cc --random-seed 314159265 --startup_blob snapshot_blob.bin
-        #
-        #release = 'true' if parameters['//base:release'] else 'false'
-        release = 'false'
-        scripts.ensure_contents(
-            output / 'args.gn', ARGS_GN_FORMAT.format(release=release))
+        if parameters['//base:release']:
+            config = 'x64.release'
+            official_build = 'is_official_build=true'
+        else:
+            config = 'x64.debug'
+            official_build = 'is_official_build=false'
         with scripts.directory(drydock_src):
-            scripts.execute(['buildtools/linux64/gn',
-                             'gen', 'out.gn/x64.release', '--check'])
-            scripts.execute(['ninja', '-C', 'out.gn/x64.release'])
+            scripts.execute([
+                'tools/dev/v8gen.py',
+                'gen',
+                config,
+                '--',
+                'is_component_build=true',
+                official_build,
+            ])
+            scripts.execute(['ninja', '-C', 'out.gn/%s' % config])
     with scripts.using_sudo(), scripts.directory(output):
         scripts.rsync(LIBRARIES, '/usr/local/lib')
         scripts.execute(['ldconfig'])
@@ -97,6 +95,6 @@ def build(parameters):
 @rule
 @rule.depend('build')
 @rule.reverse_depend('//base:tapeout')
-def tapeout(parameters):
+def tapeout(_):
     # Nothing here as //base:tapeout will tapeout /usr/local/lib for us
     pass

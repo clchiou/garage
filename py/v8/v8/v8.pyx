@@ -49,7 +49,7 @@ cdef class V8:
 
         icu_data_path_bytes = self.icu_data_path.encode('utf-8')
         cdef char* icu_data_path_cstr = icu_data_path_bytes
-        if not InitializeICU(icu_data_path_cstr):
+        if not InitializeICUDefaultLocation('v8/v8.pyx', icu_data_path_cstr):
             raise RuntimeError('cannot initialize ICU')
 
         natives_blob_path_bytes = self.natives_blob_path.encode('utf-8')
