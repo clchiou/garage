@@ -7,7 +7,7 @@ from templates import common
 
 common.define_git_repo(
     repo='https://github.com/nghttp2/nghttp2.git',
-    treeish='v1.20.0',
+    treeish='v1.31.1',
 )
 
 
