@@ -7,14 +7,10 @@ __all__ = [
     'tapeout_files',
 
     'write_json_to',
-
-    'render_template',
-    'render_template_to_path',
 ]
 
 import functools
 import json
-import tempfile
 
 from garage import scripts
 from garage.assertions import ASSERT
@@ -105,39 +101,3 @@ def write_json_to(obj, path):
     with scripts.ensure_path(path).open('w') as json_file:
         json_file.write(json.dumps(obj, indent=4, sort_keys=True))
         json_file.write('\n')
-
-
-def render_template(parameters, **kwargs):
-    with tempfile.NamedTemporaryFile() as output:
-        output_path = scripts.ensure_path(output.name)
-        render_template_to_path(parameters, output_path=output_path, **kwargs)
-        return output_path.read_text()
-
-
-def render_template_to_path(
-        parameters, *,
-        template_path,
-        template_dirs=(),
-        template_vars=(),
-        output_path):
-    """Render a template file (with Mako)."""
-    cmd = [
-        scripts.ensure_file(
-            parameters['//host/cpython:python'],
-        ),
-        scripts.ensure_file(
-            parameters['//base:root'] /
-            'shipyard/scripts/render-template',
-        ),
-    ]
-    for dir_path in template_dirs:
-        cmd.append('--template-dir')
-        cmd.append(dir_path)
-    for name, value in template_vars:
-        cmd.append('--template-var')
-        cmd.append(name)
-        cmd.append(json.dumps(value))
-    cmd.append('--output')
-    cmd.append(output_path)
-    cmd.append(template_path)
-    scripts.execute(cmd)
