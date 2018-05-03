@@ -135,11 +135,8 @@ def build(parameters):
             LOG.info('configure cpython build')
             cmd = ['./configure', '--prefix', parameters['prefix']]
             cmd.extend(parameters['configuration'])
-            # TODO Re-enable optimizer when the build script bug is
-            # fixed (`make install` re-runs `make run_profile_task`
-            # again).
-            #if parameters['//base:release']:
-            #    cmd.extend(['--enable-optimizations', '--with-lto'])
+            if parameters['//base:release']:
+                cmd.extend(['--enable-optimizations', '--with-lto'])
             if parameters['shared']:
                 cmd.append('--enable-shared')
             scripts.execute(cmd)
