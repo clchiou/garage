@@ -73,7 +73,14 @@ def build(parameters):
         scripts.mkdir(output)
         if parameters['//base:release']:
             config = 'x64.release'
-            official_build = 'is_official_build=true'
+            # FIXME: Due to still unknown reasons, when combining
+            # is_component_build=true and is_official_build=true in
+            # x64.release build, `mksnapshot` will crash with signal 4
+            # ILL_ILLOPN.  We will disable is_official_build for now.
+            # (Alternatively, if I could make py/v8 be able to link to
+            # v8 statically, we may drop is_component_build.)
+            #official_build = 'is_official_build=true'
+            official_build = 'is_official_build=false'
         else:
             config = 'x64.debug'
             official_build = 'is_official_build=false'
