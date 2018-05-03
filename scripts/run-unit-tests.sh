@@ -22,5 +22,6 @@ goto "${ROOT}/java"
 ./gradlew test
 
 goto "${ROOT}/py/garage" 'PACKAGE AVAILABILITY TEST'
-# Add `|| true` for now because this test is flaky.
+# Use the Python executable we built but without packages in venv; also,
+# add `|| true` for now because this test is flaky.
 /usr/local/bin/python3 -m unittest || true
