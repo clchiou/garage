@@ -20,6 +20,8 @@ abort() {
 readonly ROOT="$(realpath "$(dirname "${BASH_SOURCE[0]}")/..")"
 [[ -d "${ROOT}/.git" ]] || abort "not git repo: ${ROOT}"
 
+readonly HERE="$(realpath "$(dirname "${BASH_SOURCE[-1]}")")"
+
 #
 # Helper functions.
 #
