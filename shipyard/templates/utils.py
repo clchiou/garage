@@ -3,8 +3,6 @@
 __all__ = [
     'parse_common_args',
 
-    'load_inventory',
-
     'tapeout_filespecs',
     'tapeout_files',
 
@@ -16,7 +14,6 @@ __all__ = [
 
 import functools
 import json
-import os
 import tempfile
 
 from garage import scripts
@@ -59,26 +56,6 @@ def parse_common_args(template):
         return template(*args, **kwargs)
 
     return wrapper
-
-
-# Python snippet that converts YAML to JSON.
-YAML_TO_JSON = (
-    'import json; '
-    'import sys; '
-    'from ruamel.yaml import YAML; '
-    'print(json.dumps(YAML(typ="safe").load(sys.stdin)))'
-)
-
-
-def load_inventory(parameters, inventory_path=None):
-    """Load Ansible inventory file."""
-    inventory_path = scripts.ensure_file(
-        inventory_path or
-        os.environ.get('ANSIBLE_INVENTORY')
-    )
-    with scripts.redirecting(input=inventory_path.read_bytes()):
-        cmd = [parameters['//host/cpython:python'], '-c', YAML_TO_JSON]
-        return json.loads(scripts.execute(cmd, capture_stdout=True).stdout)
 
 
 def tapeout_filespecs(parameters, top_path, spec_dicts):
