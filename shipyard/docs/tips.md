@@ -15,3 +15,6 @@
 
 * There are meta build rules under `//meta`, which are a convenient way
   to bulk-build groups of packages.
+
+* You may use this to recursively list a Python package's dependencies:
+    pip3 download --dest /tmp --no-binary :all: package==version

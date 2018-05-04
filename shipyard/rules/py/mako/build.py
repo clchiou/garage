@@ -6,8 +6,7 @@ py.define_pip_package(
     version='1.0.7',
     patterns=[
         'mako',
-        # Mako's dependency.
-        'MarkupSafe*',
+        # And its dependencies.
         'markupsafe',
     ],
 )
