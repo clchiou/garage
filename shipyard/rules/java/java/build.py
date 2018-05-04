@@ -43,9 +43,8 @@ def build(parameters):
     with scripts.using_sudo():
         jre = parameters['jre']
         scripts.mkdir(jre)
-        # Appending '/' to src is an rsync trick (Java SE 10.0.1 appears
-        # to merge JDK and JRE directory).
-        src = parameters['//host/java:jdk']
+        # Appending '/' to src is an rsync trick.
+        src = parameters['//host/java:jdk'] / 'jre'
         scripts.rsync(['%s/' % src], jre)
 
 

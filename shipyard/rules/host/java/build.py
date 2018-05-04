@@ -8,9 +8,9 @@ from templates import common
 # Oracle makes programmatically downloading JDK very hard; let's use a
 # local copy instead.
 common.define_local_archive(
-    path='jdk/jdk-10.0.1_linux-x64_bin.tar.gz',
-    output='jdk-10.0.1',
-    checksum='md5-4f0b8a0186ba62e2a3303d8a26d349f7',
+    path='jdk/jdk-8u172-linux-x64.tar.gz',
+    output='jdk1.8.0_172',
+    checksum='md5-eda2945e8c02b84adbf78f46c37b71c1',
 )
 
 
