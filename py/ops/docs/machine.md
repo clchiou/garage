@@ -36,6 +36,8 @@
       IdentityFile /path/to/ops/envs/staging/keys/current/id_ecdsa
   ```
 
+* Add machine's public and private IP address to Ansible's inventory.
+
 * Add the new machine to Ansible's `hosts.yaml` file:
   ```
   # Inventory of staging environment.
