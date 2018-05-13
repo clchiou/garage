@@ -2,6 +2,7 @@
 
 __all__ = [
     'ClientError',
+    'Redirection',
     'ServerError',
     'Server',
 ]
@@ -42,6 +43,23 @@ class HttpError(Exception):
             status=self.status,
             headers=self.headers,
             body=self.message,
+        )
+
+
+class Redirection(Exception):
+    """Represent HTTP 3xx status code."""
+
+    def __init__(self, status, location):
+        ASSERT(300 <= status < 400, 'expect 3xx status: %s', status)
+        if isinstance(location, str):
+            location = location.encode('ascii')
+        self.status = status
+        self.location = location
+
+    def as_response(self):
+        return http2.Response(
+            status=self.status,
+            headers=[(b'Location', self.location)],
         )
 
 
@@ -97,8 +115,11 @@ class Server:
             stream, stream.request.method.name, stream.request.path,
         )
         try:
-            async with curio.timeout_after(self.timeout):
-                await self.handler(stream)
+            try:
+                async with curio.timeout_after(self.timeout):
+                    await self.handler(stream)
+            except Redirection as redirection:
+                await stream.submit_response(redirection.as_response())
         except http2.StreamClosed:
             LOG.warning(
                 'stream is closed: %s: %s %s',
