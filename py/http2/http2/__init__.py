@@ -712,6 +712,15 @@ class Request(Entity):
                 kwargs['scheme'] = Scheme(value)
             elif name == b':authority':
                 kwargs['authority'] = value
+            elif name.lower() == b'host' and 'authority' not in kwargs:
+                # If this request is translated from a HTTP/1 request by
+                # nghttpx, the ':authority' header might be omitted.  I
+                # do not know whether this is standard conforming, but
+                # this is what is implemented in nghttpx; check
+                # Http2DownstreamConnection::push_request_headers in
+                # shrpx_http2_downstream_connection.cc, either one of
+                # :authority or host is set, but not both.
+                kwargs['authority'] = value
             elif name == b':path':
                 kwargs['path'] = value
             else:
