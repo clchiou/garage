@@ -29,3 +29,6 @@ def install(parameters):
         scripts.ensure_file('/usr/bin/nodejs')
         with scripts.using_sudo(), scripts.directory('/usr/bin'):
             scripts.symlink('nodejs', 'node')
+    # Upgrade npm because if distro's npm is too old, it might not be
+    # able to connect to registry...?
+    scripts.execute(['npm', 'install', '-g', 'npm'])
