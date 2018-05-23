@@ -365,7 +365,15 @@ class PodInstruction:
         image_lv = '%s@%s' % (image, self.images[image])
         image_path = self._get_image_path(repo, image)
         if image_path.exists():
-            LOG.info('skip building image: %s', image_lv)
+            LOG.info('skip building existed image: %s', image_lv)
+            return
+
+        image_uri = self._get_image_uri(repo, self.image_rules[image])
+        if image_uri:
+            LOG.info(
+                'skip building image because it is from registry: %s %s',
+                image_lv, image_uri,
+            )
             return
 
         LOG.info('build image %s -> %s', self.image_rules[image], image_lv)
@@ -437,12 +445,20 @@ class PodInstruction:
 
         version_label = self._get_version_label(repo, self.rule)
 
+        images_from_registry = frozenset(
+            image
+            for image in self.images
+            if self._get_image_uri(repo, self.image_rules[image])
+        )
+
         with tempfile.TemporaryDirectory() as build_dir:
 
             # Builder is running in a container and so symlinks won't
             # work; to work around this, we copy files to build_dir (and
             # for now all we need to copy is `image-name/sha512`).
             for image in self.images:
+                if image in images_from_registry:
+                    continue
                 image_path = self._get_image_path(repo, image)
                 scripts.mkdir(build_dir / image.name)
                 scripts.cp(image_path / 'sha512', build_dir / image.name)
@@ -458,6 +474,8 @@ class PodInstruction:
 
             # Undo the workaround.
             for image in self.images:
+                if image in images_from_registry:
+                    continue
                 scripts.rm(build_dir / image.name, recursive=True)
 
             pod_path = self._get_pod_path(repo)
@@ -466,6 +484,8 @@ class PodInstruction:
 
             # Create symlink to images.
             for image in self.images:
+                if image in images_from_registry:
+                    continue
                 image_path = self._get_image_path(repo, image)
                 link_path = pod_path / image.name
                 if link_path.exists():
@@ -489,6 +509,15 @@ class PodInstruction:
             implicit_path=rule.path,
         )
         return version_parameter.label
+
+    @staticmethod
+    def _get_image_uri(repo, image_rule_label):
+        image_rule = repo.rules.get_rule(image_rule_label)
+        image_parameter = repo.rules.get_parameter(
+            image_rule.annotations['image-parameter'],
+            implicit_path=image_rule.label.path,
+        )
+        return image_parameter.default['image_uri']
 
     @staticmethod
     def _get_volume_tarball_filename(repo, rule):

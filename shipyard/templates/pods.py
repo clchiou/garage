@@ -121,8 +121,16 @@ def image_specifier(specifier):
     @rule.depend(name + 'specify_image')
     def write_manifest(parameters):
         """Create Appc image manifest file."""
-        LOG.info('write appc image manifest: %s', specifier.__name__)
         image = parameters[specifier.__name__]
+        if image.image_uri:
+            LOG.info(
+                'do not write appc image manifest '
+                'because image is from registry: %s %s',
+                specifier.__name__, image_uri,
+            )
+            return
+
+        LOG.info('write appc image manifest: %s', specifier.__name__)
         image._version = parameters[name + 'version']
         utils.write_json_to(
             image.get_image_manifest(),
@@ -139,6 +147,13 @@ def image_specifier(specifier):
         """Build Appc container image."""
 
         image = parameters[specifier.__name__]
+        if image.image_uri:
+            LOG.info(
+                'do not build image '
+                'because image is from registry: %s %s',
+                specifier.__name__, image_uri,
+            )
+            return
 
         output_dir = parameters['//base:output'] / image.name
         LOG.info('build appc image: %s', output_dir)
@@ -303,6 +318,9 @@ POD_NAME_PATTERN = re.compile(
     POD_NAME_PATTERN.format(ac_name=AC_NAME_PATTERN.pattern))
 
 
+IMAGE_URI_PATTERN = re.compile(r'(docker|https)://')
+
+
 # Convention:
 # get_pod_object_entry generates sub-entry of the pod object
 # get_pod_manifest_entry_* generates sub-entry of the Appc pod manifest
@@ -373,6 +391,12 @@ class ModelObject:
         if name is not None and not POD_NAME_PATTERN.fullmatch(name):
             raise ValueError('not valid pod name: %s' % name)
         return name
+
+    @staticmethod
+    def _ensure_image_uri(image_uri):
+        if image_uri is not None and not IMAGE_URI_PATTERN.match(image_uri):
+            raise ValueError('not valid image uri: %s' % image_uri)
+        return image_uri
 
 
 class Environment(ModelObject):
@@ -567,8 +591,6 @@ class App(ModelObject):
 
 class Image(ModelObject):
 
-    # TODO: Accept docker://... URI.
-
     #
     # We need special treatment for should-be-writable directories, like
     # /tmp, when rootfs is mounted as read-only, but at the moment rkt
@@ -583,6 +605,7 @@ class Image(ModelObject):
         ('id', None),
         ('name', None),
         ('version', None),
+        ('image_uri', None),
         ('app', App),
         ('read_only_rootfs', None),
         # When read_only_rootfs is True, these are directories that
@@ -595,14 +618,18 @@ class Image(ModelObject):
             id=None,
             name,
             version=None,
+            image_uri=None,
             app,
             read_only_rootfs=True, writable_directories=('/tmp',)):
         self._id = id
         self.name = self._ensure_ac_identifier(name)
         self._version = version
+        self.image_uri = self._ensure_image_uri(image_uri)
         self.app = app
         self.read_only_rootfs = read_only_rootfs
         self.writable_directories = writable_directories
+        if self.image_uri and not self._id:
+            raise ValueError('expect id for image uri: %s' % self.image_uri)
 
     def load_id(self, parameters):
         if self._id is None:
@@ -624,10 +651,12 @@ class Image(ModelObject):
     def get_pod_object_entry(self):
         # image.aci is under OUTPUT/IMAGE_NAME.
         # TODO: Generate "signature" field.
-        return {
-            'id': self.id,
-            'image': '%s/image.aci' % self.name,
-        }
+        entry = {'id': self.id}
+        if self.image_uri:
+            entry['image'] = self.image_uri
+        else:
+            entry['image'] = '%s/image.aci' % self.name
+        return entry
 
     def get_generated_mount_point_name(self, path):
         """Generate mount point name (for writable directory).
