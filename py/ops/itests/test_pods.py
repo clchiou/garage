@@ -288,6 +288,21 @@ class PodsTest(Fixture, unittest.TestCase):
         ],
     }
 
+    UNIT_DROPIN_CONTENT_REGEXS = {
+        '1001': (
+            r'Environment="POD_NAME=//foo/bar:test-pod".*'
+            r'Environment="POD_VERSION=1001"'
+        ),
+        '1002': (
+            r'Environment="POD_NAME=//foo/bar:test-pod".*'
+            r'Environment="POD_VERSION=1002"'
+        ),
+        '1003': (
+            r'Environment="POD_NAME=//foo/bar:test-pod".*'
+            r'Environment="POD_VERSION=1003"'
+        ),
+    }
+
     UNIT_NAMES = {
         '1001': {
             'enable': {
@@ -333,6 +348,10 @@ class PodsTest(Fixture, unittest.TestCase):
             self.assertFile(path)
         for path in self.UNIT_DROPINS[version]:
             self.assertDir(path)
+            self.assertFileContentRegex(
+                '%s/10-pod-manifest.conf' % path,
+                self.UNIT_DROPIN_CONTENT_REGEXS[version],
+            )
 
     def assert_unit_uninstalled(self, version):
         for path in self.UNIT_FILES[version]:

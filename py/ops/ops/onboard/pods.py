@@ -609,12 +609,19 @@ def _make_dropin_file(pod, unit):
     contents = (
         '[Service]\n'
         'Environment="POD_MANIFEST={pod_manifest}"\n'
+        # Metadata of this pod instance.
+        'Environment="POD_NAME={pod_name}"\n'
+        'Environment="POD_VERSION={pod_version}"\n'
     )
     for instance in unit.instances:
         scripts.mkdir(instance.dropin_path)
         scripts.tee(
             (contents
-             .format(pod_manifest=pod.get_pod_manifest_path(instance))
+             .format(
+                 pod_manifest=pod.get_pod_manifest_path(instance),
+                 pod_name=pod.name,
+                 pod_version=pod.version,
+             )
              .encode('ascii')),
             instance.dropin_path / '10-pod-manifest.conf',
         )

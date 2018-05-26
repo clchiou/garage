@@ -6,6 +6,7 @@ __all__ = [
 
 import getpass
 import json
+import re
 import sys
 import unittest
 from pathlib import Path
@@ -70,6 +71,14 @@ class Fixture:
 
     def assertEqualContents(self, expect, actual):
         self.assertEqual(Path(expect).read_text(), Path(actual).read_text())
+
+    def assertFileContentRegex(self, path, regex):
+        # Use re.DOTALL so that '.' also matches newlines.
+        content = Path(path).read_text()
+        self.assertTrue(
+            re.search(regex, content, re.DOTALL),
+            'expect pattern %r of content %r' % (regex, content),
+        )
 
     # `ops-onboard pods` commands and other helpers.
 
