@@ -763,13 +763,22 @@ class SystemdUnit(ModelObject):
     # TODO: Accept checksum, or calculate it from unit_file
 
     FIELDS = [
+        ('name', None),
         ('unit_file', None),
         ('enable', None),
         ('start', None),
         ('instances', None),
     ]
 
-    def __init__(self, *, unit_file, enable=True, start=True, instances=None):
+    def __init__(
+            self, *,
+            name=None,
+            unit_file,
+            enable=True,
+            start=True,
+            instances=None,
+        ):
+        self.name = name
         self.unit_file = unit_file
         self.enable = enable
         self.start = start
@@ -787,6 +796,8 @@ class SystemdUnit(ModelObject):
             'enable': self.enable,
             'start': self.start,
         }
+        if self.name:
+            entry['name'] = self.name
         if self.instances:
             entry['instances'] = self.instances
         return entry
