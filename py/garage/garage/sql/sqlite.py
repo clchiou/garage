@@ -4,12 +4,15 @@ __all__ = [
 
 import sqlalchemy
 
+from garage.assertions import ASSERT
+
 
 def create_engine(
         db_uri, *,
         check_same_thread=False,
         echo=False,
         pragmas=()):
+    ASSERT(db_uri.startswith('sqlite://'), 'expect sqlite URI: %s', db_uri)
 
     engine = sqlalchemy.create_engine(
         db_uri,
