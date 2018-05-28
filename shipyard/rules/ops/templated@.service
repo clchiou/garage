@@ -1,0 +1,21 @@
+[Unit]
+Description=templated service pod
+
+[Service]
+Slice=machine.slice
+ExecStartPre=/usr/bin/sudo -u plumber \
+             /usr/local/bin/ops-onboard alerts send \
+             --level info \
+             --title "${POD_NAME}@${POD_VERSION} %i" \
+             --description "start"
+ExecStart=/usr/bin/rkt run --pod-manifest=${POD_MANIFEST}
+KillMode=mixed
+Restart=always
+ExecStopPost=/usr/bin/sudo -u plumber \
+             /usr/local/bin/ops-onboard alerts send \
+             --systemd-service-result ${SERVICE_RESULT} \
+             --title "${POD_NAME}@${POD_VERSION} %i" \
+             --description "${EXIT_CODE} with status ${EXIT_STATUS}"
+
+[Install]
+WantedBy=multi-user.target
