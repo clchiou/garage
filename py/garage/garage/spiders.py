@@ -61,8 +61,22 @@ class Parser:
     def on_document(self, document):
         """Callback to further process the document."""
 
+    def on_document_error(self, request, document, error):
+        """Callback on error during on_document().
+
+        Return False to suppress exception.
+        """
+        return True
+
     def on_estimate(self, estimate, document):
         """Callback to assess accuracy of the estimations."""
+
+    def on_estimate_error(self, request, estimate, document, error):
+        """Callback on error during on_estimate().
+
+        Return False to suppress exception.
+        """
+        return True
 
 
 class Spider:
@@ -129,7 +143,7 @@ class Spider:
             LOG.exception('cannot request %s %s', request.method, request.uri)
             if self._parser.on_request_error(request, exc):
                 raise
-            return
+            return  # Cannot proceed; return now.
 
         try:
             document = self._parser.parse(request, response)
@@ -137,7 +151,7 @@ class Spider:
             LOG.exception('cannot parse %s %s', request.method, request.uri)
             if self._parser.on_parse_error(request, response, exc):
                 raise
-            return
+            return  # Cannot proceed; return now.
 
         if document is None:
             LOG.debug('cannot parse %s %s', request.method, request.uri)
@@ -153,9 +167,22 @@ class Spider:
         for req_from_doc, estimate in document.links:
             self.crawl(req_from_doc, estimate)
 
-        self._parser.on_document(document)
+        try:
+            self._parser.on_document(document)
+        except Exception as exc:
+            LOG.exception(
+                'cannot handle document %s %s', request.method, request.uri)
+            if self._parser.on_document_error(request, document, exc):
+                raise
 
-        self._parser.on_estimate(estimate, document)
+        try:
+            self._parser.on_estimate(estimate, document)
+        except Exception as exc:
+            LOG.exception(
+                'cannot estimate document %s %s', request.method, request.uri)
+            if self._parser.on_estimate_error(
+                    request, estimate, document, exc):
+                raise
 
 
 class Task:
