@@ -221,6 +221,7 @@ class Pod(ModelObject):
 
     def make_manifest(
             self, *,
+            instance,
             # Provide deployment-time information.
             get_volume_path, get_host_port):
         """Make Appc pod manifest."""
@@ -240,7 +241,7 @@ class Pod(ModelObject):
             if appc_volume['kind'] != 'host':
                 raise ValueError('non-host volume: %s' % volume.name)
             if 'source' not in appc_volume:
-                appc_volume['source'] = str(get_volume_path(volume))
+                appc_volume['source'] = str(get_volume_path(instance, volume))
 
         # Collect port names from apps.
         port_names = set()
@@ -258,7 +259,7 @@ class Pod(ModelObject):
                     continue
                 ports.append({
                     'name': port_name,
-                    'hostPort': int(get_host_port(port_name)),
+                    'hostPort': int(get_host_port(instance, port_name)),
                 })
 
         return manifest

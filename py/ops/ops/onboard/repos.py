@@ -10,6 +10,7 @@ import json
 import logging
 
 from garage import scripts
+from garage.assertions import ASSERT
 
 from ops import models
 
@@ -105,7 +106,7 @@ class Repo:
 
         pods_and_manifests = []
 
-        def add_manifest(pod, manifest_path):
+        def add_manifest(pod, instance_name, manifest_path):
             if not manifest_path.exists():
                 # While we are deploying this pod, its pod manifest may
                 # have not been generated yet and we cannot add it to
@@ -113,13 +114,17 @@ class Repo:
                 LOG.debug('no such manifest: %s', manifest_path)
                 return
             manifest = json.loads(manifest_path.read_text())
-            pods_and_manifests.append((pod.name, pod.version, manifest))
+            pods_and_manifests.append(
+                (pod.name, pod.version, instance_name, manifest))
 
         for pod_dir_name in self.get_pod_dir_names():
             for pod in self.iter_pods(pod_dir_name):
-                add_manifest(pod, pod.pod_manifest_path)
                 for instance in pod.iter_instances():
-                    add_manifest(pod, pod.get_pod_manifest_path(instance))
+                    add_manifest(
+                        pod,
+                        instance.name,
+                        pod.get_pod_manifest_path(instance),
+                    )
 
         return Ports(pods_and_manifests)
 
@@ -154,8 +159,8 @@ class Ports:
     version would not result in port number conflicts.
 
     On the other hand, port numbers out of this range are expected to be
-    assigned statically in pod manifests - they might conflict if not
-    planned and coordinated carefully.
+    assigned statically in pod manifests - you may assign the same port
+    number to multiple pods, if you know what you are doing.
     """
 
     PORT_MIN = 30000
@@ -164,59 +169,51 @@ class Ports:
     Port = namedtuple('Port', [
         'pod_name',
         'pod_version',
+        'instance',
         'name',
         'port',
     ])
 
     def __init__(self, pods_and_manifests):
         """Build index from generated pod manifest of deployed pods."""
+
+        # Ports allocated at Deployment time (from PORT_MIN to
+        # PORT_MAX).  They are guaranteed to be unique among all pod
+        # instances.
         self._allocated_ports = {}
-        self._static_ports = {}
-        for pod_name, pod_version, manifest in pods_and_manifests:
+        self._last_port = -1
+
+        # Statically assigned ports.
+        self._assigned_static_port_numbers = set()
+        self._static_ports = []
+
+        for item in pods_and_manifests:
+            pod_name, pod_version, instance_name, manifest = item
             for port_data in manifest.get('ports', ()):
                 port = self.Port(
                     pod_name=pod_name,
                     pod_version=pod_version,
+                    instance=instance_name,
                     name=port_data['name'],
                     port=int(port_data['hostPort']),
                 )
                 if self.PORT_MIN <= port.port < self.PORT_MAX:
                     prev = self._allocated_ports.get(port.port)
                     if prev is not None:
-                        if prev == port:
-                            # If it is from the same pod, I assume you
-                            # know what you are doing (you've enabled
-                            # SO_REUSEPORT, right?) and just issue a
-                            # warning.
-                            LOG.warning('duplicated port: %s', port)
-                        else:
-                            raise ValueError(
-                                'duplicated port: {}'.format(port))
-                    else:
-                        LOG.debug('add port: %s', port)
-                        self._allocated_ports[port.port] = port
+                        raise ValueError(
+                            'duplicated port: %s vs %s' % (prev, port))
+                    LOG.debug('add allocated port: %s', port)
+                    self._allocated_ports[port.port] = port
                 else:
-                    prev = self._static_ports.get(port.port)
-                    if prev is not None:
-                        if prev == port:
-                            # If it is from the same pod, I assume you
-                            # know what you are doing (you've enabled
-                            # SO_REUSEPORT, right?) and just issue a
-                            # warning.
-                            LOG.warning('duplicated static port: %s', port)
-                        else:
-                            raise ValueError(
-                                'duplicated static port: {}'.format(port))
-                    else:
-                        LOG.debug('add static port: %s', port)
-                        self._static_ports[port.port] = port
+                    LOG.debug('add static port: %s', port)
+                    self._assigned_static_port_numbers.add(port.port)
+                    self._static_ports.append(port)
+
         if self._allocated_ports:
             self._last_port = max(self._allocated_ports)
-        else:
-            self._last_port = -1
 
     def __iter__(self):
-        ports = list(self._static_ports.values())
+        ports = list(self._static_ports)
         ports.extend(self._allocated_ports.values())
         ports.sort()
         yield from ports
@@ -238,15 +235,23 @@ class Ports:
         raise RuntimeError('no port available within range: %d ~ %d' %
                            (self.PORT_MIN, self.PORT_MAX))
 
-    def register(self, port):
+    def is_allocated(self, port_number):
+        ASSERT.true(self.PORT_MIN <= port_number < self.PORT_MAX)
+        return port_number in self._allocated_ports
+
+    def allocate(self, port):
         """Claim a port as allocated."""
+        ASSERT.true(self.PORT_MIN <= port.port < self.PORT_MAX)
         if self.is_allocated(port.port):
             raise ValueError('port has been allocated: {}'.format(port))
         self._allocated_ports[port.port] = port
         self._last_port = max(self._last_port, port.port)
 
-    def is_allocated(self, port_number):
-        return (
-            port_number in self._static_ports or
-            port_number in self._allocated_ports
-        )
+    def is_assigned(self, port_number):
+        ASSERT.false(self.PORT_MIN <= port_number < self.PORT_MAX)
+        return port_number in self._assigned_static_port_numbers
+
+    def assign(self, port):
+        ASSERT.false(self.PORT_MIN <= port.port < self.PORT_MAX)
+        self._assigned_static_port_numbers.add(port.port)
+        self._static_ports.append(port)

@@ -100,11 +100,11 @@ def deploy_create_pod_manifest(repo, pod):
     scripts.ensure_directory(repo.get_pod_dir(pod))
 
     # Deployment-time volume allocation.
-    get_volume_path = lambda volume: pod.pod_volumes_path / volume.name
+    get_volume_path = lambda _, volume: pod.pod_volumes_path / volume.name
 
     # Deployment-time port allocation.
     ports = repo.get_ports()
-    def get_host_port(port_name):
+    def get_host_port(instance, port_name):
 
         for port_allocation in pod.ports:
             if port_allocation.name == port_name:
@@ -113,23 +113,42 @@ def deploy_create_pod_manifest(repo, pod):
             port_allocation = None
 
         if port_allocation:
+            # Okay, this is a statically assigned port; pick the first
+            # unassigned port number.
             for port_number in port_allocation.host_ports:
-                if not ports.is_allocated(port_number):
+                if not ports.is_assigned(port_number):
                     break
             else:
-                raise RuntimeError(
-                    'no host port reserved for %s is available' % port_name)
+                port_number = port_allocation.host_ports[0]
+                LOG.info(
+                    'all are assigned; re-use the first one: %d',
+                    port_number,
+                )
+            action_name = 'assign'
+            action = ports.assign
 
         else:
             port_number = ports.next_available_port()
+            action_name = 'allocate'
+            action = ports.allocate
 
-        LOG.info('%s - allocate port %d for %s', pod, port_number, port_name)
-        ports.register(ports.Port(
+        LOG.info(
+            '%s%s%s - %s %s port %d',
+            pod,
+            ' ' if instance.name else '',
+            instance.name or '',
+            action_name,
+            port_name,
+            port_number,
+        )
+        action(ports.Port(
             pod_name=pod.name,
             pod_version=pod.version,
+            instance=instance.name,
             name=port_name,
             port=port_number,
         ))
+
         return port_number
 
     with scripts.using_sudo():
@@ -138,6 +157,7 @@ def deploy_create_pod_manifest(repo, pod):
             # Generate Appc pod manifest.
             manifest_base = json.dumps(
                 pod.make_manifest(
+                    instance=instance,
                     get_volume_path=get_volume_path,
                     get_host_port=get_host_port,
                 ),

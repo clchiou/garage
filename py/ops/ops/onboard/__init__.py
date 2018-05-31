@@ -34,12 +34,18 @@ def images(args):
 
 
 @apps.with_prog('list')
-@apps.with_help('list allocated ports')
+@apps.with_help('list allocated and static ports')
 def list_ports(args):
     """List ports allocated to deployed pods."""
     for port in repos.Repo(args.root).get_ports():
-        print('%s@%s %s %d' %
-              (port.pod_name, port.pod_version, port.name, port.port))
+        print('%s@%s%s%s %s %d' % (
+            port.pod_name,
+            port.pod_version,
+            ' ' if port.instance else '',
+            port.instance or '',
+            port.name,
+            port.port,
+        ))
     return 0
 
 
