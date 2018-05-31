@@ -132,28 +132,28 @@ def deploy_create_pod_manifest(repo, pod):
         ))
         return port_number
 
-    # Generate Appc pod manifest.  Note that we allocate ports once per
-    # pod; all unit instances will be sharing these ports.
-    manifest_base = json.dumps(
-        pod.make_manifest(
-            get_volume_path=get_volume_path,
-            get_host_port=get_host_port,
-        ),
-        indent=4,
-        sort_keys=True,
-    )
     with scripts.using_sudo():
-        scripts.tee(manifest_base.encode('ascii'), pod.pod_manifest_path)
         scripts.mkdir(pod.pod_manifests_path)
         for instance in pod.iter_instances():
+            # Generate Appc pod manifest.
+            manifest_base = json.dumps(
+                pod.make_manifest(
+                    get_volume_path=get_volume_path,
+                    get_host_port=get_host_port,
+                ),
+                indent=4,
+                sort_keys=True,
+            )
             # TODO It might not be a great idea to do text substitution
             # on JSON string, but it seems to be the only way to
             # customize pod instances, and probably relatively safe to
             # do.  Hopefully I will find another way without text
             # substitution.
             manifest = instance.resolve_specifier(manifest_base)
-            path = pod.get_pod_manifest_path(instance)
-            scripts.tee(manifest.encode('ascii'), path)
+            scripts.tee(
+                manifest.encode('ascii'),
+                pod.get_pod_manifest_path(instance),
+            )
 
 
 def deploy_create_volumes(pod):

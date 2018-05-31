@@ -31,7 +31,6 @@ POD_NAME_PATTERN = re.compile(
 
 # Layout inside a pod directory
 POD_JSON = 'pod.json'
-POD_MANIFEST_JSON = 'pod-manifest.json'
 SYSTEMD = 'systemd'
 IMAGES = 'images'
 VOLUMES = 'volumes'
@@ -267,10 +266,6 @@ class Pod(ModelObject):
     @property
     def pod_object_path(self):
         return self.path / POD_JSON
-
-    @property
-    def pod_manifest_path(self):
-        return self.path / POD_MANIFEST_JSON
 
     @property
     def pod_manifests_path(self):

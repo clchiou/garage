@@ -1,6 +1,7 @@
 {
     "name": "//foo/bar:test-ports-pod",
     "version": 1002,
+    "systemd-units": [{"unit-file": "../bundle1/simple.service"}],
     "ports": [
         {
             "name": "http",

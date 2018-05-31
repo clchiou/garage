@@ -400,8 +400,6 @@ class PodsTest(Fixture, unittest.TestCase):
     def assert_1001_deployed(self):
         self.assertFile('/var/lib/ops/v1/pods/foo--bar--test-pod/1001/pod.json')
         self.assertFile(
-            '/var/lib/ops/v1/pods/foo--bar--test-pod/1001/pod-manifest.json')
-        self.assertFile(
             '/var/lib/ops/v1/pods/foo--bar--test-pod/1001/pod-manifests/'
             'foo--bar--test-pod--simple--1001.service.json')
         self.assertFile(
@@ -416,8 +414,6 @@ class PodsTest(Fixture, unittest.TestCase):
 
     def assert_1002_deployed(self):
         self.assertFile('/var/lib/ops/v1/pods/foo--bar--test-pod/1002/pod.json')
-        self.assertFile(
-            '/var/lib/ops/v1/pods/foo--bar--test-pod/1002/pod-manifest.json')
         self.assertFile(
             '/var/lib/ops/v1/pods/foo--bar--test-pod/1002/pod-manifests/'
             'foo--bar--test-pod--replicated--1002@x.service.json')
@@ -439,8 +435,6 @@ class PodsTest(Fixture, unittest.TestCase):
 
     def assert_1003_deployed(self):
         self.assertFile('/var/lib/ops/v1/pods/foo--bar--test-pod/1003/pod.json')
-        self.assertFile(
-            '/var/lib/ops/v1/pods/foo--bar--test-pod/1003/pod-manifest.json')
         self.assertFile(
             '/var/lib/ops/v1/pods/foo--bar--test-pod/1003/pod-manifests/'
             'foo--bar--test-pod--volume--1003.service.json')
