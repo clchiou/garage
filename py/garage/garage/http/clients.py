@@ -223,6 +223,8 @@ class Request:
 class Response:
     """A thin wrapper of requests.Response."""
 
+    XML_PARSER = lxml.etree.XMLParser()
+
     def __init__(self, response):
         self._response = response
 
@@ -254,6 +256,11 @@ class Response:
 
         parser = _get_parser(encoding or self.encoding)
         return fromstring(self.content, parser)
+
+    def xml_dom(self):
+        if fromstring is None:
+            raise RuntimeError('lxml.etree is not installed')
+        return fromstring(self.content, self.XML_PARSER)
 
 
 @functools.lru_cache(maxsize=8)
