@@ -182,7 +182,10 @@ async def server(
             remaining_time = timeout - (time.perf_counter() - begin_time)
             if remaining_time <= 0:
                 response_future.cancel()
-                await on_error(Unavailable(), request, response_message)
+                await on_error(
+                    Unavailable(), request, response_message,
+                    exc_info=False,
+                )
                 return
         else:
             remaining_time = None
@@ -195,8 +198,11 @@ async def server(
         else:
             await send_response(request, response, response_message)
 
-    async def on_error(exc, request, response_message):
-        LOG.exception('server: err when processing request: %r', request)
+    async def on_error(exc, request, response_message, *, exc_info=True):
+        LOG.error(
+            'server: err when processing request: %r',
+            request, exc_info=exc_info,
+        )
         error_response = error_handler(request, _transform_error(exc))
         if error_response is not None:
             await send_response(request, error_response, response_message)
