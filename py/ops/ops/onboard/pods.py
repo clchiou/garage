@@ -627,6 +627,7 @@ def _create_volume(volume_root, volume):
 
 def _make_dropin_file(pod, unit):
     contents = (
+        '[Service]\n'
         'Environment="POD_MANIFEST={pod_manifest}"\n'
         # Metadata of this pod instance.
         'Environment="POD_NAME={pod_name}"\n'
