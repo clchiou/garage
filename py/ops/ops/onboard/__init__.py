@@ -27,6 +27,7 @@ def list_images(args):
 @apps.with_apps(
     'operation', 'operation on images',
     list_images,
+    pods.refetch_all,
 )
 def images(args):
     """Managa deployed images."""

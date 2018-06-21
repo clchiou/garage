@@ -11,6 +11,7 @@ from garage import scripts
 from garage.assertions import ASSERT
 
 from ops import models
+from . import deps
 from . import repos
 
 
@@ -185,10 +186,11 @@ def deploy_create_volumes(pod):
             _create_volume(volume_root, volume)
 
 
-def deploy_fetch(pod):
+def deploy_fetch(pod, *, image_ids=None):
     """Fetch container images from local files or from remote."""
     LOG.info('%s - fetch images', pod)
-    image_ids = _list_image_ids()
+    if image_ids is None:
+        image_ids = _list_image_ids()
     for image in pod.images:
         if _match_image_id(image.id, image_ids):
             LOG.debug('skip fetching image %s', image.id)
@@ -561,6 +563,26 @@ def pods(args):
     """Manage containerized application pods."""
     repo = repos.Repo(args.root)
     return args.operation(args, repo=repo)
+
+
+@apps.with_prog('refetch-all')
+@apps.with_help('re-fetch all container images')
+def refetch_all(args):
+    """Re-fetch all container images.
+
+    Use this to work around the known issue that `rkt image gc` also
+    collects still-in-use images.
+    """
+    scripts.execute([
+        'rkt', 'fetch',
+        'coreos.com/rkt/stage1-coreos:' + deps.PACKAGES['rkt'].version,
+    ])
+    repo = repos.Repo(args.root)
+    image_ids = _list_image_ids()
+    for pod_dir_name in repo.get_pod_dir_names():
+        for pod in repo.iter_pods(pod_dir_name):
+            deploy_fetch(pod, image_ids=image_ids)
+    return 0
 
 
 ### Helper functions
