@@ -346,8 +346,8 @@ def collectd(args):
 )
 @apps.with_argument(
     '--level',
-    choices=tuple(level.name for level in Levels),
-    default=Levels.INFO.name,
+    choices=tuple(level.name.lower() for level in Levels),
+    default=Levels.INFO.name.lower(),
     help='set alert level (default to %(default)s)',
 )
 @apps.with_argument(
@@ -377,7 +377,7 @@ def send(args):
         else:
             level = Levels.ERROR
     else:
-        level = Levels[args.level]
+        level = Levels[args.level.upper()]
 
     dst_slack.send(dict(
         host=args.host,
