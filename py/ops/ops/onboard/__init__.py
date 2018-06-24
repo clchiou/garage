@@ -80,7 +80,8 @@ def ports(args):
 def main(args):
     """Onboard operations tool."""
     with scripts.dry_run(args.dry_run):
-        scripts.ensure_not_root()
+        if not getattr(args, 'root_allowed', False):
+            scripts.ensure_not_root()
         if getattr(args, 'no_locking_required', False):
             lock = None
         else:

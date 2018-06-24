@@ -3,16 +3,22 @@ __all__ = [
 ]
 
 from pathlib import Path
+import contextlib
 import datetime
 import enum
+import fcntl
 import json
 import logging
 import os
+import re
+import selectors
+import subprocess
 import sys
 import urllib.request
 
 from garage import apps
 from garage import scripts
+from garage.assertions import ASSERT
 
 
 LOG = logging.getLogger(__name__)
@@ -36,9 +42,34 @@ class Alerts:
         return cls(load_config(args)['alerts'])
 
     def __init__(self, config):
+        self._srcs = [
+            SourceLog(src_config)
+            for src_config in config['sources']
+        ]
         # For now, only one destination `slack` is supported; so it has
         # to be present.
-        self._dest_slack = DestinationSlack(config['destinations']['slack'])
+        self._dst_slack = DestinationSlack(config['destinations']['slack'])
+
+    def watch(self):
+        selector = selectors.DefaultSelector()
+        with contextlib.ExitStack() as stack:
+            for src in self._srcs:
+                pipe = stack.enter_context(src.tailing())
+                self._set_nonblocking(pipe)
+                selector.register(pipe, selectors.EVENT_READ, src)
+            while True:
+                for key, _ in selector.select():
+                    src = key.data
+                    message = src.parse(key.fileobj)
+                    if message is not None:
+                        self._dst_slack.send(message)
+
+    @staticmethod
+    def _set_nonblocking(pipe):
+        # NOTE: Use fcntl is not portable to non-Unix platforms.
+        fd = pipe.fileno()
+        flags = fcntl.fcntl(fd, fcntl.F_GETFL)
+        fcntl.fcntl(fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
 
 
 class SourceCollectd:
@@ -103,7 +134,8 @@ class SourceCollectd:
         else:
             LOG.error('unknown collectd notification header: %r', line)
 
-    def _make_title(self, headers, default):
+    @staticmethod
+    def _make_title(headers, default):
         """Generate title string for certain plugins."""
 
         plugin = headers.get('plugin')
@@ -151,6 +183,76 @@ class SourceCollectd:
         return '%s: %s' % (who, what)
 
 
+class SourceLog:
+
+    class Tailing:
+
+        def __init__(self, path):
+            self.path = path
+            self._proc = None
+
+        def __enter__(self):
+            ASSERT.none(self._proc)
+            cmd = ['tail', '-Fn0', self.path]
+            self._proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+            return self._proc.stdout
+
+        def __exit__(self, *_):
+            for kill in (self._proc.terminate, self._proc.kill):
+                if self._proc.poll() is None:
+                    kill()
+                    self._proc.wait(2)
+                else:
+                    break
+            if self._proc.poll() is None:
+                raise RuntimeError('cannot stop process: %r', self._proc)
+            self._proc = None
+
+    def __init__(self, config):
+        self.path = config['path']
+        self._rules = [
+            (re.compile(rule['pattern']), rule.get('alert', {}))
+            for rule in config['rules']
+        ]
+        ASSERT(self._rules, 'expect non-empty rules: %r', config)
+
+    def tailing(self):
+        return self.Tailing(self.path)
+
+    def parse(self, alert_input):
+        line = alert_input.readline().decode('utf-8').strip()
+        for pattern, alert in self._rules:
+            match = pattern.search(line)
+            if match:
+                return self._make_message(alert, match, line)
+        return None
+
+    def _make_message(self, alert, match, line):
+
+        kwargs = match.groupdict()
+        kwargs.setdefault('host', os.uname().nodename)
+        kwargs.setdefault('title', self.path)
+        kwargs.setdefault('raw_message', line)
+
+        message = {
+            'host':
+                alert.get('host', '{host}').format(**kwargs),
+            'level':
+                Levels[alert.get('level', 'INFO').format(**kwargs).upper()],
+            'title':
+                alert.get('title', '{title}').format(**kwargs),
+            'description':
+                alert.get('description', '{raw_message}').format(**kwargs),
+        }
+
+        timestamp_fmt = alert.get('timestamp')
+        if timestamp_fmt is not None:
+            value = float(timestamp_fmt.format(**kwargs))
+            message['timestamp'] = datetime.datetime.utcfromtimestamp(value)
+
+        return message
+
+
 class DestinationSlack:
 
     COLOR_TABLE = {
@@ -169,7 +271,11 @@ class DestinationSlack:
         self.username = config.get('username', 'ops-onboard')
         self.icon_emoji = config.get('icon_emoji', ':robot_face:')
 
-    def make_request(
+    def send(self, message):
+        # urlopen checks the HTTP status code for us.
+        urllib.request.urlopen(self._make_request(**message))
+
+    def _make_request(
             self, *,
             host=None,
             timestamp=None,
@@ -214,10 +320,6 @@ class DestinationSlack:
             data=json.dumps(message).encode('utf-8'),
         )
 
-    def send(self, **kwargs):
-        # urlopen checks the HTTP status code for us.
-        urllib.request.urlopen(self.make_request(**kwargs))
-
 
 @apps.with_help('generate alert from collectd notification')
 def collectd(args):
@@ -232,7 +334,7 @@ def collectd(args):
     message = src_collectd.parse(sys.stdin)
 
     if message:
-        dst_slack.send(**message)
+        dst_slack.send(message)
 
     return 0
 
@@ -277,19 +379,34 @@ def send(args):
     else:
         level = Levels[args.level]
 
-    dst_slack.send(
+    dst_slack.send(dict(
         host=args.host,
         level=level,
         title=args.title,
         description=args.description,
         timestamp=datetime.datetime.utcnow(),
-    )
+    ))
 
     return 0
 
 
+@apps.with_help('watch the system and generate alerts')
+def watch(args):
+    """Watch the system and generate alerts.
+
+    This is intended to be the most basic layer of the alerting system;
+    more sophisticated alerting logic should be implemented at higher
+    level.
+    """
+    Alerts.make(args).watch()
+    return 0
+
+
 @apps.with_help('manage alerts')
-@apps.with_defaults(no_locking_required=True)
+@apps.with_defaults(
+    no_locking_required=True,
+    root_allowed=True,
+)
 @apps.with_argument(
     '--config', type=Path, default='/etc/ops/config.json',
     help='set config file path (default to %(default)s)'
@@ -298,6 +415,7 @@ def send(args):
     'operation', 'operation on alerts',
     collectd,
     send,
+    watch,
 )
 def alerts(args):
     """Manage alerts."""
