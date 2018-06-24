@@ -3,46 +3,116 @@ __all__ = [
 ]
 
 from pathlib import Path
+import enum
 import json
 import os
 import urllib.request
 
 from garage import apps
 from garage import scripts
-from garage.assertions import ASSERT
 
 
-SLACK_COLOR_TABLE = {
-    'info': '',
-    'good': 'good',
-    'warning': 'warning',
-    'error': 'danger',
-}
+class Levels(enum.Enum):
+    INFO = enum.auto()
+    GOOD = enum.auto()
+    WARNING = enum.auto()
+    ERROR = enum.auto()
 
 
-def _get(config, *fields):
-    for field in fields:
-        ASSERT.in_(field, config)
-        config = config[field]
-    return config
+def load_config(args):
+    return json.loads(scripts.ensure_file(args.config).read_text())
+
+
+class Alerts:
+
+    @classmethod
+    def make(cls, args):
+        return cls(load_config(args)['alerts'])
+
+    def __init__(self, config):
+        # For now, only one destination `slack` is supported; so it has
+        # to be present.
+        self._dest_slack = DestinationSlack(config['destinations']['slack'])
+
+
+class DestinationSlack:
+
+    COLOR_TABLE = {
+        Levels.INFO: '',
+        Levels.GOOD: 'good',
+        Levels.WARNING: 'warning',
+        Levels.ERROR: 'danger',
+    }
+
+    @classmethod
+    def make(cls, args):
+        return cls(load_config(args)['alerts']['destinations']['slack'])
+
+    def __init__(self, config):
+        self.webhook = config['webhook']
+        self.username = config.get('username', 'ops-onboard')
+        self.icon_emoji = config.get('icon_emoji', ':robot_face:')
+
+    def make_request(
+            self, *,
+            host,
+            level,
+            title,
+            description):
+
+        message = {
+            'username': self.username,
+            'icon_emoji': self.icon_emoji,
+            'attachments': [
+                {
+                    'fallback': '%s: %s: %s: %s' % (
+                        level.name,
+                        host,
+                        title,
+                        description,
+                    ),
+                    'color': self.COLOR_TABLE[level],
+                    'title': title,
+                    'text': description,
+                    'fields': [
+                        {
+                            'title': 'Host',
+                            'value': host,
+                            'short': True,
+                        },
+                    ],
+                },
+            ],
+        }
+
+        return urllib.request.Request(
+            self.webhook,
+            headers={'Content-Type': 'application/json'},
+            data=json.dumps(message).encode('utf-8'),
+        )
+
+    def send(self, **kwargs):
+        # urlopen checks the HTTP status code for us.
+        urllib.request.urlopen(self.make_request(**kwargs))
 
 
 @apps.with_help('send alert')
 @apps.with_argument(
-    '--config', type=Path, default='/etc/ops/config.json',
-    help='set config file path (default to %(default)s)'
+    '--host', default=os.uname().nodename,
+    help='overwrite host name (default to %(default)s)',
 )
 @apps.with_argument(
-    '--level', choices=('info', 'good', 'warning', 'error'),
-    help='set alert level'
-)
-@apps.with_argument(
-    '--hostname',
-    help='set hostname'
+    '--level',
+    choices=tuple(level.name for level in Levels),
+    default=Levels.INFO.name,
+    help='set alert level (default to %(default)s)',
 )
 @apps.with_argument(
     '--systemd-service-result',
-    help='provide service result for deriving alert level'
+    help=(
+        'provide service result for deriving alert level, '
+        'overwriting `--level`'
+    ),
 )
 @apps.with_argument(
     '--title', required=True,
@@ -53,66 +123,35 @@ def _get(config, *fields):
     help='set alert description',
 )
 def send(args):
-    """Send alert."""
+    """Send alert to one of the destinations."""
 
-    config = json.loads(scripts.ensure_file(args.config).read_text())
+    # At the moment we have only one destination.
+    dest_slack = DestinationSlack.make(args)
 
-    # For now, only one destination `slack` is supported; so it has to
-    # be present.
-    webhook = _get(config, 'alerts', 'destinations', 'slack', 'webhook')
-
-    if args.level:
-        level = args.level
-    elif args.systemd_service_result:
+    if args.systemd_service_result is not None:
         if args.systemd_service_result == 'success':
-            level = 'good'
+            level = Levels.GOOD
         else:
-            level = 'error'
+            level = Levels.ERROR
     else:
-        level = 'info'
+        level = Levels[args.level]
 
-    hostname = args.hostname or os.uname().nodename
-
-    message = {
-        # Should we make these configurable?
-        'username': 'ops-onboard',
-        'icon_emoji': ':robot_face:',
-        'attachments': [
-            {
-                'fallback': '%s: %s: %s' % (
-                    hostname,
-                    args.title,
-                    args.description,
-                ),
-                'color': SLACK_COLOR_TABLE[level],
-                'fields': [
-                    {
-                        'title': args.title,
-                        'value': args.description,
-                        'short': True,
-                    },
-                    {
-                        'title': 'Host',
-                        'value': hostname,
-                        'short': True,
-                    },
-                ],
-            },
-        ],
-    }
-
-    # urlopen checks the HTTP status code for us.
-    urllib.request.urlopen(urllib.request.Request(
-        webhook,
-        headers={'Content-Type': 'application/json'},
-        data=json.dumps(message).encode('utf-8'),
-    ))
+    dest_slack.send(
+        host=args.host,
+        level=level,
+        title=args.title,
+        description=args.description,
+    )
 
     return 0
 
 
 @apps.with_help('manage alerts')
 @apps.with_defaults(no_locking_required=True)
+@apps.with_argument(
+    '--config', type=Path, default='/etc/ops/config.json',
+    help='set config file path (default to %(default)s)'
+)
 @apps.with_apps(
     'operation', 'operation on alerts',
     send,
