@@ -110,7 +110,7 @@ class SourceCollectd:
 
         elif name == 'Plugin':
             headers['plugin'] = value
-        elif name == 'PlugIninstance':
+        elif name == 'PluginInstance':
             headers['plugin_instance'] = value
 
         elif name == 'Type':
