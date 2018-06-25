@@ -532,14 +532,30 @@ def cleanup(args, repo):
     """Clean up undeployed pods."""
     if args.keep < 0:
         raise ValueError('negative keep: %d' % args.keep)
+
+    def _is_enabled_or_started(pod):
+        for instance in pod.iter_instances():
+            if scripts.systemctl_is_enabled(instance.unit_name):
+                return True
+            if scripts.systemctl_is_active(instance.unit_name):
+                return True
+        return False
+
     for pod_dir_name in repo.get_pod_dir_names():
         LOG.info('%s - cleanup', pod_dir_name)
         all_pods = list(repo.iter_pods(pod_dir_name))
-        all_pods.reverse()
-        for pod in all_pods[args.keep:]:
+        num_left = len(all_pods)
+        for pod in all_pods:
+            if num_left <= args.keep:
+                break
+            if _is_enabled_or_started(pod):
+                LOG.info('refuse to undeploy pod: %s', pod)
+                continue
             undeploy_stop(pod)
             undeploy_disable(pod)
             undeploy_remove(repo, pod)
+            num_left -= 1
+
     return 0
 
 
