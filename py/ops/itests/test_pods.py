@@ -68,7 +68,7 @@ class PodsTest(Fixture, unittest.TestCase):
             str(self.systemd_started),
         )
 
-        self.stop('//foo/bar:test-pod@1002')
+        self.stop('//foo/bar:test-pod@1002', extra_args=['--instance-all'])
         self.assertTrue(
             all_units.isdisjoint(self.systemd_started),
             str(self.systemd_started),

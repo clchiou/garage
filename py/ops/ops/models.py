@@ -12,7 +12,6 @@ import re
 import urllib.parse
 from pathlib import Path
 
-from garage import scripts
 from garage.assertions import ASSERT
 from garage.collections import DictBuilder
 
@@ -300,36 +299,18 @@ class Pod(ModelObject):
         return filter(predicate, self.iter_instances())
 
     @staticmethod
-    def should_but_not_enabled(instance):
-        """Return True when an instance should be but is not enabled."""
-        return (
-            instance.enable and
-            not scripts.systemctl_is_enabled(instance.unit_name)
-        )
+    def all_instances(_):
+        return True
 
     @staticmethod
-    def should_but_not_started(instance):
-        """Return True when an instance should be but is not started."""
-        return (
-            instance.start and
-            not scripts.systemctl_is_active(instance.unit_name)
-        )
+    def should_enable(instance):
+        """Return True on instances that should be enabled."""
+        return instance.enable
 
-    def is_enabled(self, *, predicate=None):
-        predicate = predicate or self.should_but_not_enabled
-        enabled = True
-        for instance in self.filter_instances(predicate):
-            LOG.debug('unit is not enabled: %s', instance.unit_name)
-            enabled = False
-        return enabled
-
-    def is_started(self, *, predicate=None):
-        predicate = predicate or self.should_but_not_started
-        started = True
-        for instance in self.filter_instances(predicate):
-            LOG.debug('unit is not started: %s', instance.unit_name)
-            started = False
-        return started
+    @staticmethod
+    def should_start(instance):
+        """Return True on instances should be started."""
+        return instance.start
 
 
 class SystemdUnit(ModelObject):
