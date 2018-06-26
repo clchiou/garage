@@ -335,21 +335,11 @@ with_argument_tag = apps.with_argument(
 
 @apps.with_prog('list')
 @apps.with_help('list deployed pods')
-@apps.with_argument(
-    '--show-state', action='store_true',
-    help='also print unit state',
-)
-def list_pods(args, repo):
+def list_pods(_, repo):
     """List deployed pods."""
     for pod_dir_name in repo.get_pod_dir_names():
         for pod in repo.iter_pods(pod_dir_name):
-            row = [pod]
-            if args.show_state:
-                if pod.is_enabled():
-                    row.append('enabled')
-                if pod.is_started():
-                    row.append('started')
-            print(*row)
+            print(pod)
     return 0
 
 
