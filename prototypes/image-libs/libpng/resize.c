@@ -28,17 +28,17 @@ static bool resize_png_impl(
 		png_structp png, png_infop info,
 		struct jpeg_compress_struct *compressor)
 {
-	bool okay = false;
-
-	png_bytepp rows = NULL;
-	png_bytep row_buffer = NULL;
-
 	if (setjmp(png_jmpbuf(png))) {
 		LOG("png longjmp");
-		goto err;
+		return false;
 	}
 
-	png_read_info(png, info);
+	const int transforms =
+		PNG_TRANSFORM_SCALE_16 |
+		PNG_TRANSFORM_STRIP_ALPHA |
+		PNG_TRANSFORM_PACKING |
+		PNG_TRANSFORM_EXPAND;
+	png_read_png(png, info, transforms, NULL);
 
 	const uint32_t width = png_get_image_width(png, info);
 	const uint32_t height = png_get_image_height(png, info);
@@ -46,40 +46,18 @@ static bool resize_png_impl(
 	LOG("image dimension: %d x %d, %d", width, height, row_bytes);
 
 	const png_byte color_type = png_get_color_type(png, info);
-	if (color_type != PNG_COLOR_TYPE_RGB) {
-		LOG("does not support color_type: %02x", color_type);
-		goto err;
-	}
+	LOG("color_type: %02x", color_type);
 
 	const png_byte bit_depth = png_get_bit_depth(png, info);
-	if (bit_depth != 8) {
-		LOG("does not support bit_dipth: %d", bit_depth);
-		goto err;
-	}
+	LOG("bit_dipth: %d", bit_depth);
 
 	const png_byte interlace_type = png_get_interlace_type(png, info);
-	if (interlace_type != PNG_INTERLACE_NONE) {
-		LOG("does not support interlace_type: %d", interlace_type);
-		goto err;
-	}
+	LOG("interlace_type: %d", interlace_type);
 
-	rows = calloc(height, sizeof(png_bytep));
-	if (!rows) {
-		LOG("cannot allocate rows");
-		goto err;
+	// Expect RGB, 3 bytes per pixel.
+	if (width * 3 != row_bytes) {
+		return false;
 	}
-
-	row_buffer = calloc(height, row_bytes);
-	if (!row_buffer) {
-		LOG("cannot allocate row_buffer");
-		goto err;
-	}
-
-	for (uint32_t y = 0; y < height; y++) {
-		rows[y] = row_buffer + y * row_bytes;
-	}
-
-	png_read_image(png, rows);
 
 	compressor->image_width = width;
 	compressor->image_height = height;
@@ -90,22 +68,11 @@ static bool resize_png_impl(
 
 	jpeg_start_compress(compressor, TRUE);
 
-	for (uint32_t y = 0; y < height; y++) {
-		JDIMENSION num_written = jpeg_write_scanlines(
-				compressor, rows + y, 1);
-		if (num_written != 1) {
-			LOG("write only %u of 1 scanlines", num_written);
-			break;
-		}
-	}
-
-	okay = compressor->next_scanline >= compressor->image_height;
+	jpeg_write_scanlines(compressor, png_get_rows(png, info), height);
+	const bool okay =
+		compressor->next_scanline >= compressor->image_height;
 
 	jpeg_finish_compress(compressor);
-
-err:
-	free(rows);
-	free(row_buffer);
 
 	return okay;
 }
