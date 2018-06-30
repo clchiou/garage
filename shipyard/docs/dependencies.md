@@ -39,6 +39,7 @@ thrid party
     certifi
   sqlalchemy                x               1.2.7
   v8                x                       6.6.346 (revision d500271571b92cb18dcd7b15885b51e8f437d640)
+  wand                      x               0.4.4
 
 thrid party host tools
   capnproto-java                    x       v0.1.2

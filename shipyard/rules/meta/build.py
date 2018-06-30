@@ -41,6 +41,7 @@ from foreman import define_rule
  .depend('//py/pyyaml-zipapp:patch')
  .depend('//py/requests:build')
  .depend('//py/sqlalchemy:build')
+ .depend('//py/wand:build')
 )
 
 
