@@ -111,7 +111,11 @@ async def client(graceful_exit, sockets, request_queue, timeout=None):
 
 
 async def server(
-    graceful_exit, socket, request_queue, timeout=None, error_handler=None):
+        graceful_exit,
+        socket,
+        request_queue,
+        timeout=None,
+        error_handler=None):
 
     """Act as server-side in the reqrep protocol.
 
@@ -176,7 +180,7 @@ async def server(
         LOG.info('server: stop receiving requests from: %s', socket)
 
     async def handle_request(
-        begin_time, request, response_future, response_message):
+            begin_time, request, response_future, response_message):
 
         if timeout is not None:
             remaining_time = timeout - (time.perf_counter() - begin_time)
@@ -199,7 +203,14 @@ async def server(
             await send_response(request, response, response_message)
 
     async def on_error(exc, request, response_message, *, exc_info=True):
-        LOG.error(
+        if isinstance(exc, curio.TaskTimeout):
+            # Timeout is very common is distributed system; whether it
+            # is an error should be decided at application level, and we
+            # will just log a warning here.
+            log = LOG.warning
+        else:
+            log = LOG.error
+        log(
             'server: err when processing request: %r',
             request, exc_info=exc_info,
         )
