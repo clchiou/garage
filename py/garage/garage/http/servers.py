@@ -136,10 +136,13 @@ class Server:
                     exc_info=True,
                 )
             else:
-                LOG.exception(
+                # Whether an HTTP 5xx status code is an error should be
+                # decided at application layer; we just log a warning.
+                LOG.warning(
                     'request handler throws: %s: %s %s %s',
                     stream, stream.request.method.name, stream.request.path,
                     response.status,
+                    exc_info=True,
                 )
             await self._submit_error(stream, response)
         except Exception:
