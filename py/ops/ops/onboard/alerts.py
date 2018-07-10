@@ -2,6 +2,7 @@ __all__ = [
     'alerts',
 ]
 
+from collections import namedtuple
 from pathlib import Path
 import contextlib
 import datetime
@@ -185,6 +186,8 @@ class SourceCollectd:
 
 class SourceLog:
 
+    Rule = namedtuple('Rule', 'pattern alert skip')
+
     class Tailing:
 
         def __init__(self, path):
@@ -211,20 +214,33 @@ class SourceLog:
     def __init__(self, config):
         self.path = config['path']
         self._rules = [
-            (re.compile(rule['pattern']), rule.get('alert', {}))
+            self.Rule(
+                pattern=re.compile(rule['pattern']),
+                alert=rule.get('alert', {}),
+                skip=rule.get('skip', False),
+            )
             for rule in config['rules']
         ]
         ASSERT(self._rules, 'expect non-empty rules: %r', config)
+        for rule in self._rules:
+            ASSERT(
+                not (rule.alert and rule.skip),
+                'expect either alert or skip, but not both: %r', config,
+            )
 
     def tailing(self):
         return self.Tailing(self.path)
 
     def parse(self, alert_input):
         line = alert_input.readline().decode('utf-8').strip()
-        for pattern, alert in self._rules:
-            match = pattern.search(line)
-            if match:
-                return self._make_message(alert, match, line)
+        for rule in self._rules:
+            match = rule.pattern.search(line)
+            if not match:
+                pass
+            elif rule.skip:
+                return None
+            else:
+                return self._make_message(rule.alert, match, line)
         return None
 
     def _make_message(self, alert, match, line):
