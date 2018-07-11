@@ -125,7 +125,7 @@ class AppTest(PrepareForeman, unittest.TestCase):
                 'readOnly': False,
             },
             {
-                'name': 'example.com/worker-image--tmp',
+                'name': 'example.com/worker-image--worker--tmp',
                 'path': '/tmp',
                 'readOnly': False,
             },
@@ -213,7 +213,7 @@ class AppTest(PrepareForeman, unittest.TestCase):
                 'recursive': True,
             },
             {
-                'name': 'example.com/worker-image--tmp',
+                'name': 'example.com/worker-image--worker--tmp',
                 'kind': 'empty',
                 'readOnly': False,
                 'recursive': True,

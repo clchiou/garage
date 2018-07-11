@@ -661,11 +661,15 @@ class Image(ModelObject):
     def get_generated_mount_point_name(self, path):
         """Generate mount point name (for writable directory).
 
-        Path `/foo/bar` will be named "image-name--foo-bar"; this should
-        avoid most potential name conflicts; if there still are, the
-        caller should raise an error.
+        Path `/foo/bar` will be named "image-name--app-name--foo-bar";
+        this should avoid most potential name conflicts; if there still
+        are, the caller should raise an error.
         """
-        return '%s--%s' % (self.name, '-'.join(filter(None, path.split('/'))))
+        return '%s--%s--%s' % (
+            self.name,
+            self.app.name,
+            '-'.join(filter(None, path.split('/'))),
+        )
 
     def get_pod_manifest_entry(self):
         """Return an app entry embedded in pod manifest."""
