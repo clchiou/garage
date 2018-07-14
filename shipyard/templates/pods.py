@@ -225,6 +225,9 @@ def image_specifier(specifier):
                         tmpdir, aci_paths,
                     )
 
+        # docker2aci's output is not world-readable, let's fix that.
+        scripts.execute(['chmod', 'a+r', image_path])
+
         scripts.pipeline(
             [
                 scripts.gunzip,
