@@ -62,7 +62,20 @@ def parse_podv(podv):
 @apps.with_help('list all build artifacts')
 def list_artifacts(args):
     """List all build artifacts."""
+    artifacts = _list_artifacts(args)
+    # Preserve order for readability (PyYAML sucks in this regard).
+    yaml.SafeDumper.add_representer(OrderedDict, represent_mapping)
+    artifacts = yaml.safe_dump(
+        artifacts,
+        default_flow_style=False,
+        explicit_start=True,
+        indent=2,
+    )
+    print(artifacts, end='')
+    return 0
 
+
+def _list_artifacts(args):
     artifacts = OrderedDict()
 
     def pod_dir_to_inst_file(pod_dir):
@@ -140,17 +153,7 @@ def list_artifacts(args):
         label, version = path_to_lv(volume_dir.relative_to(volumes_dir))
         put_entry(volumes, label, version, volume_to_pods.get(volume_dir, ()))
 
-    # Preserve order for readability (PyYAML sucks in this regard).
-    yaml.SafeDumper.add_representer(OrderedDict, represent_mapping)
-    artifacts = yaml.safe_dump(
-        artifacts,
-        default_flow_style=False,
-        explicit_start=True,
-        indent=2,
-    )
-    print(artifacts, end='')
-
-    return 0
+    return artifacts
 
 
 @apps.with_prog('read-prop')
@@ -394,6 +397,83 @@ def bind(args):
     return 0
 
 
+@apps.with_help('clean up old build artifacts')
+@apps.with_argument(
+    '--keep', type=int, required=True,
+    help='keep these latest versions',
+)
+def cleanup(args):
+    """Clean up old build artifacts."""
+
+    def pod_dir_to_inst_file(pod_dir):
+        return pod_dir.with_name(pod_dir.name + '.yaml')
+
+    root = scripts.ensure_path(args.release_root).resolve()
+    pods_dir = root / 'pods'
+    images_dir = root / 'images'
+    volumes_dir = root / 'volumes'
+
+    def lv_to_path(dirpath, label_str, version):
+        label = Label.parse(label_str)
+        return dirpath / label.path / label.name / version
+
+    artifacts = _list_artifacts(args)
+
+    with scripts.dry_run(args.dry_run):
+
+        # Remove dangling instruction files.
+        for inst_file in sorted((root / 'pods').rglob('*.yaml')):
+            pod_dir = inst_file.with_suffix('')
+            if not pod_dir.exists():
+                LOG.info('remove instruction file: %s', inst_file)
+                scripts.rm(inst_file)
+
+        pods = artifacts['pods']
+        pods_left = set()
+        for label, versions_channels in pods.items():
+            num_left = len(versions_channels)
+            while versions_channels:
+                if num_left <= args.keep:
+                    break
+                version, channels = versions_channels.popitem(last=False)
+                podv = '%s@%s' % (label, version)
+                if channels:
+                    pods_left.add(podv)
+                else:
+                    pod_dir = lv_to_path(pods_dir, label, version)
+                    inst_file = pod_dir_to_inst_file(pod_dir)
+                    LOG.info('remove pod: %s', podv)
+                    scripts.rm(pod_dir, recursive=True)
+                    LOG.info('remove instruction file: %s', inst_file)
+                    scripts.rm(inst_file)
+                    num_left -= 1
+            for version in versions_channels:
+                pods_left.add('%s@%s' % (label, version))
+
+        for label, versions_pods in artifacts['images'].items():
+            for version, pods in versions_pods.items():
+                # This version is needed by these pods; if their
+                # intersection with pods_left is empty, then we may
+                # remove this image (same for volumes below).
+                if not set(pods).intersection(pods_left):
+                    LOG.info('remove image: %s@%s', label, version)
+                    scripts.rm(
+                        lv_to_path(images_dir, label, version),
+                        recursive=True,
+                    )
+
+        for label, versions_pods in artifacts['volumes'].items():
+            for version, pods in versions_pods.items():
+                if not set(pods).intersection(pods_left):
+                    LOG.info('remove volume: %s@%s', label, version)
+                    scripts.rm(
+                        lv_to_path(volumes_dir, label, version),
+                        recursive=True,
+                    )
+
+    return 0
+
+
 @apps.with_argument(
     '--dry-run', action='store_true',
     help='do not execute build',
@@ -415,6 +495,7 @@ def bind(args):
     build,
     build_instructions,
     bind,
+    cleanup,
 )
 def main(args):
     """Release management tool."""
