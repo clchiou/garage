@@ -8,11 +8,6 @@ from templates import pods
  .with_default('1.8.9'))
 
 
-(define_parameter('image-checksum')
- .with_doc('HAProxy image checksum.')
- .with_default('sha512-ce1abc1223fbcdc670cd5dfd83f10c8f018e178ea93b76e671dc19b5c4dc169b'))
-
-
 @pods.app_specifier
 def haproxy_app(_):
     return pods.App(
@@ -47,11 +42,13 @@ def haproxy_app(_):
 @pods.image_specifier
 def haproxy_image(parameters):
     return pods.Image(
-        id=parameters['image-checksum'],
-        image_uri='docker://haproxy:%s' % parameters['image-version'],
+        image_build_uri='docker://haproxy:%s' % parameters['image-version'],
         name='haproxy',
         app=parameters['haproxy_app'],
     )
 
 
 haproxy_image.specify_image.depend('haproxy_app/specify_app')
+
+
+haproxy_image.build_image.depend('//host/docker2aci:install')

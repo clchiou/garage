@@ -24,6 +24,7 @@ import json
 import logging
 import re
 import tarfile
+import tempfile
 
 from garage import scripts
 
@@ -122,11 +123,13 @@ def image_specifier(specifier):
     def write_manifest(parameters):
         """Create Appc image manifest file."""
         image = parameters[specifier.__name__]
-        if image.image_uri:
+
+        uri = image.image_build_uri or image.image_uri
+        if uri:
             LOG.info(
                 'do not write appc image manifest '
                 'because image is from registry: %s %s',
-                specifier.__name__, image_uri,
+                specifier.__name__, uri,
             )
             return
 
@@ -147,6 +150,11 @@ def image_specifier(specifier):
         """Build Appc container image."""
 
         image = parameters[specifier.__name__]
+
+        if image.image_build_uri:
+            convert_docker_image(parameters, image)
+            return
+
         if image.image_uri:
             LOG.info(
                 'do not build image '
@@ -184,9 +192,48 @@ def image_specifier(specifier):
                 lambda: scripts.gzip(speed=9),
             ],
             # Don't close file opened from image_path here because
-            # pipeline() will close it
+            # pipeline() will close it.
             pipe_output=image_path.open('wb'),
         )
+        scripts.ensure_file(image_path)
+        scripts.ensure_file(image_checksum_path)
+
+    def convert_docker_image(parameters, image):
+        LOG.info('convert docker image: %s', image.image_build_uri)
+
+        output_dir = parameters['//base:output'] / image.name
+        scripts.mkdir(output_dir)
+        image_path = output_dir / 'image.aci'
+        if image_path.exists():
+            LOG.warning('overwrite: %s', image_path)
+        image_checksum_path = output_dir / 'sha512'
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir = scripts.ensure_path(tmpdir)
+            with scripts.directory(tmpdir):
+                scripts.execute([
+                    'docker2aci',
+                    '-compression=gzip',
+                    image.image_build_uri,
+                ])
+                aci_paths = tuple(tmpdir.glob('*.aci'))
+                if len(aci_paths) == 1:
+                    scripts.mv(aci_paths[0], image_path)
+                else:
+                    LOG.error(
+                        'expect exactly one ACI image under: %s, %s',
+                        tmpdir, aci_paths,
+                    )
+
+        scripts.pipeline(
+            [
+                scripts.gunzip,
+                lambda: _compute_sha512(image_checksum_path),
+            ],
+            # Don't close file  because pipeline() will close it.
+            pipe_input=image_path.open('rb'),
+        )
+
         scripts.ensure_file(image_path)
         scripts.ensure_file(image_checksum_path)
 
@@ -206,7 +253,8 @@ def _compute_sha512(sha512_file_path):
         if not data:
             break
         hasher.update(data)
-        pipe_output.write(data)
+        if pipe_output:
+            pipe_output.write(data)
     sha512_file_path.write_text('%s\n' % hasher.hexdigest())
 
 
@@ -605,6 +653,9 @@ class Image(ModelObject):
         ('id', None),
         ('name', None),
         ('version', None),
+        # image_build_uri is URI to fetch from at **build** time.
+        ('image_build_uri', None),
+        # image_uri is URI to fetch from at **deployment** time.
         ('image_uri', None),
         ('app', App),
         ('read_only_rootfs', None),
@@ -618,16 +669,20 @@ class Image(ModelObject):
             id=None,
             name,
             version=None,
+            image_build_uri=None,
             image_uri=None,
             app,
             read_only_rootfs=True, writable_directories=('/tmp',)):
         self._id = id
         self.name = self._ensure_ac_identifier(name)
         self._version = version
+        self.image_build_uri = self._ensure_image_uri(image_build_uri)
         self.image_uri = self._ensure_image_uri(image_uri)
         self.app = app
         self.read_only_rootfs = read_only_rootfs
         self.writable_directories = writable_directories
+        if self.image_build_uri and self.image_uri:
+            raise ValueError('image_build_uri and image_uri are exclusive')
         if self.image_uri and not self._id:
             raise ValueError('expect id for image uri: %s' % self.image_uri)
 

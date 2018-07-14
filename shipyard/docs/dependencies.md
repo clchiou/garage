@@ -43,6 +43,7 @@ thrid party host tools
   capnproto-java                    x       v0.1.2
   cython                        x           0.28.2
   depot_tools           x                   master
+  docker2aci                                v0.17.2
   gradle                            x       4.7
   node              x                       version bundled with distro
     npm                                 x

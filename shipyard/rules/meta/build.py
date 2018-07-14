@@ -28,6 +28,7 @@ from foreman import define_rule
  .depend('//host/cpython:install')
  .depend('//host/cython:install')
  .depend('//host/depot_tools:install')
+ .depend('//host/docker2aci:install')
  .depend('//host/gradle:install')
  .depend('//host/java:install')
  .depend('//host/node:install')
