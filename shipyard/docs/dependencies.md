@@ -29,6 +29,7 @@ thrid party
     markupsafe          x
   nanomsg           x                       1.1.2
   nghttp2           x                       v1.31.1
+  psycopg2                  x               2_7_5
   pyyaml                    x               b6cbfeec35e019734263a8f4e6a3340e94fe0a4f (recent master that supports python 3.7)
   requests              x                   2.18.4
     chardet

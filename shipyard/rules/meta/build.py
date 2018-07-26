@@ -37,6 +37,7 @@ from foreman import define_rule
  .depend('//py/curio:build')
  .depend('//py/lxml:build')
  .depend('//py/mako:build')
+ .depend('//py/psycopg2:build')
  .depend('//py/pyyaml:build')
  .depend('//py/pyyaml-zipapp:patch')
  .depend('//py/requests:build')
