@@ -14,7 +14,6 @@ setup(
     extras_require = {
         'asyncs': ['curio'],
         'asyncs.messaging': ['curio', 'nanomsg'],
-        'components': ['startup'],
         'formatters': ['PyYAML'],
         'http.clients': ['lxml', 'requests'],
         'http.servers': ['http2'],
