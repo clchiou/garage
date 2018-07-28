@@ -748,13 +748,19 @@ class Request(Entity):
         return 4 + len(self.headers)
 
     def _iter_headers(self, session):
-        ASSERT.not_none(session._scheme)
-        ASSERT.not_none(session._host)
+        if session:
+            ASSERT.not_none(session._scheme)
+            ASSERT.not_none(session._host)
         yield (b':method', self.method.value)
         yield (b':scheme', (self.scheme or session._scheme).value)
         yield (b':authority', self.authority or session._host)
         yield (b':path', self.path)
         yield from self.headers
+
+    def iter_headers(self):
+        ASSERT.not_none(self.scheme)
+        ASSERT.not_none(self.authority)
+        yield from self._iter_headers(None)
 
 
 class Response(Entity):
@@ -793,6 +799,9 @@ class Response(Entity):
         provider.source.ptr = _addrof(read)
 
         return ctypes.byref(provider)
+
+    def iter_headers(self):
+        yield from self._iter_headers(None)
 
 
 def _addrof(obj):
