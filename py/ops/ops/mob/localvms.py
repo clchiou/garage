@@ -66,7 +66,7 @@ def create(args):
     ])
     scripts.execute([
         'vboxmanage', 'modifyvm', args.name,
-        '--memory', '512',
+        '--memory', '1024',
         '--boot1', 'disk',
         '--nic1', 'nat',
         # Enable host-only network
@@ -95,6 +95,9 @@ def create(args):
     scripts.execute([
         'vboxmanage', 'clonemedium', 'disk', args.image, image_path,
         '--format', 'VDI',
+    ])
+    scripts.execute([
+        'vboxmanage', 'modifyhd', image_path, '--resize', '25600',
     ])
     scripts.execute([
         'vboxmanage', 'storageattach', args.name,
