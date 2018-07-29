@@ -4,6 +4,8 @@ __all__ = [
     'ClientError',
     'Redirection',
     'ServerError',
+
+    'Handler',
     'Server',
 ]
 
@@ -80,11 +82,13 @@ class ServerError(HttpError):
 
 
 class Server:
-    """Serve one client connection."""
+    """Serve one client connection.
 
-    def __init__(self, handler, *, timeout=None):
+    This is an adapter class between socket handler and http handler.
+    """
+
+    def __init__(self, handler):
         self.handler = handler
-        self.timeout = timeout
 
     async def __call__(self, client_socket, client_address):
         session = http2.Session(client_socket)
@@ -93,7 +97,7 @@ class Server:
                 await asyncs.cancelling.spawn(self._join(tasks)) as joiner, \
                 await asyncs.cancelling.spawn(session.serve()) as server:
             async for stream in session:
-                await tasks.spawn(self._run_handler(stream))
+                await tasks.spawn(self.handler(stream))
             await server.join()
             tasks.graceful_exit()
             await joiner.join()
@@ -109,7 +113,15 @@ class Server:
                     runner, exc_info=runner.exception,
                 )
 
-    async def _run_handler(self, stream):
+
+class Handler:
+    """Wrap another handler and convert HttpError into response."""
+
+    def __init__(self, handler, *, timeout=None):
+        self.handler = handler
+        self.timeout = timeout
+
+    async def __call__(self, stream):
         LOG.info(
             '%s: %s %s',
             stream, stream.request.method.name, stream.request.path,
