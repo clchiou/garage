@@ -533,8 +533,14 @@ class Stream:
     # Non-blocking version of submit() that should be called in the
     # Session object's callback functions.
     def _submit_response_nowait(self, response):
-        self._ensure_not_closed()
         ASSERT.in_(self.response, (None, response))
+
+        # Assign response before _ensure_not_closed so that even if the
+        # stream is closed, upper layer may still have access to the
+        # response object.
+        self.response = response
+
+        self._ensure_not_closed()
         LOG.debug('%s: submit response', self)
         owners = []
         nva, nvlen = response._make_headers(self._session, owners)
@@ -548,7 +554,6 @@ class Stream:
         except Nghttp2Error:
             self._session._rst_stream(self._id)
             raise
-        self.response = response
 
     async def submit_response(self, response):
         """Send response to client."""
