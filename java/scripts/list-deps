@@ -21,6 +21,8 @@ DEPS = [
 
     'com.google.guava:guava',
 
+    'com.ibm.icu:icu4j',
+
     'net.java.dev.jna:jna',
 
     'org.jooq:jooq',

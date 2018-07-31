@@ -12,6 +12,7 @@ ext {
     daggerVersion = '2.15'
     findbugsVersion = '3.0.2'
     guavaVersion = '25.0-jre'
+    icu4jVersion = '62.1'
     jnaVersion = '4.5.1'
     jooqVersion = '3.10.6'
     junitVersion = '5.2.0'
