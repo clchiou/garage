@@ -124,7 +124,7 @@ class Spider:
             LOG.debug('exclude URI to the outside: %s', request.uri)
             return
 
-        if self._uris.check_and_add(request.uri):
+        if request.method == 'GET' and self._uris.check_and_add(request.uri):
             LOG.debug('exclude crawled URI: %s', request.uri)
             return
 
