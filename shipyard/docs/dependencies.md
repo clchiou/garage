@@ -22,6 +22,12 @@ thrid party
   boost             x                       1.67.0
   capnproto         x                       v0.6.1
   cpython           x                       3.7.0b3
+  cryptography              x               2.3.1
+    asn1crypto
+    cffi
+    idna
+    pycparser
+    six
   curio                 x                   0.7
   jdk                               x       8u172
   lxml                      x               4.2.1

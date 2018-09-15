@@ -34,6 +34,7 @@ from foreman import define_rule
  .depend('//host/node:install')
  .depend('//java/java:build')
  .depend('//py/cpython:build')
+ .depend('//py/cryptography:build')
  .depend('//py/curio:build')
  .depend('//py/lxml:build')
  .depend('//py/mako:build')
