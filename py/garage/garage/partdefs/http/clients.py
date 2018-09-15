@@ -1,5 +1,6 @@
 from garage import parameters
 from garage import parts
+from garage.assertions import ASSERT
 from garage.http import clients
 from garage.http import policies
 
@@ -12,8 +13,10 @@ PARAMS = parameters.define_namespace(
     clients.__name__, 'http client library')
 PARAMS.user_agent = parameters.create(
     'Mozilla/5.0', 'set HTTP user agent')
+PARAMS.max_request_rate = parameters.create(
+    0.0, 'set max requests per second (0 means unlimited)')
 PARAMS.max_requests = parameters.create(
-    0, 'set max concurrent HTTP requests where 0 means unlimited')
+    0.0, 'set token bucket size')
 PARAMS.num_retries = parameters.create(
     0, 'set retries where 0 means no retry')
 
@@ -21,9 +24,12 @@ PARAMS.num_retries = parameters.create(
 @parts.define_maker
 def make_client() -> PARTS.client:
 
-    if PARAMS.max_requests.get() > 0:
-        rate_limit = policies.MaxConcurrentRequests(
-            PARAMS.max_requests.get())
+    if PARAMS.max_request_rate.get() > 0:
+        ASSERT.greater(PARAMS.max_requests.get(), 0)
+        rate_limit = policies.TokenBucket(
+            PARAMS.max_request_rate.get(),
+            PARAMS.max_requests.get(),
+        )
     else:
         rate_limit = policies.Unlimited()
 
