@@ -1,3 +1,6 @@
+import json
+import typing
+
 from garage import parameters
 from garage import parts
 from garage.assertions import ASSERT
@@ -35,6 +38,10 @@ def create_params(
         num_retries,
         'set retries where 0 means no retry',
     )
+    params.send_kwargs = parameters.create(
+        '',
+        'set default kwargs to send method, from a JSON string',
+    )
     return params
 
 
@@ -58,9 +65,15 @@ def create_maker(part_list, params):
         else:
             retry_policy = policies.NoRetry()
 
+        if params.send_kwargs.get():
+            send_kwargs = json.loads(params.send_kwargs.get())
+        else:
+            send_kwargs = None
+
         client = clients.Client(
             rate_limit=rate_limit,
             retry_policy=retry_policy,
+            send_kwargs=send_kwargs,
         )
         client.headers['User-Agent'] = params.user_agent.get()
 

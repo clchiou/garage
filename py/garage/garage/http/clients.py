@@ -105,11 +105,14 @@ class Client(_ClientMixin):
     def __init__(self, *,
                  rate_limit=None,
                  retry_policy=None,
+                 send_kwargs=None,
                  _session=None,
                  _sleep=time.sleep):
         self._session = _session or requests.Session()
         self._rate_limit = rate_limit or policies.Unlimited()
         self._retry_policy = retry_policy or policies.NoRetry()
+        self._send_kwargs = send_kwargs or {}
+        _check_kwargs(self._send_kwargs, _SEND_ARG_NAMES)
         self._sleep = _sleep
         _patch_session(self._session)
 
@@ -131,7 +134,14 @@ class Client(_ClientMixin):
         LOG.debug('%s %s', request.method, request.uri)
         _check_kwargs(kwargs, _SEND_ARG_NAMES)
         method = getattr(self._session, request.method.lower())
-        kwargs.update(request.kwargs)
+
+        # Precedence: request.kwargs > kwargs > self._send_kwargs.
+        final_kwargs = {}
+        final_kwargs.update(self._send_kwargs)
+        final_kwargs.update(kwargs)
+        final_kwargs.update(request.kwargs)
+        kwargs = final_kwargs
+
         retry = self._retry_policy()
         retry_count = 0
         while True:
