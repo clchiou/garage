@@ -1,15 +1,16 @@
 """Assertions.
 
-Generally you just use the `ASSERT` object defined in this module, but
-if you want to raise different exception, just define your `Assertions`
+Generally you just use the ``ASSERT`` object defined in this module, but
+if you want to raise different exception, just define an ``Assertions``
 instance.
 
 Examples:
-  from g1.bases.assertions import ASSERT
-  ASSERT(is_prime(x), 'expect a prime number, not {}', x)
+>>> from g1.bases.assertions import ASSERT
+>>> ASSERT(is_prime(x), 'expect a prime number, not {}', x)
 
 This module is different from (and better than, in my opinion) the
 assert statement in the following ways:
+
 * You cannot turn it off (the assert statement can be turned off).
 * It provides some common checks and default error messages.
 * You may raise other exceptions, not just AssertionError.
@@ -55,14 +56,14 @@ class Assertions:
     composed under the convention that the second argument is what you
     expect and the first argument is the actual input.
 
-    You may provide error message through the keyword-only `message`
-    argument.  Note that messages are {}-formatted, not %-formatted.
-    The benefits of {}-formatting are that you may reverse or repeat the
-    formatting arguments in the output message.
+    You may provide error message through the keyword-only ``message``
+    argument.  Note that messages are ``{}``-formatted, not ``%``-
+    formatted.  The benefits of ``{}``-formatting are that you may
+    reverse or repeat the formatting arguments in the output message.
 
     Examples:
-      HTTP_ASSERT = Assertions(HttpError)
-      x = HTTP_ASSERT.greater(x, 0)
+    >>> HTTP_ASSERT = Assertions(HttpError)
+    >>> x = HTTP_ASSERT.greater(x, 0)
     """
 
     def __init__(self, make_exc):
@@ -71,12 +72,12 @@ class Assertions:
     def __call__(self, cond, message, *args):
         """State an assertion.
 
-        Note that __call__'s function signature is slightly different
-        here: The formatting arguments are passed from `*args`, and do
+        Note that ``__call__`` function signature is slightly different
+        here: The formatting arguments are passed from ``*args``, and do
         not include the condition stated by the assertion.
 
         Examples:
-          ASSERT(is_prime(x), 'expect a prime number, not {}', x)
+        >>> ASSERT(is_prime(x), 'expect a prime number, not {}', x)
         """
         if not cond:
             raise self._make_exc(message.format(*args), cond)
