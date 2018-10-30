@@ -24,9 +24,7 @@ __all__ = [
 import operator
 from functools import partialmethod
 
-
-def _not(func):
-    return lambda *args: not func(*args)
+from g1.bases import functionals
 
 
 def _is_none(x):
@@ -118,7 +116,7 @@ class Assertions:
     )
     not_type_of = partialmethod(
         _assert_2,
-        _not(isinstance),
+        functionals.compose(operator.not_, isinstance),
         message='expect non-{1}-typed value, but {0!r}',
     )
 
@@ -132,7 +130,7 @@ class Assertions:
     )
     not_contains = partialmethod(
         _assert_2,
-        _not(operator.contains),
+        functionals.compose(operator.not_, operator.contains),
         message='expect {0!r} not containing {1!r}',
     )
 

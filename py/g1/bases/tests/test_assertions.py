@@ -43,17 +43,17 @@ class AssertionsTest(unittest.TestCase):
             ('less_or_equal', (0, 1), 0),
             ('less_or_equal', (1, 1), 1),
         ]
-        for check_name, args, ret in checks:
+        for check_name, args, expect_ret in checks:
             with self.subTest(check=check_name):
                 check = getattr(ASSERT, check_name)
-                self.assertEqual(ret, check(*args))
+                self.assertEqual(check(*args), expect_ret)
 
     def test_assertion_methods_fail(self):
         with self.subTest(check='__call__'):
             pattern = r'some message 1'
             with self.assertRaisesRegex(AssertionError, pattern) as cm:
                 ASSERT(False, 'some message {}', 1)
-            self.assertEqual((False, ), cm.exception.args[1:])
+            self.assertEqual(cm.exception.args[1:], (False, ))
         checks = [
             ('true', (0, ), r'expect true-value, not 0'),
             ('false', ('hello', ), r'expect false-value, not \'hello\''),
@@ -88,7 +88,7 @@ class AssertionsTest(unittest.TestCase):
                 check = getattr(ASSERT, check_name)
                 with self.assertRaisesRegex(AssertionError, pattern) as cm:
                     check(*args)
-                self.assertEqual(args, cm.exception.args[1:])
+                self.assertEqual(cm.exception.args[1:], args)
 
 
 if __name__ == '__main__':
