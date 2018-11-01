@@ -6,6 +6,7 @@ future implementation.
 """
 
 __all__ = [
+    'CompletionQueue',
     'Future',
     'Timeout',
     'wrap_thread_target',
@@ -15,6 +16,10 @@ import contextlib
 import functools
 import logging
 import threading
+import time
+
+from g1.bases.collections import Multiset
+from g1.threads import queues
 
 LOG = logging.getLogger(__name__)
 
@@ -160,6 +165,112 @@ class Future:
             self._condition.notify_all()
         for callback in callbacks:
             self._call_callback(callback)
+
+
+class CompletionQueue:
+    """Closable queue for waiting future completion.
+
+    NOTE: Unlike other "regular" queues, since ``CompletionQueue`` only
+    return completed futures, sometimes even when queue is not empty,
+    ``get`` might not return anything if not future is completed yet.
+    """
+
+    def __init__(self, iterable=()):
+        self._lock = threading.Lock()
+        self._uncompleted = Multiset(iterable)
+        self._completed = queues.Queue()
+        self._closed = False
+        # Make a copy so that we may modify ``self._uncompleted`` while
+        # iterating over its items.
+        for f in tuple(self._uncompleted):
+            f.add_callback(self._on_completion)
+
+    def __repr__(self):
+        with self._lock:
+            num_uncompleted = len(self._uncompleted)
+            num_completed = len(self._completed)
+        return '<%s at %#x: %s, uncompleted=%d, completed=%d>' % (
+            self.__class__.__qualname__,
+            id(self),
+            'closed' if self._closed else 'open',
+            num_uncompleted,
+            num_completed,
+        )
+
+    def __bool__(self):
+        with self._lock:
+            return bool(self._uncompleted) or bool(self._completed)
+
+    def __len__(self):
+        with self._lock:
+            return len(self._uncompleted) + len(self._completed)
+
+    def is_closed(self):
+        with self._lock:
+            return self._closed
+
+    def close(self, graceful=True):
+        with self._lock:
+            if self._closed:
+                return []
+            if graceful:
+                items = []
+            else:
+                items = self._completed.close(False)
+                items.extend(self._uncompleted)
+                self._uncompleted = ()
+            self._closed = True
+            return items
+
+    def get(self, timeout=None):
+        """Return a completed future."""
+        with self._lock:
+            if self._closed and not self._uncompleted and not self._completed:
+                raise queues.Closed
+        return self._completed.get(timeout)
+
+    def put(self, future):
+        with self._lock:
+            if self._closed:
+                raise queues.Closed
+            self._uncompleted.add(future)
+        future.add_callback(self._on_completion)
+
+    def as_completed(self, timeout=None):
+        """Iterate over completed futures."""
+        if timeout is None or timeout <= 0:
+            yield from self._as_completed_not_timed(timeout)
+        else:
+            yield from self._as_completed_timed(timeout)
+
+    def _as_completed_not_timed(self, timeout):
+        while True:
+            try:
+                yield self.get(timeout)
+            except (queues.Empty, queues.Closed):
+                break
+
+    def _as_completed_timed(self, timeout):
+        while True:
+            start = time.perf_counter()
+            try:
+                future = self.get(timeout)
+            except (queues.Empty, queues.Closed):
+                break
+            end = time.perf_counter()
+            yield future
+            if end < start:
+                # Timer probably overflowed.
+                break
+            timeout -= (end - start)
+
+    def _on_completion(self, future):
+        """Move future from uncompleted set to completed queue."""
+        with self._lock:
+            if self._completed.is_closed():
+                return  # This queue has been closed non-gracefully.
+            self._uncompleted.discard(future)
+            self._completed.put(future)
 
 
 def wrap_thread_target(target, *, reraise=True):

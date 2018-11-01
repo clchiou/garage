@@ -4,6 +4,7 @@ import sys
 import threading
 
 from g1.threads import futures
+from g1.threads import queues
 
 
 class FuturesTest(unittest.TestCase):
@@ -109,6 +110,111 @@ class FuturesTest(unittest.TestCase):
         t.join()
         self.assertTrue(f.is_completed())
         self.assertIsInstance(f.get_exception(), SystemExit)
+
+
+class CompletionQueueTest(unittest.TestCase):
+
+    def test_completion_queue(self):
+        fs = [futures.Future(), futures.Future(), futures.Future()]
+        fs[0].set_result(42)
+        cq = futures.CompletionQueue(fs)
+
+        self.assertTrue(cq)
+        self.assertEqual(len(cq), 3)
+        self.assertFalse(cq.is_closed())
+
+        self.assertEqual(set(cq.as_completed(0)), set(fs[:1]))
+        self.assertTrue(cq)
+        self.assertEqual(len(cq), 2)
+
+        cq.close()
+        self.assertTrue(cq.is_closed())
+
+        fs[1].set_result(42)
+        fs[2].set_result(42)
+        self.assertEqual(set(cq.as_completed()), set(fs[1:]))
+
+        self.assertFalse(cq)
+        self.assertEqual(len(cq), 0)
+
+    def test_close_not_graceful(self):
+        f = futures.Future()
+        cq = futures.CompletionQueue([f])
+        self.assertEqual(cq.close(False), [f])
+        with self.assertRaises(queues.Closed):
+            cq.get()
+        with self.assertRaises(queues.Closed):
+            cq.put(f)
+        for _ in cq.as_completed():
+            self.fail()
+
+    def test_get(self):
+        f = futures.Future()
+        cq = futures.CompletionQueue([f])
+
+        with self.assertRaises(queues.Empty):
+            cq.get(timeout=0)
+
+        cq.close()
+        with self.assertRaises(queues.Empty):
+            cq.get(timeout=0)
+
+        f.set_result(42)
+        self.assertIs(cq.get(timeout=0), f)
+
+        with self.assertRaises(queues.Closed):
+            cq.get(timeout=0)
+
+    def test_put(self):
+        f = futures.Future()
+        cq = futures.CompletionQueue()
+        cq.close()
+        with self.assertRaises(queues.Closed):
+            cq.put(f)
+
+    def test_duplicated_futures(self):
+        f = futures.Future()
+        cq = futures.CompletionQueue()
+
+        cq.put(f)
+        cq.put(f)
+        cq.put(f)
+        self.assertEqual(len(cq), 3)
+
+        f.set_result(42)
+        self.assertIs(cq.get(), f)
+        self.assertEqual(len(cq), 2)
+        self.assertIs(cq.get(), f)
+        self.assertEqual(len(cq), 1)
+        self.assertIs(cq.get(), f)
+        self.assertEqual(len(cq), 0)
+
+    def test_as_completed(self):
+        for timeout in (None, 0):
+            with self.subTest(check=timeout):
+                fs = [futures.Future() for _ in range(3)]
+                f = futures.Future()
+                f.set_result(42)
+                expect = set(fs)
+                expect.add(f)
+                cq = futures.CompletionQueue([f])
+                # Test putting more futures into the queue while
+                # iterating over it.
+                actual = set()
+                for f in cq.as_completed(timeout):
+                    actual.add(f)
+                    if fs:
+                        f = fs.pop()
+                        f.set_result(42)
+                        cq.put(f)
+                    else:
+                        cq.close()
+                self.assertEqual(actual, expect)
+
+    def test_as_completed_empty(self):
+        cq = futures.CompletionQueue()
+        for _ in cq.as_completed(timeout=0):
+            self.fail()
 
 
 class CustomError(Exception):
