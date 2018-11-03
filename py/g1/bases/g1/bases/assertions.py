@@ -43,6 +43,30 @@ def _not_in(x, xs):
     return x not in xs
 
 
+def _only_one(xs):
+    count = 0
+    for x in xs:
+        if x:
+            count += 1
+        if count > 1:
+            break
+    return count == 1
+
+
+def _issubset_proper(u, v):
+    return u.issubset(v) and u != v
+
+
+def _issuperset_proper(u, v):
+    return u.issuperset(v) and u != v
+
+
+# ``_method_caller(name)(obj, *args)`` is equivalent to
+# ``operator.methodcaller(name, *args)(obj)``.
+def _method_caller(name):
+    return lambda obj, *args: getattr(obj, name)(*args)
+
+
 class Assertions:
     """Assertions.
 
@@ -98,6 +122,11 @@ class Assertions:
         _assert_1, _is_not_none, message='expect non-None value'
     )
 
+    def predicate(self, arg, predicate, *, message='expect {1}, not {0!r}'):
+        if not predicate(arg):
+            raise self._make_exc(message.format(arg, predicate), arg)
+        return arg
+
     def _assert_2(self, predicate, actual, expect, *, message):
         if not predicate(actual, expect):
             msg = message.format(actual, expect)
@@ -151,6 +180,120 @@ class Assertions:
     )
     less_or_equal = partialmethod(
         _assert_2, operator.le, message='expect x <= {1!r}, not {0!r}'
+    )
+
+    isdisjoint = partialmethod(
+        _assert_2,
+        _method_caller('isdisjoint'),
+        message='expect x.isdisjoint({1!r}), not {0!r}',
+    )
+    not_isdisjoint = partialmethod(
+        _assert_2,
+        functionals.compose(
+            operator.not_,
+            _method_caller('isdisjoint'),
+        ),
+        message='expect not x.isdisjoint({1!r}), but {0!r}',
+    )
+
+    issubset = partialmethod(
+        _assert_2,
+        _method_caller('issubset'),
+        message='expect x.issubset({1!r}), not {0!r}',
+    )
+    not_issubset = partialmethod(
+        _assert_2,
+        functionals.compose(
+            operator.not_,
+            _method_caller('issubset'),
+        ),
+        message='expect not x.issubset({1!r}), but {0!r}',
+    )
+
+    issubset_proper = partialmethod(
+        _assert_2,
+        _issubset_proper,
+        message='expect x is proper subset of {1!r}, not {0!r}',
+    )
+    not_issubset_proper = partialmethod(
+        _assert_2,
+        functionals.compose(
+            operator.not_,
+            _issubset_proper,
+        ),
+        message='expect x is not proper subset of {1!r}, but {0!r}',
+    )
+
+    issuperset = partialmethod(
+        _assert_2,
+        _method_caller('issuperset'),
+        message='expect x.issuperset({1!r}), not {0!r}',
+    )
+    not_issuperset = partialmethod(
+        _assert_2,
+        functionals.compose(
+            operator.not_,
+            _method_caller('issuperset'),
+        ),
+        message='expect not x.issuperset({1!r}), but {0!r}',
+    )
+
+    issuperset_proper = partialmethod(
+        _assert_2,
+        _issuperset_proper,
+        message='expect x is proper superset of {1!r}, not {0!r}',
+    )
+    not_issuperset_proper = partialmethod(
+        _assert_2,
+        functionals.compose(
+            operator.not_,
+            _issuperset_proper,
+        ),
+        message='expect x is not proper superset of {1!r}, but {0!r}',
+    )
+
+    def _assert_collection(
+        self, predicate, collection, mapper=None, *, message
+    ):
+        xs = collection
+        if mapper is not None:
+            xs = map(mapper, xs)
+        if not predicate(xs):
+            msg = message.format(collection, mapper or 'true')
+            raise self._make_exc(msg, collection)
+        return collection
+
+    # Given a collection of n elements, let x be the number of elements
+    # that satisfies the condition, and the following assertions can be
+    # expressed as...
+
+    # Assert x = n.
+    all_ = partialmethod(
+        _assert_collection, all, message='expect all {1}, not {0!r}'
+    )
+    # Assert 0 <= x < n.
+    not_all = partialmethod(
+        _assert_collection,
+        functionals.compose(operator.not_, all),
+        message='expect not all {1}, not {0!r}',
+    )
+
+    # Assert 0 < x <= n.
+    any_ = partialmethod(
+        _assert_collection, any, message='expect any {1}, not {0!r}'
+    )
+    # Assert x = 0.
+    not_any = partialmethod(
+        _assert_collection,
+        functionals.compose(operator.not_, any),
+        message='expect not any {1}, not {0!r}',
+    )
+
+    # Assert x = 1.
+    only_one = partialmethod(
+        _assert_collection,
+        _only_one,
+        message='expect only one {1}, not {0!r}',
     )
 
 

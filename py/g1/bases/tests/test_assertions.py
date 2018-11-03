@@ -26,6 +26,7 @@ class AssertionsTest(unittest.TestCase):
             ('false', ('', ), ''),
             ('none', (None, ), None),
             ('not_none', (0, ), 0),
+            ('predicate', (0, is_even), 0),
             ('is_', (0, 0), 0),
             ('is_not', (0, 1), 0),
             ('type_of', ('hello', (int, str)), 'hello'),
@@ -42,6 +43,16 @@ class AssertionsTest(unittest.TestCase):
             ('less', (0, 1), 0),
             ('less_or_equal', (0, 1), 0),
             ('less_or_equal', (1, 1), 1),
+            ('isdisjoint', ({1, 2}, {3, 4}), {1, 2}),
+            ('not_isdisjoint', ({1, 2}, {2, 3, 4}), {1, 2}),
+            ('issubset', ({1, 2}, {1, 2}), {1, 2}),
+            ('not_issubset', ({1, 2}, {2, 3}), {1, 2}),
+            ('issubset_proper', ({1, 2}, {1, 2, 3}), {1, 2}),
+            ('not_issubset_proper', ({1, 2}, {1, 2}), {1, 2}),
+            ('issuperset', ({1, 2}, {1, 2}), {1, 2}),
+            ('not_issuperset', ({1, 2}, {2, 3}), {1, 2}),
+            ('issuperset_proper', ({1, 2, 3}, {1, 2}), {1, 2, 3}),
+            ('not_issuperset_proper', ({1, 2}, {1, 2}), {1, 2}),
         ]
         for check_name, args, expect_ret in checks:
             with self.subTest(check=check_name):
@@ -54,6 +65,11 @@ class AssertionsTest(unittest.TestCase):
             with self.assertRaisesRegex(AssertionError, pattern) as cm:
                 ASSERT(False, 'some message {}', 1)
             self.assertEqual(cm.exception.args[1:], (False, ))
+        with self.subTest(check='predicate'):
+            pattern = r'expect .*is_even.*, not 1'
+            with self.assertRaisesRegex(AssertionError, pattern) as cm:
+                ASSERT.predicate(1, is_even)
+            self.assertEqual(cm.exception.args[1:], (1, ))
         checks = [
             ('true', (0, ), r'expect true-value, not 0'),
             ('false', ('hello', ), r'expect false-value, not \'hello\''),
@@ -82,6 +98,36 @@ class AssertionsTest(unittest.TestCase):
             ('greater_or_equal', (-1, 0), r'expect x >= 0, not -1'),
             ('less', (0, 0), r'expect x < 0, not 0'),
             ('less_or_equal', (1, 0), r'expect x <= 0, not 1'),
+            ('isdisjoint', ({1, 2}, {2, 3}), r'expect x.isdisjoint'),
+            ('not_isdisjoint', ({1, 2}, {3, 4}), r'expect not x.isdisjoint'),
+            ('issubset', ({1, 2}, {2, 3}), r'expect x.issubset'),
+            ('not_issubset', ({1, 2}, {1, 2, 3}), r'expect not x.issubset'),
+            (
+                'issubset_proper',
+                ({1, 2}, {2, 3}),
+                r'expect x is proper subset of',
+            ),
+            (
+                'not_issubset_proper',
+                ({1, 2}, {1, 2, 3}),
+                r'expect x is not proper subset of',
+            ),
+            ('issuperset', ({1, 2}, {2, 3}), r'expect x.issuperset'),
+            (
+                'not_issuperset',
+                ({1, 2, 3}, {1, 2}),
+                r'expect not x.issuperset',
+            ),
+            (
+                'issuperset_proper',
+                ({1, 2}, {2, 3}),
+                r'expect x is proper superset of',
+            ),
+            (
+                'not_issuperset_proper',
+                ({1, 2, 3}, {1, 2}),
+                r'expect x is not proper superset of',
+            ),
         ]
         for check_name, args, pattern in checks:
             with self.subTest(check=check_name):
@@ -89,6 +135,46 @@ class AssertionsTest(unittest.TestCase):
                 with self.assertRaisesRegex(AssertionError, pattern) as cm:
                     check(*args)
                 self.assertEqual(cm.exception.args[1:], args)
+
+    def test_assert_collection_pass(self):
+        checks = [
+            ('all_', (True, True, True)),
+            ('not_all', (True, False, True)),
+            ('not_all', (False, False, False)),
+            ('any_', (False, False, True)),
+            ('any_', (True, True, True)),
+            ('not_any', (False, False, False)),
+            ('only_one', (False, True, False)),
+        ]
+        for check_name, collection in checks:
+            with self.subTest(check=check_name):
+                check = getattr(ASSERT, check_name)
+                self.assertEqual(check(collection), collection)
+
+    def test_assert_collection_fail(self):
+        checks = [
+            ('all_', (True, False, True)),
+            ('not_all', (True, True, True)),
+            ('any_', (False, False, False)),
+            ('not_any', (False, True, False)),
+            ('only_one', (True, True, False)),
+        ]
+        for check_name, collection in checks:
+            with self.subTest(check=check_name):
+                check = getattr(ASSERT, check_name)
+                with self.assertRaises(AssertionError) as cm:
+                    check(collection)
+                self.assertEqual(cm.exception.args[1:], (collection, ))
+
+    def test_assert_collection_mapper(self):
+        self.assertEqual(ASSERT.all_([2, 4, 6], is_even), [2, 4, 6])
+        pattern = r'expect all .*is_even.*, not \[2, 4, 6, 7\]'
+        with self.assertRaisesRegex(AssertionError, pattern):
+            ASSERT.all_([2, 4, 6, 7], is_even)
+
+
+def is_even(x):
+    return x % 2 == 0
 
 
 if __name__ == '__main__':
