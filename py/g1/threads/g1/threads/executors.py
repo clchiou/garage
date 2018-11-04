@@ -3,6 +3,7 @@ __all__ = [
 ]
 
 import itertools
+import logging
 import os
 import time
 
@@ -10,6 +11,8 @@ from g1.bases.assertions import ASSERT
 from g1.threads import actors
 from g1.threads import futures
 from g1.threads import queues
+
+LOG = logging.getLogger(__name__)
 
 
 class Executor:
@@ -66,11 +69,17 @@ class Executor:
 
     def shutdown(self, graceful=True, timeout=None):
         items = self.queue.close(graceful)
+        if items:
+            LOG.warning('drop %d tasks', len(items))
         if timeout is None or timeout <= 0:
             for stub in self.stubs:
-                stub.future.get_exception(timeout)
+                exc = stub.future.get_exception(timeout)
+                if exc:
+                    LOG.error('actor crash: %r', stub, exc_info=exc)
         else:
             end = time.perf_counter() + timeout
             for stub in self.stubs:
-                stub.future.get_exception(end - time.perf_counter())
+                exc = stub.future.get_exception(end - time.perf_counter())
+                if exc:
+                    LOG.error('actor crash: %r', stub, exc_info=exc)
         return items

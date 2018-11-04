@@ -86,8 +86,13 @@ class Stub:
 
     def shutdown(self, graceful=True, timeout=None):
         """Shut down the actor and wait for termination."""
-        self.queue.close(graceful)
-        self.future.get_exception(timeout)
+        items = self.queue.close(graceful)
+        if items:
+            LOG.warning('drop %d messages', len(items))
+        exc = self.future.get_exception(timeout)
+        if exc:
+            LOG.error('actor crash: %r', self, exc_info=exc)
+        return items
 
 
 class MethodCall(typing.NamedTuple):
