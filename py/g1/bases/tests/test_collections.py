@@ -5,6 +5,67 @@ from g1.bases import collections
 
 class CollectionsTest(unittest.TestCase):
 
+    def test_multiset(self):
+        ms = collections.Multiset('abacc')
+
+        for _ in range(3):
+            ms.discard('d')
+            self.assertTrue(ms)
+            self.assertEqual(sorted(ms), ['a', 'a', 'b', 'c', 'c'])
+            self.assertEqual(len(ms), 5)
+            self.assertIn('a', ms)
+            self.assertIn('b', ms)
+            self.assertIn('c', ms)
+            self.assertNotIn('d', ms)
+
+        ms.discard('a')
+        self.assertTrue(ms)
+        self.assertEqual(sorted(ms), ['a', 'b', 'c', 'c'])
+        self.assertEqual(len(ms), 4)
+        self.assertIn('a', ms)
+        self.assertIn('b', ms)
+        self.assertIn('c', ms)
+        self.assertNotIn('d', ms)
+
+        for _ in range(3):
+            ms.discard('a')
+            self.assertTrue(ms)
+            self.assertEqual(sorted(ms), ['b', 'c', 'c'])
+            self.assertEqual(len(ms), 3)
+            self.assertNotIn('a', ms)
+            self.assertIn('b', ms)
+            self.assertIn('c', ms)
+            self.assertNotIn('d', ms)
+
+        ms.discard('c')
+        self.assertTrue(ms)
+        self.assertEqual(sorted(ms), ['b', 'c'])
+        self.assertEqual(len(ms), 2)
+        self.assertNotIn('a', ms)
+        self.assertIn('b', ms)
+        self.assertIn('c', ms)
+        self.assertNotIn('d', ms)
+
+        for _ in range(3):
+            ms.discard('c')
+            self.assertTrue(ms)
+            self.assertEqual(sorted(ms), ['b'])
+            self.assertEqual(len(ms), 1)
+            self.assertNotIn('a', ms)
+            self.assertIn('b', ms)
+            self.assertNotIn('c', ms)
+            self.assertNotIn('d', ms)
+
+        for _ in range(3):
+            ms.discard('b')
+            self.assertFalse(ms)
+            self.assertEqual(sorted(ms), [])
+            self.assertEqual(len(ms), 0)
+            self.assertNotIn('a', ms)
+            self.assertNotIn('b', ms)
+            self.assertNotIn('c', ms)
+            self.assertNotIn('d', ms)
+
     def test_namespace(self):
 
         ns = collections.Namespace('a', 'b', 'c')
