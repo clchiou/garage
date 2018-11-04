@@ -29,8 +29,10 @@ class AssertionsTest(unittest.TestCase):
             ('predicate', (0, is_even), 0),
             ('is_', (0, 0), 0),
             ('is_not', (0, 1), 0),
-            ('type_of', ('hello', (int, str)), 'hello'),
-            ('not_type_of', ('hello', (int, bytes)), 'hello'),
+            ('isinstance_', ('hello', (int, str)), 'hello'),
+            ('not_isinstance', ('hello', (int, bytes)), 'hello'),
+            ('issubclass_', (Derived, Base), Derived),
+            ('not_issubclass', (Base, Derived), Base),
             ('in_', (1, [1]), 1),
             ('not_in', (0, [1]), 0),
             ('contains', ([1], 1), [1]),
@@ -78,14 +80,24 @@ class AssertionsTest(unittest.TestCase):
             ('is_', (0, 1), r'expect 1, not 0'),
             ('is_not', (0, 0), r'expect non-0 value'),
             (
-                'type_of',
+                'isinstance_',
                 ('x', int),
                 r'expect <class \'int\'>-typed value, not \'x\'',
             ),
             (
-                'not_type_of',
+                'not_isinstance',
                 ('x', str),
                 r'expect non-<class \'str\'>-typed value, but \'x\'',
+            ),
+            (
+                'issubclass_',
+                (Base, Derived),
+                r'expect subclass of .*Derived.*, not .*Base.*',
+            ),
+            (
+                'not_issubclass',
+                (Derived, Base),
+                r'expect non-subclass of .*Base.*, but .*Derived.*',
             ),
             ('in_', (1, [0]), r'expect 1 in \[0\]'),
             ('not_in', (0, [0]), r'expect 0 not in \[0\]'),
@@ -171,6 +183,14 @@ class AssertionsTest(unittest.TestCase):
         pattern = r'expect all .*is_even.*, not \[2, 4, 6, 7\]'
         with self.assertRaisesRegex(AssertionError, pattern):
             ASSERT.all_([2, 4, 6, 7], is_even)
+
+
+class Base:
+    pass
+
+
+class Derived(Base):
+    pass
 
 
 def is_even(x):

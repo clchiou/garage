@@ -140,13 +140,22 @@ class Assertions:
         _assert_2, operator.is_not, message='expect non-{!r} value'
     )
 
-    type_of = partialmethod(
+    isinstance_ = partialmethod(
         _assert_2, isinstance, message='expect {1}-typed value, not {0!r}'
     )
-    not_type_of = partialmethod(
+    not_isinstance = partialmethod(
         _assert_2,
         functionals.compose(operator.not_, isinstance),
         message='expect non-{1}-typed value, but {0!r}',
+    )
+
+    issubclass_ = partialmethod(
+        _assert_2, issubclass, message='expect subclass of {1}, not {0!r}'
+    )
+    not_issubclass = partialmethod(
+        _assert_2,
+        functionals.compose(operator.not_, issubclass),
+        message='expect non-subclass of {1}, but {0!r}',
     )
 
     in_ = partialmethod(_assert_2, _in, message='expect {0!r} in {1!r}')
