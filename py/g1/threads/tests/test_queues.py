@@ -27,32 +27,30 @@ class QueuesTest(unittest.TestCase):
                     actual.append(queue.get())
                 self.assertEqual(actual, expect)
 
-    @unittest.mock.patch('time.perf_counter')
-    def test_timeout(self, perf_counter):
-        seconds = []
-        perf_counter.side_effect = lambda: seconds.pop(0)
+    @unittest.mock.patch('time.monotonic')
+    def test_timeout(self, monotonic_mock):
 
         queue = queues.Queue(capacity=1)
         self.assertFalse(queue.is_full())
 
-        seconds[:] = []
+        monotonic_mock.side_effect = []
         with self.assertRaises(queues.Empty):
             queue.get(timeout=0)
 
-        seconds[:] = [0, 1.01]
+        monotonic_mock.side_effect = [0, 11]
         with self.assertRaises(queues.Empty):
-            queue.get(timeout=1)
+            queue.get(timeout=10)
 
         queue.put(42)
         self.assertTrue(queue.is_full())
 
-        seconds[:] = []
+        monotonic_mock.side_effect = []
         with self.assertRaises(queues.Full):
             queue.put(43, timeout=0)
 
-        seconds[:] = [0, 1.01]
+        monotonic_mock.side_effect = [0, 11]
         with self.assertRaises(queues.Full):
-            queue.put(43, timeout=1)
+            queue.put(43, timeout=10)
 
     def test_close(self):
         queue = queues.Queue()
@@ -98,50 +96,6 @@ class QueuesTest(unittest.TestCase):
         self.assertEqual(queue.close(False), [42, 43, 44])
         self.assertTrue(queue.is_closed())
         self.assertFalse(queue)
-
-
-class WaiterTest(unittest.TestCase):
-
-    def test_blocking_wait(self):
-        condition = unittest.mock.Mock()
-        wait = queues.make_waiter(condition, None)
-        self.assertTrue(wait())
-        condition.wait.assert_called_once()
-
-    def test_nonblocking_wait(self):
-        condition = unittest.mock.Mock()
-        wait = queues.make_waiter(condition, 0)
-        self.assertFalse(wait())
-        condition.wait.assert_not_called()
-
-    @unittest.mock.patch('time.perf_counter')
-    def test_timed_wait(self, perf_counter):
-        seconds = [0, 12, 34, 56, 101]
-        perf_counter.side_effect = lambda: seconds.pop(0)
-        condition = unittest.mock.Mock()
-        wait = queues.make_waiter(condition, 100)
-
-        self.assertTrue(wait())
-        self.assertTrue(wait())
-        self.assertTrue(wait())
-        self.assertFalse(wait())
-
-        condition.wait.assert_has_calls([
-            unittest.mock.call(88),
-            unittest.mock.call(66),
-            unittest.mock.call(44),
-        ])
-        self.assertEqual(seconds, [])
-
-    @unittest.mock.patch('time.perf_counter')
-    def test_timed_wait_overflowed(self, perf_counter):
-        seconds = [0.0, -1.1]
-        perf_counter.side_effect = lambda: seconds.pop(0)
-        condition = unittest.mock.Mock()
-        wait = queues.make_waiter(condition, 1.0)
-        self.assertFalse(wait())
-        condition.wait.assert_not_called()
-        self.assertEqual(seconds, [])
 
 
 if __name__ == '__main__':

@@ -12,8 +12,15 @@ __all__ = [
 
 import collections
 import heapq
+import sys
 import threading
-import time
+
+from g1.bases import timers
+from g1.bases.assertions import ASSERT
+
+# Since version 3.2, Condition.wait returns False on timeout, and we
+# depend on this semantics.
+ASSERT.greater_or_equal(sys.version_info, (3, 2))
 
 
 class Closed(Exception):
@@ -95,7 +102,7 @@ class QueueBase:
         If the queue is closed and empty, ``get`` raises ``Closed``.
         """
         with self.__not_empty:
-            wait = make_waiter(self.__not_empty, timeout)
+            timer = timers.make(timeout)
             keep_waiting = True
             while True:
                 if self.__queue:
@@ -104,7 +111,7 @@ class QueueBase:
                     raise Closed
                 if not keep_waiting:
                     raise Empty
-                keep_waiting = wait()
+                keep_waiting = self.__not_empty.wait(timer.get_timeout())
             item = self.__get(self.__queue)
             self.__not_full.notify()
             return item
@@ -118,7 +125,7 @@ class QueueBase:
             if self.__closed:
                 raise Closed
             if self.capacity > 0:
-                wait = make_waiter(self.__not_full, timeout)
+                timer = timers.make(timeout)
                 keep_waiting = True
                 while True:
                     if self.__closed:
@@ -127,44 +134,9 @@ class QueueBase:
                         break
                     if not keep_waiting:
                         raise Full
-                    keep_waiting = wait()
+                    keep_waiting = self.__not_full.wait(timer.get_timeout())
             self.__put(self.__queue, item)
             self.__not_empty.notify()
-
-
-def make_waiter(condition, timeout):
-
-    if timeout is None:
-
-        def blocking_wait():
-            condition.wait()
-            return True
-
-        return blocking_wait
-
-    elif timeout <= 0:
-
-        def nonblocking_wait():
-            return False
-
-        return nonblocking_wait
-
-    else:
-
-        start = time.perf_counter()
-
-        def timed_wait():
-            now = time.perf_counter()
-            if now < start:
-                # Timer probably overflowed.
-                return False
-            remaining = start + timeout - now
-            if remaining <= 0:
-                return False
-            condition.wait(remaining)
-            return True
-
-        return timed_wait
 
 
 #

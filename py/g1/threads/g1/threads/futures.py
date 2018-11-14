@@ -16,8 +16,8 @@ import contextlib
 import functools
 import logging
 import threading
-import time
 
+from g1.bases import timers
 from g1.bases.collections import Multiset
 from g1.threads import queues
 
@@ -251,18 +251,15 @@ class CompletionQueue:
                 break
 
     def _as_completed_timed(self, timeout):
+        timer = timers.make(timeout)
         while True:
-            start = time.perf_counter()
+            timer.start()
             try:
-                future = self.get(timeout)
+                future = self.get(timer.get_timeout())
             except (queues.Empty, queues.Closed):
                 break
-            end = time.perf_counter()
+            timer.stop()
             yield future
-            if end < start:
-                # Timer probably overflowed.
-                break
-            timeout -= (end - start)
 
     def _on_completion(self, future):
         """Move future from uncompleted set to completed queue."""
