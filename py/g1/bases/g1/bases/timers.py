@@ -9,6 +9,7 @@ Examples:
 
 __all__ = [
     'make',
+    'timeout_to_key',
 ]
 
 import logging
@@ -126,3 +127,13 @@ class ExpiredTimer:
 
 
 EXPIRED_TIMER = ExpiredTimer()
+
+INFINITE = float('+inf')
+
+
+def timeout_to_key(timeout):
+    """Convert ``timeout`` to numeric value suitable for sorting."""
+    if timeout is None:
+        return INFINITE
+    else:
+        return timeout

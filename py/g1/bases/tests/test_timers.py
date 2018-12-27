@@ -71,6 +71,11 @@ class TimersTest(unittest.TestCase):
         with self.assertRaisesRegex(AssertionError, r'expect true-value'):
             timer.get_timeout()
 
+    def test_timeout_to_key(self):
+        self.assertLess(0, timers.timeout_to_key(None))
+        self.assertLess(1e30, timers.timeout_to_key(None))
+        self.assertLess(-1, timers.timeout_to_key(0))
+
 
 if __name__ == '__main__':
     unittest.main()
