@@ -22,9 +22,18 @@ __all__ = [
 ]
 
 import operator
+from collections import abc
 from functools import partialmethod
 
 from g1.bases import functionals
+
+
+def _empty(collection):
+    return isinstance(collection, abc.Collection) and not collection
+
+
+def _not_empty(collection):
+    return isinstance(collection, abc.Collection) and collection
 
 
 def _is_none(x):
@@ -115,6 +124,13 @@ class Assertions:
     )
     false = partialmethod(
         _assert_1, operator.not_, message='expect false-value, not {!r}'
+    )
+
+    empty = partialmethod(
+        _assert_1, _empty, message='expect empty collection, not {!r}'
+    )
+    not_empty = partialmethod(
+        _assert_1, _not_empty, message='expect non-empty collection, not {!r}'
     )
 
     none = partialmethod(_assert_1, _is_none, message='expect None, not {!r}')
