@@ -42,6 +42,7 @@ class Task:
         self._completed = False
         self._result = None
         self._exception = None
+        self._callbacks = []
         # Extra debug info (pre-format it to prevent it from leaking
         # into logging sub-system).
         task_repr = '<%s at %#x: %r, ...>' % (
@@ -126,3 +127,20 @@ class Task:
             self._exception = exc
         else:
             return ASSERT.not_none(trap)
+        ASSERT.true(self._completed)
+        callbacks, self._callbacks = self._callbacks, None
+        for callback in callbacks:
+            self._call_callback(callback)
+        return None
+
+    def add_callback(self, callback):
+        if self._completed:
+            self._call_callback(callback)
+        else:
+            self._callbacks.append(callback)
+
+    def _call_callback(self, callback):
+        try:
+            callback(self)
+        except Exception:
+            LOG.exception('callback err: %r, %r', self, callback)

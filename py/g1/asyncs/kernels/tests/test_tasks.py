@@ -4,6 +4,13 @@ from g1.asyncs.kernels import errors
 from g1.asyncs.kernels import tasks
 from g1.asyncs.kernels import traps
 
+try:
+    from g1.threads import futures
+    from g1.threads import queues
+except ImportError:
+    futures = None
+    queues = None
+
 
 class TaskTest(unittest.TestCase):
 
@@ -15,14 +22,21 @@ class TaskTest(unittest.TestCase):
         async def raises(exc):
             raise exc
 
+        records = []
         task = tasks.Task(square(7))
+        task.add_callback(records.append)
         self.assertFalse(task.is_completed())
+        self.assertEqual(records, [])
         self.assertIsNone(task.tick(None, None))
         self.assertTrue(task.is_completed())
+        self.assertEqual(records, [task])
         self.assertEqual(task.get_result_nonblocking(), 49)
         self.assertIsNone(task.get_exception_nonblocking())
         with self.assertRaises(AssertionError):
             task.tick(None, None)
+
+        task.add_callback(records.append)
+        self.assertEqual(records, [task, task])
 
         task = tasks.Task(raises(ValueError('hello')))
         self.assertFalse(task.is_completed())
@@ -64,6 +78,40 @@ class TaskTest(unittest.TestCase):
         self.assertTrue(task.is_completed())
         with self.assertRaises(errors.Cancelled):
             task.get_result_nonblocking()
+
+
+@unittest.skipIf(futures is None, 'g1.threads.futures unavailable')
+class CompletionQeueuTest(unittest.TestCase):
+
+    def test_completion_queue(self):
+
+        async def square(x):
+            return x * x
+
+        cq = futures.CompletionQueue()
+
+        t1 = tasks.Task(square(5))
+        t1.tick(None, None)
+        self.assertTrue(t1.is_completed())
+
+        t2 = tasks.Task(square(7))
+        self.assertFalse(t2.is_completed())
+
+        cq.put(t1)
+        cq.put(t2)
+        self.assertEqual(len(cq), 2)
+
+        self.assertIs(cq.get(timeout=0), t1)
+
+        with self.assertRaises(queues.Empty):
+            cq.get(timeout=0)
+
+        t2.tick(None, None)
+        self.assertTrue(t2.is_completed())
+        self.assertEqual(len(cq), 1)
+        self.assertIs(cq.get(timeout=0), t2)
+
+        self.assertEqual(len(cq), 0)
 
 
 if __name__ == '__main__':
