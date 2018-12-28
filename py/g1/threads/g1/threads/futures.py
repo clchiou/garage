@@ -172,14 +172,21 @@ class CompletionQueue:
 
     NOTE: Unlike other "regular" queues, since ``CompletionQueue`` only
     return completed futures, sometimes even when queue is not empty,
-    ``get`` might not return anything if not future is completed yet.
+    ``get`` might not return anything if no future is completed yet.
     """
 
     def __init__(self, iterable=()):
+
         self._lock = threading.Lock()
         self._uncompleted = Multiset(iterable)
         self._completed = queues.Queue()
         self._closed = False
+
+        # Since callbacks may acquire this again, use ``RLock`` instead
+        # of regular lock.
+        self._on_completion_callbacks_lock = threading.RLock()
+        self._on_completion_callbacks = set()
+
         # Make a copy so that we may modify ``self._uncompleted`` while
         # iterating over its items.
         for f in tuple(self._uncompleted):
@@ -261,13 +268,31 @@ class CompletionQueue:
             timer.stop()
             yield future
 
+    def add_on_completion_callback(self, callback):
+        """Add on-completion callback.
+
+        These callbacks are fired when a ``Future`` object is moved from
+        uncompleted queue to completed queue.
+        """
+        with self._on_completion_callbacks_lock:
+            self._on_completion_callbacks.add(callback)
+
+    def remove_on_completion_callback(self, callback):
+        with self._on_completion_callbacks_lock:
+            self._on_completion_callbacks.remove(callback)
+
     def _on_completion(self, future):
         """Move future from uncompleted set to completed queue."""
         with self._lock:
             if self._completed.is_closed():
                 return  # This queue has been closed non-gracefully.
-            self._uncompleted.discard(future)
+            # Since ``self._uncompleted`` is a ``Multiset``, ``remove``
+            # should not raise ``KeyError``.
+            self._uncompleted.remove(future)
             self._completed.put(future)
+        with self._on_completion_callbacks_lock:
+            for callback in self._on_completion_callbacks:
+                callback(future)
 
 
 def wrap_thread_target(target, *, reraise=True):

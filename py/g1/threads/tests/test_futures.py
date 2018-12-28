@@ -216,6 +216,41 @@ class CompletionQueueTest(unittest.TestCase):
         for _ in cq.as_completed(timeout=0):
             self.fail()
 
+    def test_callback(self):
+
+        f1 = futures.Future()
+        f2 = futures.Future()
+
+        records = []
+
+        # Because bare-``records.append`` is not hash-able.
+        def append(f):
+            records.append(f)
+
+        cq = futures.CompletionQueue()
+        cq.add_on_completion_callback(append)
+        self.assertFalse(cq)
+        self.assertEqual(len(cq), 0)
+        self.assertEqual(records, [])
+        self.assertEqual(cq._on_completion_callbacks, set([append]))
+
+        cq.put(f1)
+        self.assertTrue(cq)
+        self.assertEqual(len(cq), 1)
+        self.assertEqual(records, [])
+
+        f1.set_result(42)
+        self.assertTrue(cq)
+        self.assertEqual(len(cq), 1)
+        self.assertEqual(records, [f1])
+
+        f2.set_result(42)
+        cq.put(f2)
+        self.assertEqual(records, [f1, f2])
+
+        cq.remove_on_completion_callback(append)
+        self.assertEqual(cq._on_completion_callbacks, set())
+
 
 class CustomError(Exception):
     pass
