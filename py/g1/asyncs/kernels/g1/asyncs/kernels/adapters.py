@@ -1,4 +1,5 @@
 __all__ = [
+    'CompletionQueueAdapter',
     'FileAdapter',
     'FutureAdapter',
     'SocketAdapter',
@@ -12,6 +13,11 @@ from g1.bases.assertions import ASSERT
 
 from . import contexts
 from . import traps
+
+try:
+    from g1.threads import queues
+except ImportError:
+    queues = None
 
 
 class AdapterBase:
@@ -211,3 +217,55 @@ class FutureAdapter(AdapterBase):
     async def get_exception(self):
         await self.join()
         return self.__future.get_exception()
+
+
+class CompletionQueueAdapter(AdapterBase):
+
+    PROXIED_FIELDS = frozenset([
+        'is_closed',
+        'close',
+        'put',
+    ])
+
+    def __init__(self, completion_queue):
+        super().__init__(completion_queue, self.PROXIED_FIELDS)
+        self.__completion_queue = completion_queue
+
+    def __bool__(self):
+        return bool(self.__completion_queue)
+
+    def __len__(self):
+        return len(self.__completion_queue)
+
+    async def get(self):
+        while True:
+            try:
+                return self.__completion_queue.get(timeout=0)
+            except queues.Empty:
+                cb = _OnCompletion(
+                    self.__completion_queue,
+                    contexts.get_kernel(),
+                )
+                await traps.block(self.__completion_queue, cb.register)
+
+    async def as_completed(self):
+        while True:
+            try:
+                yield await self.get()
+            except queues.Closed:
+                break
+
+
+class _OnCompletion:
+    """Helper class for dealing with ``CompletionQueue`` callback."""
+
+    def __init__(self, completion_queue, kernel):
+        self.completion_queue = completion_queue
+        self.kernel = kernel
+
+    def register(self):
+        self.completion_queue.add_on_completion_callback(self)
+
+    def __call__(self, _):
+        self.kernel.unblock(self.completion_queue)
+        self.completion_queue.remove_on_completion_callback(self)

@@ -9,6 +9,7 @@ __all__ = [
     'spawn',
     'timeout_after',
     # Adapters.
+    'CompletionQueueAdapter',
     'FileAdapter',
     'FutureAdapter',
     'SocketAdapter',
@@ -20,6 +21,7 @@ import logging
 from . import contexts
 from . import kernels
 # Re-export these symbols.
+from .adapters import CompletionQueueAdapter
 from .adapters import FileAdapter
 from .adapters import FutureAdapter
 from .adapters import SocketAdapter
