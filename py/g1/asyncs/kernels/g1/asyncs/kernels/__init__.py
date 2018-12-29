@@ -17,6 +17,8 @@ __all__ = [
     'Condition',
     'Event',
     'Lock',
+    # Signals.
+    'SignalQueue',
 ]
 
 import contextvars
@@ -34,6 +36,7 @@ from .errors import Timeout
 from .locks import Condition
 from .locks import Event
 from .locks import Lock
+from .signals import SignalQueue
 from .traps import sleep
 
 logging.getLogger(__name__).addHandler(logging.NullHandler())
