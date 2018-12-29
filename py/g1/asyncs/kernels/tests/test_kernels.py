@@ -43,6 +43,11 @@ class KernelTest(unittest.TestCase):
             self.k.run(timeout=-1)
         self.assert_stats(num_ticks=3, num_tasks=1, num_poll=1)
 
+        self.w.write(b'\x00')
+        self.w.flush()
+        self.k.run(timeout=1)
+        self.assert_stats(num_ticks=5, num_tasks=0, num_poll=0)
+
     def test_join(self):
 
         async def compute(x):

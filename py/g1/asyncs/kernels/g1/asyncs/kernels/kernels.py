@@ -4,6 +4,7 @@ __all__ = [
 
 import collections
 import functools
+import logging
 import os
 import threading
 import time
@@ -17,6 +18,8 @@ from . import errors
 from . import pollers
 from . import tasks
 from . import traps
+
+LOG = logging.getLogger(__name__)
 
 TaskReady = collections.namedtuple(
     'TaskReady',
@@ -104,6 +107,9 @@ class Kernel:
 
     def close(self):
         self._assert_owner()
+        stats = self.get_stats()
+        if any(v for n, v in stats._asdict().items() if n != 'num_ticks'):
+            LOG.warning('kernel has uncompleted tasks: %r', self)
         self._poller.close()
         self._nudger.close()
 
