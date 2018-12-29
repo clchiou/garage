@@ -13,6 +13,10 @@ __all__ = [
     'FileAdapter',
     'FutureAdapter',
     'SocketAdapter',
+    # Locks.
+    'Condition',
+    'Event',
+    'Lock',
 ]
 
 import contextvars
@@ -27,6 +31,9 @@ from .adapters import FutureAdapter
 from .adapters import SocketAdapter
 from .errors import Cancelled
 from .errors import Timeout
+from .locks import Condition
+from .locks import Event
+from .locks import Lock
 from .traps import sleep
 
 logging.getLogger(__name__).addHandler(logging.NullHandler())
