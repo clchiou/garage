@@ -116,9 +116,10 @@ class Task:
         try:
             self._num_ticks += 1
             trap = func(arg)
-        except errors.TaskCancellation:
+        except errors.TaskCancellation as exc:
             self._completed = True
-            self._exception = errors.Cancelled
+            self._exception = errors.Cancelled()
+            self._exception.__cause__ = exc
         except StopIteration as exc:
             self._completed = True
             self._result = exc.value

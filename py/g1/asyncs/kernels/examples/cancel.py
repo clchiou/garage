@@ -1,5 +1,6 @@
 """Demonstrate ``Task.cancel``."""
 
+import logging
 import sys
 import time
 
@@ -17,15 +18,15 @@ async def to_be_cancelled():
 
 async def cancel_task(task):
     task.cancel()
+    logging.info('task exception', exc_info=await task.get_exception())
 
 
 def main(_):
+    logging.basicConfig(level=logging.INFO)
     start = time.perf_counter()
     task = kernels.spawn(to_be_cancelled)
-    kernels.spawn(cancel_task(task))
-    kernels.run()
+    kernels.run(cancel_task(task))
     elapsed = time.perf_counter() - start
-    print('task exception: %s' % task.get_exception_nonblocking())
     print('total elapsed time: %.3f seconds' % elapsed)
     return 0
 
