@@ -105,7 +105,17 @@ class Task:
     #
 
     def tick(self, trap_result, trap_exception):
-        """Run coroutine through the next trap point."""
+        """Run coroutine through the next trap point.
+
+        NOTE: ``tick`` catches ``BaseException`` raised from the
+        coroutine.  As a result, ``SystemExit`` does not bubble up to
+        the kernel event loop.  I believe this behavior is similar to
+        Python threading library and thus more expected (``SystemExit``
+        raised in non- main thread does not cause CPython process to
+        exit).  If you want raising ``SystemExit`` in a task to be
+        effective, you have to call ``Task.get_result_nonblocking`` in
+        the main thread (or implicitly through ``Kernel.run``).
+        """
         ASSERT.false(self.is_completed())
         if trap_exception:
             func = self._coroutine.throw
