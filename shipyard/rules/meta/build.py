@@ -9,6 +9,7 @@ from foreman import define_rule
  .depend('//py/capnp:build')
  .depend('//py/garage:build')
  .depend('//py/http2:build')
+ .depend('//py/imagetools:build')
  .depend('//py/nanomsg:build')
  .depend('//py/startup:build')
  .depend('//py/v8:build')

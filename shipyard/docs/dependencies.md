@@ -8,6 +8,7 @@ first party
   capnp                     x
   garage                x
   http2                 x
+  imagetools                x
   nanomsg               x
   startup               x
   v8                            x
@@ -30,6 +31,7 @@ thrid party
     six
   curio                 x                   0.7
   jdk                               x       8u172
+  libjpeg-turbo     x                       version bundled with distro
   lxml                      x               4.2.1
   mako                  x                   1.0.7
     markupsafe          x
