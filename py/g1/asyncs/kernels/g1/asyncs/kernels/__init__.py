@@ -19,6 +19,8 @@ __all__ = [
     'Lock',
     # Signals.
     'SignalQueue',
+    # Utilities.
+    'TaskCompletionQueue',
 ]
 
 import contextvars
@@ -38,6 +40,7 @@ from .locks import Event
 from .locks import Lock
 from .signals import SignalQueue
 from .traps import sleep
+from .utils import TaskCompletionQueue
 
 logging.getLogger(__name__).addHandler(logging.NullHandler())
 
