@@ -172,6 +172,13 @@ class SocketAdapter(AdapterBase):
             except self.WRITE_BLOCKED:
                 await traps.poll_write(self.__sock.fileno())
 
+    async def sendmsg(self, buffers, *args):
+        while True:
+            try:
+                return self.__sock.sendmsg(buffers, *args)
+            except self.WRITE_BLOCKED:
+                await traps.poll_write(self.__sock.fileno())
+
     async def close(self):
         # I assume that ``socket.close`` does not flush out data, and
         # thus never raises ``BlockingIOError``, etc., but for

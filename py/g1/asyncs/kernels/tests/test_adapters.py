@@ -180,12 +180,9 @@ class SocketAdapterTest(unittest.TestCase):
         self.s0.target.close()
         self.s1.target.close()
 
-    def test_socket(self):
+    def test_socket_send(self):
 
-        num_chunks = 10
-        chunk_size = 65536
-
-        async def send():
+        async def send(num_chunks, chunk_size):
             num_sent = 0
             for i in range(num_chunks):
                 chunk = (b'%x' % (i + 1)) * chunk_size
@@ -197,6 +194,34 @@ class SocketAdapterTest(unittest.TestCase):
             await self.s0.close()
             return num_sent
 
+        self.do_test_socket(send)
+
+    def test_socket_sendmsg(self):
+
+        async def sendmsg(num_chunks, chunk_size):
+            chunks = [(b'%x' % (i + 1)) * chunk_size
+                      for i in range(num_chunks)]
+            num_sent = 0
+            while chunks:
+                num_bytes = await self.s0.sendmsg(chunks)
+                self.assertGreater(num_bytes, 0)
+                num_sent += num_bytes
+                while chunks:
+                    if len(chunks[0]) <= num_bytes:
+                        num_bytes -= len(chunks.pop(0))
+                    else:
+                        chunks[0] = chunks[0][num_bytes:]
+                        break
+            await self.s0.close()
+            return num_sent
+
+        self.do_test_socket(sendmsg)
+
+    def do_test_socket(self, send):
+
+        num_chunks = 10
+        chunk_size = 65536
+
         async def recv():
             pieces = []
             while True:
@@ -207,7 +232,7 @@ class SocketAdapterTest(unittest.TestCase):
             await self.s1.close()
             return b''.join(pieces)
 
-        sender = self.k.spawn(send)
+        sender = self.k.spawn(send(num_chunks, chunk_size))
         receiver = self.k.spawn(recv)
         self.assertFalse(sender.is_completed())
         self.assertFalse(receiver.is_completed())
