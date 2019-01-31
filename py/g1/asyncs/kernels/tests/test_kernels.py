@@ -24,6 +24,34 @@ class KernelTest(unittest.TestCase):
         self.r.close()
         self.w.close()
 
+    def test_get_all_tasks(self):
+
+        async def noop():
+            pass
+
+        async def block_forever():
+            await traps.poll_read(self.r.fileno())
+
+        async def do_sleep():
+            await traps.sleep(100)
+
+        self.assert_stats()
+
+        t1 = self.k.spawn(noop)
+        t2 = self.k.spawn(block_forever)
+        t3 = self.k.spawn(do_sleep)
+
+        actual = self.k.get_all_tasks()
+        self.assert_stats(num_ticks=0, num_tasks=3, num_ready=3)
+        self.assertEqual(set(actual), {t1, t2, t3})
+
+        with self.assertRaises(errors.Timeout):
+            self.k.run(timeout=0)
+
+        actual = self.k.get_all_tasks()
+        self.assert_stats(num_ticks=1, num_tasks=2, num_poll=1, num_sleep=1)
+        self.assertEqual(set(actual), {t2, t3})
+
     def test_timeout(self):
 
         async def block_forever():

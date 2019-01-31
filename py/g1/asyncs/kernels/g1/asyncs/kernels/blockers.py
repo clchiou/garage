@@ -23,6 +23,9 @@ class BlockerBase:
     def __len__(self):
         raise NotImplementedError
 
+    def __iter__(self):
+        raise NotImplementedError
+
     def block(self, source, task):
         """Register that ``task`` is blocked by ``source``."""
         raise NotImplementedError
@@ -58,6 +61,9 @@ class DictBlocker(BlockerBase):
 
     def __len__(self):
         return len(self._task_to_source)
+
+    def __iter__(self):
+        return iter(self._task_to_source)
 
     def block(self, source, task):
         ASSERT.not_none(source)
@@ -118,6 +124,9 @@ class TimeoutBlocker(BlockerBase):
 
     def __len__(self):
         return len(self._tasks)
+
+    def __iter__(self):
+        return iter(self._tasks)
 
     def block(self, source, task):
         ASSERT.isinstance_(source, (int, float))

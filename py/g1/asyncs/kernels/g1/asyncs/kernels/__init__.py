@@ -5,6 +5,7 @@ __all__ = [
     'Cancelled',
     'Timeout',
     # Traps.
+    'get_all_tasks',
     'sleep',
     'spawn',
     'timeout_after',
@@ -74,6 +75,10 @@ def _get_or_create_kernel():
 
 def run(awaitable=None, timeout=None):
     return _get_or_create_kernel().run(awaitable, timeout)
+
+
+def get_all_tasks():
+    return _get_or_create_kernel().get_all_tasks()
 
 
 def spawn(awaitable):

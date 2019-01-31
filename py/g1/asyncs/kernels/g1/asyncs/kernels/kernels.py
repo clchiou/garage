@@ -266,6 +266,28 @@ class Kernel:
         # another thread.
         self._nudger.nudge()
 
+    def get_all_tasks(self):
+        """Return a list of all tasks.
+
+        This method is not thread-safe, but should be useful for
+        debugging.
+        """
+        all_tasks = []
+        try:
+            all_tasks.append(contexts.get_current_task())
+        except LookupError:
+            pass
+        all_tasks.extend(task_ready.task for task_ready in self._ready_tasks)
+        for task_collection in (
+            self._task_completion_blocker,
+            self._fd_blocker,
+            self._sleep_blocker,
+            self._generic_blocker,
+        ):
+            all_tasks.extend(task_collection)
+        ASSERT.equal(len(all_tasks), self._num_tasks)
+        return all_tasks
+
     def spawn(self, awaitable):
         """Spawn a new task onto the kernel."""
         self._assert_owner()
