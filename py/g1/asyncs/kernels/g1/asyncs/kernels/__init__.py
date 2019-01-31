@@ -21,6 +21,8 @@ __all__ = [
     # Signals.
     'SignalQueue',
     # Utilities.
+    'BytesStream',
+    'StringStream',
     'TaskCompletionQueue',
 ]
 
@@ -41,6 +43,8 @@ from .locks import Event
 from .locks import Lock
 from .signals import SignalQueue
 from .traps import sleep
+from .utils import BytesStream
+from .utils import StringStream
 from .utils import TaskCompletionQueue
 
 logging.getLogger(__name__).addHandler(logging.NullHandler())
