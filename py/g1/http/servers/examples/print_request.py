@@ -5,6 +5,7 @@ import logging
 import sys
 
 from g1.asyncs import kernels
+from g1.asyncs import servers
 from g1.http.servers import serve_http
 from g1.networks.servers import make_server_socket
 
@@ -28,6 +29,12 @@ async def application(environ, start_response):
     return [response]
 
 
+async def on_graceful_exit(graceful_exit, server_socket):
+    await graceful_exit.wait()
+    await server_socket.close()
+
+
+@kernels.with_kernel
 def main(argv):
     if len(argv) < 2:
         print('usage: %s port' % argv[0], file=sys.stderr)
@@ -38,9 +45,13 @@ def main(argv):
         reuse_address=True,
         reuse_port=True,
     )
-    kernels.run(serve_http(server_socket, application))
+    graceful_exit = kernels.Event()
+    queue = kernels.TaskCompletionQueue()
+    queue.put(kernels.spawn(serve_http(server_socket, application)))
+    queue.put(kernels.spawn(on_graceful_exit(graceful_exit, server_socket)))
+    kernels.run(servers.supervise_servers(queue, graceful_exit, 4))
     return 0
 
 
 if __name__ == '__main__':
-    sys.exit(kernels.call_with_kernel(main, sys.argv))
+    sys.exit(main(sys.argv))

@@ -8,6 +8,7 @@ setup(
     install_requires = [
         'g1.bases',
         'g1.asyncs.kernels',
+        'g1.asyncs.servers',
         'g1.networks.servers',
     ],
     zip_safe = False,

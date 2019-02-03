@@ -1,6 +1,5 @@
 __all__ = [
     'TcpServer',
-    'TcpServerError',
     'make_server_socket',
 ]
 
@@ -9,13 +8,10 @@ import logging
 import socket
 
 from g1.asyncs import kernels
+from g1.asyncs import servers
 
 LOG = logging.getLogger(__name__)
 LOG.addHandler(logging.NullHandler())
-
-
-class TcpServerError(Exception):
-    pass
 
 
 class TcpServer:
@@ -29,31 +25,16 @@ class TcpServer:
         self._handle_client = handle_client
 
     async def serve(self):
-        async with kernels.TaskCompletionQueue() as queue:
-
-            server_tasks = frozenset((kernels.spawn(self._accept(queue)), ))
-            for task in server_tasks:
-                queue.put(task)
-
-            try:
-                LOG.info('start server: %r', self._server_socket)
-
-                async for task in queue.as_completed():
-                    exc = await task.get_exception()
-                    if task in server_tasks:
-                        if exc:
-                            message = 'server task error: %r' % task
-                            raise TcpServerError(message) from exc
-                        else:
-                            LOG.info('server task exit: %r', task)
-                            break
-                    elif exc:
-                        LOG.error('handler error: %r', task, exc_info=exc)
-
-                LOG.info('stop server: %r', self._server_socket)
-
-            finally:
-                await self._server_socket.close()
+        queue = kernels.TaskCompletionQueue()
+        helper_tasks = frozenset((kernels.spawn(self._accept(queue)), ))
+        for task in helper_tasks:
+            queue.put(task)
+        try:
+            LOG.info('start server: %r', self._server_socket)
+            await servers.supervise_handlers(queue, helper_tasks)
+            LOG.info('stop server: %r', self._server_socket)
+        finally:
+            await self._server_socket.close()
 
     async def _accept(self, queue):
         while True:

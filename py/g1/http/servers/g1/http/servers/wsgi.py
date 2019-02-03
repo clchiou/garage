@@ -11,7 +11,6 @@ At the moment it does not implements HTTP/2 Push.
 # pylint: disable=unused-wildcard-import
 
 __all__ = [
-    'HttpServerError',
     'HttpSession',
 ]
 
@@ -26,17 +25,13 @@ import urllib.parse
 import weakref
 
 from g1.asyncs import kernels
+from g1.asyncs import servers
 from g1.bases.assertions import ASSERT
 
 from . import nghttp2
 from .nghttp2 import *
 
 LOG = logging.getLogger(__name__)
-
-
-class HttpServerError(Exception):
-    pass
-
 
 #
 # Helper for defining callbacks.
@@ -160,31 +155,15 @@ class HttpSession:
         ASSERT.not_none(self._session)
         self._prepare()
         try:
-            server_tasks = frozenset((
+            helper_tasks = frozenset((
                 kernels.spawn(self._handle_incoming),
                 kernels.spawn(self._handle_outgoing),
             ))
-            async with self._queue:
-                for task in server_tasks:
-                    self._queue.put(task)
-                async for task in self._queue.as_completed():
-                    self._on_task_completed(server_tasks, task)
+            for task in helper_tasks:
+                self._queue.put(task)
+            await servers.supervise_handlers(self._queue, helper_tasks)
         finally:
             await self._cleanup()
-
-    def _on_task_completed(self, server_tasks, task):
-        exc = task.get_exception_nonblocking()
-        if task in server_tasks:
-            if exc:
-                message = 'server task error: %r, %r' % (self, task)
-                raise HttpServerError(message) from exc
-            else:
-                LOG.debug('serve: %r: server task exit: %r', self, task)
-                self._queue.close()  # Initiate graceful exit.
-        elif exc:
-            LOG.error('serve: %r: handler error: %r', self, task, exc_info=exc)
-        else:
-            LOG.debug('serve: %r: handler exit: %r', self, task)
 
     def _prepare(self):
 

@@ -7,6 +7,7 @@ setup(
     ],
     install_requires = [
         'g1.asyncs.kernels',
+        'g1.asyncs.servers',
     ],
     zip_safe = False,
 )
