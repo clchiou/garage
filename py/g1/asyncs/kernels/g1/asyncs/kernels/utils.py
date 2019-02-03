@@ -72,7 +72,7 @@ class TaskCompletionQueue:
             if not exc:
                 pass
             elif isinstance(exc, errors.Cancelled):
-                LOG.warning('task is cancelled: %r', task, exc_info=exc)
+                LOG.debug('task is cancelled: %r', task, exc_info=exc)
             else:
                 LOG.error('task error: %r', task, exc_info=exc)
 
