@@ -1,6 +1,7 @@
 __all__ = [
     'call_with_kernel',
     'run',
+    'with_kernel',
     # Errors.
     'Cancelled',
     'Timeout',
@@ -27,6 +28,7 @@ __all__ = [
 ]
 
 import contextvars
+import functools
 import logging
 
 from . import contexts
@@ -48,6 +50,16 @@ from .utils import StringStream
 from .utils import TaskCompletionQueue
 
 logging.getLogger(__name__).addHandler(logging.NullHandler())
+
+
+def with_kernel(func):
+    """Wrap ``func`` that it is called inside a kernel context."""
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        return call_with_kernel(func, *args, **kwargs)
+
+    return wrapper
 
 
 def call_with_kernel(func, *args, **kwargs):
