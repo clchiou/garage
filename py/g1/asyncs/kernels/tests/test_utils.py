@@ -4,6 +4,7 @@ from g1.asyncs.kernels import contexts
 from g1.asyncs.kernels import errors
 from g1.asyncs.kernels import kernels
 from g1.asyncs.kernels import locks
+from g1.asyncs.kernels import tasks
 from g1.asyncs.kernels import utils
 
 
@@ -125,6 +126,31 @@ class TaskCompletionQueueTest(unittest.TestCase):
         self.assertTrue(t3.is_completed())
         with self.assertRaisesRegex(Exception, r'test message'):
             t3.get_result_nonblocking()
+
+
+class TaskCompletionQueueWithoutKernelTest(unittest.TestCase):
+
+    def test_queue(self):
+        with self.assertRaises(LookupError):
+            contexts.get_kernel()
+
+        tq = utils.TaskCompletionQueue()
+        self.assertFalse(tq.is_closed())
+        self.assertFalse(tq)
+        self.assertEqual(len(tq), 0)
+
+        task = tasks.Task(square(7))
+        tq.put(task)
+        self.assertFalse(tq.is_closed())
+        self.assertTrue(tq)
+        self.assertEqual(len(tq), 1)
+
+        tq.close()
+        self.assertTrue(tq.is_closed())
+        self.assertTrue(tq)
+        self.assertEqual(len(tq), 1)
+
+        self.assertIsNone(task.tick(None, None))
 
 
 class BytesStreamTest(unittest.TestCase):

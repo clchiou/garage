@@ -74,9 +74,13 @@ class ConditionTest(unittest.TestCase):
         contexts.KERNEL.reset(self.token)
         self.k.close()
 
+    def assert_num_waiters(self, cv, num_waiters):
+        self.assertEqual(len(cv._waiters), num_waiters)
+
     def test_condition(self):
 
         cv = locks.Condition()
+        self.assert_num_waiters(cv, 0)
 
         num_returned = 0
 
@@ -93,6 +97,7 @@ class ConditionTest(unittest.TestCase):
             self.k.run(timeout=0)
         self.assertEqual(self.k.get_stats().num_blocked, 3)
         self.assertEqual(len(self.k._generic_blocker), 3)
+        self.assert_num_waiters(cv, 3)
 
         self.assertTrue(cv.acquire_nonblocking())
         cv.notify()
@@ -102,6 +107,7 @@ class ConditionTest(unittest.TestCase):
             self.k.run(timeout=0)
         self.assertEqual(self.k.get_stats().num_blocked, 2)
         self.assertEqual(len(self.k._generic_blocker), 2)
+        self.assert_num_waiters(cv, 2)
 
         self.assertTrue(cv.acquire_nonblocking())
         cv.notify()
@@ -111,6 +117,7 @@ class ConditionTest(unittest.TestCase):
             self.k.run(timeout=0)
         self.assertEqual(self.k.get_stats().num_blocked, 1)
         self.assertEqual(len(self.k._generic_blocker), 1)
+        self.assert_num_waiters(cv, 1)
 
         self.assertTrue(cv.acquire_nonblocking())
         cv.notify()
@@ -120,6 +127,7 @@ class ConditionTest(unittest.TestCase):
             self.k.run(timeout=0)
         self.assertEqual(self.k.get_stats().num_blocked, 0)
         self.assertEqual(len(self.k._generic_blocker), 0)
+        self.assert_num_waiters(cv, 0)
 
     def test_unlocked_error(self):
         cv = locks.Condition()
@@ -168,6 +176,25 @@ class EventTest(unittest.TestCase):
         self.assertTrue(self.k.run(e.wait, timeout=1))
         self.assertEqual(self.k.get_stats().num_blocked, 0)
         self.assertEqual(len(self.k._generic_blocker), 0)
+
+
+class EventWithoutKernelTest(unittest.TestCase):
+
+    def test_event(self):
+        with self.assertRaises(LookupError):
+            contexts.get_kernel()
+
+        e = locks.Event()
+        self.assertFalse(e.is_set())
+
+        e.set()
+        self.assertTrue(e.is_set())
+        e.set()  # You may call it repeatedly.
+        self.assertTrue(e.is_set())
+        e.clear()
+        self.assertFalse(e.is_set())
+        e.clear()  # You may call it repeatedly.
+        self.assertFalse(e.is_set())
 
 
 if __name__ == '__main__':

@@ -139,6 +139,14 @@ class Event:
         return self._flag
 
     def set(self):
+        # Let's make a special case when no task is waiting for this
+        # event object (with this, you may call ``Event.set`` out of a
+        # kernel context).  This is useful when you want to initialize
+        # events before a kernel context is initialized.
+        if not self._condition._waiters:
+            self._flag = True
+            return
+
         ASSERT.true(self._condition.acquire_nonblocking())
         try:
             self._flag = True
