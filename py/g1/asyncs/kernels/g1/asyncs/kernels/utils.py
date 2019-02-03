@@ -36,15 +36,19 @@ class TaskCompletionQueue:
         self._event = locks.Event()
         self._completed = collections.deque()
         self._uncompleted = set()
+        self._not_wait_for = set()
         self._closed = False
 
     def __repr__(self):
-        return '<%s at %#x: %s, completed=%d, uncompleted=%d>' % (
+        return (
+            '<%s at %#x: %s, completed=%d, uncompleted=%d, not_wait_for=%d>'
+        ) % (
             self.__class__.__qualname__,
             id(self),
             'closed' if self._closed else 'open',
             len(self._completed),
             len(self._uncompleted),
+            len(self._not_wait_for),
         )
 
     async def __aenter__(self):
@@ -54,7 +58,8 @@ class TaskCompletionQueue:
         """Reasonable default policy on joining tasks.
 
         * First, it will close the queue.
-        * On normal exit, it will join all remaining tasks.
+        * On normal exit, it will join all remaining tasks (including
+          those "not wait for" tasks).
         * On error, it will cancel tasks before joining them.
 
         This is not guaranteed to fit any use case though.  On those
@@ -80,10 +85,18 @@ class TaskCompletionQueue:
         return self._closed
 
     def __bool__(self):
-        return bool(self._completed) or bool(self._uncompleted)
+        return any((
+            self._completed,
+            self._uncompleted,
+            self._not_wait_for,
+        ))
 
     def __len__(self):
-        return len(self._completed) + len(self._uncompleted)
+        return sum((
+            len(self._completed),
+            len(self._uncompleted),
+            len(self._not_wait_for),
+        ))
 
     def close(self, graceful=True):
         if self._closed:
@@ -99,8 +112,10 @@ class TaskCompletionQueue:
     def _move_tasks(self):
         tasks = list(self._completed)
         tasks.extend(self._uncompleted)
+        tasks.extend(self._not_wait_for)
         self._completed.clear()
         self._uncompleted.clear()
+        self._not_wait_for.clear()
         return tasks
 
     async def get(self):
@@ -120,15 +135,32 @@ class TaskCompletionQueue:
             except Closed:
                 break
 
-    def put(self, task):
+    def put(self, task, *, wait_for_completion=True):
+        """Put task into the queue.
+
+        If ``wait_for_completion`` is false, the queue will not wait for
+        the task completion; that is, if the task is still not completed
+        when ``get`` is called, ``get`` will not be blocked because of
+        that (but ``get`` could still be blocked for other reasons).
+        """
         if self._closed:
             raise Closed
-        self._uncompleted.add(task)
-        task.add_callback(self._on_completion)
+        if wait_for_completion:
+            self._uncompleted.add(task)
+            task.add_callback(self._on_completion)
+        else:
+            self._not_wait_for.add(task)
+            task.add_callback(self._on_not_wait_for_completion)
 
     def _on_completion(self, task):
         if self._uncompleted:
             self._uncompleted.remove(task)
+            self._completed.append(task)
+        self._event.set()
+
+    def _on_not_wait_for_completion(self, task):
+        if self._not_wait_for:
+            self._not_wait_for.remove(task)
             self._completed.append(task)
         self._event.set()
 

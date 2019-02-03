@@ -70,6 +70,50 @@ class TaskCompletionQueueTest(unittest.TestCase):
 
         self.assertEqual(ts, {t1, t2})
 
+    def test_not_wait_for(self):
+        tq = utils.TaskCompletionQueue()
+        event = locks.Event()
+
+        t1 = self.k.spawn(event.wait)
+        tq.put(t1, wait_for_completion=False)
+
+        t2 = self.k.spawn(event.wait)
+        tq.put(t2, wait_for_completion=False)
+
+        tq.close()
+        self.assertTrue(tq.is_closed())
+        self.assertTrue(tq)
+        self.assertEqual(len(tq), 2)
+
+        self.assertFalse(tq._completed)
+        self.assertFalse(tq._uncompleted)
+        self.assertEqual(tq._not_wait_for, {t1, t2})
+        with self.assertRaises(utils.Closed):
+            self.k.run(tq.get, timeout=0)
+        self.assertFalse(tq._completed)
+        self.assertFalse(tq._uncompleted)
+        self.assertEqual(tq._not_wait_for, {t1, t2})
+
+        event.set()
+        with self.assertRaises(errors.Timeout):
+            self.k.run(timeout=0)
+        self.assertEqual(set(tq._completed), {t1, t2})
+        self.assertFalse(tq._uncompleted)
+        self.assertFalse(tq._not_wait_for)
+
+        ts = set()
+        for n in (1, 0):
+            ts.add(self.k.run(tq.get, timeout=1))
+            self.assertTrue(tq.is_closed())
+            self.assertEqual(bool(tq), n != 0)
+            self.assertEqual(len(tq), n)
+        self.assertFalse(tq)
+
+        with self.assertRaises(utils.Closed):
+            self.k.run(tq.get)
+
+        self.assertEqual(ts, {t1, t2})
+
     def test_context_manager(self):
         tq = utils.TaskCompletionQueue()
 
