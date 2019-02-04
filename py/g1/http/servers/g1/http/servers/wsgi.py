@@ -123,7 +123,7 @@ class HttpSession:
 
         self._queue = kernels.TaskCompletionQueue()
 
-        self._outgoing_event = kernels.Event()
+        self._outgoing_gate = kernels.Gate()
 
         self._cancel_settings_timer = None
 
@@ -198,8 +198,7 @@ class HttpSession:
                     len(data),
                 )
 
-                # Unblock ``_handle_outgoing``.
-                self._outgoing_event.set()
+                self._outgoing_gate.unblock()
 
             error_code = NGHTTP2_NO_ERROR
 
@@ -222,8 +221,7 @@ class HttpSession:
             # when should we call ``nghttp2_session_terminate_session``.
             # For now it seems to be fine to make the call here.
             nghttp2_session_terminate_session(self._session, error_code)
-            # Unblock ``_handle_outgoing`` as we are leaving.
-            self._outgoing_event.set()
+            self._outgoing_gate.unblock()
 
     async def _handle_outgoing(self):
 
@@ -254,8 +252,7 @@ class HttpSession:
                     total_length += length
 
                 if not buffers:
-                    self._outgoing_event.clear()
-                    await self._outgoing_event.wait()
+                    await self._outgoing_gate.wait()
                     continue
 
                 LOG.debug(
@@ -679,8 +676,7 @@ class HttpStream:
                 self._session._session,
                 self._stream_id,
             )
-        # Unblock ``_handle_outgoing``.
-        self._session._outgoing_event.set()
+        self._session._outgoing_gate.unblock()
 
     #
     # Stream life-cycle.

@@ -34,7 +34,7 @@ class TaskCompletionQueue:
     """
 
     def __init__(self):
-        self._event = locks.Event()
+        self._gate = locks.Gate()
         self._completed = collections.deque()
         self._uncompleted = set()
         self._not_wait_for = set()
@@ -107,7 +107,9 @@ class TaskCompletionQueue:
         else:
             tasks = self._move_tasks()
         self._closed = True
-        self._event.set()  # Notify all waiters on close.
+        # NOTE: Call ``unblock`` here, not ``unblock_forever``, because
+        # there may still be uncompleted tasks in the queue.
+        self._gate.unblock()
         return tasks
 
     def _move_tasks(self):
@@ -124,8 +126,7 @@ class TaskCompletionQueue:
             if self._completed:
                 return self._completed.popleft()
             elif self._uncompleted or not self._closed:
-                self._event.clear()
-                await self._event.wait()
+                await self._gate.wait()
             else:
                 raise Closed
 
@@ -175,13 +176,13 @@ class TaskCompletionQueue:
         if self._uncompleted:
             self._uncompleted.remove(task)
             self._completed.append(task)
-        self._event.set()
+        self._gate.unblock()
 
     def _on_not_wait_for_completion(self, task):
         if self._not_wait_for:
             self._not_wait_for.remove(task)
             self._completed.append(task)
-        self._event.set()
+        self._gate.unblock()
 
 
 class StreamBase:
@@ -202,7 +203,7 @@ class StreamBase:
         self._newline = newline
         self._buffer = self._buffer_type()
         self._closed = False
-        self._event = locks.Event()
+        self._gate = locks.Gate()
 
     def _make_buffer(self, data):
         if data:
@@ -235,8 +236,7 @@ class StreamBase:
         while True:
             data = self.read_nonblocking(size)
             if data is None:
-                self._event.clear()
-                await self._event.wait()
+                await self._gate.wait()
             else:
                 return data
 
@@ -244,8 +244,7 @@ class StreamBase:
         while True:
             line = self.readline_nonblocking(size)
             if line is None:
-                self._event.clear()
-                await self._event.wait()
+                await self._gate.wait()
             else:
                 return line
 
@@ -294,7 +293,9 @@ class StreamBase:
 
     def close_nonblocking(self):
         self._closed = True
-        self._event.set()
+        # NOTE: Call ``unblock`` here, not ``unblock_forever``, because
+        # there may still be data to raed.
+        self._gate.unblock()
 
     def read_nonblocking(self, size=-1):
         data = self._buffer.getvalue()
@@ -351,7 +352,7 @@ class StreamBase:
 
     def write_nonblocking(self, data):
         ASSERT.false(self._closed)
-        self._event.set()
+        self._gate.unblock()
         return self._buffer.write(data)
 
 
