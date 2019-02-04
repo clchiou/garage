@@ -8,16 +8,21 @@ import struct
 import threading
 
 from g1.bases.assertions import ASSERT
+from g1.bases.classes import SingletonMeta
 
 from . import adapters
 
 
-class SignalQueue:
+class SignalQueue(metaclass=SingletonMeta):
     """Signal queue.
 
     Python runtime implements a UNIX signal handler that writes signal
     number to a file descriptor (which is globally unique, by the way).
     ``SignalQueue`` wraps this feature with a queue-like interface.
+
+    NOTE: This class is a singleton (calling ``SignalQueue()`` returns
+    the same instance).  We make this design choice because UNIX signal
+    handling is always strange and global.
     """
 
     def __init__(self):
