@@ -62,8 +62,6 @@ class Kernel:
         self._generic_blocker = blockers.DictBlocker()
         self._forever_blocker = blockers.ForeverBlocker()
 
-        self._generic_blocker_lock = threading.Lock()
-
         # Track tasks that are going to raise at the next trap point
         # due to ``cancel``, ``timeout_after``, etc.  I call them
         # **disrupter** because they "disrupt" blocking traps.
@@ -72,6 +70,8 @@ class Kernel:
 
         self._poller = pollers.Epoll()
 
+        self._callbacks_lock = threading.Lock()
+        self._callbacks = collections.deque()
         self._nudger = Nudger()
         self._nudger.register_to(self._poller)
 
@@ -83,10 +83,7 @@ class Kernel:
         }
 
     def get_stats(self):
-        """Return internal stats.
-
-        This method is not thread-safe.
-        """
+        """Return internal stats."""
         return KernelStats(
             num_ticks=self._num_ticks,
             num_tasks=self._num_tasks,
@@ -127,26 +124,25 @@ class Kernel:
         ASSERT.equal(threading.get_ident(), self._owner)
 
     def _sanity_check(self):
-        with self._generic_blocker_lock:
-            expect_num_tasks = self._num_tasks
-            actual_num_tasks = sum(
-                map(
-                    len,
-                    (
-                        self._ready_tasks,
-                        self._task_completion_blocker,
-                        self._fd_blocker,
-                        self._sleep_blocker,
-                        self._generic_blocker,
-                        self._forever_blocker,
-                    ),
-                )
+        expect_num_tasks = self._num_tasks
+        actual_num_tasks = sum(
+            map(
+                len,
+                (
+                    self._ready_tasks,
+                    self._task_completion_blocker,
+                    self._fd_blocker,
+                    self._sleep_blocker,
+                    self._generic_blocker,
+                    self._forever_blocker,
+                ),
             )
-            ASSERT(
-                expect_num_tasks >= 0 and expect_num_tasks == actual_num_tasks,
-                'sanity check fail: {!r}',
-                self,
-            )
+        )
+        ASSERT(
+            expect_num_tasks >= 0 and expect_num_tasks == actual_num_tasks,
+            'sanity check fail: {!r}',
+            self,
+        )
 
     def run(self, awaitable=None, timeout=None):
         """Run spawned tasks through completion.
@@ -165,6 +161,13 @@ class Kernel:
             if self._num_ticks % self._sanity_check_frequency == 0:
                 self._sanity_check()
             self._num_ticks += 1
+            # Fire callbacks posted by other threads.
+            with self._callbacks_lock:
+                callbacks, self._callbacks = \
+                    self._callbacks, collections.deque()
+            for callback in callbacks:
+                callback()
+            del callbacks
             # Run all ready tasks.
             while self._ready_tasks:
                 completed_task = self._run_one_ready_task()
@@ -236,8 +239,7 @@ class Kernel:
 
     def _block(self, task, trap):
         ASSERT.is_(trap.kind, traps.Traps.BLOCK)
-        with self._generic_blocker_lock:
-            self._generic_blocker.block(trap.source, task)
+        self._generic_blocker.block(trap.source, task)
         if trap.post_block_callback:
             trap.post_block_callback()
 
@@ -267,17 +269,9 @@ class Kernel:
     # Non-blocking traps.
     #
 
-    def nudge(self):
-        # Do NOT ``_assert_owner`` because this may be called from
-        # another thread.
-        self._nudger.nudge()
-
     def get_all_tasks(self):
-        """Return a list of all tasks.
-
-        This method is not thread-safe, but should be useful for
-        debugging.
-        """
+        """Return a list of all tasks (useful for debugging)."""
+        self._assert_owner()
         all_tasks = []
         try:
             all_tasks.append(contexts.get_current_task())
@@ -312,15 +306,9 @@ class Kernel:
         self._poller.close_fd(fd)
 
     def unblock(self, source):
-        """Unblock tasks blocked by ``source``.
-
-        This also nudges the kernel.
-        """
-        # Do NOT ``_assert_owner`` because this may be called from
-        # another thread.
-        with self._generic_blocker_lock:
-            self._trap_return(self._generic_blocker, source, None)
-        self.nudge()
+        """Unblock tasks blocked by ``source``."""
+        self._assert_owner()
+        self._trap_return(self._generic_blocker, source, None)
 
     def cancel(self, task):
         """Cancel the task.
@@ -343,6 +331,15 @@ class Kernel:
     def _timeout_after_on_completion(self, now):
         for task in self._timeout_after_blocker.unblock(now):
             self._disrupt(task, errors.Timeout)
+
+    #
+    # Multi-threading interface.
+    #
+
+    def post_callback(self, callback):
+        with self._callbacks_lock:
+            self._callbacks.append(callback)
+        self._nudger.nudge()
 
     #
     # Internal helpers.

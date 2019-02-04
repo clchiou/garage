@@ -212,9 +212,12 @@ class FutureAdapter(AdapterBase):
         # get the right kernel object from the context here, and pass it
         # to the callback function.
         kernel = contexts.get_kernel()
+        callback = lambda: kernel.unblock(self.__future)
         await traps.block(
             self.__future,
-            lambda: self.__future.add_callback(kernel.unblock),
+            lambda: self.__future.add_callback(
+                lambda _: kernel.post_callback(callback)
+            ),
         )
 
     async def get_result(self):
@@ -249,11 +252,15 @@ class CompletionQueueAdapter(AdapterBase):
             try:
                 return self.__completion_queue.get(timeout=0)
             except queues.Empty:
-                cb = _OnCompletion(
+                await traps.block(
                     self.__completion_queue,
-                    contexts.get_kernel(),
+                    lambda: self.__completion_queue.add_on_completion_callback(
+                        _OnCompletion(
+                            self.__completion_queue,
+                            contexts.get_kernel(),
+                        ),
+                    ),
                 )
-                await traps.block(self.__completion_queue, cb.register)
 
     async def as_completed(self):
         while True:
@@ -270,9 +277,9 @@ class _OnCompletion:
         self.completion_queue = completion_queue
         self.kernel = kernel
 
-    def register(self):
-        self.completion_queue.add_on_completion_callback(self)
-
     def __call__(self, _):
-        self.kernel.unblock(self.completion_queue)
         self.completion_queue.remove_on_completion_callback(self)
+        self.kernel.post_callback(self.callback)
+
+    def callback(self):
+        self.kernel.unblock(self.completion_queue)
