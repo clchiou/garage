@@ -4,6 +4,38 @@ from g1.asyncs.kernels import blockers
 from g1.asyncs.kernels import tasks
 
 
+class ForeverBlockerTest(unittest.TestCase):
+
+    def setUp(self):
+        self.b = blockers.ForeverBlocker()
+
+    def assert_state(self, task_set):
+        self.assertEqual(bool(self.b), bool(task_set))
+        self.assertEqual(len(self.b), len(task_set))
+        self.assertEqual(set(self.b), task_set)
+
+    def test_blocker(self):
+        self.assert_state(set())
+
+        self.b.block('1', 1)
+        self.assert_state({1})
+
+        self.b.block('2', 1)
+        self.assert_state({1})
+
+        self.assertFalse(self.b.unblock('1'))
+        self.assert_state({1})
+
+        self.assertFalse(self.b.unblock('2'))
+        self.assert_state({1})
+
+        self.assertFalse(self.b.cancel(0))
+        self.assert_state({1})
+
+        self.assertTrue(self.b.cancel(1))
+        self.assert_state(set())
+
+
 class TaskCompletionBlockerTest(unittest.TestCase):
 
     def setUp(self):

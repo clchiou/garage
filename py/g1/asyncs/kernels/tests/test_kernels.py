@@ -32,25 +32,28 @@ class KernelTest(unittest.TestCase):
         async def block_forever():
             await traps.poll_read(self.r.fileno())
 
-        async def do_sleep():
-            await traps.sleep(100)
+        async def do_sleep(duration):
+            await traps.sleep(duration)
 
         self.assert_stats()
 
         t1 = self.k.spawn(noop)
         t2 = self.k.spawn(block_forever)
-        t3 = self.k.spawn(do_sleep)
+        t3 = self.k.spawn(do_sleep(100))
+        t4 = self.k.spawn(do_sleep(None))
 
         actual = self.k.get_all_tasks()
-        self.assert_stats(num_ticks=0, num_tasks=3, num_ready=3)
-        self.assertEqual(set(actual), {t1, t2, t3})
+        self.assert_stats(num_ticks=0, num_tasks=4, num_ready=4)
+        self.assertEqual(set(actual), {t1, t2, t3, t4})
 
         with self.assertRaises(errors.Timeout):
             self.k.run(timeout=0)
 
         actual = self.k.get_all_tasks()
-        self.assert_stats(num_ticks=1, num_tasks=2, num_poll=1, num_sleep=1)
-        self.assertEqual(set(actual), {t2, t3})
+        self.assert_stats(
+            num_ticks=1, num_tasks=3, num_poll=1, num_sleep=1, num_blocked=1
+        )
+        self.assertEqual(set(actual), {t2, t3, t4})
 
     def test_timeout(self):
 
@@ -75,6 +78,50 @@ class KernelTest(unittest.TestCase):
         self.w.flush()
         self.k.run(timeout=1)
         self.assert_stats(num_ticks=5, num_tasks=0, num_poll=0)
+
+    def test_timeout_after(self):
+
+        task = None
+
+        async def do_timeout_after():
+            self.k.timeout_after(task, 99)
+            await traps.poll_read(self.r.fileno())
+
+        self.assert_stats()
+
+        task = self.k.spawn(do_timeout_after)
+        self.assert_stats(num_ticks=0, num_tasks=1, num_ready=1)
+
+        with self.assertRaises(errors.Timeout):
+            self.k.run(timeout=0)
+        self.assert_stats(num_ticks=1, num_tasks=1, num_poll=1, num_timeout=1)
+
+        self.w.write(b'\x00')
+        self.w.flush()
+        self.k.run(timeout=1)
+        self.assert_stats(num_ticks=3, num_tasks=0)
+
+    def test_timeout_after_none(self):
+
+        task = None
+
+        async def do_timeout_after():
+            self.k.timeout_after(task, None)
+            await traps.poll_read(self.r.fileno())
+
+        self.assert_stats()
+
+        task = self.k.spawn(do_timeout_after)
+        self.assert_stats(num_ticks=0, num_tasks=1, num_ready=1)
+
+        with self.assertRaises(errors.Timeout):
+            self.k.run(timeout=0)
+        self.assert_stats(num_ticks=1, num_tasks=1, num_poll=1, num_timeout=0)
+
+        self.w.write(b'\x00')
+        self.w.flush()
+        self.k.run(timeout=1)
+        self.assert_stats(num_ticks=3, num_tasks=0)
 
     def test_join(self):
 

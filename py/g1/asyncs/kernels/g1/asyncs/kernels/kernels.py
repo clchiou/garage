@@ -60,6 +60,7 @@ class Kernel:
         self._fd_blocker = blockers.DictBlocker()
         self._sleep_blocker = blockers.TimeoutBlocker()
         self._generic_blocker = blockers.DictBlocker()
+        self._forever_blocker = blockers.ForeverBlocker()
 
         self._generic_blocker_lock = threading.Lock()
 
@@ -93,7 +94,9 @@ class Kernel:
             num_join=len(self._task_completion_blocker),
             num_poll=len(self._fd_blocker),
             num_sleep=len(self._sleep_blocker),
-            num_blocked=len(self._generic_blocker),
+            num_blocked=(
+                len(self._generic_blocker) + len(self._forever_blocker)
+            ),
             num_to_raise=len(self._to_raise),
             num_timeout=len(self._timeout_after_blocker),
         )
@@ -135,6 +138,7 @@ class Kernel:
                         self._fd_blocker,
                         self._sleep_blocker,
                         self._generic_blocker,
+                        self._forever_blocker,
                     ),
                 )
             )
@@ -252,7 +256,9 @@ class Kernel:
 
     def _sleep(self, task, trap):
         ASSERT.is_(trap.kind, traps.Traps.SLEEP)
-        if trap.duration <= 0:
+        if trap.duration is None:
+            self._forever_blocker.block(None, task)
+        elif trap.duration <= 0:
             self._ready_tasks.append(TaskReady(task, None, None))
         else:
             self._sleep_blocker.block(time.monotonic() + trap.duration, task)
@@ -283,6 +289,7 @@ class Kernel:
             self._fd_blocker,
             self._sleep_blocker,
             self._generic_blocker,
+            self._forever_blocker,
         ):
             all_tasks.extend(task_collection)
         ASSERT.equal(len(all_tasks), self._num_tasks)
@@ -326,6 +333,8 @@ class Kernel:
 
     def timeout_after(self, task, duration):
         self._assert_owner()
+        if duration is None:
+            return lambda: None
         if duration <= 0:
             raise errors.Timeout
         self._timeout_after_blocker.block(time.monotonic() + duration, task)
@@ -357,6 +366,7 @@ class Kernel:
             self._task_completion_blocker.cancel(task)
             or self._sleep_blocker.cancel(task)
             or self._generic_blocker.cancel(task)
+            or self._forever_blocker.cancel(task)
         )
         if is_unblocked:
             self._ready_tasks.append(TaskReady(task, None, None))

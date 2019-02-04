@@ -1,5 +1,6 @@
 __all__ = [
     'DictBlocker',
+    'ForeverBlocker',
     'TaskCompletionBlocker',
     'TimeoutBlocker',
 ]
@@ -43,6 +44,36 @@ class BlockerBase:
         Return source or true if ``task`` actually cancelled.
         """
         raise NotImplementedError
+
+
+class ForeverBlocker(BlockerBase):
+    """Blocker that never unblocks."""
+
+    def __init__(self):
+        self._tasks = set()
+
+    def __bool__(self):
+        return bool(self._tasks)
+
+    def __len__(self):
+        return len(self._tasks)
+
+    def __iter__(self):
+        return iter(self._tasks)
+
+    def block(self, source, task):
+        del source  # Unused.
+        self._tasks.add(task)
+
+    def unblock(self, source):
+        return ()
+
+    def cancel(self, task):
+        if task in self._tasks:
+            self._tasks.remove(task)
+            return True
+        else:
+            return False
 
 
 class DictBlocker(BlockerBase):
