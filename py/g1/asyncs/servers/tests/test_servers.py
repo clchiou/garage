@@ -1,4 +1,5 @@
 import unittest
+import unittest.mock
 
 import re
 
@@ -27,7 +28,6 @@ class LoggerMixin:
 class SuperviseServersTest(LoggerMixin, unittest.TestCase):
 
     def setUp(self):
-        super().setUp()
 
         async def mocked_handle_signal(graceful_exit):
             for _ in range(2):
@@ -36,16 +36,20 @@ class SuperviseServersTest(LoggerMixin, unittest.TestCase):
                 graceful_exit.set()
                 self.mocked_signal.clear()
 
-        self.original_handle_signal = servers.handle_signal
-        self.mocked_signal = kernels.Event()
-        servers.handle_signal = mocked_handle_signal
+        super().setUp()
 
+        self.mocked_signal = kernels.Event()
         self.ge = kernels.Event()
         self.tq = kernels.TaskCompletionQueue()
 
+        unittest.mock.patch(
+            servers.__name__ + '.handle_signal',
+            mocked_handle_signal,
+        ).start()
+
     def tearDown(self):
         super().tearDown()
-        servers.handle_signal = self.original_handle_signal
+        unittest.mock.patch.stopall()
 
     def run_supervise_servers(self, grace_period, timeout):
         return kernels.run(
