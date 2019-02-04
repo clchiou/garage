@@ -114,6 +114,14 @@ class TaskCompletionQueueTest(unittest.TestCase):
 
         self.assertEqual(ts, {t1, t2})
 
+    def test_spawn(self):
+        tq = utils.TaskCompletionQueue()
+        tq.close()
+        self.assertEqual(self.k.get_all_tasks(), [])
+        with self.assertRaises(utils.Closed):
+            tq.spawn(square)
+        self.assertEqual(self.k.get_all_tasks(), [])
+
     def test_context_manager(self):
         tq = utils.TaskCompletionQueue()
 

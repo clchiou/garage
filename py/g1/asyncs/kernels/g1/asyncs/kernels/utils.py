@@ -15,6 +15,7 @@ import logging
 
 from g1.bases.assertions import ASSERT
 
+from . import contexts
 from . import errors
 from . import locks
 
@@ -151,6 +152,24 @@ class TaskCompletionQueue:
         else:
             self._not_wait_for.add(task)
             task.add_callback(self._on_not_wait_for_completion)
+
+    def spawn(self, awaitable, *, wait_for_completion=True):
+        """Spawn and put task to the queue.
+
+        This is equivalent to spawn-then-put, but is better that, if
+        ``put`` will fail, no task is spawned.
+        """
+        if self._closed:
+            raise Closed
+        task = contexts.get_kernel().spawn(awaitable)
+        try:
+            self.put(task, wait_for_completion=wait_for_completion)
+        except BaseException:
+            # This should never happen...
+            LOG.critical('put should never fail here: %r, %r', self, task)
+            task.cancel()
+            raise
+        return task
 
     def _on_completion(self, task):
         if self._uncompleted:
