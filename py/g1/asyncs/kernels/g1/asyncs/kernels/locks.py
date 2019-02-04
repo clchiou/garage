@@ -7,6 +7,7 @@ You should only use them among tasks spawned from the same kernel.
 __all__ = [
     'Condition',
     'Event',
+    'Gate',
     'Lock',
 ]
 
@@ -162,3 +163,29 @@ class Event:
             if not self._flag:
                 await self._condition.wait()
             return self._flag
+
+
+class Gate:
+
+    def __init__(self):
+        self._unblocked_forever = False
+
+    def unblock(self):
+        """Unblock current waiters."""
+        # Let's make a special case for calling ``unblock`` out of a
+        # kernel context.
+        try:
+            contexts.get_kernel().unblock(self)
+        except LookupError:
+            pass
+
+    def unblock_forever(self):
+        """Unblock all current and future waiters."""
+        self._unblocked_forever = True
+        self.unblock()
+
+    async def wait(self):
+        """Wait until ``unblock`` or ``unblock_forever`` is called."""
+        if self._unblocked_forever:
+            return
+        await traps.block(self)

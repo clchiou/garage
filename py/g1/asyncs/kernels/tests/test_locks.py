@@ -197,5 +197,76 @@ class EventWithoutKernelTest(unittest.TestCase):
         self.assertFalse(e.is_set())
 
 
+class GateTest(unittest.TestCase):
+
+    def setUp(self):
+        self.k = kernels.Kernel()
+        self.token = contexts.set_kernel(self.k)
+
+    def tearDown(self):
+        contexts.KERNEL.reset(self.token)
+        self.k.close()
+
+    def test_unblock(self):
+        g = locks.Gate()
+
+        t = self.k.spawn(g.wait)
+        self.assertEqual(self.k.get_stats().num_blocked, 0)
+
+        with self.assertRaises(errors.Timeout):
+            self.k.run(timeout=0)
+        self.assertEqual(self.k.get_stats().num_blocked, 1)
+
+        g.unblock()
+
+        with self.assertRaises(errors.Timeout):
+            self.k.run(timeout=0)
+        self.assertEqual(self.k.get_stats().num_blocked, 0)
+        self.assertTrue(t.is_completed())
+
+    def test_unblock_before_wait(self):
+        g = locks.Gate()
+
+        async def func():
+            g.unblock()
+            await g.wait()
+
+        t = self.k.spawn(func)
+        self.assertEqual(self.k.get_stats().num_blocked, 0)
+
+        with self.assertRaises(errors.Timeout):
+            self.k.run(timeout=0)
+        self.assertEqual(self.k.get_stats().num_blocked, 1)
+
+        g.unblock()
+
+        with self.assertRaises(errors.Timeout):
+            self.k.run(timeout=0)
+        self.assertEqual(self.k.get_stats().num_blocked, 0)
+        self.assertTrue(t.is_completed())
+
+    def test_unblock_forever(self):
+        g = locks.Gate()
+        g.unblock_forever()
+
+        t = self.k.spawn(g.wait)
+        self.assertEqual(self.k.get_stats().num_blocked, 0)
+
+        with self.assertRaises(errors.Timeout):
+            self.k.run(timeout=0)
+        self.assertEqual(self.k.get_stats().num_blocked, 0)
+        self.assertTrue(t.is_completed())
+
+
+class GateWithoutKernelTest(unittest.TestCase):
+
+    def test_gate(self):
+        with self.assertRaises(LookupError):
+            contexts.get_kernel()
+        g = locks.Gate()
+        g.unblock()
+        g.unblock_forever()
+
+
 if __name__ == '__main__':
     unittest.main()

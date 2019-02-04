@@ -18,6 +18,7 @@ __all__ = [
     # Locks.
     'Condition',
     'Event',
+    'Gate',
     'Lock',
     # Signals.
     'SignalQueue',
@@ -42,6 +43,7 @@ from .errors import Cancelled
 from .errors import Timeout
 from .locks import Condition
 from .locks import Event
+from .locks import Gate
 from .locks import Lock
 from .signals import SignalQueue
 from .traps import sleep
