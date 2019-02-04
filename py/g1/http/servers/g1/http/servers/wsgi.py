@@ -155,13 +155,13 @@ class HttpSession:
         ASSERT.not_none(self._session)
         self._prepare()
         try:
-            helper_tasks = frozenset((
-                kernels.spawn(self._handle_incoming),
-                kernels.spawn(self._handle_outgoing),
-            ))
-            for task in helper_tasks:
-                self._queue.put(task)
-            await servers.supervise_handlers(self._queue, helper_tasks)
+            await servers.supervise_handlers(
+                self._queue,
+                (
+                    self._queue.spawn(self._handle_incoming),
+                    self._queue.spawn(self._handle_outgoing),
+                ),
+            )
         finally:
             await self._cleanup()
 
@@ -559,8 +559,7 @@ class HttpStream:
 
     def _start_wsgi_task(self):
         ASSERT.none(self._task)
-        self._task = kernels.spawn(self._run_wsgi)
-        self._session._queue.put(self._task)
+        self._task = self._session._queue.spawn(self._run_wsgi)
 
     async def _run_wsgi(self):
 

@@ -25,7 +25,7 @@ def main(argv):
     for duration, func in ((argv[2], kernels.sleep), (argv[3], timeout_after)):
         duration = float(duration)
         if duration >= 0:
-            server_queue.put(kernels.spawn(func(duration)))
+            server_queue.spawn(func(duration))
     kernels.run(
         servers.supervise_servers(
             server_queue, kernels.Event(), float(argv[1])

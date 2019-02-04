@@ -26,12 +26,12 @@ class TcpServer:
 
     async def serve(self):
         queue = kernels.TaskCompletionQueue()
-        helper_tasks = frozenset((kernels.spawn(self._accept(queue)), ))
-        for task in helper_tasks:
-            queue.put(task)
         try:
             LOG.info('start server: %r', self._server_socket)
-            await servers.supervise_handlers(queue, helper_tasks)
+            await servers.supervise_handlers(
+                queue,
+                (queue.spawn(self._accept(queue)), ),
+            )
             LOG.info('stop server: %r', self._server_socket)
         finally:
             await self._server_socket.close()
@@ -47,7 +47,7 @@ class TcpServer:
                 else:
                     raise
             LOG.info('serve client: %r', addr)
-            queue.put(kernels.spawn(self._handle_client(sock, addr)))
+            queue.spawn(self._handle_client(sock, addr))
 
 
 def make_server_socket(

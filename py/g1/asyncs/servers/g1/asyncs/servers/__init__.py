@@ -58,11 +58,15 @@ async def supervise_servers(
 
     async with server_queue:
 
-        exit_waiter = kernels.spawn(graceful_exit.wait)
-        server_queue.put(exit_waiter, wait_for_completion=False)
+        exit_waiter = server_queue.spawn(
+            graceful_exit.wait,
+            wait_for_completion=False,
+        )
 
-        signal_handler = kernels.spawn(handle_signal(graceful_exit))
-        server_queue.put(signal_handler, wait_for_completion=False)
+        signal_handler = server_queue.spawn(
+            handle_signal(graceful_exit),
+            wait_for_completion=False,
+        )
 
         cancel_timeout = None
 
