@@ -248,6 +248,11 @@ class KernelTest(unittest.TestCase):
         self.assert_stats(num_ticks=1, num_tasks=0, num_blocked=0)
         self.assertTrue(task.is_completed())
 
+    def test_close_repeatedly(self):
+        self.k.close()
+        self.k.close()
+        self.k.close()
+
     def assert_stats(self, **expect):
         actual = self.k.get_stats()._asdict()
         # Default ``expect`` entries to 0.

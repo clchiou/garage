@@ -51,6 +51,8 @@ class Kernel:
 
         self._owner = owner or threading.get_ident()
 
+        self._closed = False
+
         self._num_ticks = 0
         self._sanity_check_frequency = sanity_check_frequency
 
@@ -108,11 +110,14 @@ class Kernel:
 
     def close(self):
         self._assert_owner()
+        if self._closed:
+            return
         stats = self.get_stats()
         if any(v for n, v in stats._asdict().items() if n != 'num_ticks'):
             LOG.warning('kernel has uncompleted tasks: %r', self)
         self._poller.close()
         self._nudger.close()
+        self._closed = True
 
     def __enter__(self):
         return self
