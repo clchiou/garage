@@ -116,16 +116,37 @@ class Task:
         effective, you have to call ``Task.get_result_nonblocking`` in
         the main thread (or implicitly through ``Kernel.run``).
         """
-        ASSERT.false(self.is_completed())
+        ASSERT.false(self._completed)
         if trap_exception:
-            func = self._coroutine.throw
-            arg = trap_exception
+            trap = self._tick(self._coroutine.throw, trap_exception)
         else:
-            func = self._coroutine.send
-            arg = trap_result
+            trap = self._tick(self._coroutine.send, trap_result)
+        if trap is not None:
+            return trap
+        ASSERT.true(self._completed)
+        self._call_callbacks()
+        return None
+
+    def abort(self):
+        """Close the running coroutine.
+
+        This is the last resort for releasing resources acquired by the
+        coroutine, not a part of normal task cleanup.  One good place to
+        call ``abort`` is when kernel is closing.
+        """
+        if self._completed:
+            return
+        LOG.debug('abort task: %r', self)
+        ASSERT.none(self._tick(self._coroutine.close))
+        if not self._completed:
+            self._completed = True
+            self._exception = errors.Cancelled('task abort')
+        self._call_callbacks()
+
+    def _tick(self, func, *args):
         try:
             self._num_ticks += 1
-            trap = func(arg)
+            return func(*args)
         except errors.TaskCancellation as exc:
             self._completed = True
             self._exception = errors.Cancelled()
@@ -136,13 +157,13 @@ class Task:
         except BaseException as exc:
             self._completed = True
             self._exception = exc
-        else:
-            return ASSERT.not_none(trap)
+        return None
+
+    def _call_callbacks(self):
         ASSERT.true(self._completed)
         callbacks, self._callbacks = self._callbacks, None
         for callback in callbacks:
             self._call_callback(callback)
-        return None
 
     def add_callback(self, callback):
         if self._completed:

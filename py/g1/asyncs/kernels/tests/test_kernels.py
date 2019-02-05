@@ -71,6 +71,12 @@ class KernelTest(unittest.TestCase):
         )
         self.assertEqual(set(actual), {t2, t3, t4})
 
+        self.k.cancel(t2)
+        self.k.cancel(t3)
+        self.k.cancel(t4)
+        with self.assertRaises(errors.Timeout):
+            self.k.run(timeout=0)
+
     def test_timeout(self):
 
         async def block_forever():
@@ -247,6 +253,44 @@ class KernelTest(unittest.TestCase):
         self.k.run()
         self.assert_stats(num_ticks=1, num_tasks=0, num_blocked=0)
         self.assertTrue(task.is_completed())
+
+    def test_cleanup_tasks_on_close(self):
+
+        async def block_forever():
+            await traps.sleep(None)
+
+        async def reraise():
+            try:
+                await traps.sleep(None)
+            except GeneratorExit:
+                raise ValueError('some error')
+
+        async def noop():
+            pass
+
+        t1 = self.k.spawn(block_forever)
+        t2 = self.k.spawn(reraise)
+        with self.assertRaises(errors.Timeout):
+            self.k.run(timeout=0)
+
+        t3 = self.k.spawn(noop)
+
+        self.k.close()
+
+        self.assertEqual(set(self.k.get_all_tasks()), {t1, t2, t3})
+        for t in (t1, t2, t3):
+            self.assertTrue(t.is_completed())
+        with self.assertRaisesRegex(errors.Cancelled, r'task abort'):
+            t1.get_result_nonblocking()
+        with self.assertRaisesRegex(ValueError, r'some error'):
+            t2.get_result_nonblocking()
+        with self.assertRaisesRegex(errors.Cancelled, r'task abort'):
+            t3.get_result_nonblocking()
+
+        # It is okay to call ``abort`` repeatedly.
+        t1.abort()
+        t1.abort()
+        t1.abort()
 
     def test_close_repeatedly(self):
         self.k.close()
