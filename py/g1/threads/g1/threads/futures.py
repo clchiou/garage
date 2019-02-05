@@ -243,6 +243,13 @@ class CompletionQueue:
             self._uncompleted.add(future)
         future.add_callback(self._on_completion)
 
+    def __iter__(self):
+        """Iterate over completed futures.
+
+        Unlike ``as_completed``, this does not accept ``timeout``.
+        """
+        return self._as_completed_not_timed(None)
+
     def as_completed(self, timeout=None):
         """Iterate over completed futures."""
         if timeout is None or timeout <= 0:

@@ -99,6 +99,15 @@ class TaskCompletionQueue:
             len(self._not_wait_for),
         ))
 
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        try:
+            return await self.get()
+        except Closed:
+            raise StopAsyncIteration
+
     def close(self, graceful=True):
         if self._closed:
             return []
@@ -129,13 +138,6 @@ class TaskCompletionQueue:
                 await self._gate.wait()
             else:
                 raise Closed
-
-    async def as_completed(self):
-        while True:
-            try:
-                yield await self.get()
-            except Closed:
-                break
 
     def put(self, task, *, wait_for_completion=True):
         """Put task into the queue.

@@ -16,7 +16,7 @@ async def compute(x):
 
 async def accumulate(cq):
     total = 0
-    async for task in cq.as_completed():
+    async for task in cq:
         answer, duration = await task.get_result()
         total += answer
         print('spend %.3f seconds computing' % duration)

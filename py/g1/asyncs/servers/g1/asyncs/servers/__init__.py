@@ -87,7 +87,7 @@ async def supervise_servers(
             raise SupervisorError(reason % log_args) from exc_info
 
         try:
-            async for task in server_queue.as_completed():
+            async for task in server_queue:
                 server_queue.close()
                 exc = task.get_exception_nonblocking()
                 if task is exit_waiter:
@@ -142,7 +142,7 @@ async def supervise_handlers(
     * NOTE: Helper tasks also have to be put to ``handler_queue``.
     """
     async with handler_queue:
-        async for task in handler_queue.as_completed():
+        async for task in handler_queue:
             exc = task.get_exception_nonblocking()
             if task in helper_tasks:
                 if exc:

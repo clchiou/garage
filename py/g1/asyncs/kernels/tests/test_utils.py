@@ -70,6 +70,27 @@ class TaskCompletionQueueTest(unittest.TestCase):
 
         self.assertEqual(ts, {t1, t2})
 
+    def test_async_iterator(self):
+        tq = utils.TaskCompletionQueue()
+
+        expect = {
+            tq.spawn(square(1)),
+            tq.spawn(square(2)),
+            tq.spawn(square(3)),
+        }
+        tq.close()
+
+        async def async_iter():
+            actual = set()
+            async for task in tq:
+                actual.add(task)
+            return actual
+
+        self.assertEqual(
+            self.k.run(async_iter, timeout=1),
+            expect,
+        )
+
     def test_not_wait_for(self):
         tq = utils.TaskCompletionQueue()
         event = locks.Event()

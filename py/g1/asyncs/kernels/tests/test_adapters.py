@@ -349,10 +349,9 @@ class CompletionQueueAdapterTest(unittest.TestCase):
 
     def test_completion_queue(self):
 
-        async def call_as_completed():
+        async def async_iter():
             items = set()
-            # pylint: disable=not-an-iterable
-            async for item in self.cq.as_completed():
+            async for item in self.cq:
                 items.add(item)
             return items
 
@@ -383,7 +382,7 @@ class CompletionQueueAdapterTest(unittest.TestCase):
         f2.set_result(43)
         f3.set_result(44)
         self.cq.close()
-        t2 = self.k.spawn(call_as_completed)
+        t2 = self.k.spawn(async_iter)
         with self.assertRaises(errors.Timeout):
             self.k.run(timeout=0)
         self.assert_cq(0, 0)

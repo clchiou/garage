@@ -189,6 +189,24 @@ class CompletionQueueTest(unittest.TestCase):
         self.assertIs(cq.get(), f)
         self.assertEqual(len(cq), 0)
 
+    def test_iter(self):
+        fs = [futures.Future() for _ in range(3)]
+        f = futures.Future()
+        f.set_result(42)
+        expect = set(fs)
+        expect.add(f)
+        cq = futures.CompletionQueue([f])
+        actual = set()
+        for f in cq:
+            actual.add(f)
+            if fs:
+                f = fs.pop()
+                f.set_result(42)
+                cq.put(f)
+            else:
+                cq.close()
+        self.assertEqual(actual, expect)
+
     def test_as_completed(self):
         for timeout in (None, 0):
             with self.subTest(check=timeout):

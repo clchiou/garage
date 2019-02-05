@@ -247,6 +247,15 @@ class CompletionQueueAdapter(AdapterBase):
     def __len__(self):
         return len(self.__completion_queue)
 
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        try:
+            return await self.get()
+        except queues.Closed:
+            raise StopAsyncIteration
+
     async def get(self):
         while True:
             try:
@@ -261,13 +270,6 @@ class CompletionQueueAdapter(AdapterBase):
                         ),
                     ),
                 )
-
-    async def as_completed(self):
-        while True:
-            try:
-                yield await self.get()
-            except queues.Closed:
-                break
 
 
 class _OnCompletion:
