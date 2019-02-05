@@ -4,6 +4,7 @@ __all__ = [
 
 import collections
 import functools
+import inspect
 import logging
 import os
 import threading
@@ -294,6 +295,8 @@ class Kernel:
         self._assert_owner()
         if tasks.Task.is_coroutine(awaitable):
             coroutine = awaitable
+        elif inspect.isawaitable(awaitable):
+            coroutine = awaitable.__await__()
         else:
             coroutine = awaitable()
         task = tasks.Task(coroutine)

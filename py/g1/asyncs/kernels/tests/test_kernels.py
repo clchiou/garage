@@ -24,6 +24,22 @@ class KernelTest(unittest.TestCase):
         self.r.close()
         self.w.close()
 
+    def test_awaitable(self):
+
+        class TestAwaitable:
+
+            def __await__(self):
+                yield traps.SleepTrap(traps.Traps.SLEEP, 0)
+
+        async def do_test():
+            await TestAwaitable()
+
+        self.assert_stats(num_ticks=0)
+        self.assertIsNone(self.k.run(do_test))
+        self.assert_stats(num_ticks=1)
+        self.assertIsNone(self.k.run(TestAwaitable()))
+        self.assert_stats(num_ticks=2)
+
     def test_get_all_tasks(self):
 
         async def noop():
