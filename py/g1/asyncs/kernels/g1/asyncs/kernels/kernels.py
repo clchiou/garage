@@ -112,13 +112,10 @@ class Kernel:
         self._assert_owner()
         if self._closed:
             return
-        found_uncompleted = False
         for task in self.get_all_tasks():
             if not task.is_completed():
-                if not found_uncompleted:
-                    LOG.warning('kernel has uncompleted tasks: %r', self)
-                found_uncompleted = True
-            task.abort()
+                LOG.warning('close: abort task: %r', task)
+                task.abort()
         self._poller.close()
         self._nudger.close()
         self._closed = True
