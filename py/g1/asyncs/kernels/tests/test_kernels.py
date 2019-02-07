@@ -123,6 +123,25 @@ class KernelTest(unittest.TestCase):
         self.k.run(timeout=1)
         self.assert_stats(num_ticks=3, num_tasks=0)
 
+    def test_timeout_after_non_positive(self):
+
+        task = None
+
+        async def do_timeout_after():
+            self.k.timeout_after(task, 0)  # Not raised here.
+            try:
+                await traps.poll_read(self.r.fileno())  # But here.
+            except errors.Timeout:
+                return 'raised'
+            else:
+                return 'not raised'
+
+        task = self.k.spawn(do_timeout_after)
+
+        self.k.run(timeout=1)
+        self.assertTrue(task.is_completed())
+        self.assertEqual(task.get_result_nonblocking(), 'raised')
+
     def test_timeout_after_none(self):
 
         task = None

@@ -332,8 +332,8 @@ class Kernel:
         self._assert_owner()
         if duration is None:
             return lambda: None
-        if duration <= 0:
-            raise errors.Timeout
+        # Even if duration <= 0, the kernel should raise ``Timeout`` at
+        # the next blocking trap for consistency (so, don't raise here).
         self._timeout_after_blocker.block(time.monotonic() + duration, task)
         return functools.partial(self._timeout_after_blocker.cancel, task)
 
