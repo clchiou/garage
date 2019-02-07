@@ -142,9 +142,11 @@ class CollectionsTest(unittest.TestCase):
         ns = Namespace('a', 'b', 'c')
         for name in ('a', 'b', 'c'):
             self.assertEqual(getattr(ns, name), name)
+            self.assertIn(name, ns)
             self.assertEqual(ns[name], name)
         with self.assertRaises(AttributeError):
             getattr(ns, 'd')
+        self.assertNotIn('d', ns)
         with self.assertRaises(KeyError):
             ns['d']  # pylint: disable=pointless-statement
         with self.assertRaises(TypeError):

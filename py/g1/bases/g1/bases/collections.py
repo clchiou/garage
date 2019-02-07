@@ -223,6 +223,9 @@ class Namespace:
     def _asdict(self):
         return self._entries.copy()
 
+    def __contains__(self, name):
+        return name in self._entries
+
     def __getitem__(self, name):
         return self._entries[name]
 
