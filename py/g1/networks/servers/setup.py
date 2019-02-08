@@ -9,5 +9,10 @@ setup(
         'g1.asyncs.kernels',
         'g1.asyncs.servers',
     ],
+    extras_require = {
+        'parts': [
+            'g1.apps[asyncs]',
+        ],
+    },
     zip_safe = False,
 )
