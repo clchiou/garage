@@ -54,8 +54,8 @@ class FileAdapterTest(unittest.TestCase):
                     chunk = chunk[num_bytes:]
                     num_written += num_bytes
             await self.w.flush()
-            await self.w.close()
-            await self.w.close()  # Safe to close repeatedly.
+            self.w.close()
+            self.w.close()  # Safe to close repeatedly.
             return num_written
 
         async def read():
@@ -65,8 +65,8 @@ class FileAdapterTest(unittest.TestCase):
                 if not piece:
                     break
                 pieces.append(piece)
-            await self.r.close()
-            await self.r.close()  # Safe to close repeatedly.
+            self.r.close()
+            self.r.close()  # Safe to close repeatedly.
             return b''.join(pieces)
 
         reader_task = self.k.spawn(read)
@@ -94,12 +94,10 @@ class FileAdapterTest(unittest.TestCase):
             self.k.run(timeout=0)
         self.assert_stats(num_ticks=1, num_tasks=1, num_poll=1)
 
-        closer_task = self.k.spawn(self.r.close)
+        self.r.close()
         self.k.run(timeout=1)
-        self.assert_stats(num_ticks=3, num_tasks=0)
 
         self.assertTrue(reader_task.is_completed())
-        self.assertTrue(closer_task.is_completed())
         with self.assertRaisesRegex(ValueError, r'read of closed file'):
             reader_task.get_result_nonblocking()
 
@@ -122,12 +120,10 @@ class FileAdapterTest(unittest.TestCase):
             self.k.run(timeout=0)
         self.assert_stats(num_ticks=1, num_tasks=1, num_poll=1)
 
-        closer_task = self.k.spawn(self.w.close)
+        self.w.close()
         self.k.run(timeout=1)
-        self.assert_stats(num_ticks=3, num_tasks=0)
 
         self.assertTrue(writer_task.is_completed())
-        self.assertTrue(closer_task.is_completed())
         with self.assertRaisesRegex(ValueError, r'write to closed file'):
             writer_task.get_result_nonblocking()
 
@@ -143,7 +139,7 @@ class FileAdapterTest(unittest.TestCase):
         num_bytes = 65537
         buffer = bytes(num_bytes)
 
-        # Let's check that ``close`` might raise.
+        # Let's check that ``close`` raises.
         r, w = os.pipe()
         os.set_blocking(r, False)
         os.set_blocking(w, False)
@@ -154,15 +150,31 @@ class FileAdapterTest(unittest.TestCase):
             ww.close()
         rr.close()
 
+        # But adapter's ``close`` won't raise.
         async def writer():
             await self.w.write(buffer)
-            await self.w.close()
+            self.w.close()
 
         task = self.k.spawn(writer)
-        self.k.run(timeout=1)
+        with self.assertLogs(adapters.__name__) as cm:
+            self.k.run(timeout=1)
+        self.assertRegex(
+            cm.output[0],
+            r'close error',
+        )
+        self.assertRegex(
+            cm.output[-1],
+            (
+                r'BlockingIOError: '
+                r'\[Errno 11\] write could not complete without blocking'
+            ),
+        )
 
         self.assertTrue(task.is_completed())
         self.assertIsNone(task.get_exception_nonblocking())
+
+        # Not all of the data have been flushed out.
+        self.assertLess(len(self.r.target.read()), num_bytes)
 
 
 class SocketAdapterTest(unittest.TestCase):
@@ -191,7 +203,7 @@ class SocketAdapterTest(unittest.TestCase):
                     self.assertGreater(num_bytes, 0)
                     chunk = chunk[num_bytes:]
                     num_sent += num_bytes
-            await self.s0.close()
+            self.s0.close()
             return num_sent
 
         self.do_test_socket(send)
@@ -212,7 +224,7 @@ class SocketAdapterTest(unittest.TestCase):
                     else:
                         chunks[0] = chunks[0][num_bytes:]
                         break
-            await self.s0.close()
+            self.s0.close()
             return num_sent
 
         self.do_test_socket(sendmsg)
@@ -229,7 +241,7 @@ class SocketAdapterTest(unittest.TestCase):
                 if not piece:
                     break
                 pieces.append(piece)
-            await self.s1.close()
+            self.s1.close()
             return b''.join(pieces)
 
         sender = self.k.spawn(send(num_chunks, chunk_size))
@@ -255,9 +267,7 @@ class SocketAdapterTest(unittest.TestCase):
             self.k.run(timeout=0)
         self.assertEqual(self.k.get_stats().num_poll, 1)
 
-        close_task = self.k.spawn(self.s0.close)
-        self.k.run(timeout=1)
-        self.assertIsNone(close_task.get_exception_nonblocking())
+        self.s0.close()
 
         # Access after socket is closed.
         task1 = self.k.spawn(self.s0.recv(1024))

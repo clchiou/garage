@@ -222,9 +222,6 @@ class StreamBase:
             'closed' if self._closed else 'open',
         )
 
-    async def close(self):
-        return self.close_nonblocking()
-
     def __aiter__(self):
         return self
 
@@ -287,13 +284,13 @@ class StreamBase:
     def nonblocking(self):
         """Expose non-blocking interface via a file-like interface."""
         return self.NonblockingMethods(
-            close=self.close_nonblocking,
+            close=self.close,
             read=self.read_nonblocking,
             readline=self.readline_nonblocking,
             write=self.write_nonblocking,
         )
 
-    def close_nonblocking(self):
+    def close(self):
         self._closed = True
         # NOTE: Call ``unblock`` here, not ``unblock_forever``, because
         # there may still be data to raed.

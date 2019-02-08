@@ -31,7 +31,7 @@ async def application(environ, start_response):
 
 async def on_graceful_exit(graceful_exit, server_socket):
     await graceful_exit.wait()
-    await server_socket.close()
+    server_socket.close()
 
 
 @kernels.with_kernel

@@ -25,16 +25,14 @@ class TcpServer:
         self._handle_client = handle_client
 
     async def serve(self):
-        queue = kernels.TaskCompletionQueue()
-        try:
+        with self._server_socket:
             LOG.info('start server: %r', self._server_socket)
+            queue = kernels.TaskCompletionQueue()
             await servers.supervise_handlers(
                 queue,
                 (queue.spawn(self._accept(queue)), ),
             )
             LOG.info('stop server: %r', self._server_socket)
-        finally:
-            await self._server_socket.close()
 
     async def _accept(self, queue):
         while True:

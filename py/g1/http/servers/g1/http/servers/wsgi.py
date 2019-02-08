@@ -163,7 +163,7 @@ class HttpSession:
                 ),
             )
         finally:
-            await self._cleanup()
+            self._cleanup()
 
     def _prepare(self):
 
@@ -282,7 +282,7 @@ class HttpSession:
                     buffers[0] = buffers[0][num_sent:]
                     break
 
-    async def _cleanup(self):
+    def _cleanup(self):
 
         self._cancel_settings_timer = None
 
@@ -292,7 +292,7 @@ class HttpSession:
         self._session = None
         self._user_data = None
 
-        await self._sock.close()
+        self._sock.close()
 
     def _start_settings_timer(self):
         # This should start a timer on the ``_handle_incoming`` task.
@@ -594,7 +594,7 @@ class HttpStream:
             raise
 
         finally:
-            await self._response_body.close()
+            self._response_body.close()
 
         LOG.info('wsgi app completes: %s %s %s://%s%s', *log_args)
 
@@ -695,7 +695,7 @@ class HttpStream:
         self._request_body.write_nonblocking(data)
 
     def end_request(self):
-        self._request_body.close_nonblocking()
+        self._request_body.close()
         if not self._task:
             self._start_wsgi_task()
 

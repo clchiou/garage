@@ -5,6 +5,7 @@ __all__ = [
     'SocketAdapter',
 ]
 
+import logging
 import os
 import socket
 import ssl
@@ -18,6 +19,8 @@ try:
     from g1.threads import queues
 except ImportError:
     queues = None
+
+LOG = logging.getLogger(__name__)
 
 
 class AdapterBase:
@@ -53,11 +56,11 @@ class FileAdapter(AdapterBase):
         self.__file = file
         os.set_blocking(self.__file.fileno(), False)
 
-    async def __aenter__(self):
+    def __enter__(self):
         return self
 
-    async def __aexit__(self, *_):
-        await self.close()
+    def __exit__(self, *_):
+        self.close()
 
     async def read(self, size=-1):
         while True:
@@ -84,23 +87,21 @@ class FileAdapter(AdapterBase):
             except (BlockingIOError, InterruptedError):
                 await traps.poll_write(self.__file.fileno())
 
-    async def close(self):
+    def close(self):
         if self.__file.closed:
             return
-        # Pre-fetch file descriptor before file is closed.
-        fd = self.__file.fileno()
-        while True:
-            try:
-                self.__file.close()
-                break
-            except (BlockingIOError, InterruptedError):
-                pass
-            if self.__file.closed:
-                # If nothing to be flushed out, let's break out.
-                break
-            else:
-                await traps.poll_write(self.__file.fileno())
-        contexts.get_kernel().close_fd(fd)
+        try:
+            contexts.get_kernel().close_fd(self.__file.fileno())
+        except LookupError:
+            pass
+        try:
+            self.__file.close()
+        except (BlockingIOError, InterruptedError) as exc:
+            # Sadly, there is nothing we can do here since the file has
+            # been closed and not-yet-flushed-out data are lost.  If you
+            # want absolutely no data loss, you should call ``flush``
+            # before call ``close``.
+            LOG.warning('close error: %r', self, exc_info=exc)
 
 
 class SocketAdapter(AdapterBase):
@@ -121,11 +122,11 @@ class SocketAdapter(AdapterBase):
         self.__sock = sock
         self.__sock.setblocking(False)
 
-    async def __aenter__(self):
+    def __enter__(self):
         return self
 
-    async def __aexit__(self, *_):
-        await self.close()
+    def __exit__(self, *_):
+        self.close()
 
     async def accept(self):
         while True:
@@ -179,15 +180,16 @@ class SocketAdapter(AdapterBase):
             except self.WRITE_BLOCKED:
                 await traps.poll_write(self.__sock.fileno())
 
-    async def close(self):
-        # I assume that ``socket.close`` does not flush out data, and
-        # thus never raises ``BlockingIOError``, etc., but for
-        # consistency, let's still declare it as an async function.
+    def close(self):
         fd = self.__sock.fileno()
-        self.__sock.close()
-        # If ``fd < 0``, it means the socket has been closed.
         if fd >= 0:
-            contexts.get_kernel().close_fd(fd)
+            try:
+                contexts.get_kernel().close_fd(fd)
+            except LookupError:
+                pass
+        # I assume that ``socket.close`` does not flush out data, and
+        # thus never raises ``BlockingIOError``, etc.
+        self.__sock.close()
 
 
 class FutureAdapter(AdapterBase):

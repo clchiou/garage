@@ -437,10 +437,13 @@ class BytesStreamTest(unittest.TestCase):
 
         self.k.run(self.s.write(b'world\n'))
         self.k.run(self.s.write(b'foo'))
-        self.k.run(self.s.close())
 
         with self.assertRaises(errors.Timeout):
             self.k.run(timeout=0)
+
+        self.s.close()
+        self.k.run(timeout=1)
+
         self.assertTrue(t.is_completed())
         self.assertEqual(lines, [b'hello\n', b'world\n', b'foo'])
         self.assert_stream(b'')
@@ -470,9 +473,12 @@ class BytesStreamTest(unittest.TestCase):
         self.assertFalse(t.is_completed())
         self.assert_stream(b'foo')
 
-        self.k.run(self.s.close())
         with self.assertRaises(errors.Timeout):
             self.k.run(timeout=0)
+
+        self.s.close()
+        self.k.run(timeout=1)
+
         self.assert_stream(b'')
         self.assertEqual(
             t.get_result_nonblocking(),

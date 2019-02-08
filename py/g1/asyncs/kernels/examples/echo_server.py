@@ -7,7 +7,7 @@ from g1.asyncs import kernels
 
 
 async def serve(port):
-    async with kernels.SocketAdapter(socket.socket()) as server_sock:
+    with kernels.SocketAdapter(socket.socket()) as server_sock:
         server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, True)
         server_sock.bind(('127.0.0.1', port))
         server_sock.listen()
@@ -17,7 +17,7 @@ async def serve(port):
 
 
 async def handle(sock):
-    async with sock:
+    with sock:
         data = await sock.recv(4096)
         print('recv: %r' % data)
         await sock.send(data)
