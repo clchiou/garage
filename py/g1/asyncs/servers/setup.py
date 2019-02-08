@@ -8,5 +8,10 @@ setup(
     install_requires = [
         'g1.asyncs.kernels',
     ],
+    extras_require = {
+        'parts': [
+            'g1.apps[asyncs]',
+        ],
+    },
     zip_safe = False,
 )
