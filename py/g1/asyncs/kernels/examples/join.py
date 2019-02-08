@@ -5,7 +5,6 @@ import sys
 import time
 
 from g1.asyncs import kernels
-from g1.asyncs.kernels import contexts
 
 
 async def compute(x):
@@ -33,7 +32,7 @@ def main(_):
 
 
 if __name__ == '__main__':
-    print('before main: kernel=%s' % contexts.get_kernel(None))
+    print('before main: kernel=%s' % kernels.get_kernel())
     status = main(sys.argv)
-    print('after main: kernel=%s' % contexts.get_kernel(None))
+    print('after main: kernel=%s' % kernels.get_kernel())
     sys.exit(status)

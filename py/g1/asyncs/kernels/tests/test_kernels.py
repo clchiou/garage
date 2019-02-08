@@ -24,6 +24,49 @@ class KernelTest(unittest.TestCase):
         self.r.close()
         self.w.close()
 
+    def test_disallow_resursive(self):
+
+        async def noop():
+            pass
+
+        async def f():
+            try:
+                self.k.run(noop)
+            except AssertionError as exc:
+                return exc
+            else:
+                return None
+
+        exc = self.k.run(f, timeout=1)
+        self.assertIsInstance(exc, AssertionError)
+        self.assertRegex(str(exc), r'expect.*None')
+
+    def test_sanity_check(self):
+        """Test ``Kernel._sanity_check``.
+
+        It should not fail even in a coroutine.
+        """
+
+        self.k._sanity_check()
+
+        async def f():
+            self.k._sanity_check()
+
+        self.k.run(f)
+
+    def test_get_current_task(self):
+
+        async def f():
+            return self.k.get_current_task()
+
+        self.assertIsNone(self.k.get_current_task())
+
+        task = self.k.spawn(f)
+        self.k.run(timeout=1)
+
+        self.assertTrue(task.is_completed())
+        self.assertIs(task.get_result_nonblocking(), task)
+
     def test_awaitable(self):
 
         class TestAwaitable:
@@ -76,6 +119,17 @@ class KernelTest(unittest.TestCase):
         self.k.cancel(t4)
         with self.assertRaises(errors.Timeout):
             self.k.run(timeout=0)
+
+    def test_get_all_tasks_in_coroutine(self):
+
+        async def f():
+            return self.k.get_all_tasks()
+
+        task = self.k.spawn(f)
+        self.k.run(timeout=1)
+
+        self.assertTrue(task.is_completed())
+        self.assertEqual(task.get_result_nonblocking(), [task])
 
     def test_timeout(self):
 

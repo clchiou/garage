@@ -14,7 +14,6 @@ from g1.bases import timers
 from g1.bases.assertions import ASSERT
 
 from . import blockers
-from . import contexts
 from . import errors
 from . import pollers
 from . import tasks
@@ -58,6 +57,7 @@ class Kernel:
 
         # Tasks are juggled among these collections.
         self._num_tasks = 0
+        self._current_task = None
         self._ready_tasks = collections.deque()
         self._task_completion_blocker = blockers.TaskCompletionBlocker()
         self._fd_blocker = blockers.DictBlocker()
@@ -84,6 +84,9 @@ class Kernel:
             traps.Traps.POLL: self._poll,
             traps.Traps.SLEEP: self._sleep,
         }
+
+    def get_current_task(self):
+        return self._current_task
 
     def get_stats(self):
         """Return internal stats."""
@@ -145,6 +148,8 @@ class Kernel:
                 ),
             )
         )
+        if self._current_task:
+            actual_num_tasks += 1
         ASSERT(
             expect_num_tasks >= 0 and expect_num_tasks == actual_num_tasks,
             'sanity check fail: {!r}',
@@ -161,6 +166,7 @@ class Kernel:
         exactly once.
         """
         self._assert_owner()
+        ASSERT.none(self._current_task)  # Disallow recursive calls.
         main_task = self.spawn(awaitable) if awaitable else None
         run_timer = timers.make(timeout)
         while self._num_tasks > 0:
@@ -215,8 +221,11 @@ class Kernel:
             trap_result = None
             trap_exception = override
 
-        with contexts.setting_current_task(task):
+        self._current_task = task
+        try:
             trap = task.tick(trap_result, trap_exception)
+        finally:
+            self._current_task = None
 
         if trap is None:
             ASSERT.true(task.is_completed())
@@ -280,10 +289,8 @@ class Kernel:
         """Return a list of all tasks (useful for debugging)."""
         self._assert_owner()
         all_tasks = []
-        try:
-            all_tasks.append(contexts.get_current_task())
-        except LookupError:
-            pass
+        if self._current_task:
+            all_tasks.append(self._current_task)
         all_tasks.extend(task_ready.task for task_ready in self._ready_tasks)
         for task_collection in (
             self._task_completion_blocker,

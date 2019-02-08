@@ -2,11 +2,14 @@ __all__ = [
     'call_with_kernel',
     'run',
     'with_kernel',
+    # Contexts.
+    'get_all_tasks',
+    'get_current_task',
+    'get_kernel',
     # Errors.
     'Cancelled',
     'Timeout',
     # Traps.
-    'get_all_tasks',
     'sleep',
     'spawn',
     'timeout_after',
@@ -95,17 +98,36 @@ def run(awaitable=None, timeout=None):
     return _get_or_create_kernel().run(awaitable, timeout)
 
 
-def get_all_tasks():
-    return _get_or_create_kernel().get_all_tasks()
-
-
 def spawn(awaitable):
-    # Use ``_get_or_create_kernel`` so that users may call ``spawn`` out
-    # of the event loop.
+    # Use ``_get_or_create_kernel`` to allow users to call ``spawn``
+    # without first initializing a kernel context.
     return _get_or_create_kernel().spawn(awaitable)
 
 
 def timeout_after(duration):
-    return contexts.get_kernel().timeout_after(
-        contexts.get_current_task(), duration
-    )
+    kernel = contexts.get_kernel()
+    task = kernel.get_current_task()
+    if not task:
+        raise LookupError('no current task: %r' % kernel)
+    return kernel.timeout_after(task, duration)
+
+
+#
+# Contexts.
+#
+# Don't (implicitly) create kernel for these functions.
+#
+
+
+def get_kernel():
+    return contexts.get_kernel(None)
+
+
+def get_all_tasks():
+    kernel = get_kernel()
+    return kernel.get_all_tasks() if kernel else []
+
+
+def get_current_task():
+    kernel = get_kernel()
+    return kernel.get_current_task() if kernel else None

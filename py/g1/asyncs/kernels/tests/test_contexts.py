@@ -14,14 +14,6 @@ class ContextsTest(unittest.TestCase):
         with self.assertRaises(LookupError):
             contexts.get_kernel()
 
-    def test_task(self):
-        with self.assertRaises(LookupError):
-            contexts.get_current_task()
-        with contexts.setting_current_task(42):
-            self.assertEqual(contexts.get_current_task(), 42)
-        with self.assertRaises(LookupError):
-            contexts.get_current_task()
-
 
 if __name__ == '__main__':
     unittest.main()
