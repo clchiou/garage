@@ -11,5 +11,10 @@ setup(
         'g1.asyncs.servers',
         'g1.networks.servers',
     ],
+    extras_require = {
+        'parts': [
+            'g1.apps[asyncs]',
+        ],
+    },
     zip_safe = False,
 )
