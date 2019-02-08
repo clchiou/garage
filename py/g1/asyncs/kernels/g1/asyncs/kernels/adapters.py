@@ -221,14 +221,15 @@ class FutureAdapter(AdapterBase):
                 lambda _: kernel.post_callback(callback)
             ),
         )
+        ASSERT.true(self.__future.is_completed())
 
     async def get_result(self):
         await self.join()
-        return self.__future.get_result()
+        return self.__future.get_result(timeout=0)
 
     async def get_exception(self):
         await self.join()
-        return self.__future.get_exception()
+        return self.__future.get_exception(timeout=0)
 
 
 class CompletionQueueAdapter(AdapterBase):
