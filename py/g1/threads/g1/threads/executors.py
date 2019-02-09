@@ -5,6 +5,7 @@ __all__ = [
 import itertools
 import logging
 import os
+import weakref
 
 from g1.threads import actors
 from g1.threads import futures
@@ -49,6 +50,11 @@ class Executor:
                 daemon=daemon,
             ) for name in names
         )
+
+        # Add this ``finalize`` so that, when the application does not
+        # shut down the executor and did not set daemon to true, the
+        # actor threads (and then the main process) could still exit.
+        weakref.finalize(self, self.queue.close)
 
     def __enter__(self):
         return self
