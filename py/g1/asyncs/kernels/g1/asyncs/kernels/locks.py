@@ -126,7 +126,6 @@ class Condition:
 class Event:
 
     def __init__(self):
-        self._condition = Condition()
         self._flag = False
 
     def __repr__(self):
@@ -140,29 +139,23 @@ class Event:
         return self._flag
 
     def set(self):
+        self._flag = True
         # Let's make a special case when no task is waiting for this
         # event object (with this, you may call ``Event.set`` out of a
         # kernel context).  This is useful when you want to initialize
         # events before a kernel context is initialized.
-        if not self._condition._waiters:
-            self._flag = True
-            return
-
-        ASSERT.true(self._condition.acquire_nonblocking())
         try:
-            self._flag = True
-            self._condition.notify_all()
-        finally:
-            self._condition.release()
+            contexts.get_kernel().unblock(self)
+        except LookupError:
+            pass
 
     def clear(self):
         self._flag = False
 
     async def wait(self):
-        async with self._condition:
-            if not self._flag:
-                await self._condition.wait()
-            return self._flag
+        while not self._flag:
+            await traps.block(self)
+        return self._flag
 
 
 class Gate:
