@@ -6,9 +6,9 @@ setup(
         'g1.http.servers',
     ],
     install_requires = [
-        'g1.bases',
         'g1.asyncs.kernels',
         'g1.asyncs.servers',
+        'g1.bases',
         'g1.networks.servers',
     ],
     extras_require = {
