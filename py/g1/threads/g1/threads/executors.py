@@ -54,7 +54,7 @@ class Executor:
         # Add this ``finalize`` so that, when the application does not
         # shut down the executor and did not set daemon to true, the
         # actor threads (and then the main process) could still exit.
-        weakref.finalize(self, self.queue.close)
+        weakref.finalize(self, _finalize_executor, self.queue)
 
     def __enter__(self):
         return self
@@ -88,3 +88,11 @@ class Executor:
                 LOG.error('executor crash: %r', stubs[f], exc_info=exc)
         if queue:
             LOG.warning('not join %d executor', len(queue))
+
+
+def _finalize_executor(queue):
+    # If we end up here, it is likely that the remaining tasks in the
+    # queue should not even be started (thus ``graceful=False``).
+    num_items = len(queue.close(graceful=False))
+    if num_items:
+        LOG.warning('finalize: drop %d tasks', num_items)
