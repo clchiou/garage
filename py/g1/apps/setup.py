@@ -1,18 +1,18 @@
 from setuptools import setup
 
 setup(
-    name = 'g1.apps',
-    packages = [
+    name='g1.apps',
+    packages=[
         'g1.apps',
     ],
-    install_requires = [
+    install_requires=[
         'g1.bases',
         'startup',
     ],
-    extras_require = {
+    extras_require={
         'asyncs': [
             'g1.asyncs.kernels',
         ],
     },
-    zip_safe = False,
+    zip_safe=False,
 )
