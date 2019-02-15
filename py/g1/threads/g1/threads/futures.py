@@ -218,8 +218,6 @@ class CompletionQueue:
 
     def close(self, graceful=True):
         with self._lock:
-            if self._closed:
-                return []
             if graceful:
                 items = []
             else:

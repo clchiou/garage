@@ -70,6 +70,26 @@ class TaskCompletionQueueTest(unittest.TestCase):
 
         self.assertEqual(ts, {t1, t2})
 
+    def test_close_repeatedly(self):
+        tq = utils.TaskCompletionQueue()
+        self.assertFalse(tq.is_closed())
+
+        t1 = self.k.spawn(square(1))
+        tq.put(t1)
+
+        self.assertEqual(tq.close(True), [])
+        self.assertTrue(tq.is_closed())
+        self.assertEqual(tq.close(False), [t1])
+        self.assertTrue(tq.is_closed())
+        self.assertEqual(tq.close(True), [])
+        self.assertTrue(tq.is_closed())
+        self.assertEqual(tq.close(False), [])
+        self.assertTrue(tq.is_closed())
+
+        self.assertFalse(t1.is_completed())
+        self.k.run(timeout=1)
+        self.assertTrue(t1.is_completed())
+
     def test_async_iterator(self):
         tq = utils.TaskCompletionQueue()
 

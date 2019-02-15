@@ -81,11 +81,10 @@ class QueueBase:
         queued items.  The caller may use this opportunity to properly
         release them.
 
-        After the queue is closed, further calling ``close`` is no-op.
+        When ``close`` is called at multiple places, the first call site
+        with ``graceful=False`` has the dropped items.
         """
         with self.__lock:
-            if self.__closed:
-                return []  # This is no-op.
             if graceful:
                 items = []
             else:

@@ -97,6 +97,23 @@ class QueuesTest(unittest.TestCase):
         self.assertTrue(queue.is_closed())
         self.assertFalse(queue)
 
+    def test_close_repeatedly(self):
+        queue = queues.Queue()
+        self.assertFalse(queue.is_closed())
+
+        queue.put(42)
+        queue.put(43)
+        queue.put(44)
+
+        self.assertEqual(queue.close(True), [])
+        self.assertTrue(queue.is_closed())
+        self.assertEqual(queue.close(False), [42, 43, 44])
+        self.assertTrue(queue.is_closed())
+        self.assertEqual(queue.close(True), [])
+        self.assertTrue(queue.is_closed())
+        self.assertEqual(queue.close(False), [])
+        self.assertTrue(queue.is_closed())
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -66,10 +66,7 @@ class TaskCompletionQueue:
         This is not guaranteed to fit any use case though.  On those
         cases, you will have to roll your own context manager.
         """
-        # Do not call close with ``graceful=False`` to get the remaining
-        # tasks because the queue might have been closed already.
-        self.close()
-        tasks = self._move_tasks()
+        tasks = self.close(graceful=False)
         if exc_type:
             for task in tasks:
                 task.cancel()
@@ -109,25 +106,19 @@ class TaskCompletionQueue:
             raise StopAsyncIteration
 
     def close(self, graceful=True):
-        if self._closed:
-            return []
         if graceful:
             tasks = []
         else:
-            tasks = self._move_tasks()
+            tasks = list(self._completed)
+            tasks.extend(self._uncompleted)
+            tasks.extend(self._not_wait_for)
+            self._completed.clear()
+            self._uncompleted.clear()
+            self._not_wait_for.clear()
         self._closed = True
         # NOTE: Call ``unblock`` here, not ``unblock_forever``, because
         # there may still be uncompleted tasks in the queue.
         self._gate.unblock()
-        return tasks
-
-    def _move_tasks(self):
-        tasks = list(self._completed)
-        tasks.extend(self._uncompleted)
-        tasks.extend(self._not_wait_for)
-        self._completed.clear()
-        self._uncompleted.clear()
-        self._not_wait_for.clear()
         return tasks
 
     async def get(self):

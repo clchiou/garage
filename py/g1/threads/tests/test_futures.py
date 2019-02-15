@@ -148,6 +148,19 @@ class CompletionQueueTest(unittest.TestCase):
         for _ in cq.as_completed():
             self.fail()
 
+    def test_close_repeatedly(self):
+        f = futures.Future()
+        cq = futures.CompletionQueue([f])
+        self.assertFalse(cq.is_closed())
+        self.assertEqual(cq.close(True), [])
+        self.assertTrue(cq.is_closed())
+        self.assertEqual(cq.close(False), [f])
+        self.assertTrue(cq.is_closed())
+        self.assertEqual(cq.close(True), [])
+        self.assertTrue(cq.is_closed())
+        self.assertEqual(cq.close(False), [])
+        self.assertTrue(cq.is_closed())
+
     def test_get(self):
         f = futures.Future()
         cq = futures.CompletionQueue([f])
