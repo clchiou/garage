@@ -244,8 +244,10 @@ class CompletionQueueTest(unittest.TestCase):
 
     def test_as_completed_empty(self):
         cq = futures.CompletionQueue()
+        cq.put(futures.Future())
         for _ in cq.as_completed(timeout=0):
             self.fail()
+        self.assertEqual(len(cq), 1)
 
     def test_callback(self):
 

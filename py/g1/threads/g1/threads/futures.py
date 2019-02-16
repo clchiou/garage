@@ -246,23 +246,10 @@ class CompletionQueue:
 
         Unlike ``as_completed``, this does not accept ``timeout``.
         """
-        return self._as_completed_not_timed(None)
+        return self.as_completed()
 
     def as_completed(self, timeout=None):
         """Iterate over completed futures."""
-        if timeout is None or timeout <= 0:
-            yield from self._as_completed_not_timed(timeout)
-        else:
-            yield from self._as_completed_timed(timeout)
-
-    def _as_completed_not_timed(self, timeout):
-        while True:
-            try:
-                yield self.get(timeout)
-            except (queues.Empty, queues.Closed):
-                break
-
-    def _as_completed_timed(self, timeout):
         timer = timers.make(timeout)
         while True:
             timer.start()
