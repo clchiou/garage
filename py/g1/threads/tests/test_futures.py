@@ -249,6 +249,19 @@ class CompletionQueueTest(unittest.TestCase):
             self.fail()
         self.assertEqual(len(cq), 1)
 
+    def test_as_completed_func(self):
+        for timeout in (None, 0):
+            with self.subTest(check=timeout):
+                fs = [futures.Future() for _ in range(3)]
+                for f in fs:
+                    f.set_result(42)
+                actual = {f for f in futures.as_completed(fs, timeout)}
+                self.assertEqual(actual, set(fs))
+
+    def test_as_completed_func_empty(self):
+        for _ in futures.as_completed([futures.Future()], timeout=0):
+            self.fail()
+
     def test_callback(self):
 
         f1 = futures.Future()

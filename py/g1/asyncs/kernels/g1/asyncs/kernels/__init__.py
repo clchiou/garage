@@ -29,6 +29,7 @@ __all__ = [
     'BytesStream',
     'StringStream',
     'TaskCompletionQueue',
+    'as_completed',
 ]
 
 import contextvars
@@ -53,6 +54,7 @@ from .traps import sleep
 from .utils import BytesStream
 from .utils import StringStream
 from .utils import TaskCompletionQueue
+from .utils import as_completed
 
 logging.getLogger(__name__).addHandler(logging.NullHandler())
 

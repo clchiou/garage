@@ -9,6 +9,7 @@ __all__ = [
     'CompletionQueue',
     'Future',
     'Timeout',
+    'as_completed',
     'wrap_thread_target',
 ]
 
@@ -285,6 +286,37 @@ class CompletionQueue:
         with self._on_completion_callbacks_lock:
             for callback in self._on_completion_callbacks:
                 callback(future)
+
+
+def as_completed(fs, timeout=None):
+    """Iterate through completed futures.
+
+    This is equivalent to (but with less overhead):
+
+    .. code-block:: python
+
+        def as_completed(fs, timeout=None):
+            cq = CompletionQueue()
+            for f in fs:
+                cq.put(f)
+            cq.close()
+            return cq.as_completed(timeout)
+    """
+    completed = queues.Queue()
+    timer = timers.make(timeout)
+    num_futures = 0
+    for f in fs:
+        f.add_callback(completed.put)
+        num_futures += 1
+    while num_futures > 0:
+        timer.start()
+        try:
+            future = completed.get(timer.get_timeout())
+        except queues.Empty:
+            break
+        timer.stop()
+        yield future
+        num_futures -= 1
 
 
 def wrap_thread_target(target, *, reraise=True):

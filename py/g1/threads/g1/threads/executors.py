@@ -80,14 +80,13 @@ class Executor:
 
     def _join(self, timeout):
         stubs = {stub.future: stub for stub in self.stubs}
-        queue = futures.CompletionQueue(stubs)
-        queue.close()
-        for f in queue.as_completed(timeout):
+        for f in futures.as_completed(stubs, timeout):
+            stub = stubs.pop(f)
             exc = f.get_exception()
             if exc:
-                LOG.error('executor crash: %r', stubs[f], exc_info=exc)
-        if queue:
-            LOG.warning('not join %d executor', len(queue))
+                LOG.error('executor crash: %r', stub, exc_info=exc)
+        if stubs:
+            LOG.warning('not join %d executor', len(stubs))
 
 
 def _finalize_executor(queue):

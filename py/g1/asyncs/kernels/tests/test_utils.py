@@ -246,6 +246,30 @@ class TaskCompletionQueueWithoutKernelTest(unittest.TestCase):
         self.assertIsNone(task.tick(None, None))
 
 
+class AsCompletedTest(unittest.TestCase):
+
+    def setUp(self):
+        self.k = kernels.Kernel()
+        self.token = contexts.set_kernel(self.k)
+
+    def tearDown(self):
+        contexts.KERNEL.reset(self.token)
+        self.k.close()
+
+    def test_as_completed(self):
+
+        async def test(ts):
+            xs = set()
+            async for t in utils.as_completed(ts):
+                xs.add(t.get_result_nonblocking())
+            return xs
+
+        self.assertEqual(self.k.run(test([])), set())
+
+        ts = [self.k.spawn(square(x)) for x in (1, 2, 3)]
+        self.assertEqual(self.k.run(test(ts)), {1, 4, 9})
+
+
 class BytesStreamTest(unittest.TestCase):
 
     def setUp(self):

@@ -7,6 +7,8 @@ __all__ = [
     # In-memory stream.
     'BytesStream',
     'StringStream',
+    # Others.
+    'as_completed',
 ]
 
 import collections
@@ -176,6 +178,20 @@ class TaskCompletionQueue:
             self._not_wait_for.remove(task)
             self._completed.append(task)
         self._gate.unblock()
+
+
+async def as_completed(tasks):
+    completed = collections.deque()
+    gate = locks.Gate()
+    num_tasks = 0
+    for task in tasks:
+        task.add_callback(lambda t: (completed.append(t), gate.unblock()))
+        num_tasks += 1
+    while num_tasks > 0:
+        while not completed:
+            await gate.wait()
+        yield completed.popleft()
+        num_tasks -= 1
 
 
 class StreamBase:
