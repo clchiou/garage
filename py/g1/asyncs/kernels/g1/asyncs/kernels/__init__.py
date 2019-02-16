@@ -30,6 +30,7 @@ __all__ = [
     'StringStream',
     'TaskCompletionQueue',
     'as_completed',
+    'joining',
 ]
 
 import contextvars
@@ -55,6 +56,7 @@ from .utils import BytesStream
 from .utils import StringStream
 from .utils import TaskCompletionQueue
 from .utils import as_completed
+from .utils import joining
 
 logging.getLogger(__name__).addHandler(logging.NullHandler())
 

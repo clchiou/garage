@@ -9,6 +9,7 @@ __all__ = [
     'StringStream',
     # Others.
     'as_completed',
+    'joining',
 ]
 
 import collections
@@ -374,3 +375,24 @@ class StringStream(StreamBase):
         # TODO: Handle all corner cases of newline characters (for now
         # it is fixed to '\n').
         super().__init__(io.StringIO, str, '\n')
+
+
+class joining:
+    """Reasonable default policy on joining a task."""
+
+    def __init__(self, task):
+        self._task = task
+
+    async def __aenter__(self):
+        return self._task
+
+    async def __aexit__(self, exc_type, *_):
+        if exc_type:
+            self._task.cancel()
+        exc = await self._task.get_exception()
+        if not exc:
+            pass
+        elif isinstance(exc, errors.Cancelled):
+            LOG.debug('task is cancelled: %r', self._task, exc_info=exc)
+        else:
+            LOG.error('task error: %r', self._task, exc_info=exc)

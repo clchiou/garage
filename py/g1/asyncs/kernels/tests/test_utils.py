@@ -550,5 +550,39 @@ class StringStreamTest(unittest.TestCase):
             self.s.nonblocking.write(b'')
 
 
+class JoiningTest(unittest.TestCase):
+
+    def setUp(self):
+        self.k = kernels.Kernel()
+        self.token = contexts.set_kernel(self.k)
+
+    def tearDown(self):
+        contexts.KERNEL.reset(self.token)
+        self.k.close()
+
+    def test_joining(self):
+
+        async def test_normal(t1):
+            async with utils.joining(t1) as t2:
+                self.assertIs(t1, t2)
+
+        async def test_error(t1):
+            async with utils.joining(t1) as t2:
+                self.assertIs(t1, t2)
+                raise Exception('some error')
+
+        t = self.k.spawn(square(2))
+        self.k.run(test_normal(t))
+        self.assertTrue(t.is_completed())
+        self.assertEqual(t.get_result_nonblocking(), 4)
+
+        t = self.k.spawn(locks.Event().wait)
+        with self.assertRaisesRegex(Exception, r'some error'):
+            self.k.run(test_error(t))
+        self.assertTrue(t.is_completed())
+        with self.assertRaises(errors.Cancelled):
+            t.get_result_nonblocking()
+
+
 if __name__ == '__main__':
     unittest.main()
