@@ -119,8 +119,6 @@ class TaskCompletionQueue:
             self._uncompleted.clear()
             self._not_wait_for.clear()
         self._closed = True
-        # NOTE: Call ``unblock`` here, not ``unblock_forever``, because
-        # there may still be uncompleted tasks in the queue.
         self._gate.unblock()
         return tasks
 
@@ -300,8 +298,6 @@ class StreamBase:
 
     def close(self):
         self._closed = True
-        # NOTE: Call ``unblock`` here, not ``unblock_forever``, because
-        # there may still be data to raed.
         self._gate.unblock()
 
     def read_nonblocking(self, size=-1):

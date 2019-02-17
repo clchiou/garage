@@ -245,18 +245,6 @@ class GateTest(unittest.TestCase):
         self.assertEqual(self.k.get_stats().num_blocked, 0)
         self.assertTrue(t.is_completed())
 
-    def test_unblock_forever(self):
-        g = locks.Gate()
-        g.unblock_forever()
-
-        t = self.k.spawn(g.wait)
-        self.assertEqual(self.k.get_stats().num_blocked, 0)
-
-        with self.assertRaises(errors.Timeout):
-            self.k.run(timeout=0)
-        self.assertEqual(self.k.get_stats().num_blocked, 0)
-        self.assertTrue(t.is_completed())
-
 
 class GateWithoutKernelTest(unittest.TestCase):
 
@@ -265,7 +253,6 @@ class GateWithoutKernelTest(unittest.TestCase):
             contexts.get_kernel()
         g = locks.Gate()
         g.unblock()
-        g.unblock_forever()
 
 
 if __name__ == '__main__':

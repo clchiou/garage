@@ -159,9 +159,14 @@ class Event:
 
 
 class Gate:
+    """Expose kernel's block/unblock interface.
 
-    def __init__(self):
-        self._unblocked_forever = False
+    This is an "empty" class that it only uses ``self`` as the blocker
+    source; this is probably not very memory-efficient, but should be
+    okay for now.
+    """
+
+    __slots__ = ()
 
     def unblock(self):
         """Unblock current waiters."""
@@ -172,13 +177,6 @@ class Gate:
         except LookupError:
             pass
 
-    def unblock_forever(self):
-        """Unblock all current and future waiters."""
-        self._unblocked_forever = True
-        self.unblock()
-
     async def wait(self):
-        """Wait until ``unblock`` or ``unblock_forever`` is called."""
-        if self._unblocked_forever:
-            return
+        """Wait until ``unblock`` is called."""
         await traps.block(self)
