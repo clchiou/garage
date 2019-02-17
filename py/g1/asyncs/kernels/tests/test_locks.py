@@ -129,6 +129,14 @@ class ConditionTest(unittest.TestCase):
         self.assertEqual(len(self.k._generic_blocker), 0)
         self.assert_num_waiters(cv, 0)
 
+    def test_notify_empty(self):
+        cv = locks.Condition()
+        self.assertTrue(cv.acquire_nonblocking())
+        self.assert_num_waiters(cv, 0)
+        cv.notify()
+        self.assert_num_waiters(cv, 0)
+        cv.notify(999)
+
     def test_unlocked_error(self):
         cv = locks.Condition()
         # Error because you are not owner.

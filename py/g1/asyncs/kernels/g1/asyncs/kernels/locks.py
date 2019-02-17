@@ -116,7 +116,7 @@ class Condition:
 
     def notify(self, n=1):
         ASSERT.true(self._lock.is_owner())
-        for _ in range(n):
+        for _ in range(min(n, len(self._waiters))):
             self._waiters.pop().release()
 
     def notify_all(self):
