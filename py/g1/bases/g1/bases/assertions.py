@@ -45,6 +45,10 @@ def _is_not_none(x):
     return x is not None
 
 
+def _xor(p, q):
+    return bool(p) != bool(q)
+
+
 def _in(x, xs):
     return x in xs
 
@@ -149,6 +153,15 @@ class Assertions:
             msg = message.format(actual, expect)
             raise self._make_exc(msg, actual, expect)
         return actual
+
+    xor = partialmethod(
+        _assert_2, _xor, message='expect {0!r} xor {1!r} be true'
+    )
+    not_xor = partialmethod(
+        _assert_2,
+        functionals.compose(operator.not_, _xor),
+        message='expect {0!r} xor {1!r} be false',
+    )
 
     is_ = partialmethod(
         _assert_2, operator.is_, message='expect {1!r}, not {0!r}'

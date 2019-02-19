@@ -201,6 +201,7 @@ class Spider:
                     )
                     return
 
+            ASSERT.not_xor(job.request, response)
             try:
                 await self.controller.on_response(
                     self, job.id, job.request, response
