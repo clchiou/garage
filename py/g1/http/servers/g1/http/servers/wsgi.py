@@ -26,6 +26,9 @@ import weakref
 
 from g1.asyncs import kernels
 from g1.asyncs import servers
+from g1.asyncs.bases import locks
+from g1.asyncs.bases import streams
+from g1.asyncs.bases import tasks
 from g1.bases.assertions import ASSERT
 
 from . import nghttp2
@@ -121,9 +124,9 @@ class HttpSession:
         self._sock = sock
         self._address = address
 
-        self._queue = kernels.CompletionQueue()
+        self._queue = tasks.CompletionQueue()
 
-        self._outgoing_gate = kernels.Gate()
+        self._outgoing_gate = locks.Gate()
 
         self._cancel_settings_timer = None
 
@@ -530,9 +533,9 @@ class HttpStream:
         self._stream_id = stream_id
         self._task = None
         self._request_headers = collections.defaultdict(list)
-        self._request_body = kernels.BytesStream()
+        self._request_body = streams.BytesStream()
         self._response_headers_sent = False
-        self._response_body = kernels.BytesStream()
+        self._response_body = streams.BytesStream()
         self._response_body_deferred = False
 
     def __repr__(self):

@@ -4,10 +4,11 @@ import socket
 import sys
 
 from g1.asyncs import kernels
+from g1.asyncs.bases import adapters
 
 
 async def request(port):
-    with kernels.SocketAdapter(socket.socket()) as sock:
+    with adapters.SocketAdapter(socket.socket()) as sock:
         await sock.connect(('127.0.0.1', port))
         await sock.send(b'Hello, World!\n')
         print('recv: %r' % await sock.recv(4096))

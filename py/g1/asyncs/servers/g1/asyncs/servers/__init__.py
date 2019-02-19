@@ -21,6 +21,7 @@ import logging
 import signal
 
 from g1.asyncs import kernels
+from g1.asyncs.bases import signals
 
 LOG = logging.getLogger(__name__)
 LOG.addHandler(logging.NullHandler())
@@ -112,7 +113,7 @@ async def supervise_servers(
 
 
 async def handle_signal(graceful_exit):
-    signal_queue = kernels.SignalQueue()
+    signal_queue = signals.SignalQueue()
     try:
         for signum in EXIT_SIGNUMS:
             signal_queue.subscribe(signum)

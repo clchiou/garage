@@ -5,6 +5,8 @@ import re
 
 from g1.asyncs import kernels
 from g1.asyncs import servers
+from g1.asyncs.bases import locks
+from g1.asyncs.bases import tasks
 
 
 class LoggerMixin:
@@ -38,9 +40,9 @@ class SuperviseServersTest(LoggerMixin, unittest.TestCase):
 
         super().setUp()
 
-        self.mocked_signal = kernels.Event()
-        self.ge = kernels.Event()
-        self.tq = kernels.CompletionQueue()
+        self.mocked_signal = locks.Event()
+        self.ge = locks.Event()
+        self.tq = tasks.CompletionQueue()
 
         unittest.mock.patch(
             servers.__name__ + '.handle_signal',
@@ -173,7 +175,7 @@ class SuperviseHandlersTest(LoggerMixin, unittest.TestCase):
 
     def setUp(self):
         super().setUp()
-        self.tq = kernels.CompletionQueue()
+        self.tq = tasks.CompletionQueue()
 
     def assert_state(self, closed, queue_size, log_patterns):
         self.assertEqual(self.tq.is_closed(), closed)
@@ -215,7 +217,7 @@ class SuperviseHandlersTest(LoggerMixin, unittest.TestCase):
 
     @kernels.with_kernel
     def test_handler_exit(self):
-        e = kernels.Event()
+        e = locks.Event()
         t = kernels.spawn(e.wait)
         self.tq.put(t)
         self.tq.put(kernels.spawn(noop))
@@ -240,7 +242,7 @@ class SuperviseHandlersTest(LoggerMixin, unittest.TestCase):
 
     @kernels.with_kernel
     def test_handler_error(self):
-        e = kernels.Event()
+        e = locks.Event()
         t = kernels.spawn(e.wait)
         self.tq.put(t)
         self.tq.put(kernels.spawn(raises(ValueError('some error'))))

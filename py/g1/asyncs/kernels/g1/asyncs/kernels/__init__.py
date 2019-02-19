@@ -13,23 +13,6 @@ __all__ = [
     'sleep',
     'spawn',
     'timeout_after',
-    # Adapters.
-    'FileAdapter',
-    'FutureAdapter',
-    'SocketAdapter',
-    # Locks.
-    'Condition',
-    'Event',
-    'Gate',
-    'Lock',
-    # Signals.
-    'SignalQueue',
-    # Utilities.
-    'BytesStream',
-    'StringStream',
-    'CompletionQueue',
-    'as_completed',
-    'joining',
 ]
 
 import contextvars
@@ -39,28 +22,15 @@ import logging
 from . import contexts
 from . import kernels
 # Re-export these symbols.
-from .adapters import FileAdapter
-from .adapters import FutureAdapter
-from .adapters import SocketAdapter
 from .errors import Cancelled
 from .errors import Timeout
-from .locks import Condition
-from .locks import Event
-from .locks import Gate
-from .locks import Lock
-from .signals import SignalQueue
 from .traps import sleep
-from .utils import BytesStream
-from .utils import StringStream
-from .utils import CompletionQueue
-from .utils import as_completed
-from .utils import joining
 
 logging.getLogger(__name__).addHandler(logging.NullHandler())
 
 
 def with_kernel(func):
-    """Wrap ``func`` that it is called inside a kernel context."""
+    """Wrap ``func`` that it is called within a kernel context."""
 
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
@@ -70,7 +40,7 @@ def with_kernel(func):
 
 
 def call_with_kernel(func, *args, **kwargs):
-    """Call ``func`` within a context in which a kernel is created.
+    """Call ``func`` within a kernel context.
 
     The kernel object is closed on return.
     """

@@ -7,8 +7,9 @@ import errno
 import logging
 import socket
 
-from g1.asyncs import kernels
 from g1.asyncs import servers
+from g1.asyncs.bases import adapters
+from g1.asyncs.bases import tasks
 
 LOG = logging.getLogger(__name__)
 LOG.addHandler(logging.NullHandler())
@@ -27,7 +28,7 @@ class TcpServer:
     async def serve(self):
         with self._server_socket:
             LOG.info('start server: %r', self._server_socket)
-            queue = kernels.CompletionQueue()
+            queue = tasks.CompletionQueue()
             await servers.supervise_handlers(
                 queue,
                 (queue.spawn(self._accept(queue)), ),
@@ -68,4 +69,4 @@ def make_server_socket(
     except Exception:
         sock.close()
         raise
-    return kernels.SocketAdapter(sock)
+    return adapters.SocketAdapter(sock)

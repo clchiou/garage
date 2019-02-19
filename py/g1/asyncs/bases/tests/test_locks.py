@@ -1,9 +1,9 @@
 import unittest
 
+from g1.asyncs.bases import locks
 from g1.asyncs.kernels import contexts
 from g1.asyncs.kernels import errors
 from g1.asyncs.kernels import kernels
-from g1.asyncs.kernels import locks
 
 
 class LockTest(unittest.TestCase):

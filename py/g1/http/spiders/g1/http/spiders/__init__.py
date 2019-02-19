@@ -30,6 +30,8 @@ import itertools
 import logging
 
 from g1.asyncs import kernels
+from g1.asyncs.bases import locks
+from g1.asyncs.bases import tasks
 from g1.bases.assertions import ASSERT
 from g1.http import clients
 
@@ -93,7 +95,7 @@ class Spider:
         self._completed_job_ids = set()
 
         # For coordination between _spawn_handlers and _join_handlers.
-        self._gate = kernels.Gate()
+        self._gate = locks.Gate()
 
         # Jobs that are ready for execution.
         self._job_queue = []
@@ -107,7 +109,7 @@ class Spider:
             max_num_tasks or 8 * len(self.session.executor.stubs),
             0,
         )
-        self._handler_tasks = kernels.CompletionQueue()
+        self._handler_tasks = tasks.CompletionQueue()
 
         self._to_join_tasks = []
 
@@ -137,12 +139,12 @@ class Spider:
 
             # If this task gets cancelled, this async-for-loop is the
             # most likely place to raise ``TaskCancellation``.
-            async for task in kernels.as_completed((
+            async for task in tasks.as_completed((
                 await stack.enter_async_context(
-                    kernels.joining(kernels.spawn(self._spawn_handlers))
+                    tasks.joining(kernels.spawn(self._spawn_handlers))
                 ),
                 await stack.enter_async_context(
-                    kernels.joining(kernels.spawn(self._join_handlers))
+                    tasks.joining(kernels.spawn(self._join_handlers))
                 ),
             )):
                 # This task should never raise.
@@ -221,8 +223,8 @@ class Spider:
                 self._gate.unblock()
 
     async def _cleanup_tasks(self):
-        tasks, self._to_join_tasks = self._to_join_tasks, []
-        for task in tasks:
+        to_join_tasks, self._to_join_tasks = self._to_join_tasks, []
+        for task in to_join_tasks:
             exc = await task.get_exception()
             if exc and not isinstance(exc, kernels.Cancelled):
                 LOG.error('handler task error: %r', task, exc_info=exc)
@@ -290,11 +292,11 @@ class Spider:
         cancelled.
         """
         LOG.info('request shutdown: graceful=%r', graceful)
-        tasks = self._handler_tasks.close(graceful)
+        to_join_tasks = self._handler_tasks.close(graceful)
         self._gate.unblock()
-        for task in tasks:
+        for task in to_join_tasks:
             task.cancel()
-        self._to_join_tasks.extend(tasks)
+        self._to_join_tasks.extend(to_join_tasks)
 
 
 def dont_check_request_id(_):

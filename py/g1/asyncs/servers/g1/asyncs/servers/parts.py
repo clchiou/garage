@@ -9,8 +9,9 @@ from startup import startup
 from g1.apps import labels
 from g1.apps import parameters
 from g1.apps import utils
-from g1.asyncs import kernels
 from g1.asyncs import servers
+from g1.asyncs.bases import locks
+from g1.asyncs.bases import tasks
 
 LABELS = labels.make_labels(
     servers.__name__,
@@ -28,9 +29,9 @@ PARAMS = parameters.define(
     ),
 )
 
-startup.set(LABELS.server_queue, kernels.CompletionQueue())
+startup.set(LABELS.server_queue, tasks.CompletionQueue())
 
-startup.set(LABELS.graceful_exit, kernels.Event())
+startup.set(LABELS.graceful_exit, locks.Event())
 
 utils.depend_parameter_for(LABELS.grace_period, PARAMS.grace_period)
 

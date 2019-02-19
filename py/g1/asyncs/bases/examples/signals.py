@@ -5,12 +5,13 @@ import signal
 import sys
 
 from g1.asyncs import kernels
+from g1.asyncs.bases import signals
 
 
 async def handle_signals(duration):
     print('pid: %d' % os.getpid())
     kernels.timeout_after(duration)
-    queue = kernels.SignalQueue()
+    queue = signals.SignalQueue()
     try:
         signums = [signal.SIGINT, signal.SIGTERM]
         print('handle signals for %.3f seconds: %r' % (duration, signums))

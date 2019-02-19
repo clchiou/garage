@@ -4,10 +4,11 @@ import socket
 import sys
 
 from g1.asyncs import kernels
+from g1.asyncs.bases import adapters
 
 
 async def serve(port):
-    with kernels.SocketAdapter(socket.socket()) as server_sock:
+    with adapters.SocketAdapter(socket.socket()) as server_sock:
         server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, True)
         server_sock.bind(('127.0.0.1', port))
         server_sock.listen()

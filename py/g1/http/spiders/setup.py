@@ -6,6 +6,7 @@ setup(
         'g1.http.spiders',
     ],
     install_requires=[
+        'g1.asyncs.bases',
         'g1.asyncs.kernels',
         'g1.bases',
         'g1.http.clients',

@@ -20,6 +20,7 @@ import requests
 import requests.cookies
 
 from g1.asyncs import kernels
+from g1.asyncs.bases import adapters
 from g1.bases.assertions import ASSERT
 from g1.threads import executors
 
@@ -85,7 +86,7 @@ class Session:
             if retry_count:
                 LOG.warning('retry %d times: %r', retry_count, request)
 
-            future = kernels.FutureAdapter(
+            future = adapters.FutureAdapter(
                 self.executor.submit(self.send_blocking, request, **kwargs)
             )
             try:

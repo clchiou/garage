@@ -6,7 +6,7 @@ setup(
         'g1.networks.servers',
     ],
     install_requires=[
-        'g1.asyncs.kernels',
+        'g1.asyncs.bases',
         'g1.asyncs.servers',
     ],
     extras_require={

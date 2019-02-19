@@ -3,7 +3,7 @@ import unittest
 import os
 import socket
 
-from g1.asyncs.kernels import adapters
+from g1.asyncs.bases import adapters
 from g1.asyncs.kernels import contexts
 from g1.asyncs.kernels import errors
 from g1.asyncs.kernels import kernels

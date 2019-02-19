@@ -11,10 +11,9 @@ __all__ = [
     'Lock',
 ]
 
+from g1.asyncs.kernels import contexts
+from g1.asyncs.kernels import traps
 from g1.bases.assertions import ASSERT
-
-from . import contexts
-from . import traps
 
 
 class Lock:

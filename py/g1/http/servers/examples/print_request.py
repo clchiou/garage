@@ -6,6 +6,8 @@ import sys
 
 from g1.asyncs import kernels
 from g1.asyncs import servers
+from g1.asyncs.bases import locks
+from g1.asyncs.bases import tasks
 from g1.http.servers import serve_http
 from g1.networks.servers import make_server_socket
 
@@ -45,8 +47,8 @@ def main(argv):
         reuse_address=True,
         reuse_port=True,
     )
-    graceful_exit = kernels.Event()
-    queue = kernels.CompletionQueue()
+    graceful_exit = locks.Event()
+    queue = tasks.CompletionQueue()
     queue.spawn(serve_http(server_socket, application))
     queue.spawn(on_graceful_exit(graceful_exit, server_socket))
     kernels.run(servers.supervise_servers(queue, graceful_exit, 4))
