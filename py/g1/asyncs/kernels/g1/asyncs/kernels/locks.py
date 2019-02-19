@@ -102,22 +102,21 @@ class Condition:
         this method does not return any value.
         """
         ASSERT.true(self._lock.is_owner())
-        waiter = Lock()
-        ASSERT.true(waiter.acquire_nonblocking())
+        waiter = Gate()
         self._waiters.add(waiter)
         # NOTE: We have not implemented ``RLock`` yet, but when we do,
         # be careful **NOT** to call ``release`` here, since you cannot
         # unlock the lock acquired recursively.
         self._lock.release()
         try:
-            await waiter.acquire()
+            await waiter.wait()
         finally:
             await self._lock.acquire()
 
     def notify(self, n=1):
         ASSERT.true(self._lock.is_owner())
         for _ in range(min(n, len(self._waiters))):
-            self._waiters.pop().release()
+            self._waiters.pop().unblock()
 
     def notify_all(self):
         self.notify(len(self._waiters))

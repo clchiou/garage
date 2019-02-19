@@ -87,16 +87,19 @@ class ConditionTest(unittest.TestCase):
         async def wait_cv():
             nonlocal num_returned
             async with cv:
+                self.assertTrue(cv._lock._locked)
                 await cv.wait()
+                self.assertTrue(cv._lock._locked)
+            self.assertFalse(cv._lock._locked)
             num_returned += 1
 
-        for _ in range(3):
-            self.k.spawn(wait_cv)
+        ts = [self.k.spawn(wait_cv) for _ in range(3)]
 
         with self.assertRaises(errors.Timeout):
             self.k.run(timeout=0)
         self.assertEqual(self.k.get_stats().num_blocked, 3)
         self.assertEqual(len(self.k._generic_blocker), 3)
+        self.assertEqual(num_returned, 0)
         self.assert_num_waiters(cv, 3)
 
         self.assertTrue(cv.acquire_nonblocking())
@@ -107,6 +110,7 @@ class ConditionTest(unittest.TestCase):
             self.k.run(timeout=0)
         self.assertEqual(self.k.get_stats().num_blocked, 2)
         self.assertEqual(len(self.k._generic_blocker), 2)
+        self.assertEqual(num_returned, 1)
         self.assert_num_waiters(cv, 2)
 
         self.assertTrue(cv.acquire_nonblocking())
@@ -117,6 +121,7 @@ class ConditionTest(unittest.TestCase):
             self.k.run(timeout=0)
         self.assertEqual(self.k.get_stats().num_blocked, 1)
         self.assertEqual(len(self.k._generic_blocker), 1)
+        self.assertEqual(num_returned, 2)
         self.assert_num_waiters(cv, 1)
 
         self.assertTrue(cv.acquire_nonblocking())
@@ -127,7 +132,12 @@ class ConditionTest(unittest.TestCase):
             self.k.run(timeout=0)
         self.assertEqual(self.k.get_stats().num_blocked, 0)
         self.assertEqual(len(self.k._generic_blocker), 0)
+        self.assertEqual(num_returned, 3)
         self.assert_num_waiters(cv, 0)
+
+        for t in ts:
+            self.assertTrue(t.is_completed())
+            t.get_result_nonblocking()
 
     def test_notify_empty(self):
         cv = locks.Condition()
