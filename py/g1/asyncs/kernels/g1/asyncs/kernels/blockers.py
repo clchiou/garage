@@ -127,7 +127,7 @@ class TaskCompletionBlocker(DictBlocker):
 
     def block(self, source, task):
         """Record that ``task`` is joining on ``source`` task."""
-        ASSERT.isinstance_(source, tasks.Task)
+        ASSERT.isinstance(source, tasks.Task)
         ASSERT.is_not(source, task)  # A task can't join on itself.
         ASSERT.false(source.is_completed())
         return super().block(source, task)
@@ -160,7 +160,7 @@ class TimeoutBlocker(BlockerBase):
         return iter(self._tasks)
 
     def block(self, source, task):
-        ASSERT.isinstance_(source, (int, float))
+        ASSERT.isinstance(source, (int, float))
         ASSERT.not_in(task, self._tasks)
         heapq.heappush(self._queue, self.Item(source, task))
         self._tasks.add(task)

@@ -144,11 +144,11 @@ def method_caller(obj, queue):
     with obj if hasattr(obj, '__enter__') else contextlib.nullcontext():
         while True:
             try:
-                call = ASSERT.isinstance_(queue.get(), MethodCall)
+                call = ASSERT.isinstance(queue.get(), MethodCall)
             except queues.Closed:
                 break
             with call.future.catching_exception(reraise=False):
-                method = getattr(obj, ASSERT.isinstance_(call.method, str))
+                method = getattr(obj, ASSERT.isinstance(call.method, str))
                 call.future.set_result(method(*call.args, **call.kwargs))
     LOG.info('exit')
 
@@ -163,7 +163,7 @@ def function_caller(queue):
     LOG.info('start')
     while True:
         try:
-            call = ASSERT.isinstance_(queue.get(), MethodCall)
+            call = ASSERT.isinstance(queue.get(), MethodCall)
         except queues.Closed:
             break
         with call.future.catching_exception(reraise=False):

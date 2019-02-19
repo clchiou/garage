@@ -21,6 +21,7 @@ __all__ = [
     'Assertions',
 ]
 
+import builtins
 import operator
 from collections import abc
 from functools import partialmethod
@@ -156,21 +157,25 @@ class Assertions:
         _assert_2, operator.is_not, message='expect non-{!r} value'
     )
 
-    isinstance_ = partialmethod(
-        _assert_2, isinstance, message='expect {1}-typed value, not {0!r}'
+    isinstance = partialmethod(
+        _assert_2,
+        builtins.isinstance,
+        message='expect {1}-typed value, not {0!r}',
     )
     not_isinstance = partialmethod(
         _assert_2,
-        functionals.compose(operator.not_, isinstance),
+        functionals.compose(operator.not_, builtins.isinstance),
         message='expect non-{1}-typed value, but {0!r}',
     )
 
-    issubclass_ = partialmethod(
-        _assert_2, issubclass, message='expect subclass of {1}, not {0!r}'
+    issubclass = partialmethod(
+        _assert_2,
+        builtins.issubclass,
+        message='expect subclass of {1}, not {0!r}',
     )
     not_issubclass = partialmethod(
         _assert_2,
-        functionals.compose(operator.not_, issubclass),
+        functionals.compose(operator.not_, builtins.issubclass),
         message='expect non-subclass of {1}, but {0!r}',
     )
 
@@ -293,24 +298,24 @@ class Assertions:
     # expressed as...
 
     # Assert x = n.
-    all_ = partialmethod(
-        _assert_collection, all, message='expect all {1}, not {0!r}'
+    all = partialmethod(
+        _assert_collection, builtins.all, message='expect all {1}, not {0!r}'
     )
     # Assert 0 <= x < n.
     not_all = partialmethod(
         _assert_collection,
-        functionals.compose(operator.not_, all),
+        functionals.compose(operator.not_, builtins.all),
         message='expect not all {1}, not {0!r}',
     )
 
     # Assert 0 < x <= n.
-    any_ = partialmethod(
-        _assert_collection, any, message='expect any {1}, not {0!r}'
+    any = partialmethod(
+        _assert_collection, builtins.any, message='expect any {1}, not {0!r}'
     )
     # Assert x = 0.
     not_any = partialmethod(
         _assert_collection,
-        functionals.compose(operator.not_, any),
+        functionals.compose(operator.not_, builtins.any),
         message='expect not any {1}, not {0!r}',
     )
 

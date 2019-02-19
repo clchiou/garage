@@ -232,7 +232,7 @@ class HttpSession:
         if isinstance(self._sock.target, ssl.SSLSocket):
             send_all = self._send_all
         else:
-            ASSERT.isinstance_(self._sock.target, socket.socket)
+            ASSERT.isinstance(self._sock.target, socket.socket)
             send_all = self._sendmsg_all
 
         try:

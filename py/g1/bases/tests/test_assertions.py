@@ -37,9 +37,9 @@ class AssertionsTest(unittest.TestCase):
             ('predicate', (0, is_even), 0),
             ('is_', (0, 0), 0),
             ('is_not', (0, 1), 0),
-            ('isinstance_', ('hello', (int, str)), 'hello'),
+            ('isinstance', ('hello', (int, str)), 'hello'),
             ('not_isinstance', ('hello', (int, bytes)), 'hello'),
-            ('issubclass_', (Derived, Base), Derived),
+            ('issubclass', (Derived, Base), Derived),
             ('not_issubclass', (Base, Derived), Base),
             ('in_', (1, [1]), 1),
             ('not_in', (0, [1]), 0),
@@ -94,7 +94,7 @@ class AssertionsTest(unittest.TestCase):
             ('is_', (0, 1), r'expect 1, not 0'),
             ('is_not', (0, 0), r'expect non-0 value'),
             (
-                'isinstance_',
+                'isinstance',
                 ('x', int),
                 r'expect <class \'int\'>-typed value, not \'x\'',
             ),
@@ -104,7 +104,7 @@ class AssertionsTest(unittest.TestCase):
                 r'expect non-<class \'str\'>-typed value, but \'x\'',
             ),
             (
-                'issubclass_',
+                'issubclass',
                 (Base, Derived),
                 r'expect subclass of .*Derived.*, not .*Base.*',
             ),
@@ -164,11 +164,11 @@ class AssertionsTest(unittest.TestCase):
 
     def test_assert_collection_pass(self):
         checks = [
-            ('all_', (True, True, True)),
+            ('all', (True, True, True)),
             ('not_all', (True, False, True)),
             ('not_all', (False, False, False)),
-            ('any_', (False, False, True)),
-            ('any_', (True, True, True)),
+            ('any', (False, False, True)),
+            ('any', (True, True, True)),
             ('not_any', (False, False, False)),
             ('only_one', (False, True, False)),
         ]
@@ -179,9 +179,9 @@ class AssertionsTest(unittest.TestCase):
 
     def test_assert_collection_fail(self):
         checks = [
-            ('all_', (True, False, True)),
+            ('all', (True, False, True)),
             ('not_all', (True, True, True)),
-            ('any_', (False, False, False)),
+            ('any', (False, False, False)),
             ('not_any', (False, True, False)),
             ('only_one', (True, True, False)),
         ]
@@ -193,10 +193,10 @@ class AssertionsTest(unittest.TestCase):
                 self.assertEqual(cm.exception.args[1:], (collection, ))
 
     def test_assert_collection_mapper(self):
-        self.assertEqual(ASSERT.all_([2, 4, 6], is_even), [2, 4, 6])
+        self.assertEqual(ASSERT.all([2, 4, 6], is_even), [2, 4, 6])
         pattern = r'expect all .*is_even.*, not \[2, 4, 6, 7\]'
         with self.assertRaisesRegex(AssertionError, pattern):
-            ASSERT.all_([2, 4, 6, 7], is_even)
+            ASSERT.all([2, 4, 6, 7], is_even)
 
 
 class Base:

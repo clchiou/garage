@@ -259,7 +259,7 @@ class Spider:
         if request:
             if not isinstance(request, clients.Request):
                 request = clients.Request(
-                    'GET', ASSERT.isinstance_(request, str)
+                    'GET', ASSERT.isinstance(request, str)
                 )
             if request_id is None:
                 request_id = request.url

@@ -57,11 +57,11 @@ class Multiset:
         return self._num_elements
 
     def isdisjoint(self, other):
-        ASSERT.isinstance_(other, Multiset)
+        ASSERT.isinstance(other, Multiset)
         return all(value not in other for value in self._elements)
 
     def _compare_counts(self, other, op):
-        ASSERT.isinstance_(other, Multiset)
+        ASSERT.isinstance(other, Multiset)
         return all(
             op(count, other.count(value))
             for value, count in self._elements.items()
@@ -79,10 +79,10 @@ class Multiset:
         )
 
     def __gt__(self, other):
-        return ASSERT.isinstance_(other, Multiset).__lt__(self)
+        return ASSERT.isinstance(other, Multiset).__lt__(self)
 
     def __ge__(self, other):
-        return ASSERT.isinstance_(other, Multiset).__le__(self)
+        return ASSERT.isinstance(other, Multiset).__le__(self)
 
     issuperset = __ge__
 
@@ -93,11 +93,11 @@ class Multiset:
         )
 
     def _apply(self, other, op):
-        ASSERT.isinstance_(other, Multiset)
+        ASSERT.isinstance(other, Multiset)
         return Multiset(_elements=op(self._elements, other._elements))
 
     def _iapply(self, other, iop):
-        ASSERT.isinstance_(other, Multiset)
+        ASSERT.isinstance(other, Multiset)
         iop(self._elements, other._elements)
         self._num_elements = sum(self._elements.values())
         return self
@@ -123,7 +123,7 @@ class Multiset:
     union_update = __ior__
 
     def _xor_counts(self, other):
-        ASSERT.isinstance_(other, Multiset)
+        ASSERT.isinstance(other, Multiset)
         return ((self._elements - other._elements) +
                 (other._elements - self._elements))
 

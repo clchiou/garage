@@ -86,7 +86,7 @@ class Parameter:
         self._have_been_read = False
 
     def validate(self, value):
-        return ASSERT.isinstance_(value, self.type)
+        return ASSERT.isinstance(value, self.type)
 
     def get(self):
         """Read parameter value.
@@ -233,7 +233,7 @@ def iter_parameters(module_path, root_namespace):
             if isinstance(value, Namespace):
                 yield from do_iter(value)
             else:
-                ASSERT.isinstance_(value, Parameter)
+                ASSERT.isinstance(value, Parameter)
                 label = labels.Label(module_path, '.'.join(parts))
                 yield label, value
             parts.pop()
@@ -266,7 +266,7 @@ def format_help(root_namespaces):
                 output.write('\n')
                 format_namespace(value, indent + 1)
             else:
-                ASSERT.isinstance_(value, Parameter)
+                ASSERT.isinstance(value, Parameter)
                 if value.doc:
                     output.write(' ')
                     output.write(value.doc)
@@ -295,14 +295,14 @@ def format_help(root_namespaces):
 def load_config_forest(config_forest, root_namespaces):
 
     def load(namespace, config_tree):
-        for key, value in ASSERT.isinstance_(config_tree, dict).items():
+        for key, value in ASSERT.isinstance(config_tree, dict).items():
             entry = namespace
-            for part in ASSERT.isinstance_(key, str).split('.'):
+            for part in ASSERT.isinstance(key, str).split('.'):
                 entry = getattr(entry, part)
             if isinstance(entry, Namespace):
                 load(entry, value)
             else:
-                ASSERT.isinstance_(entry, Parameter)
+                ASSERT.isinstance(entry, Parameter)
                 entry.set(value)
 
     for module_path, config_tree in config_forest.items():
