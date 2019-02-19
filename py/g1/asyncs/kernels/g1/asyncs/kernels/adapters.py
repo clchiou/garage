@@ -1,5 +1,4 @@
 __all__ = [
-    'CompletionQueueAdapter',
     'FileAdapter',
     'FutureAdapter',
     'SocketAdapter',
@@ -14,11 +13,6 @@ from g1.bases.assertions import ASSERT
 
 from . import contexts
 from . import traps
-
-try:
-    from g1.threads import queues
-except ImportError:
-    queues = None
 
 LOG = logging.getLogger(__name__)
 
@@ -230,61 +224,3 @@ class FutureAdapter(AdapterBase):
     async def get_exception(self):
         await self.join()
         return self.__future.get_exception(timeout=0)
-
-
-class CompletionQueueAdapter(AdapterBase):
-
-    PROXIED_FIELDS = frozenset([
-        'is_closed',
-        'close',
-        'put',
-    ])
-
-    def __init__(self, completion_queue):
-        super().__init__(completion_queue, self.PROXIED_FIELDS)
-        self.__completion_queue = completion_queue
-
-    def __bool__(self):
-        return bool(self.__completion_queue)
-
-    def __len__(self):
-        return len(self.__completion_queue)
-
-    def __aiter__(self):
-        return self
-
-    async def __anext__(self):
-        try:
-            return await self.get()
-        except queues.Closed:
-            raise StopAsyncIteration
-
-    async def get(self):
-        while True:
-            try:
-                return self.__completion_queue.get(timeout=0)
-            except queues.Empty:
-                await traps.block(
-                    self.__completion_queue,
-                    lambda: self.__completion_queue.add_on_completion_callback(
-                        _OnCompletion(
-                            self.__completion_queue,
-                            contexts.get_kernel(),
-                        ),
-                    ),
-                )
-
-
-class _OnCompletion:
-    """Helper class for dealing with ``CompletionQueue`` callback."""
-
-    def __init__(self, completion_queue, kernel):
-        self.completion_queue = completion_queue
-        self.kernel = kernel
-
-    def __call__(self, _):
-        self.completion_queue.remove_on_completion_callback(self)
-        self.kernel.post_callback(self.callback)
-
-    def callback(self):
-        self.kernel.unblock(self.completion_queue)
