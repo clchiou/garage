@@ -107,7 +107,7 @@ class Spider:
             max_num_tasks or 8 * len(self.session.executor.stubs),
             0,
         )
-        self._handler_tasks = kernels.TaskCompletionQueue()
+        self._handler_tasks = kernels.CompletionQueue()
 
         self._to_join_tasks = []
 

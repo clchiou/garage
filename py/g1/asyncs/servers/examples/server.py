@@ -21,7 +21,7 @@ def main(argv):
         )
         return 1
     logging.basicConfig(level=logging.INFO)
-    server_queue = kernels.TaskCompletionQueue()
+    server_queue = kernels.CompletionQueue()
     for duration, func in ((argv[2], kernels.sleep), (argv[3], timeout_after)):
         duration = float(duration)
         if duration >= 0:

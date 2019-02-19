@@ -121,7 +121,7 @@ class HttpSession:
         self._sock = sock
         self._address = address
 
-        self._queue = kernels.TaskCompletionQueue()
+        self._queue = kernels.CompletionQueue()
 
         self._outgoing_gate = kernels.Gate()
 

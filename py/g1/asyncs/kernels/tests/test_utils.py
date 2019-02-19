@@ -16,7 +16,7 @@ async def raises(message):
     raise Exception(message)
 
 
-class TaskCompletionQueueTest(unittest.TestCase):
+class CompletionQueueTest(unittest.TestCase):
 
     def setUp(self):
         self.k = kernels.Kernel()
@@ -28,7 +28,7 @@ class TaskCompletionQueueTest(unittest.TestCase):
 
     def test_queue(self):
 
-        tq = utils.TaskCompletionQueue()
+        tq = utils.CompletionQueue()
         self.assertFalse(tq.is_closed())
         self.assertFalse(tq)
         self.assertEqual(len(tq), 0)
@@ -71,7 +71,7 @@ class TaskCompletionQueueTest(unittest.TestCase):
         self.assertEqual(ts, {t1, t2})
 
     def test_close_repeatedly(self):
-        tq = utils.TaskCompletionQueue()
+        tq = utils.CompletionQueue()
         self.assertFalse(tq.is_closed())
 
         t1 = self.k.spawn(square(1))
@@ -91,7 +91,7 @@ class TaskCompletionQueueTest(unittest.TestCase):
         self.assertTrue(t1.is_completed())
 
     def test_async_iterator(self):
-        tq = utils.TaskCompletionQueue()
+        tq = utils.CompletionQueue()
 
         expect = {
             tq.spawn(square(1)),
@@ -112,7 +112,7 @@ class TaskCompletionQueueTest(unittest.TestCase):
         )
 
     def test_not_wait_for(self):
-        tq = utils.TaskCompletionQueue()
+        tq = utils.CompletionQueue()
         event = locks.Event()
 
         t1 = self.k.spawn(event.wait)
@@ -156,7 +156,7 @@ class TaskCompletionQueueTest(unittest.TestCase):
         self.assertEqual(ts, {t1, t2})
 
     def test_spawn(self):
-        tq = utils.TaskCompletionQueue()
+        tq = utils.CompletionQueue()
         tq.close()
         self.assertEqual(self.k.get_all_tasks(), [])
         with self.assertRaises(utils.Closed):
@@ -164,7 +164,7 @@ class TaskCompletionQueueTest(unittest.TestCase):
         self.assertEqual(self.k.get_all_tasks(), [])
 
     def test_context_manager(self):
-        tq = utils.TaskCompletionQueue()
+        tq = utils.CompletionQueue()
 
         t1 = self.k.spawn(square(1))
         tq.put(t1)
@@ -187,7 +187,7 @@ class TaskCompletionQueueTest(unittest.TestCase):
             self.assertEqual(t.get_result_nonblocking(), x * x)
 
     def test_context_manager_cancel(self):
-        tq = utils.TaskCompletionQueue()
+        tq = utils.CompletionQueue()
 
         event = locks.Event()
 
@@ -221,13 +221,13 @@ class TaskCompletionQueueTest(unittest.TestCase):
             t3.get_result_nonblocking()
 
 
-class TaskCompletionQueueWithoutKernelTest(unittest.TestCase):
+class CompletionQueueWithoutKernelTest(unittest.TestCase):
 
     def test_queue(self):
         with self.assertRaises(LookupError):
             contexts.get_kernel()
 
-        tq = utils.TaskCompletionQueue()
+        tq = utils.CompletionQueue()
         self.assertFalse(tq.is_closed())
         self.assertFalse(tq)
         self.assertEqual(len(tq), 0)

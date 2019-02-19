@@ -48,8 +48,8 @@ async def supervise_servers(
     * This supervisor installs a signal handler so that you may trigger
       graceful exit via signals.
 
-    * ``server_queue`` is a ``TaskCompletionQueue`` of the server tasks.
-      It is closed when this supervisor begins stopping server tasks.
+    * ``server_queue`` is a ``CompletionQueue`` of the server tasks.  It
+      is closed when this supervisor begins stopping server tasks.
 
     * ``graceful_exit`` is an event object that, once set, this
       supervisor will begin stopping servers gracefully.  Any task may

@@ -46,7 +46,7 @@ def main(argv):
         reuse_port=True,
     )
     graceful_exit = kernels.Event()
-    queue = kernels.TaskCompletionQueue()
+    queue = kernels.CompletionQueue()
     queue.spawn(serve_http(server_socket, application))
     queue.spawn(on_graceful_exit(graceful_exit, server_socket))
     kernels.run(servers.supervise_servers(queue, graceful_exit, 4))

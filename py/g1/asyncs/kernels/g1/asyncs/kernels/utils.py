@@ -3,7 +3,7 @@
 __all__ = [
     # Task completion queue.
     'Closed',
-    'TaskCompletionQueue',
+    'CompletionQueue',
     # In-memory stream.
     'BytesStream',
     'StringStream',
@@ -29,7 +29,7 @@ class Closed(Exception):
     pass
 
 
-class TaskCompletionQueue:
+class CompletionQueue:
     """Provide queue-like interface on waiting for task completion.
 
     NOTE: It does not support future objects; this simplifies its

@@ -40,7 +40,7 @@ class SuperviseServersTest(LoggerMixin, unittest.TestCase):
 
         self.mocked_signal = kernels.Event()
         self.ge = kernels.Event()
-        self.tq = kernels.TaskCompletionQueue()
+        self.tq = kernels.CompletionQueue()
 
         unittest.mock.patch(
             servers.__name__ + '.handle_signal',
@@ -173,7 +173,7 @@ class SuperviseHandlersTest(LoggerMixin, unittest.TestCase):
 
     def setUp(self):
         super().setUp()
-        self.tq = kernels.TaskCompletionQueue()
+        self.tq = kernels.CompletionQueue()
 
     def assert_state(self, closed, queue_size, log_patterns):
         self.assertEqual(self.tq.is_closed(), closed)

@@ -27,7 +27,7 @@ __all__ = [
     # Utilities.
     'BytesStream',
     'StringStream',
-    'TaskCompletionQueue',
+    'CompletionQueue',
     'as_completed',
     'joining',
 ]
@@ -52,7 +52,7 @@ from .signals import SignalQueue
 from .traps import sleep
 from .utils import BytesStream
 from .utils import StringStream
-from .utils import TaskCompletionQueue
+from .utils import CompletionQueue
 from .utils import as_completed
 from .utils import joining
 

@@ -28,7 +28,7 @@ PARAMS = parameters.define(
     ),
 )
 
-startup.set(LABELS.server_queue, kernels.TaskCompletionQueue())
+startup.set(LABELS.server_queue, kernels.CompletionQueue())
 
 startup.set(LABELS.graceful_exit, kernels.Event())
 

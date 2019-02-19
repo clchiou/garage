@@ -27,7 +27,7 @@ class TcpServer:
     async def serve(self):
         with self._server_socket:
             LOG.info('start server: %r', self._server_socket)
-            queue = kernels.TaskCompletionQueue()
+            queue = kernels.CompletionQueue()
             await servers.supervise_handlers(
                 queue,
                 (queue.spawn(self._accept(queue)), ),
