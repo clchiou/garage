@@ -1,6 +1,7 @@
 import unittest
 
 from g1.asyncs import kernels
+from g1.asyncs.bases import tasks
 from g1.asyncs.bases import timers
 
 
@@ -39,6 +40,15 @@ class TimeoutAfterTest(unittest.TestCase):
             steps = []
             kernels.run(func(timers.timeout_ignore, steps), timeout=1)
             self.assertEqual(steps, [0, 1, 3])
+
+    @kernels.with_kernel
+    def test_timeout_other(self):
+        t = tasks.spawn(timers.sleep(100))
+        timers.timeout_after(0, task=t)
+        kernels.run(timeout=1)
+        self.assertTrue(t.is_completed())
+        with self.assertRaises(timers.Timeout):
+            t.get_result_nonblocking()
 
     @kernels.with_kernel
     def test_cancel(self):

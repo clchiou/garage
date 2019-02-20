@@ -15,11 +15,12 @@ from g1.asyncs.kernels.traps import sleep
 
 class timeout_after:
 
-    def __init__(self, duration):
+    def __init__(self, duration, *, task=None):
         kernel = contexts.get_kernel()
-        task = kernel.get_current_task()
         if not task:
-            raise LookupError('no current task: %r' % kernel)
+            task = kernel.get_current_task()
+            if not task:
+                raise LookupError('no current task: %r' % kernel)
         self._cancel = kernel.timeout_after(task, duration)
 
     def __call__(self):
