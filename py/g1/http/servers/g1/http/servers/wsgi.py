@@ -128,6 +128,7 @@ class HttpSession:
 
         self._outgoing_gate = locks.Gate()
 
+        self._incoming_handler = None
         self._cancel_settings_timer = None
 
         self._application = application
@@ -158,10 +159,11 @@ class HttpSession:
         ASSERT.not_none(self._session)
         self._prepare()
         try:
+            self._incoming_handler = self._queue.spawn(self._handle_incoming)
             await servers.supervise_handlers(
                 self._queue,
                 (
-                    self._queue.spawn(self._handle_incoming),
+                    self._incoming_handler,
                     self._queue.spawn(self._handle_outgoing),
                 ),
             )
@@ -301,8 +303,10 @@ class HttpSession:
         # This should start a timer on the ``_handle_incoming`` task.
         if not self._cancel_settings_timer:
             LOG.debug('start settings timeout: %r', self)
-            self._cancel_settings_timer = \
-                timers.timeout_after(SETTINGS_TIMEOUT)
+            self._cancel_settings_timer = timers.timeout_after(
+                SETTINGS_TIMEOUT,
+                task=self._incoming_handler,
+            )
 
     def _stop_settings_timer(self):
         if self._cancel_settings_timer:
