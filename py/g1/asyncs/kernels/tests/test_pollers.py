@@ -46,13 +46,16 @@ class EpollTest(unittest.TestCase):
         epoll.close_fd(w)
         self.assertEqual(
             set(epoll.poll(-1)),
-            {(r, select.EPOLLHUP), (w, select.EPOLLHUP)},
+            {
+                (r, select.EPOLLIN | select.EPOLLHUP),
+                (w, select.EPOLLOUT | select.EPOLLHUP),
+            },
         )
 
-        epoll.unregister(r)
-        epoll.unregister(w)
         with self.assertRaisesRegex(AssertionError, r'expect non-empty'):
             epoll.poll(-1)
+
+        self.assertEqual(epoll._epoll.poll(timeout=0), [])
 
     def test_pipe_reader_epollhup(self):
         epoll = pollers.Epoll()
@@ -124,13 +127,53 @@ class EpollTest(unittest.TestCase):
         epoll.close_fd(w)
         self.assertEqual(
             set(epoll.poll(-1)),
-            {(r, select.EPOLLHUP), (w, select.EPOLLHUP)},
+            {
+                (r, select.EPOLLIN | select.EPOLLHUP),
+                (w, select.EPOLLOUT | select.EPOLLHUP),
+            },
         )
 
-        epoll.unregister(r)
-        epoll.unregister(w)
         with self.assertRaisesRegex(AssertionError, r'expect non-empty'):
             epoll.poll(-1)
+
+        epoll.unregister(r, epoll.READ)
+        epoll.unregister(w, epoll.WRITE)
+
+    def test_socket_rw(self):
+        epoll = pollers.Epoll()
+        s0, s1 = socket.socketpair()
+
+        s0.setblocking(False)
+        r = s0.fileno()
+
+        s1.send(b'hello world')
+
+        epoll.register(r, epoll.READ)
+        self.assertEqual(
+            set(epoll.poll(-1)),
+            {(r, select.EPOLLIN)},
+        )
+        self.assertEqual(epoll._events, {r: epoll.READ})
+
+        epoll.register(r, epoll.WRITE)
+        self.assertEqual(
+            set(epoll.poll(-1)),
+            {(r, select.EPOLLIN | select.EPOLLOUT)},
+        )
+        self.assertEqual(epoll._events, {r: epoll.READ | epoll.WRITE})
+
+        epoll.unregister(r, epoll.READ)
+        self.assertEqual(
+            set(epoll.poll(-1)),
+            {(r, select.EPOLLOUT)},
+        )
+        self.assertEqual(epoll._events, {r: epoll.WRITE})
+
+        epoll.unregister(r, epoll.WRITE)
+        self.assertEqual(epoll._events, {})
+
+        s0.close()
+        s1.close()
 
     def test_socket_reader_epollhup(self):
         epoll = pollers.Epoll()
@@ -146,13 +189,13 @@ class EpollTest(unittest.TestCase):
         s1.close()
         self.assertEqual(
             epoll.poll(-1),
-            [(r, select.EPOLLIN | select.EPOLLHUP | select.EPOLLRDHUP)],
+            [(r, select.EPOLLIN | select.EPOLLHUP)],
         )
         self.assertEqual(s0.recv(32), b'hello world')
         self.assertEqual(s0.recv(32), b'')
         self.assertEqual(
             epoll.poll(-1),
-            [(r, select.EPOLLIN | select.EPOLLHUP | select.EPOLLRDHUP)],
+            [(r, select.EPOLLIN | select.EPOLLHUP)],
         )
         self.assertEqual(s0.recv(32), b'')
 
@@ -188,6 +231,79 @@ class EpollTest(unittest.TestCase):
         epoll = pollers.Epoll()
         with self.assertRaisesRegex(AssertionError, r'expect non-empty'):
             epoll.poll(-1)
+
+
+class SelectEpollTest(unittest.TestCase):
+    """Ensure that our assumptions about ``select.epoll`` is correct."""
+
+    def setUp(self):
+        self.epoll = select.epoll()
+        self.r, self.w = os.pipe()
+        os.set_blocking(self.r, False)
+        os.set_blocking(self.w, False)
+
+    def tearDown(self):
+        for fd in (self.r, self.w):
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+        self.epoll.close()
+
+    def test_register_repeated(self):
+        self.epoll.register(self.r, select.EPOLLIN)
+        with self.assertRaises(FileExistsError):
+            self.epoll.register(self.r, select.EPOLLIN)
+
+    def test_register_different_event(self):
+        self.epoll.register(self.r, select.EPOLLIN)
+        with self.assertRaises(FileExistsError):
+            self.epoll.register(self.r, select.EPOLLOUT)
+
+    def test_modify(self):
+        self.epoll.register(self.r, select.EPOLLIN)
+        self.epoll.modify(self.r, select.EPOLLOUT)
+
+    def test_unregister_repeatedly(self):
+        self.epoll.register(self.r, select.EPOLLIN)
+        self.epoll.unregister(self.r)
+        with self.assertRaises(FileNotFoundError):
+            self.epoll.unregister(self.r)
+
+    def test_close_pipe(self):
+        self.epoll.register(self.r, select.EPOLLIN)
+        self.epoll.register(self.w, select.EPOLLOUT)
+        self.assertEqual(self.epoll.poll(1), [(self.w, select.EPOLLOUT)])
+        os.close(self.w)
+        # ``epoll`` does not inform you that `self.w` is closed; you
+        # only get informed on `self.r`.
+        self.assertEqual(self.epoll.poll(1), [(self.r, select.EPOLLHUP)])
+
+    def test_close_socket(self):
+        s0, s1 = socket.socketpair()
+        s0.setblocking(False)
+        s1.close()
+        try:
+            self.epoll.register(s0.fileno(), select.EPOLLIN)
+            self.assertEqual(
+                self.epoll.poll(1),
+                [(s0.fileno(), select.EPOLLIN | select.EPOLLHUP)],
+            )
+            self.epoll.modify(s0.fileno(), select.EPOLLOUT)
+            self.assertEqual(
+                self.epoll.poll(1),
+                [(s0.fileno(), select.EPOLLOUT | select.EPOLLHUP)],
+            )
+            self.epoll.modify(s0.fileno(), select.EPOLLIN | select.EPOLLOUT)
+            self.assertEqual(
+                self.epoll.poll(1),
+                [(
+                    s0.fileno(),
+                    select.EPOLLIN | select.EPOLLOUT | select.EPOLLHUP,
+                )],
+            )
+        finally:
+            s0.close()
 
 
 if __name__ == '__main__':

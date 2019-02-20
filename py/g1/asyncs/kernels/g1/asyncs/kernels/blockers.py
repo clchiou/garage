@@ -96,6 +96,10 @@ class DictBlocker(BlockerBase):
     def __iter__(self):
         return iter(self._task_to_source)
 
+    def get_num_blocked_on(self, source):
+        """Return number of tasks blocked on the source."""
+        return len(self._source_to_tasks.get(source, ()))
+
     def block(self, source, task):
         ASSERT.not_none(source)
         ASSERT.not_in(task, self._task_to_source)

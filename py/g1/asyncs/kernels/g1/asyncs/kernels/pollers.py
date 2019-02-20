@@ -9,7 +9,6 @@ acceptable.
 """
 
 __all__ = [
-    'ERROR_EVENTS',
     'Epoll',
 ]
 
@@ -18,25 +17,23 @@ import select
 
 from g1.bases.assertions import ASSERT
 
-ERROR_EVENTS = select.EPOLLERR | select.EPOLLHUP | select.EPOLLRDHUP
-
 
 class Epoll:
 
-    READ = select.EPOLLIN | select.EPOLLRDHUP
+    READ = select.EPOLLIN
     WRITE = select.EPOLLOUT
 
     def __init__(self):
         self._epoll = select.epoll()
-        self._fds = set()
+        self._events = {}
         self._closed_fds = []
 
     def __repr__(self):
-        return '<%s at %#x: %s, fds=%r>' % (
+        return '<%s at %#x: %s, events=%r>' % (
             self.__class__.__qualname__,
             id(self),
             'closed' if self._epoll.closed else 'open',
-            self._fds,
+            self._events,
         )
 
     def __enter__(self):
@@ -50,36 +47,48 @@ class Epoll:
     def close(self):
         ASSERT.false(self._epoll.closed)
         self._epoll.close()
-        self._fds.clear()
+        self._events.clear()
 
     def register(self, fd, events):
         ASSERT.false(self._epoll.closed)
-        ASSERT.not_in(fd, self._fds)
-        self._epoll.register(fd, events)
-        self._fds.add(fd)
+        if fd in self._events:
+            self._events[fd] |= events
+            self._epoll.modify(fd, self._events[fd])
+        else:
+            self._events[fd] = events
+            self._epoll.register(fd, self._events[fd])
 
-    def unregister(self, fd):
+    def unregister(self, fd, events):
         ASSERT.false(self._epoll.closed)
-        if fd in self._fds:
+        if fd not in self._events:
+            return
+        self._events[fd] &= ~events
+        if self._events[fd]:
+            self._epoll.modify(fd, self._events[fd])
+        else:
             self._epoll.unregister(fd)
-            self._fds.discard(fd)
+            self._events.pop(fd)
 
     def close_fd(self, fd):
         """Inform the poller that a file descriptor is closed.
 
-        Sadly ``epoll`` automatically removes a closed file descriptor
+        Sadly ``epoll`` silently removes a closed file descriptor
         internally without informing the poller, and thus we need a way
         to inform the poller about this.
         """
         ASSERT.false(self._epoll.closed)
-        self._closed_fds.append((fd, select.EPOLLHUP))
+        if fd not in self._events:
+            return
+        self._epoll.unregister(fd)
+        event = self._events.pop(fd)
+        self._closed_fds.append((fd, event | select.EPOLLHUP))
 
     def poll(self, timeout):
         ASSERT.false(self._epoll.closed)
         if self._closed_fds:
             closed_fds, self._closed_fds = self._closed_fds, []
             return closed_fds
-        ASSERT.not_empty(self._fds)
+        ASSERT.not_empty(self._events)
         if timeout is None:
             timeout = -1
         elif timeout <= 0:
@@ -87,8 +96,7 @@ class Epoll:
         else:
             # epoll_wait() has a resolution of 1 millisecond.
             timeout = math.ceil(timeout * 1e3) * 1e-3
-        max_num_events = len(self._fds)
         try:
-            return self._epoll.poll(timeout, max_num_events)
+            return self._epoll.poll(timeout=timeout)
         except InterruptedError:
             return []

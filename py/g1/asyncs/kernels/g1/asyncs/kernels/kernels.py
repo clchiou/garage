@@ -60,7 +60,8 @@ class Kernel:
         self._current_task = None
         self._ready_tasks = collections.deque()
         self._task_completion_blocker = blockers.TaskCompletionBlocker()
-        self._fd_blocker = blockers.DictBlocker()
+        self._read_blocker = blockers.DictBlocker()
+        self._write_blocker = blockers.DictBlocker()
         self._sleep_blocker = blockers.TimeoutBlocker()
         self._generic_blocker = blockers.DictBlocker()
         self._forever_blocker = blockers.ForeverBlocker()
@@ -95,7 +96,7 @@ class Kernel:
             num_tasks=self._num_tasks,
             num_ready=len(self._ready_tasks),
             num_join=len(self._task_completion_blocker),
-            num_poll=len(self._fd_blocker),
+            num_poll=len(self._read_blocker) + len(self._write_blocker),
             num_sleep=len(self._sleep_blocker),
             num_blocked=(
                 len(self._generic_blocker) + len(self._forever_blocker)
@@ -141,7 +142,8 @@ class Kernel:
                 (
                     self._ready_tasks,
                     self._task_completion_blocker,
-                    self._fd_blocker,
+                    self._read_blocker,
+                    self._write_blocker,
                     self._sleep_blocker,
                     self._generic_blocker,
                     self._forever_blocker,
@@ -202,8 +204,11 @@ class Kernel:
                     if self._nudger.is_nudged(fd, events):
                         self._nudger.ack()
                     else:
-                        self._poller.unregister(fd)
-                        self._trap_return(self._fd_blocker, fd, events)
+                        self._poller.unregister(fd, events)
+                        if events & self._poller.READ:
+                            self._trap_return(self._read_blocker, fd, events)
+                        if events & self._poller.WRITE:
+                            self._trap_return(self._write_blocker, fd, events)
                 # Handle any task timeout.
                 now = time.monotonic()
                 self._trap_return(self._sleep_blocker, now, None)
@@ -269,8 +274,15 @@ class Kernel:
 
     def _poll(self, task, trap):
         ASSERT.is_(trap.kind, traps.Traps.POLL)
+        # A task may either read or write a file, but never both at the
+        # same time (at least I can't think of a use case of that).
+        ASSERT.in_(trap.events, (self._poller.READ, self._poller.WRITE))
         self._poller.register(trap.fd, trap.events)
-        self._fd_blocker.block(trap.fd, task)
+        if trap.events == self._poller.READ:
+            self._read_blocker.block(trap.fd, task)
+        else:
+            # trap.events == self._poller.WRITE
+            self._write_blocker.block(trap.fd, task)
 
     def _sleep(self, task, trap):
         ASSERT.is_(trap.kind, traps.Traps.SLEEP)
@@ -294,7 +306,8 @@ class Kernel:
         all_tasks.extend(task_ready.task for task_ready in self._ready_tasks)
         for task_collection in (
             self._task_completion_blocker,
-            self._fd_blocker,
+            self._read_blocker,
+            self._write_blocker,
             self._sleep_blocker,
             self._generic_blocker,
             self._forever_blocker,
@@ -369,11 +382,16 @@ class Kernel:
 
         self._to_raise[task] = exc
 
-        fd = self._fd_blocker.cancel(task)
-        if fd is not None:
-            self._poller.unregister(fd)
-            self._ready_tasks.append(TaskReady(task, None, None))
-            return
+        for blocker, events in (
+            (self._read_blocker, self._poller.READ),
+            (self._write_blocker, self._poller.WRITE),
+        ):
+            fd = blocker.cancel(task)
+            if fd is not None:
+                if blocker.get_num_blocked_on(fd) == 0:
+                    self._poller.unregister(fd, events)
+                self._ready_tasks.append(TaskReady(task, None, None))
+                return
 
         is_unblocked = (
             self._task_completion_blocker.cancel(task)

@@ -252,7 +252,7 @@ class KernelTest(unittest.TestCase):
     def test_cancel(self):
 
         n = self.k._nudger._r
-        self.assertEqual(self.k._poller._fds, set([n]))
+        self.assertEqual(set(self.k._poller._events), set([n]))
 
         self.assert_stats()
 
@@ -261,7 +261,10 @@ class KernelTest(unittest.TestCase):
 
         with self.assertRaises(errors.Timeout):
             self.k.run(timeout=0)
-        self.assertEqual(self.k._poller._fds, set([n, self.r.fileno()]))
+        self.assertEqual(
+            set(self.k._poller._events),
+            set([n, self.r.fileno()]),
+        )
         self.assert_stats(num_ticks=1, num_tasks=1, num_poll=1)
 
         self.k.cancel(task)
@@ -272,7 +275,7 @@ class KernelTest(unittest.TestCase):
         self.k.run()
         self.assert_stats(num_ticks=2, num_tasks=0)
 
-        self.assertEqual(self.k._poller._fds, set([n]))
+        self.assertEqual(set(self.k._poller._events), set([n]))
 
         with self.assertRaises(errors.Cancelled):
             task.get_result_nonblocking()
@@ -295,6 +298,84 @@ class KernelTest(unittest.TestCase):
         with self.assertRaises(errors.Timeout):
             self.k.run(timeout=0)
         self.assert_stats(num_ticks=3, num_tasks=0, num_poll=0)
+
+    def test_poll_read_and_write(self):
+
+        n = self.k._nudger._r
+        r = self.r.fileno()
+
+        self.assertEqual(self.k._poller._events, {n: pollers.Epoll.READ})
+
+        t1 = self.k.spawn(traps.poll_read(r))
+        with self.assertRaises(errors.Timeout):
+            self.k.run(timeout=0)
+        self.assert_stats(num_ticks=1, num_tasks=1, num_poll=1)
+        self.assertEqual(
+            self.k._poller._events,
+            {
+                n: pollers.Epoll.READ,
+                r: pollers.Epoll.READ,
+            },
+        )
+
+        t2 = self.k.spawn(traps.poll_write(r))
+        with self.assertRaises(errors.Timeout):
+            self.k.run(timeout=0)
+        self.assert_stats(num_ticks=2, num_tasks=2, num_poll=2)
+        self.assertEqual(
+            self.k._poller._events,
+            {
+                n: pollers.Epoll.READ,
+                r: pollers.Epoll.READ | pollers.Epoll.WRITE,
+            },
+        )
+
+        t3 = self.k.spawn(traps.poll_read(r))
+        with self.assertRaises(errors.Timeout):
+            self.k.run(timeout=0)
+        self.assert_stats(num_ticks=3, num_tasks=3, num_poll=3)
+        self.assertEqual(
+            self.k._poller._events,
+            {
+                n: pollers.Epoll.READ,
+                r: pollers.Epoll.READ | pollers.Epoll.WRITE,
+            },
+        )
+
+        self.k.cancel(t1)
+        with self.assertRaises(errors.Timeout):
+            self.k.run(timeout=0)
+        self.assert_stats(num_ticks=4, num_tasks=2, num_poll=2)
+        self.assertEqual(
+            self.k._poller._events,
+            {
+                n: pollers.Epoll.READ,
+                r: pollers.Epoll.READ | pollers.Epoll.WRITE,
+            },
+        )
+
+        self.k.cancel(t2)
+        with self.assertRaises(errors.Timeout):
+            self.k.run(timeout=0)
+        self.assert_stats(num_ticks=5, num_tasks=1, num_poll=1)
+        self.assertEqual(
+            self.k._poller._events,
+            {
+                n: pollers.Epoll.READ,
+                r: pollers.Epoll.READ,
+            },
+        )
+
+        self.k.cancel(t3)
+        with self.assertRaises(errors.Timeout):
+            self.k.run(timeout=0)
+        self.assert_stats(num_ticks=6, num_tasks=0, num_poll=0)
+        self.assertEqual(
+            self.k._poller._events,
+            {
+                n: pollers.Epoll.READ,
+            },
+        )
 
     def test_block(self):
 
