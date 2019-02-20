@@ -107,7 +107,11 @@ INCOMING_BUFFER_SIZE = 65536  # As TCP packet is no bigger than 64KB.
 
 ENCODING = 'iso-8859-1'
 
-MAX_CONCURRENT_STREAMS = 128
+MAX_CONCURRENT_STREAMS = 100
+
+INITIAL_WINDOW_SIZE = 1 << 20
+
+MAX_HEADER_LIST_SIZE = 16384
 
 SETTINGS_TIMEOUT = 5  # Unit: seconds.
 
@@ -174,11 +178,13 @@ class HttpSession:
 
         self._sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 
-        settings = (nghttp2_settings_entry * 2)()
+        settings = (nghttp2_settings_entry * 3)()
         settings[0].settings_id = NGHTTP2_SETTINGS_MAX_CONCURRENT_STREAMS
         settings[0].value = MAX_CONCURRENT_STREAMS
         settings[1].settings_id = NGHTTP2_SETTINGS_INITIAL_WINDOW_SIZE
-        settings[1].value = NGHTTP2_INITIAL_WINDOW_SIZE
+        settings[1].value = INITIAL_WINDOW_SIZE
+        settings[2].settings_id = NGHTTP2_SETTINGS_MAX_HEADER_LIST_SIZE
+        settings[2].value = MAX_HEADER_LIST_SIZE
         nghttp2_submit_settings(
             self._session, NGHTTP2_FLAG_NONE, settings, len(settings)
         )

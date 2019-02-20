@@ -153,6 +153,7 @@ class nghttp2_frame_type(enum.IntEnum):
 class nghttp2_settings_id(enum.IntEnum):
     NGHTTP2_SETTINGS_MAX_CONCURRENT_STREAMS = 0x03
     NGHTTP2_SETTINGS_INITIAL_WINDOW_SIZE = 0x04
+    NGHTTP2_SETTINGS_MAX_HEADER_LIST_SIZE = 0x06
 
 
 @export_members
