@@ -95,7 +95,7 @@ class SuperviseServersTest(LoggerMixin, unittest.TestCase):
         with self.assertRaises(kernels.KernelTimeout):
             self.run_supervise_servers(5, 0)
         self.assert_state(
-            True, True, 2, [
+            True, True, 1, [
                 r'receive signal',
                 r'initiate graceful exit$',
             ]

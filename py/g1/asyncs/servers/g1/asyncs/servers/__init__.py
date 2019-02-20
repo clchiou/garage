@@ -17,10 +17,12 @@ __all__ = [
     'supervise_servers',
 ]
 
+import contextlib
 import logging
 import signal
 
 from g1.asyncs.bases import signals
+from g1.asyncs.bases import tasks
 from g1.asyncs.bases import timers
 
 LOG = logging.getLogger(__name__)
@@ -56,75 +58,98 @@ async def supervise_servers(
       supervisor will begin stopping servers gracefully.  Any task may
       wait on this event object to get notified on graceful exit.
     """
+    async with contextlib.AsyncExitStack() as stack:
+        await _ServerSupervisor(
+            stack=stack,
+            this_task=tasks.get_current_task(),
+            server_queue=server_queue,
+            graceful_exit=graceful_exit,
+            grace_period=grace_period,
+        ).supervise()
 
-    async with server_queue:
 
-        exit_waiter = server_queue.spawn(
-            graceful_exit.wait,
-            wait_for_completion=False,
-        )
+class _ServerSupervisor:
 
-        signal_handler = server_queue.spawn(
-            handle_signal(graceful_exit),
-            wait_for_completion=False,
-        )
+    def __init__(
+        self,
+        stack,
+        this_task,
+        server_queue,
+        graceful_exit,
+        grace_period,
+    ):
+        self.stack = stack
+        self.this_task = this_task
+        self.server_queue = server_queue
+        self.graceful_exit = graceful_exit
+        self.grace_period = grace_period
+        self._initiated = False
 
-        cancel_timeout = None
-
-        def initiate_graceful_exit(reason, *log_args):
-            nonlocal cancel_timeout
-            if cancel_timeout:
-                return
-            message = 'initiate graceful exit'
-            if reason:
-                message = '%s due to %s' % (message, reason)
-            LOG.info(message, *log_args)
-            graceful_exit.set()
-            cancel_timeout = timers.timeout_after(grace_period)
-
-        def initiate_non_graceful_exit(reason, *log_args, exc_info=None):
-            message = 'initiate non-graceful exit due to %s' % reason
-            LOG.error(message, *log_args, exc_info=exc_info)
-            raise SupervisorError(reason % log_args) from exc_info
-
+    async def supervise(self):
+        await self.stack.enter_async_context(self.server_queue)
+        helper_tasks = [
+            tasks.spawn(func) for func in (
+                self._on_graceful_exit,
+                self._on_signal,
+                self._join_server_tasks,
+            )
+        ]
+        joiner = helper_tasks[-1]
+        for task in helper_tasks:
+            self.stack.push_async_callback(task.join)
+        for task in helper_tasks:
+            self.stack.callback(task.cancel)
         try:
-            async for task in server_queue:
-                server_queue.close()
-                exc = task.get_exception_nonblocking()
-                if task is exit_waiter:
-                    initiate_graceful_exit(None)
-                elif task is signal_handler:
-                    initiate_non_graceful_exit('repeated signals')
-                elif exc:
-                    initiate_non_graceful_exit(
-                        'server task error: %r', task, exc_info=exc
-                    )
-                else:
-                    initiate_graceful_exit('server task exit: %r', task)
-
+            async for task in tasks.as_completed(helper_tasks):
+                task.get_result_nonblocking()
+                if task is joiner:
+                    break
         except timers.Timeout:
-            initiate_non_graceful_exit('grace period exceeded')
+            self._raise_error('grace period exceeded')
 
-        finally:
-            exit_waiter.cancel()
-            signal_handler.cancel()
-            if cancel_timeout:
-                cancel_timeout()
+    async def _on_graceful_exit(self):
+        await self.graceful_exit.wait()
+        self._initiate_exit(None)
 
-
-async def handle_signal(graceful_exit):
-    signal_queue = signals.SignalQueue()
-    try:
-        for signum in EXIT_SIGNUMS:
-            signal_queue.subscribe(signum)
-        # Upon the first signal, initiate the graceful exit, and upon
-        # the second one, initiate the non-graceful exit (via returning
-        # from this coroutine).
-        for _ in range(2):
+    async def _on_signal(self):
+        signal_queue = signals.SignalQueue()
+        try:
+            for signum in EXIT_SIGNUMS:
+                signal_queue.subscribe(signum)
             LOG.info('receive signal: %r', await signal_queue.get())
-            graceful_exit.set()
-    finally:
-        signal_queue.close()
+            self._initiate_exit(None)
+            LOG.info('receive signal: %r', await signal_queue.get())
+            self._raise_error('repeated signals')
+        finally:
+            signal_queue.close()
+
+    async def _join_server_tasks(self):
+        async for task in self.server_queue:
+            exc = task.get_exception_nonblocking()
+            if exc:
+                self._raise_error('server task error: %r', task, exc_info=exc)
+            else:
+                self._initiate_exit('server task exit: %r', task)
+
+    def _initiate_exit(self, reason, *log_args):
+        if self._initiated:
+            return
+        message = 'initiate graceful exit'
+        if reason:
+            message = '%s due to %s' % (message, reason)
+        LOG.info(message, *log_args)
+        self.graceful_exit.set()
+        self.server_queue.close()
+        self.stack.enter_context(
+            timers.timeout_after(self.grace_period, task=self.this_task)
+        )
+        self._initiated = True
+
+    @staticmethod
+    def _raise_error(reason, *log_args, exc_info=None):
+        message = 'initiate non-graceful exit due to %s' % reason
+        LOG.error(message, *log_args, exc_info=exc_info)
+        raise SupervisorError(reason % log_args) from exc_info
 
 
 async def supervise_handlers(
