@@ -1,6 +1,6 @@
 """Demonstrate ``g1.apps.asyncs``."""
 
-import g1.asyncs.kernels.contexts
+import g1.asyncs.kernels
 from g1.apps import asyncs
 
 

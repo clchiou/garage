@@ -52,7 +52,7 @@ class Session:
         # the process is exiting, you probably do not care much about
         # unfinished HTTP requests in the executor (if it is not fine,
         # you may always provide an executor to me, and properly shut it
-        # down on process exit.
+        # down on process exit).
         self.executor = executor or executors.Executor(daemon=True)
         self._session = requests.Session()
         self._rate_limit = rate_limit or policies.unlimited
