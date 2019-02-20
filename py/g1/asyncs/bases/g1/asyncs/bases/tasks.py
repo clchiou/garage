@@ -41,19 +41,15 @@ class CompletionQueue:
         self._gate = locks.Gate()
         self._completed = collections.deque()
         self._uncompleted = set()
-        self._not_wait_for = set()
         self._closed = False
 
     def __repr__(self):
-        return (
-            '<%s at %#x: %s, completed=%d, uncompleted=%d, not_wait_for=%d>'
-        ) % (
+        return '<%s at %#x: %s, completed=%d, uncompleted=%d>' % (
             self.__class__.__qualname__,
             id(self),
             'closed' if self._closed else 'open',
             len(self._completed),
             len(self._uncompleted),
-            len(self._not_wait_for),
         )
 
     async def __aenter__(self):
@@ -63,8 +59,7 @@ class CompletionQueue:
         """Reasonable default policy on joining tasks.
 
         * First, it will close the queue.
-        * On normal exit, it will join all remaining tasks (including
-          those "not wait for" tasks).
+        * On normal exit, it will join all remaining tasks.
         * On error, it will cancel tasks before joining them.
 
         This is not guaranteed to fit any use case though.  On those
@@ -81,18 +76,10 @@ class CompletionQueue:
         return self._closed
 
     def __bool__(self):
-        return any((
-            self._completed,
-            self._uncompleted,
-            self._not_wait_for,
-        ))
+        return bool(self._completed) or bool(self._uncompleted)
 
     def __len__(self):
-        return sum((
-            len(self._completed),
-            len(self._uncompleted),
-            len(self._not_wait_for),
-        ))
+        return len(self._completed) + len(self._uncompleted)
 
     def __aiter__(self):
         return self
@@ -109,10 +96,8 @@ class CompletionQueue:
         else:
             tasks = list(self._completed)
             tasks.extend(self._uncompleted)
-            tasks.extend(self._not_wait_for)
             self._completed.clear()
             self._uncompleted.clear()
-            self._not_wait_for.clear()
         self._closed = True
         self._gate.unblock()
         return tasks
@@ -126,24 +111,13 @@ class CompletionQueue:
             else:
                 raise Closed
 
-    def put(self, task, *, wait_for_completion=True):
-        """Put task into the queue.
-
-        If ``wait_for_completion`` is false, the queue will not wait for
-        the task completion; that is, if the task is still not completed
-        when ``get`` is called, ``get`` will not be blocked because of
-        that (but ``get`` could still be blocked for other reasons).
-        """
+    def put(self, task):
         if self._closed:
             raise Closed
-        if wait_for_completion:
-            self._uncompleted.add(task)
-            task.add_callback(self._on_completion)
-        else:
-            self._not_wait_for.add(task)
-            task.add_callback(self._on_not_wait_for_completion)
+        self._uncompleted.add(task)
+        task.add_callback(self._on_completion)
 
-    def spawn(self, awaitable, *, wait_for_completion=True):
+    def spawn(self, awaitable):
         """Spawn and put task to the queue.
 
         This is equivalent to spawn-then-put, but is better that, if
@@ -153,7 +127,7 @@ class CompletionQueue:
             raise Closed
         task = spawn(awaitable)
         try:
-            self.put(task, wait_for_completion=wait_for_completion)
+            self.put(task)
         except BaseException:
             # This should never happen...
             LOG.critical('put should never fail here: %r, %r', self, task)
@@ -164,12 +138,6 @@ class CompletionQueue:
     def _on_completion(self, task):
         if self._uncompleted:
             self._uncompleted.remove(task)
-            self._completed.append(task)
-        self._gate.unblock()
-
-    def _on_not_wait_for_completion(self, task):
-        if self._not_wait_for:
-            self._not_wait_for.remove(task)
             self._completed.append(task)
         self._gate.unblock()
 
