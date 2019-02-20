@@ -32,23 +32,19 @@ class SuperviseServersTest(LoggerMixin, unittest.TestCase):
 
     def setUp(self):
 
-        async def mocked_handle_signal(graceful_exit):
-            for _ in range(2):
-                await self.mocked_signal.wait()
-                servers.LOG.debug('receive mocked signal')
-                graceful_exit.set()
-                self.mocked_signal.clear()
+        async def mocked_signal_queue_get():
+            await self.send_signal.wait()
+            self.send_signal.clear()
+            return 1
 
         super().setUp()
 
-        self.mocked_signal = locks.Event()
+        self.send_signal = locks.Event()
         self.ge = locks.Event()
         self.tq = tasks.CompletionQueue()
 
-        unittest.mock.patch(
-            servers.__name__ + '.handle_signal',
-            mocked_handle_signal,
-        ).start()
+        mock = unittest.mock.patch(servers.__name__ + '.signals').start()
+        mock.SignalQueue().get = mocked_signal_queue_get
 
     def tearDown(self):
         super().tearDown()
@@ -79,11 +75,11 @@ class SuperviseServersTest(LoggerMixin, unittest.TestCase):
     @kernels.with_kernel
     def test_signal(self):
         self.assert_state(False, False, 0, [])
-        self.mocked_signal.set()
+        self.send_signal.set()
         self.assertIsNone(self.run_supervise_servers(5, 1))
         self.assert_state(
             True, True, 0, [
-                r'receive mocked signal',
+                r'receive signal',
                 r'initiate graceful exit$',
             ]
         )
@@ -95,24 +91,24 @@ class SuperviseServersTest(LoggerMixin, unittest.TestCase):
         self.tq.put(t)
         self.assert_state(False, False, 1, [])
 
-        self.mocked_signal.set()
+        self.send_signal.set()
         with self.assertRaises(kernels.KernelTimeout):
             self.run_supervise_servers(5, 0)
         self.assert_state(
             True, True, 2, [
-                r'receive mocked signal',
+                r'receive signal',
                 r'initiate graceful exit$',
             ]
         )
-        self.assertFalse(self.mocked_signal.is_set())
+        self.assertFalse(self.send_signal.is_set())
 
-        self.mocked_signal.set()
+        self.send_signal.set()
         self.assertIsNone(kernels.run(timeout=1))
         self.assert_state(
             True, True, 0, [
-                r'receive mocked signal',
+                r'receive signal',
                 r'initiate graceful exit$',
-                r'receive mocked signal',
+                r'receive signal',
                 r'initiate non-graceful exit due to repeated signals',
             ]
         )
