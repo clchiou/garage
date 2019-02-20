@@ -32,7 +32,7 @@ class LockTest(unittest.TestCase):
 
         t2 = self.k.spawn(l.acquire)
         t3 = self.k.spawn(l.acquire)
-        with self.assertRaises(errors.Timeout):
+        with self.assertRaises(errors.KernelTimeout):
             self.k.run(timeout=0)
         self.assertEqual(self.k.get_stats().num_blocked, 2)
         self.assertFalse(t2.is_completed())
@@ -40,13 +40,13 @@ class LockTest(unittest.TestCase):
         self.assertEqual(len(self.k._generic_blocker), 2)
 
         l.release()
-        with self.assertRaises(errors.Timeout):
+        with self.assertRaises(errors.KernelTimeout):
             self.k.run(timeout=0)
         self.assertEqual(self.k.get_stats().num_blocked, 1)
         self.assertEqual(len(self.k._generic_blocker), 1)
 
         l.release()
-        with self.assertRaises(errors.Timeout):
+        with self.assertRaises(errors.KernelTimeout):
             self.k.run(timeout=0)
         self.assertEqual(self.k.get_stats().num_blocked, 0)
         self.assertTrue(t2.is_completed())
@@ -95,7 +95,7 @@ class ConditionTest(unittest.TestCase):
 
         ts = [self.k.spawn(wait_cv) for _ in range(3)]
 
-        with self.assertRaises(errors.Timeout):
+        with self.assertRaises(errors.KernelTimeout):
             self.k.run(timeout=0)
         self.assertEqual(self.k.get_stats().num_blocked, 3)
         self.assertEqual(len(self.k._generic_blocker), 3)
@@ -106,7 +106,7 @@ class ConditionTest(unittest.TestCase):
         cv.notify()
         cv.release()
 
-        with self.assertRaises(errors.Timeout):
+        with self.assertRaises(errors.KernelTimeout):
             self.k.run(timeout=0)
         self.assertEqual(self.k.get_stats().num_blocked, 2)
         self.assertEqual(len(self.k._generic_blocker), 2)
@@ -117,7 +117,7 @@ class ConditionTest(unittest.TestCase):
         cv.notify()
         cv.release()
 
-        with self.assertRaises(errors.Timeout):
+        with self.assertRaises(errors.KernelTimeout):
             self.k.run(timeout=0)
         self.assertEqual(self.k.get_stats().num_blocked, 1)
         self.assertEqual(len(self.k._generic_blocker), 1)
@@ -128,7 +128,7 @@ class ConditionTest(unittest.TestCase):
         cv.notify()
         cv.release()
 
-        with self.assertRaises(errors.Timeout):
+        with self.assertRaises(errors.KernelTimeout):
             self.k.run(timeout=0)
         self.assertEqual(self.k.get_stats().num_blocked, 0)
         self.assertEqual(len(self.k._generic_blocker), 0)
@@ -185,7 +185,7 @@ class EventTest(unittest.TestCase):
         self.assertEqual(len(self.k._generic_blocker), 0)
 
         e.clear()
-        with self.assertRaises(errors.Timeout):
+        with self.assertRaises(errors.KernelTimeout):
             self.k.run(e.wait, timeout=0)
         self.assertEqual(self.k.get_stats().num_blocked, 1)
         self.assertEqual(len(self.k._generic_blocker), 1)
@@ -231,13 +231,13 @@ class GateTest(unittest.TestCase):
         t = self.k.spawn(g.wait)
         self.assertEqual(self.k.get_stats().num_blocked, 0)
 
-        with self.assertRaises(errors.Timeout):
+        with self.assertRaises(errors.KernelTimeout):
             self.k.run(timeout=0)
         self.assertEqual(self.k.get_stats().num_blocked, 1)
 
         g.unblock()
 
-        with self.assertRaises(errors.Timeout):
+        with self.assertRaises(errors.KernelTimeout):
             self.k.run(timeout=0)
         self.assertEqual(self.k.get_stats().num_blocked, 0)
         self.assertTrue(t.is_completed())
@@ -252,13 +252,13 @@ class GateTest(unittest.TestCase):
         t = self.k.spawn(func)
         self.assertEqual(self.k.get_stats().num_blocked, 0)
 
-        with self.assertRaises(errors.Timeout):
+        with self.assertRaises(errors.KernelTimeout):
             self.k.run(timeout=0)
         self.assertEqual(self.k.get_stats().num_blocked, 1)
 
         g.unblock()
 
-        with self.assertRaises(errors.Timeout):
+        with self.assertRaises(errors.KernelTimeout):
             self.k.run(timeout=0)
         self.assertEqual(self.k.get_stats().num_blocked, 0)
         self.assertTrue(t.is_completed())

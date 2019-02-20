@@ -136,7 +136,7 @@ class CompletionQueueTest(unittest.TestCase):
         self.assertEqual(tq._not_wait_for, {t1, t2})
 
         event.set()
-        with self.assertRaises(errors.Timeout):
+        with self.assertRaises(errors.KernelTimeout):
             self.k.run(timeout=0)
         self.assertEqual(set(tq._completed), {t1, t2})
         self.assertFalse(tq._uncompleted)

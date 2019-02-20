@@ -215,7 +215,7 @@ class Kernel:
                 self._timeout_after_on_completion(now)
             # Break if ``run`` times out.
             if run_timer.is_expired():
-                raise errors.Timeout
+                raise errors.KernelTimeout
 
     def _run_one_ready_task(self):
 

@@ -31,13 +31,13 @@ class TimeoutAfterTest(unittest.TestCase):
 
         with self.subTest(timers.timeout_after):
             steps = []
-            with self.assertRaises(kernels.Timeout):
-                kernels.run(func(timers.timeout_after, steps))
+            with self.assertRaises(timers.Timeout):
+                kernels.run(func(timers.timeout_after, steps), timeout=1)
             self.assertEqual(steps, [0, 1])
 
         with self.subTest(timers.timeout_ignore):
             steps = []
-            kernels.run(func(timers.timeout_ignore, steps))
+            kernels.run(func(timers.timeout_ignore, steps), timeout=1)
             self.assertEqual(steps, [0, 1, 3])
 
     @kernels.with_kernel
@@ -54,12 +54,12 @@ class TimeoutAfterTest(unittest.TestCase):
 
         with self.subTest(timers.timeout_after):
             steps = []
-            kernels.run(func(timers.timeout_after, steps))
+            kernels.run(func(timers.timeout_after, steps), timeout=1)
             self.assertEqual(steps, [0, 1, 2, 3])
 
         with self.subTest(timers.timeout_ignore):
             steps = []
-            kernels.run(func(timers.timeout_ignore, steps))
+            kernels.run(func(timers.timeout_ignore, steps), timeout=1)
             self.assertEqual(steps, [0, 1, 2, 3])
 
 

@@ -105,7 +105,7 @@ class KernelTest(unittest.TestCase):
         self.assert_stats(num_ticks=0, num_tasks=4, num_ready=4)
         self.assertEqual(set(actual), {t1, t2, t3, t4})
 
-        with self.assertRaises(errors.Timeout):
+        with self.assertRaises(errors.KernelTimeout):
             self.k.run(timeout=0)
 
         actual = self.k.get_all_tasks()
@@ -117,7 +117,7 @@ class KernelTest(unittest.TestCase):
         self.k.cancel(t2)
         self.k.cancel(t3)
         self.k.cancel(t4)
-        with self.assertRaises(errors.Timeout):
+        with self.assertRaises(errors.KernelTimeout):
             self.k.run(timeout=0)
 
     def test_get_all_tasks_in_coroutine(self):
@@ -138,15 +138,15 @@ class KernelTest(unittest.TestCase):
 
         self.assert_stats()
 
-        with self.assertRaises(errors.Timeout):
+        with self.assertRaises(errors.KernelTimeout):
             self.k.run(block_forever, timeout=0)
         self.assert_stats(num_ticks=1, num_tasks=1, num_poll=1)
 
-        with self.assertRaises(errors.Timeout):
+        with self.assertRaises(errors.KernelTimeout):
             self.k.run(timeout=0)
         self.assert_stats(num_ticks=2, num_tasks=1, num_poll=1)
 
-        with self.assertRaises(errors.Timeout):
+        with self.assertRaises(errors.KernelTimeout):
             self.k.run(timeout=-1)
         self.assert_stats(num_ticks=3, num_tasks=1, num_poll=1)
 
@@ -168,7 +168,7 @@ class KernelTest(unittest.TestCase):
         task = self.k.spawn(do_timeout_after)
         self.assert_stats(num_ticks=0, num_tasks=1, num_ready=1)
 
-        with self.assertRaises(errors.Timeout):
+        with self.assertRaises(errors.KernelTimeout):
             self.k.run(timeout=0)
         self.assert_stats(num_ticks=1, num_tasks=1, num_poll=1, num_timeout=1)
 
@@ -209,7 +209,7 @@ class KernelTest(unittest.TestCase):
         task = self.k.spawn(do_timeout_after)
         self.assert_stats(num_ticks=0, num_tasks=1, num_ready=1)
 
-        with self.assertRaises(errors.Timeout):
+        with self.assertRaises(errors.KernelTimeout):
             self.k.run(timeout=0)
         self.assert_stats(num_ticks=1, num_tasks=1, num_poll=1, num_timeout=0)
 
@@ -259,7 +259,7 @@ class KernelTest(unittest.TestCase):
         task = self.k.spawn(traps.poll_read(self.r.fileno()))
         self.assert_stats(num_ticks=0, num_tasks=1, num_ready=1)
 
-        with self.assertRaises(errors.Timeout):
+        with self.assertRaises(errors.KernelTimeout):
             self.k.run(timeout=0)
         self.assertEqual(
             set(self.k._poller._events),
@@ -284,18 +284,18 @@ class KernelTest(unittest.TestCase):
 
         self.assert_stats()
 
-        with self.assertRaises(errors.Timeout):
+        with self.assertRaises(errors.KernelTimeout):
             self.k.run(traps.poll_read(self.r.fileno()), timeout=0)
         self.assert_stats(num_ticks=1, num_tasks=1, num_poll=1)
 
         self.w.write(b'\x00')
         self.w.flush()
 
-        with self.assertRaises(errors.Timeout):
+        with self.assertRaises(errors.KernelTimeout):
             self.k.run(timeout=0)
         self.assert_stats(num_ticks=2, num_tasks=1, num_ready=1)
 
-        with self.assertRaises(errors.Timeout):
+        with self.assertRaises(errors.KernelTimeout):
             self.k.run(timeout=0)
         self.assert_stats(num_ticks=3, num_tasks=0, num_poll=0)
 
@@ -307,7 +307,7 @@ class KernelTest(unittest.TestCase):
         self.assertEqual(self.k._poller._events, {n: pollers.Epoll.READ})
 
         t1 = self.k.spawn(traps.poll_read(r))
-        with self.assertRaises(errors.Timeout):
+        with self.assertRaises(errors.KernelTimeout):
             self.k.run(timeout=0)
         self.assert_stats(num_ticks=1, num_tasks=1, num_poll=1)
         self.assertEqual(
@@ -319,7 +319,7 @@ class KernelTest(unittest.TestCase):
         )
 
         t2 = self.k.spawn(traps.poll_write(r))
-        with self.assertRaises(errors.Timeout):
+        with self.assertRaises(errors.KernelTimeout):
             self.k.run(timeout=0)
         self.assert_stats(num_ticks=2, num_tasks=2, num_poll=2)
         self.assertEqual(
@@ -331,7 +331,7 @@ class KernelTest(unittest.TestCase):
         )
 
         t3 = self.k.spawn(traps.poll_read(r))
-        with self.assertRaises(errors.Timeout):
+        with self.assertRaises(errors.KernelTimeout):
             self.k.run(timeout=0)
         self.assert_stats(num_ticks=3, num_tasks=3, num_poll=3)
         self.assertEqual(
@@ -343,7 +343,7 @@ class KernelTest(unittest.TestCase):
         )
 
         self.k.cancel(t1)
-        with self.assertRaises(errors.Timeout):
+        with self.assertRaises(errors.KernelTimeout):
             self.k.run(timeout=0)
         self.assert_stats(num_ticks=4, num_tasks=2, num_poll=2)
         self.assertEqual(
@@ -355,7 +355,7 @@ class KernelTest(unittest.TestCase):
         )
 
         self.k.cancel(t2)
-        with self.assertRaises(errors.Timeout):
+        with self.assertRaises(errors.KernelTimeout):
             self.k.run(timeout=0)
         self.assert_stats(num_ticks=5, num_tasks=1, num_poll=1)
         self.assertEqual(
@@ -367,7 +367,7 @@ class KernelTest(unittest.TestCase):
         )
 
         self.k.cancel(t3)
-        with self.assertRaises(errors.Timeout):
+        with self.assertRaises(errors.KernelTimeout):
             self.k.run(timeout=0)
         self.assert_stats(num_ticks=6, num_tasks=0, num_poll=0)
         self.assertEqual(
@@ -384,7 +384,7 @@ class KernelTest(unittest.TestCase):
         self.assert_stats(num_ticks=0, num_tasks=1, num_ready=1)
         self.assertFalse(task.is_completed())
 
-        with self.assertRaises(errors.Timeout):
+        with self.assertRaises(errors.KernelTimeout):
             self.k.run(timeout=0)
         self.assert_stats(num_ticks=1, num_tasks=1, num_blocked=1)
         self.assertFalse(task.is_completed())
@@ -424,7 +424,7 @@ class KernelTest(unittest.TestCase):
 
         t1 = self.k.spawn(block_forever)
         t2 = self.k.spawn(reraise)
-        with self.assertRaises(errors.Timeout):
+        with self.assertRaises(errors.KernelTimeout):
             self.k.run(timeout=0)
 
         t3 = self.k.spawn(noop)

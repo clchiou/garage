@@ -1,5 +1,6 @@
 __all__ = [
     'Cancelled',
+    'KernelTimeout',
     'TaskCancellation',
     'Timeout',
 ]
@@ -21,6 +22,10 @@ class Cancelled(Exception):
     the task that gets cancelled; thus it is a normal exception and is
     inherited from ``Exception``.
     """
+
+
+class KernelTimeout(Exception):
+    pass
 
 
 class Timeout(Exception):

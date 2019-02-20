@@ -96,7 +96,7 @@ class SuperviseServersTest(LoggerMixin, unittest.TestCase):
         self.assert_state(False, False, 1, [])
 
         self.mocked_signal.set()
-        with self.assertRaises(kernels.Timeout):
+        with self.assertRaises(kernels.KernelTimeout):
             self.run_supervise_servers(5, 0)
         self.assert_state(
             True, True, 2, [
@@ -223,7 +223,7 @@ class SuperviseHandlersTest(LoggerMixin, unittest.TestCase):
         self.tq.put(t)
         self.tq.put(tasks.spawn(noop))
         self.assert_state(False, 2, [])
-        with self.assertRaises(kernels.Timeout):
+        with self.assertRaises(kernels.KernelTimeout):
             self.run_supervise_handlers((t, ), 0)
         self.assert_state(False, 1, [
             r'no op',
@@ -248,7 +248,7 @@ class SuperviseHandlersTest(LoggerMixin, unittest.TestCase):
         self.tq.put(t)
         self.tq.put(tasks.spawn(raises(ValueError('some error'))))
         self.assert_state(False, 2, [])
-        with self.assertRaises(kernels.Timeout):
+        with self.assertRaises(kernels.KernelTimeout):
             self.run_supervise_handlers((t, ), 0)
         self.assert_state(False, 1, [
             r'handler task error:',

@@ -1,5 +1,5 @@
 __all__ = [
-    'Timeout',
+    'KernelTimeout',
     'call_with_kernel',
     'get_kernel',
     'run',
@@ -14,7 +14,7 @@ from . import contexts
 from . import kernels
 
 # Re-export errors.
-from .errors import Timeout
+from .errors import KernelTimeout
 
 logging.getLogger(__name__).addHandler(logging.NullHandler())
 

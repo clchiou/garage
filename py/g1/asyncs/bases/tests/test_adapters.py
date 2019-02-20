@@ -90,7 +90,7 @@ class FileAdapterTest(unittest.TestCase):
 
         # This task is blocked before close.
         reader_task = self.k.spawn(self.r.read)
-        with self.assertRaises(errors.Timeout):
+        with self.assertRaises(errors.KernelTimeout):
             self.k.run(timeout=0)
         self.assert_stats(num_ticks=1, num_tasks=1, num_poll=1)
 
@@ -116,7 +116,7 @@ class FileAdapterTest(unittest.TestCase):
 
         # This task is blocked before close.
         writer_task = self.k.spawn(writer_blocked)
-        with self.assertRaises(errors.Timeout):
+        with self.assertRaises(errors.KernelTimeout):
             self.k.run(timeout=0)
         self.assert_stats(num_ticks=1, num_tasks=1, num_poll=1)
 
@@ -263,7 +263,7 @@ class SocketAdapterTest(unittest.TestCase):
 
         # Access before socket is closed.
         task0 = self.k.spawn(self.s0.recv(1024))
-        with self.assertRaises(errors.Timeout):
+        with self.assertRaises(errors.KernelTimeout):
             self.k.run(timeout=0)
         self.assertEqual(self.k.get_stats().num_poll, 1)
 
@@ -302,7 +302,7 @@ class FutureAdapterTest(unittest.TestCase):
         task = self.k.spawn(f.get_result())
         self.assertFalse(task.is_completed())
 
-        with self.assertRaises(errors.Timeout):
+        with self.assertRaises(errors.KernelTimeout):
             self.k.run(timeout=0)
         self.assertFalse(task.is_completed())
 

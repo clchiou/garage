@@ -153,13 +153,13 @@ class BytesStreamTest(unittest.TestCase):
         self.assert_stream(b'')
 
         t = self.k.spawn(self.s.read(0))
-        with self.assertRaises(errors.Timeout):
+        with self.assertRaises(errors.KernelTimeout):
             self.k.run(timeout=0)
         self.assert_stream(b'')
 
         for _ in range(3):
             self.k.run(self.s.write(b''))
-            with self.assertRaises(errors.Timeout):
+            with self.assertRaises(errors.KernelTimeout):
                 self.k.run(timeout=0)
             self.assert_stream(b'')
 
@@ -195,7 +195,7 @@ class BytesStreamTest(unittest.TestCase):
         self.assertEqual(lines, [])
         self.assert_stream(b'')
 
-        with self.assertRaises(errors.Timeout):
+        with self.assertRaises(errors.KernelTimeout):
             self.k.run(timeout=0)
         self.assertFalse(t.is_completed())
         self.assertEqual(lines, [])
@@ -209,7 +209,7 @@ class BytesStreamTest(unittest.TestCase):
         self.k.run(self.s.write(b'\n'))
         self.assertFalse(t.is_completed())
 
-        with self.assertRaises(errors.Timeout):
+        with self.assertRaises(errors.KernelTimeout):
             self.k.run(timeout=0)
         self.assertFalse(t.is_completed())
         self.assertEqual(lines, [b'hello\n'])
@@ -218,7 +218,7 @@ class BytesStreamTest(unittest.TestCase):
         self.k.run(self.s.write(b'world\n'))
         self.k.run(self.s.write(b'foo'))
 
-        with self.assertRaises(errors.Timeout):
+        with self.assertRaises(errors.KernelTimeout):
             self.k.run(timeout=0)
 
         self.s.close()
@@ -248,12 +248,12 @@ class BytesStreamTest(unittest.TestCase):
             self.assertEqual(self.k.run(self.s.write(piece)), len(piece))
             self.assertFalse(t.is_completed())
 
-        with self.assertRaises(errors.Timeout):
+        with self.assertRaises(errors.KernelTimeout):
             self.k.run(timeout=0)
         self.assertFalse(t.is_completed())
         self.assert_stream(b'foo')
 
-        with self.assertRaises(errors.Timeout):
+        with self.assertRaises(errors.KernelTimeout):
             self.k.run(timeout=0)
 
         self.s.close()
