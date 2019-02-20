@@ -29,7 +29,6 @@ import heapq
 import itertools
 import logging
 
-from g1.asyncs import kernels
 from g1.asyncs.bases import locks
 from g1.asyncs.bases import tasks
 from g1.bases.assertions import ASSERT
@@ -140,12 +139,8 @@ class Spider:
             # If this task gets cancelled, this async-for-loop is the
             # most likely place to raise ``TaskCancellation``.
             async for task in tasks.as_completed((
-                await stack.enter_async_context(
-                    tasks.joining(kernels.spawn(self._spawn_handlers))
-                ),
-                await stack.enter_async_context(
-                    tasks.joining(kernels.spawn(self._join_handlers))
-                ),
+                tasks.spawn_onto_stack(self._spawn_handlers, stack),
+                tasks.spawn_onto_stack(self._join_handlers, stack),
             )):
                 # This task should never raise.
                 task.get_result_nonblocking()
@@ -226,9 +221,7 @@ class Spider:
     async def _cleanup_tasks(self):
         to_join_tasks, self._to_join_tasks = self._to_join_tasks, []
         for task in to_join_tasks:
-            exc = await task.get_exception()
-            if exc and not isinstance(exc, kernels.Cancelled):
-                LOG.error('handler task error: %r', task, exc_info=exc)
+            await tasks.join_and_log_on_error(task)
 
     def _cleanup_jobs(self):
         if self._job_graph or self._job_queue:

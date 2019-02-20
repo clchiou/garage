@@ -7,7 +7,6 @@ setup(
     ],
     install_requires=[
         'g1.asyncs.bases',
-        'g1.asyncs.kernels',
         'g1.bases',
         'g1.threads',
         'lxml',

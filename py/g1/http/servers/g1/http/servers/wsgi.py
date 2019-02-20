@@ -24,11 +24,11 @@ import sys
 import urllib.parse
 import weakref
 
-from g1.asyncs import kernels
 from g1.asyncs import servers
 from g1.asyncs.bases import locks
 from g1.asyncs.bases import streams
 from g1.asyncs.bases import tasks
+from g1.asyncs.bases import timers
 from g1.bases.assertions import ASSERT
 
 from . import nghttp2
@@ -205,7 +205,7 @@ class HttpSession:
 
             error_code = NGHTTP2_NO_ERROR
 
-        except kernels.Timeout:
+        except timers.Timeout:
             LOG.warning('serve: %r: settings timeout', self)
             self._cancel_settings_timer = None
             error_code = NGHTTP2_SETTINGS_TIMEOUT
@@ -302,7 +302,7 @@ class HttpSession:
         if not self._cancel_settings_timer:
             LOG.debug('start settings timeout: %r', self)
             self._cancel_settings_timer = \
-                kernels.timeout_after(SETTINGS_TIMEOUT)
+                timers.timeout_after(SETTINGS_TIMEOUT)
 
     def _stop_settings_timer(self):
         if self._cancel_settings_timer:

@@ -1,21 +1,23 @@
-"""Demonstrate ``kernels.timeout_after``."""
+"""Demonstrate ``timers.timeout_after``."""
 
 import sys
 import time
 
 from g1.asyncs import kernels
+from g1.asyncs.bases import timers
 
 
 async def do_timeout_after(duration):
-    kernels.timeout_after(duration)
+    timers.timeout_after(duration)
     try:
-        await kernels.sleep(duration * 2)
-    except kernels.Timeout:
+        await timers.sleep(duration * 2)
+    except timers.Timeout:
         pass
     else:
         raise RuntimeError('Timeout was not raised')
 
 
+@kernels.with_kernel
 def main(argv):
     if len(argv) < 2:
         print('usage: %s duration' % argv[0], file=sys.stderr)

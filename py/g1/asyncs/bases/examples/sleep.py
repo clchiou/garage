@@ -1,11 +1,13 @@
-"""Demonstrate ``kernels.sleep``."""
+"""Demonstrate ``timers.sleep``."""
 
 import sys
 import time
 
 from g1.asyncs import kernels
+from g1.asyncs.bases import timers
 
 
+@kernels.with_kernel
 def main(argv):
     if len(argv) < 2:
         print('usage: %s duration' % argv[0], file=sys.stderr)
@@ -13,7 +15,7 @@ def main(argv):
     duration = float(argv[1])
     print('expect to sleep for %.3f seconds' % duration)
     start = time.perf_counter()
-    kernels.run(kernels.sleep(duration))
+    kernels.run(timers.sleep(duration))
     actual_duration = time.perf_counter() - start
     print('actually sleep for %.3f seconds' % actual_duration)
     return 0

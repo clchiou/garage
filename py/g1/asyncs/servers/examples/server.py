@@ -7,10 +7,11 @@ from g1.asyncs import kernels
 from g1.asyncs import servers
 from g1.asyncs.bases import locks
 from g1.asyncs.bases import tasks
+from g1.asyncs.bases import timers
 
 
 async def timeout_after(duration):
-    kernels.timeout_after(duration)
+    timers.timeout_after(duration)
     await locks.Event().wait()
 
 
@@ -24,7 +25,7 @@ def main(argv):
         return 1
     logging.basicConfig(level=logging.INFO)
     server_queue = tasks.CompletionQueue()
-    for duration, func in ((argv[2], kernels.sleep), (argv[3], timeout_after)):
+    for duration, func in ((argv[2], timers.sleep), (argv[3], timeout_after)):
         duration = float(duration)
         if duration >= 0:
             server_queue.spawn(func(duration))

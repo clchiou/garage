@@ -10,13 +10,14 @@ class RateLimitTest(unittest.TestCase):
     def setUp(self):
         self.monotonic_mock = \
             unittest.mock.patch(policies.__name__ + '.time').start().monotonic
-        mocked_kernels = \
-            unittest.mock.patch(policies.__name__ + '.kernels').start()
-        mocked_kernels.sleep = mocked_sleep
+        mocked_timers = \
+            unittest.mock.patch(policies.__name__ + '.timers').start()
+        mocked_timers.sleep = mocked_sleep
 
     def tearDown(self):
         unittest.mock.patch.stopall()
 
+    @kernels.with_kernel
     def test_unlimited(self):
         self.assertIsNone(kernels.run(policies.unlimited))
 

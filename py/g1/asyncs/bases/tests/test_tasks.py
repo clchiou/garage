@@ -304,5 +304,34 @@ class JoiningTest(unittest.TestCase):
             t.get_result_nonblocking()
 
 
+class GetTaskTest(unittest.TestCase):
+
+    def test_get_task(self):
+
+        async def func():
+            return tasks.get_current_task()
+
+        self.assertEqual(tasks.get_all_tasks(), [])
+        self.assertIsNone(tasks.get_current_task())
+
+        k = kernels.Kernel()
+        token = contexts.set_kernel(k)
+        try:
+            task = k.spawn(func)
+            self.assertEqual(tasks.get_all_tasks(), [task])
+
+            k.run(timeout=1)
+            self.assertEqual(tasks.get_all_tasks(), [])
+
+            self.assertIs(task, task.get_result_nonblocking())
+
+        finally:
+            contexts.KERNEL.reset(token)
+            k.close()
+
+        self.assertEqual(tasks.get_all_tasks(), [])
+        self.assertIsNone(tasks.get_current_task())
+
+
 if __name__ == '__main__':
     unittest.main()

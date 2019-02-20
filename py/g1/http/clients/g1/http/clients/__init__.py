@@ -19,8 +19,8 @@ import lxml.etree
 import requests
 import requests.cookies
 
-from g1.asyncs import kernels
 from g1.asyncs.bases import adapters
+from g1.asyncs.bases import timers
 from g1.bases.assertions import ASSERT
 from g1.threads import executors
 
@@ -108,7 +108,7 @@ class Session:
                     exc_info=exc,
                 )
 
-                await kernels.sleep(backoff)
+                await timers.sleep(backoff)
 
     def send_blocking(self, request, **kwargs):
         """Send a request in a blocking manner.

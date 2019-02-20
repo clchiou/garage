@@ -9,7 +9,7 @@ __all__ = [
 
 import time
 
-from g1.asyncs import kernels
+from g1.asyncs.bases import timers
 from g1.bases.assertions import ASSERT
 
 
@@ -29,7 +29,7 @@ class TokenBucket:
     async def __call__(self):
         self._add_tokens()
         while self._num_tokens < 1:
-            await kernels.sleep(self._token_period)
+            await timers.sleep(self._token_period)
             self._add_tokens()
         self._num_tokens -= 1
 

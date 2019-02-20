@@ -7,6 +7,7 @@ from g1.asyncs import kernels
 from g1.asyncs import servers
 from g1.asyncs.bases import locks
 from g1.asyncs.bases import tasks
+from g1.asyncs.bases import timers
 
 
 class LoggerMixin:
@@ -73,7 +74,7 @@ class SuperviseServersTest(LoggerMixin, unittest.TestCase):
         self.assert_state(True, True, 0, [
             r'initiate graceful exit$',
         ])
-        self.assertEqual(kernels.get_all_tasks(), [])
+        self.assertEqual(tasks.get_all_tasks(), [])
 
     @kernels.with_kernel
     def test_signal(self):
@@ -86,11 +87,11 @@ class SuperviseServersTest(LoggerMixin, unittest.TestCase):
                 r'initiate graceful exit$',
             ]
         )
-        self.assertEqual(kernels.get_all_tasks(), [])
+        self.assertEqual(tasks.get_all_tasks(), [])
 
     @kernels.with_kernel
     def test_repeated_signals(self):
-        t = kernels.spawn(kernels.sleep(99))
+        t = tasks.spawn(timers.sleep(99))
         self.tq.put(t)
         self.assert_state(False, False, 1, [])
 
@@ -116,14 +117,14 @@ class SuperviseServersTest(LoggerMixin, unittest.TestCase):
             ]
         )
 
-        with self.assertRaises(kernels.Cancelled):
+        with self.assertRaises(tasks.Cancelled):
             t.get_result_nonblocking()
 
-        self.assertEqual(kernels.get_all_tasks(), [])
+        self.assertEqual(tasks.get_all_tasks(), [])
 
     @kernels.with_kernel
     def test_server_exit(self):
-        t = kernels.spawn(noop)
+        t = tasks.spawn(noop)
         self.tq.put(t)
         self.assert_state(False, False, 1, [])
         self.assertIsNone(self.run_supervise_servers(5, 1))
@@ -134,11 +135,11 @@ class SuperviseServersTest(LoggerMixin, unittest.TestCase):
             ]
         )
         self.assertIsNone(t.get_result_nonblocking())
-        self.assertEqual(kernels.get_all_tasks(), [])
+        self.assertEqual(tasks.get_all_tasks(), [])
 
     @kernels.with_kernel
     def test_server_error(self):
-        t = kernels.spawn(raises(ValueError('some error')))
+        t = tasks.spawn(raises(ValueError('some error')))
         self.tq.put(t)
         self.assert_state(False, False, 1, [])
         with self.assertRaises(servers.SupervisorError):
@@ -150,12 +151,12 @@ class SuperviseServersTest(LoggerMixin, unittest.TestCase):
         )
         with self.assertRaisesRegex(ValueError, r'some error'):
             t.get_result_nonblocking()
-        self.assertEqual(kernels.get_all_tasks(), [])
+        self.assertEqual(tasks.get_all_tasks(), [])
 
     @kernels.with_kernel
     def test_grace_period(self):
         self.ge.set()
-        t = kernels.spawn(kernels.sleep(99))
+        t = tasks.spawn(timers.sleep(99))
         self.tq.put(t)
         self.assert_state(True, False, 1, [])
         with self.assertRaises(servers.SupervisorError):
@@ -166,9 +167,9 @@ class SuperviseServersTest(LoggerMixin, unittest.TestCase):
                 r'initiate non-graceful exit due to grace period exceeded',
             ]
         )
-        with self.assertRaises(kernels.Cancelled):
+        with self.assertRaises(tasks.Cancelled):
             t.get_result_nonblocking()
-        self.assertEqual(kernels.get_all_tasks(), [])
+        self.assertEqual(tasks.get_all_tasks(), [])
 
 
 class SuperviseHandlersTest(LoggerMixin, unittest.TestCase):
@@ -190,7 +191,7 @@ class SuperviseHandlersTest(LoggerMixin, unittest.TestCase):
 
     @kernels.with_kernel
     def test_helper_exit(self):
-        t = kernels.spawn(noop)
+        t = tasks.spawn(noop)
         self.tq.put(t)
         self.assert_state(False, 1, [])
         self.assertIsNone(self.run_supervise_handlers((t, ), 1))
@@ -199,11 +200,11 @@ class SuperviseHandlersTest(LoggerMixin, unittest.TestCase):
             r'server helper task exit:',
         ])
         self.assertIsNone(t.get_result_nonblocking())
-        self.assertEqual(kernels.get_all_tasks(), [])
+        self.assertEqual(tasks.get_all_tasks(), [])
 
     @kernels.with_kernel
     def test_helper_error(self):
-        t = kernels.spawn(raises(ValueError('some error')))
+        t = tasks.spawn(raises(ValueError('some error')))
         self.tq.put(t)
         self.assert_state(False, 1, [])
         with self.assertRaises(servers.SupervisorError):
@@ -213,14 +214,14 @@ class SuperviseHandlersTest(LoggerMixin, unittest.TestCase):
         ])
         with self.assertRaisesRegex(ValueError, r'some error'):
             t.get_result_nonblocking()
-        self.assertEqual(kernels.get_all_tasks(), [])
+        self.assertEqual(tasks.get_all_tasks(), [])
 
     @kernels.with_kernel
     def test_handler_exit(self):
         e = locks.Event()
-        t = kernels.spawn(e.wait)
+        t = tasks.spawn(e.wait)
         self.tq.put(t)
-        self.tq.put(kernels.spawn(noop))
+        self.tq.put(tasks.spawn(noop))
         self.assert_state(False, 2, [])
         with self.assertRaises(kernels.Timeout):
             self.run_supervise_handlers((t, ), 0)
@@ -238,14 +239,14 @@ class SuperviseHandlersTest(LoggerMixin, unittest.TestCase):
             ]
         )
         self.assertTrue(t.get_result_nonblocking())
-        self.assertEqual(kernels.get_all_tasks(), [])
+        self.assertEqual(tasks.get_all_tasks(), [])
 
     @kernels.with_kernel
     def test_handler_error(self):
         e = locks.Event()
-        t = kernels.spawn(e.wait)
+        t = tasks.spawn(e.wait)
         self.tq.put(t)
-        self.tq.put(kernels.spawn(raises(ValueError('some error'))))
+        self.tq.put(tasks.spawn(raises(ValueError('some error'))))
         self.assert_state(False, 2, [])
         with self.assertRaises(kernels.Timeout):
             self.run_supervise_handlers((t, ), 0)
@@ -261,7 +262,7 @@ class SuperviseHandlersTest(LoggerMixin, unittest.TestCase):
             ]
         )
         self.assertTrue(t.get_result_nonblocking())
-        self.assertEqual(kernels.get_all_tasks(), [])
+        self.assertEqual(tasks.get_all_tasks(), [])
 
 
 async def noop():

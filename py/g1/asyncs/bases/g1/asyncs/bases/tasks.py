@@ -1,17 +1,25 @@
 """Task management utilities."""
 
 __all__ = [
+    'Cancelled',
     'Closed',
     'CompletionQueue',
     'as_completed',
+    'get_all_tasks',
+    'get_current_task',
+    'join_and_log_on_error',
     'joining',
+    'spawn',
+    'spawn_onto_stack',
 ]
 
 import collections
 import logging
 
 from g1.asyncs.kernels import contexts
-from g1.asyncs.kernels import errors
+
+# Re-export errors.
+from g1.asyncs.kernels.errors import Cancelled
 
 from . import locks
 
@@ -67,13 +75,7 @@ class CompletionQueue:
             for task in tasks:
                 task.cancel()
         for task in tasks:
-            exc = await task.get_exception()
-            if not exc:
-                pass
-            elif isinstance(exc, errors.Cancelled):
-                LOG.debug('task is cancelled: %r', task, exc_info=exc)
-            else:
-                LOG.error('task error: %r', task, exc_info=exc)
+            await join_and_log_on_error(task)
 
     def is_closed(self):
         return self._closed
@@ -149,7 +151,7 @@ class CompletionQueue:
         """
         if self._closed:
             raise Closed
-        task = contexts.get_kernel().spawn(awaitable)
+        task = spawn(awaitable)
         try:
             self.put(task, wait_for_completion=wait_for_completion)
         except BaseException:
@@ -186,6 +188,16 @@ async def as_completed(tasks):
         num_tasks -= 1
 
 
+async def join_and_log_on_error(task):
+    exc = await task.get_exception()
+    if not exc:
+        pass
+    elif isinstance(exc, Cancelled):
+        LOG.debug('task is cancelled: %r', task, exc_info=exc)
+    else:
+        LOG.error('task error: %r', task, exc_info=exc)
+
+
 class joining:
     """Reasonable default policy on joining a task."""
 
@@ -198,10 +210,26 @@ class joining:
     async def __aexit__(self, exc_type, *_):
         if exc_type:
             self._task.cancel()
-        exc = await self._task.get_exception()
-        if not exc:
-            pass
-        elif isinstance(exc, errors.Cancelled):
-            LOG.debug('task is cancelled: %r', self._task, exc_info=exc)
-        else:
-            LOG.error('task error: %r', self._task, exc_info=exc)
+        await join_and_log_on_error(self._task)
+
+
+def spawn(awaitable):
+    return contexts.get_kernel().spawn(awaitable)
+
+
+def spawn_onto_stack(awaitable, stack):
+    task = spawn(awaitable)
+    stack.push_async_exit(joining(task).__aexit__)
+    return task
+
+
+def get_all_tasks():
+    # You may call this out of a kernel context.
+    kernel = contexts.get_kernel(None)
+    return kernel.get_all_tasks() if kernel else []
+
+
+def get_current_task():
+    # You may call this out of a kernel context.
+    kernel = contexts.get_kernel(None)
+    return kernel.get_current_task() if kernel else None

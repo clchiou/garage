@@ -20,8 +20,8 @@ __all__ = [
 import logging
 import signal
 
-from g1.asyncs import kernels
 from g1.asyncs.bases import signals
+from g1.asyncs.bases import timers
 
 LOG = logging.getLogger(__name__)
 LOG.addHandler(logging.NullHandler())
@@ -80,7 +80,7 @@ async def supervise_servers(
                 message = '%s due to %s' % (message, reason)
             LOG.info(message, *log_args)
             graceful_exit.set()
-            cancel_timeout = kernels.timeout_after(grace_period)
+            cancel_timeout = timers.timeout_after(grace_period)
 
         def initiate_non_graceful_exit(reason, *log_args, exc_info=None):
             message = 'initiate non-graceful exit due to %s' % reason
@@ -102,7 +102,7 @@ async def supervise_servers(
                 else:
                     initiate_graceful_exit('server task exit: %r', task)
 
-        except kernels.Timeout:
+        except timers.Timeout:
             initiate_non_graceful_exit('grace period exceeded')
 
         finally:
