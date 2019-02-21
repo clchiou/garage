@@ -6,6 +6,7 @@ __all__ = [
     'with_kernel',
 ]
 
+import contextlib
 import contextvars
 import functools
 import logging
@@ -36,12 +37,17 @@ def call_with_kernel(func, *args, **kwargs):
     """
 
     def caller():
-        kernel = kernels.Kernel()
-        contexts.set_kernel(kernel)
-        try:
+        # Do not create nested kernels; this seems to make more sense.
+        # In general, I think it is easier to work with when there is
+        # always at most one global kernel object per thread.
+        if contexts.get_kernel(None) is None:
+            kernel = kernels.Kernel()
+            contexts.set_kernel(kernel)
+            cm = contextlib.closing(kernel)
+        else:
+            cm = contextlib.nullcontext()
+        with cm:
             return func(*args, **kwargs)
-        finally:
-            kernel.close()
 
     return contextvars.copy_context().run(caller)
 
