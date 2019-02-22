@@ -41,7 +41,6 @@ class SpiderTest(unittest.TestCase):
         self.assertIsNone(kernels.run(spider.crawl, timeout=1))
 
         controller_mock.on_crawl_start.assert_called_once_with(spider)
-        controller_mock.on_request_not_sent.assert_not_called()
         controller_mock.on_request_error.assert_not_called()
         controller_mock.on_response.assert_not_called()
         controller_mock.on_crawl_stop.assert_called_once_with(
@@ -65,12 +64,18 @@ class SpiderTest(unittest.TestCase):
 
         class TestController(spiders.Controller):
 
-            async def on_crawl_start(self, spider):
-                spider.enqueue(priority=0, request='foo.html')
+            def __init__(self):
+                self._urls = set()
 
-            async def on_response(self, spider, job_id, request, response):
+            async def on_crawl_start(self, spider):
+                spider.enqueue('foo.html', 0)
+                self._urls.add('foo.html')
+
+            async def on_response(self, spider, serial, request, response):
                 for url in links[request.url]:
-                    spider.enqueue(priority=0, request=url)
+                    if url not in self._urls:
+                        spider.enqueue(url, 0)
+                        self._urls.add(url)
 
         # Use ``wraps`` because mocked methods cannot be awaited.
         controller_mock = unittest.mock.Mock(wraps=TestController())
@@ -79,11 +84,6 @@ class SpiderTest(unittest.TestCase):
         self.assertIsNone(kernels.run(spider.crawl, timeout=1))
 
         controller_mock.on_crawl_start.assert_called_once_with(spider)
-        controller_mock.on_request_not_sent.assert_called_with(
-            spider,
-            unittest.mock.ANY,
-            unittest.mock.ANY,
-        )
         controller_mock.on_request_error.assert_not_called()
         controller_mock.on_response.assert_called_with(
             spider,
@@ -105,41 +105,6 @@ class SpiderTest(unittest.TestCase):
         )
 
     @kernels.with_kernel
-    def test_dependencies(self):
-
-        actual_job_ids = []
-        expect_job_ids = []
-
-        class TestController(spiders.Controller):
-
-            async def on_crawl_start(self, spider):
-                job_ids = [spider.enqueue(priority=i) for i in range(100)]
-                expect_job_ids.extend(job_ids)
-                expect_job_ids.append(
-                    spider.enqueue(priority=-1, dependencies=job_ids)
-                )
-
-            async def on_response(self, spider, job_id, request, response):
-                actual_job_ids.append(job_id)
-
-        # Use ``wraps`` because mocked methods cannot be awaited.
-        controller_mock = unittest.mock.Mock(wraps=TestController())
-        spider = self.make_spider(controller_mock)
-
-        self.assertIsNone(kernels.run(spider.crawl, timeout=1))
-
-        controller_mock.on_response.assert_called_with(
-            spider,
-            unittest.mock.ANY,
-            None,
-            None,
-        )
-
-        self.assertEqual(self.requests, [])
-
-        self.assertEqual(actual_job_ids, expect_job_ids)
-
-    @kernels.with_kernel
     def test_request_shutdown(self):
 
         class TestController(spiders.Controller):
@@ -149,9 +114,9 @@ class SpiderTest(unittest.TestCase):
 
             async def on_crawl_start(self, spider):
                 for i in range(100):
-                    spider.enqueue(priority=i, request='%d.html' % i)
+                    spider.enqueue('%d.html' % i, i)
 
-            async def on_response(self, spider, job_id, request, response):
+            async def on_response(self, spider, serial, request, response):
                 spider.request_shutdown(graceful=self.graceful)
 
         for graceful in (True, False):
@@ -179,41 +144,25 @@ class SpiderTest(unittest.TestCase):
                     )
 
 
-class RequestIdCheckerTest(unittest.TestCase):
-
-    def test_dont_check_request_id(self):
-        for rid in (1, 2, 3):
-            self.assertFalse(spiders.dont_check_request_id(rid))
-            self.assertFalse(spiders.dont_check_request_id(rid))
-
-    def test_request_id_checker(self):
-        checker = spiders.RequestIdChecker()
-        for rid in (1, 2, 3):
-            self.assertFalse(checker(rid))
-            self.assertTrue(checker(rid))
-
-
-class JobTest(unittest.TestCase):
+class RequestQueueItemTest(unittest.TestCase):
 
     @staticmethod
-    def make_job(priority):
-        return spiders.Job(
-            id=None,
+    def make_item(priority):
+        return spiders.RequestQueueItem(
+            serial=None,
             priority=priority,
-            request_id=None,
             request=None,
-            dependencies=None,
         )
 
-    def test_job(self):
-        j1 = self.make_job(1)
-        self.assertNotEqual(j1, self.make_job(1))
-        self.assertLess(j1, self.make_job(2))
+    def test_item(self):
+        j1 = self.make_item(1)
+        self.assertNotEqual(j1, self.make_item(1))
+        self.assertLess(j1, self.make_item(2))
 
     def test_heap(self):
         js = []
         for i in (6, 1, 4, 3, 2, 5):
-            heapq.heappush(js, self.make_job(i))
+            heapq.heappush(js, self.make_item(i))
         ps = []
         while js:
             ps.append(heapq.heappop(js).priority)

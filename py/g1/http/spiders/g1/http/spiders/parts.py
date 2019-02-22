@@ -62,13 +62,9 @@ async def on_graceful_exit(
     spider.request_shutdown()
 
 
-def make_spider_params(
-    check_request_id=True,
-    max_num_tasks=0,
-):
+def make_spider_params(max_num_tasks=0):
     return parameters.Namespace(
         'make HTTP spider',
-        check_request_id=parameters.Parameter(check_request_id),
         max_num_tasks=parameters.Parameter(max_num_tasks),
     )
 
@@ -77,6 +73,5 @@ def make_spider(params, controller, session=None):
     return spiders.Spider(
         controller,
         session=session,
-        check_request_id=params.check_request_id.get(),
         max_num_tasks=params.max_num_tasks.get(),
     )

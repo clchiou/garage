@@ -1,21 +1,16 @@
 """Spiders.
 
-* This spider is designed for crawling one website; it is possible but
-  probably not great for crawling the WWW.
+* At the moment the spider provides minimal support of crawling; it does
+  not detect duplicated requests, etc.
 
-* This spider is essentially a very primitive job dependency solver (it
-  does not check cycles, etc.).  In the future we might improve it on
-  this aspect, but for now this primitive solver seems to be enough.
+* The spider returns a serial number for each HTTP request for later
+  reference.
 
-* Each job has priority.  This is less of a feature but more of
-  a workaround: When crawling, to avoid job queue size from growing out
-  of control, the spider should prioritize nodes with less out-degrees,
-  and it relies on the controller to tell it about that.
-
-* Each job may have an HTTP request; the request is associated with a
-  request ID (default to its URL).  The spider uses these IDs to avoid
-  sending duplicated request.  On duplicated requests, the controller's
-  ``on_response`` will **not** be called.
+* Each HTTP request has priority.  This is less of a feature but more of
+  a workaround: When crawling, to avoid request queue from growing too
+  long, the spider would prioritize requests that will result in less
+  new requests enqueued, and it relies on the controller to tell it
+  about that.
 """
 
 __all__ = [
@@ -41,25 +36,18 @@ LOG.addHandler(logging.NullHandler())
 class Controller:
     """Control how a spider crawls.
 
-    For any job, exactly one of the callbacks (``on_request_not_sent``,
-    ``on_request_error``, and ``on_response``) will be called.
+    For any request, exactly one of the callbacks (``on_request_error``
+    and ``on_response``) is called.
     """
 
     async def on_crawl_start(self, spider):
         """Callback at the start of ``Spider.crawl``."""
 
-    async def on_request_not_sent(self, spider, job_id, request):
-        """Callback on duplicated requests."""
-
-    async def on_request_error(self, spider, job_id, request, exc):
+    async def on_request_error(self, spider, serial, request, exc):
         """Callback on HTTP request errors."""
 
-    async def on_response(self, spider, job_id, request, response):
-        """Callback on HTTP responses.
-
-        If a job does not have an HTTP request, the request and response
-        objects are ``None``.
-        """
+    async def on_response(self, spider, serial, request, response):
+        """Callback on HTTP responses."""
 
     async def on_crawl_stop(self, spider, exc_type, exc_value, traceback):
         """Callback at the end of ``Spider.crawl``.
@@ -76,7 +64,6 @@ class Spider:
         controller,
         *,
         session=None,
-        check_request_id=True,
         max_num_tasks=0,
     ):
 
@@ -84,20 +71,10 @@ class Spider:
 
         self.session = session or clients.Session()
 
-        if check_request_id:
-            self._check_request_id = RequestIdChecker()
-        else:
-            self._check_request_id = dont_check_request_id
-
-        # Map from job ID to jobs that depend on this job ID.
-        self._job_graph = collections.defaultdict(collections.deque)
-        self._completed_job_ids = set()
-
         # For coordination between _spawn_handlers and _join_handlers.
         self._gate = locks.Gate()
 
-        # Jobs that are ready for execution.
-        self._job_queue = []
+        self._request_queue = []
 
         # Cap the maximum number of concurrent handler tasks.  Since
         # each handler task sends one HTTP request (more if it retries),
@@ -122,14 +99,14 @@ class Spider:
 
         async with contextlib.AsyncExitStack() as stack:
 
-            stack.callback(self._cleanup_jobs)
+            stack.callback(self._cleanup_request_queue)
 
             await self.controller.on_crawl_start(self)
             stack.push_async_exit(
                 lambda *args: self.controller.on_crawl_stop(self, *args)
             )
-            if not self._job_queue:
-                LOG.warning('no initial jobs after on_crawl_start')
+            if not self._request_queue:
+                LOG.warning('empty request queue')
 
             # Ensure that when ``on_crawl_stop`` is called, all handlers
             # were completed.
@@ -146,12 +123,13 @@ class Spider:
                 task.get_result_nonblocking()
 
     async def _spawn_handlers(self):
-        while ((self._job_graph or self._job_queue or self._handler_tasks)
+        while ((self._request_queue or self._handler_tasks)
                and not self._handler_tasks.is_closed()):
             num_tasks = self._max_num_tasks - len(self._handler_tasks)
-            while self._job_queue and num_tasks > 0:
-                job = heapq.heappop(self._job_queue)
-                self._handler_tasks.spawn(self._handle(job))
+            while self._request_queue and num_tasks > 0:
+                self._handler_tasks.spawn(
+                    self._handle(heapq.heappop(self._request_queue))
+                )
                 num_tasks -= 1
             await self._gate.wait()
         # To unblock ``_join_handlers``.
@@ -163,121 +141,58 @@ class Spider:
             # Handler task should never raise, but you never know.
             task.get_result_nonblocking()
 
-    async def _handle(self, job):
+    async def _handle(self, item):
 
         try:
-            if not job.request:
-                # In this case, both request and response are ``None``.
-                response = None
-
-            elif self._check_request_id(job.request_id):
-                LOG.debug(
-                    'not send duplicated request: %r, %r',
-                    job.request_id,
-                    job.request,
+            LOG.info('request: %r', item.request)
+            try:
+                response = await self.session.send(item.request)
+            except Exception as exc:
+                LOG.exception('request error: %r', item.request)
+                await self.controller.on_request_error(
+                    self, item.serial, item.request, exc
                 )
-                try:
-                    await self.controller.on_request_not_sent(
-                        self, job.id, job.request
-                    )
-                except Exception:
-                    LOG.exception('on_request_not_sent error: %r', job.request)
-                # In this case, do not call ``on_response``.
                 return
 
-            else:
-                LOG.info('request: %r', job.request)
-                try:
-                    response = await self.session.send(job.request)
-                except Exception as exc:
-                    LOG.exception('request error: %r', job.request)
-                    await self.controller.on_request_error(
-                        self, job.id, job.request, exc
-                    )
-                    return
-
-            ASSERT.not_xor(job.request, response)
             try:
                 await self.controller.on_response(
-                    self, job.id, job.request, response
+                    self, item.serial, item.request, response
                 )
             except Exception:
-                LOG.exception('on_response error: %r', job.request)
+                LOG.exception('on_response error: %r', item.request)
                 return
 
         finally:
-            # This job is completed (whether it errs out or not).  Let's
-            # unblock jobs that are depending on this job.
-            self._completed_job_ids.add(job.id)
-            do_unblock = False
-            for other_job in self._job_graph.pop(job.id, ()):
-                other_job.dependencies.remove(job.id)
-                if not other_job.dependencies:
-                    heapq.heappush(self._job_queue, other_job)
-                    do_unblock = True
-            if do_unblock:
-                self._gate.unblock()
+            self._gate.unblock()
 
     async def _cleanup_tasks(self):
         to_join_tasks, self._to_join_tasks = self._to_join_tasks, []
         for task in to_join_tasks:
             await tasks.join_and_log_on_error(task)
 
-    def _cleanup_jobs(self):
-        if self._job_graph or self._job_queue:
-            LOG.warning(
-                'drop %d jobs',
-                len(self._job_queue) + len({
-                    job.id
-                    for jobs in self._job_graph.values()
-                    for job in jobs
-                }),
-            )
-            self._job_graph.clear()
-            self._job_queue.clear()
+    def _cleanup_request_queue(self):
+        if self._request_queue:
+            LOG.warning('drop %d requests', len(self._request_queue))
+            self._request_queue.clear()
 
     #
     # Interface to controller.
     #
 
-    def enqueue(
-        self,
-        *,
-        priority,
-        request_id=None,
-        request=None,
-        dependencies=(),
-    ):
-        """Add a job to the spider; return job id."""
+    def enqueue(self, request, priority):
+        """Enqueue a request; return a serial number."""
 
-        if request:
-            if not isinstance(request, clients.Request):
-                request = clients.Request(
-                    'GET', ASSERT.isinstance(request, str)
-                )
-            if request_id is None:
-                request_id = request.url
-        else:
-            ASSERT.none(request_id)
+        if not isinstance(request, clients.Request):
+            request = clients.Request('GET', ASSERT.isinstance(request, str))
 
-        job = Job(
-            id=Job.next_id(),
-            priority=priority,
-            request_id=request_id,
-            request=request,
-            dependencies=set(dependencies),
+        item = RequestQueueItem(
+            RequestQueueItem.next_serial(), request, priority
         )
-        # Remove dependencies to completed jobs.
-        job.dependencies.difference_update(self._completed_job_ids)
 
-        if job.dependencies:
-            for dep_job_id in job.dependencies:
-                self._job_graph[dep_job_id].append(job)
-        else:
-            heapq.heappush(self._job_queue, job)
-            self._gate.unblock()
+        heapq.heappush(self._request_queue, item)
+        self._gate.unblock()
 
-        return job.id
+        return item.serial
 
     def request_shutdown(self, graceful=True):
         """Request spider to shut down.
@@ -293,47 +208,16 @@ class Spider:
         self._to_join_tasks.extend(to_join_tasks)
 
 
-def dont_check_request_id(_):
-    return False
+class RequestQueueItem:
 
+    next_serial = itertools.count(1).__next__
 
-class RequestIdChecker:
+    __slots__ = ('serial', 'request', 'priority')
 
-    def __init__(self):
-        self._request_ids = set()
-
-    def __call__(self, request_id):
-        have_seen = request_id in self._request_ids
-        self._request_ids.add(request_id)
-        return have_seen
-
-
-class Job:
-
-    next_id = itertools.count(1).__next__
-
-    __slots__ = (
-        'id',
-        'priority',
-        'request_id',
-        'request',
-        'dependencies',
-    )
-
-    def __init__(
-        self,
-        *,
-        id,  # pylint: disable=redefined-builtin
-        priority,
-        request_id,
-        request,
-        dependencies,
-    ):
-        self.id = id
-        self.priority = priority
-        self.request_id = request_id
+    def __init__(self, serial, request, priority):
+        self.serial = serial
         self.request = request
-        self.dependencies = dependencies
+        self.priority = priority
 
     def __lt__(self, other):
         return self.priority < other.priority
