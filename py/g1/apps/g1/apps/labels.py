@@ -37,3 +37,37 @@ def make_labels(module_path, *names, **names_labels):
         *((n, l if isinstance(l, Label) else Label(module_path, l))
           for n, l in names_labels.items()),
     )
+
+
+def make_nested_labels(module_path, root):
+    """Make a nested namespace."""
+
+    object_path = []
+
+    def make(node):
+        entries = []
+        for pair in get_items(node):
+            if isinstance(pair, str):
+                name = value = pair
+            else:
+                name, value = pair
+            if isinstance(value, str):
+                object_path.append(value)
+                entries.append(
+                    (name, Label(module_path, '.'.join(object_path)))
+                )
+                object_path.pop()
+            else:
+                object_path.append(name)
+                entries.append((name, make(value)))
+                object_path.pop()
+        return collections.Namespace(*entries)
+
+    def get_items(node):
+        if hasattr(node, 'items'):
+            return node.items()
+        else:
+            # Assume it's a list of pairs.
+            return node
+
+    return make(root)

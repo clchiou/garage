@@ -77,6 +77,112 @@ class LabelTest(unittest.TestCase):
             },
         )
 
+    def test_make_nested_labels(self):
+
+        self.assertEqual(
+            flatten_nested_labels(
+                labels.make_nested_labels(
+                    'foo.bar',
+                    ('a', 'b', 'c'),
+                ),
+            ),
+            (
+                ('a', 'foo.bar:a'),
+                ('b', 'foo.bar:b'),
+                ('c', 'foo.bar:c'),
+            ),
+        )
+
+        self.assertEqual(
+            flatten_nested_labels(
+                labels.make_nested_labels(
+                    'foo.bar',
+                    (('a', 'x'), ('b', 'y'), ('c', 'z')),
+                ),
+            ),
+            (
+                ('a', 'foo.bar:x'),
+                ('b', 'foo.bar:y'),
+                ('c', 'foo.bar:z'),
+            ),
+        )
+
+        self.assertEqual(
+            flatten_nested_labels(
+                labels.make_nested_labels(
+                    'foo.bar',
+                    {
+                        'a': 'x',
+                        'b': 'y',
+                        'c': 'z',
+                    },
+                ),
+            ),
+            (
+                ('a', 'foo.bar:x'),
+                ('b', 'foo.bar:y'),
+                ('c', 'foo.bar:z'),
+            ),
+        )
+
+        self.assertEqual(
+            flatten_nested_labels(
+                labels.make_nested_labels(
+                    'foo.bar',
+                    ('a', ('b', 'x'), ('c', {
+                        'p': 'q',
+                        'r': 's',
+                    })),
+                ),
+            ),
+            (
+                ('a', 'foo.bar:a'),
+                ('b', 'foo.bar:x'),
+                ('c.p', 'foo.bar:c.q'),
+                ('c.r', 'foo.bar:c.s'),
+            ),
+        )
+
+        self.assertEqual(
+            flatten_nested_labels(
+                labels.make_nested_labels(
+                    'foo.bar',
+                    (('a', (('b', ('c', )), )), ),
+                ),
+            ),
+            (('a.b.c', 'foo.bar:a.b.c'), ),
+        )
+
+        self.assertEqual(
+            flatten_nested_labels(
+                labels.make_nested_labels(
+                    'foo.bar',
+                    {'a': ('x', 'y', 'z')},
+                ),
+            ),
+            (
+                ('a.x', 'foo.bar:a.x'),
+                ('a.y', 'foo.bar:a.y'),
+                ('a.z', 'foo.bar:a.z'),
+            ),
+        )
+
+
+def flatten_nested_labels(root):
+
+    names = []
+
+    def flatten(node):
+        for n, v in node._entries.items():
+            names.append(n)
+            if isinstance(v, str):
+                yield '.'.join(names), v
+            else:
+                yield from flatten(v)
+            names.pop()
+
+    return tuple(flatten(root))
+
 
 if __name__ == '__main__':
     unittest.main()
