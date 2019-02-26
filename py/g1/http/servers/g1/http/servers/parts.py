@@ -10,27 +10,31 @@ from g1.http.servers.nghttp2 import NGHTTP2_PROTO_VERSION_ID
 import g1.asyncs.servers.parts
 import g1.networks.servers.parts
 
+HTTP_SERVER_LABEL_NAMES = (
+    'server_socket_params',
+    'server_socket',
+    'application',
+)
+
 
 def define_http_server(module_path=None, **kwargs):
     """Define a HTTP server under ``module_path``."""
-
     module_path = module_path or servers.__name__
-
-    module_labels = labels.make_labels(
-        module_path,
-        'server_socket_params',
-        'server_socket',
-        'application',
-    )
-
-    utils.depend_parameter_for(
-        module_labels.server_socket_params,
+    module_labels = labels.make_labels(module_path, *HTTP_SERVER_LABEL_NAMES)
+    setup_http_server(
+        module_labels,
         parameters.define(
             module_path,
             make_server_socket_params(**kwargs),
         ),
     )
+    return module_labels
 
+
+def setup_http_server(module_labels, module_params):
+    utils.depend_parameter_for(
+        module_labels.server_socket_params, module_params
+    )
     utils.define_maker(
         make_server_socket,
         {
@@ -38,7 +42,6 @@ def define_http_server(module_path=None, **kwargs):
             'return': module_labels.server_socket,
         },
     )
-
     utils.define_binder(
         servers.serve_http,
         g1.asyncs.servers.parts.LABELS.serve,
@@ -47,7 +50,6 @@ def define_http_server(module_path=None, **kwargs):
             'application': module_labels.application,
         },
     )
-
     utils.define_binder(
         on_graceful_exit,
         g1.asyncs.servers.parts.LABELS.serve,
@@ -55,8 +57,6 @@ def define_http_server(module_path=None, **kwargs):
             'server_socket': module_labels.server_socket,
         },
     )
-
-    return module_labels
 
 
 async def on_graceful_exit(

@@ -5,26 +5,29 @@ from g1.bases.assertions import ASSERT
 from g1.http import clients
 from g1.http.clients import policies
 
+SESSION_LABEL_NAMES = (
+    'session_params',
+    'session',
+)
+
 
 def define_session(module_path=None, *, executor_label=None, **kwargs):
     """Define a session object under ``module_path``."""
-
     module_path = module_path or clients.__name__
-
-    module_labels = labels.make_labels(
-        module_path,
-        'session_params',
-        'session',
-    )
-
-    utils.depend_parameter_for(
-        module_labels.session_params,
+    module_labels = labels.make_labels(module_path, *SESSION_LABEL_NAMES)
+    setup_session(
+        module_labels,
         parameters.define(
             module_path,
             make_session_params(**kwargs),
         ),
+        executor_label=executor_label,
     )
+    return module_labels
 
+
+def setup_session(module_labels, module_params, *, executor_label=None):
+    utils.depend_parameter_for(module_labels.session_params, module_params)
     annotations = {
         'params': module_labels.session_params,
         'return': module_labels.session,
@@ -32,8 +35,6 @@ def define_session(module_path=None, *, executor_label=None, **kwargs):
     if executor_label:
         annotations['executor'] = executor_label
     utils.define_maker(make_session, annotations)
-
-    return module_labels
 
 
 def make_session_params(

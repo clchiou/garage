@@ -4,26 +4,25 @@ from g1.apps import parameters
 from g1.apps import utils
 from g1.threads import executors
 
+EXECUTOR_LABEL_NAMES = (
+    'executor_params',
+    'executor',
+)
+
 
 def define_executor(module_path=None, **kwargs):
     """Define an executor under ``module_path``."""
-
     module_path = module_path or executors.__name__
-
-    module_labels = labels.make_labels(
-        module_path,
-        'executor_params',
-        'executor',
+    module_labels = labels.make_labels(module_path, *EXECUTOR_LABEL_NAMES)
+    setup_executor(
+        module_labels,
+        parameters.define(module_path, make_executor_params(**kwargs)),
     )
+    return module_labels
 
-    utils.depend_parameter_for(
-        module_labels.executor_params,
-        parameters.define(
-            module_path,
-            make_executor_params(**kwargs),
-        ),
-    )
 
+def setup_executor(module_labels, module_params):
+    utils.depend_parameter_for(module_labels.executor_params, module_params)
     utils.define_maker(
         make_executor,
         {
@@ -31,8 +30,6 @@ def define_executor(module_path=None, **kwargs):
             'return': module_labels.executor,
         },
     )
-
-    return module_labels
 
 
 def make_executor_params(

@@ -5,26 +5,31 @@ from g1.http import spiders
 
 import g1.asyncs.servers.parts
 
+SPIDER_LABEL_NAMES = (
+    'spider_params',
+    'spider',
+    'controller',
+)
+
 
 def define_spider(module_path=None, *, session_label=None, **kwargs):
     """Define a spider object under ``module_path``."""
-
     module_path = module_path or spiders.__name__
-
-    module_labels = labels.make_labels(
-        module_path,
-        'spider_params',
-        'spider',
-        'controller',
-    )
-
-    utils.depend_parameter_for(
-        module_labels.spider_params,
+    module_labels = labels.make_labels(module_path, *SPIDER_LABEL_NAMES)
+    setup_spider(
+        module_labels,
         parameters.define(
             module_path,
             make_spider_params(**kwargs),
         ),
+        session_label=session_label,
     )
+    return module_labels
+
+
+def setup_spider(module_labels, module_params, *, session_label=None):
+
+    utils.depend_parameter_for(module_labels.spider_params, module_params)
 
     annotations = {
         'params': module_labels.spider_params,
@@ -50,8 +55,6 @@ def define_spider(module_path=None, *, session_label=None, **kwargs):
             'spider': module_labels.spider,
         },
     )
-
-    return module_labels
 
 
 async def on_graceful_exit(
