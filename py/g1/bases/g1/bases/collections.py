@@ -217,6 +217,13 @@ class Namespace:
                 raise ValueError('name %r starts with \'_\'' % name)
         super().__setattr__('_entries', entries)
 
+    def __repr__(self):
+        return '<%s at %#x: %r>' % (
+            self.__class__.__qualname__,
+            id(self),
+            self._entries,
+        )
+
     def __iter__(self):
         return iter(self._entries)
 
