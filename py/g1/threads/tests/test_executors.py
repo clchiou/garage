@@ -6,7 +6,7 @@ from g1.threads import executors
 from g1.threads import queues
 
 
-class ExecutorsTest(unittest.TestCase):
+class ExecutorTest(unittest.TestCase):
 
     def test_executor(self):
         with executors.Executor(3) as executor:
@@ -114,6 +114,50 @@ class ExecutorsTest(unittest.TestCase):
         finally:
             event.set()
             executor.shutdown()
+
+
+class PriorityExecutorTest(unittest.TestCase):
+
+    def test_priority(self):
+        actual = []
+        b = threading.Barrier(2)
+        with executors.PriorityExecutor(1, default_priority=0) as executor:
+            executor.submit_with_priority(-1, b.wait)
+            fs = [
+                executor.submit_with_priority(i, actual.append, i)
+                for i in (0, 5, 2, 3, 4, 1)
+            ]
+            b.wait()
+        for f in fs:
+            f.get_result()
+        self.assertEqual(actual, [0, 1, 2, 3, 4, 5])
+
+    def test_default_priority(self):
+        actual = []
+        b = threading.Barrier(2)
+        with executors.PriorityExecutor(1, default_priority=0) as executor:
+            executor.submit(b.wait)
+            fs = [
+                executor.submit(actual.append, i) for i in (0, 5, 2, 3, 4, 1)
+            ]
+            b.wait()
+        for f in fs:
+            f.get_result()
+        # Heap order is not stable.
+        self.assertEqual(set(actual), {0, 5, 2, 3, 4, 1})
+
+    def test_fifo(self):
+        actual = []
+        b = threading.Barrier(2)
+        with executors.Executor(1) as executor:
+            executor.submit(b.wait)
+            fs = [
+                executor.submit(actual.append, i) for i in (0, 5, 2, 3, 4, 1)
+            ]
+            b.wait()
+        for f in fs:
+            f.get_result()
+        self.assertEqual(actual, [0, 5, 2, 3, 4, 1])
 
 
 def inc(x):

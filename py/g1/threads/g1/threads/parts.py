@@ -37,12 +37,14 @@ def make_executor_params(
     max_executors=0,
     name_prefix='',
     daemon=None,
+    default_priority=None,
 ):
     return parameters.Namespace(
         'make executor',
         max_executors=parameters.Parameter(max_executors),
         name_prefix=parameters.Parameter(name_prefix),
         daemon=parameters.Parameter(daemon, type=(bool, type(None))),
+        default_priority=parameters.Parameter(default_priority, type=object),
     )
 
 
@@ -50,10 +52,17 @@ def make_executor(
     exit_stack: bases.LABELS.exit_stack,
     params,
 ):
+    if params.default_priority.get() is None:
+        executor_type = executors.Executor
+        kwargs = {}
+    else:
+        executor_type = executors.PriorityExecutor
+        kwargs = {'default_priority': params.default_priority.get()}
     return exit_stack.enter_context(
-        executors.Executor(
+        executor_type(
             max_executors=params.max_executors.get(),
             name_prefix=params.name_prefix.get(),
             daemon=params.daemon.get(),
+            **kwargs,
         ),
     )
