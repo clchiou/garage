@@ -1,14 +1,67 @@
 """Extension of standard library's collections."""
 
 __all__ = [
+    'LruCache',
     'Multiset',
     'Namespace',
 ]
 
+import collections
 import collections.abc
 import operator
 
 from g1.bases.assertions import ASSERT
+
+
+class LruCache(collections.abc.MutableMapping):
+    """LRU cache.
+
+    In general, entry-wise methods, such as ``__contains__``, always
+    alter cache eviction order, and methods that operate on the entire
+    cache, such as ``len`` and ``items``, do not.
+    """
+
+    __slots__ = ('capacity', '_cache')
+
+    def __init__(self, capacity):
+        self.capacity = ASSERT.greater(capacity, 0)
+        self._cache = collections.OrderedDict()
+
+    #
+    # Do not use ``MutableMapping``'s implementation of ``keys``,
+    # ``items``, and ``values``.  Implement them ourselves to ensure
+    # that they do not alter cache eviction order (well, ``keys`` is
+    # actually fine to use ``MutableMapping``'s, but anyway).
+    #
+
+    def keys(self):
+        return collections.abc.KeysView(self._cache)
+
+    def items(self):
+        return collections.abc.ItemsView(self._cache)
+
+    def values(self):
+        return collections.abc.ValuesView(self._cache)
+
+    def __len__(self):
+        return len(self._cache)
+
+    def __iter__(self):
+        yield from self._cache
+
+    def __getitem__(self, key):
+        value = self._cache[key]
+        self._cache.move_to_end(key)
+        return value
+
+    def __setitem__(self, key, value):
+        self._cache[key] = value
+        self._cache.move_to_end(key)
+        while len(self._cache) > self.capacity:
+            self._cache.popitem(last=False)
+
+    def __delitem__(self, key):
+        del self._cache[key]
 
 
 class Multiset:

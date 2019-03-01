@@ -4,12 +4,99 @@ import operator
 from collections import abc
 
 from g1.bases.collections import (
+    LruCache,
     Multiset,
     Namespace,
 )
 
 
-class CollectionsTest(unittest.TestCase):
+class LruCacheTest(unittest.TestCase):
+
+    def assert_cache(self, actual, expect):
+        self.assertEqual(list(actual._cache.items()), expect)
+
+    def test_lru_cache(self):
+
+        cache = LruCache(2)
+        cache['a'] = 1
+        cache['b'] = 2
+        self.assert_cache(cache, [('a', 1), ('b', 2)])
+
+        with self.assertRaises(KeyError):
+            cache['x']  # pylint: disable=pointless-statement
+        self.assert_cache(cache, [('a', 1), ('b', 2)])
+
+        self.assertIsNone(cache.get('x'))
+        self.assert_cache(cache, [('a', 1), ('b', 2)])
+
+        cache['c'] = 3  # 'a' should be evicted.
+        self.assert_cache(cache, [('b', 2), ('c', 3)])
+
+        self.assertEqual(2, cache['b'])  # 'b' should be moved to last.
+        self.assert_cache(cache, [('c', 3), ('b', 2)])
+
+        cache['d'] = 4  # 'c' should be evicted.
+        self.assert_cache(cache, [('b', 2), ('d', 4)])
+
+        del cache['b']
+        self.assert_cache(cache, [('d', 4)])
+
+        cache['a'] = 1
+        cache['b'] = 2
+        self.assert_cache(cache, [('a', 1), ('b', 2)])
+
+        with self.assertRaises(KeyError):
+            del cache['x']
+        self.assert_cache(cache, [('a', 1), ('b', 2)])
+
+        with self.assertRaises(KeyError):
+            cache.pop('x')
+        self.assert_cache(cache, [('a', 1), ('b', 2)])
+
+        self.assertEqual(('a', 1), cache.popitem())
+        self.assert_cache(cache, [('b', 2)])
+
+        cache['c'] = 3
+        self.assert_cache(cache, [('b', 2), ('c', 3)])
+
+        self.assertEqual(3, cache.pop('c'))
+        self.assert_cache(cache, [('b', 2)])
+
+        self.assertEqual(4, cache.setdefault('d', 4))
+        self.assert_cache(cache, [('b', 2), ('d', 4)])
+
+        self.assertEqual(2, cache.setdefault('b', 99))
+        self.assert_cache(cache, [('d', 4), ('b', 2)])
+
+        # Test ``__contains__``.
+        self.assertTrue('d' in cache)
+        self.assert_cache(cache, [('b', 2), ('d', 4)])
+
+    def test_methods_operate_on_entire_cache(self):
+        """Test methods that should not alter cache eviction order."""
+
+        cache = LruCache(2)
+        cache['a'] = 1
+        cache['b'] = 2
+        self.assert_cache(cache, [('a', 1), ('b', 2)])
+
+        self.assertEqual(len(cache), 2)
+        self.assert_cache(cache, [('a', 1), ('b', 2)])
+
+        self.assertEqual(list(cache), ['a', 'b'])
+        self.assert_cache(cache, [('a', 1), ('b', 2)])
+
+        self.assertEqual(list(cache.keys()), ['a', 'b'])
+        self.assert_cache(cache, [('a', 1), ('b', 2)])
+
+        self.assertEqual(list(cache.items()), [('a', 1), ('b', 2)])
+        self.assert_cache(cache, [('a', 1), ('b', 2)])
+
+        self.assertEqual(list(cache.values()), [1, 2])
+        self.assert_cache(cache, [('a', 1), ('b', 2)])
+
+
+class MultisetTest(unittest.TestCase):
 
     def test_abc(self):
         self.assertTrue(Multiset, abc.MutableSet)
@@ -136,6 +223,9 @@ class CollectionsTest(unittest.TestCase):
         )
         with self.assertRaises(KeyError):
             m.pop()
+
+
+class NamespaceTest(unittest.TestCase):
 
     def test_namespace(self):
 
