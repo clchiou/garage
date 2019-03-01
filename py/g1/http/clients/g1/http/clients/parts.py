@@ -39,6 +39,8 @@ def setup_session(module_labels, module_params, *, executor_label=None):
 
 def make_session_params(
     user_agent='Mozilla/5.0',
+    # Cache.
+    cache_size=8,
     # Rate limit.
     max_request_rate=0,
     max_requests=0,
@@ -49,6 +51,7 @@ def make_session_params(
     return parameters.Namespace(
         'make HTTP client session',
         user_agent=parameters.Parameter(user_agent),
+        cache_size=parameters.Parameter(cache_size),
         max_request_rate=parameters.Parameter(
             max_request_rate,
             type=(int, float),
@@ -86,6 +89,7 @@ def make_session(params, executor=None):
 
     session = clients.Session(
         executor=executor,
+        cache_size=ASSERT.greater(params.cache_size.get(), 0),
         rate_limit=rate_limit,
         retry=retry,
     )

@@ -20,7 +20,9 @@ import requests
 import requests.cookies
 
 from g1.asyncs.bases import adapters
+from g1.asyncs.bases import tasks
 from g1.asyncs.bases import timers
+from g1.bases import collections
 from g1.bases.assertions import ASSERT
 from g1.threads import executors
 
@@ -43,6 +45,7 @@ class Session:
         self,
         *,
         executor=None,
+        cache_size=8,
         rate_limit=None,
         retry=None,
     ):
@@ -55,6 +58,7 @@ class Session:
         # down on process exit).
         self.executor = executor or executors.Executor(daemon=True)
         self._session = requests.Session()
+        self._cache = collections.LruCache(cache_size)
         self._rate_limit = rate_limit or policies.unlimited
         self._retry = retry or policies.no_retry
 
@@ -75,6 +79,10 @@ class Session:
     async def send(self, request, **kwargs):
         """Send a request and return a response.
 
+        If argument ``cache_key`` is not ``None``, session will check
+        its cache before sending the request.  For now, we don't support
+        setting ``cache_key`` in ``request``.
+
         If argument ``priority`` is not ``None``, the request is sent
         with priority (this requires ``PriorityExecutor``).  For now, we
         do not support setting ``priority`` in ``request``.
@@ -83,6 +91,25 @@ class Session:
         # For now ``stream`` and asynchronous does not mix well.
         ASSERT.false(request._kwargs.get('stream'))
         ASSERT.false(kwargs.get('stream'))
+
+        cache_key = kwargs.pop('cache_key', None)
+        if cache_key is not None:
+            try:
+                task = self._cache[cache_key]
+                cache_result = 'hit'
+            except KeyError:
+                task = self._cache[cache_key] = \
+                    tasks.spawn(self.send(request, **kwargs))
+                cache_result = 'miss'
+            finally:
+                LOG.debug(
+                    'send: cache %s: cache_key=%r, %r, kwargs=%r',
+                    cache_result, cache_key, request, kwargs
+                )
+            # Here is a risk that, if all task waiting for this task get
+            # cancelled before this task completes, this task might not
+            # be joined, but this risk is probably too small.
+            return await task.get_result()
 
         priority = kwargs.pop('priority', None)
         if priority is None:
