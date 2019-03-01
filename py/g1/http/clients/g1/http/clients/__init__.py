@@ -73,11 +73,28 @@ class Session:
         )
 
     async def send(self, request, **kwargs):
-        """Send a request and return a response."""
+        """Send a request and return a response.
+
+        If argument ``priority`` is not ``None``, the request is sent
+        with priority (this requires ``PriorityExecutor``).  For now, we
+        do not support setting ``priority`` in ``request``.
+        """
 
         # For now ``stream`` and asynchronous does not mix well.
         ASSERT.false(request._kwargs.get('stream'))
         ASSERT.false(kwargs.get('stream'))
+
+        priority = kwargs.pop('priority', None)
+        if priority is None:
+            submit = self.executor.submit
+        else:
+            LOG.debug(
+                'send: priority=%r, %r, kwargs=%r', priority, request, kwargs
+            )
+            submit = functools.partial(
+                self.executor.submit_with_priority,
+                priority,
+            )
 
         for retry_count in itertools.count():
 
@@ -87,7 +104,7 @@ class Session:
                 LOG.warning('retry %d times: %r', retry_count, request)
 
             future = adapters.FutureAdapter(
-                self.executor.submit(self.send_blocking, request, **kwargs)
+                submit(self.send_blocking, request, **kwargs)
             )
             try:
                 return await future.get_result()
