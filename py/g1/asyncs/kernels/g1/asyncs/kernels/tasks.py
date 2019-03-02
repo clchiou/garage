@@ -29,6 +29,12 @@ class Task:
     * ``get_result`` and ``get_exception`` does not take a ``timeout``
       argument.  While it is possible to add a ``timeout`` argument, as
       a convention we would prefer not to.
+
+    NOTE: Although task is cancellable, this should be the last resort
+    because a cancel only takes effect on the task's next blocking trap,
+    and this may take much longer than desired; for example, if a task
+    is sending through a socket and the socket's buffer is somehow never
+    full, this task may never be blocked and stay running forever.
     """
 
     @staticmethod
