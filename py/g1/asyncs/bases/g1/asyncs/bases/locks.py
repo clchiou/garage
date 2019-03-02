@@ -97,8 +97,8 @@ class Condition:
     async def wait(self):
         """Wait until notified.
 
-        Unlike ``threading.Condition.wait`` (which returns a boolean),
-        this method does not return any value.
+        To be somehow compatible with ``threading.Condition.wait``, this
+        always return true (since it never times out).
         """
         ASSERT.true(self._lock.is_owner())
         waiter = Gate()
@@ -111,6 +111,7 @@ class Condition:
             await waiter.wait()
         finally:
             await self._lock.acquire()
+        return True
 
     def notify(self, n=1):
         ASSERT.true(self._lock.is_owner())
