@@ -119,6 +119,9 @@ class Assertions:
             raise self._make_exc(message.format(*args), cond)
         return cond
 
+    def unreachable(self, message, *args):
+        raise self._make_exc(message.format(*args))
+
     def _assert_1(self, predicate, arg, *, message):
         if not predicate(arg):
             raise self._make_exc(message.format(arg), arg)

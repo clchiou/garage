@@ -17,6 +17,10 @@ class AssertionsTest(unittest.TestCase):
         with self.assertRaises(CustomError):
             assertions.true(False)
 
+    def test_unreachable(self):
+        with self.assertRaisesRegex(AssertionError, 'error 1'):
+            ASSERT.unreachable('error {}', 1)
+
     def test_assertion_methods_pass(self):
         checks = [
             ('__call__', (1, ''), 1),
