@@ -6,7 +6,7 @@ __all__ = [
 import itertools
 import logging
 import os
-import weakref
+import sys
 
 from g1.bases.assertions import ASSERT
 from g1.threads import actors
@@ -14,6 +14,9 @@ from g1.threads import futures
 from g1.threads import queues
 
 LOG = logging.getLogger(__name__)
+
+# Python 3.4 implements PEP 442 for safe ``__del__``.
+ASSERT.greater_or_equal(sys.version_info, (3, 4))
 
 
 class Executor:
@@ -54,10 +57,10 @@ class Executor:
             ) for name in names
         )
 
-        # Add this ``finalize`` so that, when the application does not
-        # shut down the executor and did not set daemon to true, the
-        # actor threads (and then the main process) could still exit.
-        weakref.finalize(self, _finalize_executor, self.queue)
+    def __del__(self):
+        num_items = len(self.queue.close(graceful=False))
+        if num_items:
+            LOG.warning('finalize: drop %d tasks', num_items)
 
     def __enter__(self):
         return self
@@ -90,14 +93,6 @@ class Executor:
                 LOG.error('executor crash: %r', stub, exc_info=exc)
         if stubs:
             LOG.warning('not join %d executor', len(stubs))
-
-
-def _finalize_executor(queue):
-    # If we end up here, it is likely that the remaining tasks in the
-    # queue should not even be started (thus ``graceful=False``).
-    num_items = len(queue.close(graceful=False))
-    if num_items:
-        LOG.warning('finalize: drop %d tasks', num_items)
 
 
 class PriorityExecutor(Executor):

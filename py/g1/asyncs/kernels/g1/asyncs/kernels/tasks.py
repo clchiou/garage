@@ -4,7 +4,7 @@ __all__ = [
 
 import inspect
 import logging
-import weakref
+import sys
 
 from g1.bases.assertions import ASSERT
 
@@ -13,6 +13,9 @@ from . import errors
 from . import traps
 
 LOG = logging.getLogger(__name__)
+
+# Python 3.4 implements PEP 442 for safe ``__del__``.
+ASSERT.greater_or_equal(sys.version_info, (3, 4))
 
 
 class Task:
@@ -49,19 +52,11 @@ class Task:
         self._result = None
         self._exception = None
         self._callbacks = []
-        # Extra debug info (pre-format it to prevent it from leaking
-        # into logging sub-system).
-        task_repr = '<%s at %#x: %r, ...>' % (
-            self.__class__.__qualname__,
-            id(self),
-            self._coroutine,
-        )
-        self._finalizer = weakref.finalize(
-            self,
-            LOG.warning,
-            'task is garbage-collected but never joined: %s',
-            task_repr,
-        )
+        self._joined = False
+
+    def __del__(self):
+        if not self._joined:
+            LOG.warning('task is garbage-collected but never joined: %r', self)
 
     def __repr__(self):
         return '<%s at %#x: %r, ticks=%d, %s, %r, %r>' % (
@@ -82,7 +77,7 @@ class Task:
         contexts.get_kernel().cancel(self)
 
     async def join(self):
-        self._finalizer.detach()
+        self._joined = True
         await traps.join(self)
 
     async def get_result(self):
@@ -95,7 +90,7 @@ class Task:
 
     def get_result_nonblocking(self):
         ASSERT.true(self.is_completed())
-        self._finalizer.detach()
+        self._joined = True
         if self._exception:
             raise self._exception
         else:
@@ -103,7 +98,7 @@ class Task:
 
     def get_exception_nonblocking(self):
         ASSERT.true(self.is_completed())
-        self._finalizer.detach()
+        self._joined = True
         return self._exception
 
     #
