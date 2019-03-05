@@ -8,6 +8,8 @@ from g1.bases.assertions import (
 
 class AssertionsTest(unittest.TestCase):
 
+    assert_ = Assertions(AssertionError)
+
     def test_custom_exc_type(self):
 
         class CustomError(Exception):
@@ -81,12 +83,12 @@ class AssertionsTest(unittest.TestCase):
         with self.subTest(check='__call__'):
             pattern = r'some message 1'
             with self.assertRaisesRegex(AssertionError, pattern) as cm:
-                ASSERT(False, 'some message {}', 1)
+                self.assert_(False, 'some message {}', 1)
             self.assertEqual(cm.exception.args[1:], (False, ))
         with self.subTest(check='predicate'):
             pattern = r'expect .*is_even.*, not 1'
             with self.assertRaisesRegex(AssertionError, pattern) as cm:
-                ASSERT.predicate(1, is_even)
+                self.assert_.predicate(1, is_even)
             self.assertEqual(cm.exception.args[1:], (1, ))
         checks = [
             ('true', (0, ), r'expect true-value, not 0'),
@@ -169,7 +171,7 @@ class AssertionsTest(unittest.TestCase):
         ]
         for check_name, args, pattern in checks:
             with self.subTest(check=check_name):
-                check = getattr(ASSERT, check_name)
+                check = getattr(self.assert_, check_name)
                 with self.assertRaisesRegex(AssertionError, pattern) as cm:
                     check(*args)
                 self.assertEqual(cm.exception.args[1:], args)
@@ -199,7 +201,7 @@ class AssertionsTest(unittest.TestCase):
         ]
         for check_name, collection in checks:
             with self.subTest(check=check_name):
-                check = getattr(ASSERT, check_name)
+                check = getattr(self.assert_, check_name)
                 with self.assertRaises(AssertionError) as cm:
                     check(collection)
                 self.assertEqual(cm.exception.args[1:], (collection, ))

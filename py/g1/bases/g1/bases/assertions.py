@@ -343,4 +343,4 @@ class Assertions:
     )
 
 
-ASSERT = Assertions(AssertionError)
+ASSERT = Assertions(lambda message, *_: AssertionError(message))
