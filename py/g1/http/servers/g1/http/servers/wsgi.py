@@ -22,7 +22,6 @@ import socket
 import ssl
 import sys
 import urllib.parse
-import weakref
 
 from g1.asyncs import servers
 from g1.asyncs.bases import locks
@@ -138,8 +137,6 @@ class HttpSession:
         self._application = application
         self._environ = environ
         self._streams = {}
-        # Pass a weak ref to ``HttpStream`` objects to break cycle.
-        self._ref = weakref.ref(self)
 
         # Own C objects to prevent them from being garbage-collected.
         self._user_data = ctypes.py_object(self)
@@ -388,7 +385,7 @@ class HttpSession:
             if frame.headers.cat == NGHTTP2_HCAT_REQUEST:
                 stream_id = ASSERT.not_in(frame.hd.stream_id, self._streams)
                 LOG.debug('make stream: %r: stream_id=%d', self, stream_id)
-                self._streams[stream_id] = HttpStream(self._ref, stream_id)
+                self._streams[stream_id] = HttpStream(self, stream_id)
 
         return 0
 
@@ -538,8 +535,8 @@ class HttpStream:
     accesses its private fields (through a weak pointer).
     """
 
-    def __init__(self, session_ref, stream_id):
-        self._session_ref = session_ref
+    def __init__(self, session, stream_id):
+        self._session = session
         self._stream_id = stream_id
         self._task = None
         self._request_headers = collections.defaultdict(list)
@@ -552,13 +549,9 @@ class HttpStream:
         return '<%s at %#x: session=%r, stream=%d>' % (
             self.__class__.__qualname__,
             id(self),
-            self._session_ref(),
+            self._session,
             self._stream_id,
         )
-
-    @property
-    def _session(self):
-        return ASSERT.not_none(self._session_ref())
 
     #
     # WSGI interface.
