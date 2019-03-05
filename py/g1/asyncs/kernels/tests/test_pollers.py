@@ -270,33 +270,54 @@ class SelectEpollTest(unittest.TestCase):
         with self.assertRaises(FileNotFoundError):
             self.epoll.unregister(self.r)
 
+    def test_regular_file(self):
+        r = os.open(os.devnull, os.O_RDONLY)
+        w = os.open(os.devnull, os.O_WRONLY)
+        try:
+            # You cannot register regular file.
+            with self.assertRaises(PermissionError):
+                self.epoll.register(r, select.EPOLLIN)
+            with self.assertRaises(PermissionError):
+                self.epoll.register(w, select.EPOLLOUT)
+        finally:
+            os.close(r)
+            os.close(w)
+
     def test_close_pipe(self):
         self.epoll.register(self.r, select.EPOLLIN)
         self.epoll.register(self.w, select.EPOLLOUT)
-        self.assertEqual(self.epoll.poll(1), [(self.w, select.EPOLLOUT)])
+        self.assertEqual(self.epoll.poll(), [(self.w, select.EPOLLOUT)])
         os.close(self.w)
-        # ``epoll`` does not inform you that `self.w` is closed; you
-        # only get informed on `self.r`.
-        self.assertEqual(self.epoll.poll(1), [(self.r, select.EPOLLHUP)])
+        # ``epoll`` does not inform you that ``self.w`` is closed; you
+        # only get informed on ``self.r``.
+        self.assertEqual(self.epoll.poll(), [(self.r, select.EPOLLHUP)])
 
     def test_close_socket(self):
         s0, s1 = socket.socketpair()
         s0.setblocking(False)
+        s1.setblocking(False)
+        self.epoll.register(s0.fileno(), select.EPOLLIN)
+        self.epoll.register(s1.fileno(), select.EPOLLOUT)
+        self.assertEqual(
+            self.epoll.poll(timeout=0),
+            [(s1.fileno(), select.EPOLLOUT)],
+        )
         s1.close()
         try:
-            self.epoll.register(s0.fileno(), select.EPOLLIN)
+            # ``epoll`` does not inform you that ``s1`` is closed; you
+            # only get informed on ``s0``.
             self.assertEqual(
-                self.epoll.poll(1),
+                self.epoll.poll(timeout=0),
                 [(s0.fileno(), select.EPOLLIN | select.EPOLLHUP)],
             )
             self.epoll.modify(s0.fileno(), select.EPOLLOUT)
             self.assertEqual(
-                self.epoll.poll(1),
+                self.epoll.poll(timeout=0),
                 [(s0.fileno(), select.EPOLLOUT | select.EPOLLHUP)],
             )
             self.epoll.modify(s0.fileno(), select.EPOLLIN | select.EPOLLOUT)
             self.assertEqual(
-                self.epoll.poll(1),
+                self.epoll.poll(timeout=0),
                 [(
                     s0.fileno(),
                     select.EPOLLIN | select.EPOLLOUT | select.EPOLLHUP,
@@ -304,6 +325,8 @@ class SelectEpollTest(unittest.TestCase):
             )
         finally:
             s0.close()
+        # ``epoll`` does not inform you that ``s0`` is closed.
+        self.assertEqual(self.epoll.poll(timeout=0), [])
 
 
 if __name__ == '__main__':
