@@ -115,5 +115,37 @@ class NondataPropertyTest(unittest.TestCase):
         self.assertIn('p1', t1.__dict__)
 
 
+class MakeReprTest(unittest.TestCase):
+
+    def test_make_repr(self):
+
+        class Foo:
+
+            class Bar:
+                x = 1
+                y = 2
+
+        obj = Foo.Bar()
+        prefix = '%s.%s %#x' % (
+            Foo.Bar.__module__, Foo.Bar.__qualname__, id(obj)
+        )
+
+        r = classes.make_repr()
+        self.assertEqual(r(obj), f'<{prefix}>')
+
+        r = classes.make_repr('x={self.x} y={self.y}')
+        self.assertEqual(r(obj), f'<{prefix} x=1 y=2>')
+
+        r = classes.make_repr('sum={sum}', sum=lambda self: self.x + self.y)
+        self.assertEqual(r(obj), f'<{prefix} sum=3>')
+
+        with self.assertRaises(AssertionError):
+            classes.make_repr('{}', self=None)
+        with self.assertRaises(AssertionError):
+            classes.make_repr('{}', __self_id=None)
+        with self.assertRaises(AssertionError):
+            classes.make_repr(x=lambda self: self.x)
+
+
 if __name__ == '__main__':
     unittest.main()

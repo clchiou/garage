@@ -2,6 +2,7 @@
 
 __all__ = [
     'SingletonMeta',
+    'make_repr',
     'memorizing_property',
     'nondata_property',
 ]
@@ -59,3 +60,36 @@ def memorizing_property(func):
         return value
 
     return wrapper
+
+
+def make_repr(template='', **extractors):
+    """Make ``__repr__``."""
+
+    ASSERT.not_in('self', extractors)
+    ASSERT.not_in('__self_id', extractors)
+    if not template:
+        ASSERT.empty(extractors)
+
+    template = (
+        '<'
+        '{self.__class__.__module__}.'
+        '{self.__class__.__qualname__} '
+        '{__self_id:#x}'
+        '%s%s'
+        '>'
+    ) % (template and ' ', template or '')
+
+    extractors = tuple(extractors.items())
+
+    if extractors:
+
+        def __repr__(self):
+            kwargs = {name: extractor(self) for name, extractor in extractors}
+            return template.format(self=self, __self_id=id(self), **kwargs)
+
+    else:
+
+        def __repr__(self):
+            return template.format(self=self, __self_id=id(self))
+
+    return __repr__
