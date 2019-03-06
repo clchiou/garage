@@ -112,16 +112,13 @@ class _ServerSupervisor:
         self._initiate_exit(None)
 
     async def _on_signal(self):
-        signal_queue = signals.SignalQueue()
-        try:
+        with signals.SignalSource() as source:
             for signum in EXIT_SIGNUMS:
-                signal_queue.subscribe(signum)
-            LOG.info('receive signal: %r', await signal_queue.get())
+                source.enable(signum)
+            LOG.info('receive signal: %r', await source.get())
             self._initiate_exit(None)
-            LOG.info('receive signal: %r', await signal_queue.get())
+            LOG.info('receive signal: %r', await source.get())
             self._raise_error('repeated signals')
-        finally:
-            signal_queue.close()
 
     async def _join_server_tasks(self):
         async for task in self.server_queue:

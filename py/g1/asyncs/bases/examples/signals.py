@@ -12,18 +12,16 @@ from g1.asyncs.bases import timers
 async def handle_signals(duration):
     print('pid: %d' % os.getpid())
     timers.timeout_after(duration)
-    queue = signals.SignalQueue()
-    try:
+    with signals.SignalSource() as source:
         signums = [signal.SIGINT, signal.SIGTERM]
         print('handle signals for %.3f seconds: %r' % (duration, signums))
         for signum in signums:
-            queue.subscribe(signum)
-        while True:
-            print('receive signal: %r' % await queue.get())
-    except timers.Timeout:
-        print('timeout')
-    finally:
-        queue.close()
+            source.enable(signum)
+        try:
+            while True:
+                print('receive signal: %r' % await source.get())
+        except timers.Timeout:
+            print('timeout')
 
 
 def main(argv):

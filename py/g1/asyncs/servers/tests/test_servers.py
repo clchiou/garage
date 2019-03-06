@@ -44,7 +44,7 @@ class SuperviseServersTest(LoggerMixin, unittest.TestCase):
         self.tq = tasks.CompletionQueue()
 
         mock = unittest.mock.patch(servers.__name__ + '.signals').start()
-        mock.SignalQueue().get = mocked_signal_queue_get
+        mock.SignalSource().__enter__().get = mocked_signal_queue_get
 
     def tearDown(self):
         super().tearDown()
