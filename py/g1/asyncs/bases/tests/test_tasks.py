@@ -188,7 +188,7 @@ class CompletionQueueWithoutKernelTest(unittest.TestCase):
         self.assertFalse(tq)
         self.assertEqual(len(tq), 0)
 
-        task = Task(square(7))
+        task = Task(None, square(7))
         tq.put(task)
         self.assertFalse(tq.is_closed())
         self.assertTrue(tq)

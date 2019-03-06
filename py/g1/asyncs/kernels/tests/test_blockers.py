@@ -43,11 +43,11 @@ class TaskCompletionBlockerTest(unittest.TestCase):
         async def func():
             pass
 
-        self.t1 = tasks.Task(func())
-        self.t2 = tasks.Task(func())
-        self.t3 = tasks.Task(func())
-        self.t4 = tasks.Task(func())
-        self.t5 = tasks.Task(func())
+        self.t1 = tasks.Task(None, func())
+        self.t2 = tasks.Task(None, func())
+        self.t3 = tasks.Task(None, func())
+        self.t4 = tasks.Task(None, func())
+        self.t5 = tasks.Task(None, func())
         self.ts = [self.t1, self.t2, self.t3, self.t4, self.t5]
 
         self.b = blockers.TaskCompletionBlocker()

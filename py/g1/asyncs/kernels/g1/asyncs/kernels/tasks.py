@@ -8,7 +8,6 @@ import sys
 
 from g1.bases.assertions import ASSERT
 
-from . import contexts
 from . import errors
 from . import traps
 
@@ -45,7 +44,8 @@ class Task:
         # ``types.coroutine`` returns a generator function.
         return inspect.iscoroutine(coro) or inspect.isgenerator(coro)
 
-    def __init__(self, coroutine):
+    def __init__(self, kernel, coroutine):
+        self._kernel = kernel
         self._coroutine = ASSERT.predicate(coroutine, self.is_coroutine)
         self._num_ticks = 0
         self._completed = False
@@ -74,7 +74,7 @@ class Task:
 
     def cancel(self):
         # Add ``Task.cancel`` for convenience.
-        contexts.get_kernel().cancel(self)
+        self._kernel.cancel(self)
 
     async def join(self):
         self._joined = True

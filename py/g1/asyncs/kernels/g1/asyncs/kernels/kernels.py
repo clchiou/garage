@@ -264,6 +264,7 @@ class Kernel:
 
     def _join(self, task, trap):
         ASSERT.is_(trap.kind, traps.Traps.JOIN)
+        ASSERT.is_(trap.task._kernel, self)
         ASSERT.is_not(trap.task, task)  # You can't join yourself.
         if trap.task.is_completed():
             self._ready_tasks.append(TaskReady(task, None, None))
@@ -327,7 +328,7 @@ class Kernel:
             coroutine = awaitable.__await__()
         else:
             coroutine = awaitable()
-        task = tasks.Task(coroutine)
+        task = tasks.Task(self, coroutine)
         self._ready_tasks.append(TaskReady(task, None, None))
         self._num_tasks += 1
         return task
@@ -350,12 +351,14 @@ class Kernel:
         """
         ASSERT.false(self._closed)
         self._assert_owner()
+        ASSERT.is_(task._kernel, self)
         if not task.is_completed():
             self._disrupt(task, errors.TaskCancellation)
 
     def timeout_after(self, task, duration):
         ASSERT.false(self._closed)
         self._assert_owner()
+        ASSERT.is_(task._kernel, self)
         if duration is None:
             return lambda: None
         # Even if duration <= 0, the kernel should raise ``Timeout`` at

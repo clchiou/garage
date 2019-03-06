@@ -73,6 +73,26 @@ class KernelTest(unittest.TestCase):
         self.assertEqual(self.k.get_current_task(), None)
         self.assertEqual(self.k.get_all_tasks(), [])
 
+    def test_disallow_across_kernel(self):
+
+        async def f():
+            pass
+
+        async def join():
+            await traps.join(test_task)
+
+        with kernels.Kernel(sanity_check_frequency=1) as k:
+            test_task = k.spawn(f)
+
+        with self.assertRaisesRegex(AssertionError, r'expect.*Kernel'):
+            self.k.run(join())
+
+        with self.assertRaisesRegex(AssertionError, r'expect.*Kernel'):
+            self.k.cancel(test_task)
+
+        with self.assertRaisesRegex(AssertionError, r'expect.*Kernel'):
+            self.k.timeout_after(test_task, 0)
+
     def test_get_current_task(self):
 
         async def f():

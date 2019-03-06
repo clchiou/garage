@@ -23,7 +23,7 @@ class TaskTest(unittest.TestCase):
             raise exc
 
         records = []
-        task = tasks.Task(square(7))
+        task = tasks.Task(None, square(7))
         task.add_callback(records.append)
         self.assertFalse(task.is_completed())
         self.assertEqual(records, [])
@@ -38,7 +38,7 @@ class TaskTest(unittest.TestCase):
         task.add_callback(records.append)
         self.assertEqual(records, [task, task])
 
-        task = tasks.Task(raises(ValueError('hello')))
+        task = tasks.Task(None, raises(ValueError('hello')))
         self.assertFalse(task.is_completed())
         self.assertIsNone(task.tick(None, None))
         self.assertTrue(task.is_completed())
@@ -48,14 +48,14 @@ class TaskTest(unittest.TestCase):
         with self.assertRaises(AssertionError):
             task.tick(None, None)
 
-        task = tasks.Task(raises(SystemExit))
+        task = tasks.Task(None, raises(SystemExit))
         self.assertIsNone(task.tick(None, None))
         with self.assertRaises(SystemExit):
             task.get_result_nonblocking()
 
     def test_trap(self):
         sentinel = object()
-        task = tasks.Task(traps.join(sentinel))
+        task = tasks.Task(None, traps.join(sentinel))
         self.assertFalse(task.is_completed())
 
         trap = task.tick(None, None)
@@ -71,7 +71,7 @@ class TaskTest(unittest.TestCase):
 
     def test_cancel(self):
         sentinel = object()
-        task = tasks.Task(traps.join(sentinel))
+        task = tasks.Task(None, traps.join(sentinel))
         self.assertFalse(task.is_completed())
         self.assertIsNotNone(task.tick(None, None))
         self.assertIsNone(task.tick(None, errors.TaskCancellation))
@@ -90,11 +90,11 @@ class CompletionQeueuTest(unittest.TestCase):
 
         cq = futures.CompletionQueue()
 
-        t1 = tasks.Task(square(5))
+        t1 = tasks.Task(None, square(5))
         t1.tick(None, None)
         self.assertTrue(t1.is_completed())
 
-        t2 = tasks.Task(square(7))
+        t2 = tasks.Task(None, square(7))
         self.assertFalse(t2.is_completed())
 
         cq.put(t1)
