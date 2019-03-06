@@ -26,7 +26,7 @@ class FunctionalsTest(unittest.TestCase):
             pass
 
         func = functionals.compose(print, partial(Foo))
-        pattern = r'<Composer at 0x.* of: print, .*partial.*Foo.*>'
+        pattern = r'<.*Composer 0x.* \[print, .*partial.*Foo.*\]>'
         self.assertRegex(repr(func), pattern)
         self.assertRegex(str(func), pattern)
 

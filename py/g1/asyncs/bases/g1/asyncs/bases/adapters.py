@@ -11,6 +11,7 @@ import ssl
 
 from g1.asyncs.kernels import contexts
 from g1.asyncs.kernels import traps
+from g1.bases import classes
 from g1.bases.assertions import ASSERT
 
 LOG = logging.getLogger(__name__)
@@ -22,12 +23,7 @@ class AdapterBase:
         self.__target = target
         self.__fields = ASSERT.not_contains(fields, 'target')
 
-    def __repr__(self):
-        return '<%s at %#x: %r>' % (
-            self.__class__.__qualname__,
-            id(self),
-            self.__target,
-        )
+    __repr__ = classes.make_repr('{self._AdapterBase__target!r}')
 
     def __getattr__(self, name):
         if name == 'target':

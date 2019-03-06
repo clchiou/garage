@@ -10,6 +10,7 @@ import os
 import threading
 import time
 
+from g1.bases import classes
 from g1.bases import timers
 from g1.bases.assertions import ASSERT
 
@@ -102,12 +103,10 @@ class Kernel:
             num_timeout=len(self._timeout_after_blocker),
         )
 
-    def __repr__(self):
-        return '<%s at %#x: %r>' % (
-            self.__class__.__qualname__,
-            id(self),
-            self.get_stats(),
-        )
+    __repr__ = classes.make_repr(
+        '{stats!r}',
+        stats=lambda self: self.get_stats(),
+    )
 
     def close(self):
         self._assert_owner()

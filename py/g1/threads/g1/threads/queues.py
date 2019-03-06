@@ -15,6 +15,7 @@ import heapq
 import sys
 import threading
 
+from g1.bases import classes
 from g1.bases import timers
 from g1.bases.assertions import ASSERT
 
@@ -47,14 +48,11 @@ class QueueBase:
         self.__not_full = threading.Condition(self.__lock)
         self.__closed = False
 
-    def __repr__(self):
-        return '<%s at %#x: %s, capacity=%d, size=%d>' % (
-            self.__class__.__qualname__,
-            id(self),
-            'closed' if self.__closed else 'open',
-            self.capacity,
-            len(self),
-        )
+    __repr__ = classes.make_repr(
+        '{state} capacity={self.capacity} size={size}',
+        state=lambda self: 'closed' if self.__closed else 'open',
+        size=len,
+    )
 
     def __bool__(self):
         with self.__lock:

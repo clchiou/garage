@@ -10,7 +10,8 @@ import collections
 import collections.abc
 import operator
 
-from g1.bases.assertions import ASSERT
+from . import classes
+from .assertions import ASSERT
 
 
 class LruCache(collections.abc.MutableMapping):
@@ -82,12 +83,11 @@ class Multiset:
             _num_elements=self._num_elements,
         )
 
-    def __repr__(self):
-        return '<%s at %#x: {%s}>' % (
-            self.__class__.__qualname__,
-            id(self),
-            ', '.join('%r: %d' % pair for pair in self._elements.items()),
-        )
+    __repr__ = classes.make_repr(
+        '{{{items}}}',
+        items=lambda self:
+        ', '.join('%r: %d' % pair for pair in self._elements.items()),
+    )
 
     def __contains__(self, value):
         return value in self._elements
@@ -270,12 +270,11 @@ class Namespace:
                 raise ValueError('name %r starts with \'_\'' % name)
         super().__setattr__('_entries', entries)
 
-    def __repr__(self):
-        return '<%s at %#x: %r>' % (
-            self.__class__.__qualname__,
-            id(self),
-            self._entries,
-        )
+    __repr__ = classes.make_repr(
+        '{{{entries}}}',
+        entries=lambda self:
+        ', '.join('%s=%r' % pair for pair in self._entries.items()),
+    )
 
     def __iter__(self):
         return iter(self._entries)

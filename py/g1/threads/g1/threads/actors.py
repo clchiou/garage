@@ -27,6 +27,7 @@ import logging
 import threading
 import typing
 
+from g1.bases import classes
 from g1.bases.assertions import ASSERT
 from g1.bases.collections import Namespace
 from g1.threads import futures
@@ -71,12 +72,7 @@ class Stub:
         )
         self._thread.start()
 
-    def __repr__(self):
-        return '<%s at %#x: %r>' % (
-            self.__class__.__qualname__,
-            id(self),
-            self._thread,
-        )
+    __repr__ = classes.make_repr('{self._thread!r}')
 
     def __enter__(self):
         return self

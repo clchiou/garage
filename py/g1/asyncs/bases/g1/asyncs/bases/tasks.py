@@ -17,6 +17,7 @@ import collections
 import logging
 
 from g1.asyncs.kernels import contexts
+from g1.bases import classes
 
 # Re-export errors.
 from g1.asyncs.kernels.errors import Cancelled
@@ -43,14 +44,12 @@ class CompletionQueue:
         self._uncompleted = set()
         self._closed = False
 
-    def __repr__(self):
-        return '<%s at %#x: %s, completed=%d, uncompleted=%d>' % (
-            self.__class__.__qualname__,
-            id(self),
-            'closed' if self._closed else 'open',
-            len(self._completed),
-            len(self._uncompleted),
-        )
+    __repr__ = classes.make_repr(
+        '{state} uncompleted={uncompleted} completed={completed}',
+        state=lambda self: 'closed' if self._closed else 'open',
+        uncompleted=lambda self: len(self._uncompleted),
+        completed=lambda self: len(self._completed),
+    )
 
     async def __aenter__(self):
         return self

@@ -8,6 +8,7 @@ __all__ = [
 import collections
 import io
 
+from g1.bases import classes
 from g1.bases.assertions import ASSERT
 
 from . import locks
@@ -41,12 +42,10 @@ class StreamBase:
             buffer = self._buffer_type()
         return buffer
 
-    def __repr__(self):
-        return '<%s at %#x: %s>' % (
-            self.__class__.__qualname__,
-            id(self),
-            'closed' if self._closed else 'open',
-        )
+    __repr__ = classes.make_repr(
+        '{state}',
+        state=lambda self: 'closed' if self._closed else 'open',
+    )
 
     def __aiter__(self):
         return self

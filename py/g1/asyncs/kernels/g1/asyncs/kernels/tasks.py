@@ -6,6 +6,7 @@ import inspect
 import logging
 import sys
 
+from g1.bases import classes
 from g1.bases.assertions import ASSERT
 
 from . import errors
@@ -58,16 +59,11 @@ class Task:
         if not self._joined:
             LOG.warning('task is garbage-collected but never joined: %r', self)
 
-    def __repr__(self):
-        return '<%s at %#x: %r, ticks=%d, %s, %r, %r>' % (
-            self.__class__.__qualname__,
-            id(self),
-            self._coroutine,
-            self._num_ticks,
-            'completed' if self._completed else 'uncompleted',
-            self._result,
-            self._exception,
-        )
+    __repr__ = classes.make_repr(
+        '{self._coroutine!r} ticks={self._num_ticks} '
+        '{state} {self._result!r} {self._exception!r}',
+        state=lambda self: 'completed' if self._completed else 'uncompleted',
+    )
 
     def is_completed(self):
         return self._completed

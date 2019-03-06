@@ -37,8 +37,11 @@ class Composer:
         self._first = funcs[0]
         self._rest = funcs[1:]
 
+    # We can't use ``classes.make_repr`` here because that will result
+    # in cyclic dependency.
     def __repr__(self):
-        return '<%s at %#x of: %s>' % (
+        return '<%s.%s %#x [%s]>' % (
+            self.__class__.__module__,
             self.__class__.__qualname__,
             id(self),
             ', '.join(

@@ -28,6 +28,7 @@ from g1.asyncs.bases import locks
 from g1.asyncs.bases import streams
 from g1.asyncs.bases import tasks
 from g1.asyncs.bases import timers
+from g1.bases import classes
 from g1.bases.assertions import ASSERT
 
 from . import nghttp2
@@ -147,14 +148,12 @@ class HttpSession:
             address_of(self._user_data),
         )
 
-    def __repr__(self):
-        return '<%s at %#x: %s, session=%#x, streams=%d>' % (
-            self.__class__.__qualname__,
-            id(self),
-            self._address,
-            ctypes.addressof(self._session.contents) if self._session else 0,
-            len(self._streams),
-        )
+    __repr__ = classes.make_repr(
+        '{self._address} session={session} streams={streams}',
+        session=lambda self: \
+        ctypes.addressof(self._session.contents) if self._session else 0,
+        streams=lambda self: len(self._streams),
+    )
 
     async def serve(self):
         ASSERT.not_none(self._session)
@@ -545,13 +544,9 @@ class HttpStream:
         self._response_body = streams.BytesStream()
         self._response_body_deferred = False
 
-    def __repr__(self):
-        return '<%s at %#x: session=%r, stream=%d>' % (
-            self.__class__.__qualname__,
-            id(self),
-            self._session,
-            self._stream_id,
-        )
+    __repr__ = classes.make_repr(
+        'session={self._session!r} stream={self._stream_id}'
+    )
 
     #
     # WSGI interface.

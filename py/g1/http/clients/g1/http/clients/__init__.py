@@ -22,6 +22,7 @@ import requests.cookies
 from g1.asyncs.bases import adapters
 from g1.asyncs.bases import tasks
 from g1.asyncs.bases import timers
+from g1.bases import classes
 from g1.bases import collections
 from g1.bases.assertions import ASSERT
 from g1.threads import executors
@@ -182,14 +183,10 @@ class Request:
         self.url = url
         self._kwargs = kwargs
 
-    def __repr__(self):
-        return '<%s at %#x: %s %s kwargs=%r>' % (
-            self.__class__.__qualname__,
-            id(self),
-            self.method.upper(),
-            self.url,
-            self._kwargs,
-        )
+    __repr__ = classes.make_repr(
+        '{method} {self.url} kwargs={self._kwargs!r}',
+        method=lambda self: self.method.upper(),
+    )
 
     @property
     def headers(self):

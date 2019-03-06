@@ -16,6 +16,8 @@ __all__ = [
 import collections
 import heapq
 
+from g1.bases import classes
+
 from . import locks
 
 
@@ -42,14 +44,11 @@ class QueueBase:
         self.__putter_gate = locks.Gate()
         self.__closed = False
 
-    def __repr__(self):
-        return '<%s at %#x: %s, capacity=%d, size=%d>' % (
-            self.__class__.__qualname__,
-            id(self),
-            'closed' if self.__closed else 'open',
-            self.capacity,
-            len(self),
-        )
+    __repr__ = classes.make_repr(
+        '{state}, capacity={self.capacity}, size={size}',
+        state=lambda self: 'closed' if self.__closed else 'open',
+        size=len,
+    )
 
     def __bool__(self):
         return bool(self.__queue)

@@ -13,6 +13,7 @@ __all__ = [
 
 from g1.asyncs.kernels import contexts
 from g1.asyncs.kernels import traps
+from g1.bases import classes
 from g1.bases.assertions import ASSERT
 
 
@@ -21,12 +22,10 @@ class Lock:
     def __init__(self):
         self._locked = False
 
-    def __repr__(self):
-        return '<%s at %#x: %s>' % (
-            self.__class__.__qualname__,
-            id(self),
-            'locked' if self._locked else 'unlocked',
-        )
+    __repr__ = classes.make_repr(
+        '{state}',
+        state=lambda self: 'locked' if self._locked else 'unlocked',
+    )
 
     async def __aenter__(self):
         # Unlike ``threading.Lock``, here we return the object.
@@ -79,12 +78,7 @@ class Condition:
         self.acquire_nonblocking = self._lock.acquire_nonblocking
         self.release = self._lock.release
 
-    def __repr__(self):
-        return '<%s at %#x: %r>' % (
-            self.__class__.__qualname__,
-            id(self),
-            self._lock,
-        )
+    __repr__ = classes.make_repr('{self._lock!r}')
 
     async def __aenter__(self):
         # Unlike ``threading.Condition``, here we return the object.
@@ -127,12 +121,10 @@ class Event:
     def __init__(self):
         self._flag = False
 
-    def __repr__(self):
-        return '<%s at %#x: %s>' % (
-            self.__class__.__qualname__,
-            id(self),
-            'set' if self._flag else 'unset',
-        )
+    __repr__ = classes.make_repr(
+        '{state}',
+        state=lambda self: 'set' if self._flag else 'unset',
+    )
 
     def is_set(self):
         return self._flag

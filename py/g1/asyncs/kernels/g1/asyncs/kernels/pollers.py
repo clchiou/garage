@@ -15,6 +15,7 @@ __all__ = [
 import math
 import select
 
+from g1.bases import classes
 from g1.bases.assertions import ASSERT
 
 
@@ -28,13 +29,10 @@ class Epoll:
         self._events = {}
         self._closed_fds = []
 
-    def __repr__(self):
-        return '<%s at %#x: %s, events=%r>' % (
-            self.__class__.__qualname__,
-            id(self),
-            'closed' if self._epoll.closed else 'open',
-            self._events,
-        )
+    __repr__ = classes.make_repr(
+        '{state} events={self._events}',
+        state=lambda self: 'closed' if self._epoll.closed else 'open',
+    )
 
     def __enter__(self):
         ASSERT.false(self._epoll.closed)

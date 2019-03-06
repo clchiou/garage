@@ -18,6 +18,7 @@ import functools
 import logging
 import threading
 
+from g1.bases import classes
 from g1.bases import timers
 from g1.bases.collections import Multiset
 from g1.threads import queues
@@ -52,14 +53,10 @@ class Future:
         self._exception = None
         self._callbacks = []
 
-    def __repr__(self):
-        return '<%s at %#x: %s, %r, %r>' % (
-            self.__class__.__qualname__,
-            id(self),
-            'completed' if self._completed else 'uncompleted',
-            self._result,
-            self._exception,
-        )
+    __repr__ = classes.make_repr(
+        '{state} {self._result!r} {self._exception!r}',
+        state=lambda self: 'completed' if self._completed else 'uncompleted',
+    )
 
     #
     # Consumer-side interface.
@@ -188,17 +185,14 @@ class CompletionQueue:
         for f in tuple(self._uncompleted):
             f.add_callback(self._on_completion)
 
-    def __repr__(self):
-        with self._lock:
-            num_uncompleted = len(self._uncompleted)
-            num_completed = len(self._completed)
-        return '<%s at %#x: %s, uncompleted=%d, completed=%d>' % (
-            self.__class__.__qualname__,
-            id(self),
-            'closed' if self._closed else 'open',
-            num_uncompleted,
-            num_completed,
-        )
+    # The two ``len(...)`` calls are not thread-safe, but probably does
+    # not matter since this is just ``__repr__``.
+    __repr__ = classes.make_repr(
+        '{state} uncompleted={uncompleted} completed={completed}',
+        state=lambda self: 'closed' if self._closed else 'open',
+        uncompleted=lambda self: len(self._uncompleted),
+        completed=lambda self: len(self._completed),
+    )
 
     def __bool__(self):
         with self._lock:
