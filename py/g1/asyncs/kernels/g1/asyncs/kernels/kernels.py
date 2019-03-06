@@ -86,9 +86,6 @@ class Kernel:
             traps.Traps.SLEEP: self._sleep,
         }
 
-    def get_current_task(self):
-        return self._current_task
-
     def get_stats(self):
         """Return internal stats."""
         return KernelStats(
@@ -167,6 +164,7 @@ class Kernel:
         If ``timeout`` is non-positive, ``run`` is guarantee to iterate
         exactly once.
         """
+        ASSERT.false(self._closed)
         self._assert_owner()
         ASSERT.none(self._current_task)  # Disallow recursive calls.
         main_task = self.spawn(awaitable) if awaitable else None
@@ -297,6 +295,9 @@ class Kernel:
     # Non-blocking traps.
     #
 
+    def get_current_task(self):
+        return self._current_task
+
     def get_all_tasks(self):
         """Return a list of all tasks (useful for debugging)."""
         self._assert_owner()
@@ -318,6 +319,7 @@ class Kernel:
 
     def spawn(self, awaitable):
         """Spawn a new task onto the kernel."""
+        ASSERT.false(self._closed)
         self._assert_owner()
         if tasks.Task.is_coroutine(awaitable):
             coroutine = awaitable
@@ -331,11 +333,13 @@ class Kernel:
         return task
 
     def close_fd(self, fd):
+        ASSERT.false(self._closed)
         self._assert_owner()
         self._poller.close_fd(fd)
 
     def unblock(self, source):
         """Unblock tasks blocked by ``source``."""
+        ASSERT.false(self._closed)
         self._assert_owner()
         self._trap_return(self._generic_blocker, source, None)
 
@@ -344,11 +348,13 @@ class Kernel:
 
         This is a no-op is task has been completed.
         """
+        ASSERT.false(self._closed)
         self._assert_owner()
         if not task.is_completed():
             self._disrupt(task, errors.TaskCancellation)
 
     def timeout_after(self, task, duration):
+        ASSERT.false(self._closed)
         self._assert_owner()
         if duration is None:
             return lambda: None
@@ -366,6 +372,7 @@ class Kernel:
     #
 
     def post_callback(self, callback):
+        ASSERT.false(self._closed)
         with self._callbacks_lock:
             self._callbacks.append(callback)
         self._nudger.nudge()

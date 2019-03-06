@@ -54,6 +54,25 @@ class KernelTest(unittest.TestCase):
 
         self.k.run(f)
 
+    def test_check_closed(self):
+        self.k.close()
+        for method, args in (
+            (self.k.run, ()),
+            (self.k.spawn, (None, )),
+            (self.k.close_fd, (None, )),
+            (self.k.unblock, (None, )),
+            (self.k.cancel, (None, )),
+            (self.k.timeout_after, (None, None)),
+            (self.k.post_callback, (None, )),
+        ):
+            with self.subTest(method):
+                with self.assertRaisesRegex(AssertionError, r'expect false'):
+                    method(*args)
+        # These methods can be called even after kernel is closed.
+        self.assertEqual(self.k.get_stats(), (0, ) * 9)
+        self.assertEqual(self.k.get_current_task(), None)
+        self.assertEqual(self.k.get_all_tasks(), [])
+
     def test_get_current_task(self):
 
         async def f():
