@@ -1,0 +1,100 @@
+#!/usr/bin/env python3
+"""Mount a squashfs image and run a program inside it."""
+
+import contextlib
+import datetime
+import os
+import os.path
+import subprocess
+import sys
+import tempfile
+
+ROOTS = (
+    '/dev/shm',
+    '/tmp',
+)
+
+
+def get_root():
+    for root in ROOTS:
+        if os.path.isdir(root):
+            break
+    else:
+        error('none of these dirs exist: %s' % (ROOTS, ))
+    return root
+
+
+def get_mount_point_prefix():
+    """Return a mount-point prefix that is human-friendly."""
+    timestamp = datetime.datetime.now().strftime('%Y-%m%d-%H%M%S')
+    return os.path.join(get_root(), '%d-%s-' % (os.geteuid(), timestamp))
+
+
+def poll_squashfuse(proc, path, timeout):
+    for _ in range(timeout * 100):
+        if os.path.isfile(path):
+            return 0
+        try:
+            proc.wait(0.01)
+        except subprocess.TimeoutExpired:
+            pass
+        else:
+            return proc.returncode
+    return 1
+
+
+def usage():
+    print('usage: %s [-h] image prog args...' % get_prog(), file=sys.stderr)
+
+
+def error(message, status=1):
+    print('%s: %s' % (get_prog(), message), file=sys.stderr)
+    sys.exit(status)
+
+
+def get_prog():
+    return os.path.basename(sys.argv[0])
+
+
+def main(argv):
+
+    if len(argv) > 1 and argv[1] == '-h':
+        usage()
+        return 0
+
+    if len(argv) < 3:
+        usage()
+        return 1
+
+    _, image, *cmd = argv
+
+    if not os.path.isfile(image):
+        error('image does not exist: %s' % image)
+
+    with contextlib.ExitStack() as stack:
+
+        mount_point = stack.enter_context(
+            tempfile.TemporaryDirectory(prefix=get_mount_point_prefix())
+        )
+
+        prog = cmd[0]
+        prog_path = cmd[0] = os.path.join(mount_point, cmd[0])
+
+        proc = subprocess.Popen(['squashfuse', '-f', image, mount_point])
+        stack.callback(proc.wait, 10)
+        stack.callback(subprocess.run, ['fusermount', '-u', '-z', mount_point])
+
+        # Unfortunately ``squashfuse`` does not notify you when it is
+        # ready, and you have to poll it.
+        status = poll_squashfuse(proc, prog_path, timeout=2)
+        if status:
+            error('unable to mount image: %s' % image, status=status)
+        # Just one more sanity check.
+        if not os.path.isfile(prog_path):
+            error('prog does not exist inside image: %s' % prog)
+
+        return subprocess.run(cmd, cwd=mount_point).returncode
+
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv))
