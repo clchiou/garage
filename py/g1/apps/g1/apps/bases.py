@@ -103,10 +103,26 @@ def prepare_startup(main, argv):
 
 
 def make_parser(main, argv):
-    return argparse.ArgumentParser(
-        prog=main.__module__ if main.__module__ != '__main__' else argv[0],
-        description=main.__doc__ or sys.modules[main.__module__].__doc__,
-    )
+
+    package = sys.modules[main.__module__].__package__
+
+    if main.__module__ != '__main__':
+        prog = main.__module__
+    elif package:
+        prog = package
+    else:
+        prog = argv[0]
+
+    if main.__doc__:
+        description = main.__doc__
+    elif sys.modules[main.__module__].__doc__:
+        description = sys.modules[main.__module__].__doc__
+    elif package and sys.modules[package].__doc__:
+        description = sys.modules[package].__doc__
+    else:
+        description = None
+
+    return argparse.ArgumentParser(prog=prog, description=description)
 
 
 def do_startup():
