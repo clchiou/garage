@@ -119,6 +119,7 @@ NGHTTP2_INITIAL_WINDOW_SIZE = (1 << 16) - 1
 
 
 @export_members
+@enum.unique  # For now it doesn't have duplicated enum values.
 class nghttp2_error(enum.IntEnum):
     NGHTTP2_ERR_DEFERRED = -508
     NGHTTP2_ERR_TEMPORAL_CALLBACK_FAILURE = -521
@@ -127,6 +128,7 @@ class nghttp2_error(enum.IntEnum):
 
 
 @export_members
+@enum.unique  # For now it doesn't have duplicated enum values.
 class nghttp2_error_code(enum.IntEnum):
     NGHTTP2_NO_ERROR = 0x00
     NGHTTP2_INTERNAL_ERROR = 0x02
@@ -142,6 +144,7 @@ class nghttp2_flag(enum.IntEnum):
 
 
 @export_members
+@enum.unique  # For now it doesn't have duplicated enum values.
 class nghttp2_frame_type(enum.IntEnum):
     NGHTTP2_DATA = 0x00
     NGHTTP2_HEADERS = 0x01
@@ -150,6 +153,7 @@ class nghttp2_frame_type(enum.IntEnum):
 
 
 @export_members
+@enum.unique  # For now it doesn't have duplicated enum values.
 class nghttp2_settings_id(enum.IntEnum):
     NGHTTP2_SETTINGS_MAX_CONCURRENT_STREAMS = 0x03
     NGHTTP2_SETTINGS_INITIAL_WINDOW_SIZE = 0x04
@@ -157,16 +161,19 @@ class nghttp2_settings_id(enum.IntEnum):
 
 
 @export_members
+@enum.unique  # For now it doesn't have duplicated enum values.
 class nghttp2_headers_category(enum.IntEnum):
     NGHTTP2_HCAT_REQUEST = 0
 
 
 @export_members
+@enum.unique  # For now it doesn't have duplicated enum values.
 class nghttp2_data_flag(enum.IntFlag):
     NGHTTP2_DATA_FLAG_EOF = 0x01
 
 
 @export_members
+@enum.unique  # For now it doesn't have duplicated enum values.
 class nghttp2_nv_flag(enum.IntFlag):
     NGHTTP2_NV_FLAG_NONE = 0
 
