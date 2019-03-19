@@ -54,6 +54,53 @@ class NondataPropertyTest(unittest.TestCase):
         self.assertEqual(t1.nondata, 1)
         self.assertEqual(t1.data, 2)
 
+    def test_abstract_method(self):
+
+        class Base:
+
+            f = classes.abstract_method
+
+        class Derived(Base):
+
+            def f(self):
+                return self.__class__
+
+        with self.assertRaises(NotImplementedError):
+            Base().f()
+
+        self.assertEqual(Derived().f(), Derived)
+
+    def test_abstract_property(self):
+
+        class Base:
+
+            p = classes.abstract_property
+            q = classes.abstract_property
+            r = classes.abstract_property
+
+        class Derived(Base):
+
+            q = 1
+
+            def __init__(self):
+                self.r = 2
+
+        b = Base()
+        d = Derived()
+
+        for name in ('p', 'q', 'r'):
+            with self.subTest(name):
+                with self.assertRaises(NotImplementedError):
+                    getattr(b, name)
+
+        with self.assertRaises(NotImplementedError):
+            getattr(d, 'p')
+        self.assertEqual(d.q, 1)
+        self.assertEqual(d.r, 2)
+
+        d.r = 0
+        self.assertEqual(d.r, 0)
+
     def test_memorizing_property(self):
 
         called = []

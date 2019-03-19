@@ -2,6 +2,8 @@
 
 __all__ = [
     'SingletonMeta',
+    'abstract_method',
+    'abstract_property',
     'make_repr',
     'memorizing_property',
     'nondata_property',
@@ -42,6 +44,13 @@ class nondata_property:
         if self.fget is None:
             raise AttributeError('unreadable attribute')
         return self.fget(obj)
+
+
+def abstract_method(self, *args, **kwargs):  # pylint: disable=unused-argument
+    raise NotImplementedError
+
+
+abstract_property = nondata_property(abstract_method)
 
 
 def memorizing_property(func):
