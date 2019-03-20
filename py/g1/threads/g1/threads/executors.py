@@ -32,6 +32,9 @@ class Executor:
         daemon=None,
     ):
 
+        # In case ``__init__`` raises.
+        self.queue = None
+
         if max_executors <= 0:
             # Use this because Executor is often used to parallelize I/O
             # instead of computationally-heavy tasks.
@@ -58,6 +61,9 @@ class Executor:
         )
 
     def __del__(self):
+        # You have to check whether ``__init__`` raises.
+        if self.queue is None:
+            return
         num_items = len(self.queue.close(graceful=False))
         if num_items:
             LOG.warning('finalize: drop %d tasks', num_items)

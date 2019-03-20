@@ -46,6 +46,10 @@ class Task:
         return inspect.iscoroutine(coro) or inspect.isgenerator(coro)
 
     def __init__(self, kernel, coroutine):
+
+        # In case ``__init__`` raises.
+        self._coroutine = None
+
         self._kernel = kernel
         self._coroutine = ASSERT.predicate(coroutine, self.is_coroutine)
         self._num_ticks = 0
@@ -56,6 +60,9 @@ class Task:
         self._joined = False
 
     def __del__(self):
+        # You have to check whether ``__init__`` raises.
+        if self._coroutine is None:
+            return
         if not self._joined:
             LOG.warning('task is garbage-collected but never joined: %r', self)
 
