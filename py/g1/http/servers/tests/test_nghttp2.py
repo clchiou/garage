@@ -1,5 +1,7 @@
 import unittest
 
+import ctypes
+
 from g1 import tests
 from g1.http.servers import nghttp2
 
@@ -38,6 +40,34 @@ class ConstantTest(unittest.TestCase, tests.CFixture):
                     var_values[macro_name],
                 )
 
+    def test_compound_types(self):
+        self.assert_c_expr(
+            ' && '.join(
+                'sizeof(%s) == %d' % (
+                    type_,
+                    ctypes.sizeof(getattr(nghttp2, type_)),
+                ) for type_ in (
+                    # nghttp2_session is an incomplete type.
+                    # 'nghttp2_session',
+                    'nghttp2_data_source',
+                    'nghttp2_frame_hd',
+                    'nghttp2_data',
+                    'nghttp2_nv',
+                    'nghttp2_priority_spec',
+                    'nghttp2_headers',
+                    'nghttp2_rst_stream',
+                    'nghttp2_push_promise',
+                    'nghttp2_goaway',
+                    'nghttp2_frame',
+                    'nghttp2_info',
+                    'nghttp2_settings_entry',
+                    # nghttp2_session_callbacks is an incomplete type.
+                    # 'nghttp2_session_callbacks',
+                    'nghttp2_data_provider',
+                )
+            )
+        )
+
     def test_enum(self):
         for py_enum_type in (
             nghttp2.nghttp2_error,
@@ -50,20 +80,10 @@ class ConstantTest(unittest.TestCase, tests.CFixture):
             nghttp2.nghttp2_headers_category,
         ):
             with self.subTest(py_enum_type):
-                members = self.get_enum_members(py_enum_type)
-                self.assertEqual(members, py_enum_type.__members__)
-                # Enum members are re-exported to the global scope.
-                for name, member in py_enum_type.__members__.items():
-                    self.assertIs(getattr(nghttp2, name), member)
-
-
-class ExportedNamesTest(unittest.TestCase):
-
-    def test_exported_names(self):
-        for name in nghttp2.__all__:
-            with self.subTest(name):
-                self.assertTrue(name.lower().startswith('nghttp2'))
-                self.assertTrue(hasattr(nghttp2, name))
+                self.assertEqual(
+                    self.get_enum_members(py_enum_type),
+                    py_enum_type.__members__,
+                )
 
 
 if __name__ == '__main__':

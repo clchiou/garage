@@ -9,7 +9,7 @@ import ssl
 
 from g1.networks.servers import TcpServer
 
-from . import nghttp2
+from . import nghttp2 as ng
 from . import wsgi
 
 logging.getLogger(__name__).addHandler(logging.NullHandler())
@@ -17,7 +17,7 @@ logging.getLogger(__name__).addHandler(logging.NullHandler())
 VERSION = '%s/nghttp2=%s' % (
     __name__,
     # pylint: disable=no-member
-    nghttp2.nghttp2_version(0).contents.version_str.decode('utf-8'),
+    ng.F.nghttp2_version(0).contents.version_str.decode('utf-8'),
 )
 
 

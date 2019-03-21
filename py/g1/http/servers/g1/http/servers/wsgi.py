@@ -6,10 +6,6 @@ incoming HTTP/2 session at a time.
 At the moment it does not implements HTTP/2 Push.
 """
 
-# We are being clever and have to disable some linter warnings.
-# pylint: disable=undefined-variable
-# pylint: disable=unused-wildcard-import
-
 __all__ = [
     'HttpSession',
 ]
@@ -30,9 +26,12 @@ from g1.asyncs.bases import tasks
 from g1.asyncs.bases import timers
 from g1.bases import classes
 from g1.bases.assertions import ASSERT
+from g1.bases.ctypes import (
+    c_blob,
+    deref_py_object_p,
+)
 
-from . import nghttp2
-from .nghttp2 import *
+from . import nghttp2 as ng
 
 LOG = logging.getLogger(__name__)
 
@@ -65,38 +64,18 @@ def as_callback(func):
     def trampoline(raw_session, *args):
         try:
             *args, session = args
-            session = dereference(session)
+            session = deref_py_object_p(session)
         except Exception:
             addr = ctypes.addressof(raw_session.contents)
             LOG.exception('%s: session=%#x: trampoline error', name, addr)
-            return NGHTTP2_ERR_CALLBACK_FAILURE
+            return ng.nghttp2_error.NGHTTP2_ERR_CALLBACK_FAILURE
         try:
             return func(session, *args)
         except Exception:
             LOG.exception('%s: %r: callback error', name, session)
-            return NGHTTP2_ERR_CALLBACK_FAILURE
+            return ng.nghttp2_error.NGHTTP2_ERR_CALLBACK_FAILURE
 
-    return getattr(nghttp2, 'nghttp2_%s_callback' % name)(trampoline)
-
-
-#
-# ctypes helpers.
-#
-# They are mainly used to convert to/back between ``HttpSession`` object
-# and C void pointer (as user data).
-#
-
-py_object_p = ctypes.POINTER(ctypes.py_object)
-
-
-def address_of(obj):
-    """Equivalent to ``(void *)&obj``."""
-    return ctypes.cast(ctypes.byref(obj), ctypes.c_void_p)
-
-
-def dereference(addr):
-    """Equivalent to ``*(py_object *)ptr``."""
-    return ctypes.cast(addr, py_object_p).contents.value
+    return ng.C['nghttp2_%s_callback' % name](trampoline)
 
 
 #
@@ -141,11 +120,11 @@ class HttpSession:
 
         # Own C objects to prevent them from being garbage-collected.
         self._user_data = ctypes.py_object(self)
-        self._session = ctypes.POINTER(nghttp2_session)()
-        nghttp2_session_server_new(
+        self._session = ctypes.POINTER(ng.nghttp2_session)()
+        ng.F.nghttp2_session_server_new(
             ctypes.byref(self._session),
             CALLBACKS,
-            address_of(self._user_data),
+            ctypes.byref(self._user_data),
         )
 
     __repr__ = classes.make_repr(
@@ -174,23 +153,29 @@ class HttpSession:
 
         self._sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 
-        settings = (nghttp2_settings_entry * 3)()
-        settings[0].settings_id = NGHTTP2_SETTINGS_MAX_CONCURRENT_STREAMS
+        settings = (ng.nghttp2_settings_entry * 3)()
+        settings[0].settings_id = \
+            ng.nghttp2_settings_id.NGHTTP2_SETTINGS_MAX_CONCURRENT_STREAMS
         settings[0].value = MAX_CONCURRENT_STREAMS
-        settings[1].settings_id = NGHTTP2_SETTINGS_INITIAL_WINDOW_SIZE
+        settings[1].settings_id = \
+            ng.nghttp2_settings_id.NGHTTP2_SETTINGS_INITIAL_WINDOW_SIZE
         settings[1].value = INITIAL_WINDOW_SIZE
-        settings[2].settings_id = NGHTTP2_SETTINGS_MAX_HEADER_LIST_SIZE
+        settings[2].settings_id = \
+            ng.nghttp2_settings_id.NGHTTP2_SETTINGS_MAX_HEADER_LIST_SIZE
         settings[2].value = MAX_HEADER_LIST_SIZE
-        nghttp2_submit_settings(
-            self._session, NGHTTP2_FLAG_NONE, settings, len(settings)
+        ng.F.nghttp2_submit_settings(
+            self._session,
+            ng.nghttp2_flag.NGHTTP2_FLAG_NONE,
+            settings,
+            len(settings),
         )
 
     async def _handle_incoming(self):
 
-        error_code = NGHTTP2_INTERNAL_ERROR
+        error_code = ng.nghttp2_error_code.NGHTTP2_INTERNAL_ERROR
         try:
 
-            while nghttp2_session_want_read(self._session):
+            while ng.F.nghttp2_session_want_read(self._session):
 
                 data = await self._sock.recv(INCOMING_BUFFER_SIZE)
                 LOG.debug('serve: %r: recv %d bytes', self, len(data))
@@ -201,24 +186,29 @@ class HttpSession:
                 # nghttp2_session_mem_recv always tries to processes all
                 # input data on success.
                 ASSERT.equal(
-                    nghttp2_session_mem_recv(self._session, data, len(data)),
+                    ng.F.nghttp2_session_mem_recv(
+                        self._session, data, len(data)
+                    ),
                     len(data),
                 )
 
                 self._outgoing_gate.unblock()
 
-            error_code = NGHTTP2_NO_ERROR
+            error_code = ng.nghttp2_error_code.NGHTTP2_NO_ERROR
 
         except timers.Timeout:
             LOG.warning('serve: %r: settings timeout', self)
             self._cancel_settings_timer = None
-            error_code = NGHTTP2_SETTINGS_TIMEOUT
+            error_code = ng.nghttp2_error_code.NGHTTP2_SETTINGS_TIMEOUT
 
         except OSError as exc:
             LOG.warning('serve: %r: sock.recv error', self, exc_info=exc)
 
-        except Nghttp2Error as exc:
-            if exc.error_code == NGHTTP2_ERR_BAD_CLIENT_MAGIC:
+        except ng.Nghttp2Error as exc:
+            if (
+                exc.error_code == \
+                ng.nghttp2_error_code.NGHTTP2_ERR_BAD_CLIENT_MAGIC
+            ):
                 LOG.warning('serve: %r: bad client magic', self, exc_info=exc)
             else:
                 raise
@@ -227,7 +217,7 @@ class HttpSession:
             # NOTE: I have read the docs but am still not sure where and
             # when should we call ``nghttp2_session_terminate_session``.
             # For now it seems to be fine to make the call here.
-            nghttp2_session_terminate_session(self._session, error_code)
+            ng.F.nghttp2_session_terminate_session(self._session, error_code)
             self._outgoing_gate.unblock()
 
     async def _handle_outgoing(self):
@@ -241,15 +231,15 @@ class HttpSession:
 
         try:
             while (
-                nghttp2_session_want_read(self._session)
-                or nghttp2_session_want_write(self._session)
+                ng.F.nghttp2_session_want_read(self._session)
+                or ng.F.nghttp2_session_want_write(self._session)
             ):
 
                 buffers = []
                 total_length = 0
                 while True:
-                    buffer = ctypes.c_void_p()
-                    length = nghttp2_session_mem_send(
+                    buffer = c_blob()
+                    length = ng.F.nghttp2_session_mem_send(
                         self._session,
                         ctypes.byref(buffer),
                     )
@@ -295,7 +285,7 @@ class HttpSession:
 
         self._streams = None
 
-        nghttp2_session_del(self._session)
+        ng.F.nghttp2_session_del(self._session)
         self._session = None
         self._user_data = None
 
@@ -317,10 +307,14 @@ class HttpSession:
             self._cancel_settings_timer = None
 
     def _rst_stream_if_not_closed(self, stream_id):
-        if nghttp2_session_get_stream_remote_close(self._session, stream_id):
+        if ng.F.nghttp2_session_get_stream_remote_close(
+            self._session, stream_id
+        ):
             return 0
         else:
-            return self._rst_stream(stream_id, NGHTTP2_NO_ERROR)
+            return self._rst_stream(
+                stream_id, ng.nghttp2_error_code.NGHTTP2_NO_ERROR
+            )
 
     def _rst_stream(self, stream_id, error_code):
         LOG.debug(
@@ -329,8 +323,11 @@ class HttpSession:
             stream_id,
             error_code,
         )
-        return nghttp2_submit_rst_stream(
-            self._session, NGHTTP2_FLAG_NONE, stream_id, error_code
+        return ng.F.nghttp2_submit_rst_stream(
+            self._session,
+            ng.nghttp2_flag.NGHTTP2_FLAG_NONE,
+            stream_id,
+            error_code,
         )
 
     #
@@ -347,22 +344,25 @@ class HttpSession:
             frame.hd.stream_id,
         )
 
-        if frame.hd.type == NGHTTP2_SETTINGS:
-            if frame.hd.flags & NGHTTP2_FLAG_ACK:
+        if frame.hd.type == ng.nghttp2_frame_type.NGHTTP2_SETTINGS:
+            if frame.hd.flags & ng.nghttp2_flag.NGHTTP2_FLAG_ACK:
                 self._stop_settings_timer()
 
-        elif frame.hd.type == NGHTTP2_HEADERS:
-            if frame.headers.cat == NGHTTP2_HCAT_REQUEST:
+        elif frame.hd.type == ng.nghttp2_frame_type.NGHTTP2_HEADERS:
+            if (
+                frame.headers.cat == \
+                ng.nghttp2_headers_category.NGHTTP2_HCAT_REQUEST
+            ):
                 stream = self._streams.get(frame.hd.stream_id)
                 if not stream:
                     return 0
-                if frame.hd.flags & NGHTTP2_FLAG_END_HEADERS:
+                if frame.hd.flags & ng.nghttp2_flag.NGHTTP2_FLAG_END_HEADERS:
                     stream.end_request_headers()
-                if frame.hd.flags & NGHTTP2_FLAG_END_STREAM:
+                if frame.hd.flags & ng.nghttp2_flag.NGHTTP2_FLAG_END_STREAM:
                     stream.end_request()
 
-        elif frame.hd.type == NGHTTP2_DATA:
-            if frame.hd.flags & NGHTTP2_FLAG_END_STREAM:
+        elif frame.hd.type == ng.nghttp2_frame_type.NGHTTP2_DATA:
+            if frame.hd.flags & ng.nghttp2_flag.NGHTTP2_FLAG_END_STREAM:
                 stream = self._streams.get(frame.hd.stream_id)
                 if not stream:
                     return 0
@@ -380,8 +380,11 @@ class HttpSession:
             frame.hd.stream_id,
         )
 
-        if frame.hd.type == NGHTTP2_HEADERS:
-            if frame.headers.cat == NGHTTP2_HCAT_REQUEST:
+        if frame.hd.type == ng.nghttp2_frame_type.NGHTTP2_HEADERS:
+            if (
+                frame.headers.cat == \
+                ng.nghttp2_headers_category.NGHTTP2_HCAT_REQUEST
+            ):
                 stream_id = ASSERT.not_in(frame.hd.stream_id, self._streams)
                 LOG.debug('make stream: %r: stream_id=%d', self, stream_id)
                 self._streams[stream_id] = HttpStream(self, stream_id)
@@ -391,8 +394,6 @@ class HttpSession:
     @define_callback
     def on_header(self, frame, name, namelen, value, valuelen, flags):
         frame = frame.contents
-        name = ctypes.string_at(name, namelen)
-        value = ctypes.string_at(value, valuelen)
         LOG.debug(
             'on_header: %r: type=%d, stream_id=%d, flags=%#x, %r=%r',
             self,
@@ -402,6 +403,8 @@ class HttpSession:
             name,
             value,
         )
+        ASSERT.equal(len(name), namelen)
+        ASSERT.equal(len(value), valuelen)
 
         stream = self._streams.get(frame.hd.stream_id)
         if not stream:
@@ -441,13 +444,13 @@ class HttpSession:
 
         # TODO: Support frame.hd.type == NGHTTP2_PUSH_PROMISE.
 
-        if frame.hd.type == NGHTTP2_SETTINGS:
-            if frame.hd.flags & NGHTTP2_FLAG_ACK:
+        if frame.hd.type == ng.nghttp2_frame_type.NGHTTP2_SETTINGS:
+            if frame.hd.flags & ng.nghttp2_flag.NGHTTP2_FLAG_ACK:
                 return 0
             self._start_settings_timer()
 
-        elif frame.hd.type == NGHTTP2_HEADERS:
-            if frame.hd.flags & NGHTTP2_FLAG_END_STREAM:
+        elif frame.hd.type == ng.nghttp2_frame_type.NGHTTP2_HEADERS:
+            if frame.hd.flags & ng.nghttp2_flag.NGHTTP2_FLAG_END_STREAM:
                 return self._rst_stream_if_not_closed(frame.hd.stream_id)
 
         return 0
@@ -502,28 +505,29 @@ class HttpSession:
 
         data = stream.read_response_body(ASSERT.greater(length, 0))
         if data is None:
-            return NGHTTP2_ERR_DEFERRED
+            return ng.nghttp2_error.NGHTTP2_ERR_DEFERRED
 
         if data:
             ctypes.memmove(buf, data, len(data))
         else:
-            data_flags[0] = NGHTTP2_DATA_FLAG_EOF
+            data_flags[0] = ng.nghttp2_data_flag.NGHTTP2_DATA_FLAG_EOF
             self._rst_stream_if_not_closed(stream_id)
 
         return len(data)
 
 
-CALLBACKS = ctypes.POINTER(nghttp2_session_callbacks)()
-nghttp2_session_callbacks_new(ctypes.byref(CALLBACKS))
+CALLBACKS = ctypes.POINTER(ng.nghttp2_session_callbacks)()
+ng.F.nghttp2_session_callbacks_new(ctypes.byref(CALLBACKS))
 # pylint: disable=expression-not-assigned
 [
-    getattr(nghttp2, 'nghttp2_session_callbacks_set_%s_callback' % name)(
+    ng.F['nghttp2_session_callbacks_set_%s_callback' % name](
         CALLBACKS,
         getattr(HttpSession, name),
     ) for name in CALLBACK_NAMES
 ]
+# pylint: enable=expression-not-assigned
 
-DATA_PROVIDER = nghttp2_data_provider()
+DATA_PROVIDER = ng.nghttp2_data_provider()
 DATA_PROVIDER.read_callback = HttpSession.data_source_read
 
 
@@ -591,7 +595,9 @@ class HttpStream:
 
         except Exception:
             LOG.exception('wsgi app error: %s %s %s://%s%s', *log_args)
-            self._session._rst_stream(self._stream_id, NGHTTP2_INTERNAL_ERROR)
+            self._session._rst_stream(
+                self._stream_id, ng.nghttp2_error_code.NGHTTP2_INTERNAL_ERROR
+            )
             raise
 
         finally:
@@ -639,21 +645,15 @@ class HttpStream:
         # Get the status code from status line like "200 OK".
         status_code = status.split(maxsplit=1)[0]
 
-        # Own C objects to prevent them from being garbage-collected.
-        owner = []
-
         nvlen = 1 + len(response_headers)
-        nva = (nghttp2_nv * nvlen)()
-        _set_nv(nva[0], b':status', status_code.encode(ENCODING), owner)
+        nva = (ng.nghttp2_nv * nvlen)()
+        self._set_nv(nva[0], b':status', status_code.encode(ENCODING))
         for i, (name, value) in enumerate(response_headers):
             name = name.encode(ENCODING)
             value = value.encode(ENCODING)
-            _set_nv(nva[i + 1], name, value, owner)
+            self._set_nv(nva[i + 1], name, value)
 
-        # By default, ``nghttp2_submit_response`` makes a copy of input
-        # strings, and thus it is fine to free input strings (those in
-        # ``owner``) after ``nghttp2_submit_response`` returns.
-        nghttp2_submit_response(
+        ng.F.nghttp2_submit_response(
             self._session._session,
             self._stream_id,
             nva,
@@ -665,6 +665,14 @@ class HttpStream:
 
         return self._write
 
+    @staticmethod
+    def _set_nv(nv, name, value):
+        nv.name = ctypes.c_char_p(name)
+        nv.namelen = len(name)
+        nv.value = ctypes.c_char_p(value)
+        nv.valuelen = len(value)
+        nv.flags = ng.nghttp2_nv_flag.NGHTTP2_NV_FLAG_NONE
+
     # According to WSGI spec, ``write`` is only intended for maintaining
     # backward compatibility; so let's declare it as not ``async`` for
     # the ease of use.
@@ -673,7 +681,7 @@ class HttpStream:
         self._response_body.write_nonblocking(data)
         if self._response_body_deferred:
             self._response_body_deferred = False
-            nghttp2_session_resume_data(
+            ng.F.nghttp2_session_resume_data(
                 self._session._session,
                 self._stream_id,
             )
@@ -710,20 +718,3 @@ class HttpStream:
     def close(self):
         if self._task:
             self._task.cancel()
-
-
-def _set_nv(nv, name, value, owner):
-    nv.name = _bytes_to_void_ptr(name, owner)
-    nv.namelen = len(name)
-    nv.value = _bytes_to_void_ptr(value, owner)
-    nv.valuelen = len(value)
-    nv.flags = NGHTTP2_NV_FLAG_NONE
-
-
-def _bytes_to_void_ptr(byte_string, owner):
-    buffer = ctypes.create_string_buffer(byte_string, len(byte_string))
-    # Because we return only address of the buffer, we have to keep a
-    # reference to the buffer (in the ``owner``), or else it will be
-    # garbage-collected.
-    owner.append(buffer)
-    return address_of(buffer)
