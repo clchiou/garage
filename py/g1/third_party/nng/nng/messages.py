@@ -8,20 +8,13 @@ import ctypes
 
 from g1.bases import classes
 from g1.bases.assertions import ASSERT
+from g1.bases.ctypes import (
+    PyBUF_WRITE,
+    PyMemoryView_FromMemory,
+)
 
 from . import _nng
 from . import errors
-
-PyBUF_READ = 0x100
-PyBUF_WRITE = 0x200
-
-PyMemoryView_FromMemory = ctypes.pythonapi.PyMemoryView_FromMemory
-PyMemoryView_FromMemory.argtypes = (
-    ctypes.c_void_p,
-    ctypes.c_ssize_t,
-    ctypes.c_int,
-)
-PyMemoryView_FromMemory.restype = ctypes.py_object
 
 
 class Message:

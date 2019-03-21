@@ -56,6 +56,7 @@ from ctypes import (
 
 from g1.bases import collections
 from g1.bases.assertions import ASSERT
+from g1.bases.ctypes import load_func
 
 LIBNNG = cdll.LoadLibrary('libnng.so')
 
@@ -339,13 +340,6 @@ class Options(tuple, enum.Enum):
     NNG_OPT_SURVEYOR_SURVEYTIME = (b'surveyor:survey-time', 'ms', 'rw')
 
 
-def load_func(name, restype, argtypes):
-    func = LIBNNG[name]
-    func.argtypes = argtypes
-    func.restype = restype
-    return func
-
-
 # Polyfill this function.  API document says nng implements this, but it
 # actually does not.  (Maybe a bug?)
 ASSERT.false(hasattr(LIBNNG, 'nng_ctx_setopt_string'))
@@ -357,7 +351,7 @@ def nng_ctx_setopt_string(handle, name, value):
 
 F = collections.Namespace(
     *(
-        (args[0], load_func(*args)) for args in (
+        (args[0], load_func(LIBNNG, *args)) for args in (
 
             # Common functions.
             ('nng_closeall', None, ()),
