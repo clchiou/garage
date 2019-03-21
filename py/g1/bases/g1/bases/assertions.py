@@ -228,6 +228,20 @@ class Assertions:
         _assert_2, operator.le, message='expect x <= {1!r}, not {0!r}'
     )
 
+    startswith = partialmethod(
+        _assert_2,
+        _method_caller('startswith'),
+        message='expect x.startswith({1!r}), not {0!r}',
+    )
+    not_startswith = partialmethod(
+        _assert_2,
+        functionals.compose(
+            operator.not_,
+            _method_caller('startswith'),
+        ),
+        message='expect not x.startswith({1!r}), not {0!r}',
+    )
+
     isdisjoint = partialmethod(
         _assert_2,
         _method_caller('isdisjoint'),
