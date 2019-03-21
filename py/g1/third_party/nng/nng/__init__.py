@@ -1,7 +1,7 @@
 __all__ = [
     'Context',
     'Durations',
-    'ERRORS',
+    'Errors',
     'Message',
     'NngError',
     'Protocols',
@@ -17,7 +17,7 @@ from . import _nng
 # Re-export these.
 from ._nng import Durations
 from .bases import Protocols
-from .errors import ERRORS
+from .errors import Errors
 from .errors import NngError
 from .errors import UnknownError
 from .messages import Message

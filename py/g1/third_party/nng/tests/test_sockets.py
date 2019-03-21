@@ -44,9 +44,9 @@ class SocketTest(unittest.TestCase):
     def test_reqrep_incorrect_sequence(self):
 
         def do_test(s0, s1):
-            with self.assertRaises(nng.ERRORS.NNG_ESTATE):
+            with self.assertRaises(nng.Errors.ESTATE):
                 s0.recv()
-            with self.assertRaises(nng.ERRORS.NNG_ESTATE):
+            with self.assertRaises(nng.Errors.ESTATE):
                 s1.send(b'')
 
         with contextlib.ExitStack() as stack:
@@ -83,7 +83,7 @@ class SocketTest(unittest.TestCase):
             self.assertEqual(d, b'hello world')
 
             d = s0.dial('inproc://%s' % uuid.uuid4())
-            with self.assertRaises(nng.ERRORS.NNG_ESTATE):
+            with self.assertRaises(nng.Errors.ESTATE):
                 d.start()
 
     def test_message(self):

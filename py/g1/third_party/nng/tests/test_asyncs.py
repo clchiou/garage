@@ -51,9 +51,9 @@ class SocketTest(unittest.TestCase):
     def test_reqrep_incorrect_sequence(self):
 
         def do_test(s0, s1):
-            with self.assertRaises(nng.ERRORS.NNG_ESTATE):
+            with self.assertRaises(nng.Errors.ESTATE):
                 kernels.run(s0.recv(), timeout=1)
-            with self.assertRaises(nng.ERRORS.NNG_ESTATE):
+            with self.assertRaises(nng.Errors.ESTATE):
                 kernels.run(s1.send(b''), timeout=1)
 
         with contextlib.ExitStack() as stack:
@@ -93,7 +93,7 @@ class SocketTest(unittest.TestCase):
             self.assertEqual(t1.get_result_nonblocking(), b'hello world')
 
             d = s0.dial('inproc://%s' % uuid.uuid4())
-            with self.assertRaises(nng.ERRORS.NNG_ESTATE):
+            with self.assertRaises(nng.Errors.ESTATE):
                 d.start()
 
     @kernels.with_kernel

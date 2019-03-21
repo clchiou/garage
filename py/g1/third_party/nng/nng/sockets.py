@@ -24,7 +24,7 @@ class Dialer(bases.DialerBase):
         if blocking is None:
             try:
                 self.start(blocking=True)
-            except errors.ERRORS.NNG_ECONNREFUSED as exc:
+            except errors.Errors.ECONNREFUSED as exc:
                 LOG.debug('blocking dail error', exc_info=exc)
                 self.start(blocking=False)
         else:
@@ -42,7 +42,7 @@ class Socket(bases.SocketBase):
         elif blocking is None:
             try:
                 return self.dial(url, blocking=True)
-            except errors.ERRORS.NNG_ECONNREFUSED as exc:
+            except errors.Errors.ECONNREFUSED as exc:
                 LOG.debug('blocking dial error', exc_info=exc)
                 return self.dial(url, blocking=False)
         else:

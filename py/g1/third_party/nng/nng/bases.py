@@ -144,7 +144,7 @@ class SocketBase(CommonOptions, ContextOptions):
     def close(self):
         try:
             errors.check(_nng.F.nng_close(self._handle))
-        except errors.ERRORS.NNG_ECLOSED:
+        except errors.Errors.ECLOSED:
             pass
         self.dialers.clear()
         self.listeners.clear()
@@ -226,7 +226,7 @@ class ContextBase(ContextOptions):
     def close(self):
         try:
             errors.check(_nng.F.nng_ctx_close(self._handle))
-        except errors.ERRORS.NNG_ECLOSED:
+        except errors.Errors.ECLOSED:
             pass
 
 
@@ -330,7 +330,7 @@ class Endpoint(CommonOptions):
     def close(self):
         try:
             errors.check(self._close(self._handle))
-        except errors.ERRORS.NNG_ECLOSED:
+        except errors.Errors.ECLOSED:
             pass
         getattr(self._socket, self._endpoints).pop(self.id)
 

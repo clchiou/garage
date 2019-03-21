@@ -1,13 +1,14 @@
 """Error types."""
 
 __all__ = [
-    'ERRORS',
+    'Errors',
     'NngError',
     'UnknownError',
     'check',
 ]
 
 from g1.bases import collections
+from g1.bases.assertions import ASSERT
 
 from . import _nng
 
@@ -20,9 +21,9 @@ def check(rv):
 
 def make_exc(errno):
     if errno & _nng.nng_errno_enum.NNG_ESYSERR:
-        return ERRORS.NNG_ESYSERR(errno)
+        return Errors.ESYSERR(errno)
     elif errno & _nng.nng_errno_enum.NNG_ETRANERR:
-        return ERRORS.NNG_ETRANERR(errno)
+        return Errors.ETRANERR(errno)
     else:
         try:
             return NORMAL_ERROR_TYPES[errno]()
@@ -66,7 +67,7 @@ def str_error(self):
 
 def make_error_type(errno, str_func):
     return type(
-        errno.name,
+        ASSERT.startswith(errno.name, 'NNG_')[4:],
         (NngError, ),
         {
             'errno': errno,
@@ -84,12 +85,10 @@ NORMAL_ERROR_TYPES = {
     )
 }
 
-_ERRORS = list(NORMAL_ERROR_TYPES.values())
-_ERRORS.extend(
-    make_error_type(errno, str_error) for errno in (
-        _nng.nng_errno_enum.NNG_ESYSERR,
-        _nng.nng_errno_enum.NNG_ETRANERR,
-    )
+Errors = collections.Namespace(
+    *((e.__name__, e) for e in NORMAL_ERROR_TYPES.values()),
+    *((e.__name__, e) for e in (
+        make_error_type(_nng.nng_errno_enum.NNG_ESYSERR, str_error),
+        make_error_type(_nng.nng_errno_enum.NNG_ETRANERR, str_error),
+    )),
 )
-ERRORS = collections.Namespace(*((e.__name__, e) for e in _ERRORS))
-del _ERRORS
