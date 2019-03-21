@@ -13,11 +13,11 @@ from g1.asyncs.bases import timers
 class LoggerMixin:
 
     def setUp(self):
-        self._cxt = self.assertLogs(servers.__name__, level='DEBUG')
-        self.cm = self._cxt.__enter__()
+        self._ctx = self.assertLogs(servers.__name__, level='DEBUG')
+        self.cm = self._ctx.__enter__()
 
     def tearDown(self):
-        self._cxt.__exit__(None, None, None)
+        self._ctx.__exit__(None, None, None)
 
     def assert_logs(self, log_lines, log_patterns):
         message = 'expect log patterns %r in %r' % (log_patterns, log_lines)
