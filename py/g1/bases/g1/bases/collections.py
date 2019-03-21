@@ -1,6 +1,7 @@
 """Extension of standard library's collections."""
 
 __all__ = [
+    'LoadingDict',
     'LruCache',
     'Multiset',
     'Namespace',
@@ -12,6 +13,20 @@ import operator
 
 from . import classes
 from .assertions import ASSERT
+
+
+# Since we are not overriding any methods, ``LoadingDict`` should
+# probably inherit from ``dict``, not ``collections.UserDict``.
+class LoadingDict(dict):
+
+    def __init__(self, load, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.__load = load
+
+    def __missing__(self, key):
+        value = self.__load(key)
+        self[key] = value
+        return value
 
 
 class LruCache(collections.abc.MutableMapping):

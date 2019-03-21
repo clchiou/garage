@@ -4,10 +4,42 @@ import operator
 from collections import abc
 
 from g1.bases.collections import (
+    LoadingDict,
     LruCache,
     Multiset,
     Namespace,
 )
+
+
+class LoadingDictTest(unittest.TestCase):
+
+    def test_loading_dict(self):
+
+        ks = []
+
+        def load(key):
+            if key == 'no-such-key':
+                raise KeyError(key)
+            ks.append(key)
+            return key
+
+        d = LoadingDict(load, p=1, q=2)
+        self.assertEqual(d, {'p': 1, 'q': 2})
+        self.assertEqual(ks, [])
+
+        for _ in range(3):
+            self.assertEqual(d['x'], 'x')
+            self.assertEqual(d['y'], 'y')
+
+        self.assertEqual(d, {'p': 1, 'q': 2, 'x': 'x', 'y': 'y'})
+        self.assertEqual(ks, ['x', 'y'])
+
+        with self.assertRaises(KeyError):
+            d['no-such-key']  # pylint: disable=pointless-statement
+        self.assertIsNone(d.get('no-such-key'))
+
+        self.assertEqual(d, {'p': 1, 'q': 2, 'x': 'x', 'y': 'y'})
+        self.assertEqual(ks, ['x', 'y'])
 
 
 class LruCacheTest(unittest.TestCase):
