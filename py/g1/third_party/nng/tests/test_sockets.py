@@ -3,12 +3,16 @@ import unittest
 import contextlib
 import uuid
 
-from g1 import tests
+try:
+    from g1 import tests
+except ImportError:
+    tests = None
 
 import nng
 from nng import sockets
 
 
+@unittest.skipUnless(tests, 'g1.tests unavailable')
 class SocketTest(unittest.TestCase):
 
     def test_reqrep(self):

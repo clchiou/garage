@@ -3,7 +3,10 @@ import unittest
 import ctypes
 import os
 
-from g1 import tests
+try:
+    from g1 import tests
+except ImportError:
+    tests = None
 
 from nng import _nng
 
@@ -11,9 +14,10 @@ CFLAGS = os.environ.get('CFLAGS')
 LDFLAGS = os.environ.get('LDFLAGS')
 
 
-@unittest.skipUnless(tests.is_gcc_available(), 'gcc unavailable')
+@unittest.skipUnless(tests, 'g1.tests unavailable')
+@unittest.skipUnless(tests and tests.is_gcc_available(), 'gcc unavailable')
 @unittest.skipUnless(CFLAGS and LDFLAGS, 'CFLAGS or LDFLAGS not set')
-class EnumTest(unittest.TestCase, tests.CFixture):
+class EnumTest(unittest.TestCase, tests.CFixture if tests else object):
 
     HEADERS = (
         'nng/nng.h',

@@ -2,15 +2,20 @@ import unittest
 
 import ctypes
 
-from g1 import tests
+try:
+    from g1 import tests
+except ImportError:
+    tests = None
+
 from g1.http.servers import nghttp2
 
 
+@unittest.skipUnless(tests, 'g1.tests unavailable')
 @unittest.skipUnless(
-    tests.is_gcc_available() and tests.is_pkg_config_available(),
+    tests and tests.is_gcc_available() and tests.is_pkg_config_available(),
     'dependency unavailable',
 )
-class ConstantTest(unittest.TestCase, tests.CFixture):
+class ConstantTest(unittest.TestCase, tests.CFixture if tests else object):
 
     HEADERS = ('nghttp2/nghttp2.h', )
 
