@@ -41,15 +41,13 @@ class UnknownError(NngError):
         return _nng.F.nng_strerror(self.args[0]).decode('utf8')
 
 
-class ErrorMessages(dict):
-
-    def __missing__(self, errno):
-        if errno is None:
-            raise KeyError(errno)
-        return _nng.F.nng_strerror(errno).decode('utf8')
+def _load_str_error(errno):
+    if errno is None:
+        raise KeyError(errno)
+    return _nng.F.nng_strerror(errno).decode('utf8')
 
 
-ERROR_MESSAGES = ErrorMessages()
+ERROR_MESSAGES = collections.LoadingDict(_load_str_error)
 
 
 def str_error_with_predefined_message(self):
