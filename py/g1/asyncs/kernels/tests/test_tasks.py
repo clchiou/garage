@@ -1,5 +1,10 @@
 import unittest
 
+import gc
+import logging
+import logging.handlers
+import weakref
+
 from g1.asyncs.kernels import errors
 from g1.asyncs.kernels import tasks
 from g1.asyncs.kernels import traps
@@ -13,6 +18,28 @@ except ImportError:
 
 
 class TaskTest(unittest.TestCase):
+
+    def test_del_not_resurrecting(self):
+
+        def func():
+            yield
+
+        handler = logging.handlers.MemoryHandler(10)
+        logger = logging.getLogger(tasks.__name__)
+        logger.addHandler(handler)
+        try:
+            task = tasks.Task(None, func())
+            task_ref = weakref.ref(task)
+            task_repr = repr(task)
+
+            del task
+            gc.collect()  # Ensure that ``task`` is recycled.
+
+            self.assertIsNone(task_ref())
+            self.assertEqual(handler.buffer[0].args, (task_repr, ))
+
+        finally:
+            logger.removeHandler(handler)
 
     def test_get_result(self):
 

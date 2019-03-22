@@ -5,6 +5,7 @@ any of our modules.
 """
 
 __all__ = [
+    'assert_del_not_resurrecting',
     'check_call',
     'check_output',
     'check_program',
@@ -17,12 +18,22 @@ __all__ = [
 
 import contextlib
 import concurrent.futures
+import gc
 import io
 import os
 import subprocess
 import sys
 import tempfile
 import threading
+import weakref
+
+
+def assert_del_not_resurrecting(self, make_obj):
+    obj = make_obj()
+    obj_ref = weakref.ref(obj)
+    del obj
+    gc.collect()  # Ensure that ``obj`` is recycled.
+    self.assertIsNone(obj_ref())
 
 
 def spawn(func, *args, **kwargs):

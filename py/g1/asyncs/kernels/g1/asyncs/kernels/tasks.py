@@ -64,7 +64,11 @@ class Task:
         if self._coroutine is None:
             return
         if not self._joined:
-            LOG.warning('task is garbage-collected but never joined: %r', self)
+            # Call ``repr`` to force formatting ``self`` here to avoid
+            # resurrecting ``self``.
+            LOG.warning(
+                'task is garbage-collected but never joined: %s', repr(self)
+            )
 
     __repr__ = classes.make_repr(
         '{self._coroutine!r} ticks={self._num_ticks} '

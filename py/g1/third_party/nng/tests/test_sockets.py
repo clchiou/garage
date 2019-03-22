@@ -15,6 +15,13 @@ from nng import sockets
 @unittest.skipUnless(tests, 'g1.tests unavailable')
 class SocketTest(unittest.TestCase):
 
+    def test_del_not_resurrecting(self):
+        tests.assert_del_not_resurrecting(
+            self, lambda: sockets.Socket(nng.Protocols.REP0)
+        )
+        with sockets.Socket(nng.Protocols.REP0) as s:
+            tests.assert_del_not_resurrecting(self, lambda: sockets.Context(s))
+
     def test_reqrep(self):
 
         def do_test(s0, s1):

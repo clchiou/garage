@@ -2,11 +2,20 @@ import unittest
 
 import threading
 
+try:
+    from g1 import tests
+except ImportError:
+    tests = None
+
 from g1.threads import executors
 from g1.threads import queues
 
 
 class ExecutorTest(unittest.TestCase):
+
+    @unittest.skipUnless(tests, 'g1.tests unavailable')
+    def test_del_not_resurrecting(self):
+        tests.assert_del_not_resurrecting(self, lambda: executors.Executor(1))
 
     def test_executor(self):
         with executors.Executor(3) as executor:

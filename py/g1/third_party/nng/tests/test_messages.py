@@ -1,5 +1,10 @@
 import unittest
 
+try:
+    from g1 import tests
+except ImportError:
+    tests = None
+
 from nng import messages
 
 
@@ -11,6 +16,12 @@ class MessageTest(unittest.TestCase):
         self.assertEqual(chunk.copy(), data)
         self.assertEqual(chunk.memory_view, data)
         self.assertEqual(len(chunk.memory_view), len(data))
+
+    @unittest.skipUnless(tests, 'g1.tests unavailable')
+    def test_del_not_resurrecting(self):
+        tests.assert_del_not_resurrecting(
+            self, lambda: messages.Message(b'hello world')
+        )
 
     def test_message(self):
         m = messages.Message()

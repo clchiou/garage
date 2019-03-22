@@ -12,6 +12,19 @@ class TestEnum(enum.Enum):
     Q = 2
 
 
+class DelTest(unittest.TestCase):
+
+    def test_resurrecting_self(self):
+
+        class Resurrect:
+
+            def __del__(self):
+                Resurrect.dont_recycle_me = self
+
+        with self.assertRaisesRegex(AssertionError, r'is not None'):
+            tests.assert_del_not_resurrecting(self, Resurrect)
+
+
 @unittest.skipUnless(tests.is_gcc_available(), 'gcc unavailable')
 class CFixtureTest(unittest.TestCase, tests.CFixture):
 
