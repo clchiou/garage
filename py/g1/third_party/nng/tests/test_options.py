@@ -1,5 +1,6 @@
 import unittest
 
+import inspect
 import uuid
 
 import nng
@@ -8,12 +9,11 @@ import nng
 class OptionsTest(unittest.TestCase):
 
     @staticmethod
-    def iter_properties(obj):
-        cls = type(obj)
-        for name in dir(cls):
-            field = getattr(cls, name)
-            if isinstance(field, property):
-                yield name, field
+    def get_properties(obj):
+        return inspect.getmembers(
+            type(obj),
+            lambda member: isinstance(member, property),
+        )
 
     def assert_prop(self, obj, name, prop=None):
         if prop is None:
@@ -44,7 +44,7 @@ class OptionsTest(unittest.TestCase):
         }
 
         with nng.Socket(nng.Protocols.REP0) as socket:
-            for name, prop in self.iter_properties(socket):
+            for name, prop in self.get_properties(socket):
                 with self.subTest(name):
                     if name in protocol_options:
                         self.assert_no_prop(socket, name, prop)
@@ -71,7 +71,7 @@ class OptionsTest(unittest.TestCase):
 
         with nng.Socket(nng.Protocols.REP0) as socket:
             with nng.Context(socket) as context:
-                for name, prop in self.iter_properties(context):
+                for name, prop in self.get_properties(context):
                     with self.subTest(name):
                         if name in protocol_options:
                             self.assert_no_prop(context, name, prop)
@@ -97,7 +97,7 @@ class OptionsTest(unittest.TestCase):
                 socket.dial('inproc://%s' % uuid.uuid4(), create_only=True),
                 socket.listen('inproc://%s' % uuid.uuid4(), create_only=True),
             ):
-                for name, prop in self.iter_properties(endpoint):
+                for name, prop in self.get_properties(endpoint):
                     with self.subTest((endpoint, name)):
                         if (
                             name.startswith('ipc_') or name.startswith('tls_')
@@ -113,7 +113,7 @@ class OptionsTest(unittest.TestCase):
 
             # Set ``create_only`` to false to have ``tcp_bound_port``.
             endpoint = socket.listen('tcp://127.0.0.1:0')
-            for name, prop in self.iter_properties(endpoint):
+            for name, prop in self.get_properties(endpoint):
                 with self.subTest((endpoint, name)):
                     if (
                         name.startswith('ipc_') or name.startswith('tls_')
@@ -124,7 +124,7 @@ class OptionsTest(unittest.TestCase):
                         self.assert_prop(endpoint, name, prop)
 
             endpoint = socket.dial('tcp://127.0.0.1:8000', create_only=True)
-            for name, prop in self.iter_properties(endpoint):
+            for name, prop in self.get_properties(endpoint):
                 with self.subTest((endpoint, name)):
                     if (
                         name.startswith('ipc_') or name.startswith('tls_')
