@@ -140,6 +140,21 @@ class ActorsTest(unittest.TestCase):
 
 class Base:
 
+    class SomeClass:
+        pass
+
+    @staticmethod
+    def some_staticmethod_method():
+        pass
+
+    @classmethod
+    def some_class_method(cls):
+        pass
+
+    @property
+    def some_property(self):
+        pass
+
     def __init__(self, name):
         self.name = name
 

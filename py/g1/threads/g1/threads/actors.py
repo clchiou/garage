@@ -121,11 +121,17 @@ def _make_sender(name, queue):
 
 
 def extract_method_names(obj):
-    """Extract public method names from an object."""
+    """Extract public method names from an object.
+
+    This only returns function names, excluding names of other callable
+    objects like (inner) classes, class methods, and static methods.
+    """
     cls = obj if inspect.isclass(obj) else obj.__class__
     return tuple(
-        name for name, _ in inspect.getmembers(cls, callable)
-        if not name.startswith('_')
+        name for name, _ in inspect.getmembers(cls, inspect.isfunction) if (
+            not name.startswith('_') and
+            not isinstance(inspect.getattr_static(cls, name), staticmethod)
+        )
     )
 
 
