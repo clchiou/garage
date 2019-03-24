@@ -4,12 +4,14 @@ __all__ = [
     'SingletonMeta',
     'abstract_method',
     'abstract_property',
+    'get_public_method_names',
     'make_repr',
     'memorizing_property',
     'nondata_property',
 ]
 
 import functools
+import inspect
 
 from .assertions import ASSERT
 
@@ -69,6 +71,21 @@ def memorizing_property(func):
         return value
 
     return wrapper
+
+
+def get_public_method_names(obj_or_cls):
+    """Return public method names of the given class.
+
+    This excludes names of other callable objects like (inner) classes,
+    class methods, and static methods.
+    """
+    cls = obj_or_cls if inspect.isclass(obj_or_cls) else obj_or_cls.__class__
+    return tuple(
+        name for name, _ in inspect.getmembers(cls, inspect.isfunction) if (
+            not name.startswith('_') and
+            not isinstance(inspect.getattr_static(cls, name), staticmethod)
+        )
+    )
 
 
 def make_repr(template='', **extractors):

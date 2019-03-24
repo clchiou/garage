@@ -123,20 +123,6 @@ class ActorsTest(unittest.TestCase):
                 future.get_result()
             self.assertFalse(stub.future.is_completed())
 
-    def test_extract_method_names(self):
-        checks = [
-            (Base, ('greet', )),
-            (Base(''), ('greet', )),
-            (Derived, ('greet', 'inc')),
-            (Derived(''), ('greet', 'inc')),
-            (HavingContext, ()),
-            (HavingContext(), ()),
-        ]
-        for obj_or_cls, expect in checks:
-            with self.subTest(check=obj_or_cls):
-                actual = actors.extract_method_names(obj_or_cls)
-                self.assertEqual(actual, expect)
-
 
 class Base:
 

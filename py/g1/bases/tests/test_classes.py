@@ -162,6 +162,57 @@ class NondataPropertyTest(unittest.TestCase):
         self.assertIn('p1', t1.__dict__)
 
 
+class GetPublicMethodNamesTest(unittest.TestCase):
+
+    def test_get_public_method_names(self):
+
+        class Base:
+
+            class SomeClass:
+                pass
+
+            @staticmethod
+            def some_staticmethod_method():
+                pass
+
+            @classmethod
+            def some_class_method(cls):
+                pass
+
+            @property
+            def some_property(self):
+                pass
+
+            def __init__(self):
+                self.x = 1
+
+            def method_x(self):
+                return self.x
+
+        class Derived(Base):
+
+            def __init__(self):
+                super().__init__()
+                self.y = 2
+
+            def method_x(self):
+                return self.x + self.y
+
+            def method_y(self):
+                return self.y
+
+        checks = [
+            (Base, ('method_x', )),
+            (Base(), ('method_x', )),
+            (Derived, ('method_x', 'method_y')),
+            (Derived(), ('method_x', 'method_y')),
+        ]
+        for obj_or_cls, expect in checks:
+            with self.subTest(check=obj_or_cls):
+                actual = classes.get_public_method_names(obj_or_cls)
+                self.assertEqual(actual, expect)
+
+
 class MakeReprTest(unittest.TestCase):
 
     def test_make_repr(self):

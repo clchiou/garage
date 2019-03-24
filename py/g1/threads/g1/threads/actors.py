@@ -22,7 +22,6 @@ __all__ = [
 
 import contextlib
 import functools
-import inspect
 import logging
 import threading
 import typing
@@ -44,7 +43,7 @@ class Stub:
         """Make a object-based actor."""
         return cls(
             actor=make_method_caller(obj),
-            method_names=extract_method_names(obj),
+            method_names=classes.get_public_method_names(obj),
             **kwargs,
         )
 
@@ -118,21 +117,6 @@ def _make_sender(name, queue):
 #
 # Object-based actor.
 #
-
-
-def extract_method_names(obj):
-    """Extract public method names from an object.
-
-    This only returns function names, excluding names of other callable
-    objects like (inner) classes, class methods, and static methods.
-    """
-    cls = obj if inspect.isclass(obj) else obj.__class__
-    return tuple(
-        name for name, _ in inspect.getmembers(cls, inspect.isfunction) if (
-            not name.startswith('_') and
-            not isinstance(inspect.getattr_static(cls, name), staticmethod)
-        )
-    )
 
 
 def make_method_caller(obj):
