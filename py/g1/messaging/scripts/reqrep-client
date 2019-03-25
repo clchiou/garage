@@ -1,0 +1,79 @@
+#!/usr/bin/env python3
+
+import argparse
+import json
+import pprint
+import re
+
+from startup import startup
+
+from g1.apps import asyncs
+from g1.asyncs import kernels
+from g1.bases import labels
+from g1.messaging.reqrep import clients
+from g1.messaging.wiredata import jsons
+
+
+@startup
+def add_arguments(parser: asyncs.LABELS.parser) -> asyncs.LABELS.parse:
+    parser.add_argument('request_type', help='set label to request type')
+    parser.add_argument('response_type', help='set label to response type')
+    parser.add_argument('url', help='set server URL')
+    parser.add_argument('method', help='set method to call')
+    parser.add_argument(
+        'args',
+        metavar='ARG=VALUE',
+        nargs=argparse.REMAINDER,
+        help='set method argument',
+    )
+
+
+def main(args: asyncs.LABELS.args):
+    """Generic reqrep client."""
+
+    json_wire_data = jsons.JsonWireData()
+
+    request_type = labels.load_global(args.request_type)
+    response_type = labels.load_global(args.response_type)
+
+    method_args = json_wire_data.to_upper(
+        request_type._types[args.method],
+        json.dumps(parse_args_list(args.args)).encode('ascii'),
+    )
+
+    with clients.Client(request_type, response_type, json_wire_data) as client:
+        client.socket.dial(args.url)
+        response = kernels.run(
+            client.transceive(request_type(request=method_args))
+        )
+        if response.error is None:
+            output = pprint.pformat(response.result)
+            rc = 0
+        else:
+            output = pprint.pformat(response.error)
+            rc = 1
+        if len(output) <= 40:
+            fmt = '%s -> %s'
+        else:
+            fmt = '%s ->\n%s'
+        print(fmt % (method_args, output))
+
+    return rc
+
+
+IDENTIFIER_PATTERN = re.compile(r'[a-zA-Z_]\w*')
+
+
+def parse_args_list(args_list):
+    kwargs = {}
+    for arg_str in args_list:
+        name, value = arg_str.split('=', maxsplit=1)
+        # Make a special case for identifier-kind of strings.
+        if not IDENTIFIER_PATTERN.fullmatch(value):
+            value = json.loads(value)
+        kwargs[name] = value
+    return kwargs
+
+
+if __name__ == '__main__':
+    asyncs.run(main)
