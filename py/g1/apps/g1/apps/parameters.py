@@ -18,11 +18,11 @@ except ImportError:
 
 from startup import startup
 
+from g1.bases import labels
 from g1.bases.assertions import ASSERT
 from g1.bases.collections import Namespace as _Namespace
 
 from . import bases
-from . import labels
 
 LOG = logging.getLogger(__name__)
 

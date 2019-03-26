@@ -1,6 +1,7 @@
 import unittest
+import unittest.mock
 
-from g1.apps import labels
+from g1.bases import labels
 
 
 class LabelTest(unittest.TestCase):
@@ -11,6 +12,10 @@ class LabelTest(unittest.TestCase):
         self.assertEqual(hash(l), hash('foo.bar:spam.egg'))
         self.assertEqual(str(l), 'foo.bar:spam.egg')
         self.assertEqual(repr(l), repr('foo.bar:spam.egg'))
+        self.assertEqual(l.module_path, 'foo.bar')
+        self.assertEqual(l.object_path, 'spam.egg')
+
+        self.assertEqual(labels.Label.parse('foo.bar:spam.egg'), l)
 
         l2 = labels.Label('foo.bar', 'spam.egg')
         self.assertIsNot(l, l2)
@@ -27,11 +32,12 @@ class LabelTest(unittest.TestCase):
         for module_path, object_path in (
             ('foo', 'bar'),
             ('_f_9_o_.x.y.z', 'b.a.r'),
+            ('foo.bar', 'a[1].b[22].c[333]'),
         ):
             with self.subTest((module_path, object_path)):
                 labels.Label(module_path, object_path)
 
-        error = r'expect.*is_path'
+        error = r'expect.*fullmatch'
         for module_path, object_path in (
             # Empty path.
             ('', ''),
@@ -42,11 +48,15 @@ class LabelTest(unittest.TestCase):
             ('foo', 'bar.'),
             ('.foo', 'bar'),
             ('foo', '.bar'),
-            # Illegal characters.
+            # Illegal identifier characters.
             ('0foo', 'bar'),
             ('foo', '0bar'),
             ('foo/', 'bar'),
             ('foo', 'bar/'),
+            # Incorrect element index.
+            ('foo', 'bar[]'),
+            ('foo', 'bar[x]'),
+            ('foo', 'bar.[0]'),
         ):
             with self.subTest((module_path, object_path)):
                 with self.assertRaisesRegex(AssertionError, error):
@@ -80,84 +90,26 @@ class LabelTest(unittest.TestCase):
     def test_make_nested_labels(self):
 
         self.assertEqual(
-            flatten_nested_labels(
+            flatten(
                 labels.make_nested_labels(
                     'foo.bar',
-                    ('a', 'b', 'c'),
+                    # Strings are iterables, too (this may be confusing
+                    # sometimes).
+                    ('a', ('b', 'x'), ('c', (('y', 'z'), ))),
                 ),
             ),
             (
                 ('a', 'foo.bar:a'),
-                ('b', 'foo.bar:b'),
-                ('c', 'foo.bar:c'),
+                ('b.x', 'foo.bar:b.x'),
+                ('c.y.z', 'foo.bar:c.y.z'),
             ),
         )
 
         self.assertEqual(
-            flatten_nested_labels(
+            flatten(
                 labels.make_nested_labels(
                     'foo.bar',
-                    (('a', 'x'), ('b', 'y'), ('c', 'z')),
-                ),
-            ),
-            (
-                ('a', 'foo.bar:x'),
-                ('b', 'foo.bar:y'),
-                ('c', 'foo.bar:z'),
-            ),
-        )
-
-        self.assertEqual(
-            flatten_nested_labels(
-                labels.make_nested_labels(
-                    'foo.bar',
-                    {
-                        'a': 'x',
-                        'b': 'y',
-                        'c': 'z',
-                    },
-                ),
-            ),
-            (
-                ('a', 'foo.bar:x'),
-                ('b', 'foo.bar:y'),
-                ('c', 'foo.bar:z'),
-            ),
-        )
-
-        self.assertEqual(
-            flatten_nested_labels(
-                labels.make_nested_labels(
-                    'foo.bar',
-                    ('a', ('b', 'x'), ('c', {
-                        'p': 'q',
-                        'r': 's',
-                    })),
-                ),
-            ),
-            (
-                ('a', 'foo.bar:a'),
-                ('b', 'foo.bar:x'),
-                ('c.p', 'foo.bar:c.q'),
-                ('c.r', 'foo.bar:c.s'),
-            ),
-        )
-
-        self.assertEqual(
-            flatten_nested_labels(
-                labels.make_nested_labels(
-                    'foo.bar',
-                    (('a', (('b', ('c', )), )), ),
-                ),
-            ),
-            (('a.b.c', 'foo.bar:a.b.c'), ),
-        )
-
-        self.assertEqual(
-            flatten_nested_labels(
-                labels.make_nested_labels(
-                    'foo.bar',
-                    {'a': ('x', 'y', 'z')},
+                    (('a', ('x', 'y', 'z')), ),
                 ),
             ),
             (
@@ -167,21 +119,37 @@ class LabelTest(unittest.TestCase):
             ),
         )
 
+    @unittest.mock.patch(labels.__name__ + '.importlib')
+    def test_load_global(self, importlib_mock):
 
-def flatten_nested_labels(root):
+        module_mock = importlib_mock.import_module.return_value
+        module_mock.X = 'hello world'
+        module_mock.Y = (42, (43, 44))
+
+        for label_str, expect in (
+            ('foo.bar:X', 'hello world'),
+            ('foo.bar:X.__class__', str),
+            ('foo.bar:Y[0]', 42),
+            ('foo.bar:Y[1][0]', 43),
+        ):
+            with self.subTest(label_str):
+                self.assertEqual(labels.load_global(label_str), expect)
+
+
+def flatten(root):
 
     names = []
 
-    def flatten(node):
+    def _flatten(node):
         for n, v in node._entries.items():
             names.append(n)
-            if isinstance(v, str):
+            if isinstance(v, labels.Label):
                 yield '.'.join(names), v
             else:
-                yield from flatten(v)
+                yield from _flatten(v)
             names.pop()
 
-    return tuple(flatten(root))
+    return tuple(_flatten(root))
 
 
 if __name__ == '__main__':

@@ -6,12 +6,12 @@ This ``parts`` module is unlike others in that it initializes the global
 
 from startup import startup
 
-from g1.apps import labels
 from g1.apps import parameters
 from g1.apps import utils
 from g1.asyncs import servers
 from g1.asyncs.bases import locks
 from g1.asyncs.bases import tasks
+from g1.bases import labels
 
 LABELS = labels.make_labels(
     servers.__name__,

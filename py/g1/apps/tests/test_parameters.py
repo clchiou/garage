@@ -1,8 +1,8 @@
 import unittest
 import unittest.mock
 
-from g1.apps import labels
 from g1.apps import parameters
+from g1.bases import labels
 
 
 class NamespaceTest(unittest.TestCase):

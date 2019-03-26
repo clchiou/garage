@@ -3,9 +3,9 @@
 from startup import startup
 
 from g1.apps import bases
-from g1.apps import labels
 from g1.apps import parameters
 from g1.apps import utils
+from g1.bases import labels
 
 LABELS = labels.make_labels(
     __name__,

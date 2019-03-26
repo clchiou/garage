@@ -2,10 +2,10 @@ import collections.abc
 import functools
 import logging
 
-from g1.apps import labels
 from g1.apps import loggers
 from g1.apps import parameters
 from g1.apps import utils
+from g1.bases import labels
 from g1.bases.assertions import ASSERT
 
 from . import postgresql

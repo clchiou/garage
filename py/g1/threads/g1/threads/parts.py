@@ -1,7 +1,7 @@
 from g1.apps import bases
-from g1.apps import labels
 from g1.apps import parameters
 from g1.apps import utils
+from g1.bases import labels
 from g1.threads import executors
 
 EXECUTOR_LABEL_NAMES = (
