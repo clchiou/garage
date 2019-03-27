@@ -118,7 +118,7 @@ class HttpSession:
         self._environ = environ
         self._streams = {}
 
-        # Own C objects to prevent them from being garbage-collected.
+        # Own ``py_object`` object to prevent it from being freed.
         self._user_data = ctypes.py_object(self)
         self._session = ctypes.POINTER(ng.nghttp2_session)()
         ng.F.nghttp2_session_server_new(
