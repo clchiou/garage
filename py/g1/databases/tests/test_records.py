@@ -60,13 +60,14 @@ class RecordsSchemaTest(unittest.TestCase):
             r'\n^.*key1 INTEGER NOT NULL,\s*$'
             r'\n^.*key2 VARCHAR NOT NULL,\s*$'
             r'\n^.*data BLOB NOT NULL,\s*$'
-            r'\n^.*CONSTRAINT unique_key1_key2 UNIQUE \(key1, key2\)\s*$'
+            r'\n^.*CONSTRAINT unique_test__key1__key2 '
+            r'UNIQUE \(key1, key2\)\s*$'
             r'\n^.*\)\s*$'
             r'(?s:.*)'  # 's' makes '.' match multiple lines.
             r'\n^.*CREATE INDEX IF NOT EXISTS '
-            r'index_key1_key2 ON test \(key1, key2\)\s*$'
+            r'index_test__key1__key2 ON test \(key1, key2\)\s*$'
             r'\n^.*CREATE INDEX IF NOT EXISTS '
-            r'index_key1_key2 ON test \(key1, key2\)\s*$'
+            r'index_test__key1__key2 ON test \(key1, key2\)\s*$'
             r')',
         )
 

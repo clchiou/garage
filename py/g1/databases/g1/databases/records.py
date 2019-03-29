@@ -39,6 +39,8 @@ class RecordsSchema:
 
         self.metadata = MetaData() if metadata is None else metadata
 
+        self.table_name = table_name
+
         self.key_column_names = tuple(n for n, _ in key_column_names_and_types)
         self.key_columns = tuple(
             Column(*pair, nullable=False)
@@ -67,7 +69,10 @@ class RecordsSchema:
         return (
             UniqueConstraint(
                 *self.key_column_names,
-                name='unique_%s' % '_'.join(self.key_column_names),
+                name='unique_%s__%s' % (
+                    self.table_name,
+                    '__'.join(self.key_column_names),
+                ),
             ),
         )
 
@@ -77,7 +82,10 @@ class RecordsSchema:
         # There is only one index at the moment.
         return (
             Index(
-                'index_%s' % '_'.join(self.key_column_names),
+                'index_%s__%s' % (
+                    self.table_name,
+                    '__'.join(self.key_column_names),
+                ),
                 *self.key_columns,
             ),
         )
