@@ -1,7 +1,9 @@
 __all__ = [
     'create_engine',
+    'attaching',
 ]
 
+import contextlib
 import functools
 import logging
 import re
@@ -79,3 +81,22 @@ def config_db(dbapi_conn, _, *, pragmas=()):
 
 def do_begin(dbapi_conn):
     dbapi_conn.execute('BEGIN')
+
+
+#
+# SQLite-specific helpers.
+#
+
+_ATTACH_STMT = sqlalchemy.text('ATTACH DATABASE :db_path AS :db_name')
+_DETACH_STMT = sqlalchemy.text('DETACH DATABASE :db_name')
+
+
+@contextlib.contextmanager
+def attaching(conn, db_name, db_path):
+    conn.execute(
+        _ATTACH_STMT.bindparams(db_name=db_name, db_path=str(db_path))
+    )
+    try:
+        yield
+    finally:
+        conn.execute(_DETACH_STMT.bindparams(db_name=db_name))
