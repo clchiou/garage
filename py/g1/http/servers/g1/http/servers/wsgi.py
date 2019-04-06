@@ -557,7 +557,7 @@ class HttpStream:
     #
 
     def _get_first_header(self, name):
-        return ASSERT.contains(self._request_headers, name)[name][0]
+        return ASSERT.getitem(self._request_headers, name)[0]
 
     def _start_wsgi_task(self):
         ASSERT.none(self._task)
