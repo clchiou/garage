@@ -4,7 +4,7 @@ import enum
 import subprocess
 from pathlib import Path
 
-from g1 import tests
+from g1.devtools import tests
 
 
 class TestEnum(enum.Enum):

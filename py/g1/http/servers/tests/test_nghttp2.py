@@ -3,7 +3,7 @@ import unittest
 import ctypes
 
 try:
-    from g1 import tests
+    from g1.devtools import tests
 except ImportError:
     tests = None
 

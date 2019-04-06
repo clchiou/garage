@@ -4,7 +4,7 @@ import ctypes
 import os
 
 try:
-    from g1 import tests
+    from g1.devtools import tests
 except ImportError:
     tests = None
 
