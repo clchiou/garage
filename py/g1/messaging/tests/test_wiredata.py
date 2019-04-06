@@ -170,6 +170,75 @@ class JsonWireDataTest(unittest.TestCase):
             with self.subTest(type_):
                 self.assertIs(jsons._unwrap_optional_type(type_), int)
 
+    def test_match_recursive_type(self):
+
+        for type_, value in (
+            (int, 0),
+            (typing.List[int], []),
+            (typing.List[int], [1]),
+            (typing.List[typing.List[int]], [[1], [2, 3]]),
+            (typing.Tuple[int, str], (0, '')),
+            (typing.Tuple[typing.Tuple[int]], ((0, ), )),
+            (typing.Union[int, str], 0),
+            (typing.Union[int, str], ''),
+            (typing.Union[type(None), typing.Union[str, int]], 0),
+        ):
+            with self.subTest((type_, value)):
+                self.assertTrue(jsons._match_recursive_type(type_, value))
+        for type_, value in (
+            (int, ''),
+            (typing.List[int], [1, '']),
+            (typing.List[typing.List[int]], [[1], [2, '']]),
+            (typing.Tuple[int, str], [0, '']),
+            (typing.Tuple[int, str], (0, )),
+            (typing.Tuple[int, str], (0, 1)),
+            (typing.Tuple[typing.Tuple[int]], (('', ), )),
+            (typing.Union[int, str], ()),
+            (typing.Union[type(None), typing.Union[str, int]], ()),
+        ):
+            with self.subTest((type_, value)):
+                self.assertFalse(jsons._match_recursive_type(type_, value))
+
+    def test_recursive_type(self):
+        for type_, value, raw_value in (
+            (typing.List[typing.List[int]], [], []),
+            (typing.List[typing.List[int]], [[0], [1, 2]], [[0], [1, 2]]),
+            (typing.Tuple[typing.Tuple[int]], ((0, ), ), ((0, ), )),
+            (
+                typing.Union[int, str],
+                'x',
+                {
+                    'str': 'x',
+                },
+            ),
+            (
+                typing.Union[int, typing.List[int]],
+                [],
+                {
+                    'typing.List[int]': [],
+                },
+            ),
+        ):
+            with self.subTest((type_, value)):
+                self.assertEqual(
+                    self.json_wire_data._encode_value(type_, value),
+                    raw_value,
+                )
+                self.assertEqual(
+                    self.json_wire_data._decode_raw_value(type_, raw_value),
+                    value,
+                )
+
+        with self.assertRaisesRegex(TypeError, r'not iterable'):
+            self.json_wire_data._encode_value(
+                typing.List[typing.List[int]], [0]
+            )
+
+        with self.assertRaisesRegex(AssertionError, r'expect x == 1, not 2'):
+            self.json_wire_data._encode_value(
+                typing.Tuple[typing.Tuple[int]], ((0, 1), )
+            )
+
 
 if __name__ == '__main__':
     unittest.main()

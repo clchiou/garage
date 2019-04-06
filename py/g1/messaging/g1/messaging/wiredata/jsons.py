@@ -71,7 +71,7 @@ class JsonWireData(wiredata.WireData):
         This and ``_decode_raw_value`` complement each other.
         """
 
-        if isinstance(value_type, typing._GenericAlias):
+        if _is_recursive_type(value_type):
 
             if value_type.__origin__ is list:
                 element_type = value_type.__args__[0]
@@ -106,7 +106,12 @@ class JsonWireData(wiredata.WireData):
                     return self._encode_value(type_, value)
 
                 for type_ in value_type.__args__:
-                    if isinstance(value, type_):
+                    if _is_recursive_type(type_):
+                        if _match_recursive_type(type_, value):
+                            return {
+                                str(type_): self._encode_value(type_, value)
+                            }
+                    elif isinstance(value, type_):
                         return {
                             type_.__name__: self._encode_value(type_, value)
                         }
@@ -161,7 +166,7 @@ class JsonWireData(wiredata.WireData):
         This and ``_encode_value`` complement each other.
         """
 
-        if isinstance(value_type, typing._GenericAlias):
+        if _is_recursive_type(value_type):
 
             if value_type.__origin__ is list:
                 element_type = value_type.__args__[0]
@@ -198,7 +203,11 @@ class JsonWireData(wiredata.WireData):
                 ASSERT.equal(len(raw_value), 1)
                 type_name, raw_element = next(iter(raw_value.items()))
                 for type_ in value_type.__args__:
-                    if type_.__name__ == type_name:
+                    if _is_recursive_type(type_):
+                        candidate = str(type_)
+                    else:
+                        candidate = type_.__name__
+                    if type_name == candidate:
                         return self._decode_raw_value(type_, raw_element)
 
                 return ASSERT.unreachable(
@@ -249,6 +258,40 @@ class JsonWireData(wiredata.WireData):
             return ASSERT.unreachable(
                 'unsupported value type: {!r}', value_type
             )
+
+
+def _is_recursive_type(type_):
+    return isinstance(type_, typing._GenericAlias)
+
+
+def _match_recursive_type(type_, value):
+
+    if not _is_recursive_type(type_):
+        # Base case of the recursive type.
+        return isinstance(value, type_)
+
+    elif type_.__origin__ is list:
+        return (
+            isinstance(value, list) and
+            all(_match_recursive_type(type_.__args__[0], v) for v in value)
+        )
+
+    elif type_.__origin__ is tuple:
+        return (
+            isinstance(value, tuple) and \
+            len(value) == len(type_.__args__) and
+            all(_match_recursive_type(t, v)
+                for t, v in zip(type_.__args__, value))
+        )
+
+    elif (
+        isinstance(type_.__origin__, typing._SpecialForm)
+        and type_.__origin__._name == 'Union'
+    ):
+        return any(_match_recursive_type(t, value) for t in type_.__args__)
+
+    else:
+        return False
 
 
 def _unwrap_optional_type(type_):
