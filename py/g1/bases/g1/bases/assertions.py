@@ -209,6 +209,10 @@ class Assertions:
         message='expect {0!r} not containing {1!r}',
     )
 
+    def getitem(self, collection, key):
+        """Shorthand for ``ASSERT.contains(collection, key)[key]``."""
+        return self.contains(collection, key)[key]
+
     equal = partialmethod(
         _assert_2, operator.eq, message='expect x == {1!r}, not {0!r}'
     )

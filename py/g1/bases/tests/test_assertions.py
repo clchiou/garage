@@ -55,6 +55,16 @@ class AssertionsTest(unittest.TestCase):
             ('not_in', (0, [1]), 0),
             ('contains', ([1], 1), [1]),
             ('not_contains', ([1], 0), [1]),
+            (
+                'getitem',
+                (
+                    {
+                        'x': 1,
+                    },
+                    'x',
+                ),
+                1,
+            ),
             ('equal', (0, 0), 0),
             ('not_equal', (0, 1), 0),
             ('greater', (1, 0), 1),
@@ -136,6 +146,16 @@ class AssertionsTest(unittest.TestCase):
             ('contains', ([0], 1), r'expect \[0\] containing 1'),
             ('not_contains', ([0], 0), r'expect \[0\] not containing 0'),
             ('not_contains', ([0], 0), r'expect \[0\] not containing 0'),
+            (
+                'getitem',
+                (
+                    {
+                        0: 0,
+                    },
+                    1,
+                ),
+                r'expect .* containing 1',
+            ),
             ('equal', (0, 1), r'expect x == 1, not 0'),
             ('not_equal', (0, 0), r'expect x != 0, not 0'),
             ('greater', (0, 0), r'expect x > 0, not 0'),
