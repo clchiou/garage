@@ -1,4 +1,5 @@
 import unittest
+import unittest.mock
 
 import uuid
 
@@ -102,32 +103,70 @@ class ServerTest(unittest.TestCase):
 
     @kernels.with_kernel
     def test_end_to_end(self):
+
+        def do_test(client, server, server_serve):
+            url = 'inproc://%s' % uuid.uuid4()
+            server.socket.listen(url)
+            client.socket.dial(url)
+
+            server_task = tasks.spawn(server_serve)
+
+            client_task = tasks.spawn(client.m.greet(name='world'))
+
+            with self.assertRaises(kernels.KernelTimeout):
+                kernels.run(timeout=0.005)
+
+            self.assertTrue(client_task.is_completed())
+            self.assertEqual(
+                client_task.get_result_nonblocking(), 'Hello, world'
+            )
+
+            self.assertFalse(server_task.is_completed())
+
+            server.socket.close()
+            kernels.run(timeout=1)
+
+            self.assertTrue(server_task.is_completed())
+            self.assertIsNone(server_task.get_result_nonblocking())
+
         app = TestApplication()
         with servers.Server(app, Request, Response, WIRE_DATA) as server:
             with clients.Client(Request, Response, WIRE_DATA) as client:
-                url = 'inproc://%s' % uuid.uuid4()
-                server.socket.listen(url)
-                client.socket.dial(url)
+                do_test(client, server, server.serve)
 
-                server_task = tasks.spawn(server.serve)
+        app = TestApplication()
+        server = servers.Server(app, Request, Response, WIRE_DATA)
+        with clients.Client(Request, Response, WIRE_DATA) as client:
+            do_test(client, server, servers.run_server(server))
 
-                client_task = tasks.spawn(client.m.greet(name='world'))
+    @kernels.with_kernel
+    def test_run_server(self):
 
-                with self.assertRaises(kernels.KernelTimeout):
-                    kernels.run(timeout=0.005)
+        called = [0]
 
-                self.assertTrue(client_task.is_completed())
-                self.assertEqual(
-                    client_task.get_result_nonblocking(), 'Hello, world'
-                )
+        async def noop():
+            called[0] += 1
 
-                self.assertFalse(server_task.is_completed())
+        async def err():
+            raise ValueError
 
-                server.socket.close()
-                kernels.run(timeout=1)
+        server_mock = unittest.mock.MagicMock()
+        server_mock.serve = noop
 
-                self.assertTrue(server_task.is_completed())
-                self.assertIsNone(server_task.get_result_nonblocking())
+        self.assertIsNone(
+            kernels.run(
+                servers.run_server(server_mock, parallelism=4),
+                timeout=1,
+            )
+        )
+        self.assertEqual(called[0], 4)
+
+        server_mock.serve = err
+        with self.assertRaises(ValueError):
+            kernels.run(
+                servers.run_server(server_mock, parallelism=4),
+                timeout=1,
+            )
 
 
 if __name__ == '__main__':

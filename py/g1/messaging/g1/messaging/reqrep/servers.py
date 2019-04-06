@@ -1,5 +1,6 @@
 __all__ = [
     'Server',
+    'run_server',
 ]
 
 import contextlib
@@ -9,10 +10,25 @@ import logging
 import nng
 import nng.asyncs
 
+from g1.asyncs.bases import tasks
 from g1.bases import classes
 from g1.bases.assertions import ASSERT
 
 LOG = logging.getLogger(__name__)
+
+
+async def run_server(server, *, parallelism=1):
+    ASSERT.greater(parallelism, 0)
+    with server:
+        if parallelism == 1:
+            await server.serve()
+        else:
+            async with tasks.CompletionQueue() as queue:
+                for _ in range(parallelism):
+                    queue.spawn(server.serve)
+                queue.close()
+                async for task in queue:
+                    task.get_result_nonblocking()
 
 
 class Server:

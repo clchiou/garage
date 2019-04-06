@@ -12,6 +12,7 @@ setup(
     ],
     extras_require={
         'reqrep': [
+            'g1.asyncs.bases',
             'nng[asyncs]',
         ],
     },
