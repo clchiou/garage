@@ -48,12 +48,6 @@ class ClientTest(unittest.TestCase):
         with clients.Client(Request, Response, WIRE_DATA) as client:
             self.assertEqual(sorted(client.m), ['f', 'greet'])
 
-    def test_nested(self):
-        with clients.Client(Request, Response, WIRE_DATA) as client:
-            with self.assertRaises(AssertionError):
-                with client:
-                    pass
-
     @kernels.with_kernel
     def test_success(self):
         with clients.Client(Request, Response, WIRE_DATA) as client:
@@ -75,8 +69,6 @@ class ClientTest(unittest.TestCase):
                 kernels.run(timeout=1)
                 self.assertTrue(task.is_completed())
                 self.assertEqual(task.get_result_nonblocking(), 'hello world')
-
-        self.assertIsNone(client.socket)
 
     @kernels.with_kernel
     def test_error(self):
@@ -101,8 +93,6 @@ class ClientTest(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, r'oops'):
                     task.get_result_nonblocking()
 
-        self.assertIsNone(client.socket)
-
     @kernels.with_kernel
     def test_invalid_response(self):
         with clients.Client(Request, Response, WIRE_DATA) as client:
@@ -122,8 +112,6 @@ class ClientTest(unittest.TestCase):
                 self.assertTrue(task.is_completed())
                 with self.assertRaisesRegex(AssertionError, r'expect.*str'):
                     task.get_result_nonblocking()
-
-        self.assertIsNone(client.socket)
 
 
 if __name__ == '__main__':

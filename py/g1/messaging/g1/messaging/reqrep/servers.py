@@ -39,7 +39,8 @@ class Server:
         self._internal_server_error_wire = None
 
         self._stack = None
-        self.socket = None
+        # For convenience, create socket before ``__enter__``.
+        self.socket = nng.asyncs.Socket(nng.Protocols.REP0)
 
     def _set_error(self, name, error):
         if isinstance(error, type):
@@ -62,18 +63,16 @@ class Server:
     __repr__ = classes.make_repr('{self.socket!r}')
 
     def __enter__(self):
-        ASSERT.none(self.socket)
+        ASSERT.none(self._stack)
         with contextlib.ExitStack() as stack:
-            socket = stack.enter_context(nng.asyncs.Socket(nng.Protocols.REP0))
+            stack.enter_context(self.socket)
             if hasattr(self._application, '__enter__'):
                 stack.enter_context(self._application)
             self._stack = stack.pop_all()
-            self.socket = socket
         return self
 
     def __exit__(self, *args):
-        stack, self._stack, self.socket = self._stack, None, None
-        return stack.__exit__(*args)
+        return self._stack.__exit__(*args)
 
     async def serve(self):
         """Serve requests sequentially.

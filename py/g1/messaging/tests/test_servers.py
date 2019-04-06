@@ -50,6 +50,15 @@ WIRE_DATA = jsons.JsonWireData()
 
 class ServerTest(unittest.TestCase):
 
+    def test_nested(self):
+        server = servers.Server(
+            TestApplication(), Request, Response, WIRE_DATA
+        )
+        with server:
+            with self.assertRaisesRegex(AssertionError, r'expect None, not'):
+                with server:
+                    pass
+
     @kernels.with_kernel
     def test_serve(self):
         server = servers.Server(
@@ -119,9 +128,6 @@ class ServerTest(unittest.TestCase):
 
                 self.assertTrue(server_task.is_completed())
                 self.assertIsNone(server_task.get_result_nonblocking())
-
-        self.assertIsNone(server.socket)
-        self.assertIsNone(client.socket)
 
 
 if __name__ == '__main__':
