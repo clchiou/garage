@@ -213,6 +213,10 @@ class Assertions:
         """Shorthand for ``ASSERT.contains(collection, key)[key]``."""
         return self.contains(collection, key)[key]
 
+    def setitem(self, collection, key, value):
+        """Check before set an item."""
+        self.not_contains(collection, key)[key] = value
+
     equal = partialmethod(
         _assert_2, operator.eq, message='expect x == {1!r}, not {0!r}'
     )

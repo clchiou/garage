@@ -93,6 +93,10 @@ class AssertionsTest(unittest.TestCase):
                 check = getattr(ASSERT, check_name)
                 self.assertEqual(check(*args), expect_ret)
 
+        d = {}
+        self.assert_.setitem(d, 0, 0)
+        self.assertEqual(d, {0: 0})
+
     def test_assertion_methods_fail(self):
         with self.subTest(check='__call__'):
             pattern = r'some message 1'
@@ -219,6 +223,11 @@ class AssertionsTest(unittest.TestCase):
                 with self.assertRaisesRegex(AssertionError, pattern) as cm:
                     check(*args)
                 self.assertEqual(cm.exception.args[1:], args)
+
+        with self.assertRaisesRegex(
+            AssertionError, r'expect .* not containing 0'
+        ):
+            self.assert_.setitem({0: 0}, 0, 1)
 
     def test_assert_collection_pass(self):
         checks = [
