@@ -1,0 +1,11 @@
+---
+BasedOnStyle: Chromium
+
+ColumnLimit: 100
+
+AlignAfterOpenBracket: AlwaysBreak
+BinPackArguments: false
+BinPackParameters: false
+
+KeepEmptyLinesAtTheStartOfBlocks: true
+...
