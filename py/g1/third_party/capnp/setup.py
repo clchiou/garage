@@ -30,6 +30,7 @@ setup(
                 'src/module.cc',
                 # Parts of the module.
                 'src/string.cc',
+                'src/void.cc',
             ],
             include_dirs=CAPNP.include_dirs,
             library_dirs=CAPNP.library_dirs,

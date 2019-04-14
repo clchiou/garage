@@ -33,6 +33,7 @@ setup(
                 'src/module-test.cc',
                 # Parts of the module.
                 'src/string-test.cc',
+                'src/void-test.cc',
             ],
             include_dirs=CAPNP.include_dirs,
             library_dirs=CAPNP.library_dirs,
