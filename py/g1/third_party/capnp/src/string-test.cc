@@ -5,6 +5,7 @@
 #include <kj/string-tree.h>
 #include <kj/string.h>
 
+#include <capnp/blob.h>
 #include <capnp/common.h>
 
 namespace capnp_python {
@@ -17,6 +18,7 @@ struct ArrayPtrHolder {
   kj::ArrayPtr<const E> array;
   kj::ArrayPtr<const E> getConst() { return array; }
   kj::ArrayPtr<E> get() { return kj::ArrayPtr<E>(const_cast<E*>(array.begin()), array.size()); }
+  capnp::Data::Reader asReader() const { return array; }
 };
 
 struct StringPtrHolder {
@@ -24,6 +26,7 @@ struct StringPtrHolder {
   kj::StringPtr get() const { return array; }
   void set(kj::StringPtr other) { array = other; }
   size_t size() const { return array.size(); }
+  capnp::Text::Reader asReader() const { return array; }
 };
 
 kj::StringTree toStringTree(StringPtrHolder holder) {
@@ -37,7 +40,8 @@ void defineStringTypesForTesting(void) {
   boost::python::class_<ArrayPtrHolder<kj::byte>>("ArrayPtrBytesHolder")
       .def_readwrite("array", &ArrayPtrHolder<kj::byte>::array)
       .def("getConst", &ArrayPtrHolder<kj::byte>::getConst)
-      .def("get", &ArrayPtrHolder<kj::byte>::get);
+      .def("get", &ArrayPtrHolder<kj::byte>::get)
+      .def("asReader", &ArrayPtrHolder<kj::byte>::asReader);
 
   boost::python::class_<ArrayPtrHolder<capnp::word>>("ArrayPtrWordsHolder")
       .def_readwrite("array", &ArrayPtrHolder<capnp::word>::array)
@@ -47,7 +51,8 @@ void defineStringTypesForTesting(void) {
   boost::python::class_<StringPtrHolder>("StringPtrHolder")
       .def("get", &StringPtrHolder::get)
       .def("set", &StringPtrHolder::set)
-      .def("size", &StringPtrHolder::size);
+      .def("size", &StringPtrHolder::size)
+      .def("asReader", &StringPtrHolder::asReader);
 
   boost::python::def("toStringTree", toStringTree);
 }

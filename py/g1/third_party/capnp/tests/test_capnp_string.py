@@ -76,6 +76,21 @@ class StringTest(unittest.TestCase):
         string = _capnp_test.toStringTree(holder)
         self.assertEqual(string, data_str)
 
+    def test_data_reader(self):
+        holder = _capnp_test.ArrayPtrBytesHolder()
+        data = b'hello world'
+        holder.array = data
+        self.assertIsInstance(holder.asReader(), memoryview)
+        self.assertEqual(holder.asReader(), b'hello world')
+
+    def test_text_reader(self):
+        holder = _capnp_test.StringPtrHolder()
+        data_str = '你好，世界'
+        data = data_str.encode('utf8')
+        holder.set(data_str)
+        self.assertIsInstance(holder.asReader(), memoryview)
+        self.assertEqual(holder.asReader(), data)
+
 
 if __name__ == '__main__':
     unittest.main()

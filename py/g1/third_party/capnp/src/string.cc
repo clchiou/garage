@@ -7,6 +7,7 @@
 #include <kj/string-tree.h>
 #include <kj/string.h>
 
+#include <capnp/blob.h>
 #include <capnp/common.h>
 
 namespace capnp_python {
@@ -226,6 +227,12 @@ void defineStringTypes(void) {
   StringLikeToPythonConverter<kj::StringPtr>();
 
   boost::python::to_python_converter<kj::StringTree, StringTreeToPythonStr>();
+
+  ArrayLikeFromPython<capnp::Data::Reader, const kj::byte>();
+  ArrayLikeToPythonConverter<capnp::Data::Reader>();
+
+  StringPtrFromPython<capnp::Text::Reader>();
+  StringLikeToPythonConverter<capnp::Text::Reader>();
 }
 
 }  // namespace capnp_python
