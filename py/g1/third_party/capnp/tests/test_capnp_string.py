@@ -69,6 +69,13 @@ class StringTest(unittest.TestCase):
         self.assertEqual(holder.get(), data)
         self.assertEqual(holder.size(), len(data))
 
+    def test_string(self):
+        holder = _capnp_test.StringPtrHolder()
+        data_str = '你好，世界'
+        holder.set(data_str)
+        string = _capnp_test.toStringTree(holder)
+        self.assertEqual(string, data_str)
+
 
 if __name__ == '__main__':
     unittest.main()

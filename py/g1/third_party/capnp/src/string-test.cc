@@ -1,6 +1,8 @@
 #include <boost/python/class.hpp>
+#include <boost/python/def.hpp>
 
 #include <kj/common.h>
+#include <kj/string-tree.h>
 #include <kj/string.h>
 
 #include <capnp/common.h>
@@ -24,6 +26,10 @@ struct StringPtrHolder {
   size_t size() const { return array.size(); }
 };
 
+kj::StringTree toStringTree(StringPtrHolder holder) {
+  return kj::StringTree(kj::heapString(holder.array));
+}
+
 }  // namespace
 
 void defineStringTypesForTesting(void) {
@@ -42,6 +48,8 @@ void defineStringTypesForTesting(void) {
       .def("get", &StringPtrHolder::get)
       .def("set", &StringPtrHolder::set)
       .def("size", &StringPtrHolder::size);
+
+  boost::python::def("toStringTree", toStringTree);
 }
 
 }  // namespace test

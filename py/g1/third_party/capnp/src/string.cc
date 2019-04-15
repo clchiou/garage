@@ -4,6 +4,7 @@
 #include <boost/python/to_python_converter.hpp>
 
 #include <kj/common.h>
+#include <kj/string-tree.h>
 #include <kj/string.h>
 
 #include <capnp/common.h>
@@ -175,6 +176,37 @@ struct StringLikeToPython {
 template <typename T>
 using StringLikeToPythonConverter = boost::python::to_python_converter<T, StringLikeToPython<T>>;
 
+//
+// Converter of kj::StringTree to Python str.
+//
+// * kj::StringTree and kj::String owns the string contents; so it might
+//   seem natural to expose these types to Python, but...
+//
+// * They are not copyable, and are only movable.  This makes it very
+//   hard to expose them, as boost::python does not seem to support move
+//   semantics at all.
+//
+// * Also we cannot add converters that convert them to memory view as
+//   their lifetime is not managed by Python.
+//
+// * As a workaround, we copy their contents into a Python str object,
+//   whose lifetime is managed by Python.
+//
+// * Since kj::StringTree and kj::Tree are mostly (entirely?) used in
+//   schema object's toString member function, which is probably not on
+//   any hot path, this workaround should be okay.
+//
+struct StringTreeToPythonStr {
+  static PyObject* convert(const kj::StringTree& tree) {
+    kj::String string = tree.flatten();
+    PyObject* str = PyUnicode_FromStringAndSize(string.cStr(), string.size());
+    if (!str) {
+      boost::python::throw_error_already_set();
+    }
+    return str;
+  }
+};
+
 }  // namespace
 
 //
@@ -192,6 +224,8 @@ void defineStringTypes(void) {
 
   StringPtrFromPython<kj::StringPtr>();
   StringLikeToPythonConverter<kj::StringPtr>();
+
+  boost::python::to_python_converter<kj::StringTree, StringTreeToPythonStr>();
 }
 
 }  // namespace capnp_python
