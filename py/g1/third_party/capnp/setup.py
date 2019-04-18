@@ -29,6 +29,7 @@ setup(
             sources=[
                 'src/module.cc',
                 # Parts of the module.
+                'src/schema.cc',
                 'src/string.cc',
                 'src/void.cc',
             ],

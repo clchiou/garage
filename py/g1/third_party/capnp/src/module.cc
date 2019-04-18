@@ -2,12 +2,14 @@
 
 namespace capnp_python {
 
+void defineSchemaTypes(void);
 void defineStringTypes(void);
 void defineVoidType(void);
 
 }  // namespace capnp_python
 
 BOOST_PYTHON_MODULE(_capnp) {
+  capnp_python::defineSchemaTypes();
   capnp_python::defineStringTypes();
   capnp_python::defineVoidType();
 }

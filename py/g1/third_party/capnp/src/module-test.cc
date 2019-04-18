@@ -3,6 +3,7 @@
 namespace capnp_python {
 namespace test {
 
+void defineSchemaTypesForTesting(void);
 void defineStringTypesForTesting(void);
 void defineVoidTypeForTesting(void);
 
@@ -10,6 +11,7 @@ void defineVoidTypeForTesting(void);
 }  // namespace capnp_python
 
 BOOST_PYTHON_MODULE(_capnp_test) {
+  capnp_python::test::defineSchemaTypesForTesting();
   capnp_python::test::defineStringTypesForTesting();
   capnp_python::test::defineVoidTypeForTesting();
 }
