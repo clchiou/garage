@@ -27,6 +27,16 @@ struct SpecialMethods {
   }
 };
 
+template <typename T>
+class ResourceSharedPtr;
+
+template <typename T, typename E>
+struct ResourceSpecialMethods {
+  static E getitem(ResourceSharedPtr<T> self, size_t index) {
+    return SpecialMethods<T, E>::getitem(*self, index);
+  }
+};
+
 }  // namespace capnp_python
 
 #endif  // CAPNP_PYTHON_SPECIAL_METHODS_H_

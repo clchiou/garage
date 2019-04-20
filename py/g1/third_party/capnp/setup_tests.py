@@ -32,6 +32,7 @@ setup(
             sources=[
                 'src/module-test.cc',
                 # Parts of the module.
+                'src/resource-types-test.cc',
                 'src/schema-test.cc',
                 'src/string-test.cc',
                 'src/void-test.cc',
