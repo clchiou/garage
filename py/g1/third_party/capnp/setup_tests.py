@@ -35,6 +35,7 @@ setup(
                 'src/resource-types-test.cc',
                 'src/schema-test.cc',
                 'src/string-test.cc',
+                'src/value-types-test.cc',
                 'src/void-test.cc',
             ],
             include_dirs=CAPNP.include_dirs,

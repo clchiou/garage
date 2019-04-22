@@ -29,6 +29,7 @@ setup(
             sources=[
                 'src/module.cc',
                 # Parts of the module.
+                'src/dynamic.cc',
                 'src/schema-loader.cc',
                 'src/schema.cc',
                 'src/string.cc',

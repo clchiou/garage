@@ -2,6 +2,7 @@
 
 namespace capnp_python {
 
+void defineDynamicValueTypes(void);
 void defineSchemaLoaderType(void);
 void defineSchemaTypes(void);
 void defineStringTypes(void);
@@ -10,6 +11,7 @@ void defineVoidType(void);
 }  // namespace capnp_python
 
 BOOST_PYTHON_MODULE(_capnp) {
+  capnp_python::defineDynamicValueTypes();
   capnp_python::defineSchemaLoaderType();
   capnp_python::defineSchemaTypes();
   capnp_python::defineStringTypes();
