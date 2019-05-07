@@ -48,6 +48,7 @@ class DynamicTest(unittest.TestCase):
                 ('UINT', 42),
                 ('UINT', 1 << 40),  # Test 64-bit integer.
                 ('FLOAT', 3.14),
+                ('DATA', b'hello world'),
             ):
                 with self.subTest((cls, type_name, init_value)):
                     which = _capnp.DynamicValue.Type.names[type_name]

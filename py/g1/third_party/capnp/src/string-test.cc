@@ -29,6 +29,12 @@ struct StringPtrHolder {
   capnp::Text::Reader asReader() const { return array; }
 };
 
+template <typename S, typename T>
+struct Maker {
+  static T make1(S array) { return T(array.begin(), array.size()); }
+  static T make2(S array) { return T(const_cast<char*>(array.begin()), array.size()); }
+};
+
 kj::StringTree toStringTree(StringPtrHolder holder) {
   return kj::StringTree(kj::heapString(holder.array));
 }
@@ -53,6 +59,14 @@ void defineStringTypesForTesting(void) {
       .def("set", &StringPtrHolder::set)
       .def("size", &StringPtrHolder::size)
       .def("asReader", &StringPtrHolder::asReader);
+
+  boost::python::def(
+      "makeDataReader", &Maker<kj::ArrayPtr<const kj::byte>, capnp::Data::Reader>::make1);
+  boost::python::def(
+      "makeDataBuilder", &Maker<kj::ArrayPtr<kj::byte>, capnp::Data::Builder>::make1);
+
+  boost::python::def("makeTextReader", &Maker<kj::StringPtr, capnp::Text::Reader>::make1);
+  boost::python::def("makeTextBuilder", &Maker<kj::StringPtr, capnp::Text::Builder>::make2);
 
   boost::python::def("toStringTree", toStringTree);
 }

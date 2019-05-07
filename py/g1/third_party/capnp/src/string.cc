@@ -10,14 +10,24 @@
 #include <capnp/blob.h>
 #include <capnp/common.h>
 
+//
+// Notes to implementer:
+//
+// * String-like types are generally non-owning, except String and
+//   StringTree, see below; so they are exposed as memory view type to
+//   Python.
+//
+// * capnp::Data and capnp::Text are subclass of ArrayPtr and StringPtr.
+//
+// * TODO: For now, all exposed memory views are read-only.
+//
+
 namespace capnp_python {
 
 namespace {
 
 //
 // Converter of kj::ArrayPtr<kj::byte>>, etc.
-//
-// NOTE: kj::ArrayPtr is not owning.
 //
 
 template <typename T, typename E>
@@ -99,8 +109,6 @@ using ArrayLikeToPythonConverter = boost::python::to_python_converter<T, ArrayLi
 //
 // Converter of kj::StringPtr, etc.
 //
-// NOTE: kj::StringPtr is not owning.
-//
 template <typename T>
 struct StringPtrFromPython {
 
@@ -128,7 +136,7 @@ struct StringPtrFromPython {
       boost::python::converter::rvalue_from_python_stage1_data* data  //
   ) {
     Py_ssize_t size;
-    const char* buffer = PyUnicode_AsUTF8AndSize(object, &size);
+    char* buffer = const_cast<char*>(PyUnicode_AsUTF8AndSize(object, &size));
     if (!buffer) {
       boost::python::throw_error_already_set();
     }
@@ -150,7 +158,7 @@ struct StringPtrFromPython {
     Py_buffer* buffer = PyMemoryView_GET_BUFFER(object);
 
     void* storage = ((boost::python::converter::rvalue_from_python_storage<T>*)data)->storage.bytes;
-    new (storage) T(static_cast<const char*>(buffer->buf), static_cast<size_t>(buffer->len));
+    new (storage) T(static_cast<char*>(buffer->buf), static_cast<size_t>(buffer->len));
 
     data->convertible = storage;
   }
@@ -211,20 +219,36 @@ struct StringTreeToPythonStr {
 }  // namespace
 
 //
-// Export string types.
+// Export string-like types.
 //
 void defineStringTypes(void) {
 
+  ArrayLikeFromPython<kj::ArrayPtr<kj::byte>, kj::byte>();
   ArrayLikeFromPython<kj::ArrayPtr<const kj::byte>, const kj::byte>();
   ArrayLikeToPythonConverter<kj::ArrayPtr<kj::byte>>();
   ArrayLikeToPythonConverter<kj::ArrayPtr<const kj::byte>>();
 
+  ArrayLikeFromPython<kj::ArrayPtr<capnp::word>, capnp::word>();
   ArrayLikeFromPython<kj::ArrayPtr<const capnp::word>, const capnp::word>();
   ArrayLikeToPythonConverter<kj::ArrayPtr<capnp::word>>();
   ArrayLikeToPythonConverter<kj::ArrayPtr<const capnp::word>>();
 
+  ArrayLikeFromPython<capnp::Data::Reader, const kj::byte>();
+  // Use ArrayPtr's to-Python converter.
+  // ArrayLikeToPythonConverter<capnp::Data::Reader>();
+
+  ArrayLikeFromPython<capnp::Data::Builder, kj::byte>();
+  ArrayLikeToPythonConverter<capnp::Data::Builder>();
+
   StringPtrFromPython<kj::StringPtr>();
   StringLikeToPythonConverter<kj::StringPtr>();
+
+  StringPtrFromPython<capnp::Text::Reader>();
+  // Use StringPtr's to-Python converter.
+  // StringLikeToPythonConverter<capnp::Text::Reader>();
+
+  StringPtrFromPython<capnp::Text::Builder>();
+  StringLikeToPythonConverter<capnp::Text::Builder>();
 
   boost::python::to_python_converter<kj::StringTree, StringTreeToPythonStr>();
 

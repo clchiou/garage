@@ -83,6 +83,16 @@ class StringTest(unittest.TestCase):
         self.assertIsInstance(holder.asReader(), memoryview)
         self.assertEqual(holder.asReader(), b'hello world')
 
+        reader = _capnp_test.makeDataReader(data)
+        self.assertIsInstance(reader, memoryview)
+        self.assertEqual(reader, data)
+
+    def test_data_builder(self):
+        data = b'hello world'
+        builder = _capnp_test.makeDataBuilder(data)
+        self.assertIsInstance(builder, memoryview)
+        self.assertEqual(builder, data)
+
     def test_text_reader(self):
         holder = _capnp_test.StringPtrHolder()
         data_str = '你好，世界'
@@ -90,6 +100,17 @@ class StringTest(unittest.TestCase):
         holder.set(data_str)
         self.assertIsInstance(holder.asReader(), memoryview)
         self.assertEqual(holder.asReader(), data)
+
+        reader = _capnp_test.makeTextReader(data_str)
+        self.assertIsInstance(reader, memoryview)
+        self.assertEqual(reader, data)
+
+    def test_text_builder(self):
+        data_str = '你好，世界'
+        data = data_str.encode('utf8')
+        builder = _capnp_test.makeTextBuilder(data_str)
+        self.assertIsInstance(builder, memoryview)
+        self.assertEqual(builder, data)
 
 
 if __name__ == '__main__':
