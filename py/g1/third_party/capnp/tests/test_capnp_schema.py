@@ -51,6 +51,9 @@ class LowLevelSchemaTest(unittest.TestCase):
                     self.assertEqual(value, b'')
                 elif type_ is list:
                     self.assertFalse(getattr(obj, 'has%s' % name)())
+                    list_reader = getattr(obj, 'get%s' % name)()
+                    self.assertEqual(len(list_reader), 0)
+                    self.assertEqual(list(list_reader), [])
                 elif name == 'which':
                     enum_type = getattr(obj_type, 'Which')
                     self.assertIs(obj.which(), getattr(enum_type, type_))

@@ -12,6 +12,7 @@
 #include <capnp/dynamic.h>
 #include <capnp/schema.h>
 
+#include "list.h"
 #include "maybe.h"
 #include "special-methods.h"
 
@@ -139,6 +140,13 @@ void defineNode(void) {
         .DEF_GETTER(TargetsParam)
         .DEF_GETTER(TargetsAnnotation);
   }
+
+  defineListType<capnp::schema::Node>("_List_Node");
+  defineListType<capnp::schema::Node::Annotation>("_List_Node_Annotation");
+  defineListType<capnp::schema::Node::NestedNode>("_List_Node_NestedNode");
+  defineListType<capnp::schema::Node::Parameter>("_List_Node_Parameter");
+  defineListType<capnp::schema::Node::SourceInfo>("_List_Node_SourceInfo");
+  defineListType<capnp::schema::Node::SourceInfo::Member>("_List_Node_SourceInfo_Member");
 }
 
 void defineField(void) {
@@ -170,16 +178,20 @@ void defineField(void) {
     CLASS_(Ordinal).DEF(which).DEF_UNION(Implicit).DEF_UNION(Explicit);
     ENUM_(Which).VALUE(IMPLICIT).VALUE(EXPLICIT);
   }
+
+  defineListType<capnp::schema::Field>("_List_Field");
 }
 
 void defineEnumerant(void) {
   std::string qualname("schema");
   CLASS_(capnp::schema, Enumerant).DEF_POINTER(Name).DEF_GETTER(CodeOrder).DEF_POINTER(Annotations);
+  defineListType<capnp::schema::Enumerant>("_List_Enumerant");
 }
 
 void defineSuperclass(void) {
   std::string qualname("schema");
   CLASS_(capnp::schema, Superclass).DEF_GETTER(Id).DEF_POINTER(Brand);
+  defineListType<capnp::schema::Superclass>("_List_Superclass");
 }
 
 void defineMethod(void) {
@@ -194,6 +206,8 @@ void defineMethod(void) {
       .DEF_GETTER(ResultStructType)
       .DEF_POINTER(ResultBrand)
       .DEF_POINTER(Annotations);
+
+  defineListType<capnp::schema::Method>("_List_Method");
 }
 
 void defineType(void) {
@@ -287,6 +301,9 @@ void defineBrand(void) {
     CLASS_(Binding).DEF(which).DEF_UNION(Unbound).DEF_POINTER_UNION(Type);
     ENUM_(Which).VALUE(UNBOUND).VALUE(TYPE);
   }
+
+  defineListType<capnp::schema::Brand::Scope>("_List_Brand_Scope");
+  defineListType<capnp::schema::Brand::Binding>("_List_Brand_Binding");
 }
 
 void defineValue(void) {
@@ -338,6 +355,7 @@ void defineValue(void) {
 void defineAnnotation(void) {
   std::string qualname("schema");
   CLASS_(capnp::schema, Annotation).DEF_GETTER(Id).DEF_POINTER(Brand).DEF_POINTER(Value);
+  defineListType<capnp::schema::Annotation>("_List_Annotation");
 }
 
 void defineElementSize(void) {
@@ -370,6 +388,11 @@ void defineCodeGeneratorRequest() {
     CLASS_(RequestedFile).DEF_GETTER(Id).DEF_POINTER(Filename).DEF_POINTER(Imports);
     { CLASS_(Import).DEF_GETTER(Id).DEF_POINTER(Name); }
   }
+
+  defineListType<capnp::schema::CodeGeneratorRequest::RequestedFile>(
+      "_List_CodeGeneratorRequest_RequestedFile");
+  defineListType<capnp::schema::CodeGeneratorRequest::RequestedFile::Import>(
+      "_List_CodeGeneratorRequest_RequestedFile_Import");
 }
 
 #undef CLASS_
