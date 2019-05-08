@@ -29,6 +29,8 @@ setup(
             sources=[
                 'src/module.cc',
                 # Parts of the module.
+                'src/any.cc',
+                'src/array.cc',
                 'src/dynamic.cc',
                 'src/schema-loader.cc',
                 'src/schema.cc',
