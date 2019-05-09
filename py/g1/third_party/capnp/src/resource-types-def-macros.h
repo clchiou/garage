@@ -5,6 +5,13 @@
   boost::python::class_<Type, ResourceSharedPtr<Type>, boost::noncopyable>(__VA_ARGS__) \
       .def("_reset", &capnp_python::ResourceSharedPtr<Type>::reset)
 
+#define DERIVED_RESOURCE_CLASS_(TYPE, BASE, ...)                                             \
+  using Type = TYPE;                                                                         \
+  boost::python::                                                                            \
+      class_<Type, boost::python::bases<BASE>, ResourceSharedPtr<Type>, boost::noncopyable>( \
+          __VA_ARGS__)                                                                       \
+          .def("_reset", &capnp_python::ResourceSharedPtr<Type>::reset)
+
 #define DEF(NAME) def(#NAME, &Type::NAME)
 
 #define DEF_LEN() def("__len__", &Type::size)

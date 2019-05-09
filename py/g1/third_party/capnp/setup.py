@@ -32,6 +32,7 @@ setup(
                 'src/any.cc',
                 'src/array.cc',
                 'src/dynamic.cc',
+                'src/message.cc',
                 'src/schema-loader.cc',
                 'src/schema.cc',
                 'src/string.cc',

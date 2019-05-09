@@ -1,4 +1,5 @@
 #undef RESOURCE_CLASS_
+#undef DERIVED_RESOURCE_CLASS_
 
 #undef DEF
 
