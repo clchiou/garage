@@ -8,6 +8,7 @@ import json
 import typing
 
 from g1.messaging.wiredata import jsons
+from g1.messaging.wiredata import matchers
 
 
 class TestEnum(enum.Enum):
@@ -156,19 +157,19 @@ class JsonWireDataTest(unittest.TestCase):
                     self.test_obj,
                 )
 
-    def test_unwrap_optional_type(self):
+    def test_match_optional_type(self):
         for type_ in (
             typing.Union[None, int, str],
             typing.Union[int, str],
         ):
             with self.subTest(type_):
-                self.assertIsNone(jsons._unwrap_optional_type(type_))
+                self.assertIsNone(matchers.match_optional_type(type_))
         for type_ in (
             typing.Union[None, int],
             typing.Union[int, None],
         ):
             with self.subTest(type_):
-                self.assertIs(jsons._unwrap_optional_type(type_), int)
+                self.assertIs(matchers.match_optional_type(type_), int)
 
     def test_match_recursive_type(self):
 
