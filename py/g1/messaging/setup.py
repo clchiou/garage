@@ -15,6 +15,9 @@ setup(
             'g1.asyncs.bases',
             'nng[asyncs]',
         ],
+        'wiredata.capnps': [
+            'capnp',
+        ],
     },
     zip_safe=False,
 )
