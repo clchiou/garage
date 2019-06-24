@@ -26,7 +26,10 @@ class Base(bases.Base):
         super().__init__(raw)
         self.schema = schema
 
-    __repr__ = classes.make_repr('schema={self.schema}')
+    __repr__ = classes.make_repr('schema={self.schema} {self!s}')
+
+    def __str__(self):
+        raise NotImplementedError
 
 
 class DynamicListReader(Base):
@@ -35,6 +38,11 @@ class DynamicListReader(Base):
     _is_reader_type = True
     _schema_type = schemas.ListSchema
     _raw_type = _capnp.DynamicList.Reader
+
+    def __str__(self):
+        return _capnp.TextCodec().encode(
+            _capnp.DynamicValue.Reader.fromDynamicList(self._raw)
+        )
 
     def __len__(self):
         return len(self._raw)
@@ -56,6 +64,11 @@ class DynamicListBuilder(Base):
     _is_reader_type = False
     _schema_type = schemas.ListSchema
     _raw_type = _capnp.DynamicList.Builder
+
+    def __str__(self):
+        return _capnp.TextCodec().encode(
+            _capnp.DynamicValue.Reader.fromDynamicList(self._raw.asReader())
+        )
 
     def __len__(self):
         return len(self._raw)
@@ -100,6 +113,11 @@ class DynamicStructReader(Base):
     _schema_type = schemas.StructSchema
     _raw_type = _capnp.DynamicStruct.Reader
 
+    def __str__(self):
+        return _capnp.TextCodec().encode(
+            _capnp.DynamicValue.Reader.fromDynamicStruct(self._raw)
+        )
+
     def __contains__(self, name):
         return name in self.schema.fields
 
@@ -117,6 +135,14 @@ class DynamicStructBuilder(Base):
     _is_reader_type = False
     _schema_type = schemas.StructSchema
     _raw_type = _capnp.DynamicStruct.Builder
+
+    def __str__(self):
+        return _capnp.TextCodec().encode(
+            _capnp.DynamicValue.Reader.fromDynamicStruct(self._raw.asReader())
+        )
+
+    def from_text(self, text):
+        _capnp.TextCodec().decode(text, self._raw)
 
     def __contains__(self, name):
         return name in self.schema.fields

@@ -205,6 +205,20 @@ using StringLikeToPythonConverter = boost::python::to_python_converter<T, String
 //   schema object's toString member function, which is probably not on
 //   any hot path, this workaround should be okay.
 //
+
+struct StringToPythonBytes {
+  static PyObject* convert(const kj::String& string) {
+    // NOTE: Although kj/string.h claims that kj::String contains UTF-8
+    // text, capnp does not seem to always follow this rule.  For now,
+    // let's quote them.
+    PyObject* str = PyUnicode_DecodeUTF8(string.cStr(), string.size(), "backslashreplace");
+    if (!str) {
+      boost::python::throw_error_already_set();
+    }
+    return str;
+  }
+};
+
 struct StringTreeToPythonStr {
   static PyObject* convert(const kj::StringTree& tree) {
     kj::String string = tree.flatten();
@@ -250,6 +264,7 @@ void defineStringTypes(void) {
   StringPtrFromPython<capnp::Text::Builder>();
   StringLikeToPythonConverter<capnp::Text::Builder>();
 
+  boost::python::to_python_converter<kj::String, StringToPythonBytes>();
   boost::python::to_python_converter<kj::StringTree, StringTreeToPythonStr>();
 
   ArrayLikeFromPython<capnp::Data::Reader, const kj::byte>();

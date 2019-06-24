@@ -93,8 +93,20 @@ class MessagesTest(unittest.TestCase):
                 self.assertIn(name, struct)
             self.assertNotIn('notSuchField', struct)
 
+            self.assertEqual(
+                str(struct),
+                r'('
+                r'b = true, i8 = 1, i16 = 2, i32 = 3, i64 = 4, '
+                r'u8 = 0, u16 = 0, u32 = 0, u64 = 0, f32 = 0, f64 = 0, '
+                r't1 = "string with \"quotes\"", d1 = "\xab\xcd\xef", '
+                r'e = e1, u = (v = void), g = (i8 = 0, f32 = 0), '
+                r's1 = (s2 = (s3 = (i32 = 999))), '
+                r'ls1 = [(ls2 = [(ls3 = [(i32 = 999)])])])',
+            )
+
         mb1 = messages.MessageBuilder()
-        assert_struct(mb1.init_root(self.schema))
+        struct = mb1.init_root(self.schema)
+        assert_struct(struct)
         self.assertFalse(mb1.is_canonical())
 
         message_bytes = mb1.to_message_bytes()
@@ -177,6 +189,25 @@ class MessagesTest(unittest.TestCase):
         self.assertIsNone(struct['gt'])
         struct.init('gt')['t'] = 'hello world'
         self.assertEqual(struct['gt']['t'], 'hello world')
+
+        self.assertEqual(
+            str(struct),
+            r'('
+            r'b = true, i8 = 1, i16 = 2, i32 = 3, i64 = 4, '
+            r'u8 = 0, u16 = 0, u32 = 0, u64 = 0, f32 = 0, f64 = 0, '
+            r't1 = "string with \"quotes\"", d1 = "\xab\xcd\xef", '
+            r'e = e1, l = [[[e1]]], u = (b = true), '
+            r'g = (i8 = 0, f32 = 0), gt = (t = "hello world")'
+            r')',
+        )
+
+    def test_from_text(self):
+        schema = self.loader.struct_schemas['unittest.test_1:StructAnnotation']
+        text = '(x = 34)'
+        mb = messages.MessageBuilder()
+        struct = mb.init_root(schema)
+        struct.from_text(text)
+        self.assertEqual(str(mb.get_root(schema)), text)
 
 
 if __name__ == '__main__':
