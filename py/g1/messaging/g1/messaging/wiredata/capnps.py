@@ -24,6 +24,8 @@ from g1.bases.assertions import ASSERT
 from g1.messaging import wiredata
 from g1.messaging.wiredata import matchers
 
+NoneType = type(None)
+
 _PRIMITIVE_TYPES = (
     capnp.VoidType,
     # Numeric types.
@@ -110,6 +112,9 @@ class _BaseWireData(wiredata.WireData):
         if matchers.is_recursive_type(field_type):
 
             if field_type.__origin__ is list:
+                if value is None:
+                    del builder[key]
+                    return
                 self._encode_list(
                     builder.init(key, len(value)),
                     field_type.__args__[0],
@@ -117,6 +122,9 @@ class _BaseWireData(wiredata.WireData):
                 )
 
             elif field_type.__origin__ is tuple:
+                if value is None:
+                    del builder[key]
+                    return
                 self._encode_tuple(
                     builder.init(key),
                     field_type.__args__,
@@ -124,15 +132,11 @@ class _BaseWireData(wiredata.WireData):
                 )
 
             elif matchers.is_union_type(field_type):
-
-                if value is None:
-                    return
-
                 type_ = matchers.match_optional_type(field_type)
                 if type_:
-                    self._encode_field(builder, type_, key, value)
+                    if value is not None:
+                        self._encode_field(builder, type_, key, value)
                     return
-
                 self._encode_union(
                     builder.init(key),
                     field_type.__args__,
@@ -174,6 +178,19 @@ class _BaseWireData(wiredata.WireData):
             ASSERT.issubclass(field_type, _PRIMITIVE_TYPES)
             builder[key] = value
 
+        elif value is None:
+            if field_type is NoneType:
+                # Make a special case for ``None`` to ``VOID``.
+                builder[key] = capnp.VOID
+            else:
+                ASSERT(
+                    wiredata.is_message_type(field_type)
+                    or issubclass(field_type, (Exception, bytes, str)),
+                    'expect Python type convertible to pointer type: {}',
+                    field_type,
+                )
+                del builder[key]
+
         else:
             ASSERT.unreachable(
                 'unsupported field type: {!r}, {!r}', field_type, key
@@ -184,11 +201,15 @@ class _BaseWireData(wiredata.WireData):
         if matchers.is_recursive_type(value_type):
 
             if value_type.__origin__ is list:
+                if reader is None:
+                    return None
                 ASSERT.isinstance(reader, capnp.DynamicListReader)
                 element_type = value_type.__args__[0]
                 return [self._decode(element_type, e) for e in reader]
 
             elif value_type.__origin__ is tuple:
+                if reader is None:
+                    return None
                 ASSERT.isinstance(reader, capnp.DynamicStructReader)
                 keys = reader.schema.fields
                 ASSERT(
@@ -235,6 +256,8 @@ class _BaseWireData(wiredata.WireData):
                 )
 
         elif wiredata.is_message_type(value_type):
+            if reader is None:
+                return None
             ASSERT.isinstance(reader, capnp.DynamicStructReader)
             return value_type(
                 **{
@@ -259,6 +282,8 @@ class _BaseWireData(wiredata.WireData):
             return value_type(ASSERT.isinstance(reader, int))
 
         elif issubclass(value_type, Exception):
+            if reader is None:
+                return None
             if reader is capnp.VOID:
                 args = ()
             else:
@@ -273,10 +298,19 @@ class _BaseWireData(wiredata.WireData):
             return value_type(*args)
 
         elif issubclass(value_type, _PRIMITIVE_TYPES):
-            if isinstance(reader, memoryview):
+            if issubclass(value_type, (bytes, str)) and reader is None:
+                return None
+            elif isinstance(reader, memoryview):
                 return reader.tobytes()
             else:
                 return ASSERT.isinstance(reader, value_type)
+
+        elif value_type is NoneType:
+            # ``reader`` is ``None`` when value type is
+            # ``typing.Optional[NoneType]`` (which is reduced to simply
+            # ``NoneType``).
+            ASSERT.in_(reader, (capnp.VOID, None))
+            return None
 
         else:
             return ASSERT.unreachable(

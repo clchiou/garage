@@ -39,4 +39,10 @@ struct SomeStruct {
     intGroupField @14 :Int32;
     boolGroupField @15 :Bool;
   }
+  noneField @16 :Void;
+  unionVoidField :union {
+    unionVoidField @17 :Void;
+    unionBytesField @18 :Data;
+  }
+  strWithDefault @19 :Text = "default message";
 }
