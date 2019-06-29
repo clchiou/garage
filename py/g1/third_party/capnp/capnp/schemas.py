@@ -175,7 +175,13 @@ class SchemaLoader:
     def _get_object_path(schema, id_to_schema):
         parts = []
         while schema and not schema.proto.is_file():
-            parts.append(ASSERT.not_none(schema.short_display_name))
+            for annotation in schema.proto.annotations:
+                if annotation.id == CXX_NAME:
+                    part = annotation.value.text
+                    break
+            else:
+                part = schema.short_display_name
+            parts.append(ASSERT.not_none(part))
             schema = id_to_schema.get(schema.proto.scope_id)
         parts.reverse()
         return '.'.join(parts)

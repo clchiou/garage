@@ -28,6 +28,8 @@ class SchemaLoaderTest(unittest.TestCase):
 
         structs = (
             ('StructAnnotation', ('x', )),
+            ('AliasForStruct1', ()),
+            ('AliasForStruct1.AliasForStruct2', ()),
             (
                 'SomeStruct',
                 (

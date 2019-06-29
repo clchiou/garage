@@ -11,7 +11,12 @@ struct StructAnnotation {
 
 const int8Const :Int8 = 13;
 
-struct SomeStruct $Cxx.name("AliasForSomeStruct") {
+struct Struct1 $Cxx.name("AliasForStruct1") {
+  struct Struct2 $Cxx.name("AliasForStruct2") {
+  }
+}
+
+struct SomeStruct {
 
   const someStructConst :SomeStruct = ();
 
