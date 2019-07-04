@@ -21,9 +21,12 @@ class Base(bases.Base):
 
     _schema_type = type(None)  # Sub-class must override this.
 
-    def __init__(self, schema, raw):
+    def __init__(self, message, schema, raw):
         ASSERT.isinstance(schema, self._schema_type)
         super().__init__(raw)
+        # Keep a strong reference to the root message to ensure that it
+        # is not garbage-collected before us.
+        self._message = message
         self.schema = schema
 
     __repr__ = classes.make_repr('schema={self.schema} {self!s}')
@@ -52,6 +55,7 @@ class DynamicListReader(Base):
             raise IndexError(index)
         return _getitem(
             self.__class__,
+            self._message,
             self.schema.element_type,
             self._raw.__getitem__,
             index,
@@ -78,6 +82,7 @@ class DynamicListBuilder(Base):
             raise IndexError(index)
         return _getitem(
             self.__class__,
+            self._message,
             self.schema.element_type,
             self._raw.__getitem__,
             index,
@@ -97,6 +102,7 @@ class DynamicListBuilder(Base):
         if self.schema.element_type.is_list():
             ASSERT.greater_or_equal(size, 0)
             return DynamicListBuilder(
+                self._message,
                 self.schema.element_type.as_list(),
                 self._raw.init(index, size).asDynamicList(),
             )
@@ -166,11 +172,13 @@ class DynamicStructBuilder(Base):
         if field.type.is_list():
             ASSERT.greater_or_equal(size, 0)
             return DynamicListBuilder(
+                self._message,
                 field.type.as_list(),
                 self._raw.init(field._raw, size).asDynamicList(),
             )
         elif field.type.is_struct():
             return DynamicStructBuilder(
+                self._message,
                 field.type.as_struct(),
                 self._raw.init(field._raw).asDynamicStruct(),
             )
@@ -192,7 +200,13 @@ def _struct_getitem(struct, field):
         # Return ``None`` on null pointer items without a default value.
         if field.proto.is_slot() and not field.proto.slot.had_explicit_default:
             return None
-    return _getitem(struct.__class__, field.type, struct._raw.get, field._raw)
+    return _getitem(
+        struct.__class__,
+        struct._message,
+        field.type,
+        struct._raw.get,
+        field._raw,
+    )
 
 
 _PRIMITIVE_TYPES = {
@@ -211,7 +225,7 @@ _PRIMITIVE_TYPES = {
 }
 
 
-def _getitem(collection_type, item_type, getitem, key):
+def _getitem(collection_type, message, item_type, getitem, key):
 
     item_value = getitem(key)
 
@@ -241,6 +255,7 @@ def _getitem(collection_type, item_type, getitem, key):
         else:
             list_type = DynamicListBuilder
         return list_type(
+            message,
             item_type.as_list(),
             item_value.asDynamicList(),
         )
@@ -251,6 +266,7 @@ def _getitem(collection_type, item_type, getitem, key):
         else:
             struct_type = DynamicStructBuilder
         return struct_type(
+            message,
             item_type.as_struct(),
             item_value.asDynamicStruct(),
         )

@@ -52,6 +52,7 @@ class MessageReader(bases.BaseResource):
     def get_root(self, struct_schema):
         ASSERT.isinstance(struct_schema, schemas.StructSchema)
         return dynamics.DynamicStructReader(
+            self,
             struct_schema,
             self._raw.getRoot(struct_schema._raw),
         )
@@ -99,6 +100,7 @@ class MessageBuilder(bases.BaseResource):
     def get_root(self, struct_schema):
         ASSERT.isinstance(struct_schema, schemas.StructSchema)
         return dynamics.DynamicStructBuilder(
+            self,
             struct_schema,
             self._raw.getRoot(struct_schema._raw),
         )
@@ -106,6 +108,7 @@ class MessageBuilder(bases.BaseResource):
     def init_root(self, struct_schema):
         ASSERT.isinstance(struct_schema, schemas.StructSchema)
         return dynamics.DynamicStructBuilder(
+            self,
             struct_schema,
             self._raw.initRoot(struct_schema._raw),
         )
