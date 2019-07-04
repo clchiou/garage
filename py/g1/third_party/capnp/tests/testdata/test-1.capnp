@@ -94,3 +94,14 @@ struct GenericStruct(T) {
 
 const structConst :StructAnnotation = ();
 const anyPointerConst :AnyPointer = .structConst;
+
+struct TestUnion {
+  u0 :union {
+    f0 @0 :Void;
+    f1 @1 :Bool;
+  }
+  union {
+    f2 @2 :Void;
+    f3 @3 :Bool;
+  }
+}

@@ -67,6 +67,8 @@ class SchemaLoaderTest(unittest.TestCase):
             ('SomeStruct.EmbeddedStruct2', ('s3', 'ls3')),
             ('SomeStruct.EmbeddedStruct3', ('i32', )),
             ('GenericStruct', ('t', )),
+            ('TestUnion', ('u0', 'f2', 'f3')),
+            ('TestUnion.u0', ('f0', 'f1')),
         )
 
         enums = (('SomeEnum', ('e0', 'e1', 'someCamelCaseWord')), )

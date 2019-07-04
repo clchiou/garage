@@ -203,6 +203,55 @@ class MessagesTest(unittest.TestCase):
             r')',
         )
 
+    def test_union(self):
+
+        def check(mb, state):
+            b = mb.get_root(schema)
+            assert_struct(b, state)
+            assert_struct(b.as_reader(), state)
+            mr = messages.MessageReader.from_message_bytes(
+                mb.to_message_bytes()
+            )
+            assert_struct(mr.get_root(schema), state)
+
+        def assert_struct(struct, state):
+            self.assertIs(struct['u0']['f0'], state[0])
+            self.assertIs(struct['u0']['f1'], state[1])
+            self.assertIs(struct['f2'], state[2])
+            self.assertIs(struct['f3'], state[3])
+
+        # pylint: disable=unsupported-assignment-operation
+        # pylint: disable=unsupported-delete-operation
+
+        schema = self.loader.struct_schemas['unittest.test_1:TestUnion']
+
+        mb = messages.MessageBuilder()
+        builder = mb.init_root(schema)
+        check(mb, (capnp.VOID, None, capnp.VOID, None))
+
+        builder['u0']['f1'] = True
+        check(mb, (None, True, capnp.VOID, None))
+        del builder['u0']['f1']
+        check(mb, (None, False, capnp.VOID, None))
+        del builder['u0']['f1']
+        check(mb, (None, False, capnp.VOID, None))
+        del builder['u0']['f0']
+        check(mb, (capnp.VOID, None, capnp.VOID, None))
+
+        builder['u0']['f1'] = True
+        check(mb, (None, True, capnp.VOID, None))
+        del builder['u0']
+        check(mb, (capnp.VOID, None, capnp.VOID, None))
+
+        builder['f3'] = True
+        check(mb, (capnp.VOID, None, None, True))
+        del builder['f3']
+        check(mb, (capnp.VOID, None, None, False))
+        del builder['f3']
+        check(mb, (capnp.VOID, None, None, False))
+        del builder['f2']
+        check(mb, (capnp.VOID, None, capnp.VOID, None))
+
     def test_from_text(self):
         schema = self.loader.struct_schemas['unittest.test_1:StructAnnotation']
         text = '(x = 34)'
