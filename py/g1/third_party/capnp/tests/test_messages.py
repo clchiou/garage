@@ -109,6 +109,8 @@ class MessagesTest(unittest.TestCase):
         assert_struct(struct)
         self.assertFalse(mb1.is_canonical())
 
+        assert_struct(struct.as_reader())
+
         message_bytes = mb1.to_message_bytes()
         packed_message_bytes = mb1.to_packed_message_bytes()
 

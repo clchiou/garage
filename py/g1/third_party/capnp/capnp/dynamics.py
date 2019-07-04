@@ -150,6 +150,11 @@ class DynamicStructBuilder(Base):
     def from_text(self, text):
         _capnp.TextCodec().decode(text, self._raw)
 
+    def as_reader(self):
+        return DynamicStructReader(
+            self._message, self.schema, self._raw.asReader()
+        )
+
     def __contains__(self, name):
         return name in self.schema.fields
 
