@@ -199,10 +199,10 @@ def _struct_getitem(struct, field):
     # By the way, ``NON_NULL`` and ``NON_DEFAULT`` behave the same for
     # pointer types.
     if not struct._raw.has(field._raw, _capnp.HasMode.NON_NULL):
-        # Return ``None`` on union member that is not selected.
-        if struct.schema.proto.struct.is_group:
+        # Return ``None`` on named union fields.
+        if field.proto.is_group():
             return None
-        # Return ``None`` on null pointer items without a default value.
+        # Return ``None`` on non-pointer fields without a default value.
         if field.proto.is_slot() and not field.proto.slot.had_explicit_default:
             return None
     return _getitem(

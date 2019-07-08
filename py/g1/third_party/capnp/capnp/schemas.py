@@ -175,13 +175,7 @@ class SchemaLoader:
     def _get_object_path(schema, id_to_schema):
         parts = []
         while schema and not schema.proto.is_file():
-            for annotation in schema.proto.annotations:
-                if annotation.id == CXX_NAME:
-                    part = annotation.value.text
-                    break
-            else:
-                part = schema.short_display_name
-            parts.append(ASSERT.not_none(part))
+            parts.append(schema.name)
             schema = id_to_schema.get(schema.proto.scope_id)
         parts.reverse()
         return '.'.join(parts)
@@ -367,6 +361,16 @@ class Schema(bases.Base):
         _raw_type.getShortDisplayName,
     )
 
+    @classes.memorizing_property
+    def name(self):
+        for annotation in self.proto.annotations:  # pylint: disable=no-member
+            if annotation.id == CXX_NAME:
+                name = annotation.value.text
+                break
+        else:
+            name = self.short_display_name
+        return ASSERT.not_none(name)
+
 
 class StructSchema(Schema):
 
@@ -385,8 +389,6 @@ class StructSchema(Schema):
         type = bases.def_mp('type', _to_type, _raw_type.getType)
 
     _raw_type = _capnp.StructSchema
-
-    __repr__ = classes.make_repr()
 
     @classes.memorizing_property
     def fields(self):
@@ -428,8 +430,6 @@ class EnumSchema(Schema):
 
     _raw_type = _capnp.EnumSchema
 
-    __repr__ = classes.make_repr()
-
     @classes.memorizing_property
     def enumerants(self):
         return {
@@ -441,8 +441,6 @@ class EnumSchema(Schema):
 class InterfaceSchema(Schema):
 
     _raw_type = _capnp.InterfaceSchema
-
-    __repr__ = classes.make_repr()
 
 
 class ConstSchema(Schema):
