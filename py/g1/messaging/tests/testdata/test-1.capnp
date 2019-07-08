@@ -28,7 +28,7 @@ struct SomeStruct {
   errorField @8 :SomeError;
   union {
     unionIntField @9 :Int32;
-    unionErrorField @10 :Void;
+    unionErrorField @10 :SomeError;
   }
   unionField :union {
     boolField @11 :Bool;

@@ -51,7 +51,7 @@ class SomeStruct:
 
     __module__ = 'g1.messaging.tests.test_1'
 
-    void_field: capnp.VoidType
+    void_field: type(None)
     int_field: int
     int_with_default: int
     str_field: str
@@ -110,7 +110,7 @@ class CapnpWireDataTest(unittest.TestCase):
         b = builder.init('errorField')
         b['code'] = 7
         b['reason'] = 'some error'
-        builder['unionErrorField'] = capnp.VOID
+        builder.init('unionErrorField')
         builder.init('unionField')['bytesField'] = b'hello world'
         b = builder.init('intListField', 3)
         b[0] = 2
@@ -124,7 +124,7 @@ class CapnpWireDataTest(unittest.TestCase):
         builder['strWithDefault'] = 'spam egg'
 
         obj = SomeStruct(
-            void_field=capnp.VOID,
+            void_field=None,
             int_field=13,
             int_with_default=42,
             str_field='hello world',
@@ -134,7 +134,7 @@ class CapnpWireDataTest(unittest.TestCase):
             struct_field=NestedEmptyStruct(),
             error_field=SomeError(7, 'some error'),
             union_int_field=None,
-            union_error_field=SomeError(),
+            union_error_field=SomeError(0, None),
             union_field=UnionField(
                 bool_field=None,
                 bytes_field=b'hello world',
@@ -166,7 +166,7 @@ class CapnpWireDataTest(unittest.TestCase):
         msg.init_root(self.schema)
 
         obj1 = SomeStruct(
-            void_field=capnp.VOID,
+            void_field=None,
             int_field=0,
             int_with_default=42,
             str_field=None,
@@ -190,7 +190,14 @@ class CapnpWireDataTest(unittest.TestCase):
             ),
             str_with_default=None,
         )
-        obj2 = dataclasses.replace(obj1, str_with_default='default message')
+        obj2 = dataclasses.replace(
+            obj1,
+            union_void_field=UnionVoidField(
+                union_void_field=None,
+                union_bytes_field=None,
+            ),
+            str_with_default='default message',
+        )
 
         for to_testdata, wd in (
             (msg.to_message_bytes, self.wire_data),
