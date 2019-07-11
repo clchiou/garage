@@ -5,17 +5,40 @@ import json
 import pprint
 import re
 
+try:
+    import capnp
+except ImportError:
+    capnp = None
+
 from startup import startup
 
 from g1.apps import asyncs
 from g1.asyncs import kernels
 from g1.bases import labels
+from g1.bases.assertions import ASSERT
 from g1.messaging.reqrep import clients
 from g1.messaging.wiredata import jsons
+
+try:
+    from g1.messaging.wiredata import capnps
+except ImportError:
+    capnps = None
 
 
 @startup
 def add_arguments(parser: asyncs.LABELS.parser) -> asyncs.LABELS.parse:
+    if capnp and capnps:
+        parser.add_argument(
+            '--format',
+            default='json',
+            choices=('json', 'binary', 'packed'),
+            help='select packet format (default: %(default)s)',
+        )
+        parser.add_argument(
+            '--schema',
+            action='append',
+            help='add schema file path',
+        )
     parser.add_argument('request_type', help='set label to request type')
     parser.add_argument('response_type', help='set label to response type')
     parser.add_argument('url', help='set server URL')
@@ -33,6 +56,19 @@ def main(args: asyncs.LABELS.args):
 
     json_wire_data = jsons.JsonWireData()
 
+    if capnp and capnps and args.format != 'json':
+        loader = capnp.SchemaLoader()
+        for schema_path in args.schema or ():
+            with open(schema_path, 'rb') as schema_file:
+                loader.load_once(schema_file.read())
+        if args.format == 'binary':
+            wire_data = capnps.CapnpWireData(loader)
+        else:
+            ASSERT.equal(args.format, 'packed')
+            wire_data = capnps.CapnpPackedWireData(loader)
+    else:
+        wire_data = json_wire_data
+
     request_type = labels.load_global(args.request_type)
     response_type = labels.load_global(args.response_type)
 
@@ -41,7 +77,7 @@ def main(args: asyncs.LABELS.args):
         json.dumps(parse_args_list(args.args)).encode('ascii'),
     )
 
-    with clients.Client(request_type, response_type, json_wire_data) as client:
+    with clients.Client(request_type, response_type, wire_data) as client:
         client.socket.dial(args.url)
         response = kernels.run(
             client.transceive(request_type(request=method_args))

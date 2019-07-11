@@ -31,6 +31,10 @@ class Calculator:
         return x / y
 
 
+CalculatorRequest, CalculatorResponse = \
+    reqrep.generate_interface_types(Calculator)
+
+
 @kernels.with_kernel
 def main(argv):
 
@@ -44,20 +48,22 @@ def main(argv):
 
     logging.basicConfig(level=logging.DEBUG)
 
-    Request, Response = reqrep.generate_interface_types(Calculator)
-
     json_wire_data = jsons.JsonWireData()
 
     url = argv[2]
 
     async def run_server():
         app = Calculator()
-        with servers.Server(app, Request, Response, json_wire_data) as server:
+        with servers.Server(
+            app, CalculatorRequest, CalculatorResponse, json_wire_data
+        ) as server:
             server.socket.listen(url)
             await server.serve()
 
     async def run_client():
-        with clients.Client(Request, Response, json_wire_data) as client:
+        with clients.Client(
+            CalculatorRequest, CalculatorResponse, json_wire_data
+        ) as client:
             client.socket.dial(url)
             op, x, y = argv[3:6]
             method = getattr(client.m, op)
