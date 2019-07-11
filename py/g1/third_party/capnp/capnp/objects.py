@@ -72,10 +72,10 @@ import functools
 import logging
 import operator
 import re
-import typing
 
 from g1.bases import assertions
 from g1.bases import datetimes
+from g1.bases import typings
 from g1.bases.assertions import ASSERT
 
 from . import _capnp
@@ -421,7 +421,7 @@ _DATETIME_FLOAT_TYPE = _capnp.schema.Type.Which.FLOAT64
 
 def _make_field_converter(sf_type, df_type):
 
-    if is_recursive_type(df_type):
+    if typings.is_recursive_type(df_type):
 
         if df_type.__origin__ is list:
             TYPE_ASSERT.equal(len(df_type.__args__), 1)
@@ -436,7 +436,7 @@ def _make_field_converter(sf_type, df_type):
                 _TupleConverter(sf_type.as_struct(), df_type.__args__)
             )
 
-        elif is_union_type(df_type):
+        elif typings.is_union_type(df_type):
             TYPE_ASSERT.true(sf_type.is_struct())
             converter = _NamedUnionConverter(
                 sf_type.as_struct(), df_type.__args__
@@ -515,9 +515,9 @@ def _make_struct_field_to_union_member_converter(sf_type, df_type):
     if isinstance(df_type, type) and issubclass(df_type, NoneType):
         # Handle typing.Optional[NoneType], which is simply NoneType.
         return _make_union_member_converter(sf_type, df_type)
-    TYPE_ASSERT.predicate(df_type, is_recursive_type)
-    TYPE_ASSERT.predicate(df_type, is_union_type)
-    type_ = match_optional_type(df_type)
+    TYPE_ASSERT.predicate(df_type, typings.is_recursive_type)
+    TYPE_ASSERT.predicate(df_type, typings.is_union_type)
+    type_ = typings.match_optional_type(df_type)
     if type_:
         # Handle typing.Optional[T] or typing.Union[T, NoneType].
         return _make_union_member_converter(sf_type, type_)
@@ -539,7 +539,7 @@ def _make_union_member_converter(sf_type, df_type):
     typing.Union.
     """
 
-    if is_recursive_type(df_type):
+    if typings.is_recursive_type(df_type):
 
         #
         # NOTE: Python typing does not supported nested union; e.g.,
@@ -766,30 +766,6 @@ def _union_setter(builder, name, value):
 #
 # Utility functions.
 #
-
-
-def is_recursive_type(type_):
-    return isinstance(type_, typing._GenericAlias)
-
-
-def is_union_type(type_):
-    # ``type_`` must be a recursive type.
-    return (
-        isinstance(type_.__origin__, typing._SpecialForm)
-        and type_.__origin__._name == 'Union'
-    )
-
-
-def match_optional_type(type_):
-    """Return T for typing.Optional[T], else None."""
-    if len(type_.__args__) != 2:
-        return None
-    try:
-        i = type_.__args__.index(NoneType)
-    except ValueError:
-        return None
-    else:
-        return type_.__args__[1 - i]
 
 
 def is_dataclass(dataclass):

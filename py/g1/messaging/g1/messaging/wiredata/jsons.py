@@ -20,10 +20,10 @@ import enum
 import json
 import sys
 
+from g1.bases import typings
 from g1.bases.assertions import ASSERT
 
 from g1.messaging import wiredata
-from g1.messaging.wiredata import matchers
 
 # Python 3.7 supports parsing ISO 8601 (bpo-15873), finally!
 ASSERT.greater_or_equal(sys.version_info, (3, 7))
@@ -71,7 +71,7 @@ class JsonWireData(wiredata.WireData):
         This and ``_decode_raw_value`` complement each other.
         """
 
-        if matchers.is_recursive_type(value_type):
+        if typings.is_recursive_type(value_type):
 
             if value_type.__origin__ is list:
                 element_type = value_type.__args__[0]
@@ -90,7 +90,7 @@ class JsonWireData(wiredata.WireData):
                     )
                 )
 
-            elif matchers.is_union_type(value_type):
+            elif typings.is_union_type(value_type):
 
                 # Make a special case for ``None``.
                 if value is None:
@@ -98,12 +98,12 @@ class JsonWireData(wiredata.WireData):
                     return None
 
                 # Make a special case for ``Optional[T]``.
-                type_ = matchers.match_optional_type(value_type)
+                type_ = typings.match_optional_type(value_type)
                 if type_:
                     return self._encode_value(type_, value)
 
                 for type_ in value_type.__args__:
-                    if matchers.is_recursive_type(type_):
+                    if typings.is_recursive_type(type_):
                         if _match_recursive_type(type_, value):
                             return {
                                 str(type_): self._encode_value(type_, value)
@@ -163,7 +163,7 @@ class JsonWireData(wiredata.WireData):
         This and ``_encode_value`` complement each other.
         """
 
-        if matchers.is_recursive_type(value_type):
+        if typings.is_recursive_type(value_type):
 
             if value_type.__origin__ is list:
                 element_type = value_type.__args__[0]
@@ -182,7 +182,7 @@ class JsonWireData(wiredata.WireData):
                     )
                 )
 
-            elif matchers.is_union_type(value_type):
+            elif typings.is_union_type(value_type):
 
                 # Handle ``None`` special case.
                 if not raw_value:
@@ -190,14 +190,14 @@ class JsonWireData(wiredata.WireData):
                     return None
 
                 # Handle ``Optional[T]`` special case.
-                type_ = matchers.match_optional_type(value_type)
+                type_ = typings.match_optional_type(value_type)
                 if type_:
                     return self._decode_raw_value(type_, raw_value)
 
                 ASSERT.equal(len(raw_value), 1)
                 type_name, raw_element = next(iter(raw_value.items()))
                 for type_ in value_type.__args__:
-                    if matchers.is_recursive_type(type_):
+                    if typings.is_recursive_type(type_):
                         candidate = str(type_)
                     else:
                         candidate = type_.__name__
@@ -256,7 +256,7 @@ class JsonWireData(wiredata.WireData):
 
 def _match_recursive_type(type_, value):
 
-    if not matchers.is_recursive_type(type_):
+    if not typings.is_recursive_type(type_):
         # Base case of the recursive type.
         return isinstance(value, type_)
 
@@ -274,7 +274,7 @@ def _match_recursive_type(type_, value):
                 for t, v in zip(type_.__args__, value))
         )
 
-    elif matchers.is_union_type(type_):
+    elif typings.is_union_type(type_):
         return any(_match_recursive_type(t, value) for t in type_.__args__)
 
     else:
