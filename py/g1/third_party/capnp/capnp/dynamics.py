@@ -6,8 +6,11 @@ __all__ = [
 ]
 
 import enum
+import functools
+import operator
 
 from g1.bases import classes
+from g1.bases import collections
 from g1.bases.assertions import ASSERT
 
 from . import _capnp
@@ -38,9 +41,16 @@ class Base(bases.Base):
 class DynamicListReader(Base):
     """Provide read-only list-like interface for ``DynamicList``."""
 
-    _is_reader_type = True
     _schema_type = schemas.ListSchema
     _raw_type = _capnp.DynamicList.Reader
+
+    def __init__(self, *args):
+        super().__init__(*args)
+        # TODO: For now, we do not share to_upper/to_lower among reader
+        # and builder objects, even though they might be derived from
+        # the same type, because we do not know how to define hash key
+        # from types.  (Same below.)
+        self.__to_upper = _make_to_upper(self.schema.element_type, True)
 
     def __str__(self):
         return _capnp.TextCodec().encode(
@@ -53,21 +63,19 @@ class DynamicListReader(Base):
     def __getitem__(self, index):
         if not 0 <= index < len(self):
             raise IndexError(index)
-        return _getitem(
-            self.__class__,
-            self._message,
-            self.schema.element_type,
-            self._raw.__getitem__,
-            index,
-        )
+        return self.__to_upper(self._message, self._raw[index])
 
 
 class DynamicListBuilder(Base):
     """Provide list-like interface for ``DynamicList``."""
 
-    _is_reader_type = False
     _schema_type = schemas.ListSchema
     _raw_type = _capnp.DynamicList.Builder
+
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.__to_upper = _make_to_upper(self.schema.element_type, False)
+        self.__to_lower = _make_to_lower(self.schema.element_type)
 
     def __str__(self):
         return _capnp.TextCodec().encode(
@@ -80,18 +88,12 @@ class DynamicListBuilder(Base):
     def __getitem__(self, index):
         if not 0 <= index < len(self):
             raise IndexError(index)
-        return _getitem(
-            self.__class__,
-            self._message,
-            self.schema.element_type,
-            self._raw.__getitem__,
-            index,
-        )
+        return self.__to_upper(self._message, self._raw[index])
 
     def __setitem__(self, index, value):
         if not 0 <= index < len(self):
             raise IndexError(index)
-        _setitem(self.schema.element_type, self._raw.set, index, value)
+        self._raw.set(index, self.__to_lower(value))
 
     def init(self, index, size):
         if not 0 <= index < len(self):
@@ -115,9 +117,14 @@ class DynamicListBuilder(Base):
 class DynamicStructReader(Base):
     """Provide read-only dict-like interface for ``DynamicStruct``."""
 
-    _is_reader_type = True
     _schema_type = schemas.StructSchema
     _raw_type = _capnp.DynamicStruct.Reader
+
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.__to_uppers = collections.LoadingDict(
+            lambda field: _make_to_upper(field.type, True)
+        )
 
     def __str__(self):
         return _capnp.TextCodec().encode(
@@ -132,15 +139,23 @@ class DynamicStructReader(Base):
 
     def __getitem__(self, name):
         field = self.schema.fields[name]
-        return _struct_getitem(self, field)
+        return _struct_getitem(self, field, self.__to_uppers[field])
 
 
 class DynamicStructBuilder(Base):
     """Provide dict-like interface for ``DynamicStruct``."""
 
-    _is_reader_type = False
     _schema_type = schemas.StructSchema
     _raw_type = _capnp.DynamicStruct.Builder
+
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.__to_uppers = collections.LoadingDict(
+            lambda field: _make_to_upper(field.type, False)
+        )
+        self.__to_lowers = collections.LoadingDict(
+            lambda field: _make_to_lower(field.type)
+        )
 
     def __str__(self):
         return _capnp.TextCodec().encode(
@@ -163,11 +178,11 @@ class DynamicStructBuilder(Base):
 
     def __getitem__(self, name):
         field = self.schema.fields[name]
-        return _struct_getitem(self, field)
+        return _struct_getitem(self, field, self.__to_uppers[field])
 
     def __setitem__(self, name, value):
         field = self.schema.fields[name]
-        _setitem(field.type, self._raw.set, field._raw, value)
+        self._raw.set(field._raw, self.__to_lowers[field](value))
 
     def init(self, name, size=None):
         field = self.schema.fields[name]
@@ -195,7 +210,7 @@ class DynamicStructBuilder(Base):
         self._raw.clear(field._raw)
 
 
-def _struct_getitem(struct, field):
+def _struct_getitem(struct, field, to_upper):
     # By the way, ``NON_NULL`` and ``NON_DEFAULT`` behave the same for
     # pointer types.
     if not struct._raw.has(field._raw, _capnp.HasMode.NON_NULL):
@@ -205,75 +220,67 @@ def _struct_getitem(struct, field):
         # Return ``None`` on non-pointer fields without a default value.
         if field.proto.is_slot() and not field.proto.slot.had_explicit_default:
             return None
-    return _getitem(
-        struct.__class__,
-        struct._message,
-        field.type,
-        struct._raw.get,
-        field._raw,
-    )
+    return to_upper(struct._message, struct._raw.get(field._raw))
 
 
 _PRIMITIVE_TYPES = {
-    _capnp.schema.Type.Which.VOID: ('Void', _capnp.VoidType),
-    _capnp.schema.Type.Which.BOOL: ('Bool', bool),
-    _capnp.schema.Type.Which.INT8: ('Int', int),
-    _capnp.schema.Type.Which.INT16: ('Int', int),
-    _capnp.schema.Type.Which.INT32: ('Int', int),
-    _capnp.schema.Type.Which.INT64: ('Int', int),
-    _capnp.schema.Type.Which.UINT8: ('Uint', int),
-    _capnp.schema.Type.Which.UINT16: ('Uint', int),
-    _capnp.schema.Type.Which.UINT32: ('Uint', int),
-    _capnp.schema.Type.Which.UINT64: ('Uint', int),
-    _capnp.schema.Type.Which.FLOAT32: ('Float', float),
-    _capnp.schema.Type.Which.FLOAT64: ('Float', float),
+    which: (
+        # type, to_upper, to_lower.
+        type_,
+        operator.methodcaller('as%s' % name),
+        getattr(_capnp.DynamicValue.Reader, 'from%s' % name),
+    )
+    for which, name, type_ in (
+        (_capnp.schema.Type.Which.VOID, 'Void', _capnp.VoidType),
+        (_capnp.schema.Type.Which.BOOL, 'Bool', bool),
+        (_capnp.schema.Type.Which.INT8, 'Int', int),
+        (_capnp.schema.Type.Which.INT16, 'Int', int),
+        (_capnp.schema.Type.Which.INT32, 'Int', int),
+        (_capnp.schema.Type.Which.INT64, 'Int', int),
+        (_capnp.schema.Type.Which.UINT8, 'Uint', int),
+        (_capnp.schema.Type.Which.UINT16, 'Uint', int),
+        (_capnp.schema.Type.Which.UINT32, 'Uint', int),
+        (_capnp.schema.Type.Which.UINT64, 'Uint', int),
+        (_capnp.schema.Type.Which.FLOAT32, 'Float', float),
+        (_capnp.schema.Type.Which.FLOAT64, 'Float', float),
+    )
 }
 
 
-def _getitem(collection_type, message, item_type, getitem, key):
-
-    item_value = getitem(key)
+def _make_to_upper(item_type, is_reader):
 
     # Handle non-pointer types first.
 
-    name, _ = _PRIMITIVE_TYPES.get(item_type.which, (None, None))
-    if name:
-        return getattr(item_value, 'as%s' % name)()
+    result = _PRIMITIVE_TYPES.get(item_type.which)
+    if result:
+        return functools.partial(_primitive_to_upper, result[1])
 
     if item_type.is_enum():
-        # Simply return the enum value and do not convert it to Python
-        # enum type; implement the conversion at higher level.
-        return item_value.asDynamicEnum().getRaw()
+        return _enum_to_upper
 
     # Handle pointer types.
 
     if item_type.is_text():
-        # Should I return a memory view instead?
-        return str(item_value.asText(), 'utf8')
+        return _text_to_upper
 
     if item_type.is_data():
-        return item_value.asData()
+        return _data_to_upper
 
     if item_type.is_list():
-        if collection_type._is_reader_type:
-            list_type = DynamicListReader
-        else:
-            list_type = DynamicListBuilder
-        return list_type(
-            message,
+        return functools.partial(
+            _list_to_upper,
+            # TODO: Sadly, this will break users who subclass
+            # DynamicListReader or DynamicListBuilder (same below) as we
+            # hard code types here.
+            DynamicListReader if is_reader else DynamicListBuilder,
             item_type.as_list(),
-            item_value.asDynamicList(),
         )
 
     if item_type.is_struct():
-        if collection_type._is_reader_type:
-            struct_type = DynamicStructReader
-        else:
-            struct_type = DynamicStructBuilder
-        return struct_type(
-            message,
+        return functools.partial(
+            _struct_to_upper,
+            DynamicStructReader if is_reader else DynamicStructBuilder,
             item_type.as_struct(),
-            item_value.asDynamicStruct(),
         )
 
     if item_type.is_interface():
@@ -285,56 +292,61 @@ def _getitem(collection_type, message, item_type, getitem, key):
     return ASSERT.unreachable('unexpected item type: {}', item_type)
 
 
-def _setitem(item_type, setitem, key, value):
+def _primitive_to_upper(to_upper, message, value):
+    del message  # Unused.
+    return to_upper(value)
+
+
+def _enum_to_upper(message, value):
+    del message  # Unused.
+    # Simply return the enum value and do not convert it to Python enum
+    # type; implement the conversion at higher level.
+    return value.asDynamicEnum().getRaw()
+
+
+def _text_to_upper(message, value):
+    del message  # Unused.
+    # Should I return a memory view instead?
+    return str(value.asText(), 'utf8')
+
+
+def _data_to_upper(message, value):
+    del message  # Unused.
+    return value.asData()
+
+
+def _list_to_upper(list_type, schema, message, value):
+    return list_type(message, schema, value.asDynamicList())
+
+
+def _struct_to_upper(struct_type, schema, message, value):
+    return struct_type(message, schema, value.asDynamicStruct())
+
+
+def _make_to_lower(item_type):
 
     # Handle non-pointer types first.
 
-    name, type_ = _PRIMITIVE_TYPES.get(item_type.which, (None, None))
-    if name:
-        ASSERT.isinstance(value, type_)
-        dvalue = getattr(_capnp.DynamicValue.Reader, 'from%s' % name)(value)
-        setitem(key, dvalue)
-        return
+    result = _PRIMITIVE_TYPES.get(item_type.which)
+    if result:
+        return functools.partial(_primitive_to_lower, result[0], result[2])
 
     if item_type.is_enum():
-        if isinstance(value, enum.Enum):
-            value = value.value
-        ASSERT.isinstance(value, int)
-        dvalue = _capnp.DynamicValue.Reader.fromDynamicEnum(
-            _capnp.DynamicEnum(item_type.as_enum()._raw, value)
-        )
-        setitem(key, dvalue)
-        return
+        return functools.partial(_enum_to_lower, item_type.as_enum())
 
     # Handle pointer types.
 
     if item_type.is_text():
-        ASSERT.isinstance(value, str)
-        setitem(key, _capnp.DynamicValue.Reader.fromText(value))
-        return
+        return _text_to_lower
 
     if item_type.is_data():
-        ASSERT.isinstance(value, (bytes, memoryview))
-        setitem(key, _capnp.DynamicValue.Reader.fromData(value))
-        return
+        return _data_to_lower
 
     if item_type.is_list():
-        if isinstance(value, DynamicListReader):
-            reader = value._raw
-        else:
-            ASSERT.isinstance(value, DynamicListBuilder)
-            reader = value._raw.asReader()
-        setitem(key, _capnp.DynamicValue.Reader.fromDynamicList(reader))
-        return
+        return _list_to_lower
 
     if item_type.is_struct():
-        if isinstance(value, DynamicStructReader):
-            reader = value._raw
-        else:
-            ASSERT.isinstance(value, DynamicStructBuilder)
-            reader = value._raw.asReader()
-        setitem(key, _capnp.DynamicValue.Reader.fromDynamicStruct(reader))
-        return
+        return _struct_to_lower
 
     if item_type.is_interface():
         raise NotImplementedError('do not support interface for now')
@@ -342,4 +354,46 @@ def _setitem(item_type, setitem, key, value):
     if item_type.is_any_pointer():
         raise NotImplementedError('do not support any-pointer for now')
 
-    ASSERT.unreachable('unexpected item type: {}', item_type)
+    return ASSERT.unreachable('unexpected item type: {}', item_type)
+
+
+def _primitive_to_lower(type_, to_lower, value):
+    ASSERT.isinstance(value, type_)
+    return to_lower(value)
+
+
+def _enum_to_lower(schema, value):
+    if isinstance(value, enum.Enum):
+        value = value.value
+    ASSERT.isinstance(value, int)
+    return _capnp.DynamicValue.Reader.fromDynamicEnum(
+        _capnp.DynamicEnum(schema._raw, value)
+    )
+
+
+def _text_to_lower(value):
+    ASSERT.isinstance(value, str)
+    return _capnp.DynamicValue.Reader.fromText(value)
+
+
+def _data_to_lower(value):
+    ASSERT.isinstance(value, (bytes, memoryview))
+    return _capnp.DynamicValue.Reader.fromData(value)
+
+
+def _list_to_lower(value):
+    if isinstance(value, DynamicListReader):
+        reader = value._raw
+    else:
+        ASSERT.isinstance(value, DynamicListBuilder)
+        reader = value._raw.asReader()
+    return _capnp.DynamicValue.Reader.fromDynamicList(reader)
+
+
+def _struct_to_lower(value):
+    if isinstance(value, DynamicStructReader):
+        reader = value._raw
+    else:
+        ASSERT.isinstance(value, DynamicStructBuilder)
+        reader = value._raw.asReader()
+    return _capnp.DynamicValue.Reader.fromDynamicStruct(reader)
