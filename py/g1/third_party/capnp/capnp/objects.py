@@ -71,6 +71,7 @@ import enum
 import functools
 import logging
 import operator
+import threading
 import re
 
 from g1.bases import assertions
@@ -123,16 +124,25 @@ class _StructConverter:
     """Converter between dataclass and struct."""
 
     # Handle recursive dataclass reference with a global table of
-    # instances.  Note that for now this is not thread-safe.
+    # instances.
     _INSTANCES = {}
+    _INSTANCES_LOCK = threading.Lock()
 
     @classmethod
     def get(cls, schema, dataclass):
         key = (schema.proto.id, dataclass)
-        converter = cls._INSTANCES.get(key)
-        if converter is None:
-            converter = cls._INSTANCES[key] = cls()
-            converter._init(schema, dataclass)
+        cls._INSTANCES_LOCK.acquire()
+        try:
+            converter = cls._INSTANCES.get(key)
+            if converter is None:
+                converter = cls._INSTANCES[key] = cls()
+                cls._INSTANCES_LOCK.release()
+                try:
+                    converter._init(schema, dataclass)
+                finally:
+                    cls._INSTANCES_LOCK.acquire()
+        finally:
+            cls._INSTANCES_LOCK.release()
         return converter
 
     @staticmethod
