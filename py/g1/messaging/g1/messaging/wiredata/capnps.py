@@ -38,6 +38,11 @@ class _BaseWireData(wiredata.WireData):
             )
         return converter
 
+    def register(self, message_type):
+        """Register message type (this is optional)."""
+        ASSERT.predicate(message_type, wiredata.is_message_type)
+        self._get_converter(message_type)
+
     def to_lower(self, message):
         ASSERT.predicate(message, wiredata.is_message)
         builder = capnp.MessageBuilder()
