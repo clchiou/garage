@@ -95,12 +95,9 @@ class DynamicListBuilder(Base):
             raise IndexError(index)
         self._raw.set(index, self.__to_lower(value))
 
-    def init(self, index, size):
+    def init(self, index, size=None):
         if not 0 <= index < len(self):
             raise IndexError(index)
-        # For now let's only accept list, but remember that
-        # ``capnp::DynamicList::Builder::init`` actually supports more
-        # types.
         if self.schema.element_type.is_list():
             ASSERT.greater_or_equal(size, 0)
             return DynamicListBuilder(
@@ -109,9 +106,12 @@ class DynamicListBuilder(Base):
                 self._raw.init(index, size).asDynamicList(),
             )
         else:
-            return ASSERT.unreachable(
-                'unexpected item type: {}', self.schema.element_type
-            )
+            # Although Builder::init does not support struct type, to
+            # make interface consistent between list-of-struct and
+            # struct-of-struct, let's return something here rather than
+            # erring out.
+            ASSERT.true(self.schema.element_type.is_struct())
+            return self[index]
 
 
 class DynamicStructReader(Base):
