@@ -124,7 +124,7 @@ class SchemaLoader:
 
             if schema.proto.is_file():
                 path = schema.proto.display_name
-                LOG.debug('cache schema: %s', path)
+                LOG.debug('cache file node: %s', path)
                 files[path] = schema
                 continue
 
@@ -167,9 +167,12 @@ class SchemaLoader:
         for annotation in schema.proto.annotations:
             if annotation.id == CXX_NAMESPACE:
                 return annotation.value.text.replace('::', '.').strip('.')
-        return ASSERT.unreachable(
-            'expect Cxx.namespace annotation: {}', schema
-        )
+        LOG.debug('no Cxx.namespace annotation: %r', schema)
+        # As a last resort, derive module path from display name.
+        path = schema.proto.display_name
+        if path.endswith('.capnp'):
+            path = path[:-len('.capnp')]
+        return path.replace('/', '.')
 
     @staticmethod
     def _get_object_path(schema, id_to_schema):
