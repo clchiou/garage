@@ -1,10 +1,19 @@
 __all__ = [
     'read_package_config',
+    'register_subcommands',
 ]
 
 import collections
 import shlex
 import subprocess
+
+
+def register_subcommands(command, *subcommands):
+    """Make sub-commands as a required step of ``command``."""
+    command.sub_commands[0:0] = [(subcommand.__name__, None)
+                                 for subcommand in subcommands]
+    return subcommands
+
 
 PackageConfig = collections.namedtuple(
     'PackageConfig',
