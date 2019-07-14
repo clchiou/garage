@@ -55,6 +55,8 @@ class TestSimpleStruct:
     datetime_int_field: datetime.datetime
     datetime_float_field: datetime.datetime
 
+    nested_list: typing.List[typing.List[typing.List[typing.Tuple[int]]]]
+
 
 @dataclasses.dataclass(frozen=True)
 class TestInvalidDatetimeIntStruct:
@@ -233,6 +235,7 @@ class ObjectsTest(unittest.TestCase):
             enum_field=TestSimpleStruct.TestEnum.member1,
             datetime_int_field=dt.replace(microsecond=0),
             datetime_float_field=dt,
+            nested_list=None,
         )
         message = capnp.MessageBuilder()
         builder = message.init_root(schema)
@@ -262,13 +265,27 @@ class ObjectsTest(unittest.TestCase):
         self.assertEqual(builder['int32Field'], 0)
         builder['int32Field'] = 42
 
+        self.assertIsNone(builder['nestedList'])
         do_test(
             text_field_1='hello',
             text_field_2='world',
             data_field_1=b'\x00\x01\x02',
             data_field_2=b'\x03\x04\x05',
+            nested_list=[
+                [
+                    [],
+                ],
+                [
+                    [],
+                    [(0, )],
+                ],
+                [
+                    [(1, ), (2, )],
+                ],
+            ],
         )
         self.assertEqual(builder['int32Field'], 0)
+        self.assertEqual(len(builder['nestedList']), 3)
 
         do_test(
             int_list_field=[1, 2, 3],

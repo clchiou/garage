@@ -61,6 +61,8 @@ named union     typing.Union[...]
   order, which is more semantically relevant than ordinal number.
 """
 
+# TODO(clchiou): Support generic.
+
 __all__ = [
     'DataclassConverter',
 ]

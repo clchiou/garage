@@ -41,6 +41,11 @@ struct TestSimpleStruct {
 
   datetimeIntField @19 :Int32;
   datetimeFloatField @20 :Float64;
+
+  struct NestedStruct {
+    int @0 :Int32;
+  }
+  nestedList @21 :List(List(List(NestedStruct)));
 }
 
 struct TestInvalidDatetimeIntStruct {
