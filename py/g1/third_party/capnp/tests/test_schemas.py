@@ -24,6 +24,22 @@ class SchemaLoaderTest(unittest.TestCase):
         path = str(cls.TESTDATA_PATH / path)
         return tests.check_output(['capnp', 'compile', '-o-', path])
 
+    def test_repeated_load(self):
+        schema_data = self.compile('test-1.capnp')
+        with schemas.SchemaLoader() as loader:
+
+            loader.load_once(schema_data)
+            self.assertEqual(len(loader.files), 2)
+            self.assertEqual(len(loader.struct_schemas), 12)
+            files = dict(loader.files.items())
+            struct_schemas = dict(loader.struct_schemas.items())
+
+            loader.load_once(schema_data)
+            self.assertEqual(len(loader.files), 2)
+            self.assertEqual(len(loader.struct_schemas), 12)
+            self.assertEqual(loader.files, files)
+            self.assertEqual(loader.struct_schemas, struct_schemas)
+
     def test_schema_loader(self):
 
         structs = (

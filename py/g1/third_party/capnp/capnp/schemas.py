@@ -2,7 +2,6 @@ __all__ = [
     'SchemaLoader',
 ]
 
-import functools
 import logging
 
 from g1.bases import classes
@@ -30,50 +29,12 @@ class SchemaLoader:
 
     def __init__(self):
         self._loader = _capnp.SchemaLoader()
-        # Caches for all kinds of schemas.
-        self._files = None
-        self._struct_schemas = None
-        self._enum_schemas = None
-        self._interface_schemas = None
-        self._const_schemas = None
-        self._annotations = None
-
-    def _reset_caches(self):
-        if self._files is None:
-            return
-        LOG.debug('invalidate schema caches')
-        self._files = None
-        self._struct_schemas = None
-        self._enum_schemas = None
-        self._interface_schemas = None
-        self._const_schemas = None
-        self._annotations = None
-
-    def _get_cache(self, name):
-        cache = getattr(self, name)
-        if cache is None:
-            self._load_caches()
-            cache = ASSERT.not_none(getattr(self, name))
-        return cache
-
-    files = property(  # File schemas are special.
-        functools.partial(_get_cache, name='_files'),
-    )
-    struct_schemas = property(
-        functools.partial(_get_cache, name='_struct_schemas'),
-    )
-    enum_schemas = property(
-        functools.partial(_get_cache, name='_enum_schemas'),
-    )
-    interface_schemas = property(
-        functools.partial(_get_cache, name='_interface_schemas'),
-    )
-    const_schemas = property(
-        functools.partial(_get_cache, name='_const_schemas'),
-    )
-    annotations = property(  # Annotation schemas are special.
-        functools.partial(_get_cache, name='_annotations'),
-    )
+        self.files = {}
+        self.struct_schemas = {}
+        self.enum_schemas = {}
+        self.interface_schemas = {}
+        self.const_schemas = {}
+        self.annotations = {}
 
     def __enter__(self):
         return self
@@ -102,62 +63,59 @@ class SchemaLoader:
                 load(node)
         finally:
             reader._reset()
-        self._reset_caches()
+        self._update()
 
-    def _load_caches(self):
+    def _update(self):
         ASSERT.not_none(self._loader)
-        LOG.debug('build schema cache')
+        LOG.debug('update schema tables')
 
         id_to_schema = {
             schema.proto.id: schema
             for schema in map(Schema, self._loader.getAllLoaded())
         }
 
-        files = {}
-        struct_schemas = {}
-        enum_schemas = {}
-        interface_schemas = {}
-        const_schemas = {}
-        annotations = {}
-
         for schema in id_to_schema.values():
 
             if schema.proto.is_file():
                 path = schema.proto.display_name
-                LOG.debug('cache file node: %s', path)
-                files[path] = schema
+                if path not in self.files:
+                    LOG.debug('add file node: %s', path)
+                    self.files[path] = schema
                 continue
+
+            if schema.proto.is_struct():
+                table = self.struct_schemas
+            elif schema.proto.is_enum():
+                table = self.enum_schemas
+            elif schema.proto.is_interface():
+                table = self.interface_schemas
+            elif schema.proto.is_const():
+                table = self.const_schemas
+            elif schema.proto.is_annotation():
+                table = self.annotations
+            else:
+                ASSERT.unreachable('unexpected schema kind: {}', schema)
 
             label = labels.Label(
                 self._get_module_path(schema, id_to_schema),
                 self._get_object_path(schema, id_to_schema),
             )
-            LOG.debug('cache schema: %s', label)
+            if label in table:
+                continue
 
+            LOG.debug('add schema: %s', label)
             if schema.proto.is_struct():
-                struct_schemas[label] = schema.as_struct()
-
+                table[label] = schema.as_struct()
             elif schema.proto.is_enum():
-                enum_schemas[label] = schema.as_enum()
-
+                table[label] = schema.as_enum()
             elif schema.proto.is_interface():
-                interface_schemas[label] = schema.as_interface()
-
+                table[label] = schema.as_interface()
             elif schema.proto.is_const():
-                const_schemas[label] = schema.as_const()
-
+                table[label] = schema.as_const()
             elif schema.proto.is_annotation():
-                annotations[label] = schema
-
+                table[label] = schema
             else:
                 ASSERT.unreachable('unexpected schema kind: {}', schema)
-
-        self._files = files
-        self._struct_schemas = struct_schemas
-        self._enum_schemas = enum_schemas
-        self._interface_schemas = interface_schemas
-        self._const_schemas = const_schemas
-        self._annotations = annotations
 
     @staticmethod
     def _get_module_path(schema, id_to_schema):
