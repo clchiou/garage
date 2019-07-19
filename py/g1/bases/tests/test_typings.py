@@ -21,6 +21,10 @@ class TypingsTest(unittest.TestCase):
             with self.subTest(type_):
                 self.assertIs(typings.match_optional_type(type_), int)
 
+    def test_type_is_subclass(self):
+        self.assertFalse(typings.type_is_subclass(typing.Optional[bool], bool))
+        self.assertTrue(typings.type_is_subclass(bool, bool))
+
 
 if __name__ == '__main__':
     unittest.main()

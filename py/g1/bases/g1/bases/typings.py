@@ -37,3 +37,11 @@ def match_optional_type(type_):
         return None
     else:
         return type_.__args__[1 - i]
+
+
+def type_is_subclass(type_, type_or_tuple):
+    """Check sub-class.
+
+    Return false if ``type_`` is a recursive type.
+    """
+    return isinstance(type_, type) and issubclass(type_, type_or_tuple)
