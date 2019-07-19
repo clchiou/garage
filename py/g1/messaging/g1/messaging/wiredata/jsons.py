@@ -185,7 +185,7 @@ class JsonWireData(wiredata.WireData):
             elif typings.is_union_type(value_type):
 
                 # Handle ``None`` special case.
-                if not raw_value:
+                if raw_value is None:
                     ASSERT.in_(NoneType, value_type.__args__)
                     return None
 

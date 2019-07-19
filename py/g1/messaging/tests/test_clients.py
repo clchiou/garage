@@ -61,9 +61,11 @@ class ClientTest(unittest.TestCase):
                     kernels.run(timeout=0)
 
                 request = WIRE_DATA.to_upper(Request, socket.recv())
-                self.assertEqual(request, Request.greet(name='world'))
+                self.assertEqual(request.args, Request.m.greet(name='world'))
 
-                response = Response(result='hello world')
+                response = Response(
+                    result=Response.Result(greet='hello world')
+                )
                 socket.send(WIRE_DATA.to_lower(response))
 
                 kernels.run(timeout=1)
@@ -83,9 +85,11 @@ class ClientTest(unittest.TestCase):
                     kernels.run(timeout=0)
 
                 request = WIRE_DATA.to_upper(Request, socket.recv())
-                self.assertEqual(request, Request.greet(name='world'))
+                self.assertEqual(request.args, Request.m.greet(name='world'))
 
-                response = Response(error=ValueError('oops'))
+                response = Response(
+                    error=Response.Error(value_error=ValueError('oops'))
+                )
                 socket.send(WIRE_DATA.to_lower(response))
 
                 kernels.run(timeout=1)
@@ -106,7 +110,7 @@ class ClientTest(unittest.TestCase):
                     kernels.run(timeout=0)
 
                 socket.recv()
-                socket.send(b'{"result": {"int": 42}, "error": null}')
+                socket.send(b'{"result": {"greet": 42}, "error": null}')
 
                 kernels.run(timeout=1)
                 self.assertTrue(task.is_completed())

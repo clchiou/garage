@@ -48,7 +48,7 @@ class Interface1:
     __module__ = 'g1.messaging.tests.test_2'
 
     @reqrep.raising(SomeError)
-    def func1(self, x: int, y: typing.List[str]) -> typing.Optional[Foo]:
+    def func1(self, x: int, y: typing.List[str]) -> Foo:
         raise NotImplementedError
 
 
@@ -57,7 +57,7 @@ class Interface2:
 
     __module__ = 'g1.messaging.tests.test_2'
 
-    def func2(self) -> typing.Union[int, str]:
+    def func2(self) -> int:
         raise NotImplementedError
 
     @reqrep.raising(SomeOtherError)
@@ -93,29 +93,46 @@ class CapnpReqrepTest(unittest.TestCase):
     def test_null_interface(self):
         request_type, response_type = \
             reqrep.generate_interface_types(NullInterface, name='Null')
-        self.assert_obj(request_type(request=None))
+        self.assert_obj(request_type(args=None))
         self.assert_obj(response_type())
 
     def test_interface_1(self):
         request_type, response_type = \
             reqrep.generate_interface_types(Interface1)
-        self.assert_obj(request_type.func1(x=0, y=['a', 'b']))
-        self.assert_obj(request_type.func1(x=1, y=None))
+        self.assert_obj(
+            request_type(args=request_type.m.func1(x=0, y=['a', 'b']))
+        )
+        self.assert_obj(request_type(args=request_type.m.func1(x=1, y=None)))
         self.assert_obj(response_type())
-        self.assert_obj(response_type(result=Foo(bool_field=True)))
-        self.assert_obj(response_type(error=SomeError('some error')))
+        self.assert_obj(
+            response_type(
+                result=response_type.Result(func1=Foo(bool_field=True))
+            )
+        )
+        self.assert_obj(
+            response_type(
+                error=response_type.Error(some_error=SomeError('some error'))
+            )
+        )
 
     def test_interface_2(self):
         request_type, response_type = \
             reqrep.generate_interface_types(Interface2)
-        self.assert_obj(request_type.func2())
-        self.assert_obj(request_type.func3(x=b'\x01\x02\x03'))
+        self.assert_obj(request_type(args=request_type.m.func2()))
+        self.assert_obj(
+            request_type(args=request_type.m.func3(x=b'\x01\x02\x03'))
+        )
         self.assert_obj(response_type())
-        self.assert_obj(response_type(result=0))
-        self.assert_obj(response_type(result=''))
-        self.assert_obj(response_type(error=SomeError('')))
-        self.assert_obj(response_type(error=SomeOtherError(0, '')))
-        self.assert_obj(response_type(result=1, error=SomeOtherError(0, '')))
+        self.assert_obj(response_type(result=response_type.Result(func2=0)))
+        self.assert_obj(
+            response_type(error=response_type.Error(some_error=SomeError('')))
+        )
+        self.assert_obj(
+            response_type(
+                error=response_type.
+                Error(some_other_error=SomeOtherError(0, ''))
+            )
+        )
 
 
 if __name__ == '__main__':

@@ -17,57 +17,73 @@ struct Foo {
 }
 
 struct NullRequest {
-  request @0 :Void;
+  struct Args {
+  }
+  args @0 :Args;
 }
 
 struct NullResponse {
-  result @0 :Void;
-  error @1 :Void;
+  struct Result {
+  }
+  struct Error {
+  }
+  union {
+    result @0 :Result;
+    error @1 :Error;
+  }
 }
 
 struct Interface1Request {
-  request @0 :Func1Request;
+  struct Args {
+    struct Func1 {
+      x @0 :Int32;
+      y @1 :List(Text);
+    }
+    func1 @0 :Func1;
+  }
+  args @0 :Args;
 }
 
 struct Interface1Response {
-  result :union {
-    none @0 :Void;
-    foo @2 :Foo;
+  struct Result {
+    func1 @0 :Foo;
   }
-  error :union {
-    none @1 :Void;
-    someError @3 :SomeError;
+  struct Error {
+    someError @0 :SomeError;
   }
-}
-
-struct Func1Request $Cxx.name("func1") {
-  x @0 :Int32;
-  y @1 :List(Text);
+  union {
+    result @0 :Result;
+    error @1 :Error;
+  }
 }
 
 struct Interface2Request {
-  request :union {
-    func2 @0 :Func2Request;
-    func3 @1 :Func3Request;
+  struct Func2 {
+  }
+  struct Func3 {
+    x @0 :Data;
+  }
+  args :union {
+    func2 @0 :Func2;
+    func3 @1 :Func3;
   }
 }
 
 struct Interface2Response {
-  result :union {
-    none @0 :Void;
-    int @1 :Int32;
-    str @2 :Text;
+  struct Result {
+    union {
+      func2 @0 :Int32;
+      func3 @1 :Void;
+    }
   }
-  error :union {
-    none @3 :Void;
-    someError @4 :SomeError;
-    someOtherError @5 :SomeOtherError;
+  struct Error {
+    union {
+      someError @0 :SomeError;
+      someOtherError @1 :SomeOtherError;
+    }
   }
-}
-
-struct Func2Request $Cxx.name("func2") {
-}
-
-struct Func3Request $Cxx.name("func3") {
-  x @0 :Data;
+  union {
+    result @0 :Result;
+    error @1 :Error;
+  }
 }

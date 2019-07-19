@@ -1,7 +1,6 @@
 import unittest
 
 import dataclasses
-import inspect
 import typing
 
 from g1.messaging import reqrep
@@ -37,15 +36,6 @@ class TestInterface:
         raise NotImplementedError
 
     def test_default(self, s: str = 'hello world'):
-        raise NotImplementedError
-
-
-class TestNameConflict:
-
-    def request(self, x: int):
-        raise NotImplementedError
-
-    def f(self, x: int, y: int):
         raise NotImplementedError
 
 
@@ -98,6 +88,11 @@ class ReqrepTest(unittest.TestCase):
             ),
         )
 
+    def assert_fields(self, actual, expect):
+        self.assertEqual(len(actual), len(expect))
+        for f, (n, t) in zip(actual, expect):
+            self.assert_field(f, n, t)
+
     def assert_field(self, field, name, type_):
         self.assertEqual(field.name, name)
         self.assertEqual(field.type, type_)
@@ -107,55 +102,60 @@ class ReqrepTest(unittest.TestCase):
         request_type, response_type = reqrep.generate_interface_types(
             TestInterface, 'Test'
         )
+        args_type = request_type.Args
 
-        self.assertEqual(
-            sorted(request_type._types),
-            ['greet', 'square', 'test_default'],
+        self.assert_fields(
+            dataclasses.fields(request_type),
+            [('args', args_type)],
         )
-        fields = dataclasses.fields(request_type)
-        anno = typing.Union[ \
-            request_type._types.square,
-            request_type._types.greet,
-            request_type._types.test_default,
-        ]
-        self.assertEqual(request_type.__name__, 'TestRequest')
-        self.assertEqual(request_type.__annotations__, {'request': anno})
-        self.assertEqual(len(fields), 1)
-        self.assert_field(fields[0], 'request', anno)
+        self.assert_fields(
+            dataclasses.fields(args_type),
+            [
+                ('greet', typing.Optional[args_type.Greet]),
+                ('square', typing.Optional[args_type.Square]),
+                ('test_default', typing.Optional[args_type.TestDefault]),
+            ],
+        )
+        self.assert_fields(
+            dataclasses.fields(args_type.Greet),
+            [('name', TestData)],
+        )
+        self.assert_fields(
+            dataclasses.fields(args_type.Square),
+            [('x', int)],
+        )
+        self.assert_fields(
+            dataclasses.fields(args_type.TestDefault),
+            [('s', str)],
+        )
 
-        self.assertEqual(
-            request_type.square(x=1),
-            request_type(request=request_type._types.square(x=1)),
+        self.assert_fields(
+            dataclasses.fields(response_type),
+            [
+                ('result', typing.Optional[response_type.Result]),
+                ('error', typing.Optional[response_type.Error]),
+            ],
         )
-        self.assertEqual(
-            request_type.greet(name=TestData(name='world')),
-            request_type(
-                request=request_type._types.greet(name=TestData(name='world'))
-            ),
+        self.assert_fields(
+            dataclasses.fields(response_type.Result),
+            [
+                ('greet', typing.Optional[None]),
+                ('square', typing.Optional[int]),
+                ('test_default', typing.Optional[None]),
+            ],
+        )
+        self.assert_fields(
+            dataclasses.fields(response_type.Error),
+            [('exception', Exception)],
         )
 
         # Test default value.
         with self.assertRaisesRegex(TypeError, r'missing 1 .* \'name\''):
-            request_type.greet()
+            request_type.Args.Greet()
         self.assertEqual(
-            request_type.test_default(),
-            request_type(
-                request=request_type._types.test_default(s='hello world')
-            ),
+            request_type.Args.TestDefault(),
+            request_type.Args.TestDefault(s='hello world'),
         )
-
-        fields = dataclasses.fields(response_type)
-        self.assertEqual(response_type.__name__, 'TestResponse')
-        self.assertEqual(
-            response_type.__annotations__,
-            {
-                'result': typing.Union[None, int],
-                'error': typing.Union[None, Exception],
-            },
-        )
-        self.assertEqual(len(fields), 2)
-        self.assert_field(fields[0], 'result', typing.Union[None, int])
-        self.assert_field(fields[1], 'error', typing.Union[None, Exception])
 
         self.assertEqual(
             response_type(),
@@ -190,41 +190,17 @@ class ReqrepTest(unittest.TestCase):
             )
 
         _, response_type = reqrep.generate_interface_types(Test1)
-        self.assertEqual(
-            response_type.__annotations__,
-            {
-                'result': type(None),
-                'error': typing.Union[None, ValueError],
-            },
+        self.assert_fields(
+            dataclasses.fields(response_type),
+            [
+                ('result', typing.Optional[response_type.Result]),
+                ('error', typing.Optional[response_type.Error]),
+            ],
         )
-
-    def test_name_conflict(self):
-        """Test name conflict.
-
-        Since ``generate_interface_types`` generates ``request`` field
-        without default value, we may have a method also named "request"
-        with no problem.
-        """
-
-        request_type, _ = reqrep.generate_interface_types(TestNameConflict)
-
-        self.assertTrue(dataclasses.is_dataclass(request_type._types.request))
-        self.assertTrue(inspect.ismethod(request_type.request))
-
-        self.assertEqual(sorted(request_type._types), ['f', 'request'])
-        fields = dataclasses.fields(request_type)
-        anno = typing.Union[ \
-            request_type._types.request,
-            request_type._types.f,
-        ]
-        self.assertEqual(request_type.__name__, 'TestNameConflictRequest')
-        self.assertEqual(request_type.__annotations__, {'request': anno})
-        self.assertEqual(len(fields), 1)
-        self.assert_field(fields[0], 'request', anno)
-
-        self.assertEqual(
-            request_type.request(x=1),
-            request_type(request=request_type._types.request(x=1)),
+        self.assert_fields(dataclasses.fields(response_type.Result), [])
+        self.assert_fields(
+            dataclasses.fields(response_type.Error),
+            [('value_error', ValueError)],
         )
 
 

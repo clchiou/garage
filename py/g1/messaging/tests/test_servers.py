@@ -20,6 +20,7 @@ class InternalServerError(Exception):
     pass
 
 
+@reqrep.raising(InvalidRequestError, InternalServerError)
 class TestInterface:
 
     @reqrep.raising(ValueError)
@@ -66,16 +67,18 @@ class ServerTest(unittest.TestCase):
             TestApplication(), Request, Response, WIRE_DATA
         )
 
-        server.invalid_request_error = InvalidRequestError
-        server.internal_server_error = InternalServerError
+        server.invalid_request_error = InvalidRequestError()
+        server.internal_server_error = InternalServerError()
 
-        wire_request = WIRE_DATA.to_lower(Request.greet(name='world'))
+        wire_request = WIRE_DATA.to_lower(
+            Request(args=Request.m.greet(name='world'))
+        )
         self.assertEqual(
             WIRE_DATA.to_upper(
                 Response,
                 kernels.run(server._serve(wire_request)),
             ),
-            Response(result='Hello, world'),
+            Response(result=Response.Result(greet='Hello, world')),
         )
 
         with self.assertLogs(servers.__name__, level='DEBUG') as cm:
@@ -85,7 +88,7 @@ class ServerTest(unittest.TestCase):
             )
         self.assertRegex('\n'.join(cm.output), r'to_upper error: ')
 
-        wire_request = WIRE_DATA.to_lower(Request.f())
+        wire_request = WIRE_DATA.to_lower(Request(args=Request.m.f()))
         with self.assertLogs(servers.__name__, level='DEBUG') as cm:
             self.assertEqual(
                 kernels.run(server._serve(wire_request)),
@@ -93,7 +96,7 @@ class ServerTest(unittest.TestCase):
             )
         self.assertRegex('\n'.join(cm.output), r'unknown method: f: ')
 
-        wire_request = WIRE_DATA.to_lower(Request.g())
+        wire_request = WIRE_DATA.to_lower(Request(args=Request.m.g()))
         with self.assertLogs(servers.__name__, level='DEBUG') as cm:
             self.assertEqual(
                 kernels.run(server._serve(wire_request)),

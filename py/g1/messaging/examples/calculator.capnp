@@ -4,7 +4,7 @@ using Cxx = import "/capnp/c++.capnp";
 $Cxx.namespace("examples::calculator");
 
 struct CalculatorRequest {
-  request :union {
+  args :union {
     add :group {
       x @0 :Float64;
       y @1 :Float64;
@@ -25,14 +25,17 @@ struct CalculatorRequest {
 }
 
 struct CalculatorResponse {
-  result :union {
-    none @0 :Void;
-    float @2 :Float64;
-  }
-  error :union {
-    none @1 :Void;
-    zeroDivisionError :group {
-      message @3 :Text;
+  union {
+    result :union {
+      add @0 :Float64;
+      sub @1 :Float64;
+      mul @2 :Float64;
+      div @3 :Float64;
+    }
+    error :group {
+      zeroDivisionError :group {
+        message @4 :Text;
+      }
     }
   }
 }

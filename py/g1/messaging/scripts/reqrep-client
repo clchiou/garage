@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import dataclasses
 import json
 import pprint
 import re
@@ -17,6 +18,7 @@ from g1.asyncs import kernels
 from g1.bases import labels
 from g1.bases.assertions import ASSERT
 from g1.messaging.reqrep import clients
+from g1.messaging.reqrep import utils
 from g1.messaging.wiredata import jsons
 
 try:
@@ -73,26 +75,37 @@ def main(args: asyncs.LABELS.args):
     response_type = labels.load_global(args.response_type)
 
     method_args = json_wire_data.to_upper(
-        request_type._types[args.method],
+        request_type.types[args.method],
         json.dumps(parse_args_list(args.args)).encode('ascii'),
+    )
+    method_args_str = '%s(%s)' % (
+        args.method,
+        ', '.join(
+            '%s=%r' % (field.name, getattr(method_args, field.name))
+            for field in dataclasses.fields(method_args)
+        ),
     )
 
     with clients.Client(request_type, response_type, wire_data) as client:
         client.socket.dial(args.url)
         response = kernels.run(
-            client.transceive(request_type(request=method_args))
+            client.transceive(
+                request_type(
+                    args=request_type.Args(**{args.method: method_args})
+                )
+            )
         )
         if response.error is None:
-            output = pprint.pformat(response.result)
+            output = pprint.pformat(utils.select(response.result)[1])
             rc = 0
         else:
-            output = pprint.pformat(response.error)
+            output = pprint.pformat(utils.select(response.error)[1])
             rc = 1
         if len(output) <= 40:
             fmt = '%s -> %s'
         else:
             fmt = '%s ->\n%s'
-        print(fmt % (method_args, output))
+        print(fmt % (method_args_str, output))
 
     return rc
 

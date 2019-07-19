@@ -12,7 +12,10 @@ import nng.asyncs
 
 from g1.asyncs.bases import tasks
 from g1.bases import classes
+from g1.bases import typings
 from g1.bases.assertions import ASSERT
+
+from . import utils
 
 LOG = logging.getLogger(__name__)
 
@@ -50,20 +53,49 @@ class Server:
 
         # Prepared errors.
         self._invalid_request_error = None
+        self._invalid_request_error_name = None
         self._invalid_request_error_wire = None
         self._internal_server_error = None
+        self._internal_server_error_name = None
         self._internal_server_error_wire = None
+
+        self._error_types = {
+            field.name: ASSERT(
+                typings.is_recursive_type(field.type)
+                and typings.is_union_type(field.type)
+                and typings.match_optional_type(field.type),
+                'expect typing.Optional[T]: {!r}',
+                field,
+            )
+            for field in dataclasses.fields(self._response_type.Error)
+        }
 
         self._stack = None
         # For convenience, create socket before ``__enter__``.
         self.socket = nng.asyncs.Socket(nng.Protocols.REP0)
 
+    def _match_error_type(self, error):
+        name = self._error_types.get(type(error))
+        if name is not None:
+            return name
+        # Match error type the slow way.
+        for name, error_type in self._error_types.items():
+            if isinstance(error, error_type):
+                return name
+        return None
+
     def _set_error(self, name, error):
-        if isinstance(error, type):
-            error = error()
         ASSERT.isinstance(error, Exception)
-        wire_error = self._wiredata.to_lower(self._response_type(error=error))
+        error_name = ASSERT(
+            self._match_error_type(error), 'unknown error type: {!r}', error
+        )
+        wire_error = self._wiredata.to_lower(
+            self._response_type(
+                error=self._response_type.Error(**{error_name: error})
+            )
+        )
         setattr(self, name, error)
+        setattr(self, name + '_name', error_name)
         setattr(self, name + '_wire', wire_error)
 
     invalid_request_error = property(
@@ -117,9 +149,12 @@ class Server:
             LOG.warning('to_upper error: %r', request, exc_info=True)
             return self._invalid_request_error_wire
 
-        method_args = request.request
+        try:
+            method_name, method_args = utils.select(request.args)
+        except Exception:
+            LOG.warning('invalid request: %r', request, exc_info=True)
+            return self._invalid_request_error_wire
 
-        method_name = type(method_args).__name__
         try:
             method = getattr(self._application, method_name)
         except AttributeError:
@@ -135,9 +170,11 @@ class Server:
             )
         except Exception as exc:
             LOG.warning('server error: %r', request, exc_info=True)
-            response = self._response_type(error=exc)
+            response = self._make_error_response(exc)
         else:
-            response = self._response_type(result=result)
+            response = self._response_type(
+                result=self._response_type.Result(**{method_name: result})
+            )
 
         try:
             response = self._wiredata.to_lower(response)
@@ -149,3 +186,14 @@ class Server:
         LOG.debug('wire response: %r', response)
 
         return response
+
+    def _make_error_response(self, error):
+        error_name = self._match_error_type(error)
+        if not error_name:
+            LOG.warning('unknown error type: %r', error)
+            ASSERT.true(self._internal_server_error)
+            error_name = self._internal_server_error_name
+            error = self._internal_server_error
+        return self._response_type(
+            error=self._response_type.Error(**{error_name: error})
+        )
