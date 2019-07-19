@@ -1,6 +1,6 @@
 import unittest
 
-import re
+from g1.bases import cases
 
 from capnp import _capnp  # pylint: disable=unused-import
 
@@ -14,14 +14,6 @@ except ImportError:
 
 @unittest.skipUnless(_capnp_test, '_capnp_test unavailable')
 class LowLevelSchemaTest(unittest.TestCase):
-
-    @staticmethod
-    def snake_to_camel(snake):
-        return re.sub(
-            r'_([a-z])',
-            lambda m: m.group(1).upper(),
-            snake.capitalize(),
-        )
 
     def assert_obj(self, obj, qualname, to_str, fields):
 
@@ -58,7 +50,9 @@ class LowLevelSchemaTest(unittest.TestCase):
                     enum_type = getattr(obj_type, 'Which')
                     self.assertIs(obj.which(), getattr(enum_type, type_))
                     for member_name in enum_type.names:
-                        izzer = 'is%s' % self.snake_to_camel(member_name)
+                        izzer = 'is%s' % cases.lower_snake_to_upper_camel(
+                            member_name.lower()
+                        )
                         if member_name == type_:
                             self.assertTrue(getattr(obj, izzer)())
                         else:

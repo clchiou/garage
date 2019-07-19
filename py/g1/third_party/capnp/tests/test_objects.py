@@ -87,8 +87,6 @@ class TestPointerStruct:
     class TestException2(TestException):
         pass
 
-    TestException2.__name__ = 'exceptionField2'
-
     group_field: GroupField
     tuple_field_1: typing.Tuple[int]
     tuple_field_2: typing.Tuple[int]
@@ -105,64 +103,40 @@ class TestUnionStruct:
         m0: typing.Optional[NoneType]
         m1: typing.Optional[str]
 
+    @dataclasses.dataclass(frozen=True)
+    class U1:
+        m2: typing.Optional[int]
+        m3: typing.Optional[NoneType]
+        m4: typing.Optional[bytes]
+
+    @dataclasses.dataclass(frozen=True)
+    class U2:
+        m5: typing.Optional[NoneType]
+        m6: typing.Optional[TestPointerStruct.EmptyStruct]
+
     u0: U0
-    u1: typing.Union[NoneType, bytes, int]
-    u2: typing.Optional[TestPointerStruct.EmptyStruct]
+    u1: U1
+    u2: U2
     m7: typing.Optional[NoneType]
     m8: typing.Optional[bool]
 
 
 @dataclasses.dataclass(frozen=True)
 class TestNestedUnionStruct:
-    u0: typing.Union[NoneType, bool, int]
-    u1: typing.Union[bytes, str]
-
-
-@dataclasses.dataclass(frozen=True)
-class TestMatchUnionMemberStruct:
 
     @dataclasses.dataclass(frozen=True)
-    class Struct0:
-        pass
+    class U0:
+        m0: typing.Optional[bool]
+        m1: typing.Optional[int]
+        m2: typing.Optional[NoneType]
 
     @dataclasses.dataclass(frozen=True)
-    class Struct1:
-        pass
+    class U1:
+        m3: typing.Optional[str]
+        m4: typing.Optional[bytes]
 
-    @dataclasses.dataclass(frozen=True)
-    class Struct2:
-        pass
-
-    @dataclasses.dataclass(frozen=True)
-    class Struct3:
-        pass
-
-    @dataclasses.dataclass(frozen=True)
-    class Struct4:
-        pass
-
-    @dataclasses.dataclass(frozen=True)
-    class Struct5:
-        pass
-
-    @dataclasses.dataclass(frozen=True)
-    class Struct6:
-        pass
-
-    @dataclasses.dataclass(frozen=True)
-    class Struct7:
-        pass
-
-    @dataclasses.dataclass(frozen=True)
-    class Struct8:
-        pass
-
-    @dataclasses.dataclass(frozen=True)
-    class Struct9:
-        pass
-
-    u0: typing.Union[Struct0, Struct1, Struct2, Struct3, Struct4, Struct5,
-                     Struct6, Struct7, Struct8, Struct9, ]
+    u0: typing.Optional[U0]
+    u1: typing.Optional[U1]
 
 
 class RecursiveStruct:
@@ -421,8 +395,8 @@ class ObjectsTest(unittest.TestCase):
             ),
             TestUnionStruct(
                 u0=TestUnionStruct.U0(m0=None, m1=None),
-                u1=0,
-                u2=None,
+                u1=TestUnionStruct.U1(m2=0, m3=None, m4=None),
+                u2=TestUnionStruct.U2(m5=None, m6=None),
                 m7=None,
                 m8=None,
             ),
@@ -434,15 +408,15 @@ class ObjectsTest(unittest.TestCase):
             converter,
             TestUnionStruct(
                 u0=None,
-                u1=capnp.VOID,
+                u1=TestUnionStruct.U1(m2=None, m3=capnp.VOID, m4=None),
                 u2=None,
                 m7=None,
                 m8=None,
             ),
             TestUnionStruct(
                 u0=TestUnionStruct.U0(m0=None, m1=None),
-                u1=None,
-                u2=None,
+                u1=TestUnionStruct.U1(m2=None, m3=None, m4=None),
+                u2=TestUnionStruct.U2(m5=None, m6=None),
                 m7=None,
                 m8=None,
             ),
@@ -454,15 +428,21 @@ class ObjectsTest(unittest.TestCase):
             converter,
             TestUnionStruct(
                 u0=TestUnionStruct.U0(m0=None, m1='spam'),
-                u1=b'egg',
-                u2=TestPointerStruct.EmptyStruct(),
+                u1=TestUnionStruct.U1(m2=None, m3=None, m4=b'egg'),
+                u2=TestUnionStruct.U2(
+                    m5=None,
+                    m6=TestPointerStruct.EmptyStruct(),
+                ),
                 m7=None,
                 m8=False,
             ),
             TestUnionStruct(
                 u0=TestUnionStruct.U0(m0=None, m1='spam'),
-                u1=b'egg',
-                u2=TestPointerStruct.EmptyStruct(),
+                u1=TestUnionStruct.U1(m2=None, m3=None, m4=b'egg'),
+                u2=TestUnionStruct.U2(
+                    m5=None,
+                    m6=TestPointerStruct.EmptyStruct(),
+                ),
                 m7=None,
                 m8=False,
             ),
@@ -481,8 +461,8 @@ class ObjectsTest(unittest.TestCase):
             ),
             TestUnionStruct(
                 u0=TestUnionStruct.U0(m0=None, m1=None),
-                u1=b'egg',
-                u2=TestPointerStruct.EmptyStruct(),
+                u1=TestUnionStruct.U1(m2=0, m3=None, m4=None),
+                u2=TestUnionStruct.U2(m5=None, m6=None),
                 m7=None,
                 m8=False,
             ),
@@ -500,8 +480,14 @@ class ObjectsTest(unittest.TestCase):
         self.do_test(
             schema,
             converter,
-            TestNestedUnionStruct(u0=None, u1=None),
-            TestNestedUnionStruct(u0=False, u1=None),
+            TestNestedUnionStruct(
+                u0=None,
+                u1=None,
+            ),
+            TestNestedUnionStruct(
+                u0=TestNestedUnionStruct.U0(m0=False, m1=None, m2=None),
+                u1=None,
+            ),
             message,
         )
 
@@ -514,39 +500,30 @@ class ObjectsTest(unittest.TestCase):
         self.do_test(
             schema,
             converter,
-            TestNestedUnionStruct(u0=True, u1=None),
-            TestNestedUnionStruct(u0=True, u1=None),
+            TestNestedUnionStruct(
+                u0=TestNestedUnionStruct.U0(m0=True, m1=None, m2=None),
+                u1=None,
+            ),
+            TestNestedUnionStruct(
+                u0=TestNestedUnionStruct.U0(m0=True, m1=None, m2=None),
+                u1=None,
+            ),
             message,
         )
 
         self.do_test(
             schema,
             converter,
-            TestNestedUnionStruct(u0=None, u1=''),
-            TestNestedUnionStruct(u0=None, u1=''),
+            TestNestedUnionStruct(
+                u0=None,
+                u1=TestNestedUnionStruct.U1(m3='', m4=None),
+            ),
+            TestNestedUnionStruct(
+                u0=None,
+                u1=TestNestedUnionStruct.U1(m3='', m4=None),
+            ),
             message,
         )
-
-    def test_match_union_member_struct(self):
-
-        schema = self.loader.struct_schemas[
-            'unittest.test_2:TestMatchUnionMemberStruct.u0']
-        # This should not raise.
-        objects._NamedUnionConverter._compile(
-            schema,
-            # pylint: disable=no-member
-            TestMatchUnionMemberStruct.__annotations__['u0'].__args__,
-        )
-
-        schema = self.loader.struct_schemas[
-            'unittest.test_2:TestMatchUnionMemberStruct.Struct0']
-        with self.assertRaisesRegex(
-            TypeError,
-            r'expect __name__ == .*Struct0.*Struct1',
-        ):
-            objects._StructConverter._compile(
-                schema, TestMatchUnionMemberStruct.Struct1
-            )
 
     def test_recursive_struct(self):
         schema = self.loader.struct_schemas['unittest.test_2:RecursiveStruct']

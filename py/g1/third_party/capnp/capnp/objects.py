@@ -11,6 +11,22 @@ Secondly, capnp-specific type, e.g., VOID-type, is generally hidden from
 external users.  The drawback is that interface of union fields could
 sometimes be quite confusing.
 
+Thirdly, typing.Union annotation is not supported for these reasons:
+
+* The converter has to build a mapping from typing.Union member types to
+  union members.  But the matching process is ambiguous; for example,
+  typing.Tuple[int] can be matched to any compatible struct-typed union
+  member.
+
+* When setting value to a typing.Union field, the converter has to match
+  value type to an union member.  But the matching process does not
+  produce an unique result; for example, an empty list can be matched to
+  any list-typed union member.
+
+Given these ambiguity, plus the complexity of implementing the matching
+process, we decided that we do not support typing.Union in the first
+version of converter.
+
 This could be confusing that the semantics of setting None to union vs
 non-union fields is different:
 
@@ -52,12 +68,9 @@ struct, group   dataclass
 struct, group   typing.Tuple[...]
 struct, group   Exception
 union           typing.Optional[F] for every member
-named union     typing.Union[...]
 --------------  -----------------------------------
 
-* When a union is mapped to a typing.Union annotation, union member type
-  must not be duplicate (and so there can a unique mapping).
-* When mapping a struct to a dataclass, we sort struct fields by code
+* When mapping a struct to a typing.Tuple, we sort struct fields by code
   order, which is more semantically relevant than ordinal number.
 """
 
@@ -74,9 +87,9 @@ import functools
 import logging
 import operator
 import threading
-import re
 
 from g1.bases import assertions
+from g1.bases import cases
 from g1.bases import datetimes
 from g1.bases import typings
 from g1.bases.assertions import ASSERT
@@ -88,9 +101,9 @@ from . import schemas
 
 LOG = logging.getLogger(__name__)
 
-NoneType = type(None)
-
 TYPE_ASSERT = assertions.Assertions(lambda message, *_: TypeError(message))
+
+NoneType = type(None)
 
 
 class DataclassConverter:
@@ -150,34 +163,24 @@ class _StructConverter:
     @staticmethod
     def _compile(schema, dataclass):
         LOG.debug('compile struct converter for: %r, %r', schema, dataclass)
-        # Match type names strictly to reduce the chance that
-        # _NamedUnionConverter could match wrong member types.
-        TYPE_ASSERT(
-            schema.name == dataclass.__name__
-            or schema.name == upper_to_lower_camel_case(dataclass.__name__),
-            'expect __name__ == {!r}, which is derived from {!r}, '
-            'but find {!r}',
-            schema.name,
-            schema,
-            dataclass,
-        )
+        if (
+            schema.name != dataclass.__name__
+            and schema.name != cases.upper_to_lower_camel(dataclass.__name__)
+        ):
+            LOG.warning(
+                'expect dataclass.__name__ == %r, not %r',
+                schema.name,
+                dataclass.__name__,
+            )
         dataclass_fields = dataclasses.fields(dataclass)
         TYPE_ASSERT.equal(len(schema.fields), len(dataclass_fields))
         converters = []
-        for sf, df in zip(_fields_by_code_order(schema), dataclass_fields):
-            # Match field names strictly to reduce the chance that
-            # _NamedUnionConverter could match wrong member types.
-            camel_case_name = snake_to_camel_case(df.name)
-            TYPE_ASSERT(
-                sf.proto.name == camel_case_name,
-                'expect schema field %r, which is derived from '
-                'dataclass field %r, but find %r',
-                camel_case_name,
-                sf.proto.name,
-                df.name,
+        for df in dataclass_fields:
+            sf = TYPE_ASSERT.getitem(
+                schema.fields, cases.lower_snake_to_lower_camel(df.name)
             )
             if sf.proto.name in schema.union_fields:
-                make = _make_struct_field_to_union_member_converter
+                make = _make_optional_field_converter
             else:
                 make = _make_field_converter
             converters.append((sf.proto.name, df.name) +
@@ -218,7 +221,7 @@ class _TupleConverter:
             element_types,
         ):
             if sf.proto.name in schema.union_fields:
-                make = _make_struct_field_to_union_member_converter
+                make = _make_optional_field_converter
             else:
                 make = _make_field_converter
             converters.append((sf.proto.name, ) + make(sf.type, element_type))
@@ -260,15 +263,15 @@ class _ExceptionConverter:
     }
 
     def __init__(self, schema, exc_type):
-        TYPE_ASSERT(
-            schema.name == exc_type.__name__
-            or schema.name == upper_to_lower_camel_case(exc_type.__name__),
-            'expect __name__ == {!r}, which is derived from {!r}, '
-            'but find {!r}',
-            schema.name,
-            schema,
-            exc_type,
-        )
+        if (
+            schema.name != exc_type.__name__
+            and schema.name != cases.upper_to_lower_camel(exc_type.__name__)
+        ):
+            LOG.warning(
+                'expect exc_type.__name__ == %r, not %r',
+                schema.name,
+                exc_type.__name__,
+            )
         self._converter = _TupleConverter(
             schema,
             [
@@ -301,97 +304,6 @@ class _ListConverter:
         ASSERT.isinstance(builder, dynamics.DynamicListBuilder)
         for i, element in enumerate(elements):
             self._setter(builder, i, element)
-
-
-class _NamedUnionConverter:
-    """Converter between typing.Union field and a named union.
-
-    This is half field converter (typing.Union field) and half
-    collection-type converter (named union).
-    """
-
-    @staticmethod
-    def _compile(schema, member_types):
-        LOG.debug(
-            'compile named union converter for: %r, %r', schema, member_types
-        )
-        member_type_set = set(member_types)
-        TYPE_ASSERT.equal(len(schema.fields), len(member_type_set))
-        TYPE_ASSERT.empty(schema.non_union_fields)
-        converters = {}
-        # TODO: This matching algorithm is non-deterministic because it
-        # depends on the order of ``member_type_set`` iteration.  To
-        # make things worse, ``_make_union_member_converter`` is not a
-        # perfect matcher (it could match dataclass to struct type).  So
-        # we might non-deterministically match dataclass to wrong struct
-        # type.  How do we fix this?
-        for field in schema.fields.values():
-            for member_type in member_type_set:
-                try:
-                    result = _make_union_member_converter(
-                        field.type, member_type
-                    )
-                except TypeError:
-                    pass
-                else:
-                    converters[member_type] = (field.proto.name, ) + result
-                    member_type_set.remove(member_type)
-                    break
-            else:
-                TYPE_ASSERT.unreachable(
-                    'no matching union member type: {!r}, {!r}, {!r}',
-                    field,
-                    member_types,
-                    member_type_set,
-                )
-        return converters
-
-    def __init__(self, schema, member_types):
-        self._converters = self._compile(schema, member_types)
-
-    def getter(self, reader, name):
-        return self._getter(reader, name, reader[name])
-
-    def union_getter(self, reader, name):
-        union = reader[name]
-        if union is None:
-            return None
-        return self._getter(reader, name, union)
-
-    def _getter(self, reader, name, union):
-        # TODO: Is there a faster way to find the selected union member?
-        has_none_type = False
-        for member_type, (member_name, getter, _) in self._converters.items():
-            value = getter(union, member_name)
-            if value is not None:
-                return value
-            elif issubclass(member_type, NoneType):
-                has_none_type = True
-        if has_none_type:
-            return None
-        return ASSERT.unreachable(
-            'no union member is selected: {!r}, {!r}', reader, name
-        )
-
-    def setter(self, builder, name, value):
-        if value is None:
-            return
-        member = self._converters.get(type(value))
-        if member is None:
-            # Find the member the slow way.
-            for member_type, member in self._converters.items():
-                if isinstance(value, member_type) or (
-                    value is _capnp.VOID and issubclass(member_type, NoneType)
-                ):
-                    break
-            else:
-                ASSERT.unreachable(
-                    'value does not match any member type: {!r}, {!r}',
-                    value,
-                    list(self._converters.keys()),
-                )
-        member_name, _, setter = member
-        setter(builder.init(name), member_name, value)
 
 
 #
@@ -447,13 +359,6 @@ def _make_field_converter(sf_type, df_type):
             return _CollectionTypedFieldConverter.make_accessors(
                 _TupleConverter(sf_type.as_struct(), df_type.__args__)
             )
-
-        elif typings.is_union_type(df_type):
-            TYPE_ASSERT.true(sf_type.is_struct())
-            converter = _NamedUnionConverter(
-                sf_type.as_struct(), df_type.__args__
-            )
-            return converter.getter, converter.setter
 
         else:
             return TYPE_ASSERT.unreachable(
@@ -517,48 +422,31 @@ def _make_field_converter(sf_type, df_type):
         )
 
 
-def _make_struct_field_to_union_member_converter(sf_type, df_type):
+def _make_optional_field_converter(sf_type, df_type):
     """Make a converter for a union member.
 
-    * ``sf_type`` should be a member field type of an unnamed union.
-    * ``df_type`` should be a typing.Union annotation (not a type
-      parameter of that annotation).
+    * ``sf_type`` should be type of a member field of a union.
+    * ``df_type`` should be a typing.Optional annotation.
     """
-    if isinstance(df_type, type) and issubclass(df_type, NoneType):
+    if typings.type_is_subclass(df_type, NoneType):
         # Handle typing.Optional[NoneType], which is simply NoneType.
         return _make_union_member_converter(sf_type, df_type)
-    TYPE_ASSERT.predicate(df_type, typings.is_recursive_type)
-    TYPE_ASSERT.predicate(df_type, typings.is_union_type)
-    type_ = typings.match_optional_type(df_type)
-    if type_:
-        # Handle typing.Optional[T] or typing.Union[T, NoneType].
-        return _make_union_member_converter(sf_type, type_)
     else:
-        # Handle typing.Union[U, V, ...].
-        TYPE_ASSERT.true(sf_type.is_struct())
-        converter = _NamedUnionConverter(sf_type.as_struct(), df_type.__args__)
-        return converter.union_getter, converter.setter
+        return _make_union_member_converter(
+            sf_type,
+            TYPE_ASSERT(
+                typings.is_recursive_type(df_type)
+                and typings.is_union_type(df_type)
+                and typings.match_optional_type(df_type),
+                'expect typing.Optional, not {!r}',
+                df_type,
+            ),
+        )
 
 
 def _make_union_member_converter(sf_type, df_type):
-    """Make a converter for a union member.
-
-    * ``sf_type`` should be a member field type of a named union.
-    * ``df_type`` should be a type parameter of a typing.Union
-      annotation.
-
-    Call this on each field when you are mapping a named union to a
-    typing.Union.
-    """
 
     if typings.is_recursive_type(df_type):
-
-        #
-        # NOTE: Python typing does not supported nested union; e.g.,
-        # typing.Union[typing.Optional[int], str] is equivalent to
-        # typing.Union[NoneType, int, str], and so we do not match union
-        # type on ``df_type`` here.
-        #
 
         if df_type.__origin__ is list:
             TYPE_ASSERT.equal(len(df_type.__args__), 1)
@@ -782,20 +670,6 @@ def _union_setter(builder, name, value):
 
 def is_dataclass(dataclass):
     return dataclasses.is_dataclass(dataclass) and isinstance(dataclass, type)
-
-
-_SNAKE_TO_CAMEL_PATTERN = re.compile(r'_(\w)')
-
-
-def snake_to_camel_case(snake_case):
-    return _SNAKE_TO_CAMEL_PATTERN.sub(
-        lambda match: match.group(1).upper(),
-        snake_case.lower(),
-    )
-
-
-def upper_to_lower_camel_case(camel_case):
-    return camel_case[0].lower() + camel_case[1:]
 
 
 def _fields_by_code_order(schema):

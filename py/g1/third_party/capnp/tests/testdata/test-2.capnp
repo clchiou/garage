@@ -116,31 +116,6 @@ struct TestNestedUnionStruct {
   }
 }
 
-struct TestMatchUnionMemberStruct {
-  struct Struct0 {}
-  struct Struct1 {}
-  struct Struct2 {}
-  struct Struct3 {}
-  struct Struct4 {}
-  struct Struct5 {}
-  struct Struct6 {}
-  struct Struct7 {}
-  struct Struct8 {}
-  struct Struct9 {}
-  u0 :union {
-    m0 @0 :Struct0;
-    m1 @1 :Struct1;
-    m2 @2 :Struct2;
-    m3 @3 :Struct3;
-    m4 @4 :Struct4;
-    m5 @5 :Struct5;
-    m6 @6 :Struct6;
-    m7 @7 :Struct7;
-    m8 @8 :Struct8;
-    m9 @9 :Struct9;
-  }
-}
-
 struct RecursiveStruct {
   structField @0 :RecursiveStruct;
 }
