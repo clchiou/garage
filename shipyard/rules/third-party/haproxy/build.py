@@ -5,7 +5,7 @@ from templates import pods
 
 (define_parameter('image-version')
  .with_doc('HAProxy image version.')
- .with_default('1.8.9'))
+ .with_default('2.0.3'))
 
 
 @pods.app_specifier
