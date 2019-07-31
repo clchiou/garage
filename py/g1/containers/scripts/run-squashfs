@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Mount a squashfs image and run a program inside it."""
+"""Mount a squashfs image and run a program inside it.
+
+NOTE: This script is self-contained (it only depends on stdlib).
+"""
 
 import contextlib
 import datetime
@@ -78,8 +81,14 @@ def main(argv):
         )
 
         prog = cmd[0]
+        # Use os.path.join so that if ``cmd[0]`` is an absolute path,
+        # the resulting path is still the same absolute path.
         prog_path = cmd[0] = os.path.join(mount_point, cmd[0])
 
+        # NOTE: Without options like ``allow_other`` or ``allow_root``,
+        # only the calling user may access the mounted files, not even
+        # root.  This might be an issue if ``prog`` changes UID, like
+        # issuing a sudo command.  But for now, let's keep it this way.
         proc = subprocess.Popen(['squashfuse', '-f', image, mount_point])
         stack.callback(proc.wait, 10)
         stack.callback(subprocess.run, ['fusermount', '-u', '-z', mount_point])
@@ -93,7 +102,7 @@ def main(argv):
         if not os.path.isfile(prog_path):
             error('prog does not exist inside image: %s' % prog)
 
-        return subprocess.run(cmd, cwd=mount_point).returncode
+        return subprocess.run(cmd).returncode
 
 
 if __name__ == '__main__':
