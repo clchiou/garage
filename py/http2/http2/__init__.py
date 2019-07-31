@@ -149,10 +149,21 @@ class Session:
         if self._session is not None:
             raise SessionError('session is already active: %s' % self._id)
 
+        # It is said that when many clients rapidly connect then close,
+        # getpeername might raise "Transport endpoint is not connected"
+        # error (I cannot reproduce this locally, but I do see this sort
+        # of issue on the production server).
+        try:
+            peer_name = self._sock.getpeername()
+        except OSError as exc:
+            LOG.warning('connection has already been closed: %r', exc)
+            await self._sock.close()
+            return
+
         # Create nghttp2_session object
         self._session, self._user_data = self._make_session()
         LOG.info('session=%s: create %s session for client: %s',
-                 self._id, self._scheme.name, self._sock.getpeername())
+                 self._id, self._scheme.name, peer_name)
 
         try:
             # Disable Nagle algorithm
