@@ -41,6 +41,7 @@ class AssertionsTest(unittest.TestCase):
             ('none', (None, ), None),
             ('not_none', (0, ), 0),
             ('predicate', (0, is_even), 0),
+            ('not_predicate', (3, is_even), 3),
             ('xor', (0, 1), 0),
             ('xor', (1, 0), 1),
             ('not_xor', (0, 0), 0),
@@ -108,6 +109,11 @@ class AssertionsTest(unittest.TestCase):
             with self.assertRaisesRegex(AssertionError, pattern) as cm:
                 self.assert_.predicate(1, is_even)
             self.assertEqual(cm.exception.args[1:], (1, ))
+        with self.subTest(check='not_predicate'):
+            pattern = r'expect not .*is_even.*, but 2'
+            with self.assertRaisesRegex(AssertionError, pattern) as cm:
+                self.assert_.not_predicate(2, is_even)
+            self.assertEqual(cm.exception.args[1:], (2, ))
         checks = [
             ('true', (0, ), r'expect true-value, not 0'),
             ('false', ('hello', ), r'expect false-value, not \'hello\''),

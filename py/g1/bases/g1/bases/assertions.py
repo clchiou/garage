@@ -151,6 +151,13 @@ class Assertions:
             raise self._make_exc(message.format(arg, predicate), arg)
         return arg
 
+    def not_predicate(
+        self, arg, predicate, *, message='expect not {1}, but {0!r}'
+    ):
+        if predicate(arg):
+            raise self._make_exc(message.format(arg, predicate), arg)
+        return arg
+
     def _assert_2(self, predicate, actual, expect, *, message):
         if not predicate(actual, expect):
             msg = message.format(actual, expect)
