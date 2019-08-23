@@ -102,6 +102,15 @@ class Parameter:
         ASSERT.false(self._have_been_read)
         self._value = self.validate(value)
 
+    def unsafe_set(self, value):
+        """Set parameter value unsafely.
+
+        You should only use this in test code.
+        """
+        global INITIALIZED
+        self._value = value
+        INITIALIZED = True
+
 
 #
 # Application startup.
