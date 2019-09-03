@@ -77,8 +77,8 @@ startup.add_func(
 #
 
 
-def run(main, argv=None):
-    prepare_startup(main, argv)
+def run(main, *, prog=None, argv=None):
+    prepare_startup(main, prog, argv)
     with contextlib.ExitStack() as exit_stack:
         startup.set(LABELS.exit_stack, exit_stack)
         main, kwargs = do_startup()
@@ -91,22 +91,24 @@ def run(main, argv=None):
 #
 
 
-def prepare_startup(main, argv):
+def prepare_startup(main, prog, argv):
     if argv is None:
         argv = sys.argv
     startup.set(LABELS.argv, argv)
     startup.set(LABELS.main, main)
-    startup.set(LABELS.parser, make_parser(main, argv))
+    startup.set(LABELS.parser, make_parser(main, prog, argv))
     # Trick to make ``parse`` and ``validate_args`` "optional".
     startup.set(LABELS.parse, None)
     startup.set(LABELS.validate_args, None)
 
 
-def make_parser(main, argv):
+def make_parser(main, prog, argv):
 
     package = sys.modules[main.__module__].__package__
 
-    if main.__module__ != '__main__':
+    if prog:
+        pass
+    elif main.__module__ != '__main__':
         prog = main.__module__
     elif package:
         prog = package
