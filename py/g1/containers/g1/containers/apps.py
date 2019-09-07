@@ -105,10 +105,17 @@ ASSERT.issuperset(IMAGE_LIST_ALL_COLUMNS, IMAGE_LIST_STRINGIFIERS)
 def image_cmds_add_arguments(parser):
     image_subparsers = add_subparsers_to(parser, 'command')
 
-    image_subparsers.add_parser(
+    subparser = image_subparsers.add_parser(
         'build-base',
         **make_help_kwargs('build a base image'),
-    ).add_argument(
+    )
+    subparser.add_argument(
+        '--prune-stash-path',
+        metavar='PATH',
+        type=Path,
+        help='provide path to stash pruned files',
+    )
+    subparser.add_argument(
         'path', type=Path, help='provide base image output path'
     )
 
@@ -121,12 +128,19 @@ def image_cmds_add_arguments(parser):
         'path', type=Path, help='provide rootfs directory path'
     )
 
-    image_subparsers.add_parser(
+    subparser = image_subparsers.add_parser(
         'setup-base-rootfs',
         **make_help_kwargs(
             'set up rootfs of a base image (useful for testing)'
         ),
-    ).add_argument(
+    )
+    subparser.add_argument(
+        '--prune-stash-path',
+        metavar='PATH',
+        type=Path,
+        help='provide path to stash pruned files',
+    )
+    subparser.add_argument(
         'path', type=Path, help='provide rootfs directory path'
     )
 
@@ -201,11 +215,11 @@ def make_image_kwargs(args):
 
 def image_cmds_main(args):
     if args.command == 'build-base':
-        builders.cmd_build_base_image(args.path)
+        builders.cmd_build_base_image(args.path, args.prune_stash_path)
     elif args.command == 'prepare-base-rootfs':
         builders.cmd_prepare_base_rootfs(args.path)
     elif args.command == 'setup-base-rootfs':
-        builders.cmd_setup_base_rootfs(args.path)
+        builders.cmd_setup_base_rootfs(args.path, args.prune_stash_path)
     elif args.command == 'import':
         ASSERT.predicate(args.path, Path.is_file)
         images.cmd_import(args.path)

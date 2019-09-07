@@ -43,7 +43,7 @@ LOG = logging.getLogger(__name__)
 #
 
 
-def cmd_build_base_image(base_image_path):
+def cmd_build_base_image(base_image_path, prune_stash_path):
     ASSERT.not_predicate(base_image_path, Path.exists)
     bases.assert_root_privilege()
     LOG.info('create base image: %s', base_image_path)
@@ -53,7 +53,10 @@ def cmd_build_base_image(base_image_path):
     ) as temp_image_dir_path:
         temp_image_dir_path = Path(temp_image_dir_path)
         create_image_metadata(images.get_metadata_path(temp_image_dir_path))
-        create_image_rootfs(images.get_rootfs_path(temp_image_dir_path))
+        create_image_rootfs(
+            images.get_rootfs_path(temp_image_dir_path),
+            prune_stash_path,
+        )
         images.setup_image_dir(temp_image_dir_path)
         subprocess.run(
             [
@@ -77,9 +80,9 @@ def create_image_metadata(image_metadata_path):
     bases.write_jsonobject(image_metadata, image_metadata_path)
 
 
-def create_image_rootfs(image_rootfs_path):
+def create_image_rootfs(image_rootfs_path, prune_stash_path):
     cmd_prepare_base_rootfs(image_rootfs_path)
-    cmd_setup_base_rootfs(image_rootfs_path)
+    cmd_setup_base_rootfs(image_rootfs_path, prune_stash_path)
 
 
 def cmd_prepare_base_rootfs(image_rootfs_path):
@@ -102,20 +105,28 @@ def cmd_prepare_base_rootfs(image_rootfs_path):
     )
 
 
-def cmd_setup_base_rootfs(image_rootfs_path):
+def cmd_setup_base_rootfs(image_rootfs_path, prune_stash_path):
     ASSERT.predicate(image_rootfs_path, Path.is_dir)
     bases.assert_root_privilege()
     # Remove unneeded files.
-    for dir_path in (
-        image_rootfs_path / 'usr/share/doc',
-        image_rootfs_path / 'usr/share/man',
-        image_rootfs_path / 'usr/share/info',
-        image_rootfs_path / 'var/cache',
-        image_rootfs_path / 'var/lib/apt',
-        image_rootfs_path / 'var/lib/dpkg',
+    for dir_relpath in (
+        'usr/share/doc',
+        'usr/share/info',
+        'usr/share/man',
+        'var/cache',
+        'var/lib/apt',
+        'var/lib/dpkg',
     ):
+        dir_path = image_rootfs_path / dir_relpath
         if dir_path.is_dir():
-            clear_dir(dir_path)
+            if prune_stash_path:
+                dst_path = ASSERT.not_predicate(
+                    prune_stash_path / dir_relpath, bases.lexists
+                )
+                dst_path.mkdir(mode=0o755, parents=True, exist_ok=True)
+                move_dir_content(dir_path, dst_path)
+            else:
+                clear_dir_content(dir_path)
     # Remove certain config files.
     for path in (
         # Remove this so that systemd-nspawn may set the hostname.
@@ -309,7 +320,7 @@ def quote_arg(arg):
 
 
 def clear_pod_app_exit_status(root_path):
-    clear_dir(get_pod_app_exit_status_dir_path(root_path))
+    clear_dir_content(get_pod_app_exit_status_dir_path(root_path))
 
 
 def get_pod_app_exit_status(root_path, app):
@@ -324,10 +335,16 @@ def get_pod_app_exit_status(root_path, app):
         return None, None
 
 
-def clear_dir(dir_path):
+def clear_dir_content(dir_path):
     LOG.info('clear directory content: %s', dir_path)
     for path in dir_path.iterdir():
         bases.delete_file(path)
+
+
+def move_dir_content(src_path, dst_path):
+    LOG.info('move directory content: %s -> %s', src_path, dst_path)
+    for path in src_path.iterdir():
+        path.rename(dst_path / path.name)
 
 
 #

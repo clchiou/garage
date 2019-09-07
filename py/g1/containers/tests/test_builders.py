@@ -45,7 +45,7 @@ class BuildersTest(fixtures.TestCaseBase):
         (var_path / 'irrelevant-5').touch()
         (var_path / 'irrelevant-6').mkdir()
 
-        builders.cmd_setup_base_rootfs(self.test_repo_path)
+        builders.cmd_setup_base_rootfs(self.test_repo_path, None)
 
         self.assertEqual(self.list_dir(var_path), [])
 
