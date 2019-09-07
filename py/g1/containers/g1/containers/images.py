@@ -179,7 +179,8 @@ def cmd_remove(*, image_id=None, name=None, version=None, tag=None):
         bases.acquiring_exclusive(get_trees_path()):
         image_dir_path = find_image_dir_path(image_id, name, version, tag)
         if image_dir_path:
-            maybe_remove_image_dir(image_dir_path)
+            if not maybe_remove_image_dir(image_dir_path):
+                LOG.warning('image is still being used')
         else:
             LOG.debug(
                 'image does not exist: image_id=%s, nv=%s:%s, tag=%s',

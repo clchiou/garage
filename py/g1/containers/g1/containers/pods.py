@@ -159,7 +159,7 @@ def cmd_run_prepared(pod_id, *, debug=False):
     pod_dir_path = ASSERT.predicate(get_pod_dir_path(pod_id), Path.is_dir)
     lock_pod_dir_for_exec(pod_dir_path)
     if bases.is_empty_dir(get_rootfs_path(pod_dir_path)):
-        LOG.info('overlay is not mounted; system probably rebooted')
+        LOG.warning('overlay is not mounted; system probably rebooted')
         mount_overlay(pod_dir_path, read_config(pod_dir_path))
     run_pod(pod_id, debug=debug)
 
