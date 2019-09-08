@@ -422,15 +422,19 @@ def add_formatter_arguments_to(parser, all_columns, default_columns):
         default='true',
         help='enable/disable header output (default: %(default)s)',
     )
-    parser.add_argument(
+    action = parser.add_argument(
         '--columns',
         type=lambda columns_str: ASSERT.all(
-            columns_str.split(','),
+            list(filter(None, columns_str.split(','))),
             all_columns.__contains__,
         ),
         default=','.join(default_columns),
-        help='set output columns (default: %(default)s)',
+        help=(
+            'set output columns (available columns are: %(all_columns)s) '
+            '(default: %(default)s)'
+        ),
     )
+    action.all_columns = ','.join(sorted(all_columns))
 
 
 def make_formatter_kwargs(args):
