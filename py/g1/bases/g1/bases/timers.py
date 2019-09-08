@@ -15,7 +15,7 @@ __all__ = [
 import logging
 import time
 
-from g1.bases.assertions import ASSERT
+from .assertions import ASSERT
 
 LOG = logging.getLogger(__name__)
 

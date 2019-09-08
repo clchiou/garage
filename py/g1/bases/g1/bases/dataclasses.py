@@ -6,8 +6,8 @@ __all__ = [
 
 import dataclasses
 
-from g1.bases import typings
-from g1.bases.assertions import ASSERT
+from . import typings
+from .assertions import ASSERT
 
 
 def fromdict(dataclass, data):

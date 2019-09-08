@@ -2,8 +2,9 @@ from g1.apps import parameters
 from g1.apps import utils
 from g1.bases import labels
 from g1.bases.assertions import ASSERT
-from g1.http import clients
-from g1.http.clients import policies
+
+from . import policies
+from .. import clients
 
 SESSION_LABEL_NAMES = (
     'session_params',

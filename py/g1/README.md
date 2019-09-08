@@ -30,3 +30,13 @@ in g1:
   should pass 100% under linter and style checker.  If not, you should
   either fix the code, tweak linter or style checker configurations, or
   (least preferable) add linter-disable marker to the code.
+
+
+### Style guide
+
+I have picked the following coding style; of course, if any part of the
+style turns out to be counter-productive or problematic, I should revise
+the style guide and the codebase.
+
+* When importing a module from the same project, it should be imported
+  explicitly relatively.

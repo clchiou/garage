@@ -23,7 +23,7 @@ import sys
 from g1.bases import typings
 from g1.bases.assertions import ASSERT
 
-from g1.messaging import wiredata
+from .. import wiredata
 
 # Python 3.7 supports parsing ISO 8601 (bpo-15873), finally!
 ASSERT.greater_or_equal(sys.version_info, (3, 7))

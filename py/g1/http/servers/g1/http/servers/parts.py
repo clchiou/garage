@@ -4,11 +4,12 @@ from g1.apps import asyncs
 from g1.apps import parameters
 from g1.apps import utils
 from g1.bases import labels
-from g1.http import servers
-from g1.http.servers.nghttp2 import NGHTTP2_PROTO_VERSION_ID
 
 import g1.asyncs.servers.parts
 import g1.networks.servers.parts
+
+from .. import servers
+from .nghttp2 import NGHTTP2_PROTO_VERSION_ID
 
 HTTP_SERVER_LABEL_NAMES = (
     'server_socket_params',

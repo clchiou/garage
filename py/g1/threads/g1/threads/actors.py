@@ -29,8 +29,9 @@ import typing
 from g1.bases import classes
 from g1.bases.assertions import ASSERT
 from g1.bases.collections import Namespace
-from g1.threads import futures
-from g1.threads import queues
+
+from . import futures
+from . import queues
 
 LOG = logging.getLogger(__name__)
 

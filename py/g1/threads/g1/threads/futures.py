@@ -21,7 +21,8 @@ import threading
 from g1.bases import classes
 from g1.bases import timers
 from g1.bases.collections import Multiset
-from g1.threads import queues
+
+from . import queues
 
 LOG = logging.getLogger(__name__)
 

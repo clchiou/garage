@@ -9,7 +9,7 @@ __all__ = [
 
 import re
 
-from g1.bases.assertions import ASSERT
+from .assertions import ASSERT
 
 _CAMEL_TO_LOWER_SNAKE_PATTERN = re.compile(r'(?<!_)[A-Z](?:[a-z]|$)')
 

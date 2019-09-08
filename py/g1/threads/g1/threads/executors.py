@@ -9,9 +9,10 @@ import os
 import sys
 
 from g1.bases.assertions import ASSERT
-from g1.threads import actors
-from g1.threads import futures
-from g1.threads import queues
+
+from . import actors
+from . import futures
+from . import queues
 
 LOG = logging.getLogger(__name__)
 

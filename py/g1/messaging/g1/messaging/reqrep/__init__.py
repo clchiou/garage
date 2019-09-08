@@ -74,7 +74,8 @@ from g1.bases import cases
 from g1.bases import classes
 from g1.bases import collections
 from g1.bases.assertions import ASSERT
-from g1.messaging import metadata
+
+from .. import metadata
 
 # Use module path as metadata key.
 METADATA_KEY = __name__

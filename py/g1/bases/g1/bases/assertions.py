@@ -26,7 +26,7 @@ import operator
 from collections import abc
 from functools import partialmethod
 
-from g1.bases import functionals
+from . import functionals
 
 
 def _empty(collection):

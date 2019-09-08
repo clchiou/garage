@@ -15,7 +15,7 @@ from capnp import objects
 
 from g1.bases.assertions import ASSERT
 
-from g1.messaging import wiredata
+from .. import wiredata
 
 
 class _BaseWireData(wiredata.WireData):
