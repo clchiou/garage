@@ -9,7 +9,6 @@ __all__ = [
     'assert_root_privilege',
     'chown_app',
     'chown_root',
-    'parse_period',
     'read_jsonobject',
     'write_jsonobject',
     # File lock.
@@ -22,13 +21,11 @@ __all__ = [
 
 import contextlib
 import dataclasses
-import datetime
 import errno
 import fcntl
 import json
 import logging
 import os
-import re
 import shutil
 from pathlib import Path
 
@@ -160,25 +157,6 @@ def read_jsonobject(type_, path):
 
 def write_jsonobject(obj, path):
     path.write_text(json.dumps(dataclasses.asdict(obj)), encoding='utf-8')
-
-
-PERIOD_PATTERN = re.compile(r'(\d+)([dhms])')
-PERIOD_SUFFIX_MAP = {
-    'd': 'days',
-    'h': 'hours',
-    'm': 'minutes',
-    's': 'seconds',
-}
-
-
-def parse_period(period_str):
-    parts = {}
-    start = 0
-    while start < len(period_str):
-        match = ASSERT.not_none(PERIOD_PATTERN.match(period_str[start:]))
-        parts[PERIOD_SUFFIX_MAP[match.group(2)]] = int(match.group(1))
-        start += match.end()
-    return datetime.timedelta(**ASSERT.not_empty(parts))
 
 
 #

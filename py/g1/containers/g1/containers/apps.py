@@ -11,6 +11,7 @@ from pathlib import Path
 from startup import startup
 
 from g1.apps import bases as apps_bases
+from g1.bases import argparses
 from g1.bases import datetimes
 from g1.bases.assertions import ASSERT
 
@@ -33,7 +34,7 @@ def add_arguments(parser: apps_bases.LABELS.parser) -> apps_bases.LABELS.parse:
         **make_help_kwargs('clean up repository'),
     ).add_argument(
         '--grace-period',
-        type=bases.parse_period,
+        type=argparses.parse_timedelta,
         default='24h',
         help='set grace period (default to %(default)s)',
     )
@@ -426,15 +427,15 @@ def make_help_kwargs(help_text):
 def add_formatter_arguments_to(parser, all_columns, default_columns):
     parser.add_argument(
         '--format',
-        choices=sorted(format.name.lower() for format in formatters.Formats),
-        default=formatters.Formats.TEXT.name.lower(),
-        help='set output format (default: %(default)s)',
+        action=argparses.StoreEnumAction,
+        default=formatters.Formats.TEXT,
+        help='set output format (default: %(default_string)s)',
     )
     parser.add_argument(
         '--header',
-        choices=('true', 'false'),
-        default='true',
-        help='enable/disable header output (default: %(default)s)',
+        action=argparses.StoreBoolAction,
+        default=True,
+        help='enable/disable header output (default: %(default_string)s)',
     )
     action = parser.add_argument(
         '--columns',
@@ -453,7 +454,7 @@ def add_formatter_arguments_to(parser, all_columns, default_columns):
 
 def make_formatter_kwargs(args):
     return {
-        'format': formatters.Formats[args.format.upper()],
-        'header': args.header == 'true',
+        'format': args.format,
+        'header': args.header,
         'columns': args.columns,
     }

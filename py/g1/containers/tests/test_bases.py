@@ -2,7 +2,6 @@ import unittest
 
 import contextlib
 import dataclasses
-import datetime
 import shutil
 import subprocess
 import typing
@@ -111,26 +110,6 @@ class BasesTest(fixtures.TestCaseBase):
         expect = TestData(s='s', l=[1, 2, 3])
         bases.write_jsonobject(expect, path)
         self.assertEqual(bases.read_jsonobject(TestData, path), expect)
-
-
-class ParsePeriodTest(unittest.TestCase):
-
-    def test_parse_period(self):
-        with self.assertRaisesRegex(AssertionError, r'expect non-empty'):
-            bases.parse_period('')
-        for period_str, expect in (
-            ('1d', datetime.timedelta(days=1)),
-            (
-                '2d3h4m5s',
-                datetime.timedelta(days=2, hours=3, minutes=4, seconds=5),
-            ),
-            (
-                '100d23h59m59s',
-                datetime.timedelta(days=100, hours=23, minutes=59, seconds=59),
-            ),
-        ):
-            with self.subTest((period_str, expect)):
-                self.assertEqual(bases.parse_period(period_str), expect)
 
 
 class FileLockTest(fixtures.TestCaseBase):
