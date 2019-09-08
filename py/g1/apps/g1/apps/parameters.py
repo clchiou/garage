@@ -4,6 +4,7 @@ __all__ = [
     'define',
 ]
 
+import argparse
 import collections
 import io
 import json
@@ -117,12 +118,34 @@ class Parameter:
 #
 
 
+class ParameterHelpAction(argparse.Action):
+
+    def __init__(
+        self,
+        option_strings,
+        dest=argparse.SUPPRESS,
+        default=argparse.SUPPRESS,
+        help=None,  # pylint: disable=redefined-builtin
+    ):
+        super().__init__(
+            option_strings=option_strings,
+            dest=dest,
+            default=default,
+            nargs=0,
+            help=help,
+        )
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        sys.stdout.write(format_help(ROOT_NAMESPACES))
+        parser.exit()
+
+
 @startup
 def add_arguments(parser: bases.LABELS.parser) -> bases.LABELS.parse:
     group = parser.add_argument_group(__name__)
     group.add_argument(
         '--parameter-help',
-        action='store_true',
+        action=ParameterHelpAction,
         help='list parameters and exit',
     )
     group.add_argument(
@@ -168,13 +191,8 @@ def index_root_namespaces(
 def validate_arguments(
     parser: bases.LABELS.parser,
     args: bases.LABELS.args_not_validated,
-    root_namespaces: LABELS.root_namespaces,
     parameter_table: LABELS.parameter_table,
 ) -> bases.LABELS.validate_args:
-
-    if args.parameter_help:
-        sys.stdout.write(format_help(root_namespaces))
-        sys.exit()
 
     file_formats = {'json'}
     if yaml:
