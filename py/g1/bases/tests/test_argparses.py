@@ -165,6 +165,105 @@ class ArgparsesTest(unittest.TestCase):
             argparses.parse_timedelta('1111d22h33m44s')
         )
 
+    def test_no_decoration(self):
+
+        def main():
+            pass
+
+        with self.assertRaisesRegex(
+            AssertionError, r'expect Kinds.ARGUMENT_PARSER at first:'
+        ):
+            argparses.make_argument_parser(main)
+
+    def test_mismatch_end(self):
+
+        @argparses.argument_parser()
+        @argparses.end
+        def main_1():
+            pass
+
+        with self.assertRaisesRegex(
+            AssertionError, r'expect exactly one left:'
+        ):
+            argparses.make_argument_parser(main_1)
+
+        @argparses.argument_parser()
+        @argparses.begin_argument('-x')
+        def main_2():
+            pass
+
+        with self.assertRaisesRegex(
+            AssertionError, r'expect exactly one left:'
+        ):
+            argparses.make_argument_parser(main_2)
+
+    def test_simple_args(self):
+
+        @argparses.argument_parser()
+        @argparses.argument('x')
+        @argparses.argument('y')
+        def main_1():
+            pass
+
+        parser = argparses.make_argument_parser(main_1)
+        self.assertEqual(
+            vars(parser.parse_args(['1', '2'])),
+            {
+                'x': '1',
+                'y': '2',
+            },
+        )
+
+        @argparses.argument_parser()
+        @argparses.argument('x')
+        @argparses.begin_argument('y')
+        @argparses.apply(lambda action: setattr(action, 'dest', 'z'))
+        @argparses.end
+        def main_2():
+            pass
+
+        parser = argparses.make_argument_parser(main_2)
+        self.assertEqual(
+            vars(parser.parse_args(['1', '2'])),
+            {
+                'x': '1',
+                'z': '2',
+            },
+        )
+
+    def test_subcmds(self):
+
+        @argparses.argument_parser()
+        @argparses.argument('-x')
+        @argparses.begin_subparsers_for_subcmds(dest='cmd')
+        @argparses.begin_parser('cmd_a')
+        @argparses.argument('a')
+        @argparses.end
+        @argparses.begin_parser('cmd_b')
+        @argparses.argument('b')
+        @argparses.end
+        @argparses.end
+        def main():
+            pass
+
+        parser = argparses.make_argument_parser(main)
+        self.assertEqual(
+            vars(parser.parse_args(['-x', '1', 'cmd_a', '2'])),
+            {
+                'cmd': 'cmd_a',
+                'a': '2',
+                'x': '1',
+            },
+        )
+        self.assertEqual(
+            vars(parser.parse_args(['cmd_b', '1'])),
+            {
+                'cmd': 'cmd_b',
+                'b': '1',
+                'x': None,
+            },
+        )
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -4,12 +4,29 @@ __all__ = [
     'StoreBoolAction',
     'StoreEnumAction',
     'parse_timedelta',
+    # Decorator-based ArgumentParser builder.
+    'make_argument_parser',
+    # Decorator functions.
+    'apply',
+    'argument',
+    'argument_parser',
+    'begin_argument',
+    'begin_argument_group',
+    'begin_mutually_exclusive_group',
+    'begin_parser',
+    'begin_subparsers',
+    'begin_subparsers_for_subcmds',
+    'end',
+    'include',
 ]
 
 import argparse
 import builtins
+import dataclasses
 import datetime
+import enum
 import re
+import typing
 
 from .assertions import ASSERT
 
@@ -110,3 +127,198 @@ def parse_timedelta(timedelta_str):
             if v is not None
         })
     )
+
+
+#
+# Decorator-based ArgumentParser builder.
+#
+# (A decorator function is a function that returns a decorator.)
+#
+
+
+class Kinds(enum.Enum):
+
+    INCLUDE = enum.auto()
+
+    ARGUMENT_PARSER = enum.auto()
+
+    BEGIN_SUBPARSERS = enum.auto()
+    BEGIN_PARSER = enum.auto()
+
+    BEGIN_ARGUMENT_GROUP = enum.auto()
+
+    BEGIN_MUTUALLY_EXCLUSIVE_GROUP = enum.auto()
+
+    ARGUMENT = enum.auto()
+    BEGIN_ARGUMENT = enum.auto()
+
+    APPLY = enum.auto()
+
+    END = enum.auto()
+
+
+@dataclasses.dataclass(frozen=True)
+class Instruction:
+
+    kind: Kinds
+    func: typing.Callable[..., None] = None
+    args: typing.Tuple[typing.Any, ...] = None
+    kwargs: typing.Dict[str, typing.Any] = None
+
+    def apply(self, func):
+        return func(
+            *ASSERT.not_none(self.args),
+            **ASSERT.not_none(self.kwargs),
+        )
+
+
+# Where instructions are stashed in a function.
+_INSTRUCTIONS = '__g1_bases_argparses__'
+
+
+def _get_instructions(target):
+    return target.__dict__.setdefault(_INSTRUCTIONS, [])
+
+
+def _add_instruction(target, instruction):
+    # Prepend because decorators are applied from inside out.
+    _get_instructions(target).insert(0, instruction)
+    return target
+
+
+def _make_simple_decorator_function(kind):
+    """Make a decorator function from the given kind."""
+
+    def make_decorator(*args, **kwargs):
+
+        def decorator(target):
+            return _add_instruction(
+                target, Instruction(kind=kind, args=args, kwargs=kwargs)
+            )
+
+        return decorator
+
+    return make_decorator
+
+
+def include(subtarget):
+
+    def decorator(target):
+        return _add_instruction(
+            target, Instruction(kind=Kinds.INCLUDE, func=subtarget)
+        )
+
+    return decorator
+
+
+argument_parser = _make_simple_decorator_function(Kinds.ARGUMENT_PARSER)
+
+begin_subparsers = _make_simple_decorator_function(Kinds.BEGIN_SUBPARSERS)
+begin_parser = _make_simple_decorator_function(Kinds.BEGIN_PARSER)
+
+
+def begin_subparsers_for_subcmds(**kwargs):
+
+    #
+    # NOTE: We need to explicitly set `required` to true due to [1].
+    # This bug was fixed but then reverted in Python 3.7 [2].
+    #
+    # [1] http://bugs.python.org/issue9253
+    # [2] https://bugs.python.org/issue26510
+    #
+    kwargs.setdefault('required', True)
+
+    def decorator(target):
+        return _add_instruction(
+            target,
+            Instruction(kind=Kinds.BEGIN_SUBPARSERS, args=(), kwargs=kwargs),
+        )
+
+    return decorator
+
+
+begin_argument_group = _make_simple_decorator_function(
+    Kinds.BEGIN_ARGUMENT_GROUP
+)
+
+begin_mutually_exclusive_group = _make_simple_decorator_function(
+    Kinds.BEGIN_MUTUALLY_EXCLUSIVE_GROUP
+)
+
+argument = _make_simple_decorator_function(Kinds.ARGUMENT)
+begin_argument = _make_simple_decorator_function(Kinds.BEGIN_ARGUMENT)
+
+
+def apply(func):
+
+    def decorator(target):
+        return _add_instruction(
+            target, Instruction(kind=Kinds.APPLY, func=func)
+        )
+
+    return decorator
+
+
+def end(target):
+    return _add_instruction(target, Instruction(kind=Kinds.END))
+
+
+def make_argument_parser(target, *, parser=None):
+    """Evaluate instructions and return an argument parser."""
+
+    def execute(instructions):
+        for instruction in instructions:
+            execute_one(instruction)
+
+    def execute_one(instruction):
+        if instruction.kind is Kinds.INCLUDE:
+            execute(_get_instructions(instruction.func))
+
+        elif instruction.kind is Kinds.ARGUMENT_PARSER:
+            push(instruction.apply(argparse.ArgumentParser))
+
+        elif instruction.kind is Kinds.BEGIN_SUBPARSERS:
+            push(instruction.apply(tos().add_subparsers))
+        elif instruction.kind is Kinds.BEGIN_PARSER:
+            push(instruction.apply(tos().add_parser))
+
+        elif instruction.kind is Kinds.BEGIN_ARGUMENT_GROUP:
+            push(instruction.apply(tos().add_argument_group))
+
+        elif instruction.kind is Kinds.BEGIN_MUTUALLY_EXCLUSIVE_GROUP:
+            push(instruction.apply(tos().add_mutually_exclusive_group))
+
+        elif instruction.kind is Kinds.ARGUMENT:
+            instruction.apply(tos().add_argument)
+        elif instruction.kind is Kinds.BEGIN_ARGUMENT:
+            push(instruction.apply(tos().add_argument))
+
+        elif instruction.kind is Kinds.APPLY:
+            instruction.func(tos())
+
+        elif instruction.kind is Kinds.END:
+            pop()
+
+        else:
+            ASSERT.unreachable('unknown instruction kind: {}', instruction)
+
+    stack = []
+    push = stack.append
+    pop = lambda: ASSERT.not_empty(stack).pop()
+    tos = lambda: ASSERT.not_empty(stack)[-1]
+
+    instructions = _get_instructions(target)
+
+    if parser:
+        push(parser)
+    else:
+        ASSERT(
+            instructions and instructions[0].kind is Kinds.ARGUMENT_PARSER,
+            'expect Kinds.ARGUMENT_PARSER at first: {}',
+            instructions,
+        )
+
+    execute(instructions)
+
+    ASSERT(len(stack) == 1, 'expect exactly one left: {}, {}', target, stack)
+    return pop()
