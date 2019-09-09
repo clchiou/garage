@@ -30,6 +30,7 @@ import tempfile
 import typing
 from pathlib import Path
 
+from g1.bases import argparses
 from g1.bases import datetimes
 from g1.bases.assertions import ASSERT
 
@@ -43,6 +44,17 @@ LOG = logging.getLogger(__name__)
 #
 
 
+@argparses.begin_parser(
+    'build-base', **bases.make_help_kwargs('build a base image')
+)
+@argparses.argument(
+    '--prune-stash-path',
+    metavar='PATH',
+    type=Path,
+    help='provide path to stash pruned files',
+)
+@argparses.argument('path', type=Path, help='provide base image output path')
+@argparses.end
 def cmd_build_base_image(base_image_path, prune_stash_path):
     ASSERT.not_predicate(base_image_path, Path.exists)
     bases.assert_root_privilege()
@@ -85,6 +97,14 @@ def create_image_rootfs(image_rootfs_path, prune_stash_path):
     cmd_setup_base_rootfs(image_rootfs_path, prune_stash_path)
 
 
+@argparses.begin_parser(
+    'prepare-base-rootfs',
+    **bases.make_help_kwargs(
+        'prepare rootfs of a base image (useful for testing)',
+    ),
+)
+@argparses.argument('path', type=Path, help='provide rootfs directory path')
+@argparses.end
 def cmd_prepare_base_rootfs(image_rootfs_path):
     ASSERT.not_predicate(image_rootfs_path, Path.exists)
     bases.assert_root_privilege()
@@ -105,6 +125,20 @@ def cmd_prepare_base_rootfs(image_rootfs_path):
     )
 
 
+@argparses.begin_parser(
+    'setup-base-rootfs',
+    **bases.make_help_kwargs(
+        'set up rootfs of a base image (useful for testing)',
+    ),
+)
+@argparses.argument(
+    '--prune-stash-path',
+    metavar='PATH',
+    type=Path,
+    help='provide path to stash pruned files',
+)
+@argparses.argument('path', type=Path, help='provide rootfs directory path')
+@argparses.end
 def cmd_setup_base_rootfs(image_rootfs_path, prune_stash_path):
     ASSERT.predicate(image_rootfs_path, Path.is_dir)
     bases.assert_root_privilege()

@@ -67,6 +67,7 @@ __all__ = [
 
 import contextlib
 import dataclasses
+import datetime
 import gzip
 import hashlib
 import logging
@@ -77,12 +78,54 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from g1.bases import argparses
 from g1.bases import datetimes
+from g1.bases import functionals
 from g1.bases.assertions import ASSERT
 
 from . import bases
 
 LOG = logging.getLogger(__name__)
+
+#
+# Data type.
+#
+
+
+@dataclasses.dataclass(frozen=True)
+class ImageMetadata:
+
+    name: str
+    version: str
+
+    def __post_init__(self):
+        validate_name(self.name)
+        validate_version(self.version)
+
+
+# SHA-256.
+ID_PATTERN = re.compile(r'[0-9a-f]{64}')
+
+# For now, let's only allow a restrictive set of names.
+NAME_PATTERN = re.compile(r'[a-z0-9]+(-[a-z0-9]+)*')
+VERSION_PATTERN = re.compile(r'[a-z0-9]+((?:-|\.)[a-z0-9]+)*')
+
+
+def validate_id(image_id):
+    return ASSERT.predicate(image_id, ID_PATTERN.fullmatch)
+
+
+def validate_name(name):
+    return ASSERT.predicate(name, NAME_PATTERN.fullmatch)
+
+
+def validate_version(version):
+    return ASSERT.predicate(version, VERSION_PATTERN.fullmatch)
+
+
+def validate_tag(tag):
+    return ASSERT.predicate(tag, NAME_PATTERN.fullmatch)
+
 
 #
 # Top-level commands.  You need to check root privilege and acquire all
@@ -95,6 +138,29 @@ LOG = logging.getLogger(__name__)
 # top-level directory.  If this turns out to cause a lot of lock
 # contention, we should implement a finer-grained locking strategy.
 #
+
+select_image_arguments = functionals.compose(
+    argparses.begin_mutually_exclusive_group(required=True),
+    argparses.argument('--id', type=validate_id, help='provide image id'),
+    argparses.argument(
+        '--nv',
+        metavar=('NAME', 'VERSION'),
+        # Sadly it looks like you can't use ``type`` with ``nargs``.
+        nargs=2,
+        help='provide image name and version',
+    ),
+    argparses.argument('--tag', type=validate_tag, help='provide image tag'),
+    argparses.end,
+)
+
+
+def make_select_image_kwargs(args):
+    return {
+        'image_id': args.id,
+        'name': validate_name(args.nv[0]) if args.nv else None,
+        'version': validate_version(args.nv[1]) if args.nv else None,
+        'tag': args.tag,
+    }
 
 
 def cmd_init():
@@ -111,6 +177,13 @@ def cmd_init():
         chown(path)
 
 
+@argparses.begin_parser(
+    'import', **bases.make_help_kwargs('import an image archive')
+)
+@argparses.argument(
+    'path', type=Path, help='import image archive from this path'
+)
+@argparses.end
 def cmd_import(image_archive_path):
     """Import an image archive into the repo.
 
@@ -133,6 +206,33 @@ def cmd_import(image_archive_path):
             maybe_import_image_dir(tmp_path, image_id)
 
 
+IMAGE_LIST_COLUMNS = frozenset((
+    'id',
+    'name',
+    'version',
+    'tags',
+    'ref-count',
+    'last-updated',
+))
+IMAGE_LIST_DEFAULT_COLUMNS = (
+    'id',
+    'name',
+    'version',
+    'tags',
+    'ref-count',
+    'last-updated',
+)
+IMAGE_LIST_STRINGIFIERS = {
+    'tags': ' '.join,
+    'last-updated': datetime.datetime.isoformat,
+}
+ASSERT.issuperset(IMAGE_LIST_COLUMNS, IMAGE_LIST_DEFAULT_COLUMNS)
+ASSERT.issuperset(IMAGE_LIST_COLUMNS, IMAGE_LIST_STRINGIFIERS)
+
+
+@argparses.begin_parser('list', **bases.make_help_kwargs('list images'))
+@bases.formatter_arguments(IMAGE_LIST_COLUMNS, IMAGE_LIST_DEFAULT_COLUMNS)
+@argparses.end
 def cmd_list():
     # Don't need root privilege here.
     with bases.acquiring_shared(get_tags_path()), \
@@ -150,6 +250,10 @@ def cmd_list():
             }
 
 
+@argparses.begin_parser('tag', **bases.make_help_kwargs('set tag to an image'))
+@select_image_arguments
+@argparses.argument('new_tag', type=validate_tag, help='provide new image tag')
+@argparses.end
 def cmd_tag(*, image_id=None, name=None, version=None, tag=None, new_tag):
     bases.assert_root_privilege()
     with bases.acquiring_exclusive(get_tags_path()):
@@ -163,6 +267,13 @@ def cmd_tag(*, image_id=None, name=None, version=None, tag=None, new_tag):
         tag_path.symlink_to(get_tag_target(image_dir_path))
 
 
+@argparses.begin_parser(
+    'remove-tag', **bases.make_help_kwargs('remove tag from an image')
+)
+@argparses.argument(
+    'tag', type=validate_tag, help='provide image tag for removal'
+)
+@argparses.end
 def cmd_remove_tag(tag):
     bases.assert_root_privilege()
     with bases.acquiring_exclusive(get_tags_path()):
@@ -172,6 +283,11 @@ def cmd_remove_tag(tag):
             pass
 
 
+@argparses.begin_parser(
+    'remove', **bases.make_help_kwargs('remove an image from the repository')
+)
+@select_image_arguments
+@argparses.end
 def cmd_remove(*, image_id=None, name=None, version=None, tag=None):
     """Remove an image, or no-op if image does not exist."""
     bases.assert_root_privilege()
@@ -226,46 +342,6 @@ def using_tmp():
         bases.delete_file(tmp_path)
         tmp_lock.release()
         tmp_lock.close()
-
-
-#
-# Data type.
-#
-
-
-@dataclasses.dataclass(frozen=True)
-class ImageMetadata:
-
-    name: str
-    version: str
-
-    def __post_init__(self):
-        validate_name(self.name)
-        validate_version(self.version)
-
-
-# SHA-256.
-ID_PATTERN = re.compile(r'[0-9a-f]{64}')
-
-# For now, let's only allow a restrictive set of names.
-NAME_PATTERN = re.compile(r'[a-z0-9]+(-[a-z0-9]+)*')
-VERSION_PATTERN = re.compile(r'[a-z0-9]+((?:-|\.)[a-z0-9]+)*')
-
-
-def validate_id(image_id):
-    return ASSERT.predicate(image_id, ID_PATTERN.fullmatch)
-
-
-def validate_name(name):
-    return ASSERT.predicate(name, NAME_PATTERN.fullmatch)
-
-
-def validate_version(version):
-    return ASSERT.predicate(version, VERSION_PATTERN.fullmatch)
-
-
-def validate_tag(tag):
-    return ASSERT.predicate(tag, NAME_PATTERN.fullmatch)
 
 
 #

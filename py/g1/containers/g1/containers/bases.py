@@ -1,6 +1,9 @@
 __all__ = [
     'cmd_init',
+    'formatter_arguments',
     'get_repo_path',
+    'make_formatter_kwargs',
+    'make_help_kwargs',
     # Extension to Path object.
     'delete_file',
     'is_empty_dir',
@@ -30,8 +33,12 @@ import shutil
 from pathlib import Path
 
 from g1.apps import parameters
+from g1.bases import argparses
 from g1.bases import dataclasses as g1_dataclasses
+from g1.bases import functionals
 from g1.bases.assertions import ASSERT
+
+from . import formatters
 
 LOG = logging.getLogger(__name__)
 
@@ -81,6 +88,55 @@ def cmd_init():
 
 def get_repo_path():
     return (Path(PARAMS.repository.get()) / REPO_LAYOUT_VERSION).absolute()
+
+
+def formatter_arguments(columns, default_columns):
+    return functionals.compose(
+        argparses.argument(
+            '--format',
+            action=argparses.StoreEnumAction,
+            default=formatters.Formats.TEXT,
+            help='set output format (default: %(default_string)s)',
+        ),
+        argparses.argument(
+            '--header',
+            action=argparses.StoreBoolAction,
+            default=True,
+            help='enable/disable header output (default: %(default_string)s)',
+        ),
+        argparses.begin_argument(
+            '--columns',
+            type=lambda columns_str: ASSERT.all(
+                list(filter(None, columns_str.split(','))),
+                columns.__contains__,
+            ),
+            default=','.join(default_columns),
+            help=(
+                'set output columns (available columns are: %(columns)s) '
+                '(default: %(default)s)'
+            ),
+        ),
+        argparses.apply(
+            lambda action:
+            setattr(action, 'columns', ','.join(sorted(columns)))
+        ),
+        argparses.end,
+    )
+
+
+def make_formatter_kwargs(args):
+    return {
+        'format': args.format,
+        'header': args.header,
+        'columns': args.columns,
+    }
+
+
+def make_help_kwargs(help_text):
+    return {
+        'help': help_text,
+        'description': '%s%s.' % (help_text[0].upper(), help_text[1:]),
+    }
 
 
 #

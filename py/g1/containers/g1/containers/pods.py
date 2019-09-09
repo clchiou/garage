@@ -49,6 +49,7 @@ import typing
 import uuid
 from pathlib import Path
 
+from g1.bases import argparses
 from g1.bases import datetimes
 from g1.bases.assertions import ASSERT
 
@@ -57,6 +58,84 @@ from . import builders
 from . import images
 
 LOG = logging.getLogger(__name__)
+
+#
+# Data type.
+#
+
+
+@dataclasses.dataclass(frozen=True)
+class PodConfig:
+
+    # Re-export ``App`` type.
+    App = builders.App
+
+    @dataclasses.dataclass(frozen=True)
+    class Image:
+
+        id: typing.Optional[str] = None
+        name: typing.Optional[str] = None
+        version: typing.Optional[str] = None
+        tag: typing.Optional[str] = None
+
+        def __post_init__(self):
+            ASSERT.only_one((self.id, self.name or self.version, self.tag))
+            ASSERT.not_xor(self.name, self.version)
+            if self.id:
+                images.validate_id(self.id)
+            elif self.name:
+                images.validate_name(self.name)
+                images.validate_version(self.version)
+            else:
+                images.validate_tag(self.tag)
+
+    @dataclasses.dataclass(frozen=True)
+    class Volume:
+
+        source: str
+        target: str
+        read_only: bool = True
+
+        def __post_init__(self):
+            ASSERT.predicate(Path(self.source), Path.is_absolute)
+            ASSERT.predicate(Path(self.target), Path.is_absolute)
+
+    name: str
+    version: str
+    apps: typing.List[App]
+    # Image are ordered from low to high.
+    images: typing.List[Image]
+    volumes: typing.List[Volume] = ()
+
+    def __post_init__(self):
+        images.validate_name(self.name)
+        images.validate_version(self.version)
+        ASSERT.not_empty(self.apps)
+        ASSERT.not_empty(self.images)
+        ASSERT(
+            len(set(u.name for u in self.apps)) == len(self.apps),
+            'expect unique app names: {}',
+            self.apps,
+        )
+        ASSERT(
+            len(set(v.target for v in self.volumes)) == len(self.volumes),
+            'expect unique volume targets: {}',
+            self.volumes,
+        )
+
+
+UUID_PATTERN = re.compile(
+    r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
+)
+
+
+def generate_id():
+    return validate_id(str(uuid.uuid4()))
+
+
+def validate_id(pod_id):
+    return ASSERT.predicate(pod_id, UUID_PATTERN.fullmatch)
+
 
 #
 # Top-level commands.  You need to check root privilege and acquire all
@@ -74,6 +153,21 @@ LOG = logging.getLogger(__name__)
 #
 
 
+def select_pod_arguments(*, positional):
+    return argparses.argument(
+        'id' if positional else '--id', type=validate_id, help='set pod id'
+    )
+
+
+provide_config_arguments = argparses.argument(
+    'config', type=Path, help='provide path to pod config file'
+)
+
+
+def stringify_last_updated(last_updated):
+    return '' if last_updated is None else last_updated.isoformat()
+
+
 def cmd_init():
     """Initialize the pod repository."""
     bases.assert_root_privilege()
@@ -88,6 +182,33 @@ def cmd_init():
         chown(path)
 
 
+POD_LIST_COLUMNS = frozenset((
+    'id',
+    'name',
+    'version',
+    'images',
+    'active',
+    'last-updated',
+))
+POD_LIST_DEFAULT_COLUMNS = (
+    'id',
+    'name',
+    'version',
+    'active',
+    'last-updated',
+)
+POD_LIST_STRINGIFIERS = {
+    'images': ' '.join,
+    'active': lambda active: 'true' if active else 'false',
+    'last-updated': stringify_last_updated,
+}
+ASSERT.issuperset(POD_LIST_COLUMNS, POD_LIST_DEFAULT_COLUMNS)
+ASSERT.issuperset(POD_LIST_COLUMNS, POD_LIST_STRINGIFIERS)
+
+
+@argparses.begin_parser('list', **bases.make_help_kwargs('list pods'))
+@bases.formatter_arguments(POD_LIST_COLUMNS, POD_LIST_DEFAULT_COLUMNS)
+@argparses.end
 def cmd_list():
     # Don't need root privilege here.
     with bases.acquiring_shared(get_active_path()):
@@ -105,6 +226,28 @@ def cmd_list():
             }
 
 
+POD_SHOW_COLUMNS = frozenset((
+    'name',
+    'status',
+    'last-updated',
+))
+POD_SHOW_DEFAULT_COLUMNS = (
+    'name',
+    'status',
+    'last-updated',
+)
+POD_SHOW_STRINGIFIERS = {
+    'status': lambda status: '' if status is None else str(status),
+    'last-updated': stringify_last_updated,
+}
+ASSERT.issuperset(POD_SHOW_COLUMNS, POD_SHOW_DEFAULT_COLUMNS)
+ASSERT.issuperset(POD_SHOW_COLUMNS, POD_SHOW_STRINGIFIERS)
+
+
+@argparses.begin_parser('show', **bases.make_help_kwargs('show pod status'))
+@bases.formatter_arguments(POD_SHOW_COLUMNS, POD_SHOW_DEFAULT_COLUMNS)
+@select_pod_arguments(positional=True)
+@argparses.end
 def cmd_show(pod_id):
     # Don't need root privilege here.
     with bases.acquiring_shared(get_active_path()):
@@ -118,6 +261,11 @@ def cmd_show(pod_id):
         } for app in config.apps]
 
 
+@argparses.begin_parser(
+    'cat-config', **bases.make_help_kwargs('show pod config')
+)
+@select_pod_arguments(positional=True)
+@argparses.end
 def cmd_cat_config(pod_id, output):
     config_path = ASSERT.predicate(
         get_config_path(get_pod_dir_path(pod_id)), Path.is_file
@@ -125,12 +273,20 @@ def cmd_cat_config(pod_id, output):
     output.write(config_path.read_bytes())
 
 
+@argparses.begin_parser('run', **bases.make_help_kwargs('run a pod'))
+@select_pod_arguments(positional=False)
+@provide_config_arguments
+@argparses.end
 def cmd_run(pod_id, config_path, *, debug=False):
     bases.assert_root_privilege()
     cmd_prepare(pod_id, config_path)
     run_pod(pod_id, debug=debug)
 
 
+@argparses.begin_parser('prepare', **bases.make_help_kwargs('prepare a pod'))
+@select_pod_arguments(positional=False)
+@provide_config_arguments
+@argparses.end
 def cmd_prepare(pod_id, config_path):
     """Prepare a pod directory, or no-op if pod exists."""
     bases.assert_root_privilege()
@@ -154,6 +310,11 @@ def cmd_prepare(pod_id, config_path):
             remove_pod_dir(tmp_path)
 
 
+@argparses.begin_parser(
+    'run-prepared', **bases.make_help_kwargs('run a prepared pod')
+)
+@select_pod_arguments(positional=True)
+@argparses.end
 def cmd_run_prepared(pod_id, *, debug=False):
     bases.assert_root_privilege()
     pod_dir_path = ASSERT.predicate(get_pod_dir_path(pod_id), Path.is_dir)
@@ -164,6 +325,11 @@ def cmd_run_prepared(pod_id, *, debug=False):
     run_pod(pod_id, debug=debug)
 
 
+@argparses.begin_parser(
+    'remove', **bases.make_help_kwargs('remove an exited pod')
+)
+@select_pod_arguments(positional=True)
+@argparses.end
 def cmd_remove(pod_id):
     """Remove a pod, or no-op if pod does not exist."""
     bases.assert_root_privilege()
@@ -262,84 +428,6 @@ def is_pod_dir_locked(pod_dir_path):
         return False
     else:
         return True
-
-
-#
-# Data type.
-#
-
-
-@dataclasses.dataclass(frozen=True)
-class PodConfig:
-
-    # Re-export ``App`` type.
-    App = builders.App
-
-    @dataclasses.dataclass(frozen=True)
-    class Image:
-
-        id: typing.Optional[str] = None
-        name: typing.Optional[str] = None
-        version: typing.Optional[str] = None
-        tag: typing.Optional[str] = None
-
-        def __post_init__(self):
-            ASSERT.only_one((self.id, self.name or self.version, self.tag))
-            ASSERT.not_xor(self.name, self.version)
-            if self.id:
-                images.validate_id(self.id)
-            elif self.name:
-                images.validate_name(self.name)
-                images.validate_version(self.version)
-            else:
-                images.validate_tag(self.tag)
-
-    @dataclasses.dataclass(frozen=True)
-    class Volume:
-
-        source: str
-        target: str
-        read_only: bool = True
-
-        def __post_init__(self):
-            ASSERT.predicate(Path(self.source), Path.is_absolute)
-            ASSERT.predicate(Path(self.target), Path.is_absolute)
-
-    name: str
-    version: str
-    apps: typing.List[App]
-    # Image are ordered from low to high.
-    images: typing.List[Image]
-    volumes: typing.List[Volume] = ()
-
-    def __post_init__(self):
-        images.validate_name(self.name)
-        images.validate_version(self.version)
-        ASSERT.not_empty(self.apps)
-        ASSERT.not_empty(self.images)
-        ASSERT(
-            len(set(u.name for u in self.apps)) == len(self.apps),
-            'expect unique app names: {}',
-            self.apps,
-        )
-        ASSERT(
-            len(set(v.target for v in self.volumes)) == len(self.volumes),
-            'expect unique volume targets: {}',
-            self.volumes,
-        )
-
-
-UUID_PATTERN = re.compile(
-    r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
-)
-
-
-def generate_id():
-    return validate_id(str(uuid.uuid4()))
-
-
-def validate_id(pod_id):
-    return ASSERT.predicate(pod_id, UUID_PATTERN.fullmatch)
 
 
 #
