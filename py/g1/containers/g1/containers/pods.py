@@ -23,6 +23,13 @@ For now the pod repository layout is very simple:
 """
 
 __all__ = [
+    # Public interface.
+    'PodConfig',
+    'generate_id',
+    'validate_id',
+    # Expose to apps.
+    'POD_LIST_STRINGIFIERS',
+    'POD_SHOW_STRINGIFIERS',
     'cmd_cat_config',
     'cmd_cleanup',
     'cmd_init',
@@ -32,8 +39,6 @@ __all__ = [
     'cmd_run',
     'cmd_run_prepared',
     'cmd_show',
-    'generate_id',
-    'validate_id',
 ]
 
 import ctypes
@@ -123,7 +128,7 @@ class PodConfig:
         )
 
 
-UUID_PATTERN = re.compile(
+_UUID_PATTERN = re.compile(
     r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
 )
 
@@ -133,7 +138,7 @@ def generate_id():
 
 
 def validate_id(pod_id):
-    return ASSERT.predicate(pod_id, UUID_PATTERN.fullmatch)
+    return ASSERT.predicate(pod_id, _UUID_PATTERN.fullmatch)
 
 
 #
@@ -152,18 +157,18 @@ def validate_id(pod_id):
 #
 
 
-def select_pod_arguments(*, positional):
+def _select_pod_arguments(*, positional):
     return argparses.argument(
         'id' if positional else '--id', type=validate_id, help='set pod id'
     )
 
 
-provide_config_arguments = argparses.argument(
+_provide_config_arguments = argparses.argument(
     'config', type=Path, help='provide path to pod config file'
 )
 
 
-def stringify_last_updated(last_updated):
+def _stringify_last_updated(last_updated):
     return '' if last_updated is None else last_updated.isoformat()
 
 
@@ -171,17 +176,17 @@ def cmd_init():
     """Initialize the pod repository."""
     bases.assert_root_privilege()
     for path, mode, chown in (
-        (get_pod_repo_path(), 0o750, bases.chown_app),
-        (get_active_path(), 0o750, bases.chown_app),
-        (get_graveyard_path(), 0o750, bases.chown_app),
-        (get_tmp_path(), 0o750, bases.chown_app),
+        (_get_pod_repo_path(), 0o750, bases.chown_app),
+        (_get_active_path(), 0o750, bases.chown_app),
+        (_get_graveyard_path(), 0o750, bases.chown_app),
+        (_get_tmp_path(), 0o750, bases.chown_app),
     ):
         LOG.info('create directory: %s', path)
         path.mkdir(mode=mode, parents=False, exist_ok=True)
         chown(path)
 
 
-POD_LIST_COLUMNS = frozenset((
+_POD_LIST_COLUMNS = frozenset((
     'id',
     'name',
     'version',
@@ -189,7 +194,7 @@ POD_LIST_COLUMNS = frozenset((
     'active',
     'last-updated',
 ))
-POD_LIST_DEFAULT_COLUMNS = (
+_POD_LIST_DEFAULT_COLUMNS = (
     'id',
     'name',
     'version',
@@ -199,60 +204,60 @@ POD_LIST_DEFAULT_COLUMNS = (
 POD_LIST_STRINGIFIERS = {
     'images': ' '.join,
     'active': lambda active: 'true' if active else 'false',
-    'last-updated': stringify_last_updated,
+    'last-updated': _stringify_last_updated,
 }
-ASSERT.issuperset(POD_LIST_COLUMNS, POD_LIST_DEFAULT_COLUMNS)
-ASSERT.issuperset(POD_LIST_COLUMNS, POD_LIST_STRINGIFIERS)
+ASSERT.issuperset(_POD_LIST_COLUMNS, _POD_LIST_DEFAULT_COLUMNS)
+ASSERT.issuperset(_POD_LIST_COLUMNS, POD_LIST_STRINGIFIERS)
 
 
 @argparses.begin_parser('list', **bases.make_help_kwargs('list pods'))
-@bases.formatter_arguments(POD_LIST_COLUMNS, POD_LIST_DEFAULT_COLUMNS)
+@bases.formatter_arguments(_POD_LIST_COLUMNS, _POD_LIST_DEFAULT_COLUMNS)
 @argparses.end
 def cmd_list():
     # Don't need root privilege here.
-    with bases.acquiring_shared(get_active_path()):
-        for pod_dir_path, config in iter_configs():
-            pod_status = get_pod_status(pod_dir_path, config)
+    with bases.acquiring_shared(_get_active_path()):
+        for pod_dir_path, config in _iter_configs():
+            pod_status = _get_pod_status(pod_dir_path, config)
             yield {
-                'id': get_id(pod_dir_path),
+                'id': _get_id(pod_dir_path),
                 'name': config.name,
                 'version': config.version,
-                # Use iter_image_ids rather than iter_ref_image_ids for
-                # ordered results.
-                'images': list(iter_image_ids(config)),
-                'active': is_pod_dir_locked(pod_dir_path),
-                'last-updated': get_last_updated(pod_status),
+                # Use _iter_image_ids rather than _iter_ref_image_ids
+                # for ordered results.
+                'images': list(_iter_image_ids(config)),
+                'active': _is_pod_dir_locked(pod_dir_path),
+                'last-updated': _get_last_updated(pod_status),
             }
 
 
-POD_SHOW_COLUMNS = frozenset((
+_POD_SHOW_COLUMNS = frozenset((
     'name',
     'status',
     'last-updated',
 ))
-POD_SHOW_DEFAULT_COLUMNS = (
+_POD_SHOW_DEFAULT_COLUMNS = (
     'name',
     'status',
     'last-updated',
 )
 POD_SHOW_STRINGIFIERS = {
     'status': lambda status: '' if status is None else str(status),
-    'last-updated': stringify_last_updated,
+    'last-updated': _stringify_last_updated,
 }
-ASSERT.issuperset(POD_SHOW_COLUMNS, POD_SHOW_DEFAULT_COLUMNS)
-ASSERT.issuperset(POD_SHOW_COLUMNS, POD_SHOW_STRINGIFIERS)
+ASSERT.issuperset(_POD_SHOW_COLUMNS, _POD_SHOW_DEFAULT_COLUMNS)
+ASSERT.issuperset(_POD_SHOW_COLUMNS, POD_SHOW_STRINGIFIERS)
 
 
 @argparses.begin_parser('show', **bases.make_help_kwargs('show pod status'))
-@bases.formatter_arguments(POD_SHOW_COLUMNS, POD_SHOW_DEFAULT_COLUMNS)
-@select_pod_arguments(positional=True)
+@bases.formatter_arguments(_POD_SHOW_COLUMNS, _POD_SHOW_DEFAULT_COLUMNS)
+@_select_pod_arguments(positional=True)
 @argparses.end
 def cmd_show(pod_id):
     # Don't need root privilege here.
-    with bases.acquiring_shared(get_active_path()):
-        pod_dir_path = ASSERT.predicate(get_pod_dir_path(pod_id), Path.is_dir)
-        config = read_config(pod_dir_path)
-        pod_status = get_pod_status(pod_dir_path, config)
+    with bases.acquiring_shared(_get_active_path()):
+        pod_dir_path = ASSERT.predicate(_get_pod_dir_path(pod_id), Path.is_dir)
+        config = _read_config(pod_dir_path)
+        pod_status = _get_pod_status(pod_dir_path, config)
         return [{
             'name': app.name,
             'status': pod_status.get(app.name, (None, None))[0],
@@ -263,77 +268,77 @@ def cmd_show(pod_id):
 @argparses.begin_parser(
     'cat-config', **bases.make_help_kwargs('show pod config')
 )
-@select_pod_arguments(positional=True)
+@_select_pod_arguments(positional=True)
 @argparses.end
 def cmd_cat_config(pod_id, output):
     config_path = ASSERT.predicate(
-        get_config_path(get_pod_dir_path(pod_id)), Path.is_file
+        _get_config_path(_get_pod_dir_path(pod_id)), Path.is_file
     )
     output.write(config_path.read_bytes())
 
 
 @argparses.begin_parser('run', **bases.make_help_kwargs('run a pod'))
-@select_pod_arguments(positional=False)
-@provide_config_arguments
+@_select_pod_arguments(positional=False)
+@_provide_config_arguments
 @argparses.end
 def cmd_run(pod_id, config_path, *, debug=False):
     bases.assert_root_privilege()
     cmd_prepare(pod_id, config_path)
-    run_pod(pod_id, debug=debug)
+    _run_pod(pod_id, debug=debug)
 
 
 @argparses.begin_parser('prepare', **bases.make_help_kwargs('prepare a pod'))
-@select_pod_arguments(positional=False)
-@provide_config_arguments
+@_select_pod_arguments(positional=False)
+@_provide_config_arguments
 @argparses.end
 def cmd_prepare(pod_id, config_path):
     """Prepare a pod directory, or no-op if pod exists."""
     bases.assert_root_privilege()
     # Make sure that it is safe to create a pod with this ID.
-    ASSERT.not_equal(pod_id_to_machine_id(pod_id), read_host_machine_id())
+    ASSERT.not_equal(_pod_id_to_machine_id(pod_id), _read_host_machine_id())
     # Check before really preparing the pod.
-    if bases.lexists(get_pod_dir_path(pod_id)):
+    if bases.lexists(_get_pod_dir_path(pod_id)):
         LOG.info('skip duplicated pod: %s', pod_id)
         return
     config = bases.read_jsonobject(PodConfig, config_path)
-    tmp_path = create_tmp_pod_dir()
+    tmp_path = _create_tmp_pod_dir()
     try:
-        prepare_pod_dir(tmp_path, pod_id, config)
-        with bases.acquiring_exclusive(get_active_path()):
-            if maybe_move_pod_dir_to_active(tmp_path, pod_id):
+        _prepare_pod_dir(tmp_path, pod_id, config)
+        with bases.acquiring_exclusive(_get_active_path()):
+            if _maybe_move_pod_dir_to_active(tmp_path, pod_id):
                 tmp_path = None
             else:
                 LOG.info('skip duplicated pod: %s', pod_id)
     finally:
         if tmp_path:
-            remove_pod_dir(tmp_path)
+            _remove_pod_dir(tmp_path)
 
 
 @argparses.begin_parser(
     'run-prepared', **bases.make_help_kwargs('run a prepared pod')
 )
-@select_pod_arguments(positional=True)
+@_select_pod_arguments(positional=True)
 @argparses.end
 def cmd_run_prepared(pod_id, *, debug=False):
     bases.assert_root_privilege()
-    pod_dir_path = ASSERT.predicate(get_pod_dir_path(pod_id), Path.is_dir)
-    lock_pod_dir_for_exec(pod_dir_path)
-    if bases.is_empty_dir(get_rootfs_path(pod_dir_path)):
+    pod_dir_path = ASSERT.predicate(_get_pod_dir_path(pod_id), Path.is_dir)
+    _lock_pod_dir_for_exec(pod_dir_path)
+    if bases.is_empty_dir(_get_rootfs_path(pod_dir_path)):
         LOG.warning('overlay is not mounted; system probably rebooted')
-        mount_overlay(pod_dir_path, read_config(pod_dir_path))
-    run_pod(pod_id, debug=debug)
+        _mount_overlay(pod_dir_path, _read_config(pod_dir_path))
+    _run_pod(pod_id, debug=debug)
 
 
 @argparses.begin_parser(
     'remove', **bases.make_help_kwargs('remove an exited pod')
 )
-@select_pod_arguments(positional=True)
+@_select_pod_arguments(positional=True)
 @argparses.end
 def cmd_remove(pod_id):
     """Remove a pod, or no-op if pod does not exist."""
     bases.assert_root_privilege()
-    pod_dir_path = get_pod_dir_path(pod_id)
-    with bases.acquiring_exclusive(get_active_path()):
+    pod_dir_path = _get_pod_dir_path(pod_id)
+    with bases.acquiring_exclusive(_get_active_path()):
         if not pod_dir_path.is_dir():
             LOG.debug('pod does not exist: %s', pod_id)
             return
@@ -342,9 +347,9 @@ def cmd_remove(pod_id):
             LOG.warning('pod is still active: %s', pod_id)
             return
     try:
-        with bases.acquiring_exclusive(get_graveyard_path()):
-            grave_path = move_pod_dir_to_graveyard(pod_dir_path)
-        remove_pod_dir(grave_path)
+        with bases.acquiring_exclusive(_get_graveyard_path()):
+            grave_path = _move_pod_dir_to_graveyard(pod_dir_path)
+        _remove_pod_dir(grave_path)
     finally:
         pod_dir_lock.release()
         pod_dir_lock.close()
@@ -352,36 +357,36 @@ def cmd_remove(pod_id):
 
 def cmd_cleanup(expiration):
     bases.assert_root_privilege()
-    cleanup_active(expiration)
+    _cleanup_active(expiration)
     for top_dir_path in (
-        get_tmp_path(),
-        get_graveyard_path(),
+        _get_tmp_path(),
+        _get_graveyard_path(),
     ):
         with bases.acquiring_exclusive(top_dir_path):
-            cleanup_top_dir(top_dir_path)
+            _cleanup_top_dir(top_dir_path)
 
 
-def cleanup_active(expiration):
+def _cleanup_active(expiration):
     LOG.info('remove pods before: %s', expiration)
-    with bases.acquiring_exclusive(get_active_path()):
-        for pod_dir_path, config in iter_configs():
-            pod_id = get_id(pod_dir_path)
+    with bases.acquiring_exclusive(_get_active_path()):
+        for pod_dir_path, config in _iter_configs():
+            pod_id = _get_id(pod_dir_path)
             pod_dir_lock = bases.try_acquire_exclusive(pod_dir_path)
             if not pod_dir_lock:
                 LOG.debug('pod is still active: %s', pod_id)
                 continue
             try:
-                pod_status = get_pod_status(pod_dir_path, config)
-                last_updated = get_last_updated(pod_status)
+                pod_status = _get_pod_status(pod_dir_path, config)
+                last_updated = _get_last_updated(pod_status)
                 if last_updated is None:
                     # Prevent cleaning up just-prepared pod directory.
                     last_updated = datetimes.utcfromtimestamp(
-                        get_config_path(pod_dir_path).stat().st_mtime
+                        _get_config_path(pod_dir_path).stat().st_mtime
                     )
                 if last_updated < expiration:
-                    with bases.acquiring_exclusive(get_graveyard_path()):
+                    with bases.acquiring_exclusive(_get_graveyard_path()):
                         LOG.info('clean up pod: %s', pod_id)
-                        move_pod_dir_to_graveyard(pod_dir_path)
+                        _move_pod_dir_to_graveyard(pod_dir_path)
             finally:
                 pod_dir_lock.release()
                 pod_dir_lock.close()
@@ -392,25 +397,25 @@ def cleanup_active(expiration):
 #
 
 
-def create_tmp_pod_dir():
+def _create_tmp_pod_dir():
     """Create and then lock a temporary directory.
 
     NOTE: This lock is not released/close on exec.
     """
-    tmp_dir_path = get_tmp_path()
+    tmp_dir_path = _get_tmp_path()
     with bases.acquiring_exclusive(tmp_dir_path):
         tmp_path = Path(tempfile.mkdtemp(dir=tmp_dir_path))
         try:
             tmp_path.chmod(mode=0o750)
             bases.chown_app(tmp_path)
-            lock_pod_dir_for_exec(tmp_path)
+            _lock_pod_dir_for_exec(tmp_path)
         except:
             tmp_path.rmdir()
             raise
         return tmp_path
 
 
-def lock_pod_dir_for_exec(pod_dir_path):
+def _lock_pod_dir_for_exec(pod_dir_path):
     """Lock pod directory.
 
     NOTE: This lock is not released/close on exec.
@@ -419,7 +424,7 @@ def lock_pod_dir_for_exec(pod_dir_path):
     pod_dir_lock.acquire_exclusive()
 
 
-def is_pod_dir_locked(pod_dir_path):
+def _is_pod_dir_locked(pod_dir_path):
     pod_dir_lock = bases.try_acquire_exclusive(pod_dir_path)
     if pod_dir_lock:
         pod_dir_lock.release()
@@ -433,62 +438,62 @@ def is_pod_dir_locked(pod_dir_path):
 # Repo layout.
 #
 
-PODS = 'pods'
+_PODS = 'pods'
 
-ACTIVE = 'active'
-GRAVEYARD = 'graveyard'
-TMP = 'tmp'
+_ACTIVE = 'active'
+_GRAVEYARD = 'graveyard'
+_TMP = 'tmp'
 
 # Entries in a pod directory.
-CONFIG = 'config'
-DEPS = 'deps'
-WORK = 'work'
-UPPER = 'upper'
-ROOTFS = 'rootfs'
+_CONFIG = 'config'
+_DEPS = 'deps'
+_WORK = 'work'
+_UPPER = 'upper'
+_ROOTFS = 'rootfs'
 
 
-def get_pod_repo_path():
-    return bases.get_repo_path() / PODS
+def _get_pod_repo_path():
+    return bases.get_repo_path() / _PODS
 
 
-def get_active_path():
-    return get_pod_repo_path() / ACTIVE
+def _get_active_path():
+    return _get_pod_repo_path() / _ACTIVE
 
 
-def get_graveyard_path():
-    return get_pod_repo_path() / GRAVEYARD
+def _get_graveyard_path():
+    return _get_pod_repo_path() / _GRAVEYARD
 
 
-def get_tmp_path():
-    return get_pod_repo_path() / TMP
+def _get_tmp_path():
+    return _get_pod_repo_path() / _TMP
 
 
-def get_pod_dir_path(pod_id):
-    return get_active_path() / validate_id(pod_id)
+def _get_pod_dir_path(pod_id):
+    return _get_active_path() / validate_id(pod_id)
 
 
-def get_id(pod_dir_path):
+def _get_id(pod_dir_path):
     return validate_id(pod_dir_path.name)
 
 
-def get_config_path(pod_dir_path):
-    return pod_dir_path / CONFIG
+def _get_config_path(pod_dir_path):
+    return pod_dir_path / _CONFIG
 
 
-def get_deps_path(pod_dir_path):
-    return pod_dir_path / DEPS
+def _get_deps_path(pod_dir_path):
+    return pod_dir_path / _DEPS
 
 
-def get_work_path(pod_dir_path):
-    return pod_dir_path / WORK
+def _get_work_path(pod_dir_path):
+    return pod_dir_path / _WORK
 
 
-def get_upper_path(pod_dir_path):
-    return pod_dir_path / UPPER
+def _get_upper_path(pod_dir_path):
+    return pod_dir_path / _UPPER
 
 
-def get_rootfs_path(pod_dir_path):
-    return pod_dir_path / ROOTFS
+def _get_rootfs_path(pod_dir_path):
+    return pod_dir_path / _ROOTFS
 
 
 #
@@ -500,7 +505,7 @@ def get_rootfs_path(pod_dir_path):
 #
 
 
-def cleanup_top_dir(top_dir_path):
+def _cleanup_top_dir(top_dir_path):
     for path in top_dir_path.iterdir():
         if not path.is_dir():
             LOG.info('remove unknown file: %s', path)
@@ -510,7 +515,7 @@ def cleanup_top_dir(top_dir_path):
         if not lock:
             continue
         try:
-            remove_pod_dir(path)
+            _remove_pod_dir(path)
         finally:
             lock.release()
             lock.close()
@@ -521,16 +526,16 @@ def cleanup_top_dir(top_dir_path):
 #
 
 
-def iter_pod_dir_paths():
-    for pod_dir_path in get_active_path().iterdir():
+def _iter_pod_dir_paths():
+    for pod_dir_path in _get_active_path().iterdir():
         if not pod_dir_path.is_dir():
             LOG.debug('encounter unknown file under active: %s', pod_dir_path)
         else:
             yield pod_dir_path
 
 
-def maybe_move_pod_dir_to_active(dir_path, pod_id):
-    pod_dir_path = get_pod_dir_path(pod_id)
+def _maybe_move_pod_dir_to_active(dir_path, pod_id):
+    pod_dir_path = _get_pod_dir_path(pod_id)
     if bases.lexists(pod_dir_path):
         return False
     else:
@@ -538,8 +543,8 @@ def maybe_move_pod_dir_to_active(dir_path, pod_id):
         return True
 
 
-def move_pod_dir_to_graveyard(dir_path):
-    dst_path = get_graveyard_path() / dir_path.name
+def _move_pod_dir_to_graveyard(dir_path):
+    dst_path = _get_graveyard_path() / dir_path.name
     if bases.lexists(dst_path):
         dst_path.with_name('%s_%s' % (dst_path.name, generate_id()))
         LOG.debug(
@@ -557,44 +562,44 @@ def move_pod_dir_to_graveyard(dir_path):
 #
 
 
-def prepare_pod_dir(pod_dir_path, pod_id, config):
+def _prepare_pod_dir(pod_dir_path, pod_id, config):
     LOG.info('prepare pod: %s', pod_id)
-    setup_pod_dir_barely(pod_dir_path, config)
-    add_ref_image_ids(pod_dir_path, config)
-    mount_overlay(pod_dir_path, config)
-    rootfs_path = get_rootfs_path(pod_dir_path)
-    builders.generate_machine_id(rootfs_path, pod_id_to_machine_id(pod_id))
-    generate_hostname(rootfs_path, pod_id)
-    generate_unit_files(rootfs_path, config)
+    _setup_pod_dir_barely(pod_dir_path, config)
+    _add_ref_image_ids(pod_dir_path, config)
+    _mount_overlay(pod_dir_path, config)
+    rootfs_path = _get_rootfs_path(pod_dir_path)
+    builders.generate_machine_id(rootfs_path, _pod_id_to_machine_id(pod_id))
+    _generate_hostname(rootfs_path, pod_id)
+    _generate_unit_files(rootfs_path, config)
 
 
-def setup_pod_dir_barely(pod_dir_path, config):
-    write_config(config, pod_dir_path)
+def _setup_pod_dir_barely(pod_dir_path, config):
+    _write_config(config, pod_dir_path)
     for path in (
-        get_deps_path(pod_dir_path),
-        get_work_path(pod_dir_path),
-        get_upper_path(pod_dir_path),
-        get_rootfs_path(pod_dir_path),
+        _get_deps_path(pod_dir_path),
+        _get_work_path(pod_dir_path),
+        _get_upper_path(pod_dir_path),
+        _get_rootfs_path(pod_dir_path),
     ):
         path.mkdir()
     for path, mode, chown in (
-        (get_config_path(pod_dir_path), 0o640, bases.chown_app),
-        (get_deps_path(pod_dir_path), 0o750, bases.chown_app),
+        (_get_config_path(pod_dir_path), 0o640, bases.chown_app),
+        (_get_deps_path(pod_dir_path), 0o750, bases.chown_app),
         # Trivia: After overlay is mounted, root directory's mode is
         # actaully the same as upper's.
-        (get_work_path(pod_dir_path), 0o755, bases.chown_root),
-        (get_upper_path(pod_dir_path), 0o755, bases.chown_root),
-        (get_rootfs_path(pod_dir_path), 0o755, bases.chown_root),
+        (_get_work_path(pod_dir_path), 0o755, bases.chown_root),
+        (_get_upper_path(pod_dir_path), 0o755, bases.chown_root),
+        (_get_rootfs_path(pod_dir_path), 0o755, bases.chown_root),
     ):
         path.chmod(mode)
         chown(path)
 
 
-def remove_pod_dir(pod_dir_path):
+def _remove_pod_dir(pod_dir_path):
     LOG.info('remove pod directory: %s', pod_dir_path)
-    umount_overlay(pod_dir_path)
+    _umount_overlay(pod_dir_path)
     with bases.acquiring_shared(images.get_trees_path()):
-        for ref_image_id in iter_ref_image_ids(pod_dir_path):
+        for ref_image_id in _iter_ref_image_ids(pod_dir_path):
             images.touch(ref_image_id)
     shutil.rmtree(pod_dir_path)
 
@@ -604,17 +609,17 @@ def remove_pod_dir(pod_dir_path):
 #
 
 
-def mount_overlay(pod_dir_path, config):
-    rootfs_path = get_rootfs_path(pod_dir_path)
+def _mount_overlay(pod_dir_path, config):
+    rootfs_path = _get_rootfs_path(pod_dir_path)
     LOG.info('mount overlay: %s', rootfs_path)
     #
     # Since we should have added image refs, it is safe to access image
     # directories without locking them.
     #
-    # NOTE: You cannot use iter_ref_image_ids here as its result is not
-    # ordered; you must use iter_image_ids.
+    # NOTE: You cannot use _iter_ref_image_ids here as its result is not
+    # ordered; you must use _iter_image_ids.
     #
-    image_ids = list(iter_image_ids(config))
+    image_ids = list(_iter_image_ids(config))
     base_image_name, base_image_version = ASSERT.not_equal(
         images.find_name_and_version(image_id=image_ids[0]),
         (None, None),
@@ -638,11 +643,11 @@ def mount_overlay(pod_dir_path, config):
             '-o',
             'lowerdir=%s,upperdir=%s,workdir=%s' % (
                 ':'.join(
-                    str(get_image_rootfs_path(image_id))
+                    str(_get_image_rootfs_path(image_id))
                     for image_id in image_ids
                 ),
-                get_upper_path(pod_dir_path),
-                get_work_path(pod_dir_path),
+                _get_upper_path(pod_dir_path),
+                _get_work_path(pod_dir_path),
             ),
             'overlay',
             str(rootfs_path),
@@ -651,15 +656,15 @@ def mount_overlay(pod_dir_path, config):
     )
 
 
-def umount_overlay(pod_dir_path):
-    rootfs_path = get_rootfs_path(pod_dir_path)
-    umount(rootfs_path)
+def _umount_overlay(pod_dir_path):
+    rootfs_path = _get_rootfs_path(pod_dir_path)
+    _umount(rootfs_path)
     # Just a sanity check that rootfs is really unmounted.
     ASSERT.predicate(rootfs_path, bases.is_empty_dir)
 
 
-def generate_hostname(rootfs_path, pod_id):
-    hostname = make_hostname(pod_id)
+def _generate_hostname(rootfs_path, pod_id):
+    hostname = _make_hostname(pod_id)
     (rootfs_path / 'etc/hostname').write_text(hostname + '\n')
     (rootfs_path / 'etc/hosts').write_text(
         '127.0.0.1\tlocalhost\n'
@@ -667,18 +672,18 @@ def generate_hostname(rootfs_path, pod_id):
     )
 
 
-def generate_unit_files(rootfs_path, config):
+def _generate_unit_files(rootfs_path, config):
     for app in config.apps:
         builders.generate_unit_file(
             rootfs_path, config.name, config.version, app
         )
 
 
-def run_pod(pod_id, *, debug=False):
+def _run_pod(pod_id, *, debug=False):
     LOG.info('start pod: %s', pod_id)
-    pod_dir_path = ASSERT.predicate(get_pod_dir_path(pod_id), Path.is_dir)
-    rootfs_path = get_rootfs_path(pod_dir_path)
-    config = read_config(pod_dir_path)
+    pod_dir_path = ASSERT.predicate(_get_pod_dir_path(pod_id), Path.is_dir)
+    rootfs_path = _get_rootfs_path(pod_dir_path)
+    config = _read_config(pod_dir_path)
     builders.clear_pod_app_exit_status(rootfs_path)
     #
     # * For now we do not worry too much about cross-platform issues; we
@@ -693,12 +698,12 @@ def run_pod(pod_id, *, debug=False):
         # probably more cross-platform).
         'systemd-nspawn',
         '--uuid=%s' % pod_id,
-        '--machine=%s' % make_hostname(pod_id),
+        '--machine=%s' % _make_hostname(pod_id),
         '--register=yes',
-        *(['--keep-unit'] if is_running_from_system_service() else []),
+        *(['--keep-unit'] if _is_running_from_system_service() else []),
         '--boot',
         '--directory=%s' % rootfs_path,
-        *(make_bind_argument(volume) for volume in config.volumes),
+        *(_make_bind_argument(volume) for volume in config.volumes),
         '--notify-ready=yes',
         '--link-journal=try-host',
         *([] if debug else ['--quiet']),
@@ -711,16 +716,16 @@ def run_pod(pod_id, *, debug=False):
             '--show-status=no',
         ]),
     ]
-    LOG.debug('run_pod: args=%s', args)
+    LOG.debug('run pod: args=%s', args)
     os.execvp(args[0], args)
     ASSERT.unreachable('unable to start pod: {}', pod_id)
 
 
-def make_hostname(pod_id):
+def _make_hostname(pod_id):
     return 'ctr-%s' % pod_id
 
 
-def make_bind_argument(volume):
+def _make_bind_argument(volume):
     return '--bind%s=%s:%s' % (
         '-ro' if volume.read_only else '',
         ASSERT.not_contains(volume.source, ':'),
@@ -733,20 +738,20 @@ def make_bind_argument(volume):
 #
 
 
-def iter_configs():
-    for pod_dir_path in iter_pod_dir_paths():
-        yield pod_dir_path, read_config(pod_dir_path)
+def _iter_configs():
+    for pod_dir_path in _iter_pod_dir_paths():
+        yield pod_dir_path, _read_config(pod_dir_path)
 
 
-def read_config(pod_dir_path):
-    return bases.read_jsonobject(PodConfig, get_config_path(pod_dir_path))
+def _read_config(pod_dir_path):
+    return bases.read_jsonobject(PodConfig, _get_config_path(pod_dir_path))
 
 
-def write_config(config, pod_dir_path):
-    bases.write_jsonobject(config, get_config_path(pod_dir_path))
+def _write_config(config, pod_dir_path):
+    bases.write_jsonobject(config, _get_config_path(pod_dir_path))
 
 
-def iter_image_ids(config):
+def _iter_image_ids(config):
     """Search image IDs from image repo.
 
     It raises an error if any one of the image IDs cannot be found.
@@ -772,26 +777,26 @@ def iter_image_ids(config):
 #
 
 
-def add_ref_image_ids(pod_dir_path, config):
-    deps_path = get_deps_path(pod_dir_path)
+def _add_ref_image_ids(pod_dir_path, config):
+    deps_path = _get_deps_path(pod_dir_path)
     with bases.acquiring_shared(images.get_trees_path()):
-        for image_id in iter_image_ids(config):
+        for image_id in _iter_image_ids(config):
             images.add_ref(image_id, deps_path / image_id)
 
 
-def iter_ref_image_ids(pod_dir_path):
+def _iter_ref_image_ids(pod_dir_path):
     """Iterate over ref image IDs.
 
     NOTE: The results are not ordered.
     """
-    for ref_path in get_deps_path(pod_dir_path).iterdir():
+    for ref_path in _get_deps_path(pod_dir_path).iterdir():
         if not ref_path.is_file():
             LOG.debug('encounter unknown file under deps: %s', ref_path)
         else:
             yield images.validate_id(ref_path.name)
 
 
-def get_image_rootfs_path(image_id):
+def _get_image_rootfs_path(image_id):
     return images.get_rootfs_path(images.get_image_dir_path(image_id))
 
 
@@ -800,8 +805,8 @@ def get_image_rootfs_path(image_id):
 #
 
 
-def get_pod_status(pod_dir_path, config):
-    rootfs_path = get_rootfs_path(pod_dir_path)
+def _get_pod_status(pod_dir_path, config):
+    rootfs_path = _get_rootfs_path(pod_dir_path)
     pod_status = {}
     for app in config.apps:
         status, mtime = builders.get_pod_app_exit_status(rootfs_path, app)
@@ -810,7 +815,7 @@ def get_pod_status(pod_dir_path, config):
     return pod_status
 
 
-def get_last_updated(pod_status):
+def _get_last_updated(pod_status):
     """Return the most recent last-updated."""
     return max((mtime for _, mtime in pod_status.values()), default=None)
 
@@ -819,16 +824,16 @@ def get_last_updated(pod_status):
 # Helpers for mount/umount.
 #
 
-UMOUNT_ERROR_WHITELIST = re.compile(br': not mounted\.$')
+_UMOUNT_ERROR_WHITELIST = re.compile(br': not mounted\.$')
 
 
-def umount(path):
+def _umount(path):
     ASSERT.not_predicate(path, Path.is_symlink)
     LOG.info('umount: %s', path)
     try:
         subprocess.run(['umount', str(path)], check=True, capture_output=True)
     except subprocess.CalledProcessError as exc:
-        if UMOUNT_ERROR_WHITELIST.search(exc.stderr, re.MULTILINE):
+        if _UMOUNT_ERROR_WHITELIST.search(exc.stderr, re.MULTILINE):
             LOG.debug('umount err: %s, %s', path, exc.stderr, exc_info=True)
         else:
             LOG.error('umount err: %s, %s', path, exc.stderr)
@@ -840,15 +845,15 @@ def umount(path):
 #
 
 
-def pod_id_to_machine_id(pod_id):
+def _pod_id_to_machine_id(pod_id):
     return pod_id.replace('-', '')
 
 
-def read_host_machine_id():
+def _read_host_machine_id():
     return Path('/etc/machine-id').read_text().strip()
 
 
-def is_running_from_system_service():
+def _is_running_from_system_service():
     """True if running from a systemd service.
 
     Be conservative here and only return true when we are certain about

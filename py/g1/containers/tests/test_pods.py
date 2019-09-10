@@ -58,7 +58,7 @@ class PodsTest(fixtures.TestCaseBase):
         bases.cmd_init()
         images.cmd_init()
         pods.cmd_init()
-        self.sample_pod_dir_path = pods.get_pod_dir_path(self.sample_pod_id)
+        self.sample_pod_dir_path = pods._get_pod_dir_path(self.sample_pod_id)
 
     @staticmethod
     def make_pod_id(id_int):
@@ -66,25 +66,25 @@ class PodsTest(fixtures.TestCaseBase):
 
     @staticmethod
     def create_pod_dir(pod_id, config):
-        pod_dir_path = pods.get_pod_dir_path(pod_id)
+        pod_dir_path = pods._get_pod_dir_path(pod_id)
         pod_dir_path.mkdir()
-        pods.setup_pod_dir_barely(pod_dir_path, config)
+        pods._setup_pod_dir_barely(pod_dir_path, config)
 
     @staticmethod
     def list_pod_dir_paths():
-        return sorted(p.name for p in pods.iter_pod_dir_paths())
+        return sorted(p.name for p in pods._iter_pod_dir_paths())
 
     @staticmethod
     def list_active():
-        return sorted(p.name for p in pods.get_active_path().iterdir())
+        return sorted(p.name for p in pods._get_active_path().iterdir())
 
     @staticmethod
     def list_graveyard():
-        return sorted(p.name for p in pods.get_graveyard_path().iterdir())
+        return sorted(p.name for p in pods._get_graveyard_path().iterdir())
 
     @staticmethod
     def list_tmp():
-        return sorted(p.name for p in pods.get_tmp_path().iterdir())
+        return sorted(p.name for p in pods._get_tmp_path().iterdir())
 
     @staticmethod
     def make_image_id(id_int):
@@ -106,7 +106,7 @@ class PodsTest(fixtures.TestCaseBase):
 
     def test_cmd_init(self):
         self.assertEqual(
-            sorted(p.name for p in pods.get_pod_repo_path().iterdir()),
+            sorted(p.name for p in pods._get_pod_repo_path().iterdir()),
             ['active', 'graveyard', 'tmp'],
         )
 
@@ -148,7 +148,7 @@ class PodsTest(fixtures.TestCaseBase):
         pods.cmd_cat_config(self.sample_pod_id, buffer)
         self.assertEqual(
             buffer.getvalue(),
-            pods.get_config_path(self.sample_pod_dir_path).read_bytes(),
+            pods._get_config_path(self.sample_pod_dir_path).read_bytes(),
         )
 
     def test_cmd_prepare(self):
@@ -160,7 +160,7 @@ class PodsTest(fixtures.TestCaseBase):
                 images.ImageMetadata(name=image.name, version=image.version),
             )
         self.assertEqual(self.list_pod_dir_paths(), [])
-        self.assertEqual(list(pods.get_tmp_path().iterdir()), [])
+        self.assertEqual(list(pods._get_tmp_path().iterdir()), [])
 
         with unittest.mock.patch.multiple(
             pods.__name__,
@@ -168,11 +168,11 @@ class PodsTest(fixtures.TestCaseBase):
             # We don't have a valid base image, and so we can't really
             # call ``builders.generate_unit_file``, etc.
             builders=unittest.mock.DEFAULT,
-            generate_hostname=unittest.mock.DEFAULT,
+            _generate_hostname=unittest.mock.DEFAULT,
         ):
             pods.cmd_prepare(self.sample_pod_id, config_path)
         self.assertEqual(self.list_pod_dir_paths(), [self.sample_pod_id])
-        self.assertEqual(list(pods.get_tmp_path().iterdir()), [])
+        self.assertEqual(list(pods._get_tmp_path().iterdir()), [])
 
         self.assertFalse(self.check_exclusive(self.sample_pod_dir_path))
 
@@ -180,19 +180,19 @@ class PodsTest(fixtures.TestCaseBase):
         config_path = self.test_repo_path / 'sample-config'
         bases.write_jsonobject(self.sample_config, config_path)
         self.assertEqual(self.list_pod_dir_paths(), [])
-        self.assertEqual(list(pods.get_graveyard_path().iterdir()), [])
-        self.assertEqual(list(pods.get_tmp_path().iterdir()), [])
+        self.assertEqual(list(pods._get_graveyard_path().iterdir()), [])
+        self.assertEqual(list(pods._get_tmp_path().iterdir()), [])
 
         self.create_pod_dir(self.sample_pod_id, self.sample_config)
         self.assertEqual(self.list_pod_dir_paths(), [self.sample_pod_id])
-        self.assertEqual(list(pods.get_graveyard_path().iterdir()), [])
-        self.assertEqual(list(pods.get_tmp_path().iterdir()), [])
+        self.assertEqual(list(pods._get_graveyard_path().iterdir()), [])
+        self.assertEqual(list(pods._get_tmp_path().iterdir()), [])
 
         with unittest.mock.patch(pods.__name__ + '.subprocess'):
             pods.cmd_remove(self.sample_pod_id)
         self.assertEqual(self.list_pod_dir_paths(), [])
-        self.assertEqual(list(pods.get_graveyard_path().iterdir()), [])
-        self.assertEqual(list(pods.get_tmp_path().iterdir()), [])
+        self.assertEqual(list(pods._get_graveyard_path().iterdir()), [])
+        self.assertEqual(list(pods._get_tmp_path().iterdir()), [])
 
     def test_cmd_cleanup(self):
         future = datetimes.utcnow() + datetime.timedelta(days=1)
@@ -204,7 +204,7 @@ class PodsTest(fixtures.TestCaseBase):
         self.assertEqual(self.list_graveyard(), [])
         self.assertEqual(self.list_tmp(), [])
 
-        with self.using_exclusive(pods.get_pod_dir_path(pod_id_1)):
+        with self.using_exclusive(pods._get_pod_dir_path(pod_id_1)):
             pods.cmd_cleanup(datetimes.utcnow() + datetime.timedelta(days=1))
         self.assertEqual(self.list_active(), [pod_id_1])
         self.assertEqual(self.list_graveyard(), [])
@@ -225,13 +225,13 @@ class PodsTest(fixtures.TestCaseBase):
         self.assertEqual(self.list_graveyard(), [])
         self.assertEqual(self.list_tmp(), [])
 
-        with self.using_exclusive(pods.get_pod_dir_path(pod_id_1)):
-            pods.cleanup_active(future)
+        with self.using_exclusive(pods._get_pod_dir_path(pod_id_1)):
+            pods._cleanup_active(future)
         self.assertEqual(self.list_active(), [pod_id_1])
         self.assertEqual(self.list_graveyard(), [pod_id_2])
         self.assertEqual(self.list_tmp(), [])
 
-        pods.cleanup_active(future)
+        pods._cleanup_active(future)
         self.assertEqual(self.list_active(), [])
         self.assertEqual(self.list_graveyard(), [pod_id_1, pod_id_2])
         self.assertEqual(self.list_tmp(), [])
@@ -241,13 +241,13 @@ class PodsTest(fixtures.TestCaseBase):
     #
 
     def test_create_tmp_pod_dir(self):
-        tmp_path = pods.create_tmp_pod_dir()
+        tmp_path = pods._create_tmp_pod_dir()
         self.assertFalse(self.check_exclusive(tmp_path))
 
     def test_is_pod_dir_locked(self):
-        self.assertFalse(pods.is_pod_dir_locked(self.test_repo_path))
+        self.assertFalse(pods._is_pod_dir_locked(self.test_repo_path))
         with self.using_shared(self.test_repo_path):
-            self.assertTrue(pods.is_pod_dir_locked(self.test_repo_path))
+            self.assertTrue(pods._is_pod_dir_locked(self.test_repo_path))
 
     #
     # Data type.
@@ -324,48 +324,48 @@ class PodsTest(fixtures.TestCaseBase):
     def test_repo_layout(self):
         for path1, path2 in (
             (
-                pods.get_pod_repo_path(),
+                pods._get_pod_repo_path(),
                 bases.get_repo_path() / 'pods',
             ),
             (
-                pods.get_active_path(),
-                pods.get_pod_repo_path() / 'active',
+                pods._get_active_path(),
+                pods._get_pod_repo_path() / 'active',
             ),
             (
-                pods.get_graveyard_path(),
-                pods.get_pod_repo_path() / 'graveyard',
+                pods._get_graveyard_path(),
+                pods._get_pod_repo_path() / 'graveyard',
             ),
             (
-                pods.get_tmp_path(),
-                pods.get_pod_repo_path() / 'tmp',
+                pods._get_tmp_path(),
+                pods._get_pod_repo_path() / 'tmp',
             ),
             (
-                pods.get_pod_dir_path(self.sample_pod_id),
-                pods.get_active_path() / self.sample_pod_id,
+                pods._get_pod_dir_path(self.sample_pod_id),
+                pods._get_active_path() / self.sample_pod_id,
             ),
             (
-                pods.get_id(self.sample_pod_dir_path),
+                pods._get_id(self.sample_pod_dir_path),
                 self.sample_pod_id,
             ),
             (
-                pods.get_config_path(self.sample_pod_dir_path),
-                pods.get_active_path() / self.sample_pod_id / 'config',
+                pods._get_config_path(self.sample_pod_dir_path),
+                pods._get_active_path() / self.sample_pod_id / 'config',
             ),
             (
-                pods.get_deps_path(self.sample_pod_dir_path),
-                pods.get_active_path() / self.sample_pod_id / 'deps',
+                pods._get_deps_path(self.sample_pod_dir_path),
+                pods._get_active_path() / self.sample_pod_id / 'deps',
             ),
             (
-                pods.get_work_path(self.sample_pod_dir_path),
-                pods.get_active_path() / self.sample_pod_id / 'work',
+                pods._get_work_path(self.sample_pod_dir_path),
+                pods._get_active_path() / self.sample_pod_id / 'work',
             ),
             (
-                pods.get_upper_path(self.sample_pod_dir_path),
-                pods.get_active_path() / self.sample_pod_id / 'upper',
+                pods._get_upper_path(self.sample_pod_dir_path),
+                pods._get_active_path() / self.sample_pod_id / 'upper',
             ),
             (
-                pods.get_rootfs_path(self.sample_pod_dir_path),
-                pods.get_active_path() / self.sample_pod_id / 'rootfs',
+                pods._get_rootfs_path(self.sample_pod_dir_path),
+                pods._get_active_path() / self.sample_pod_id / 'rootfs',
             ),
         ):
             with self.subTest((path1, path2)):
@@ -384,11 +384,11 @@ class PodsTest(fixtures.TestCaseBase):
 
         with unittest.mock.patch(pods.__name__ + '.subprocess'):
 
-            with bases.acquiring_exclusive(pods.get_pod_dir_path(pod_id_2)):
-                pods.cleanup_top_dir(pods.get_active_path())
+            with bases.acquiring_exclusive(pods._get_pod_dir_path(pod_id_2)):
+                pods._cleanup_top_dir(pods._get_active_path())
             self.assertEqual(self.list_pod_dir_paths(), [pod_id_2])
 
-            pods.cleanup_top_dir(pods.get_active_path())
+            pods._cleanup_top_dir(pods._get_active_path())
             self.assertEqual(self.list_pod_dir_paths(), [])
 
     #
@@ -399,14 +399,14 @@ class PodsTest(fixtures.TestCaseBase):
         pod_id_1 = self.make_pod_id(1)
         pod_id_2 = self.make_pod_id(2)
 
-        (pods.get_active_path() / 'irrelevant').touch()
+        (pods._get_active_path() / 'irrelevant').touch()
         self.assertEqual(self.list_pod_dir_paths(), [])
         self.assertEqual(self.list_active(), ['irrelevant'])
 
         self.create_pod_dir(pod_id_2, self.sample_config)
         self.assertEqual(self.list_pod_dir_paths(), [pod_id_2])
 
-        (pods.get_active_path() / pod_id_1).mkdir()
+        (pods._get_active_path() / pod_id_1).mkdir()
         self.assertEqual(self.list_pod_dir_paths(), [pod_id_1, pod_id_2])
 
     def test_maybe_move_pod_dir_to_active(self):
@@ -416,26 +416,26 @@ class PodsTest(fixtures.TestCaseBase):
         path.mkdir()
         self.assertTrue(path.exists())
         self.assertTrue(
-            pods.maybe_move_pod_dir_to_active(path, self.sample_pod_id)
+            pods._maybe_move_pod_dir_to_active(path, self.sample_pod_id)
         )
         self.assertEqual(self.list_pod_dir_paths(), [self.sample_pod_id])
         self.assertFalse(path.exists())
 
         path.mkdir()
         self.assertFalse(
-            pods.maybe_move_pod_dir_to_active(path, self.sample_pod_id)
+            pods._maybe_move_pod_dir_to_active(path, self.sample_pod_id)
         )
 
     def test_move_pod_dir_to_graveyard(self):
 
         def list_grave_paths():
-            return sorted(p.name for p in pods.get_graveyard_path().iterdir())
+            return sorted(p.name for p in pods._get_graveyard_path().iterdir())
 
         self.assertEqual(list_grave_paths(), [])
 
         self.create_pod_dir(self.sample_pod_id, self.sample_config)
         self.assertTrue(self.sample_pod_dir_path.exists())
-        pods.move_pod_dir_to_graveyard(self.sample_pod_dir_path)
+        pods._move_pod_dir_to_graveyard(self.sample_pod_dir_path)
         self.assertEqual(list_grave_paths(), [self.sample_pod_id])
         self.assertFalse(self.sample_pod_dir_path.exists())
 
@@ -456,9 +456,9 @@ class PodsTest(fixtures.TestCaseBase):
             # We don't have a valid base image, and so we can't really
             # call ``builders.generate_unit_file``, etc.
             builders=unittest.mock.DEFAULT,
-            generate_hostname=unittest.mock.DEFAULT,
+            _generate_hostname=unittest.mock.DEFAULT,
         ):
-            pods.prepare_pod_dir(
+            pods._prepare_pod_dir(
                 self.sample_pod_dir_path,
                 self.sample_pod_id,
                 self.sample_config,
@@ -467,13 +467,15 @@ class PodsTest(fixtures.TestCaseBase):
     def test_setup_pod_dir_barely(self):
         self.create_pod_dir(self.sample_pod_id, self.sample_config)
         self.assertTrue(
-            pods.get_config_path(self.sample_pod_dir_path).is_file()
+            pods._get_config_path(self.sample_pod_dir_path).is_file()
         )
-        self.assertTrue(pods.get_deps_path(self.sample_pod_dir_path).is_dir())
-        self.assertTrue(pods.get_work_path(self.sample_pod_dir_path).is_dir())
-        self.assertTrue(pods.get_upper_path(self.sample_pod_dir_path).is_dir())
+        self.assertTrue(pods._get_deps_path(self.sample_pod_dir_path).is_dir())
+        self.assertTrue(pods._get_work_path(self.sample_pod_dir_path).is_dir())
         self.assertTrue(
-            pods.get_rootfs_path(self.sample_pod_dir_path).is_dir()
+            pods._get_upper_path(self.sample_pod_dir_path).is_dir()
+        )
+        self.assertTrue(
+            pods._get_rootfs_path(self.sample_pod_dir_path).is_dir()
         )
         self.assertEqual(
             sorted(p.name for p in self.sample_pod_dir_path.iterdir()),
@@ -484,7 +486,7 @@ class PodsTest(fixtures.TestCaseBase):
         self.create_pod_dir(self.sample_pod_id, self.sample_config)
         self.assertTrue(self.sample_pod_dir_path.is_dir())
         with unittest.mock.patch(pods.__name__ + '.subprocess'):
-            pods.remove_pod_dir(self.sample_pod_dir_path)
+            pods._remove_pod_dir(self.sample_pod_dir_path)
         self.assertFalse(self.sample_pod_dir_path.exists())
 
     #
@@ -501,7 +503,7 @@ class PodsTest(fixtures.TestCaseBase):
         )
         self.create_image_dir(image_id_2, self.sample_metadata)
 
-        pods.mount_overlay(self.sample_pod_dir_path, self.sample_config)
+        pods._mount_overlay(self.sample_pod_dir_path, self.sample_config)
         subprocess_mock.run.assert_called_once_with(
             [
                 'mount',
@@ -510,21 +512,21 @@ class PodsTest(fixtures.TestCaseBase):
                 '-o',
                 'lowerdir=%s,upperdir=%s,workdir=%s' % (
                     ':'.join([
-                        str(pods.get_image_rootfs_path(image_id_2)),
-                        str(pods.get_image_rootfs_path(image_id_1)),
+                        str(pods._get_image_rootfs_path(image_id_2)),
+                        str(pods._get_image_rootfs_path(image_id_1)),
                     ]),
-                    pods.get_upper_path(self.sample_pod_dir_path),
-                    pods.get_work_path(self.sample_pod_dir_path),
+                    pods._get_upper_path(self.sample_pod_dir_path),
+                    pods._get_work_path(self.sample_pod_dir_path),
                 ),
                 'overlay',
-                str(pods.get_rootfs_path(self.sample_pod_dir_path)),
+                str(pods._get_rootfs_path(self.sample_pod_dir_path)),
             ],
             check=True,
         )
 
     def test_make_bind_argument(self):
         self.assertEqual(
-            pods.make_bind_argument(
+            pods._make_bind_argument(
                 pods.PodConfig.Volume(
                     source='/a',
                     target='/b',
@@ -534,7 +536,7 @@ class PodsTest(fixtures.TestCaseBase):
             '--bind-ro=/a:/b',
         )
         self.assertEqual(
-            pods.make_bind_argument(
+            pods._make_bind_argument(
                 pods.PodConfig.Volume(
                     source='/a',
                     target='/b',
@@ -551,7 +553,7 @@ class PodsTest(fixtures.TestCaseBase):
     def test_iter_configs(self):
 
         def list_configs():
-            return sorted((p.name, c) for p, c in pods.iter_configs())
+            return sorted((p.name, c) for p, c in pods._iter_configs())
 
         pod_id_1 = self.make_pod_id(1)
         pod_id_2 = self.make_pod_id(2)
@@ -570,23 +572,23 @@ class PodsTest(fixtures.TestCaseBase):
     def test_read_config(self):
         self.create_pod_dir(self.sample_pod_id, self.sample_config)
         self.assertEqual(
-            pods.read_config(self.sample_pod_dir_path),
+            pods._read_config(self.sample_pod_dir_path),
             self.sample_config,
         )
 
     def test_write_config(self):
         self.assertFalse((self.test_repo_path / 'config').exists())
-        pods.write_config(self.sample_config, self.test_repo_path)
+        pods._write_config(self.sample_config, self.test_repo_path)
         self.assertTrue((self.test_repo_path / 'config').exists())
         self.assertEqual(
-            pods.read_config(self.test_repo_path),
+            pods._read_config(self.test_repo_path),
             self.sample_config,
         )
 
     def test_iter_image_ids(self):
 
         def list_image_ids(config):
-            return sorted(pods.iter_image_ids(config))
+            return sorted(pods._iter_image_ids(config))
 
         self.create_image_dir(self.sample_image_id, self.sample_metadata)
         images.cmd_tag(image_id=self.sample_image_id, new_tag='some-tag')
@@ -641,8 +643,8 @@ class PodsTest(fixtures.TestCaseBase):
 
         def list_image_ids():
             return sorted(
-                p.name
-                for p in pods.get_deps_path(self.sample_pod_dir_path).iterdir()
+                p.name for p in pods._get_deps_path(self.sample_pod_dir_path).
+                iterdir()
             )
 
         image_id_1 = self.make_image_id(1)
@@ -658,7 +660,7 @@ class PodsTest(fixtures.TestCaseBase):
             images._get_ref_count(images.get_image_dir_path(image_id_2)), 1
         )
 
-        pods.add_ref_image_ids(
+        pods._add_ref_image_ids(
             self.sample_pod_dir_path,
             pods.PodConfig(
                 name='test-pod',
@@ -681,7 +683,7 @@ class PodsTest(fixtures.TestCaseBase):
     def test_iter_ref_image_ids(self):
 
         def list_ref_image_ids(pod_dir_path):
-            return sorted(pods.iter_ref_image_ids(pod_dir_path))
+            return sorted(pods._iter_ref_image_ids(pod_dir_path))
 
         image_id_1 = self.make_image_id(1)
         image_id_2 = self.make_image_id(2)
@@ -690,7 +692,7 @@ class PodsTest(fixtures.TestCaseBase):
         self.create_image_dir(image_id_2, self.sample_metadata)
         self.assertEqual(list_ref_image_ids(self.sample_pod_dir_path), [])
 
-        pods.add_ref_image_ids(
+        pods._add_ref_image_ids(
             self.sample_pod_dir_path,
             pods.PodConfig(
                 name='test-pod',
@@ -713,33 +715,33 @@ class PodsTest(fixtures.TestCaseBase):
 
     def test_get_pod_status(self):
         self.assertEqual(
-            pods.get_pod_status(self.sample_pod_dir_path, self.sample_config),
+            pods._get_pod_status(self.sample_pod_dir_path, self.sample_config),
             {},
         )
 
         self.create_pod_dir(self.sample_pod_id, self.sample_config)
         app = self.sample_config.apps[0]
         path = builders._get_pod_app_exit_status_path(
-            pods.get_rootfs_path(self.sample_pod_dir_path), app
+            pods._get_rootfs_path(self.sample_pod_dir_path), app
         )
         path.parent.mkdir(parents=True)
         path.write_text('99')
-        pod_status = pods.get_pod_status(
+        pod_status = pods._get_pod_status(
             self.sample_pod_dir_path, self.sample_config
         )
         self.assertEqual(list(pod_status.keys()), [app.name])
         self.assertEqual(pod_status[app.name][0], 99)
 
     def test_get_last_updated(self):
-        self.assertIsNone(pods.get_last_updated({}))
+        self.assertIsNone(pods._get_last_updated({}))
         self.assertEqual(
-            pods.get_last_updated({
+            pods._get_last_updated({
                 'app-1': (0, datetime.datetime(2001, 1, 1)),
             }),
             datetime.datetime(2001, 1, 1),
         )
         self.assertEqual(
-            pods.get_last_updated({
+            pods._get_last_updated({
                 'app-1': (0, datetime.datetime(2001, 1, 1)),
                 'app-2': (0, datetime.datetime(2002, 1, 1)),
             }),
@@ -751,16 +753,16 @@ class PodsTest(fixtures.TestCaseBase):
     #
 
     def test_umount(self):
-        path1 = pods.get_pod_repo_path() / 'some-file'
-        path2 = pods.get_pod_repo_path() / 'some-dir'
-        path3 = pods.get_pod_repo_path() / 'link-to-dir'
+        path1 = pods._get_pod_repo_path() / 'some-file'
+        path2 = pods._get_pod_repo_path() / 'some-dir'
+        path3 = pods._get_pod_repo_path() / 'link-to-dir'
         path1.touch()
         path2.mkdir()
         path3.symlink_to(path2)
-        pods.umount(path1)
-        pods.umount(path2)
+        pods._umount(path1)
+        pods._umount(path2)
         with self.assertRaisesRegex(AssertionError, r'expect not.*is_symlink'):
-            pods.umount(path3)
+            pods._umount(path3)
 
 
 if __name__ == '__main__':
