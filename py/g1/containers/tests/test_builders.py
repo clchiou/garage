@@ -5,24 +5,11 @@ from pathlib import Path
 
 from g1.containers import bases
 from g1.containers import builders
-from g1.containers import images
 
 from tests import fixtures
 
 
 class BuildersTest(fixtures.TestCaseBase):
-
-    def test_create_image_metadata(self):
-        builders._create_image_metadata(
-            images.get_metadata_path(self.test_repo_path)
-        )
-        self.assertEqual(
-            images._read_metadata(self.test_repo_path),
-            images.ImageMetadata(
-                name=bases.PARAMS.base_image_name.get(),
-                version=bases.PARAMS.base_image_version.get(),
-            ),
-        )
 
     def test_cmd_setup_base_rootfs(self):
         (self.test_repo_path / 'etc/default').mkdir(parents=True)

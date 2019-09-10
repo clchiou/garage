@@ -27,6 +27,7 @@ from . import pods
 @argparses.include(builders.cmd_build_base_image)
 @argparses.include(builders.cmd_prepare_base_rootfs)
 @argparses.include(builders.cmd_setup_base_rootfs)
+@argparses.include(images.cmd_build_image)
 @argparses.include(images.cmd_import)
 @argparses.include(images.cmd_list)
 @argparses.include(images.cmd_tag)
@@ -41,6 +42,10 @@ def cmd_images(args):
         builders.cmd_prepare_base_rootfs(args.path)
     elif args.command == 'setup-base-rootfs':
         builders.cmd_setup_base_rootfs(args.path, args.prune_stash_path)
+    elif args.command == 'build':
+        images.cmd_build_image(
+            args.nv[0], args.nv[1], args.rootfs, args.output
+        )
     elif args.command == 'import':
         images.cmd_import(args.path)
     elif args.command == 'list':

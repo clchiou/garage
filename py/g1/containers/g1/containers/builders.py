@@ -27,7 +27,6 @@ import enum
 import logging
 import re
 import subprocess
-import tempfile
 import typing
 from pathlib import Path
 
@@ -57,40 +56,16 @@ LOG = logging.getLogger(__name__)
 @argparses.argument('path', type=Path, help='provide base image output path')
 @argparses.end
 def cmd_build_base_image(base_image_path, prune_stash_path):
-    ASSERT.not_predicate(base_image_path, Path.exists)
     bases.assert_root_privilege()
     LOG.info('create base image: %s', base_image_path)
-    with tempfile.TemporaryDirectory(
-        dir=base_image_path.parent,
-        prefix=base_image_path.name + '-',
-    ) as temp_image_dir_path:
-        temp_image_dir_path = Path(temp_image_dir_path)
-        _create_image_metadata(images.get_metadata_path(temp_image_dir_path))
-        _create_image_rootfs(
-            images.get_rootfs_path(temp_image_dir_path),
-            prune_stash_path,
-        )
-        images.setup_image_dir(temp_image_dir_path)
-        subprocess.run(
-            [
-                'tar',
-                '--create',
-                '--file=%s' % base_image_path,
-                '--gzip',
-                '--directory=%s' % temp_image_dir_path,
-                images.METADATA,
-                images.ROOTFS,
-            ],
-            check=True,
-        )
-
-
-def _create_image_metadata(image_metadata_path):
-    image_metadata = images.ImageMetadata(
-        name=bases.PARAMS.base_image_name.get(),
-        version=bases.PARAMS.base_image_version.get(),
+    images.build_image(
+        images.ImageMetadata(
+            name=bases.PARAMS.base_image_name.get(),
+            version=bases.PARAMS.base_image_version.get(),
+        ),
+        lambda dst_path: _create_image_rootfs(dst_path, prune_stash_path),
+        base_image_path,
     )
-    bases.write_jsonobject(image_metadata, image_metadata_path)
 
 
 def _create_image_rootfs(image_rootfs_path, prune_stash_path):

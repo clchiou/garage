@@ -96,7 +96,7 @@ class PodsTest(fixtures.TestCaseBase):
         image_dir_path.mkdir()
         bases.write_jsonobject(
             metadata,
-            images.get_metadata_path(image_dir_path),
+            images._get_metadata_path(image_dir_path),
         )
         images.get_rootfs_path(image_dir_path).mkdir()
 

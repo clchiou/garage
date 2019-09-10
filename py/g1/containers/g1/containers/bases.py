@@ -13,6 +13,7 @@ __all__ = [
     'chown_app',
     'chown_root',
     'read_jsonobject',
+    'rsync_copy',
     'write_jsonobject',
     # File lock.
     'FileLock',
@@ -30,6 +31,7 @@ import json
 import logging
 import os
 import shutil
+import subprocess
 from pathlib import Path
 
 from g1.apps import parameters
@@ -205,6 +207,22 @@ def chown_root(path):
     """Change owner and group to root."""
     if PARAMS.use_root_privilege.get():
         shutil.chown(path, 'root', 'root')
+
+
+def rsync_copy(src_path, dst_path, exclude_patterns=()):
+    # We do NOT use ``shutil.copytree`` because shutil's file copy
+    # functions in general do not preserve the file owner/group.
+    LOG.info('copy: %s -> %s', src_path, dst_path)
+    subprocess.run(
+        [
+            'rsync',
+            '--archive',
+            *('--exclude=%s' % pattern for pattern in exclude_patterns),
+            '%s/' % src_path,
+            str(dst_path),
+        ],
+        check=True,
+    )
 
 
 def read_jsonobject(type_, path):

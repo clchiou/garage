@@ -47,6 +47,7 @@ __all__ = [
     'validate_version',
     # Expose to apps.
     'IMAGE_LIST_STRINGIFIERS',
+    'cmd_build_image',
     'cmd_cleanup',
     'cmd_import',
     'cmd_init',
@@ -56,16 +57,13 @@ __all__ = [
     'cmd_tag',
     'make_select_image_kwargs',
     # Expose to builders and pods.
-    'METADATA',
-    'ROOTFS',
     'add_ref',
+    'build_image',
     'find_id',
     'find_name_and_version',
     'get_image_dir_path',
-    'get_metadata_path',
     'get_rootfs_path',
     'get_trees_path',
-    'setup_image_dir',
     'touch',
 ]
 
@@ -181,6 +179,34 @@ def cmd_init():
         chown(path)
 
 
+@argparses.begin_parser('build', **bases.make_help_kwargs('build image'))
+@argparses.argument(
+    '--nv',
+    metavar=('NAME', 'VERSION'),
+    # Sadly it looks like you can't use ``type`` with ``nargs``.
+    nargs=2,
+    required=True,
+    help='provide image name and version',
+)
+@argparses.argument(
+    '--rootfs',
+    type=Path,
+    required=True,
+    help='provide rootfs path',
+)
+@argparses.argument('output', type=Path, help='provide output path')
+@argparses.end
+def cmd_build_image(name, version, rootfs_path, output_path):
+    # Although root privilege is not required, most likely you need it
+    # to finish this.
+    ASSERT.predicate(rootfs_path, Path.is_dir)
+    build_image(
+        ImageMetadata(name=name, version=version),
+        lambda dst_path: bases.rsync_copy(rootfs_path, dst_path),
+        output_path,
+    )
+
+
 @argparses.begin_parser(
     'import', **bases.make_help_kwargs('import an image archive')
 )
@@ -202,7 +228,7 @@ def cmd_import(image_archive_path):
     with _using_tmp() as tmp_path:
         image_id = _extract_image(image_archive_path, tmp_path)
         LOG.info('import image id: %s', image_id)
-        setup_image_dir(tmp_path)
+        _setup_image_dir(tmp_path)
         # Make sure that for every newly-imported image, its last
         # updated time is set to now; or else it could be cleaned up
         # right after import.
@@ -359,8 +385,8 @@ _TAGS = 'tags'
 _TREES = 'trees'
 _TMP = 'tmp'
 
-METADATA = 'metadata'
-ROOTFS = 'rootfs'
+_METADATA = 'metadata'
+_ROOTFS = 'rootfs'
 
 
 def _get_image_repo_path():
@@ -387,12 +413,12 @@ def _get_id(image_dir_path):
     return validate_id(image_dir_path.name)
 
 
-def get_metadata_path(image_dir_path):
-    return image_dir_path / METADATA
+def _get_metadata_path(image_dir_path):
+    return image_dir_path / _METADATA
 
 
 def get_rootfs_path(image_dir_path):
-    return image_dir_path / ROOTFS
+    return image_dir_path / _ROOTFS
 
 
 def _get_tag_path(tag):
@@ -456,6 +482,35 @@ def _cleanup_tags():
 
 
 #
+# Image builder.
+#
+
+
+def build_image(metadata, make_rootfs, output_path):
+    ASSERT.not_predicate(output_path, bases.lexists)
+    with tempfile.TemporaryDirectory(
+        dir=output_path.parent,
+        prefix=output_path.name + '-',
+    ) as temp_output_dir_path:
+        temp_output_dir_path = Path(temp_output_dir_path)
+        _write_metadata(metadata, temp_output_dir_path)
+        make_rootfs(get_rootfs_path(temp_output_dir_path))
+        _setup_image_dir(temp_output_dir_path)
+        subprocess.run(
+            [
+                'tar',
+                '--create',
+                '--file=%s' % output_path,
+                '--gzip',
+                '--directory=%s' % temp_output_dir_path,
+                _METADATA,
+                _ROOTFS,
+            ],
+            check=True,
+        )
+
+
+#
 # Image extraction.
 #
 
@@ -486,10 +541,10 @@ def _extract_image(archive_path, dst_dir_path):
     return hasher.hexdigest()
 
 
-def setup_image_dir(image_dir_path):
+def _setup_image_dir(image_dir_path):
     image_dir_path.chmod(0o750)
     bases.chown_app(image_dir_path)
-    metadata_path = get_metadata_path(image_dir_path)
+    metadata_path = _get_metadata_path(image_dir_path)
     metadata_path.chmod(0o640)
     bases.chown_app(metadata_path)
     rootfs_path = get_rootfs_path(image_dir_path)
@@ -595,14 +650,18 @@ def _iter_metadatas():
 def _read_metadata(image_dir_path):
     """Read image metadata from an image directory."""
     return bases.read_jsonobject(
-        ImageMetadata, get_metadata_path(image_dir_path)
+        ImageMetadata, _get_metadata_path(image_dir_path)
     )
+
+
+def _write_metadata(metadata, image_dir_path):
+    bases.write_jsonobject(metadata, _get_metadata_path(image_dir_path))
 
 
 def add_ref(image_id, dst_path):
     os.link(
         ASSERT.predicate(
-            get_metadata_path(get_image_dir_path(image_id)), Path.is_file
+            _get_metadata_path(get_image_dir_path(image_id)), Path.is_file
         ),
         dst_path,
     )
@@ -610,7 +669,7 @@ def add_ref(image_id, dst_path):
 
 def _get_ref_count(image_dir_path):
     try:
-        return get_metadata_path(image_dir_path).stat().st_nlink
+        return _get_metadata_path(image_dir_path).stat().st_nlink
     except FileNotFoundError:
         return 0
 
@@ -620,12 +679,12 @@ def touch(image_id):
 
 
 def _touch_image_dir(image_dir_path):
-    ASSERT.predicate(get_metadata_path(image_dir_path), Path.is_file).touch()
+    ASSERT.predicate(_get_metadata_path(image_dir_path), Path.is_file).touch()
 
 
 def _get_last_updated(image_dir_path):
     return datetimes.utcfromtimestamp(
-        get_metadata_path(image_dir_path).stat().st_mtime
+        _get_metadata_path(image_dir_path).stat().st_mtime
     )
 
 

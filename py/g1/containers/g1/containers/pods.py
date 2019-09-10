@@ -357,19 +357,7 @@ def cmd_export_overlay(pod_id, output_path, exclude_patterns):
         pod_dir_lock = ASSERT.true(bases.try_acquire_exclusive(pod_dir_path))
     try:
         upper_path = _get_upper_path(pod_dir_path)
-        LOG.info('export overlay: %s -> %s', upper_path, output_path)
-        # Do NOT use ``shutil.copytree`` because shutil's file copy
-        # functions in general do not preserve the file owner/group.
-        subprocess.run(
-            [
-                'rsync',
-                '--archive',
-                *('--exclude=%s' % pattern for pattern in exclude_patterns),
-                '%s/' % upper_path,
-                str(output_path),
-            ],
-            check=True,
-        )
+        bases.rsync_copy(upper_path, output_path, exclude_patterns)
     finally:
         pod_dir_lock.release()
         pod_dir_lock.close()

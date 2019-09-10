@@ -34,7 +34,7 @@ class ImagesTest(fixtures.TestCaseBase):
         image_dir_path.mkdir()
         bases.write_jsonobject(
             metadata or self.sample_metadata,
-            images.get_metadata_path(image_dir_path),
+            images._get_metadata_path(image_dir_path),
         )
         images.get_rootfs_path(image_dir_path).mkdir()
 
@@ -65,7 +65,7 @@ class ImagesTest(fixtures.TestCaseBase):
         path = images._get_image_repo_path() / 'archive'
         path.mkdir()
         bases.write_jsonobject(
-            self.sample_metadata, images.get_metadata_path(path)
+            self.sample_metadata, images._get_metadata_path(path)
         )
         images.get_rootfs_path(path).mkdir()
         shutil.make_archive(path, 'gztar', path)
@@ -289,7 +289,7 @@ class ImagesTest(fixtures.TestCaseBase):
                 self.sample_image_id,
             ),
             (
-                images.get_metadata_path(self.sample_image_dir_path),
+                images._get_metadata_path(self.sample_image_dir_path),
                 images.get_trees_path() / self.sample_image_id / 'metadata',
             ),
             (
@@ -388,7 +388,7 @@ class ImagesTest(fixtures.TestCaseBase):
         def create_src_dir(src_path):
             src_path.mkdir()
             bases.write_jsonobject(
-                self.sample_metadata, images.get_metadata_path(src_path)
+                self.sample_metadata, images._get_metadata_path(src_path)
             )
 
         trees_path = images.get_trees_path()
@@ -596,6 +596,12 @@ class ImagesTest(fixtures.TestCaseBase):
                 (image_id_2, self.sample_metadata),
                 (image_id_3, self.sample_metadata),
             ],
+        )
+
+    def test_write_metadata(self):
+        images._write_metadata(self.sample_metadata, self.test_repo_path)
+        self.assertEqual(
+            images._read_metadata(self.test_repo_path), self.sample_metadata
         )
 
     def test_add_ref(self):
