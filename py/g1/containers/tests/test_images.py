@@ -40,29 +40,29 @@ class ImagesTest(fixtures.TestCaseBase):
 
     @staticmethod
     def list_image_dir_paths():
-        return sorted(p.name for p in images.iter_image_dir_paths())
+        return sorted(p.name for p in images._iter_image_dir_paths())
 
     @staticmethod
     def list_tag_paths():
-        return sorted(p.name for p in images.get_tags_path().iterdir())
+        return sorted(p.name for p in images._get_tags_path().iterdir())
 
     #
     # Top-level commands.
     #
 
     def test_cmd_init(self):
-        self.assertTrue(images.get_image_repo_path().is_dir())
+        self.assertTrue(images._get_image_repo_path().is_dir())
         self.assertEqual(
-            images.get_image_repo_path().stat().st_mode & 0o777,
+            images._get_image_repo_path().stat().st_mode & 0o777,
             0o750,
         )
         self.assertEqual(
-            self.list_dir(images.get_image_repo_path()),
+            self.list_dir(images._get_image_repo_path()),
             ['tags', 'tmp', 'trees'],
         )
 
     def test_cmd_import(self):
-        path = images.get_image_repo_path() / 'archive'
+        path = images._get_image_repo_path() / 'archive'
         path.mkdir()
         bases.write_jsonobject(
             self.sample_metadata, images.get_metadata_path(path)
@@ -84,7 +84,7 @@ class ImagesTest(fixtures.TestCaseBase):
         self.assertEqual(self.list_tag_paths(), [])
 
         self.assertEqual(
-            images.read_metadata(images.get_image_dir_path(image_ids_1[0])),
+            images._read_metadata(images.get_image_dir_path(image_ids_1[0])),
             self.sample_metadata,
         )
 
@@ -172,10 +172,10 @@ class ImagesTest(fixtures.TestCaseBase):
     #
 
     def test_using_tmp(self):
-        tmp_dir_path = images.get_tmp_path()
+        tmp_dir_path = images._get_tmp_path()
         self.assertTrue(self.check_shared(tmp_dir_path))
         self.assertTrue(self.check_exclusive(tmp_dir_path))
-        with images.using_tmp() as tmp_path:
+        with images._using_tmp() as tmp_path:
             self.assertTrue(self.check_shared(tmp_dir_path))
             self.assertTrue(self.check_exclusive(tmp_dir_path))
             self.assertFalse(self.check_shared(tmp_path))
@@ -265,27 +265,27 @@ class ImagesTest(fixtures.TestCaseBase):
     def test_repo_layout(self):
         for path1, path2 in (
             (
-                images.get_image_repo_path(),
+                images._get_image_repo_path(),
                 bases.get_repo_path() / 'images',
             ),
             (
-                images.get_tags_path(),
-                images.get_image_repo_path() / 'tags',
+                images._get_tags_path(),
+                images._get_image_repo_path() / 'tags',
             ),
             (
                 images.get_trees_path(),
-                images.get_image_repo_path() / 'trees',
+                images._get_image_repo_path() / 'trees',
             ),
             (
-                images.get_tmp_path(),
-                images.get_image_repo_path() / 'tmp',
+                images._get_tmp_path(),
+                images._get_image_repo_path() / 'tmp',
             ),
             (
                 images.get_image_dir_path(self.sample_image_id),
                 images.get_trees_path() / self.sample_image_id,
             ),
             (
-                images.get_id(self.sample_image_dir_path),
+                images._get_id(self.sample_image_dir_path),
                 self.sample_image_id,
             ),
             (
@@ -297,15 +297,15 @@ class ImagesTest(fixtures.TestCaseBase):
                 images.get_trees_path() / self.sample_image_id / 'rootfs',
             ),
             (
-                images.get_tag_path('some-tag'),
-                images.get_tags_path() / 'some-tag',
+                images._get_tag_path('some-tag'),
+                images._get_tags_path() / 'some-tag',
             ),
             (
-                images.get_tag(images.get_tag_path('some-tag')),
+                images._get_tag(images._get_tag_path('some-tag')),
                 'some-tag',
             ),
             (
-                images.get_tag_target(self.sample_image_dir_path),
+                images._get_tag_target(self.sample_image_dir_path),
                 Path('..') / 'trees' / self.sample_image_id,
             ),
         ):
@@ -317,10 +317,10 @@ class ImagesTest(fixtures.TestCaseBase):
     #
 
     def test_cleanup_tags(self):
-        tags_path = images.get_tags_path()
+        tags_path = images._get_tags_path()
         self.assertEqual(self.list_dir(tags_path), [])
 
-        images.cleanup_tags()
+        images._cleanup_tags()
         self.assertEqual(self.list_dir(tags_path), [])
 
         (tags_path / 'some-dir').mkdir()
@@ -332,11 +332,11 @@ class ImagesTest(fixtures.TestCaseBase):
             ['some-dir', 'some-file', 'some-link', 'some-tag'],
         )
 
-        images.cleanup_tags()
+        images._cleanup_tags()
         self.assertEqual(self.list_dir(tags_path), ['some-tag'])
 
     def test_cleanup_tmp(self):
-        tmp_path = images.get_tmp_path()
+        tmp_path = images._get_tmp_path()
         self.assertEqual(self.list_dir(tmp_path), [])
 
         (tmp_path / 'some-dir').mkdir()
@@ -346,13 +346,13 @@ class ImagesTest(fixtures.TestCaseBase):
         lock = bases.FileLock(tmp_path / 'some-dir')
         try:
             lock.acquire_shared()
-            images.cleanup_tmp()
+            images._cleanup_tmp()
             self.assertEqual(self.list_dir(tmp_path), ['some-dir'])
         finally:
             lock.release()
             lock.close()
 
-        images.cleanup_tmp()
+        images._cleanup_tmp()
         self.assertEqual(self.list_dir(tmp_path), [])
 
     def test_cleanup_trees(self):
@@ -363,7 +363,7 @@ class ImagesTest(fixtures.TestCaseBase):
         trees_path = images.get_trees_path()
         self.assertEqual(self.list_dir(trees_path), [])
 
-        images.cleanup_trees(future)
+        images._cleanup_trees(future)
         self.assertEqual(self.list_dir(trees_path), [])
 
         self.create_image_dir(self.sample_image_id)
@@ -373,10 +373,10 @@ class ImagesTest(fixtures.TestCaseBase):
             [self.sample_image_id, 'some-file'],
         )
 
-        images.cleanup_trees(past)
+        images._cleanup_trees(past)
         self.assertEqual(self.list_dir(trees_path), [self.sample_image_id])
 
-        images.cleanup_trees(future)
+        images._cleanup_trees(future)
         self.assertEqual(self.list_dir(trees_path), [])
 
     #
@@ -394,18 +394,18 @@ class ImagesTest(fixtures.TestCaseBase):
         trees_path = images.get_trees_path()
         self.assertEqual(self.list_dir(trees_path), [])
 
-        src_path = images.get_image_repo_path() / 'some-path'
+        src_path = images._get_image_repo_path() / 'some-path'
         create_src_dir(src_path)
         self.assertTrue(
-            images.maybe_import_image_dir(src_path, self.sample_image_id)
+            images._maybe_import_image_dir(src_path, self.sample_image_id)
         )
         self.assertFalse(src_path.exists())
         self.assertEqual(self.list_dir(trees_path), [self.sample_image_id])
 
-        src_path = images.get_image_repo_path() / 'some-other-path'
+        src_path = images._get_image_repo_path() / 'some-other-path'
         create_src_dir(src_path)
         self.assertFalse(
-            images.maybe_import_image_dir(src_path, self.sample_image_id)
+            images._maybe_import_image_dir(src_path, self.sample_image_id)
         )
         self.assertTrue(src_path.is_dir())
         self.assertEqual(self.list_dir(trees_path), [self.sample_image_id])
@@ -415,7 +415,7 @@ class ImagesTest(fixtures.TestCaseBase):
         with self.assertRaisesRegex(
             AssertionError, r'expect unique image name and version'
         ):
-            images.assert_unique_name_and_version(self.sample_metadata)
+            images._assert_unique_name_and_version(self.sample_metadata)
 
     def test_iter_image_dir_paths(self):
 
@@ -445,15 +445,15 @@ class ImagesTest(fixtures.TestCaseBase):
 
         def check_find_image_dir_path(image_id, name, version, tag, expect):
             self.assertEqual(
-                images.find_image_dir_path(image_id, None, None, None),
+                images._find_image_dir_path(image_id, None, None, None),
                 expect,
             )
             self.assertEqual(
-                images.find_image_dir_path(None, name, version, None),
+                images._find_image_dir_path(None, name, version, None),
                 expect,
             )
             self.assertEqual(
-                images.find_image_dir_path(None, None, None, tag),
+                images._find_image_dir_path(None, None, None, tag),
                 expect,
             )
             self.assertEqual(
@@ -474,15 +474,15 @@ class ImagesTest(fixtures.TestCaseBase):
             )
 
         with self.assertRaisesRegex(AssertionError, r'expect only one true'):
-            images.find_image_dir_path(None, None, None, None)
+            images._find_image_dir_path(None, None, None, None)
         with self.assertRaisesRegex(AssertionError, r'expect only one true'):
-            images.find_image_dir_path('', '', '', '')
+            images._find_image_dir_path('', '', '', '')
         with self.assertRaisesRegex(AssertionError, r'expect only one true'):
-            images.find_image_dir_path('x', 'y', '', '')
+            images._find_image_dir_path('x', 'y', '', '')
         with self.assertRaisesRegex(AssertionError, r'expect only one true'):
-            images.find_image_dir_path('', '', 'y', 'z')
+            images._find_image_dir_path('', '', 'y', 'z')
         with self.assertRaisesRegex(AssertionError, r'expect.*xor.*false'):
-            images.find_image_dir_path('', 'x', '', '')
+            images._find_image_dir_path('', 'x', '', '')
 
         check_find_image_dir_path(
             self.sample_image_id,
@@ -493,8 +493,8 @@ class ImagesTest(fixtures.TestCaseBase):
         )
 
         self.create_image_dir(self.sample_image_id)
-        tag_path = images.get_tag_path('some-tag')
-        tag_path.symlink_to(images.get_tag_target(self.sample_image_dir_path))
+        tag_path = images._get_tag_path('some-tag')
+        tag_path.symlink_to(images._get_tag_target(self.sample_image_dir_path))
 
         check_find_image_dir_path(
             self.sample_image_id,
@@ -505,32 +505,32 @@ class ImagesTest(fixtures.TestCaseBase):
         )
 
     def test_maybe_remove_image_dir(self):
-        some_path = images.get_image_repo_path() / 'some-path'
+        some_path = images._get_image_repo_path() / 'some-path'
 
-        tag_path_1 = images.get_tag_path('some-tag-1')
-        tag_path_2 = images.get_tag_path('some-tag-2')
+        tag_path_1 = images._get_tag_path('some-tag-1')
+        tag_path_2 = images._get_tag_path('some-tag-2')
 
         tag_path_1.symlink_to(
-            images.get_tag_target(self.sample_image_dir_path)
+            images._get_tag_target(self.sample_image_dir_path)
         )
         tag_path_2.symlink_to(
-            images.get_tag_target(self.sample_image_dir_path)
+            images._get_tag_target(self.sample_image_dir_path)
         )
         self.assertTrue(bases.lexists(tag_path_1))
         self.assertTrue(bases.lexists(tag_path_2))
 
         self.assertTrue(
-            images.maybe_remove_image_dir(self.sample_image_dir_path)
+            images._maybe_remove_image_dir(self.sample_image_dir_path)
         )
         self.assertFalse(bases.lexists(tag_path_1))
         self.assertFalse(bases.lexists(tag_path_2))
 
         self.create_image_dir(self.sample_image_id)
         tag_path_1.symlink_to(
-            images.get_tag_target(self.sample_image_dir_path)
+            images._get_tag_target(self.sample_image_dir_path)
         )
         tag_path_2.symlink_to(
-            images.get_tag_target(self.sample_image_dir_path)
+            images._get_tag_target(self.sample_image_dir_path)
         )
         self.assertTrue(bases.lexists(tag_path_1))
         self.assertTrue(bases.lexists(tag_path_2))
@@ -538,7 +538,7 @@ class ImagesTest(fixtures.TestCaseBase):
         images.add_ref(self.sample_image_id, some_path)
 
         self.assertFalse(
-            images.maybe_remove_image_dir(self.sample_image_dir_path)
+            images._maybe_remove_image_dir(self.sample_image_dir_path)
         )
         self.assertTrue(self.sample_image_dir_path.is_dir())
         self.assertTrue(bases.lexists(tag_path_1))
@@ -547,7 +547,7 @@ class ImagesTest(fixtures.TestCaseBase):
         some_path.unlink()
 
         self.assertTrue(
-            images.maybe_remove_image_dir(self.sample_image_dir_path)
+            images._maybe_remove_image_dir(self.sample_image_dir_path)
         )
         self.assertFalse(self.sample_image_dir_path.is_dir())
         self.assertFalse(bases.lexists(tag_path_1))
@@ -561,7 +561,7 @@ class ImagesTest(fixtures.TestCaseBase):
 
         def list_metadatas():
             return sorted(
-                ((images.get_id(p), m) for p, m in images.iter_metadatas()),
+                ((images._get_id(p), m) for p, m in images._iter_metadatas()),
                 key=lambda args: args[0],
             )
 
@@ -599,43 +599,43 @@ class ImagesTest(fixtures.TestCaseBase):
         )
 
     def test_add_ref(self):
-        path1 = images.get_image_repo_path() / 'some-path-1'
-        path2 = images.get_image_repo_path() / 'some-path-2'
+        path1 = images._get_image_repo_path() / 'some-path-1'
+        path2 = images._get_image_repo_path() / 'some-path-2'
 
         with self.assertRaisesRegex(AssertionError, r'expect.*is_file'):
             images.add_ref(self.sample_image_id, path1)
 
-        self.assertEqual(images.get_ref_count(self.sample_image_dir_path), 0)
+        self.assertEqual(images._get_ref_count(self.sample_image_dir_path), 0)
 
         self.create_image_dir(self.sample_image_id)
-        self.assertEqual(images.get_ref_count(self.sample_image_dir_path), 1)
+        self.assertEqual(images._get_ref_count(self.sample_image_dir_path), 1)
 
         self.assertFalse(path1.exists())
         images.add_ref(self.sample_image_id, path1)
         self.assertTrue(path1.exists())
-        self.assertEqual(images.get_ref_count(self.sample_image_dir_path), 2)
+        self.assertEqual(images._get_ref_count(self.sample_image_dir_path), 2)
 
         self.assertFalse(path2.exists())
         images.add_ref(self.sample_image_id, path2)
         self.assertTrue(path2.exists())
-        self.assertEqual(images.get_ref_count(self.sample_image_dir_path), 3)
+        self.assertEqual(images._get_ref_count(self.sample_image_dir_path), 3)
 
         path1.unlink()
-        self.assertEqual(images.get_ref_count(self.sample_image_dir_path), 2)
+        self.assertEqual(images._get_ref_count(self.sample_image_dir_path), 2)
 
         path2.unlink()
-        self.assertEqual(images.get_ref_count(self.sample_image_dir_path), 1)
+        self.assertEqual(images._get_ref_count(self.sample_image_dir_path), 1)
 
     def test_touch(self):
         with self.assertRaisesRegex(AssertionError, r'expect.*is_file'):
-            images.touch_image_dir(self.sample_image_dir_path)
+            images._touch_image_dir(self.sample_image_dir_path)
         with self.assertRaises(FileNotFoundError):
-            images.get_last_updated(self.sample_image_dir_path)
+            images._get_last_updated(self.sample_image_dir_path)
         self.create_image_dir(self.sample_image_id)
-        t1 = images.get_last_updated(self.sample_image_dir_path)
+        t1 = images._get_last_updated(self.sample_image_dir_path)
         time.sleep(0.01)
-        images.touch_image_dir(self.sample_image_dir_path)
-        t2 = images.get_last_updated(self.sample_image_dir_path)
+        images._touch_image_dir(self.sample_image_dir_path)
+        t2 = images._get_last_updated(self.sample_image_dir_path)
         self.assertLess(t1, t2)
 
     #
@@ -643,46 +643,46 @@ class ImagesTest(fixtures.TestCaseBase):
     #
 
     def test_get_image_dir_path_from_tag(self):
-        tag_path = images.get_tag_path('some-tag')
+        tag_path = images._get_tag_path('some-tag')
         with self.assertRaisesRegex(AssertionError, r'expect.*is_symlink'):
-            images.get_image_dir_path_from_tag(tag_path)
-        tag_path.symlink_to(images.get_tag_target(self.sample_image_dir_path))
+            images._get_image_dir_path_from_tag(tag_path)
+        tag_path.symlink_to(images._get_tag_target(self.sample_image_dir_path))
         self.assertEqual(
-            images.get_image_dir_path_from_tag(tag_path),
+            images._get_image_dir_path_from_tag(tag_path),
             self.sample_image_dir_path,
         )
 
     def test_find_tag_paths(self):
 
         def find_tag_paths():
-            paths = images.find_tag_paths(self.sample_image_dir_path)
+            paths = images._find_tag_paths(self.sample_image_dir_path)
             return sorted(p.name for p in paths)
 
-        tag_path_1 = images.get_tag_path('some-tag-1')
-        tag_path_2 = images.get_tag_path('some-tag-2')
+        tag_path_1 = images._get_tag_path('some-tag-1')
+        tag_path_2 = images._get_tag_path('some-tag-2')
 
         self.assertEqual(find_tag_paths(), [])
         self.assertEqual(
             find_tag_paths(),
-            images.find_tags(self.sample_image_id),
+            images._find_tags(self.sample_image_id),
         )
 
         tag_path_1.symlink_to(
-            images.get_tag_target(self.sample_image_dir_path)
+            images._get_tag_target(self.sample_image_dir_path)
         )
         self.assertEqual(find_tag_paths(), ['some-tag-1'])
         self.assertEqual(
             find_tag_paths(),
-            images.find_tags(self.sample_image_id),
+            images._find_tags(self.sample_image_id),
         )
 
         tag_path_2.symlink_to(
-            images.get_tag_target(self.sample_image_dir_path)
+            images._get_tag_target(self.sample_image_dir_path)
         )
         self.assertEqual(find_tag_paths(), ['some-tag-1', 'some-tag-2'])
         self.assertEqual(
             find_tag_paths(),
-            images.find_tags(self.sample_image_id),
+            images._find_tags(self.sample_image_id),
         )
 
 

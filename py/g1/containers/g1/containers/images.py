@@ -39,6 +39,14 @@ Image repository layout:
 """
 
 __all__ = [
+    # Public interface.
+    'ImageMetadata',
+    'validate_id',
+    'validate_name',
+    'validate_tag',
+    'validate_version',
+    # Expose to apps.
+    'IMAGE_LIST_STRINGIFIERS',
     'cmd_cleanup',
     'cmd_import',
     'cmd_init',
@@ -46,12 +54,8 @@ __all__ = [
     'cmd_remove',
     'cmd_remove_tag',
     'cmd_tag',
-    'validate_id',
-    'validate_name',
-    'validate_tag',
-    'validate_version',
-    # Additional members exposed to ``builders`` and ``pods``.
-    'ImageMetadata',
+    'make_select_image_kwargs',
+    # Expose to builders and pods.
     'METADATA',
     'ROOTFS',
     'add_ref',
@@ -104,27 +108,27 @@ class ImageMetadata:
 
 
 # SHA-256.
-ID_PATTERN = re.compile(r'[0-9a-f]{64}')
+_ID_PATTERN = re.compile(r'[0-9a-f]{64}')
 
 # For now, let's only allow a restrictive set of names.
-NAME_PATTERN = re.compile(r'[a-z0-9]+(-[a-z0-9]+)*')
-VERSION_PATTERN = re.compile(r'[a-z0-9]+((?:-|\.)[a-z0-9]+)*')
+_NAME_PATTERN = re.compile(r'[a-z0-9]+(-[a-z0-9]+)*')
+_VERSION_PATTERN = re.compile(r'[a-z0-9]+((?:-|\.)[a-z0-9]+)*')
 
 
 def validate_id(image_id):
-    return ASSERT.predicate(image_id, ID_PATTERN.fullmatch)
+    return ASSERT.predicate(image_id, _ID_PATTERN.fullmatch)
 
 
 def validate_name(name):
-    return ASSERT.predicate(name, NAME_PATTERN.fullmatch)
+    return ASSERT.predicate(name, _NAME_PATTERN.fullmatch)
 
 
 def validate_version(version):
-    return ASSERT.predicate(version, VERSION_PATTERN.fullmatch)
+    return ASSERT.predicate(version, _VERSION_PATTERN.fullmatch)
 
 
 def validate_tag(tag):
-    return ASSERT.predicate(tag, NAME_PATTERN.fullmatch)
+    return ASSERT.predicate(tag, _NAME_PATTERN.fullmatch)
 
 
 #
@@ -139,7 +143,7 @@ def validate_tag(tag):
 # contention, we should implement a finer-grained locking strategy.
 #
 
-select_image_arguments = functionals.compose(
+_select_image_arguments = functionals.compose(
     argparses.begin_mutually_exclusive_group(required=True),
     argparses.argument('--id', type=validate_id, help='provide image id'),
     argparses.argument(
@@ -167,9 +171,9 @@ def cmd_init():
     """Initialize the image repository."""
     bases.assert_root_privilege()
     for path, mode, chown in (
-        (get_image_repo_path(), 0o750, bases.chown_app),
-        (get_tags_path(), 0o750, bases.chown_app),
-        (get_tmp_path(), 0o750, bases.chown_app),
+        (_get_image_repo_path(), 0o750, bases.chown_app),
+        (_get_tags_path(), 0o750, bases.chown_app),
+        (_get_tmp_path(), 0o750, bases.chown_app),
         (get_trees_path(), 0o750, bases.chown_app),
     ):
         LOG.info('create directory: %s', path)
@@ -195,19 +199,19 @@ def cmd_import(image_archive_path):
     """
     bases.assert_root_privilege()
     ASSERT.predicate(image_archive_path, Path.is_file)
-    with using_tmp() as tmp_path:
-        image_id = extract_image(image_archive_path, tmp_path)
+    with _using_tmp() as tmp_path:
+        image_id = _extract_image(image_archive_path, tmp_path)
         LOG.info('import image id: %s', image_id)
         setup_image_dir(tmp_path)
         # Make sure that for every newly-imported image, its last
         # updated time is set to now; or else it could be cleaned up
         # right after import.
-        touch_image_dir(tmp_path)
+        _touch_image_dir(tmp_path)
         with bases.acquiring_exclusive(get_trees_path()):
-            maybe_import_image_dir(tmp_path, image_id)
+            _maybe_import_image_dir(tmp_path, image_id)
 
 
-IMAGE_LIST_COLUMNS = frozenset((
+_IMAGE_LIST_COLUMNS = frozenset((
     'id',
     'name',
     'version',
@@ -215,7 +219,7 @@ IMAGE_LIST_COLUMNS = frozenset((
     'ref-count',
     'last-updated',
 ))
-IMAGE_LIST_DEFAULT_COLUMNS = (
+_IMAGE_LIST_DEFAULT_COLUMNS = (
     'id',
     'name',
     'version',
@@ -227,45 +231,45 @@ IMAGE_LIST_STRINGIFIERS = {
     'tags': ' '.join,
     'last-updated': datetime.datetime.isoformat,
 }
-ASSERT.issuperset(IMAGE_LIST_COLUMNS, IMAGE_LIST_DEFAULT_COLUMNS)
-ASSERT.issuperset(IMAGE_LIST_COLUMNS, IMAGE_LIST_STRINGIFIERS)
+ASSERT.issuperset(_IMAGE_LIST_COLUMNS, _IMAGE_LIST_DEFAULT_COLUMNS)
+ASSERT.issuperset(_IMAGE_LIST_COLUMNS, IMAGE_LIST_STRINGIFIERS)
 
 
 @argparses.begin_parser('list', **bases.make_help_kwargs('list images'))
-@bases.formatter_arguments(IMAGE_LIST_COLUMNS, IMAGE_LIST_DEFAULT_COLUMNS)
+@bases.formatter_arguments(_IMAGE_LIST_COLUMNS, _IMAGE_LIST_DEFAULT_COLUMNS)
 @argparses.end
 def cmd_list():
     # Don't need root privilege here.
-    with bases.acquiring_shared(get_tags_path()), \
+    with bases.acquiring_shared(_get_tags_path()), \
         bases.acquiring_shared(get_trees_path()):
-        for image_dir_path, metadata in iter_metadatas():
-            image_id = get_id(image_dir_path)
-            last_updated = get_last_updated(image_dir_path)
+        for image_dir_path, metadata in _iter_metadatas():
+            image_id = _get_id(image_dir_path)
+            last_updated = _get_last_updated(image_dir_path)
             yield {
                 'id': image_id,
                 'name': metadata.name,
                 'version': metadata.version,
-                'tags': find_tags(image_id),
-                'ref-count': get_ref_count(image_dir_path),
+                'tags': _find_tags(image_id),
+                'ref-count': _get_ref_count(image_dir_path),
                 'last-updated': last_updated,
             }
 
 
 @argparses.begin_parser('tag', **bases.make_help_kwargs('set tag to an image'))
-@select_image_arguments
+@_select_image_arguments
 @argparses.argument('new_tag', type=validate_tag, help='provide new image tag')
 @argparses.end
 def cmd_tag(*, image_id=None, name=None, version=None, tag=None, new_tag):
     bases.assert_root_privilege()
-    with bases.acquiring_exclusive(get_tags_path()):
+    with bases.acquiring_exclusive(_get_tags_path()):
         with bases.acquiring_shared(get_trees_path()):
             image_dir_path = ASSERT.not_none(
-                find_image_dir_path(image_id, name, version, tag)
+                _find_image_dir_path(image_id, name, version, tag)
             )
-        tag_path = get_tag_path(new_tag)
+        tag_path = _get_tag_path(new_tag)
         if bases.lexists(tag_path):
             tag_path.unlink()
-        tag_path.symlink_to(get_tag_target(image_dir_path))
+        tag_path.symlink_to(_get_tag_target(image_dir_path))
 
 
 @argparses.begin_parser(
@@ -277,9 +281,9 @@ def cmd_tag(*, image_id=None, name=None, version=None, tag=None, new_tag):
 @argparses.end
 def cmd_remove_tag(tag):
     bases.assert_root_privilege()
-    with bases.acquiring_exclusive(get_tags_path()):
+    with bases.acquiring_exclusive(_get_tags_path()):
         try:
-            get_tag_path(tag).unlink()
+            _get_tag_path(tag).unlink()
         except FileNotFoundError:
             pass
 
@@ -287,16 +291,16 @@ def cmd_remove_tag(tag):
 @argparses.begin_parser(
     'remove', **bases.make_help_kwargs('remove an image from the repository')
 )
-@select_image_arguments
+@_select_image_arguments
 @argparses.end
 def cmd_remove(*, image_id=None, name=None, version=None, tag=None):
     """Remove an image, or no-op if image does not exist."""
     bases.assert_root_privilege()
-    with bases.acquiring_exclusive(get_tags_path()), \
+    with bases.acquiring_exclusive(_get_tags_path()), \
         bases.acquiring_exclusive(get_trees_path()):
-        image_dir_path = find_image_dir_path(image_id, name, version, tag)
+        image_dir_path = _find_image_dir_path(image_id, name, version, tag)
         if image_dir_path:
-            if not maybe_remove_image_dir(image_dir_path):
+            if not _maybe_remove_image_dir(image_dir_path):
                 LOG.warning('image is still being used')
         else:
             LOG.debug(
@@ -307,12 +311,12 @@ def cmd_remove(*, image_id=None, name=None, version=None, tag=None):
 
 def cmd_cleanup(expiration):
     bases.assert_root_privilege()
-    with bases.acquiring_exclusive(get_tmp_path()):
-        cleanup_tmp()
-    with bases.acquiring_exclusive(get_tags_path()), \
+    with bases.acquiring_exclusive(_get_tmp_path()):
+        _cleanup_tmp()
+    with bases.acquiring_exclusive(_get_tags_path()), \
         bases.acquiring_exclusive(get_trees_path()):
-        cleanup_trees(expiration)
-        cleanup_tags()
+        _cleanup_trees(expiration)
+        _cleanup_tags()
 
 
 #
@@ -321,8 +325,8 @@ def cmd_cleanup(expiration):
 
 
 @contextlib.contextmanager
-def using_tmp():
-    tmp_dir_path = get_tmp_path()
+def _using_tmp():
+    tmp_dir_path = _get_tmp_path()
     tmp_path = None
     tmp_lock = None
     with bases.acquiring_exclusive(tmp_dir_path):
@@ -349,37 +353,37 @@ def using_tmp():
 # Repo layout.
 #
 
-IMAGES = 'images'
+_IMAGES = 'images'
 
-TAGS = 'tags'
-TREES = 'trees'
-TMP = 'tmp'
+_TAGS = 'tags'
+_TREES = 'trees'
+_TMP = 'tmp'
 
 METADATA = 'metadata'
 ROOTFS = 'rootfs'
 
 
-def get_image_repo_path():
-    return bases.get_repo_path() / IMAGES
+def _get_image_repo_path():
+    return bases.get_repo_path() / _IMAGES
 
 
-def get_tags_path():
-    return get_image_repo_path() / TAGS
+def _get_tags_path():
+    return _get_image_repo_path() / _TAGS
 
 
 def get_trees_path():
-    return get_image_repo_path() / TREES
+    return _get_image_repo_path() / _TREES
 
 
-def get_tmp_path():
-    return get_image_repo_path() / TMP
+def _get_tmp_path():
+    return _get_image_repo_path() / _TMP
 
 
 def get_image_dir_path(image_id):
     return get_trees_path() / validate_id(image_id)
 
 
-def get_id(image_dir_path):
+def _get_id(image_dir_path):
     return validate_id(image_dir_path.name)
 
 
@@ -391,16 +395,16 @@ def get_rootfs_path(image_dir_path):
     return image_dir_path / ROOTFS
 
 
-def get_tag_path(tag):
-    return get_tags_path() / validate_tag(tag)
+def _get_tag_path(tag):
+    return _get_tags_path() / validate_tag(tag)
 
 
-def get_tag(tag_path):
+def _get_tag(tag_path):
     return validate_tag(tag_path.name)
 
 
-def get_tag_target(image_dir_path):
-    return Path('..') / TREES / get_id(image_dir_path)
+def _get_tag_target(image_dir_path):
+    return Path('..') / _TREES / _get_id(image_dir_path)
 
 
 #
@@ -412,8 +416,8 @@ def get_tag_target(image_dir_path):
 #
 
 
-def cleanup_tmp():
-    for tmp_path in get_tmp_path().iterdir():
+def _cleanup_tmp():
+    for tmp_path in _get_tmp_path().iterdir():
         if not tmp_path.is_dir():
             LOG.info('remove unknown temporary file: %s', tmp_path)
             tmp_path.unlink()
@@ -429,19 +433,19 @@ def cleanup_tmp():
             tmp_lock.close()
 
 
-def cleanup_trees(expiration):
+def _cleanup_trees(expiration):
     LOG.info('remove images before: %s', expiration)
     for image_dir_path in get_trees_path().iterdir():
         if image_dir_path.is_dir():
-            if get_last_updated(image_dir_path) < expiration:
-                maybe_remove_image_dir(image_dir_path)
+            if _get_last_updated(image_dir_path) < expiration:
+                _maybe_remove_image_dir(image_dir_path)
         else:
             LOG.info('remove unknown file under trees: %s', image_dir_path)
             image_dir_path.unlink()
 
 
-def cleanup_tags():
-    for tag_path in get_tags_path().iterdir():
+def _cleanup_tags():
+    for tag_path in _get_tags_path().iterdir():
         if tag_path.is_symlink():
             if not tag_path.resolve().exists():
                 LOG.info('remove dangling tag: %s', tag_path)
@@ -456,7 +460,7 @@ def cleanup_tags():
 #
 
 
-def extract_image(archive_path, dst_dir_path):
+def _extract_image(archive_path, dst_dir_path):
     # TODO: Assume archive is always gzip-compressed for now.
     # TODO: Should we use stdlib's tarfile rather than subprocess?
     cmd = ['tar', '--extract', '--file=-', '--directory=%s' % dst_dir_path]
@@ -498,19 +502,19 @@ def setup_image_dir(image_dir_path):
 #
 
 
-def maybe_import_image_dir(src_path, image_id):
+def _maybe_import_image_dir(src_path, image_id):
     image_dir_path = get_image_dir_path(image_id)
     if image_dir_path.exists():
         LOG.warning('not import duplicated image: %s', image_id)
         return False
     else:
-        assert_unique_name_and_version(read_metadata(src_path))
+        _assert_unique_name_and_version(_read_metadata(src_path))
         src_path.rename(image_dir_path)
         return True
 
 
-def assert_unique_name_and_version(new_metadata):
-    for image_dir_path, metadata in iter_metadatas():
+def _assert_unique_name_and_version(new_metadata):
+    for image_dir_path, metadata in _iter_metadatas():
         ASSERT(
             new_metadata.name != metadata.name
             or new_metadata.version != metadata.version,
@@ -520,7 +524,7 @@ def assert_unique_name_and_version(new_metadata):
         )
 
 
-def iter_image_dir_paths():
+def _iter_image_dir_paths():
     for image_dir_path in get_trees_path().iterdir():
         if not image_dir_path.is_dir():
             LOG.debug('encounter unknown file under trees: %s', image_dir_path)
@@ -528,46 +532,46 @@ def iter_image_dir_paths():
             yield image_dir_path
 
 
-def find_image_dir_path(image_id, name, version, tag):
+def _find_image_dir_path(image_id, name, version, tag):
     """Return path to image directory or None if not found."""
     ASSERT.only_one((image_id, name or version, tag))
     ASSERT.not_xor(name, version)
     if name:
         # We check duplicated image name and version when images are
         # imported, and so we do not check it again here.
-        for image_dir_path in iter_image_dir_paths():
-            metadata = read_metadata(image_dir_path)
+        for image_dir_path in _iter_image_dir_paths():
+            metadata = _read_metadata(image_dir_path)
             if metadata.name == name and metadata.version == version:
                 return image_dir_path
         return None
     if image_id:
         image_dir_path = get_image_dir_path(image_id)
     else:
-        tag_path = get_tag_path(tag)
+        tag_path = _get_tag_path(tag)
         if not bases.lexists(tag_path):
             return None
-        image_dir_path = get_image_dir_path_from_tag(tag_path)
+        image_dir_path = _get_image_dir_path_from_tag(tag_path)
     return image_dir_path if image_dir_path.is_dir() else None
 
 
 def find_id(*, name=None, version=None, tag=None):
-    image_dir_path = find_image_dir_path(None, name, version, tag)
-    return get_id(image_dir_path) if image_dir_path else None
+    image_dir_path = _find_image_dir_path(None, name, version, tag)
+    return _get_id(image_dir_path) if image_dir_path else None
 
 
 def find_name_and_version(*, image_id=None, tag=None):
-    image_dir_path = find_image_dir_path(image_id, None, None, tag)
+    image_dir_path = _find_image_dir_path(image_id, None, None, tag)
     if image_dir_path is None:
         return None, None
     else:
-        metadata = read_metadata(image_dir_path)
+        metadata = _read_metadata(image_dir_path)
         return metadata.name, metadata.version
 
 
-def maybe_remove_image_dir(image_dir_path):
-    if get_ref_count(image_dir_path) <= 1:
+def _maybe_remove_image_dir(image_dir_path):
+    if _get_ref_count(image_dir_path) <= 1:
         LOG.info('remove image directory: %s', image_dir_path)
-        for tag_path in find_tag_paths(image_dir_path):
+        for tag_path in _find_tag_paths(image_dir_path):
             tag_path.unlink()
         if image_dir_path.exists():
             shutil.rmtree(image_dir_path)
@@ -582,13 +586,13 @@ def maybe_remove_image_dir(image_dir_path):
 #
 
 
-def iter_metadatas():
+def _iter_metadatas():
     """Iterate over metadata of every image."""
-    for image_dir_path in iter_image_dir_paths():
-        yield image_dir_path, read_metadata(image_dir_path)
+    for image_dir_path in _iter_image_dir_paths():
+        yield image_dir_path, _read_metadata(image_dir_path)
 
 
-def read_metadata(image_dir_path):
+def _read_metadata(image_dir_path):
     """Read image metadata from an image directory."""
     return bases.read_jsonobject(
         ImageMetadata, get_metadata_path(image_dir_path)
@@ -604,7 +608,7 @@ def add_ref(image_id, dst_path):
     )
 
 
-def get_ref_count(image_dir_path):
+def _get_ref_count(image_dir_path):
     try:
         return get_metadata_path(image_dir_path).stat().st_nlink
     except FileNotFoundError:
@@ -612,14 +616,14 @@ def get_ref_count(image_dir_path):
 
 
 def touch(image_id):
-    touch_image_dir(get_image_dir_path(image_id))
+    _touch_image_dir(get_image_dir_path(image_id))
 
 
-def touch_image_dir(image_dir_path):
+def _touch_image_dir(image_dir_path):
     ASSERT.predicate(get_metadata_path(image_dir_path), Path.is_file).touch()
 
 
-def get_last_updated(image_dir_path):
+def _get_last_updated(image_dir_path):
     return datetimes.utcfromtimestamp(
         get_metadata_path(image_dir_path).stat().st_mtime
     )
@@ -630,16 +634,16 @@ def get_last_updated(image_dir_path):
 #
 
 
-def get_image_dir_path_from_tag(tag_path):
+def _get_image_dir_path_from_tag(tag_path):
     return ASSERT.predicate(tag_path, Path.is_symlink).resolve()
 
 
-def find_tags(image_id):
-    return sorted(map(get_tag, find_tag_paths(get_image_dir_path(image_id))))
+def _find_tags(image_id):
+    return sorted(map(_get_tag, _find_tag_paths(get_image_dir_path(image_id))))
 
 
-def find_tag_paths(image_dir_path):
-    for tag_path in get_tags_path().iterdir():
+def _find_tag_paths(image_dir_path):
+    for tag_path in _get_tags_path().iterdir():
         if not tag_path.is_symlink():
             LOG.debug('encounter unknown file under tags: %s', tag_path)
         elif tag_path.resolve().name == image_dir_path.name:

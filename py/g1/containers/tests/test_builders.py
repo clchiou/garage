@@ -17,7 +17,7 @@ class BuildersTest(fixtures.TestCaseBase):
             images.get_metadata_path(self.test_repo_path)
         )
         self.assertEqual(
-            images.read_metadata(self.test_repo_path),
+            images._read_metadata(self.test_repo_path),
             images.ImageMetadata(
                 name=bases.PARAMS.base_image_name.get(),
                 version=bases.PARAMS.base_image_version.get(),

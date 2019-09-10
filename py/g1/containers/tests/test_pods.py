@@ -652,10 +652,10 @@ class PodsTest(fixtures.TestCaseBase):
         self.create_image_dir(image_id_2, self.sample_metadata)
         self.assertEqual(list_image_ids(), [])
         self.assertEqual(
-            images.get_ref_count(images.get_image_dir_path(image_id_1)), 1
+            images._get_ref_count(images.get_image_dir_path(image_id_1)), 1
         )
         self.assertEqual(
-            images.get_ref_count(images.get_image_dir_path(image_id_2)), 1
+            images._get_ref_count(images.get_image_dir_path(image_id_2)), 1
         )
 
         pods.add_ref_image_ids(
@@ -672,10 +672,10 @@ class PodsTest(fixtures.TestCaseBase):
         )
         self.assertEqual(list_image_ids(), [image_id_1, image_id_2])
         self.assertEqual(
-            images.get_ref_count(images.get_image_dir_path(image_id_1)), 2
+            images._get_ref_count(images.get_image_dir_path(image_id_1)), 2
         )
         self.assertEqual(
-            images.get_ref_count(images.get_image_dir_path(image_id_2)), 2
+            images._get_ref_count(images.get_image_dir_path(image_id_2)), 2
         )
 
     def test_iter_ref_image_ids(self):
