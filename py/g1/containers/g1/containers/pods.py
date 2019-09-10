@@ -110,7 +110,6 @@ class PodConfig:
     def __post_init__(self):
         images.validate_name(self.name)
         images.validate_version(self.version)
-        ASSERT.not_empty(self.apps)
         ASSERT.not_empty(self.images)
         ASSERT(
             len(set(u.name for u in self.apps)) == len(self.apps),

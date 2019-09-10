@@ -261,13 +261,6 @@ class PodsTest(fixtures.TestCaseBase):
                 apps=self.sample_config.apps,
                 images=[],
             )
-        with self.assertRaisesRegex(AssertionError, r'expect non-empty'):
-            pods.PodConfig(
-                name='test-pod',
-                version='0.0.1',
-                apps=[],
-                images=self.sample_config.images,
-            )
         with self.assertRaisesRegex(
             AssertionError, r'expect unique app names:'
         ):
