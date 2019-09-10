@@ -5,7 +5,6 @@ __all__ = [
 
 import logging
 import sys
-from pathlib import Path
 
 from startup import startup
 
@@ -43,7 +42,6 @@ def cmd_images(args):
     elif args.command == 'setup-base-rootfs':
         builders.cmd_setup_base_rootfs(args.path, args.prune_stash_path)
     elif args.command == 'import':
-        ASSERT.predicate(args.path, Path.is_file)
         images.cmd_import(args.path)
     elif args.command == 'list':
         formatter = formatters.Formatter(

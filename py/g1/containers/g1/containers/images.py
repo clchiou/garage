@@ -194,6 +194,7 @@ def cmd_import(image_archive_path):
     different IDs.
     """
     bases.assert_root_privilege()
+    ASSERT.predicate(image_archive_path, Path.is_file)
     with using_tmp() as tmp_path:
         image_id = extract_image(image_archive_path, tmp_path)
         LOG.info('import image id: %s', image_id)
