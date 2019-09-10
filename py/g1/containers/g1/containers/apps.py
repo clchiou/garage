@@ -76,6 +76,7 @@ def cmd_images(args):
 @argparses.include(pods.cmd_run)
 @argparses.include(pods.cmd_prepare)
 @argparses.include(pods.cmd_run_prepared)
+@argparses.include(pods.cmd_export_overlay)
 @argparses.include(pods.cmd_remove)
 @argparses.end
 @argparses.end
@@ -113,6 +114,8 @@ def cmd_pods(args):
         )
     elif args.command == 'run-prepared':
         pods.cmd_run_prepared(pod_id=args.id, debug=get_debug())
+    elif args.command == 'export-overlay':
+        pods.cmd_export_overlay(args.id, args.output, args.exclude or ())
     elif args.command == 'remove':
         pods.cmd_remove(args.id)
     else:

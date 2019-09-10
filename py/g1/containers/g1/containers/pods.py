@@ -32,6 +32,7 @@ __all__ = [
     'POD_SHOW_STRINGIFIERS',
     'cmd_cat_config',
     'cmd_cleanup',
+    'cmd_export_overlay',
     'cmd_init',
     'cmd_list',
     'cmd_prepare',
@@ -327,6 +328,51 @@ def cmd_run_prepared(pod_id, *, debug=False):
         LOG.warning('overlay is not mounted; system probably rebooted')
         _mount_overlay(pod_dir_path, _read_config(pod_dir_path))
     _run_pod(pod_id, debug=debug)
+
+
+@argparses.begin_parser(
+    'export-overlay', **bases.make_help_kwargs('export overlay files')
+)
+@argparses.argument(
+    '--exclude', action='append', help='add an overlay path filter'
+)
+@_select_pod_arguments(positional=True)
+@argparses.argument('output', type=Path, help='provide output path')
+@argparses.end
+def cmd_export_overlay(pod_id, output_path, exclude_patterns):
+    bases.assert_root_privilege()
+    ASSERT.not_predicate(output_path, bases.lexists)
+    # Exclude pod-generated files.
+    # TODO: Right now we hard-code the list, but this is fragile.
+    exclude_patterns = list(exclude_patterns)
+    exclude_patterns.extend([
+        '/etc/machine-id',
+        '/var/lib/dbus/machine-id',
+        '/etc/hostname',
+        '/etc/hosts',
+        '/etc/systemd/system',
+    ])
+    with bases.acquiring_exclusive(_get_active_path()):
+        pod_dir_path = ASSERT.predicate(_get_pod_dir_path(pod_id), Path.is_dir)
+        pod_dir_lock = ASSERT.true(bases.try_acquire_exclusive(pod_dir_path))
+    try:
+        upper_path = _get_upper_path(pod_dir_path)
+        LOG.info('export overlay: %s -> %s', upper_path, output_path)
+        # Do NOT use ``shutil.copytree`` because shutil's file copy
+        # functions in general do not preserve the file owner/group.
+        subprocess.run(
+            [
+                'rsync',
+                '--archive',
+                *('--exclude=%s' % pattern for pattern in exclude_patterns),
+                '%s/' % upper_path,
+                str(output_path),
+            ],
+            check=True,
+        )
+    finally:
+        pod_dir_lock.release()
+        pod_dir_lock.close()
 
 
 @argparses.begin_parser(
