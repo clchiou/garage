@@ -719,7 +719,7 @@ class PodsTest(fixtures.TestCaseBase):
 
         self.create_pod_dir(self.sample_pod_id, self.sample_config)
         app = self.sample_config.apps[0]
-        path = builders.get_pod_app_exit_status_path(
+        path = builders._get_pod_app_exit_status_path(
             pods.get_rootfs_path(self.sample_pod_dir_path), app
         )
         path.parent.mkdir(parents=True)

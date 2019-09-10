@@ -9,12 +9,13 @@ The construction of a pod is divided into two phases:
 """
 
 __all__ = [
-    # Base image.
+    # Public interface.
+    'App',
+    # Expose to apps.
     'cmd_build_base_image',
     'cmd_prepare_base_rootfs',
     'cmd_setup_base_rootfs',
-    # Pod runtime.
-    'App',
+    # Expose to pods.
     'clear_pod_app_exit_status',
     'generate_machine_id',
     'generate_unit_file',
@@ -64,8 +65,8 @@ def cmd_build_base_image(base_image_path, prune_stash_path):
         prefix=base_image_path.name + '-',
     ) as temp_image_dir_path:
         temp_image_dir_path = Path(temp_image_dir_path)
-        create_image_metadata(images.get_metadata_path(temp_image_dir_path))
-        create_image_rootfs(
+        _create_image_metadata(images.get_metadata_path(temp_image_dir_path))
+        _create_image_rootfs(
             images.get_rootfs_path(temp_image_dir_path),
             prune_stash_path,
         )
@@ -84,7 +85,7 @@ def cmd_build_base_image(base_image_path, prune_stash_path):
         )
 
 
-def create_image_metadata(image_metadata_path):
+def _create_image_metadata(image_metadata_path):
     image_metadata = images.ImageMetadata(
         name=bases.PARAMS.base_image_name.get(),
         version=bases.PARAMS.base_image_version.get(),
@@ -92,7 +93,7 @@ def create_image_metadata(image_metadata_path):
     bases.write_jsonobject(image_metadata, image_metadata_path)
 
 
-def create_image_rootfs(image_rootfs_path, prune_stash_path):
+def _create_image_rootfs(image_rootfs_path, prune_stash_path):
     cmd_prepare_base_rootfs(image_rootfs_path)
     cmd_setup_base_rootfs(image_rootfs_path, prune_stash_path)
 
@@ -158,9 +159,9 @@ def cmd_setup_base_rootfs(image_rootfs_path, prune_stash_path):
                     prune_stash_path / dir_relpath, bases.lexists
                 )
                 dst_path.mkdir(mode=0o755, parents=True, exist_ok=True)
-                move_dir_content(dir_path, dst_path)
+                _move_dir_content(dir_path, dst_path)
             else:
-                clear_dir_content(dir_path)
+                _clear_dir_content(dir_path)
     # Remove certain config files.
     for path in (
         # Remove this so that systemd-nspawn may set the hostname.
@@ -178,13 +179,13 @@ def cmd_setup_base_rootfs(image_rootfs_path, prune_stash_path):
         bases.delete_file(path)
     # Replace certain config files.
     for path, content in (
-        (image_rootfs_path / 'etc/default/locale', LOCALE),
-        (image_rootfs_path / 'etc/resolv.conf', RESOLV_CONF),
+        (image_rootfs_path / 'etc/default/locale', _LOCALE),
+        (image_rootfs_path / 'etc/resolv.conf', _RESOLV_CONF),
     ):
         LOG.info('replace: %s', path)
         path.write_text(content)
     # Remove unneeded unit files.
-    base_units = set(BASE_UNITS)
+    base_units = set(_BASE_UNITS)
     for unit_dir_path in (
         image_rootfs_path / 'etc/systemd/system',
         image_rootfs_path / 'lib/systemd/system',
@@ -198,32 +199,32 @@ def cmd_setup_base_rootfs(image_rootfs_path, prune_stash_path):
                 base_units.remove(unit_path.name)
                 continue
             # There should have no duplicated units, right?
-            ASSERT.not_in(unit_path.name, BASE_UNITS)
+            ASSERT.not_in(unit_path.name, _BASE_UNITS)
             LOG.info('remove: %s', unit_path)
             bases.delete_file(unit_path)
     ASSERT.empty(base_units)
     # Create unit files.
     for unit_dir_path, unit_files in (
-        (image_rootfs_path / 'etc/systemd/system', ETC_UNIT_FILES),
-        (image_rootfs_path / 'lib/systemd/system', LIB_UNIT_FILES),
+        (image_rootfs_path / 'etc/systemd/system', _ETC_UNIT_FILES),
+        (image_rootfs_path / 'lib/systemd/system', _LIB_UNIT_FILES),
     ):
         for unit_file in unit_files:
             ASSERT.predicate(unit_dir_path, Path.is_dir)
             path = unit_dir_path / unit_file.relpath
             LOG.info('create: %s', path)
-            if unit_file.kind is UnitFile.Kinds.DIRECTORY:
+            if unit_file.kind is _UnitFile.Kinds.DIRECTORY:
                 path.mkdir(mode=0o755)
-            elif unit_file.kind is UnitFile.Kinds.FILE:
+            elif unit_file.kind is _UnitFile.Kinds.FILE:
                 path.write_text(unit_file.content)
                 path.chmod(0o644)
             else:
-                ASSERT.is_(unit_file.kind, UnitFile.Kinds.SYMLINK)
+                ASSERT.is_(unit_file.kind, _UnitFile.Kinds.SYMLINK)
                 path.symlink_to(unit_file.content)
             bases.chown_root(path)
     # Create ``pod-exit`` script and exit status directory.
     pod_exit_path = image_rootfs_path / 'usr/sbin/pod-exit'
     LOG.info('create: %s', pod_exit_path)
-    pod_exit_path.write_text(POD_EXIT)
+    pod_exit_path.write_text(_POD_EXIT)
     pod_exit_path.chmod(0o755)
     bases.chown_root(pod_exit_path)
     for path in (
@@ -255,30 +256,30 @@ class App:
         ASSERT.not_empty(self.exec)
 
 
-def get_pod_etc_path(root_path):
+def _get_pod_etc_path(root_path):
     return root_path / 'etc/systemd/system'
 
 
-def get_pod_unit_path(pod_etc_path, app):
-    return pod_etc_path / get_pod_unit_filename(app)
+def _get_pod_unit_path(pod_etc_path, app):
+    return pod_etc_path / _get_pod_unit_filename(app)
 
 
-def get_pod_unit_filename(app):
+def _get_pod_unit_filename(app):
     return app.name + '.service'
 
 
-def get_pod_wants_path(pod_etc_path, app):
-    return pod_etc_path / 'pod.target.wants' / get_pod_unit_filename(app)
+def _get_pod_wants_path(pod_etc_path, app):
+    return pod_etc_path / 'pod.target.wants' / _get_pod_unit_filename(app)
 
 
-def get_pod_app_exit_status_dir_path(root_path):
+def _get_pod_app_exit_status_dir_path(root_path):
     return root_path / 'var/lib/pod/exit-status'
 
 
-def get_pod_app_exit_status_path(root_path, app):
+def _get_pod_app_exit_status_path(root_path, app):
     return (
-        get_pod_app_exit_status_dir_path(root_path) /
-        get_pod_unit_filename(app)
+        _get_pod_app_exit_status_dir_path(root_path) /
+        _get_pod_unit_filename(app)
     )
 
 
@@ -295,7 +296,7 @@ def generate_machine_id(root_path, machine_id):
 
 def generate_unit_file(root_path, pod_name, pod_version, app):
     LOG.info('create unit file: %s', app.name)
-    pod_etc_path = ASSERT.predicate(get_pod_etc_path(root_path), Path.is_dir)
+    pod_etc_path = ASSERT.predicate(_get_pod_etc_path(root_path), Path.is_dir)
     if app.user != 'root' or app.group != 'root':
         # Use ``sudo`` rather than "User=" and "Group=", or else
         # "ExecStart" command will not be able to connect to journal
@@ -310,7 +311,7 @@ def generate_unit_file(root_path, pod_name, pod_version, app):
     else:
         exec_start = app.exec
     ASSERT.not_predicate(
-        get_pod_unit_path(pod_etc_path, app),
+        _get_pod_unit_path(pod_etc_path, app),
         bases.lexists,
     ).write_text(
         '''\
@@ -325,19 +326,19 @@ ExecStart={exec}
 ExecStopPost=/usr/sbin/pod-exit "%n"
 '''.format(
             app=app,
-            exec=' '.join(map(quote_arg, exec_start)),
+            exec=' '.join(map(_quote_arg, exec_start)),
             pod_name=pod_name,
             pod_version=pod_version,
         )
     )
     ASSERT.not_predicate(
-        get_pod_wants_path(pod_etc_path, app),
+        _get_pod_wants_path(pod_etc_path, app),
         bases.lexists,
-    ).symlink_to(Path('..') / get_pod_unit_filename(app))
+    ).symlink_to(Path('..') / _get_pod_unit_filename(app))
 
 
-ESCAPE_PATTERN = re.compile(r'[\'"$%]')
-ESCAPE_MAP = {
+_ESCAPE_PATTERN = re.compile(r'[\'"$%]')
+_ESCAPE_MAP = {
     '\'': '\\\'',
     '"': '\\"',
     '$': '$$',
@@ -345,21 +346,21 @@ ESCAPE_MAP = {
 }
 
 
-def quote_arg(arg):
-    return '"%s"' % ESCAPE_PATTERN.sub(
-        lambda match: ESCAPE_MAP[match.group(0)],
+def _quote_arg(arg):
+    return '"%s"' % _ESCAPE_PATTERN.sub(
+        lambda match: _ESCAPE_MAP[match.group(0)],
         # TODO: Handle '\' escape sequence.
         ASSERT.not_contains(arg, '\\'),
     )
 
 
 def clear_pod_app_exit_status(root_path):
-    clear_dir_content(get_pod_app_exit_status_dir_path(root_path))
+    _clear_dir_content(_get_pod_app_exit_status_dir_path(root_path))
 
 
 def get_pod_app_exit_status(root_path, app):
     """Return exit status and the time it was recorded."""
-    path = get_pod_app_exit_status_path(root_path, app)
+    path = _get_pod_app_exit_status_path(root_path, app)
     if path.is_file():
         return (
             int(path.read_text()),
@@ -369,13 +370,13 @@ def get_pod_app_exit_status(root_path, app):
         return None, None
 
 
-def clear_dir_content(dir_path):
+def _clear_dir_content(dir_path):
     LOG.info('clear directory content: %s', dir_path)
     for path in dir_path.iterdir():
         bases.delete_file(path)
 
 
-def move_dir_content(src_path, dst_path):
+def _move_dir_content(src_path, dst_path):
     LOG.info('move directory content: %s -> %s', src_path, dst_path)
     for path in src_path.iterdir():
         path.rename(dst_path / path.name)
@@ -386,7 +387,7 @@ def move_dir_content(src_path, dst_path):
 #
 
 # Keep these unit files of the base image.
-BASE_UNITS = frozenset((
+_BASE_UNITS = frozenset((
     'ctrl-alt-del.target',
     # D-Bus.  With it we may ``machinectl shell`` into containers, which
     # is probably bad for security, but is quite convenient.
@@ -410,7 +411,7 @@ BASE_UNITS = frozenset((
 
 
 @dataclasses.dataclass(frozen=True)
-class UnitFile:
+class _UnitFile:
     """Descriptor of systemd unit file of base image."""
 
     class Kinds(enum.Enum):
@@ -425,37 +426,37 @@ class UnitFile:
     @classmethod
     def make_dir(cls, relpath):
         return cls(
-            relpath=relpath, kind=UnitFile.Kinds.DIRECTORY, content=None
+            relpath=relpath, kind=_UnitFile.Kinds.DIRECTORY, content=None
         )
 
     @classmethod
     def make_file(cls, relpath, content):
-        return cls(relpath=relpath, kind=UnitFile.Kinds.FILE, content=content)
+        return cls(relpath=relpath, kind=_UnitFile.Kinds.FILE, content=content)
 
     @classmethod
     def make_symlink(cls, relpath, content):
         return cls(
-            relpath=relpath, kind=UnitFile.Kinds.SYMLINK, content=content
+            relpath=relpath, kind=_UnitFile.Kinds.SYMLINK, content=content
         )
 
 
-LOCALE = 'LANG="en_US.UTF-8"\n'
-RESOLV_CONF = 'nameserver 8.8.8.8\n'
+_LOCALE = 'LANG="en_US.UTF-8"\n'
+_RESOLV_CONF = 'nameserver 8.8.8.8\n'
 
 # Add these unit files to the base image.
-ETC_UNIT_FILES = (
+_ETC_UNIT_FILES = (
     # Apps should make pod.target "wants" them.
-    UnitFile.make_dir('pod.target.wants'),
+    _UnitFile.make_dir('pod.target.wants'),
 )
-LIB_UNIT_FILES = (
+_LIB_UNIT_FILES = (
     # NOTE: Unit files must not be empty, or else systemd will treat
     # them as masked.
     #
     # sysinit.target.
-    UnitFile.make_file('sysinit.target', '[Unit]\n'),
-    UnitFile.make_dir('sysinit.target.wants'),
+    _UnitFile.make_file('sysinit.target', '[Unit]\n'),
+    _UnitFile.make_dir('sysinit.target.wants'),
     *(
-        UnitFile.make_symlink(
+        _UnitFile.make_symlink(
             'sysinit.target.wants/' + unit_name,
             '../' + unit_name,
         ) for unit_name in (
@@ -467,10 +468,10 @@ LIB_UNIT_FILES = (
         )
     ),
     # sockets.target.
-    UnitFile.make_file('sockets.target', '[Unit]\n'),
-    UnitFile.make_dir('sockets.target.wants'),
+    _UnitFile.make_file('sockets.target', '[Unit]\n'),
+    _UnitFile.make_dir('sockets.target.wants'),
     *(
-        UnitFile.make_symlink(
+        _UnitFile.make_symlink(
             'sockets.target.wants/' + unit_name,
             '../' + unit_name,
         ) for unit_name in (
@@ -481,7 +482,7 @@ LIB_UNIT_FILES = (
         )
     ),
     # basic.target.
-    UnitFile.make_file(
+    _UnitFile.make_file(
         'basic.target', '''\
 [Unit]
 Requires=sysinit.target
@@ -490,16 +491,16 @@ After=sysinit.target sockets.target slices.target
 '''
     ),
     # pod.target.
-    UnitFile.make_file(
+    _UnitFile.make_file(
         'pod.target', '''\
 [Unit]
 Requires=basic.target
 After=basic.target
 '''
     ),
-    UnitFile.make_symlink('default.target', 'pod.target'),
+    _UnitFile.make_symlink('default.target', 'pod.target'),
     # shutdown.target.
-    UnitFile.make_file(
+    _UnitFile.make_file(
         'shutdown.target', '''\
 [Unit]
 DefaultDependencies=no
@@ -507,7 +508,7 @@ RefuseManualStart=yes
 '''
     ),
     # exit.target.
-    UnitFile.make_file(
+    _UnitFile.make_file(
         'exit.target', '''\
 [Unit]
 DefaultDependencies=no
@@ -516,7 +517,7 @@ After=systemd-exit.service
 AllowIsolate=yes
 '''
     ),
-    UnitFile.make_file(
+    _UnitFile.make_file(
         'systemd-exit.service', '''\
 [Unit]
 DefaultDependencies=no
@@ -528,12 +529,12 @@ Type=oneshot
 ExecStart=/bin/systemctl --force exit
 '''
     ),
-    UnitFile.make_symlink('halt.target', 'exit.target'),
-    UnitFile.make_symlink('poweroff.target', 'exit.target'),
-    UnitFile.make_symlink('reboot.target', 'exit.target'),
+    _UnitFile.make_symlink('halt.target', 'exit.target'),
+    _UnitFile.make_symlink('poweroff.target', 'exit.target'),
+    _UnitFile.make_symlink('reboot.target', 'exit.target'),
 )
 
-POD_EXIT = '''#!/usr/bin/env bash
+_POD_EXIT = '''#!/usr/bin/env bash
 
 set -o errexit -o nounset -o pipefail
 

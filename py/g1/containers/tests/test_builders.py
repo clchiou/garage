@@ -13,7 +13,7 @@ from tests import fixtures
 class BuildersTest(fixtures.TestCaseBase):
 
     def test_create_image_metadata(self):
-        builders.create_image_metadata(
+        builders._create_image_metadata(
             images.get_metadata_path(self.test_repo_path)
         )
         self.assertEqual(
@@ -36,7 +36,7 @@ class BuildersTest(fixtures.TestCaseBase):
         var_path.mkdir(parents=True)
         var_lib_path = self.test_repo_path / 'var/lib'
         var_lib_path.mkdir(parents=True)
-        for unit in builders.BASE_UNITS:
+        for unit in builders._BASE_UNITS:
             (lib_path / unit).touch()
         (etc_path / 'irrelevant-1').touch()
         (etc_path / 'irrelevant-2').mkdir()
@@ -51,20 +51,24 @@ class BuildersTest(fixtures.TestCaseBase):
 
         self.assertEqual(
             (self.test_repo_path / 'etc/resolv.conf').read_text(),
-            builders.RESOLV_CONF,
+            builders._RESOLV_CONF,
         )
 
         self.assertEqual(
             self.list_dir(etc_path),
             sorted(
-                set(Path(u.relpath).parts[0] for u in builders.ETC_UNIT_FILES)
+                set(
+                    Path(u.relpath).parts[0] for u in builders._ETC_UNIT_FILES
+                )
             ),
         )
         self.assertEqual(
             self.list_dir(lib_path),
             sorted(
-                set(Path(u.relpath).parts[0] for u in builders.LIB_UNIT_FILES)
-                | builders.BASE_UNITS
+                set(
+                    Path(u.relpath).parts[0] for u in builders._LIB_UNIT_FILES
+                )
+                | builders._BASE_UNITS
             ),
         )
 
@@ -113,7 +117,7 @@ class BuildersTest(fixtures.TestCaseBase):
 
     def test_quote_arg(self):
         self.assertEqual(
-            builders.quote_arg('\'hello$world%spam egg"'),
+            builders._quote_arg('\'hello$world%spam egg"'),
             '"\\\'hello$$world%%spam egg\\""',
         )
 
