@@ -78,6 +78,7 @@ def cmd_images(args):
 @argparses.include(pods.cmd_list)
 @argparses.include(pods.cmd_show)
 @argparses.include(pods.cmd_cat_config)
+@argparses.include(pods.cmd_generate_id)
 @argparses.include(pods.cmd_run)
 @argparses.include(pods.cmd_prepare)
 @argparses.include(pods.cmd_run_prepared)
@@ -106,6 +107,8 @@ def cmd_pods(args):
         formatter.output(sys.stdout)
     elif args.command == 'cat-config':
         pods.cmd_cat_config(args.id, sys.stdout.buffer)
+    elif args.command == 'generate-id':
+        pods.cmd_generate_id(sys.stdout)
     elif args.command == 'run':
         pods.cmd_run(
             pod_id=args.id or pods.generate_id(),

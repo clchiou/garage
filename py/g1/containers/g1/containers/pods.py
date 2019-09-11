@@ -33,6 +33,7 @@ __all__ = [
     'cmd_cat_config',
     'cmd_cleanup',
     'cmd_export_overlay',
+    'cmd_generate_id',
     'cmd_init',
     'cmd_list',
     'cmd_prepare',
@@ -276,6 +277,15 @@ def cmd_cat_config(pod_id, output):
         _get_config_path(_get_pod_dir_path(pod_id)), Path.is_file
     )
     output.write(config_path.read_bytes())
+
+
+@argparses.begin_parser(
+    'generate-id', **bases.make_help_kwargs('generate a random pod id')
+)
+@argparses.end
+def cmd_generate_id(output):
+    output.write(generate_id())
+    output.write('\n')
 
 
 @argparses.begin_parser('run', **bases.make_help_kwargs('run a pod'))
