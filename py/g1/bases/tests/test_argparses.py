@@ -15,6 +15,37 @@ class TestEnum(enum.Enum):
 
 class ArgparsesTest(unittest.TestCase):
 
+    def test_append_const_and_value_action(self):
+        parser = argparse.ArgumentParser()
+        parser.add_argument(
+            '--value',
+            action=argparses.AppendConstAndValueAction,
+            dest='target',
+            const='from-value',
+        )
+        parser.add_argument(
+            '--many',
+            action=argparses.AppendConstAndValueAction,
+            dest='target',
+            const='from-many',
+            nargs='*',
+        )
+        args = parser.parse_args(
+            '--value 1 '
+            '--many '
+            '--value 2 '
+            '--many 3 4'.split()
+        )
+        self.assertEqual(
+            args.target,
+            [
+                ('from-value', '1'),
+                ('from-many', []),
+                ('from-value', '2'),
+                ('from-many', ['3', '4']),
+            ],
+        )
+
     def test_store_bool_action(self):
         parser = argparse.ArgumentParser()
 

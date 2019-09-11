@@ -1,6 +1,7 @@
 """Extension of standard library's argparse."""
 
 __all__ = [
+    'AppendConstAndValueAction',
     'StoreBoolAction',
     'StoreEnumAction',
     'parse_timedelta',
@@ -29,6 +30,52 @@ import re
 import typing
 
 from .assertions import ASSERT
+
+
+class AppendConstAndValueAction(argparse.Action):
+
+    def __init__(
+        self,
+        option_strings,
+        dest,
+        *,
+        nargs=None,
+        const,
+        default=None,
+        type=None,  # pylint: disable=redefined-builtin
+        choices=None,
+        required=False,
+        help=None,  # pylint: disable=redefined-builtin
+        metavar=None,
+    ):
+        ASSERT.not_in(nargs, (0, '?'))
+        super().__init__(
+            option_strings=option_strings,
+            dest=dest,
+            nargs=nargs,
+            const=const,
+            default=default,
+            type=type,
+            choices=choices,
+            required=required,
+            help=help,
+            metavar=metavar,
+        )
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        items = _copy_items(getattr(namespace, self.dest, None))
+        items.append((self.const, values))
+        setattr(namespace, self.dest, items)
+
+
+def _copy_items(items):
+    if items is None:
+        return []
+    if type(items) is list:  # pylint: disable=unidiomatic-typecheck
+        return items[:]
+    # Import ``copy`` lazily.
+    import copy
+    return copy.copy(items)
 
 
 class StoreBoolAction(argparse.Action):
