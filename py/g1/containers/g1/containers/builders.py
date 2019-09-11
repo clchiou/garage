@@ -214,6 +214,17 @@ def cmd_setup_base_rootfs(image_rootfs_path, prune_stash_path):
 # Pod runtime.
 #
 
+_SERVICE_TYPES = frozenset((
+    'simple',
+    'exec',
+    'forking',
+    'oneshot',
+    'dbus',
+    'notify',
+    'idle',
+    None,
+))
+
 
 @dataclasses.dataclass(frozen=True)
 class App:
@@ -221,6 +232,7 @@ class App:
 
     name: str
     exec: typing.List[str]
+    type: typing.Optional[str] = None
     user: str = 'nobody'
     group: str = 'nogroup'
 
@@ -229,6 +241,7 @@ class App:
     def __post_init__(self):
         images.validate_name(self.name)
         ASSERT.not_empty(self.exec)
+        ASSERT.in_(self.type, _SERVICE_TYPES)
 
 
 def _get_pod_etc_path(root_path):
@@ -295,6 +308,7 @@ Conflicts=shutdown.target
 Before=pod.target shutdown.target
 
 [Service]
+{service_type}\
 Restart=no
 SyslogIdentifier={pod_name}/{app.name}@{pod_version}
 ExecStart={exec}
@@ -304,6 +318,9 @@ ExecStopPost=/usr/sbin/pod-exit "%n"
             exec=' '.join(map(_quote_arg, exec_start)),
             pod_name=pod_name,
             pod_version=pod_version,
+            service_type=(
+                'Type=%s\n' % app.type if app.type is not None else ''
+            ),
         )
     )
     ASSERT.not_predicate(
