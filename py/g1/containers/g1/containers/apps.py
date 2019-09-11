@@ -123,7 +123,7 @@ def cmd_pods(args):
     elif args.command == 'run-prepared':
         pods.cmd_run_prepared(pod_id=args.id, debug=get_debug())
     elif args.command == 'export-overlay':
-        pods.cmd_export_overlay(args.id, args.output, args.exclude or ())
+        pods.cmd_export_overlay(args.id, args.output, args.filter or ())
     elif args.command == 'remove':
         pods.cmd_remove(args.id)
     else:

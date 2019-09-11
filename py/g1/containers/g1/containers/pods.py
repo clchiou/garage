@@ -344,32 +344,43 @@ def cmd_run_prepared(pod_id, *, debug=False):
     'export-overlay', **bases.make_help_kwargs('export overlay files')
 )
 @argparses.argument(
-    '--exclude', action='append', help='add an overlay path filter'
+    '--include',
+    action=argparses.AppendConstAndValueAction,
+    dest='filter',
+    const='include',
+    help='add an overlay path filter'
+)
+@argparses.argument(
+    '--exclude',
+    action=argparses.AppendConstAndValueAction,
+    dest='filter',
+    const='exclude',
+    help='add an overlay path filter'
 )
 @_select_pod_arguments(positional=True)
 @argparses.argument('output', type=Path, help='provide output path')
 @argparses.end
-def cmd_export_overlay(pod_id, output_path, exclude_patterns):
+def cmd_export_overlay(pod_id, output_path, filter_patterns):
     bases.assert_root_privilege()
     ASSERT.not_predicate(output_path, bases.lexists)
     # Exclude pod-generated files.
     # TODO: Right now we hard-code the list, but this is fragile.
-    exclude_patterns = list(exclude_patterns)
-    exclude_patterns.extend([
-        '/etc/machine-id',
-        '/var/lib/dbus/machine-id',
-        '/etc/hostname',
-        '/etc/hosts',
-        '/etc/systemd',
-        '/etc/.pwd.lock',
-        '/etc/mtab',
-    ])
+    filter_args = [
+        '--exclude=/etc/machine-id',
+        '--exclude=/var/lib/dbus/machine-id',
+        '--exclude=/etc/hostname',
+        '--exclude=/etc/hosts',
+        '--exclude=/etc/systemd',
+        '--exclude=/etc/.pwd.lock',
+        '--exclude=/etc/mtab',
+    ]
+    filter_args.extend('--%s=%s' % pair for pair in filter_patterns)
     with bases.acquiring_exclusive(_get_active_path()):
         pod_dir_path = ASSERT.predicate(_get_pod_dir_path(pod_id), Path.is_dir)
         pod_dir_lock = ASSERT.true(bases.try_acquire_exclusive(pod_dir_path))
     try:
         upper_path = _get_upper_path(pod_dir_path)
-        bases.rsync_copy(upper_path, output_path, exclude_patterns)
+        bases.rsync_copy(upper_path, output_path, filter_args)
     finally:
         pod_dir_lock.release()
         pod_dir_lock.close()

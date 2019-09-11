@@ -209,7 +209,7 @@ def chown_root(path):
         shutil.chown(path, 'root', 'root')
 
 
-def rsync_copy(src_path, dst_path, exclude_patterns=()):
+def rsync_copy(src_path, dst_path, rsync_args=()):
     # We do NOT use ``shutil.copytree`` because shutil's file copy
     # functions in general do not preserve the file owner/group.
     LOG.info('copy: %s -> %s', src_path, dst_path)
@@ -217,7 +217,7 @@ def rsync_copy(src_path, dst_path, exclude_patterns=()):
         [
             'rsync',
             '--archive',
-            *('--exclude=%s' % pattern for pattern in exclude_patterns),
+            *rsync_args,
             '%s/' % src_path,
             str(dst_path),
         ],
