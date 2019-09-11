@@ -360,7 +360,9 @@ def cmd_export_overlay(pod_id, output_path, exclude_patterns):
         '/var/lib/dbus/machine-id',
         '/etc/hostname',
         '/etc/hosts',
-        '/etc/systemd/system',
+        '/etc/systemd',
+        '/etc/.pwd.lock',
+        '/etc/mtab',
     ])
     with bases.acquiring_exclusive(_get_active_path()):
         pod_dir_path = ASSERT.predicate(_get_pod_dir_path(pod_id), Path.is_dir)
