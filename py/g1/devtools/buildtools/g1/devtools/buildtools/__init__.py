@@ -1,4 +1,5 @@
 __all__ = [
+    'make_bdist_zipapp',
     'read_package_config',
     'register_subcommands',
 ]
@@ -6,6 +7,9 @@ __all__ = [
 import collections
 import shlex
 import subprocess
+
+# Re-export.
+from .zipapps import make_bdist_zipapp
 
 
 def register_subcommands(command, *subcommands):
