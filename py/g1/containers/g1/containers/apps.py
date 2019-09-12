@@ -47,7 +47,7 @@ def cmd_images(args):
             args.nv[0], args.nv[1], args.rootfs, args.output
         )
     elif args.command == 'import':
-        images.cmd_import(args.path)
+        images.cmd_import(args.path, tag=args.tag)
     elif args.command == 'list':
         formatter = formatters.Formatter(
             **bases.make_formatter_kwargs(args),

@@ -1,4 +1,5 @@
 import unittest
+import unittest.mock
 
 import datetime
 import shutil
@@ -46,6 +47,17 @@ class ImagesTest(fixtures.TestCaseBase):
     def list_tag_paths():
         return sorted(p.name for p in images._get_tags_path().iterdir())
 
+    @classmethod
+    def make_image_archive(cls, archive_basepath):
+        tmp_dir_path = archive_basepath.with_suffix('.tmp')
+        tmp_dir_path.mkdir()
+        bases.write_jsonobject(
+            cls.sample_metadata, images._get_metadata_path(tmp_dir_path)
+        )
+        images.get_rootfs_path(tmp_dir_path).mkdir()
+        shutil.make_archive(archive_basepath, 'gztar', tmp_dir_path)
+        return archive_basepath.with_suffix('.tar.gz')
+
     #
     # Top-level commands.
     #
@@ -62,31 +74,73 @@ class ImagesTest(fixtures.TestCaseBase):
         )
 
     def test_cmd_import(self):
-        path = images._get_image_repo_path() / 'archive'
-        path.mkdir()
-        bases.write_jsonobject(
-            self.sample_metadata, images._get_metadata_path(path)
+        self.do_test_cmd_import()
+
+    def test_cmd_import_then_tag(self):
+        self.do_test_cmd_import(tag='some-tag')
+
+    def do_test_cmd_import(self, *, tag=None):
+        if tag:
+            expect_tags = [tag]
+            another_tag = tag + '-2'
+        else:
+            expect_tags = []
+            another_tag = None
+
+        archive_path = self.make_image_archive(
+            images._get_image_repo_path() / 'archive'
         )
-        images.get_rootfs_path(path).mkdir()
-        shutil.make_archive(path, 'gztar', path)
 
         self.assertEqual(self.list_image_dir_paths(), [])
         self.assertEqual(self.list_tag_paths(), [])
 
-        images.cmd_import(path.with_suffix('.tar.gz'))
+        images.cmd_import(archive_path, tag=tag)
         image_ids_1 = self.list_image_dir_paths()
         self.assertEqual(len(image_ids_1), 1)
-        self.assertEqual(self.list_tag_paths(), [])
+        self.assertEqual(self.list_tag_paths(), expect_tags)
 
-        images.cmd_import(path.with_suffix('.tar.gz'))
+        images.cmd_import(archive_path, tag=another_tag)
         image_ids_2 = self.list_image_dir_paths()
         self.assertEqual(image_ids_1, image_ids_2)
-        self.assertEqual(self.list_tag_paths(), [])
+        self.assertEqual(self.list_tag_paths(), expect_tags)
 
         self.assertEqual(
             images._read_metadata(images.get_image_dir_path(image_ids_1[0])),
             self.sample_metadata,
         )
+
+    @unittest.mock.patch(images.__name__ + '._tag_image')
+    def test_cmd_import_then_tag_then_revert(self, tag_image_mock):
+        tag_image_mock.side_effect = RuntimeError('some error')
+        archive_path = self.make_image_archive(
+            images._get_image_repo_path() / 'archive'
+        )
+        self.assertEqual(self.list_image_dir_paths(), [])
+        self.assertEqual(self.list_tag_paths(), [])
+        with self.assertRaisesRegex(RuntimeError, r'some error'):
+            images.cmd_import(archive_path, tag='some-tag')
+        self.assertEqual(self.list_image_dir_paths(), [])
+        self.assertEqual(self.list_tag_paths(), [])
+
+    @unittest.mock.patch.multiple(
+        images.__name__,
+        _tag_image=unittest.mock.DEFAULT,
+        _maybe_remove_image_dir=unittest.mock.DEFAULT,
+    )
+    def test_cmd_import_then_tag_then_revert_failed(
+        self, _tag_image, _maybe_remove_image_dir
+    ):
+        _tag_image.side_effect = RuntimeError('some error')
+        _maybe_remove_image_dir.return_value = False
+        archive_path = self.make_image_archive(
+            images._get_image_repo_path() / 'archive'
+        )
+        self.assertEqual(self.list_image_dir_paths(), [])
+        self.assertEqual(self.list_tag_paths(), [])
+        with self.assertRaisesRegex(RuntimeError, r'some error'):
+            images.cmd_import(archive_path, tag='some-tag')
+        self.assertEqual(len(self.list_image_dir_paths()), 1)
+        self.assertEqual(self.list_tag_paths(), [])
 
     def test_cmd_list(self):
 

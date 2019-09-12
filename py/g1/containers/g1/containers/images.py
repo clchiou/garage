@@ -210,11 +210,12 @@ def cmd_build_image(name, version, rootfs_path, output_path):
 @argparses.begin_parser(
     'import', **bases.make_help_kwargs('import an image archive')
 )
+@argparses.argument('--tag', type=validate_tag, help='provide new image tag')
 @argparses.argument(
     'path', type=Path, help='import image archive from this path'
 )
 @argparses.end
-def cmd_import(image_archive_path):
+def cmd_import(image_archive_path, *, tag=None):
     """Import an image archive into the repo.
 
     This is a no-op if the image has been imported (i.e., an image in
@@ -233,8 +234,23 @@ def cmd_import(image_archive_path):
         # updated time is set to now; or else it could be cleaned up
         # right after import.
         _touch_image_dir(tmp_path)
-        with bases.acquiring_exclusive(get_trees_path()):
-            _maybe_import_image_dir(tmp_path, image_id)
+        with contextlib.ExitStack() as stack:
+            if tag:
+                stack.enter_context(
+                    bases.acquiring_exclusive(_get_tags_path())
+                )
+            stack.enter_context(bases.acquiring_exclusive(get_trees_path()))
+            if not _maybe_import_image_dir(tmp_path, image_id):
+                return
+            if tag:
+                image_dir_path = get_image_dir_path(image_id)
+                try:
+                    _tag_image(tag, image_dir_path)
+                except:
+                    LOG.error('cannot tag image; revert import')
+                    if not _maybe_remove_image_dir(image_dir_path):
+                        LOG.error('cannot revert import')
+                    raise
 
 
 _IMAGE_LIST_COLUMNS = frozenset((
@@ -292,10 +308,7 @@ def cmd_tag(*, image_id=None, name=None, version=None, tag=None, new_tag):
             image_dir_path = ASSERT.not_none(
                 _find_image_dir_path(image_id, name, version, tag)
             )
-        tag_path = _get_tag_path(new_tag)
-        if bases.lexists(tag_path):
-            tag_path.unlink()
-        tag_path.symlink_to(_get_tag_target(image_dir_path))
+        _tag_image(new_tag, image_dir_path)
 
 
 @argparses.begin_parser(
@@ -707,3 +720,10 @@ def _find_tag_paths(image_dir_path):
             LOG.debug('encounter unknown file under tags: %s', tag_path)
         elif tag_path.resolve().name == image_dir_path.name:
             yield tag_path
+
+
+def _tag_image(tag, image_dir_path):
+    tag_path = _get_tag_path(tag)
+    if bases.lexists(tag_path):
+        tag_path.unlink()
+    tag_path.symlink_to(_get_tag_target(image_dir_path))
