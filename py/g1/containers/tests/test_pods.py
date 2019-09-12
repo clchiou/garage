@@ -69,6 +69,7 @@ class PodsTest(fixtures.TestCaseBase):
         pod_dir_path = pods._get_pod_dir_path(pod_id)
         pod_dir_path.mkdir()
         pods._setup_pod_dir_barely(pod_dir_path, config)
+        pods._pod_dir_create_config(pod_dir_path, config)
 
     @staticmethod
     def list_pod_dir_paths():
@@ -352,6 +353,10 @@ class PodsTest(fixtures.TestCaseBase):
                 pods._get_active_path() / self.sample_pod_id / 'config',
             ),
             (
+                pods._get_orig_config_path(self.sample_pod_dir_path),
+                pods._get_active_path() / self.sample_pod_id / 'config.orig',
+            ),
+            (
                 pods._get_deps_path(self.sample_pod_dir_path),
                 pods._get_active_path() / self.sample_pod_id / 'deps',
             ),
@@ -465,9 +470,14 @@ class PodsTest(fixtures.TestCaseBase):
             )
 
     def test_setup_pod_dir_barely(self):
-        self.create_pod_dir(self.sample_pod_id, self.sample_config)
-        self.assertTrue(
+        pod_dir_path = pods._get_pod_dir_path(self.sample_pod_id)
+        pod_dir_path.mkdir()
+        pods._setup_pod_dir_barely(pod_dir_path, self.sample_config)
+        self.assertFalse(
             pods._get_config_path(self.sample_pod_dir_path).is_file()
+        )
+        self.assertTrue(
+            pods._get_orig_config_path(self.sample_pod_dir_path).is_file()
         )
         self.assertTrue(pods._get_deps_path(self.sample_pod_dir_path).is_dir())
         self.assertTrue(pods._get_work_path(self.sample_pod_dir_path).is_dir())
@@ -479,7 +489,7 @@ class PodsTest(fixtures.TestCaseBase):
         )
         self.assertEqual(
             sorted(p.name for p in self.sample_pod_dir_path.iterdir()),
-            ['config', 'deps', 'rootfs', 'upper', 'work'],
+            ['config.orig', 'deps', 'rootfs', 'upper', 'work'],
         )
 
     def test_remove_pod_dir(self):
@@ -584,6 +594,17 @@ class PodsTest(fixtures.TestCaseBase):
             pods._read_config(self.test_repo_path),
             self.sample_config,
         )
+        self.assertFalse((self.test_repo_path / 'config.orig').exists())
+
+    def test_write_orig_config(self):
+        self.assertFalse((self.test_repo_path / 'config.orig').exists())
+        pods._write_orig_config(self.sample_config, self.test_repo_path)
+        self.assertTrue((self.test_repo_path / 'config.orig').exists())
+        self.assertEqual(
+            pods._read_orig_config(self.test_repo_path),
+            self.sample_config,
+        )
+        self.assertFalse((self.test_repo_path / 'config').exists())
 
     def test_iter_image_ids(self):
 
@@ -660,18 +681,18 @@ class PodsTest(fixtures.TestCaseBase):
             images._get_ref_count(images.get_image_dir_path(image_id_2)), 1
         )
 
-        pods._add_ref_image_ids(
-            self.sample_pod_dir_path,
-            pods.PodConfig(
-                name='test-pod',
-                version='0.0.1',
-                apps=self.sample_config.apps,
-                images=[
-                    pods.PodConfig.Image(id=image_id_1),
-                    pods.PodConfig.Image(id=image_id_2),
-                ],
-            ),
+        config = pods.PodConfig(
+            name='test-pod',
+            version='0.0.1',
+            apps=self.sample_config.apps,
+            images=[
+                pods.PodConfig.Image(id=image_id_1),
+                pods.PodConfig.Image(id=image_id_2),
+            ],
         )
+
+        new_config = pods._add_ref_image_ids(self.sample_pod_dir_path, config)
+        self.assertEqual(config, new_config)
         self.assertEqual(list_image_ids(), [image_id_1, image_id_2])
         self.assertEqual(
             images._get_ref_count(images.get_image_dir_path(image_id_1)), 2

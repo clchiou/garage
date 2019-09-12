@@ -274,7 +274,7 @@ def cmd_show(pod_id):
 @argparses.end
 def cmd_cat_config(pod_id, output):
     config_path = ASSERT.predicate(
-        _get_config_path(_get_pod_dir_path(pod_id)), Path.is_file
+        _get_orig_config_path(_get_pod_dir_path(pod_id)), Path.is_file
     )
     output.write(config_path.read_bytes())
 
@@ -537,6 +537,10 @@ def _get_config_path(pod_dir_path):
     return pod_dir_path / _CONFIG
 
 
+def _get_orig_config_path(pod_dir_path):
+    return _get_config_path(pod_dir_path).with_suffix('.orig')
+
+
 def _get_deps_path(pod_dir_path):
     return pod_dir_path / _DEPS
 
@@ -622,7 +626,7 @@ def _move_pod_dir_to_graveyard(dir_path):
 def _prepare_pod_dir(pod_dir_path, pod_id, config):
     LOG.info('prepare pod: %s', pod_id)
     _setup_pod_dir_barely(pod_dir_path, config)
-    _add_ref_image_ids(pod_dir_path, config)
+    config = _add_ref_image_ids(pod_dir_path, config)
     _mount_overlay(pod_dir_path, config)
     rootfs_path = _get_rootfs_path(pod_dir_path)
     builders.generate_machine_id(rootfs_path, _pod_id_to_machine_id(pod_id))
@@ -631,16 +635,8 @@ def _prepare_pod_dir(pod_dir_path, pod_id, config):
 
 
 def _setup_pod_dir_barely(pod_dir_path, config):
-    _write_config(config, pod_dir_path)
-    for path in (
-        _get_deps_path(pod_dir_path),
-        _get_work_path(pod_dir_path),
-        _get_upper_path(pod_dir_path),
-        _get_rootfs_path(pod_dir_path),
-    ):
-        path.mkdir()
+    _pod_dir_create_orig_config(pod_dir_path, config)
     for path, mode, chown in (
-        (_get_config_path(pod_dir_path), 0o640, bases.chown_app),
         (_get_deps_path(pod_dir_path), 0o750, bases.chown_app),
         # Trivia: After overlay is mounted, root directory's mode is
         # actaully the same as upper's.
@@ -648,8 +644,23 @@ def _setup_pod_dir_barely(pod_dir_path, config):
         (_get_upper_path(pod_dir_path), 0o755, bases.chown_root),
         (_get_rootfs_path(pod_dir_path), 0o755, bases.chown_root),
     ):
+        path.mkdir()
         path.chmod(mode)
         chown(path)
+
+
+def _pod_dir_create_config(pod_dir_path, config):
+    _write_config(config, pod_dir_path)
+    config_path = _get_config_path(pod_dir_path)
+    config_path.chmod(0o640)
+    bases.chown_app(config_path)
+
+
+def _pod_dir_create_orig_config(pod_dir_path, config):
+    _write_orig_config(config, pod_dir_path)
+    orig_config_path = _get_orig_config_path(pod_dir_path)
+    orig_config_path.chmod(0o640)
+    bases.chown_app(orig_config_path)
 
 
 def _remove_pod_dir(pod_dir_path):
@@ -804,8 +815,18 @@ def _read_config(pod_dir_path):
     return bases.read_jsonobject(PodConfig, _get_config_path(pod_dir_path))
 
 
+def _read_orig_config(pod_dir_path):
+    return bases.read_jsonobject(
+        PodConfig, _get_orig_config_path(pod_dir_path)
+    )
+
+
 def _write_config(config, pod_dir_path):
     bases.write_jsonobject(config, _get_config_path(pod_dir_path))
+
+
+def _write_orig_config(config, pod_dir_path):
+    bases.write_jsonobject(config, _get_orig_config_path(pod_dir_path))
 
 
 def _iter_image_ids(config):
@@ -837,8 +858,15 @@ def _iter_image_ids(config):
 def _add_ref_image_ids(pod_dir_path, config):
     deps_path = _get_deps_path(pod_dir_path)
     with bases.acquiring_shared(images.get_trees_path()):
+        # Replace pod config with resolved image IDs because tags may
+        # change over time.
+        new_images = []
         for image_id in _iter_image_ids(config):
             images.add_ref(image_id, deps_path / image_id)
+            new_images.append(PodConfig.Image(id=image_id))
+        new_config = dataclasses.replace(config, images=new_images)
+    _pod_dir_create_config(pod_dir_path, new_config)
+    return new_config
 
 
 def _iter_ref_image_ids(pod_dir_path):
