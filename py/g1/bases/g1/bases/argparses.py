@@ -23,11 +23,9 @@ __all__ = [
 
 import argparse
 import builtins
-import dataclasses
 import datetime
 import enum
 import re
-import typing
 
 from .assertions import ASSERT
 
@@ -183,40 +181,42 @@ def parse_timedelta(timedelta_str):
 #
 
 
-class Kinds(enum.Enum):
-
-    INCLUDE = enum.auto()
-
-    ARGUMENT_PARSER = enum.auto()
-
-    BEGIN_SUBPARSERS = enum.auto()
-    BEGIN_PARSER = enum.auto()
-
-    BEGIN_ARGUMENT_GROUP = enum.auto()
-
-    BEGIN_MUTUALLY_EXCLUSIVE_GROUP = enum.auto()
-
-    ARGUMENT = enum.auto()
-    BEGIN_ARGUMENT = enum.auto()
-
+class _Ops(enum.Enum):
+    # PUSH m ( n -- n m )
+    PUSH = enum.auto()
+    # DUP ( n -- n n )
+    DUP = enum.auto()
+    # DROP ( n -- )
+    DROP = enum.auto()
+    # APPLY f n ( a1 a2 ... an -- f(a1, a2, ..., an) )
     APPLY = enum.auto()
+    # CALL args kwargs ( f -- f(*args, **kwargs) )
+    CALL = enum.auto()
 
-    END = enum.auto()
+
+def _execute(stack, instructions):
+    """Execute instructions of a simple stack machine.
+
+    Each instruction is either (opcode, operands...) or (target, ).
+    """
+    for instruction in instructions:
+        _execute_one(stack, instruction)
 
 
-@dataclasses.dataclass(frozen=True)
-class Instruction:
-
-    kind: Kinds
-    func: typing.Callable[..., None] = None
-    args: typing.Tuple[typing.Any, ...] = None
-    kwargs: typing.Dict[str, typing.Any] = None
-
-    def apply(self, func):
-        return func(
-            *ASSERT.not_none(self.args),
-            **ASSERT.not_none(self.kwargs),
-        )
+def _execute_one(stack, instruction):
+    if instruction[0] is _Ops.PUSH:
+        stack.append(instruction[1])
+    elif instruction[0] is _Ops.DUP:
+        stack.append(stack[-1])
+    elif instruction[0] is _Ops.DROP:
+        stack.pop()
+    elif instruction[0] is _Ops.APPLY:
+        arity = ASSERT.less_or_equal(instruction[2], len(stack))
+        stack[-arity:] = [instruction[1](*stack[-arity:])]
+    elif instruction[0] is _Ops.CALL:
+        stack[-1] = stack[-1](*instruction[1], **instruction[2])
+    else:
+        _execute(stack, _get_instructions(instruction[0]))
 
 
 # Where instructions are stashed in a function.
@@ -227,20 +227,24 @@ def _get_instructions(target):
     return target.__dict__.setdefault(_INSTRUCTIONS, [])
 
 
-def _add_instruction(target, instruction):
+def _add_instructions(target, *more_instructions):
     # Prepend because decorators are applied from inside out.
-    _get_instructions(target).insert(0, instruction)
+    _get_instructions(target)[0:0] = more_instructions
     return target
 
 
-def _make_simple_decorator_function(kind):
-    """Make a decorator function from the given kind."""
+def _make_method_call(method_name, *, keep_result=True):
 
     def make_decorator(*args, **kwargs):
 
         def decorator(target):
-            return _add_instruction(
-                target, Instruction(kind=kind, args=args, kwargs=kwargs)
+            return _add_instructions(
+                target,
+                (_Ops.DUP, ),
+                (_Ops.PUSH, method_name),
+                (_Ops.APPLY, getattr, 2),
+                (_Ops.CALL, args, kwargs),
+                *([] if keep_result else [(_Ops.DROP, )]),
             )
 
         return decorator
@@ -248,124 +252,70 @@ def _make_simple_decorator_function(kind):
     return make_decorator
 
 
-def include(subtarget):
+def include(include_target):
 
     def decorator(target):
-        return _add_instruction(
-            target, Instruction(kind=Kinds.INCLUDE, func=subtarget)
+        return _add_instructions(target, (include_target, ))
+
+    return decorator
+
+
+def argument_parser(*args, **kwargs):
+
+    def decorator(target):
+        return _add_instructions(
+            target,
+            (_Ops.PUSH, argparse.ArgumentParser),
+            (_Ops.CALL, args, kwargs),
         )
 
     return decorator
 
 
-argument_parser = _make_simple_decorator_function(Kinds.ARGUMENT_PARSER)
-
-begin_subparsers = _make_simple_decorator_function(Kinds.BEGIN_SUBPARSERS)
-begin_parser = _make_simple_decorator_function(Kinds.BEGIN_PARSER)
+begin_subparsers = _make_method_call('add_subparsers')
+begin_parser = _make_method_call('add_parser')
 
 
 def begin_subparsers_for_subcmds(**kwargs):
-
-    #
     # NOTE: We need to explicitly set `required` to true due to [1].
     # This bug was fixed but then reverted in Python 3.7 [2].
-    #
     # [1] http://bugs.python.org/issue9253
     # [2] https://bugs.python.org/issue26510
-    #
     kwargs.setdefault('required', True)
-
-    def decorator(target):
-        return _add_instruction(
-            target,
-            Instruction(kind=Kinds.BEGIN_SUBPARSERS, args=(), kwargs=kwargs),
-        )
-
-    return decorator
+    return begin_subparsers(**kwargs)
 
 
-begin_argument_group = _make_simple_decorator_function(
-    Kinds.BEGIN_ARGUMENT_GROUP
+begin_argument_group = _make_method_call('add_argument_group')
+
+begin_mutually_exclusive_group = _make_method_call(
+    'add_mutually_exclusive_group'
 )
 
-begin_mutually_exclusive_group = _make_simple_decorator_function(
-    Kinds.BEGIN_MUTUALLY_EXCLUSIVE_GROUP
-)
-
-argument = _make_simple_decorator_function(Kinds.ARGUMENT)
-begin_argument = _make_simple_decorator_function(Kinds.BEGIN_ARGUMENT)
+argument = _make_method_call('add_argument', keep_result=False)
+begin_argument = _make_method_call('add_argument')
 
 
 def apply(func):
 
     def decorator(target):
-        return _add_instruction(
-            target, Instruction(kind=Kinds.APPLY, func=func)
+        return _add_instructions(
+            target,
+            (_Ops.DUP, ),
+            (_Ops.APPLY, func, 1),
+            (_Ops.DROP, ),
         )
 
     return decorator
 
 
 def end(target):
-    return _add_instruction(target, Instruction(kind=Kinds.END))
+    return _add_instructions(target, (_Ops.DROP, ))
 
 
 def make_argument_parser(target, *, parser=None):
-    """Evaluate instructions and return an argument parser."""
-
-    def execute(instructions):
-        for instruction in instructions:
-            execute_one(instruction)
-
-    def execute_one(instruction):
-        if instruction.kind is Kinds.INCLUDE:
-            execute(_get_instructions(instruction.func))
-
-        elif instruction.kind is Kinds.ARGUMENT_PARSER:
-            push(instruction.apply(argparse.ArgumentParser))
-
-        elif instruction.kind is Kinds.BEGIN_SUBPARSERS:
-            push(instruction.apply(tos().add_subparsers))
-        elif instruction.kind is Kinds.BEGIN_PARSER:
-            push(instruction.apply(tos().add_parser))
-
-        elif instruction.kind is Kinds.BEGIN_ARGUMENT_GROUP:
-            push(instruction.apply(tos().add_argument_group))
-
-        elif instruction.kind is Kinds.BEGIN_MUTUALLY_EXCLUSIVE_GROUP:
-            push(instruction.apply(tos().add_mutually_exclusive_group))
-
-        elif instruction.kind is Kinds.ARGUMENT:
-            instruction.apply(tos().add_argument)
-        elif instruction.kind is Kinds.BEGIN_ARGUMENT:
-            push(instruction.apply(tos().add_argument))
-
-        elif instruction.kind is Kinds.APPLY:
-            instruction.func(tos())
-
-        elif instruction.kind is Kinds.END:
-            pop()
-
-        else:
-            ASSERT.unreachable('unknown instruction kind: {}', instruction)
-
     stack = []
-    push = stack.append
-    pop = lambda: ASSERT.not_empty(stack).pop()
-    tos = lambda: ASSERT.not_empty(stack)[-1]
-
-    instructions = _get_instructions(target)
-
     if parser:
-        push(parser)
-    else:
-        ASSERT(
-            instructions and instructions[0].kind is Kinds.ARGUMENT_PARSER,
-            'expect Kinds.ARGUMENT_PARSER at first: {}',
-            instructions,
-        )
-
-    execute(instructions)
-
+        stack.append(parser)
+    _execute(stack, _get_instructions(target))
     ASSERT(len(stack) == 1, 'expect exactly one left: {}, {}', target, stack)
-    return pop()
+    return stack[0]

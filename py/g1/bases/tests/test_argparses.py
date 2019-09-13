@@ -202,7 +202,7 @@ class ArgparsesTest(unittest.TestCase):
             pass
 
         with self.assertRaisesRegex(
-            AssertionError, r'expect Kinds.ARGUMENT_PARSER at first:'
+            AssertionError, r'expect exactly one left:'
         ):
             argparses.make_argument_parser(main)
 
@@ -233,10 +233,10 @@ class ArgparsesTest(unittest.TestCase):
         @argparses.argument_parser()
         @argparses.argument('x')
         @argparses.argument('y')
-        def main_1():
+        def main():
             pass
 
-        parser = argparses.make_argument_parser(main_1)
+        parser = argparses.make_argument_parser(main)
         self.assertEqual(
             vars(parser.parse_args(['1', '2'])),
             {
@@ -245,15 +245,17 @@ class ArgparsesTest(unittest.TestCase):
             },
         )
 
+    def test_apply(self):
+
         @argparses.argument_parser()
         @argparses.argument('x')
         @argparses.begin_argument('y')
         @argparses.apply(lambda action: setattr(action, 'dest', 'z'))
         @argparses.end
-        def main_2():
+        def main():
             pass
 
-        parser = argparses.make_argument_parser(main_2)
+        parser = argparses.make_argument_parser(main)
         self.assertEqual(
             vars(parser.parse_args(['1', '2'])),
             {
