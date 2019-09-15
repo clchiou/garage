@@ -198,10 +198,9 @@ class Kernel:
                     key=timers.timeout_to_key,
                 )
                 for fd, events in self._poller.poll(poll_timeout):
-                    if self._nudger.is_nudged(fd, events):
+                    if self._nudger.is_nudged(fd):
                         self._nudger.ack()
                     else:
-                        self._poller.unregister(fd, events)
                         if events & self._poller.READ:
                             self._trap_return(self._read_blocker, fd, events)
                         if events & self._poller.WRITE:
@@ -275,7 +274,8 @@ class Kernel:
         # A task may either read or write a file, but never both at the
         # same time (at least I can't think of a use case of that).
         ASSERT.in_(trap.events, (self._poller.READ, self._poller.WRITE))
-        self._poller.register(trap.fd, trap.events)
+        # Use edge-trigger on all file descriptors (except nudger).
+        self._poller.register(trap.fd, trap.events | self._poller.EDGE_TRIGGER)
         if trap.events == self._poller.READ:
             self._read_blocker.block(trap.fd, task)
         else:
@@ -391,14 +391,11 @@ class Kernel:
 
         self._to_raise[task] = exc
 
-        for blocker, events in (
-            (self._read_blocker, self._poller.READ),
-            (self._write_blocker, self._poller.WRITE),
-        ):
+        for blocker in (self._read_blocker, self._write_blocker):
             fd = blocker.cancel(task)
             if fd is not None:
-                if blocker.get_num_blocked_on(fd) == 0:
-                    self._poller.unregister(fd, events)
+                # We do not have to unregister fd here because we are
+                # using edge-trigger.
                 self._ready_tasks.append(TaskReady(task, None, None))
                 return
 
@@ -426,7 +423,7 @@ class Nudger:
         os.set_blocking(self._w, False)
 
     def register_to(self, poller):
-        poller.register(self._r, pollers.Epoll.READ)
+        poller.register(self._r, poller.READ)
 
     def nudge(self):
         try:
@@ -434,7 +431,7 @@ class Nudger:
         except BlockingIOError:
             pass
 
-    def is_nudged(self, fd, _):
+    def is_nudged(self, fd):
         return self._r == fd
 
     def ack(self):

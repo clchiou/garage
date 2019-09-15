@@ -69,6 +69,10 @@ class TaskCompletionBlockerTest(unittest.TestCase):
 
     def test_blocker(self):
 
+        def get_num_blocked_on(source):
+            """Return number of tasks blocked on the source."""
+            return len(self.b._source_to_tasks.get(source, ()))
+
         num_tasks = 0
         self.assert_blocker(num_tasks)
 
@@ -76,19 +80,19 @@ class TaskCompletionBlockerTest(unittest.TestCase):
             self.b.block(self.t1, self.t1)
         self.assert_blocker(num_tasks)
 
-        self.assertEqual(self.b.get_num_blocked_on(self.t1), 0)
+        self.assertEqual(get_num_blocked_on(self.t1), 0)
         for task in (self.t2, self.t3):
             self.b.block(self.t1, task)
             num_tasks += 1
             self.assert_blocker(num_tasks)
-        self.assertEqual(self.b.get_num_blocked_on(self.t1), 2)
+        self.assertEqual(get_num_blocked_on(self.t1), 2)
 
-        self.assertEqual(self.b.get_num_blocked_on(self.t2), 0)
+        self.assertEqual(get_num_blocked_on(self.t2), 0)
         for task in (self.t4, self.t5):
             self.b.block(self.t2, task)
             num_tasks += 1
             self.assert_blocker(num_tasks)
-        self.assertEqual(self.b.get_num_blocked_on(self.t2), 2)
+        self.assertEqual(get_num_blocked_on(self.t2), 2)
 
         self.assertEqual(self.b.unblock(self.t3), ())
         self.assert_blocker(num_tasks)

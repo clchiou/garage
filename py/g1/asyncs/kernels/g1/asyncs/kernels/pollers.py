@@ -23,6 +23,7 @@ class Epoll:
 
     READ = select.EPOLLIN
     WRITE = select.EPOLLOUT
+    EDGE_TRIGGER = select.EPOLLET
 
     def __init__(self):
         self._epoll = select.epoll()
@@ -50,22 +51,13 @@ class Epoll:
     def register(self, fd, events):
         ASSERT.false(self._epoll.closed)
         if fd in self._events:
+            previous_events = self._events[fd]
             self._events[fd] |= events
-            self._epoll.modify(fd, self._events[fd])
+            if previous_events != self._events[fd]:
+                self._epoll.modify(fd, self._events[fd])
         else:
             self._events[fd] = events
             self._epoll.register(fd, self._events[fd])
-
-    def unregister(self, fd, events):
-        ASSERT.false(self._epoll.closed)
-        if fd not in self._events:
-            return
-        self._events[fd] &= ~events
-        if self._events[fd]:
-            self._epoll.modify(fd, self._events[fd])
-        else:
-            self._epoll.unregister(fd)
-            self._events.pop(fd)
 
     def close_fd(self, fd):
         """Inform the poller that a file descriptor is closed.

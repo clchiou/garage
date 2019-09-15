@@ -136,9 +136,6 @@ class EpollTest(unittest.TestCase):
         with self.assertRaisesRegex(AssertionError, r'expect non-empty'):
             epoll.poll(-1)
 
-        epoll.unregister(r, epoll.READ)
-        epoll.unregister(w, epoll.WRITE)
-
     def test_socket_rw(self):
         epoll = pollers.Epoll()
         s0, s1 = socket.socketpair()
@@ -162,14 +159,7 @@ class EpollTest(unittest.TestCase):
         )
         self.assertEqual(epoll._events, {r: epoll.READ | epoll.WRITE})
 
-        epoll.unregister(r, epoll.READ)
-        self.assertEqual(
-            set(epoll.poll(-1)),
-            {(r, select.EPOLLOUT)},
-        )
-        self.assertEqual(epoll._events, {r: epoll.WRITE})
-
-        epoll.unregister(r, epoll.WRITE)
+        epoll.close_fd(r)
         self.assertEqual(epoll._events, {})
 
         s0.close()

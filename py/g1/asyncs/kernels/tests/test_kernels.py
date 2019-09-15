@@ -314,7 +314,10 @@ class KernelTest(unittest.TestCase):
         self.k.run()
         self.assert_stats(num_ticks=2, num_tasks=0)
 
-        self.assertEqual(set(self.k._poller._events), set([n]))
+        self.assertEqual(
+            set(self.k._poller._events),
+            set([n, self.r.fileno()]),
+        )
 
         with self.assertRaises(errors.Cancelled):
             task.get_result_nonblocking()
@@ -340,6 +343,9 @@ class KernelTest(unittest.TestCase):
 
     def test_poll_read_and_write(self):
 
+        r_events = pollers.Epoll.READ | pollers.Epoll.EDGE_TRIGGER
+        rw_events = r_events | pollers.Epoll.WRITE
+
         n = self.k._nudger._r
         r = self.r.fileno()
 
@@ -353,7 +359,7 @@ class KernelTest(unittest.TestCase):
             self.k._poller._events,
             {
                 n: pollers.Epoll.READ,
-                r: pollers.Epoll.READ,
+                r: r_events,
             },
         )
 
@@ -365,7 +371,7 @@ class KernelTest(unittest.TestCase):
             self.k._poller._events,
             {
                 n: pollers.Epoll.READ,
-                r: pollers.Epoll.READ | pollers.Epoll.WRITE,
+                r: rw_events,
             },
         )
 
@@ -377,7 +383,7 @@ class KernelTest(unittest.TestCase):
             self.k._poller._events,
             {
                 n: pollers.Epoll.READ,
-                r: pollers.Epoll.READ | pollers.Epoll.WRITE,
+                r: rw_events,
             },
         )
 
@@ -389,7 +395,7 @@ class KernelTest(unittest.TestCase):
             self.k._poller._events,
             {
                 n: pollers.Epoll.READ,
-                r: pollers.Epoll.READ | pollers.Epoll.WRITE,
+                r: rw_events,
             },
         )
 
@@ -401,7 +407,7 @@ class KernelTest(unittest.TestCase):
             self.k._poller._events,
             {
                 n: pollers.Epoll.READ,
-                r: pollers.Epoll.READ,
+                r: rw_events,
             },
         )
 
@@ -413,6 +419,7 @@ class KernelTest(unittest.TestCase):
             self.k._poller._events,
             {
                 n: pollers.Epoll.READ,
+                r: rw_events,
             },
         )
 
