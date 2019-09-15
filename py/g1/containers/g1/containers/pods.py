@@ -177,15 +177,10 @@ def _stringify_last_updated(last_updated):
 def cmd_init():
     """Initialize the pod repository."""
     bases.assert_root_privilege()
-    for path, mode, chown in (
-        (_get_pod_repo_path(), 0o750, bases.chown_app),
-        (_get_active_path(), 0o750, bases.chown_app),
-        (_get_graveyard_path(), 0o750, bases.chown_app),
-        (_get_tmp_path(), 0o750, bases.chown_app),
-    ):
-        LOG.info('create directory: %s', path)
-        path.mkdir(mode=mode, parents=False, exist_ok=True)
-        chown(path)
+    bases.make_dir(_get_pod_repo_path(), 0o750, bases.chown_app)
+    bases.make_dir(_get_active_path(), 0o750, bases.chown_app)
+    bases.make_dir(_get_graveyard_path(), 0o750, bases.chown_app)
+    bases.make_dir(_get_tmp_path(), 0o750, bases.chown_app)
 
 
 _POD_LIST_COLUMNS = frozenset((
@@ -463,8 +458,7 @@ def _create_tmp_pod_dir():
     with bases.acquiring_exclusive(tmp_dir_path):
         tmp_path = Path(tempfile.mkdtemp(dir=tmp_dir_path))
         try:
-            tmp_path.chmod(mode=0o750)
-            bases.chown_app(tmp_path)
+            bases.setup_file(tmp_path, 0o750, bases.chown_app)
             _lock_pod_dir_for_exec(tmp_path)
         except:
             tmp_path.rmdir()
@@ -636,31 +630,24 @@ def _prepare_pod_dir(pod_dir_path, pod_id, config):
 
 def _setup_pod_dir_barely(pod_dir_path, config):
     _pod_dir_create_orig_config(pod_dir_path, config)
-    for path, mode, chown in (
-        (_get_deps_path(pod_dir_path), 0o750, bases.chown_app),
-        # Trivia: After overlay is mounted, root directory's mode is
-        # actaully the same as upper's.
-        (_get_work_path(pod_dir_path), 0o755, bases.chown_root),
-        (_get_upper_path(pod_dir_path), 0o755, bases.chown_root),
-        (_get_rootfs_path(pod_dir_path), 0o755, bases.chown_root),
-    ):
-        path.mkdir()
-        path.chmod(mode)
-        chown(path)
+    bases.make_dir(_get_deps_path(pod_dir_path), 0o750, bases.chown_app)
+    # Trivia: After overlay is mounted, root directory's mode is
+    # actaully the same as upper's.
+    bases.make_dir(_get_work_path(pod_dir_path), 0o755, bases.chown_root)
+    bases.make_dir(_get_upper_path(pod_dir_path), 0o755, bases.chown_root)
+    bases.make_dir(_get_rootfs_path(pod_dir_path), 0o755, bases.chown_root)
 
 
 def _pod_dir_create_config(pod_dir_path, config):
     _write_config(config, pod_dir_path)
-    config_path = _get_config_path(pod_dir_path)
-    config_path.chmod(0o640)
-    bases.chown_app(config_path)
+    bases.setup_file(_get_config_path(pod_dir_path), 0o640, bases.chown_app)
 
 
 def _pod_dir_create_orig_config(pod_dir_path, config):
     _write_orig_config(config, pod_dir_path)
-    orig_config_path = _get_orig_config_path(pod_dir_path)
-    orig_config_path.chmod(0o640)
-    bases.chown_app(orig_config_path)
+    bases.setup_file(
+        _get_orig_config_path(pod_dir_path), 0o640, bases.chown_app
+    )
 
 
 def _remove_pod_dir(pod_dir_path):

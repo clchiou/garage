@@ -168,15 +168,10 @@ def make_select_image_kwargs(args):
 def cmd_init():
     """Initialize the image repository."""
     bases.assert_root_privilege()
-    for path, mode, chown in (
-        (_get_image_repo_path(), 0o750, bases.chown_app),
-        (_get_tags_path(), 0o750, bases.chown_app),
-        (_get_tmp_path(), 0o750, bases.chown_app),
-        (get_trees_path(), 0o750, bases.chown_app),
-    ):
-        LOG.info('create directory: %s', path)
-        path.mkdir(mode=mode, parents=False, exist_ok=True)
-        chown(path)
+    bases.make_dir(_get_image_repo_path(), 0o750, bases.chown_app)
+    bases.make_dir(_get_tags_path(), 0o750, bases.chown_app)
+    bases.make_dir(_get_tmp_path(), 0o750, bases.chown_app)
+    bases.make_dir(get_trees_path(), 0o750, bases.chown_app)
 
 
 @argparses.begin_parser('build', **bases.make_help_kwargs('build image'))
@@ -555,14 +550,11 @@ def _extract_image(archive_path, dst_dir_path):
 
 
 def _setup_image_dir(image_dir_path):
-    image_dir_path.chmod(0o750)
-    bases.chown_app(image_dir_path)
-    metadata_path = _get_metadata_path(image_dir_path)
-    metadata_path.chmod(0o640)
-    bases.chown_app(metadata_path)
-    rootfs_path = get_rootfs_path(image_dir_path)
-    rootfs_path.chmod(0o755)
-    bases.chown_root(rootfs_path)
+    bases.setup_file(image_dir_path, 0o750, bases.chown_app)
+    bases.setup_file(
+        _get_metadata_path(image_dir_path), 0o640, bases.chown_app
+    )
+    bases.setup_file(get_rootfs_path(image_dir_path), 0o755, bases.chown_root)
 
 
 #

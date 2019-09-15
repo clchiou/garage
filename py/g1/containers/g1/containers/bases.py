@@ -12,8 +12,10 @@ __all__ = [
     'assert_root_privilege',
     'chown_app',
     'chown_root',
+    'make_dir',
     'read_jsonobject',
     'rsync_copy',
+    'setup_file',
     'write_jsonobject',
     # File lock.
     'FileLock',
@@ -82,10 +84,7 @@ REPO_LAYOUT_VERSION = 'v1'
 
 def cmd_init():
     """Initialize the repository."""
-    repo_path = get_repo_path()
-    LOG.info('create directory: %s', repo_path)
-    repo_path.mkdir(mode=0o750, parents=True, exist_ok=True)
-    chown_app(repo_path)
+    make_dir(get_repo_path(), 0o750, chown_app, parents=True)
 
 
 def get_repo_path():
@@ -207,6 +206,17 @@ def chown_root(path):
     """Change owner and group to root."""
     if PARAMS.use_root_privilege.get():
         shutil.chown(path, 'root', 'root')
+
+
+def make_dir(path, mode, chown, *, parents=False, exist_ok=True):
+    LOG.info('create directory: %s', path)
+    path.mkdir(mode=mode, parents=parents, exist_ok=exist_ok)
+    chown(path)
+
+
+def setup_file(path, mode, chown):
+    path.chmod(mode)
+    chown(path)
 
 
 def rsync_copy(src_path, dst_path, rsync_args=()):

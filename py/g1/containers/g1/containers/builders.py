@@ -200,14 +200,11 @@ def cmd_setup_base_rootfs(image_rootfs_path, prune_stash_path):
     pod_exit_path = image_rootfs_path / 'usr/sbin/pod-exit'
     LOG.info('create: %s', pod_exit_path)
     pod_exit_path.write_text(_POD_EXIT)
-    pod_exit_path.chmod(0o755)
-    bases.chown_root(pod_exit_path)
-    for path in (
-        image_rootfs_path / 'var/lib/pod',
-        image_rootfs_path / 'var/lib/pod/exit-status',
-    ):
-        path.mkdir(mode=0o755)
-        bases.chown_root(path)
+    bases.setup_file(pod_exit_path, 0o755, bases.chown_root)
+    bases.make_dir(image_rootfs_path / 'var/lib/pod', 0o755, bases.chown_root)
+    bases.make_dir(
+        image_rootfs_path / 'var/lib/pod/exit-status', 0o755, bases.chown_root
+    )
 
 
 #
@@ -278,8 +275,7 @@ def generate_machine_id(root_path, machine_id):
         (root_path / 'var/lib/dbus/machine-id', 0o644),
     ):
         path.write_text(machine_id_str)
-        path.chmod(mode)
-        bases.chown_root(path)
+        bases.setup_file(path, mode, bases.chown_root)
 
 
 def generate_unit_file(root_path, pod_name, pod_version, app):
