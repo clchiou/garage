@@ -81,6 +81,11 @@ PARAMS = parameters.define(
             '(you may set this to false while testing)',
             type=bool,
         ),
+        xar_runner_script_directory=parameters.Parameter(
+            '/usr/local/bin',
+            doc='path to the xar runner script directory',
+            type=str,
+        ),
     ),
 )
 

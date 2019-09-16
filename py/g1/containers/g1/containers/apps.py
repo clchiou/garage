@@ -18,6 +18,7 @@ from . import builders
 from . import formatters
 from . import images
 from . import pods
+from . import xars
 
 
 @argparses.begin_parser(
@@ -135,6 +136,41 @@ def get_debug():
     return logging.getLogger().isEnabledFor(logging.DEBUG)
 
 
+@argparses.begin_parser('xars', **bases.make_help_kwargs('manage xars.'))
+@argparses.begin_subparsers_for_subcmds(dest='command')
+@argparses.include(xars.cmd_install)
+@argparses.include(xars.cmd_list)
+@argparses.include(xars.cmd_exec)
+@argparses.include(xars.cmd_uninstall)
+@argparses.end
+@argparses.end
+def cmd_xars(args):
+    if args.command == 'install':
+        xars.cmd_install(
+            **images.make_select_image_kwargs(args),
+            xar_name=args.name,
+            exec_relpath=args.exec,
+        )
+    elif args.command == 'list':
+        formatter = formatters.Formatter(
+            **bases.make_formatter_kwargs(args),
+            stringifiers=xars.XAR_LIST_STRINGIFIERS,
+        )
+        for row in xars.cmd_list():
+            formatter.append(row)
+        formatter.sort(
+            lambda row: (row['xar'], row['name'], row['version'], row['id'])
+        )
+        formatter.output(sys.stdout)
+    elif args.command == 'exec':
+        xars.cmd_exec(args.name, args.args)
+    elif args.command == 'uninstall':
+        xars.cmd_uninstall(args.name)
+    else:
+        ASSERT.unreachable('unknown xar command: {}', args.command)
+    return 0
+
+
 @argparses.begin_subparsers_for_subcmds(dest='entity')
 @argparses.begin_parser(
     'init', **bases.make_help_kwargs('initialize repository')
@@ -152,6 +188,7 @@ def get_debug():
 @argparses.end
 @argparses.include(cmd_images)
 @argparses.include(cmd_pods)
+@argparses.include(cmd_xars)
 @argparses.end
 def main(args: apps_bases.LABELS.args):
     """Manage containerized application."""
@@ -160,16 +197,20 @@ def main(args: apps_bases.LABELS.args):
         builders.cmd_init()
         images.cmd_init()
         pods.cmd_init()
+        xars.cmd_init()
     elif args.entity == 'cleanup':
-        # Clean up pods before images because pods depend on images but
-        # not vice versa.
+        # Clean up pods and xars before images because they depend on
+        # images but not vice versa.
         expiration = datetimes.utcnow() - args.grace_period
         pods.cmd_cleanup(expiration)
+        xars.cmd_cleanup()
         images.cmd_cleanup(expiration)
     elif args.entity == 'images':
         return cmd_images(args)
     elif args.entity == 'pods':
         return cmd_pods(args)
+    elif args.entity == 'xars':
+        return cmd_xars(args)
     else:
         ASSERT.unreachable('unknown entity: {}', args.entity)
     return 0

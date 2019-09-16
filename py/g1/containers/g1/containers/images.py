@@ -56,7 +56,7 @@ __all__ = [
     'cmd_remove_tag',
     'cmd_tag',
     'make_select_image_kwargs',
-    # Expose to builders and pods.
+    # Expose to builders, pods, and xars.
     'add_ref',
     'build_image',
     'find_id',
@@ -64,6 +64,8 @@ __all__ = [
     'get_image_dir_path',
     'get_rootfs_path',
     'get_trees_path',
+    'read_metadata',
+    'select_image_arguments',
     'touch',
 ]
 
@@ -141,7 +143,7 @@ def validate_tag(tag):
 # contention, we should implement a finer-grained locking strategy.
 #
 
-_select_image_arguments = functionals.compose(
+select_image_arguments = functionals.compose(
     argparses.begin_mutually_exclusive_group(required=True),
     argparses.argument('--id', type=validate_id, help='provide image id'),
     argparses.argument(
@@ -297,7 +299,7 @@ def cmd_list():
 
 
 @argparses.begin_parser('tag', **bases.make_help_kwargs('set tag to an image'))
-@_select_image_arguments
+@select_image_arguments
 @argparses.argument('new_tag', type=validate_tag, help='provide new image tag')
 @argparses.end
 def cmd_tag(*, image_id=None, name=None, version=None, tag=None, new_tag):
@@ -329,7 +331,7 @@ def cmd_remove_tag(tag):
 @argparses.begin_parser(
     'remove', **bases.make_help_kwargs('remove an image from the repository')
 )
-@_select_image_arguments
+@select_image_arguments
 @argparses.end
 def cmd_remove(*, image_id=None, name=None, version=None, tag=None):
     """Remove an image, or no-op if image does not exist."""
@@ -572,7 +574,7 @@ def _maybe_import_image_dir(src_path, image_id):
         LOG.warning('not import duplicated image: %s', image_id)
         return False
     else:
-        _assert_unique_name_and_version(_read_metadata(src_path))
+        _assert_unique_name_and_version(read_metadata(src_path))
         src_path.rename(image_dir_path)
         return True
 
@@ -604,7 +606,7 @@ def _find_image_dir_path(image_id, name, version, tag):
         # We check duplicated image name and version when images are
         # imported, and so we do not check it again here.
         for image_dir_path in _iter_image_dir_paths():
-            metadata = _read_metadata(image_dir_path)
+            metadata = read_metadata(image_dir_path)
             if metadata.name == name and metadata.version == version:
                 return image_dir_path
         return None
@@ -628,7 +630,7 @@ def find_name_and_version(*, image_id=None, tag=None):
     if image_dir_path is None:
         return None, None
     else:
-        metadata = _read_metadata(image_dir_path)
+        metadata = read_metadata(image_dir_path)
         return metadata.name, metadata.version
 
 
@@ -653,10 +655,10 @@ def _maybe_remove_image_dir(image_dir_path):
 def _iter_metadatas():
     """Iterate over metadata of every image."""
     for image_dir_path in _iter_image_dir_paths():
-        yield image_dir_path, _read_metadata(image_dir_path)
+        yield image_dir_path, read_metadata(image_dir_path)
 
 
-def _read_metadata(image_dir_path):
+def read_metadata(image_dir_path):
     """Read image metadata from an image directory."""
     return bases.read_jsonobject(
         ImageMetadata, _get_metadata_path(image_dir_path)
@@ -720,6 +722,7 @@ def _find_tag_paths(image_dir_path):
 
 def _tag_image(tag, image_dir_path):
     tag_path = _get_tag_path(tag)
-    if bases.lexists(tag_path):
-        tag_path.unlink()
-    tag_path.symlink_to(_get_tag_target(image_dir_path))
+    # ".tmp" is not a validate tag, and so it will not conflict.
+    new_tag_path = tag_path.with_suffix('.tmp')
+    new_tag_path.symlink_to(_get_tag_target(image_dir_path))
+    new_tag_path.replace(tag_path)

@@ -105,7 +105,7 @@ class ImagesTest(fixtures.TestCaseBase):
         self.assertEqual(self.list_tag_paths(), expect_tags)
 
         self.assertEqual(
-            images._read_metadata(images.get_image_dir_path(image_ids_1[0])),
+            images.read_metadata(images.get_image_dir_path(image_ids_1[0])),
             self.sample_metadata,
         )
 
@@ -655,7 +655,7 @@ class ImagesTest(fixtures.TestCaseBase):
     def test_write_metadata(self):
         images._write_metadata(self.sample_metadata, self.test_repo_path)
         self.assertEqual(
-            images._read_metadata(self.test_repo_path), self.sample_metadata
+            images.read_metadata(self.test_repo_path), self.sample_metadata
         )
 
     def test_add_ref(self):
