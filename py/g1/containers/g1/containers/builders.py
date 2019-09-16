@@ -13,6 +13,7 @@ __all__ = [
     'App',
     # Expose to apps.
     'cmd_build_base_image',
+    'cmd_init',
     'cmd_prepare_base_rootfs',
     'cmd_setup_base_rootfs',
     # Expose to pods.
@@ -38,6 +39,11 @@ from . import bases
 from . import images
 
 LOG = logging.getLogger(__name__)
+
+
+def cmd_init():
+    bases.check_program_exist('debootstrap')
+
 
 #
 # Base image.

@@ -9,7 +9,10 @@ __all__ = [
     'is_empty_dir',
     'lexists',
     # App-specific helpers.
+    'assert_group_exist',
+    'assert_program_exist',
     'assert_root_privilege',
+    'check_program_exist',
     'chown_app',
     'chown_root',
     'make_dir',
@@ -29,6 +32,7 @@ import contextlib
 import dataclasses
 import errno
 import fcntl
+import grp
 import json
 import logging
 import os
@@ -84,6 +88,9 @@ REPO_LAYOUT_VERSION = 'v1'
 
 def cmd_init():
     """Initialize the repository."""
+    assert_group_exist(PARAMS.application_group.get())
+    # For rsync_copy.
+    check_program_exist('rsync')
     make_dir(get_repo_path(), 0o750, chown_app, parents=True)
 
 
@@ -185,6 +192,31 @@ def delete_file(path):
 #
 # App-specific helpers.
 #
+
+
+def assert_program_exist(program):
+    # Assume it's unit testing if not use_root_privilege.
+    if PARAMS.use_root_privilege.get():
+        ASSERT.not_none(shutil.which(program))
+
+
+def check_program_exist(program):
+    # Assume it's unit testing if not use_root_privilege.
+    if PARAMS.use_root_privilege.get():
+        if not shutil.which(program):
+            LOG.warning(
+                'program %s does not exist; certain features are unavailable',
+                program
+            )
+
+
+def assert_group_exist(name):
+    # Assume it's unit testing if not use_root_privilege.
+    if PARAMS.use_root_privilege.get():
+        try:
+            grp.getgrnam(name)
+        except KeyError:
+            raise AssertionError('expect group: %s' % name) from None
 
 
 def assert_root_privilege():

@@ -157,6 +157,7 @@ def main(args: apps_bases.LABELS.args):
     """Manage containerized application."""
     if args.entity == 'init':
         bases.cmd_init()
+        builders.cmd_init()
         images.cmd_init()
         pods.cmd_init()
     elif args.entity == 'cleanup':
