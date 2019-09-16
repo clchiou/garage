@@ -349,6 +349,11 @@ def cmd_remove(*, image_id=None, name=None, version=None, tag=None):
             )
 
 
+@argparses.begin_parser(
+    'cleanup', **bases.make_help_kwargs('clean up image repository')
+)
+@bases.grace_period_arguments
+@argparses.end
 def cmd_cleanup(expiration):
     bases.assert_root_privilege()
     with bases.acquiring_exclusive(_get_tmp_path()):

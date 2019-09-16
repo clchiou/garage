@@ -206,6 +206,10 @@ def cmd_uninstall(xar_name):
             _cleanup_xar_dir(xar_dir_path)
 
 
+@argparses.begin_parser(
+    'cleanup', **bases.make_help_kwargs('clean up xar repository')
+)
+@argparses.end
 def cmd_cleanup():
     bases.assert_root_privilege()
     with bases.acquiring_exclusive(_get_xars_repo_path()):

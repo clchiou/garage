@@ -411,6 +411,11 @@ def cmd_remove(pod_id):
         pod_dir_lock.close()
 
 
+@argparses.begin_parser(
+    'cleanup', **bases.make_help_kwargs('clean up pod repository')
+)
+@bases.grace_period_arguments
+@argparses.end
 def cmd_cleanup(expiration):
     bases.assert_root_privilege()
     _cleanup_active(expiration)

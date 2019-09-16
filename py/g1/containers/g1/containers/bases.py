@@ -1,8 +1,11 @@
 __all__ = [
     'cmd_init',
-    'formatter_arguments',
     'get_repo_path',
+    # Command-line arguments.
+    'formatter_arguments',
+    'grace_period_arguments',
     'make_formatter_kwargs',
+    'make_grace_period_kwargs',
     'make_help_kwargs',
     # Extension to Path object.
     'delete_file',
@@ -44,6 +47,7 @@ from pathlib import Path
 from g1.apps import parameters
 from g1.bases import argparses
 from g1.bases import dataclasses as g1_dataclasses
+from g1.bases import datetimes
 from g1.bases import functionals
 from g1.bases.assertions import ASSERT
 
@@ -104,6 +108,11 @@ def get_repo_path():
     return (Path(PARAMS.repository.get()) / REPO_LAYOUT_VERSION).absolute()
 
 
+#
+# Command-line arguments.
+#
+
+
 def formatter_arguments(columns, default_columns):
     return functionals.compose(
         argparses.argument(
@@ -144,6 +153,18 @@ def make_formatter_kwargs(args):
         'header': args.header,
         'columns': args.columns,
     }
+
+
+grace_period_arguments = argparses.argument(
+    '--grace-period',
+    type=argparses.parse_timedelta,
+    default='24h',
+    help='set grace period (default to %(default)s)',
+)
+
+
+def make_grace_period_kwargs(args):
+    return {'expiration': datetimes.utcnow() - args.grace_period}
 
 
 def make_help_kwargs(help_text):

@@ -10,7 +10,6 @@ from startup import startup
 
 from g1.apps import bases as apps_bases
 from g1.bases import argparses
-from g1.bases import datetimes
 from g1.bases.assertions import ASSERT
 
 from . import bases
@@ -34,6 +33,7 @@ from . import xars
 @argparses.include(images.cmd_tag)
 @argparses.include(images.cmd_remove_tag)
 @argparses.include(images.cmd_remove)
+@argparses.include(images.cmd_cleanup)
 @argparses.end
 @argparses.end
 def cmd_images(args):
@@ -67,6 +67,8 @@ def cmd_images(args):
         images.cmd_remove_tag(args.tag)
     elif args.command == 'remove':
         images.cmd_remove(**images.make_select_image_kwargs(args))
+    elif args.command == 'cleanup':
+        images.cmd_cleanup(**bases.make_grace_period_kwargs(args))
     else:
         ASSERT.unreachable('unknown image command: {}', args.command)
     return 0
@@ -85,6 +87,7 @@ def cmd_images(args):
 @argparses.include(pods.cmd_run_prepared)
 @argparses.include(pods.cmd_export_overlay)
 @argparses.include(pods.cmd_remove)
+@argparses.include(pods.cmd_cleanup)
 @argparses.end
 @argparses.end
 def cmd_pods(args):
@@ -127,6 +130,8 @@ def cmd_pods(args):
         pods.cmd_export_overlay(args.id, args.output, args.filter or ())
     elif args.command == 'remove':
         pods.cmd_remove(args.id)
+    elif args.command == 'cleanup':
+        pods.cmd_cleanup(**bases.make_grace_period_kwargs(args))
     else:
         ASSERT.unreachable('unknown pod command: {}', args.command)
     return 0
@@ -142,6 +147,7 @@ def get_debug():
 @argparses.include(xars.cmd_list)
 @argparses.include(xars.cmd_exec)
 @argparses.include(xars.cmd_uninstall)
+@argparses.include(xars.cmd_cleanup)
 @argparses.end
 @argparses.end
 def cmd_xars(args):
@@ -166,6 +172,8 @@ def cmd_xars(args):
         xars.cmd_exec(args.name, args.args)
     elif args.command == 'uninstall':
         xars.cmd_uninstall(args.name)
+    elif args.command == 'cleanup':
+        xars.cmd_cleanup()
     else:
         ASSERT.unreachable('unknown xar command: {}', args.command)
     return 0
@@ -179,12 +187,7 @@ def cmd_xars(args):
 @argparses.begin_parser(
     'cleanup', **bases.make_help_kwargs('clean up repository')
 )
-@argparses.argument(
-    '--grace-period',
-    type=argparses.parse_timedelta,
-    default='24h',
-    help='set grace period (default to %(default)s)',
-)
+@bases.grace_period_arguments
 @argparses.end
 @argparses.include(cmd_images)
 @argparses.include(cmd_pods)
@@ -201,10 +204,10 @@ def main(args: apps_bases.LABELS.args):
     elif args.entity == 'cleanup':
         # Clean up pods and xars before images because they depend on
         # images but not vice versa.
-        expiration = datetimes.utcnow() - args.grace_period
-        pods.cmd_cleanup(expiration)
+        grace_period_kwargs = bases.make_grace_period_kwargs(args)
+        pods.cmd_cleanup(**grace_period_kwargs)
         xars.cmd_cleanup()
-        images.cmd_cleanup(expiration)
+        images.cmd_cleanup(**grace_period_kwargs)
     elif args.entity == 'images':
         return cmd_images(args)
     elif args.entity == 'pods':
