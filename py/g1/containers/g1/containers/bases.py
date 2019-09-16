@@ -26,6 +26,7 @@ __all__ = [
     'acquiring_exclusive',
     'acquiring_shared',
     'try_acquire_exclusive',
+    'is_locked_by_other',
 ]
 
 import contextlib
@@ -363,3 +364,13 @@ def try_acquire_exclusive(path):
         return None
     else:
         return lock
+
+
+def is_locked_by_other(path):
+    lock = try_acquire_exclusive(path)
+    if lock:
+        lock.release()
+        lock.close()
+        return False
+    else:
+        return True

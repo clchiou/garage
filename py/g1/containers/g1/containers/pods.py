@@ -226,7 +226,7 @@ def cmd_list():
                 # Use _iter_image_ids rather than _iter_ref_image_ids
                 # for ordered results.
                 'images': list(_iter_image_ids(config)),
-                'active': _is_pod_dir_locked(pod_dir_path),
+                'active': bases.is_locked_by_other(pod_dir_path),
                 'last-updated': _get_last_updated(pod_status),
             }
 
@@ -477,16 +477,6 @@ def _lock_pod_dir_for_exec(pod_dir_path):
     """
     pod_dir_lock = bases.FileLock(pod_dir_path, close_on_exec=False)
     pod_dir_lock.acquire_exclusive()
-
-
-def _is_pod_dir_locked(pod_dir_path):
-    pod_dir_lock = bases.try_acquire_exclusive(pod_dir_path)
-    if pod_dir_lock:
-        pod_dir_lock.release()
-        pod_dir_lock.close()
-        return False
-    else:
-        return True
 
 
 #

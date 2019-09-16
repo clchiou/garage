@@ -245,11 +245,6 @@ class PodsTest(fixtures.TestCaseBase):
         tmp_path = pods._create_tmp_pod_dir()
         self.assertFalse(self.check_exclusive(tmp_path))
 
-    def test_is_pod_dir_locked(self):
-        self.assertFalse(pods._is_pod_dir_locked(self.test_repo_path))
-        with self.using_shared(self.test_repo_path):
-            self.assertTrue(pods._is_pod_dir_locked(self.test_repo_path))
-
     #
     # Data type.
     #

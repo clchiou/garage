@@ -307,6 +307,11 @@ class FileLockTest(fixtures.TestCaseBase):
         with self.using_shared(lock_path):
             self.assertIsNone(bases.try_acquire_exclusive(lock_path))
 
+    def test_is_locked_by_other(self):
+        self.assertFalse(bases.is_locked_by_other(self.test_repo_path))
+        with self.using_shared(self.test_repo_path):
+            self.assertTrue(bases.is_locked_by_other(self.test_repo_path))
+
 
 if __name__ == '__main__':
     unittest.main()
