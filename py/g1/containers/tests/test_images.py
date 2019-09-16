@@ -262,7 +262,7 @@ class ImagesTest(fixtures.TestCaseBase):
         ):
             with self.subTest(test_data):
                 with self.assertRaisesRegex(
-                    AssertionError, r'expect .*fullmatch*.'
+                    AssertionError, r'expect .*fullmatch.*'
                 ):
                     images.validate_id(test_data)
 
@@ -285,7 +285,7 @@ class ImagesTest(fixtures.TestCaseBase):
         ):
             with self.subTest(test_data):
                 with self.assertRaisesRegex(
-                    AssertionError, r'expect .*fullmatch*.'
+                    AssertionError, r'expect .*fullmatch.*'
                 ):
                     images.ImageMetadata(**test_data)
 
@@ -308,7 +308,7 @@ class ImagesTest(fixtures.TestCaseBase):
         ):
             with self.subTest(test_data):
                 with self.assertRaisesRegex(
-                    AssertionError, r'expect .*fullmatch*.'
+                    AssertionError, r'expect .*fullmatch.*'
                 ):
                     validate(test_data)
 

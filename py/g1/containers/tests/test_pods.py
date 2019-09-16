@@ -302,7 +302,7 @@ class PodsTest(fixtures.TestCaseBase):
         ):
             with self.subTest(test_data):
                 with self.assertRaisesRegex(
-                    AssertionError, r'expect .*fullmatch*.'
+                    AssertionError, r'expect .*fullmatch.*'
                 ):
                     pods.validate_id(test_data)
 
