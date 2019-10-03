@@ -25,7 +25,8 @@ show "use ctr: ${CTR}"
 readonly OWNER="$(id --user --name)"
 readonly GROUP="$(id --group --name)"
 
-readonly TMPDIR="$(mktemp --directory)"
+readonly TMPDIR="$(mktemp --directory --tmpdir="${OUTPUT}")"
+ensure_directory "${TMPDIR}"
 trap "sudo rm --force --recursive '${TMPDIR}'" EXIT
 show "use temporary directory: ${TMPDIR}"
 
