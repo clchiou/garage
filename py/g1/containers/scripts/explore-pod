@@ -1,0 +1,156 @@
+#!/usr/bin/env python3
+"""Run a pod for exploration."""
+
+import csv
+import io
+import json
+import logging
+import shutil
+import subprocess
+import tempfile
+
+from startup import startup
+
+from g1.apps import bases
+from g1.bases import argparses
+from g1.bases.assertions import ASSERT
+
+LOG = logging.getLogger()  # Use the root logger.
+
+CTR = None  # Resolve it in main.
+
+
+@startup
+def add_arguments(parser: bases.LABELS.parser) -> bases.LABELS.parse:
+    parser.add_argument(
+        '--pod-id',
+        help='provide pod id',
+    )
+    parser.add_argument(
+        '--keep',
+        action=argparses.StoreBoolAction,
+        default=False,
+        help='keep pod after exit (default: %(default_string)s)',
+    )
+    parser.add_argument(
+        '--image-id',
+        required=True,
+        action='append',
+        help='add image id prefix',
+    )
+    parser.add_argument(
+        '--volume',
+        action='append',
+        help='add volume of the form "source:target[:ro]"',
+    )
+
+
+def main(args: bases.LABELS.args):
+    # Resolve ctr location because sudo does not look up custom paths.
+    global CTR
+    CTR = ASSERT.not_none(shutil.which('ctr'))
+    LOG.info('use ctr: %s', CTR)
+
+    pod_id = init(args)
+    run_pod(pod_id)
+    # Only remove on normal exit; on error, keep pod for diagnosis.
+    if not args.keep:
+        remove_pod(pod_id)
+    return 0
+
+
+def init(args):
+    pod_id = args.pod_id or generate_pod_id()
+    LOG.info('use pod id: %s', pod_id)
+    image_ids = expand_image_ids(args.image_id)
+    volumes = parse_volume_args(args.volume or ())
+    with tempfile.NamedTemporaryFile(suffix='.json') as config_tempfile:
+        config_path = config_tempfile.name
+        write_config(image_ids, volumes, config_path)
+        prepare_pod(pod_id, config_path)
+    return pod_id
+
+
+def generate_pod_id():
+    proc = subprocess.run(
+        [CTR, 'pods', 'generate-id'],
+        check=True,
+        capture_output=True,
+    )
+    return proc.stdout.decode('utf-8').strip()
+
+
+def expand_image_ids(id_prefixes):
+    expanded = []
+    image_ids = list_image_ids()
+    for id_prefix in id_prefixes:
+        for image_id in image_ids:
+            if image_id.startswith(id_prefix):
+                expanded.append(image_id)
+                break
+        else:
+            ASSERT.unreachable('unknown image id prefix: {}', id_prefix)
+    return expanded
+
+
+def list_image_ids():
+    proc = subprocess.run(
+        [CTR] + 'images list --format csv --header false --columns id'.split(),
+        check=True,
+        capture_output=True,
+    )
+    return [row[0] for row in csv.reader(io.StringIO(proc.stdout.decode('utf8')))]
+
+
+def parse_volume_args(volume_args):
+    volumes = []
+    for arg in volume_args:
+        parts = arg.split(':')
+        if ASSERT.in_(len(parts), (2, 3)) == 3:
+            source, target, read_only = parts
+            read_only = read_only == 'ro'
+        else:
+            source, target = parts
+            read_only = False
+        volumes.append(
+            {'source': source, 'target': target, 'read_only': read_only}
+        )
+    return volumes
+
+
+def write_config(image_ids, volumes, config_path):
+    LOG.info('write config to: %s', config_path)
+    config = {
+        'name': 'explorer',
+        'version': '0.0.1',
+        'apps': [],
+        'images': [{'id': image_id} for image_id in image_ids],
+        'volumes': volumes,
+    }
+    with open(config_path, 'w') as config_file:
+        json.dump(config, config_file)
+
+
+def prepare_pod(pod_id, config_path):
+    subprocess.run(
+        ['sudo', CTR, 'pods', 'prepare', '--id', pod_id, config_path],
+        check=True,
+    )
+
+
+def run_pod(pod_id):
+    subprocess.run(
+        ['sudo', CTR, 'pods', 'run-prepared', pod_id],
+        check=True,
+    )
+
+
+def remove_pod(pod_id):
+    subprocess.run(
+        ['sudo', CTR, 'pods', 'remove', pod_id],
+        check=True,
+    )
+
+
+if __name__ == '__main__':
+    bases.run(main)
