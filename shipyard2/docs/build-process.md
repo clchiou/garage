@@ -15,15 +15,15 @@ images: base, base-extra, and builder-base (all of which are built by
 builds application data in-place.  After the build completes, the build
 process then exports the pod overlay as the application image.
 
-  +--------------+
-  | application  | (pod overlay)
-  +--------------+
-  | builder-base | (top layer)
-  +--------------+
-  | base-extra   |
-  +--------------+
-  | base         | (bottom layer)
-  +--------------+
+    +--------------+
+    | application  | (pod overlay)
+    +--------------+
+    | builder-base | (top layer)
+    +--------------+
+    | base-extra   |
+    +--------------+
+    | base         | (bottom layer)
+    +--------------+
 
 * The base image is the bare minimum that all pods require.
 * The base-extra image contains extra data (such as Linux distro package
@@ -33,10 +33,10 @@ process then exports the pod overlay as the application image.
 To run the application pod, you only need two images: base and
 application:
 
-  +--------------+
-  | runtime data | (pod overlay)
-  +--------------+
-  | application  | (top layer)
-  +--------------+
-  | base         | (bottom layer)
-  +--------------+
+    +--------------+
+    | runtime data | (pod overlay)
+    +--------------+
+    | application  | (top layer)
+    +--------------+
+    | base         | (bottom layer)
+    +--------------+
