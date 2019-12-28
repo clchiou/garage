@@ -50,10 +50,42 @@ PARAMS = parameters.define(
 )
 
 _DEFAULT_FILTERS = (
-    ('exclude', '/lib/systemd'),
+    # Do not leak any source codes to the application image.
     ('exclude', '/usr/src'),
+    # Include only relevant files under /etc.
+    ('include', '/etc/'),
+    ('include', '/etc/group'),
+    ('include', '/etc/group-'),
+    ('include', '/etc/gshadow'),
+    ('include', '/etc/gshadow-'),
+    ('include', '/etc/inputrc'),
+    ('include', '/etc/ld.so.cache'),
+    ('include', '/etc/passwd'),
+    ('include', '/etc/passwd-'),
+    ('include', '/etc/shadow'),
+    ('include', '/etc/shadow-'),
+    ('include', '/etc/ssl'),
+    ('include', '/etc/subgid'),
+    ('include', '/etc/subgid-'),
+    ('include', '/etc/subuid'),
+    ('include', '/etc/subuid-'),
+    ('include', '/etc/sudoers.d'),
+    ('exclude', '/etc/**'),
+    # Exclude distro binaries from application image (note that base
+    # image includes a base set of distro binaries).
+    ('exclude', '/bin'),
+    ('exclude', '/sbin'),
+    ('exclude', '/usr/bin'),
+    ('exclude', '/usr/sbin'),
+    # Exclude distro systemd files.
+    ('exclude', '/lib/systemd'),
+    ('exclude', '/usr/lib/systemd'),
+    # In general, don't exclude distro libraries since we might depend
+    # on them, except distro python libraries.
+    ('exclude', '/usr/lib/python*'),
+    # Exclude these to save more space.
+    ('exclude', '/usr/share'),  # Do we need (portion of) this?
     ('exclude', '/var'),
-    # TODO: Consider adding more exclude filters to save more space.
 )
 
 
