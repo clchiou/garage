@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Build application image."""
 
 import contextlib
@@ -20,7 +19,9 @@ from g1.apps import parameters
 from g1.bases import argparses
 from g1.bases.assertions import ASSERT
 
-LOG = logging.getLogger('build')
+# Not use __name__ here as we usually do because build.py is usually
+# called directly as a standalone script, not imported as a module.
+LOG = logging.getLogger('shipyard2.build')
 
 PARAMS = parameters.define(
     'shipyard2.build',
@@ -208,6 +209,7 @@ def main(args: bases.LABELS.args):
 def generate_builder_config(rule, volumes):
     base_image_version = g1.containers.bases.PARAMS.base_image_version.get()
     builder_script = '; '.join((
+        # pylint: disable=line-too-long
         'adduser --disabled-password --gecos "" plumber',
         'echo "plumber ALL=(ALL:ALL) NOPASSWD: ALL" > /etc/sudoers.d/99-plumber',
         'chmod 440 /etc/sudoers.d/99-plumber',
@@ -223,6 +225,7 @@ def generate_builder_config(rule, volumes):
         'update-alternatives --set python3 /usr/bin/python3.8',
         'sudo -u plumber -g plumber "%s" build %s' %
         (PARAMS.foreman_path.get(), str(rule)),
+        # pylint: enable=line-too-long
     ))
     return {
         'name':
