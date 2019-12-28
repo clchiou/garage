@@ -183,6 +183,8 @@ def main(args: bases.LABELS.args):
         rootfs_tempdir = Path(rootfs_tempdir).absolute() / 'rootfs'
         _run([
             ctr_exec,
+            *(('--verbose', )
+              if logging.getLogger().isEnabledFor(logging.DEBUG) else ()),
             'pods',
             'export-overlay',
             *('--%s=%s' % pair for pair in _DEFAULT_FILTERS),

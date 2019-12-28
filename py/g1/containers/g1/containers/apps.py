@@ -127,7 +127,12 @@ def cmd_pods(args):
     elif args.command == 'run-prepared':
         pods.cmd_run_prepared(pod_id=args.id, debug=get_debug())
     elif args.command == 'export-overlay':
-        pods.cmd_export_overlay(args.id, args.output, args.filter or ())
+        pods.cmd_export_overlay(
+            pod_id=args.id,
+            output_path=args.output,
+            filter_patterns=args.filter or (),
+            debug=get_debug(),
+        )
     elif args.command == 'remove':
         pods.cmd_remove(args.id)
     elif args.command == 'cleanup':

@@ -359,7 +359,7 @@ def cmd_run_prepared(pod_id, *, debug=False):
 @_select_pod_arguments(positional=True)
 @argparses.argument('output', type=Path, help='provide output path')
 @argparses.end
-def cmd_export_overlay(pod_id, output_path, filter_patterns):
+def cmd_export_overlay(pod_id, output_path, filter_patterns, *, debug=False):
     bases.assert_root_privilege()
     ASSERT.not_predicate(output_path, bases.lexists)
     # Exclude pod-generated files.
@@ -374,6 +374,9 @@ def cmd_export_overlay(pod_id, output_path, filter_patterns):
         '--exclude=/etc/mtab',
     ]
     filter_args.extend('--%s=%s' % pair for pair in filter_patterns)
+    if debug:
+        # Log which files are included/excluded due to filter rules.
+        filter_args.append('--debug=FILTER2')
     with bases.acquiring_exclusive(_get_active_path()):
         pod_dir_path = ASSERT.predicate(_get_pod_dir_path(pod_id), Path.is_dir)
         pod_dir_lock = ASSERT.true(bases.try_acquire_exclusive(pod_dir_path))
