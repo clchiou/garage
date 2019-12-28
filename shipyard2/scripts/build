@@ -51,6 +51,8 @@ PARAMS = parameters.define(
 
 _DEFAULT_FILTERS = (
     # Do not leak any source codes to the application image.
+    # Keep this in sync with //apps:build.
+    ('exclude', '/home/plumber/drydock'),
     ('exclude', '/usr/src'),
     # Include only relevant files under /etc.
     ('include', '/etc/'),
