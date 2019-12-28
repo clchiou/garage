@@ -99,7 +99,9 @@ def list_image_ids():
         check=True,
         capture_output=True,
     )
-    return [row[0] for row in csv.reader(io.StringIO(proc.stdout.decode('utf8')))]
+    return [
+        row[0] for row in csv.reader(io.StringIO(proc.stdout.decode('utf8')))
+    ]
 
 
 def parse_volume_args(volume_args):
@@ -112,9 +114,11 @@ def parse_volume_args(volume_args):
         else:
             source, target = parts
             read_only = False
-        volumes.append(
-            {'source': source, 'target': target, 'read_only': read_only}
-        )
+        volumes.append({
+            'source': source,
+            'target': target,
+            'read_only': read_only,
+        })
     return volumes
 
 
@@ -124,7 +128,9 @@ def write_config(image_ids, volumes, config_path):
         'name': 'explorer',
         'version': '0.0.1',
         'apps': [],
-        'images': [{'id': image_id} for image_id in image_ids],
+        'images': [{
+            'id': image_id
+        } for image_id in image_ids],
         'volumes': volumes,
     }
     with open(config_path, 'w') as config_file:
