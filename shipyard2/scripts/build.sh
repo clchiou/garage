@@ -6,6 +6,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 # export all of build's dependencies (we could make sudo find venv
 # python3, but I think it is better to let sudo find distro python3).
 readonly DEPS=(
+  "$(realpath "${HERE}/..")"
   "${ROOT}/py/foreman"
   "${ROOT}/py/g1/apps"
   "${ROOT}/py/g1/bases"
@@ -17,6 +18,4 @@ for dep in "${DEPS[@]}"; do
 done
 export PYTHONPATH
 
-readonly BUILD="$(realpath "${HERE}/../shipyard2/build.py")"
-
-exec sudo --preserve-env=PYTHONPATH python3 "${BUILD}" "${@}"
+exec sudo --preserve-env=PYTHONPATH python3 -m shipyard2.build "${@}"
