@@ -1,0 +1,63 @@
+__all__ = [
+    'cmd_bootstrap',
+]
+
+import logging
+import tempfile
+from pathlib import Path
+
+import g1.containers.bases
+from g1.bases import argparses
+from g1.bases.assertions import ASSERT
+
+from shipyard2 import builders
+
+LOG = logging.getLogger(__name__)
+
+
+@argparses.begin_parser(
+    'bootstrap',
+    **builders.make_help_kwargs('build base and builder-base image'),
+)
+@builders.import_output_arguments(default=True)
+@argparses.argument(
+    'output',
+    type=Path,
+    help='provide directory for output images',
+)
+@argparses.end
+def cmd_bootstrap(args):
+    g1.containers.bases.assert_root_privilege()
+    ASSERT.predicate(args.output, Path.is_dir)
+    base_image_version = g1.containers.bases.PARAMS.base_image_version.get()
+    ctr_exec = builders.PARAMS.ctr_exec.get()
+    base_image_path = args.output / 'base.tgz'
+    builder_base_image_path = args.output / 'builder-base.tgz'
+    with tempfile.TemporaryDirectory(dir=args.output) as tempdir_path:
+        tempdir_path = Path(tempdir_path)
+        LOG.info('generate base and builder-base under: %s', tempdir_path)
+        builder_base_rootfs_path = tempdir_path / 'builder-base'
+        builders.run([
+            ctr_exec,
+            *(
+                '--parameter',
+                'g1.containers:base_image_version',
+                base_image_version,
+            ),
+            'images',
+            'build-base',
+            *('--prune-stash-path', builder_base_rootfs_path),
+            base_image_path,
+        ])
+        builders.run([
+            ctr_exec,
+            'images',
+            'build',
+            *('--nv', 'builder-base', base_image_version),
+            *('--rootfs', builder_base_rootfs_path),
+            builder_base_image_path,
+        ])
+        if args.import_output:
+            for path in (base_image_path, builder_base_image_path):
+                builders.run([ctr_exec, 'images', 'import', path])
+    return 0

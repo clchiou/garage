@@ -18,4 +18,4 @@ for dep in "${DEPS[@]}"; do
 done
 export PYTHONPATH
 
-exec sudo --preserve-env=PYTHONPATH python3 -m shipyard2.build "${@}"
+exec sudo --preserve-env=PYTHONPATH python3 -m shipyard2.builders "${@}"
