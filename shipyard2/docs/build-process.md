@@ -9,23 +9,32 @@ The build process involves two pods: builder and application pod.
 
 * The application pod is builder pod without the build-time data.
 
-To run a builder pod (and build an application image), you need two
-images: base and base-extra (which are built by `bootstrap.sh`).  The
-build process starts with these images, and builds application data
-in-place.  After the build completes, the build process then exports the
-pod overlay as the application image.
+To run a builder pod (and build an application image), you need at least
+two images: base and builder-base (which are built by the bootstrap
+command of the builder).  On top of that, you may use intermediate
+builder images to save you time from rebuilding stuff.  The build
+process starts with these images, and builds application data in-place.
+After the build completes, the build process exports the pod overlay as
+an intermediate builder image.
 
-    +--------------+
-    | application  | (pod overlay)
-    +--------------+
-    | base-extra   | (top layer)
-    +--------------+
-    | base         | (bottom layer)
-    +--------------+
+    +----------------------------------------+
+    | application data                       | (pod overlay)
+    +----------------------------------------+
+    | intermediate builder images (optional) |
+    +----------------------------------------+
+    | builder-base                           |
+    +----------------------------------------+
+    | base                                   | (bottom layer)
+    +----------------------------------------+
 
 * The base image is the bare minimum that all pods require.
-* The base-extra image contains extra data (such as Linux distro package
-  repository) that are used in some but not all use cases.
+* The builder-base image contains extra data (such as Linux distro
+  package repository).
+* The optional intermediate builder images are application data from
+  previous builds (to save time from rebuilding stuff).
+
+To create the application image, the build process merges intermediate
+builder images.
 
 To run the application pod, you only need two images: base and
 application:
@@ -37,3 +46,8 @@ application:
     +--------------+
     | base         | (bottom layer)
     +--------------+
+
+Open question: Should we also merge base into the application image?
+For now maybe we should not; or else, we will need to tweak the default
+filter rules (defined in the merge command) to work with the base image
+contents.
