@@ -677,18 +677,6 @@ def _mount_overlay(pod_dir_path, config):
     # ordered; you must use _iter_image_ids.
     #
     image_ids = list(_iter_image_ids(config))
-    base_image_name, base_image_version = ASSERT.not_equal(
-        images.find_name_and_version(image_id=image_ids[0]),
-        (None, None),
-    )
-    if base_image_name != bases.PARAMS.base_image_name.get():
-        LOG.warning('expect base image at the lowest, not %s', base_image_name)
-    if base_image_version != bases.PARAMS.base_image_version.get():
-        LOG.warning(
-            'expect base image version %s, not %s',
-            bases.PARAMS.base_image_version.get(),
-            base_image_version,
-        )
     # Call reverse() because in overlay file system, lower directories
     # are ordered from high to low.
     image_ids.reverse()

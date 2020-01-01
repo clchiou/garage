@@ -38,14 +38,16 @@ from . import xars
 @argparses.end
 def cmd_images(args):
     if args.command == 'build-base':
-        builders.cmd_build_base_image(args.path, args.prune_stash_path)
+        builders.cmd_build_base_image(
+            args.name, args.version, args.output, args.prune_stash_path
+        )
     elif args.command == 'prepare-base-rootfs':
         builders.cmd_prepare_base_rootfs(args.path)
     elif args.command == 'setup-base-rootfs':
         builders.cmd_setup_base_rootfs(args.path, args.prune_stash_path)
     elif args.command == 'build':
         images.cmd_build_image(
-            args.nv[0], args.nv[1], args.rootfs, args.output
+            args.name, args.version, args.rootfs, args.output
         )
     elif args.command == 'import':
         images.cmd_import(args.path, tag=args.tag)

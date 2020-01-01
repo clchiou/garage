@@ -59,16 +59,13 @@ def cmd_init():
     type=Path,
     help='provide path to stash pruned files',
 )
-@argparses.argument('path', type=Path, help='provide base image output path')
+@images.image_output_arguments
 @argparses.end
-def cmd_build_base_image(base_image_path, prune_stash_path):
+def cmd_build_base_image(name, version, base_image_path, prune_stash_path):
     bases.assert_root_privilege()
     LOG.info('create base image: %s', base_image_path)
     images.build_image(
-        images.ImageMetadata(
-            name=bases.PARAMS.base_image_name.get(),
-            version=bases.PARAMS.base_image_version.get(),
-        ),
+        images.ImageMetadata(name=name, version=version),
         lambda dst_path: _create_image_rootfs(dst_path, prune_stash_path),
         base_image_path,
     )

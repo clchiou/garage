@@ -30,6 +30,7 @@ LOG = logging.getLogger(__name__)
     type=g1.containers.pods.validate_id,
     help='set builder pod id (default to a random one)',
 )
+@builders.base_image_version_arguments
 @builders.select_image_arguments
 @argparses.argument(
     '--volume',
@@ -43,7 +44,7 @@ LOG = logging.getLogger(__name__)
     help='add build rule',
 )
 @builders.import_output_arguments(default=True)
-@builders.image_output_arguments
+@g1.containers.images.image_output_arguments
 @argparses.end
 def cmd_build(args):
     g1.containers.bases.assert_root_privilege()
@@ -89,8 +90,9 @@ def cmd_build(args):
             ctr_exec,
             'images',
             'build',
-            *('--nv', args.name, args.version),
             *('--rootfs', rootfs_path),
+            args.name,
+            args.version,
             args.output,
         ])
         if args.import_output:
@@ -161,15 +163,14 @@ def _get_apps(args):
 
 
 def _get_images(args):
-    base_image_version = g1.containers.bases.PARAMS.base_image_version.get()
     images = [
         {
-            'name': g1.containers.bases.PARAMS.base_image_name.get(),
-            'version': base_image_version,
+            'name': builders.BASE,
+            'version': args.base_version,
         },
         {
             'name': builders.BUILDER_BASE,
-            'version': base_image_version,
+            'version': args.base_version,
         },
     ]
     for image in args.image or ():

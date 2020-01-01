@@ -63,16 +63,6 @@ PARAMS = parameters.define(
             doc='path to the repository directory',
             type=str,
         ),
-        base_image_name=parameters.Parameter(
-            'base',
-            doc='set base image name',
-            type=str,
-        ),
-        base_image_version=parameters.Parameter(
-            '0.0.1',
-            doc='set base image version',
-            type=str,
-        ),
         application_group=parameters.Parameter(
             # TODO: Choose an application group to replace "root".
             'root',

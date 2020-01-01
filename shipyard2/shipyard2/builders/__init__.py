@@ -32,11 +32,19 @@ PARAMS = parameters.define(
     ),
 )
 
+BASE = 'base'
 BUILDER_BASE = 'builder-base'
 
 #
 # Package-private utilities.
 #
+
+base_image_version_arguments = argparses.argument(
+    '--base-version',
+    type=g1.containers.images.validate_version,
+    required=True,
+    help='provide base image version',
+)
 
 select_image_arguments = functionals.compose(
     argparses.argument(
@@ -75,25 +83,6 @@ def import_output_arguments(*, default):
         default=default,
         help='also import output image (default: %(default_string)s)',
     )
-
-
-image_output_arguments = functionals.compose(
-    argparses.argument(
-        'name',
-        type=g1.containers.images.validate_name,
-        help='provide output image name',
-    ),
-    argparses.argument(
-        'version',
-        type=g1.containers.images.validate_version,
-        help='provide output image version',
-    ),
-    argparses.argument(
-        'output',
-        type=Path,
-        help='provide output image path',
-    ),
-)
 
 
 def is_debug():

@@ -20,6 +20,7 @@ LOG = logging.getLogger(__name__)
     **builders.make_help_kwargs('build base and builder-base image'),
 )
 @builders.import_output_arguments(default=True)
+@builders.base_image_version_arguments
 @argparses.argument(
     'output',
     type=Path,
@@ -29,7 +30,6 @@ LOG = logging.getLogger(__name__)
 def cmd_bootstrap(args):
     g1.containers.bases.assert_root_privilege()
     ASSERT.predicate(args.output, Path.is_dir)
-    base_image_version = g1.containers.bases.PARAMS.base_image_version.get()
     ctr_exec = builders.PARAMS.ctr_exec.get()
     base_image_path = args.output / 'base.tgz'
     builder_base_image_path = args.output / 'builder-base.tgz'
@@ -39,22 +39,20 @@ def cmd_bootstrap(args):
         builder_base_rootfs_path = tempdir_path / 'builder-base'
         builders.run([
             ctr_exec,
-            *(
-                '--parameter',
-                'g1.containers:base_image_version',
-                base_image_version,
-            ),
             'images',
             'build-base',
             *('--prune-stash-path', builder_base_rootfs_path),
+            builders.BASE,
+            args.base_version,
             base_image_path,
         ])
         builders.run([
             ctr_exec,
             'images',
             'build',
-            *('--nv', 'builder-base', base_image_version),
             *('--rootfs', builder_base_rootfs_path),
+            builders.BUILDER_BASE,
+            args.base_version,
             builder_base_image_path,
         ])
         if args.import_output:

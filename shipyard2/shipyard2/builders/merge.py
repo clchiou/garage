@@ -81,7 +81,7 @@ _DEFAULT_FILTERS = (
     help='add output path filter for exclusion'
 )
 @builders.import_output_arguments(default=False)
-@builders.image_output_arguments
+@g1.containers.images.image_output_arguments
 @argparses.end
 def cmd_merge(args):
     g1.containers.bases.assert_root_privilege()
@@ -109,8 +109,9 @@ def cmd_merge(args):
             ctr_exec,
             'images',
             'build',
-            *('--nv', args.name, args.version),
             *('--rootfs', filtered),
+            args.name,
+            args.version,
             args.output,
         ])
         if args.import_output:

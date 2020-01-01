@@ -157,6 +157,24 @@ select_image_arguments = functionals.compose(
     argparses.end,
 )
 
+image_output_arguments = functionals.compose(
+    argparses.argument(
+        'name',
+        type=validate_name,
+        help='provide output image name',
+    ),
+    argparses.argument(
+        'version',
+        type=validate_version,
+        help='provide output image version',
+    ),
+    argparses.argument(
+        'output',
+        type=Path,
+        help='provide output image path',
+    ),
+)
+
 
 def make_select_image_kwargs(args):
     return {
@@ -182,20 +200,12 @@ def cmd_init():
 
 @argparses.begin_parser('build', **bases.make_help_kwargs('build image'))
 @argparses.argument(
-    '--nv',
-    metavar=('NAME', 'VERSION'),
-    # Sadly it looks like you can't use ``type`` with ``nargs``.
-    nargs=2,
-    required=True,
-    help='provide image name and version',
-)
-@argparses.argument(
     '--rootfs',
     type=Path,
     required=True,
     help='provide rootfs path',
 )
-@argparses.argument('output', type=Path, help='provide output path')
+@image_output_arguments
 @argparses.end
 def cmd_build_image(name, version, rootfs_path, output_path):
     # Although root privilege is not required, most likely you need it
