@@ -18,7 +18,7 @@ LOG = logging.getLogger(__name__)
 
 _DEFAULT_FILTERS = (
     # Do not leak any source codes to the application image.
-    # Keep this in sync with //apps:build.
+    # Keep this in sync with //bases:build.
     ('exclude', '/home/plumber/drydock'),
     ('exclude', '/usr/src'),
     # Include only relevant files under /etc.
