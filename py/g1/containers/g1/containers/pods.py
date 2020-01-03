@@ -372,6 +372,10 @@ def cmd_export_overlay(pod_id, output_path, filter_patterns, *, debug=False):
         '--exclude=/etc/systemd',
         '--exclude=/etc/.pwd.lock',
         '--exclude=/etc/mtab',
+        # Remove distro unit files.
+        '--exclude=/etc/systemd/system',
+        '--exclude=/lib/systemd/system',
+        '--exclude=/usr/lib/systemd/system',
     ]
     filter_args.extend('--%s=%s' % pair for pair in filter_patterns)
     if debug:
