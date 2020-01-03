@@ -4,6 +4,7 @@ from pathlib import Path
 
 import foreman
 
+from g1 import scripts
 from g1.bases.assertions import ASSERT
 
 (foreman.define_parameter.path_typed('root')\
@@ -19,3 +20,13 @@ from g1.bases.assertions import ASSERT
 def build(parameters):
     ASSERT.predicate(parameters['root'] / '.git', Path.is_dir)
     parameters['drydock'].mkdir(exist_ok=True)
+    # Although not all build rules require these dependencies, for the
+    # ease of development, let's install them anyway.
+    with scripts.using_sudo():
+        scripts.apt_get_install([
+            'git',
+            'rsync',
+            'tar',
+            'unzip',
+            'wget',
+        ])
