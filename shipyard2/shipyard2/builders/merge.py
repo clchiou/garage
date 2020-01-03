@@ -47,12 +47,19 @@ _DEFAULT_FILTERS = (
     ('exclude', '/sbin'),
     ('exclude', '/usr/bin'),
     ('exclude', '/usr/sbin'),
+    # Exclude headers.
+    ('exclude', '/usr/include'),
+    ('exclude', '/usr/local/include'),
     # Exclude distro systemd files.
     ('exclude', '/lib/systemd'),
     ('exclude', '/usr/lib/systemd'),
     # In general, don't exclude distro libraries since we might depend
-    # on them, except distro python libraries.
+    # on them, except these libraries.
+    ('exclude', '/usr/lib/apt'),
+    ('exclude', '/usr/lib/gcc'),
+    ('exclude', '/usr/lib/git-core'),
     ('exclude', '/usr/lib/python*'),
+    ('exclude', '/usr/lib/**/*perl*'),
     # Exclude these to save more space.
     ('exclude', '/usr/share'),  # Do we need (portion of) this?
     ('exclude', '/var'),
