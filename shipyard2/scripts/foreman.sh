@@ -5,7 +5,15 @@ source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 which python3 > /dev/null || abort "python3 is unavailable"
 
 # Make build.py dependencies available (even inside builder pod).
-export PYTHONPATH="${PYTHONPATH:-}${PYTHONPATH:+:}${ROOT}/py/g1/bases"
+readonly DEPS=(
+  "$(realpath "${HERE}/..")"  # shipyard2.
+  "${ROOT}/py/g1/bases"
+  "${ROOT}/py/g1/scripts"
+)
+for dep in "${DEPS[@]}"; do
+  PYTHONPATH="${PYTHONPATH:-}${PYTHONPATH:+:}${dep}"
+done
+export PYTHONPATH
 
 # Put our `--path` before ${@:2} so that it is the first one.
 exec "${ROOT}/py/foreman/foreman.py" \
