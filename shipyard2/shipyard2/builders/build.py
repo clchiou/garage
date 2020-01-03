@@ -120,18 +120,22 @@ def _generate_builder_config(apps, images, volumes):
 
 
 _INIT_BASE_DATA = (
+    # pylint: disable=line-too-long
     'adduser --disabled-password --gecos "" plumber',
     'echo "plumber ALL=(ALL:ALL) NOPASSWD: ALL" > /etc/sudoers.d/99-plumber',
     'chmod 440 /etc/sudoers.d/99-plumber',
-    # foreman needs at least python3; let's use 3.8 to be safe.
     # TODO: Get distro (bionic) from `ctr images build-base`.
-    # pylint: disable=line-too-long
-    'apt-get install --yes software-properties-common',
+    'apt-get --yes install software-properties-common',
+    # Clear the default repositories from `ctr images build-base` as
+    # they conflict with mime.
+    'echo -n > /etc/apt/sources.list',
     'add-apt-repository --yes "deb http://us.archive.ubuntu.com/ubuntu/ bionic main restricted universe"',
     'add-apt-repository --yes "deb http://us.archive.ubuntu.com/ubuntu/ bionic-updates main restricted universe"',
     'add-apt-repository --yes "deb http://security.ubuntu.com/ubuntu/ bionic-security main restricted universe"',
-    'apt-get update',
-    'apt-get install --yes python3.8',
+    'apt-get --yes update',
+    'apt-get --yes full-upgrade',
+    # foreman needs at least python3; let's use 3.8 to be safe.
+    'apt-get --yes install python3.8',
     'update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 1',
     'update-alternatives --set python3 /usr/bin/python3.8',
     # pylint: enable=line-too-long
