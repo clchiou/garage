@@ -145,8 +145,9 @@ def _get_apps(args):
         builder_script.extend(_INIT_BASE_DATA)
     if args.rule:
         builder_script.append(
-            'sudo -u plumber -g plumber "%s" build %s' % (
+            'sudo -u plumber -g plumber "%s" build %s %s' % (
                 builders.PARAMS.foreman_path.get(),
+                '--debug' if builders.is_debug() else '',
                 ' '.join('"%s"' % rule for rule in args.rule),
             )
         )
