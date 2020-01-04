@@ -119,7 +119,7 @@ def _generate_builder_config(apps, images, volumes):
     }
 
 
-_INIT_BASE_DATA = (
+_INITIALIZE_BUILDER = (
     # pylint: disable=line-too-long
     'adduser --disabled-password --gecos "" plumber',
     'echo "plumber ALL=(ALL:ALL) NOPASSWD: ALL" > /etc/sudoers.d/99-plumber',
@@ -145,8 +145,8 @@ _INIT_BASE_DATA = (
 def _get_apps(args):
     builder_script = []
     if not args.image:
-        LOG.info('no intermediate builder images; init base data')
-        builder_script.extend(_INIT_BASE_DATA)
+        LOG.info('no intermediate builder images; initialize builder')
+        builder_script.extend(_INITIALIZE_BUILDER)
     if args.rule:
         builder_script.append(
             'sudo -u plumber -g plumber "%s" build %s %s' % (
