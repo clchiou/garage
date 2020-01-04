@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """Run a pod for exploration."""
 
-import csv
-import io
 import json
 import logging
 import shutil
@@ -34,9 +32,26 @@ def add_arguments(parser: bases.LABELS.parser) -> bases.LABELS.parse:
     )
     parser.add_argument(
         '--image-id',
-        required=True,
-        action='append',
-        help='add image id prefix',
+        action=argparses.AppendConstAndValueAction,
+        dest='image',
+        const='id',
+        help='add image by id',
+    )
+    parser.add_argument(
+        '--image-nv',
+        action=argparses.AppendConstAndValueAction,
+        dest='image',
+        const='nv',
+        metavar=('NAME', 'VERSION'),
+        nargs=2,
+        help='add image by name and version',
+    )
+    parser.add_argument(
+        '--image-tag',
+        action=argparses.AppendConstAndValueAction,
+        dest='image',
+        const='tag',
+        help='add image by tag',
     )
     parser.add_argument(
         '--volume',
@@ -62,11 +77,11 @@ def main(args: bases.LABELS.args):
 def init(args):
     pod_id = args.pod_id or generate_pod_id()
     LOG.info('use pod id: %s', pod_id)
-    image_ids = expand_image_ids(args.image_id)
+    images = parse_image_args(ASSERT.not_empty(args.image or ()))
     volumes = parse_volume_args(args.volume or ())
     with tempfile.NamedTemporaryFile(suffix='.json') as config_tempfile:
         config_path = config_tempfile.name
-        write_config(image_ids, volumes, config_path)
+        write_config(images, volumes, config_path)
         prepare_pod(pod_id, config_path)
     return pod_id
 
@@ -80,28 +95,18 @@ def generate_pod_id():
     return proc.stdout.decode('utf-8').strip()
 
 
-def expand_image_ids(id_prefixes):
-    expanded = []
-    image_ids = list_image_ids()
-    for id_prefix in id_prefixes:
-        for image_id in image_ids:
-            if image_id.startswith(id_prefix):
-                expanded.append(image_id)
-                break
+def parse_image_args(image_args):
+    images = []
+    for arg in image_args:
+        if arg[0] == 'id':
+            images.append({'id': arg[1]})
+        elif arg[0] == 'nv':
+            images.append({'name': arg[1][0], 'version': arg[1][1]})
+        elif arg[0] == 'tag':
+            images.append({'tag': arg[1]})
         else:
-            ASSERT.unreachable('unknown image id prefix: {}', id_prefix)
-    return expanded
-
-
-def list_image_ids():
-    proc = subprocess.run(
-        [CTR] + 'images list --format csv --header false --columns id'.split(),
-        check=True,
-        capture_output=True,
-    )
-    return [
-        row[0] for row in csv.reader(io.StringIO(proc.stdout.decode('utf8')))
-    ]
+            ASSERT.unreachable('unknown image arg: {}', arg)
+    return images
 
 
 def parse_volume_args(volume_args):
@@ -122,15 +127,13 @@ def parse_volume_args(volume_args):
     return volumes
 
 
-def write_config(image_ids, volumes, config_path):
+def write_config(images, volumes, config_path):
     LOG.info('write config to: %s', config_path)
     config = {
         'name': 'explorer',
         'version': '0.0.1',
         'apps': [],
-        'images': [{
-            'id': image_id
-        } for image_id in image_ids],
+        'images': images,
         'volumes': volumes,
     }
     with open(config_path, 'w') as config_file:
