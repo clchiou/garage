@@ -15,6 +15,11 @@ class BasesTest(unittest.TestCase):
     def test_doing_check(self):
         self.do_test_using(bases.doing_check, bases._CHECK, True, False)
 
+    def test_get_dry_run(self):
+        self.assertEqual(bases.get_dry_run(), False)
+        with bases.doing_dry_run():
+            self.assertEqual(bases.get_dry_run(), True)
+
     def test_doing_dry_run(self):
         self.do_test_using(bases.doing_dry_run, bases._DRY_RUN, True, False)
 

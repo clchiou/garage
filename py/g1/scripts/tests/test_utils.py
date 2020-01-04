@@ -1,4 +1,5 @@
 import unittest
+import unittest.mock
 
 from pathlib import Path
 
@@ -11,6 +12,20 @@ class UtilsTest(unittest.TestCase):
         self.assertEqual(
             utils.get_url_path('http://x/y/z?a=1'),
             Path('/y/z'),
+        )
+
+    @unittest.mock.patch(utils.__name__ + '.os')
+    def test_export_path(self, os_mock):
+        environ_fake = {'PATH': 'X'}
+        os_mock.environ = environ_fake
+        utils.export_path('PATH', 'Y')
+        utils.export_path('PYTHONPATH', 'Z')
+        self.assertEqual(
+            environ_fake,
+            {
+                'PATH': 'Y:X',
+                'PYTHONPATH': 'Z',
+            },
         )
 
     def test_guess(self):

@@ -1,6 +1,7 @@
 __all__ = [
     'ArchiveTypes',
     'Compressors',
+    'export_path',
     'get_url_path',
     'guess_archive_type',
     'guess_compressor',
@@ -8,8 +9,14 @@ __all__ = [
 ]
 
 import enum
+import logging
+import os
 import urllib.parse
 from pathlib import Path
+
+from . import bases
+
+LOG = logging.getLogger(__name__)
 
 
 class ArchiveTypes(enum.Enum):
@@ -25,6 +32,15 @@ class Compressors(enum.Enum):
     GZIP = enum.auto()
     XZ = enum.auto()
     ZIP = enum.auto()
+
+
+def export_path(var, path):
+    """Prepend path to a PATH-like environment variable."""
+    paths = os.environ.get(var)
+    paths = '%s:%s' % (path, paths) if paths else str(path)
+    LOG.info('prepend %s: %r', var, paths)
+    if not bases.get_dry_run():
+        os.environ[var] = paths
 
 
 def get_url_path(url):

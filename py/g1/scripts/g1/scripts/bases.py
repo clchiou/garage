@@ -14,6 +14,7 @@ __all__ = [
     'doing_check',
     'doing_dry_run',
     'get_cwd',
+    'get_dry_run',
     'preserving_sudo_envs',
     'using_cwd',
     'using_input',
@@ -79,6 +80,10 @@ def _using(name, new_value):
 
 def doing_check(check=True):
     return _using(_CHECK, check)
+
+
+def get_dry_run():
+    return _get(_DRY_RUN)
 
 
 def doing_dry_run(dry_run=True):
