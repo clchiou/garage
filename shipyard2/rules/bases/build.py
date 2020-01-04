@@ -7,6 +7,8 @@ import foreman
 from g1 import scripts
 from g1.bases.assertions import ASSERT
 
+import shipyard2.rules.bases
+
 (foreman.define_parameter.list_typed('roots')\
  .with_doc('paths to the root directory of repositories')
  .with_default([Path(__file__).parent.parent.parent.parent]))
@@ -15,21 +17,21 @@ from g1.bases.assertions import ASSERT
  .with_doc('path to the directory of intermediate build artifacts')
  .with_default(Path.home() / 'drydock'))
 
+# Install requisites for shipyard2.rules.bases.define_archive.
+shipyard2.rules.bases.define_distro_packages(
+    name_prefix='archive/',
+    packages=[
+        'tar',
+        'unzip',
+        'wget',
+    ],
+)
+
 
 @foreman.rule
 def build(parameters):
     ASSERT.all(parameters['roots'], _is_root_dir)
-    parameters['drydock'].mkdir(exist_ok=True)
-    # Although not all build rules require these dependencies, for the
-    # ease of development, let's install them anyway.
-    with scripts.using_sudo():
-        scripts.apt_get_install([
-            'git',
-            'rsync',
-            'tar',
-            'unzip',
-            'wget',
-        ])
+    scripts.mkdir(parameters['drydock'])
 
 
 def _is_root_dir(path):

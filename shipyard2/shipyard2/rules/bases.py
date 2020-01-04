@@ -63,6 +63,7 @@ def define_archive(
      .with_default(_archive_make(url, filename, output, checksum)))
 
     @foreman.rule(rule_download)
+    @foreman.rule.depend('//bases:archive/install')
     @foreman.rule.depend('//bases:build')
     def download(parameters):
         archive = parameters[parameter_archive]
@@ -82,6 +83,7 @@ def define_archive(
             scripts.validate_checksum(archive_path, archive.checksum)
 
     @foreman.rule(rule_extract)
+    @foreman.rule.depend('//bases:archive/install')
     @foreman.rule.depend('//bases:build')
     @foreman.rule.depend(rule_download)
     def extract(parameters):
