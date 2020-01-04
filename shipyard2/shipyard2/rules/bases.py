@@ -3,6 +3,7 @@
 __all__ = [
     'define_archive',
     'define_distro_packages',
+    'define_git_repo',
 ]
 
 import collections
@@ -157,3 +158,38 @@ def define_distro_packages(
             scripts.apt_get_install(parameters[parameter_packages])
 
     return DistroPackagesRules(install=install)
+
+
+@dataclasses.dataclass(frozen=True)
+class GitRepoRules:
+    git_clone: foreman.Rule
+
+
+def define_git_repo(
+    repo_url,
+    treeish,
+    *,
+    name_prefix='',
+):
+    """Define a git repo.
+
+    This defines:
+    * Rule: [name_prefix/]git-clone.
+    """
+    name_prefix = rules.canonicalize_name_prefix(name_prefix)
+    rule_git_clone = name_prefix + 'git-clone'
+
+    @foreman.rule(rule_git_clone)
+    @foreman.rule.depend('//bases:build')
+    @foreman.rule.depend('//bases:git-repo/install')
+    def git_clone(parameters):
+        repo_path = parameters['//bases:drydock'] / foreman.get_relpath()
+        git_dir_path = repo_path / '.git'
+        if git_dir_path.is_dir():
+            LOG.info('skip: git clone: %s', repo_url)
+            return
+        LOG.info('git clone: %s', repo_url)
+        scripts.git_clone(repo_url, repo_path=repo_path, treeish=treeish)
+        ASSERT.predicate(git_dir_path, Path.is_dir)
+
+    return GitRepoRules(git_clone=git_clone)

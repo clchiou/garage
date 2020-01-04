@@ -27,6 +27,14 @@ shipyard2.rules.bases.define_distro_packages(
     ],
 )
 
+# Install requisites for shipyard2.rules.bases.define_git_repo.
+shipyard2.rules.bases.define_distro_packages(
+    name_prefix='git-repo/',
+    packages=[
+        'git',
+    ],
+)
+
 
 @foreman.rule
 def build(parameters):
