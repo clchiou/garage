@@ -14,6 +14,7 @@ __all__ = [
     'doing_check',
     'doing_dry_run',
     'get_cwd',
+    'preserving_sudo_envs',
     'using_cwd',
     'using_input',
     'using_relative_cwd',
@@ -39,12 +40,14 @@ _CWD = 'cwd'
 _DRY_RUN = 'dry_run'
 _INPUT = 'input'
 _SUDO = 'sudo'
+_SUDO_ENVS = 'sudo_envs'
 _DEFAULTS = {
     _CHECK: True,
     _CWD: None,
     _DRY_RUN: False,
     _INPUT: None,
     _SUDO: False,
+    _SUDO_ENVS: (),
 }
 
 
@@ -112,10 +115,19 @@ def using_sudo(sudo=True):
     return _using(_SUDO, sudo)
 
 
+def preserving_sudo_envs(sudo_envs):
+    return _using(_SUDO_ENVS, sudo_envs)
+
+
 def run(args):
     args = list(map(str, args))
     if _get(_SUDO):
-        args[:0] = ['sudo', '--non-interactive']
+        sudo_envs = _get(_SUDO_ENVS)
+        if sudo_envs:
+            preserve_envs_arg = ('--preserve-env=%s' % ','.join(sudo_envs), )
+        else:
+            preserve_envs_arg = ()
+        args[:0] = ['sudo', '--non-interactive', *preserve_envs_arg]
     LOG.debug('run: args=%s, context=%s', args, _CONTEXT)
     if _get(_DRY_RUN):
         # It seems better to return a fake value than None.

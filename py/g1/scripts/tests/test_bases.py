@@ -29,6 +29,11 @@ class BasesTest(unittest.TestCase):
     def test_using_sudo(self):
         self.do_test_using(bases.using_sudo, bases._SUDO, True, False)
 
+    def test_preserving_sudo_envs(self):
+        self.do_test_using(
+            bases.preserving_sudo_envs, bases._SUDO_ENVS, [], ['X']
+        )
+
     def do_test_using(self, using, name, value1, value2):
         self.assertEqual(bases._CONTEXT, {})
         with using(value1):
@@ -77,11 +82,11 @@ class BasesTest(unittest.TestCase):
     @unittest.mock.patch(bases.__name__ + '.subprocess')
     def test_run_with_non_defaults(subprocess_mock):
         with bases.doing_check(False):
-            with bases.using_sudo():
+            with bases.using_sudo(), bases.preserving_sudo_envs(['X', 'Y']):
                 with bases.using_cwd(Path('foo')):
                     bases.run(['echo'])
         subprocess_mock.run.assert_called_once_with(
-            ['sudo', '--non-interactive', 'echo'],
+            ['sudo', '--non-interactive', '--preserve-env=X,Y', 'echo'],
             check=False,
             cwd=Path('foo'),
             input=None,
