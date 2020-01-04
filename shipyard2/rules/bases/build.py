@@ -7,9 +7,9 @@ import foreman
 from g1 import scripts
 from g1.bases.assertions import ASSERT
 
-(foreman.define_parameter.path_typed('root')\
- .with_doc('path to the root directory of this repository')
- .with_default(Path(__file__).parent.parent.parent.parent))
+(foreman.define_parameter.list_typed('roots')\
+ .with_doc('paths to the root directory of repositories')
+ .with_default([Path(__file__).parent.parent.parent.parent]))
 
 (foreman.define_parameter.path_typed('drydock')\
  .with_doc('path to the directory of intermediate build artifacts')
@@ -18,7 +18,7 @@ from g1.bases.assertions import ASSERT
 
 @foreman.rule
 def build(parameters):
-    ASSERT.predicate(parameters['root'] / '.git', Path.is_dir)
+    ASSERT.all(parameters['roots'], _is_root_dir)
     parameters['drydock'].mkdir(exist_ok=True)
     # Although not all build rules require these dependencies, for the
     # ease of development, let's install them anyway.
@@ -30,3 +30,7 @@ def build(parameters):
             'unzip',
             'wget',
         ])
+
+
+def _is_root_dir(path):
+    return (path / '.git').is_dir()
