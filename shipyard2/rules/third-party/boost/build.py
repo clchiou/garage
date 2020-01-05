@@ -41,9 +41,7 @@ shipyard2.rules.bases.define_distro_packages([
     parameters=foreman.REMOVE,
 )
 def config(parameters):
-    config_path = ASSERT.not_predicate(
-        _get_config_path(parameters), Path.exists
-    )
+    config_path = _get_config_path(parameters)
     scripts.mkdir(config_path.parent)
     config_path.write_text(
         json.dumps({
