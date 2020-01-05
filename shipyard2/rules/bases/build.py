@@ -43,4 +43,4 @@ def build(parameters):
 
 
 def _is_root_dir(path):
-    return (path / '.git').is_dir()
+    return (Path(path) / '.git').is_dir()

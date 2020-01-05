@@ -9,6 +9,7 @@ __all__ = [
 import dataclasses
 import logging
 import typing
+from pathlib import Path
 
 import foreman
 
@@ -90,11 +91,14 @@ def define_package(
 
 def _find_src_path(parameters):
     relpath = foreman.get_relpath()
-    for root_path in parameters['//bases:roots']:
-        path = root_path / relpath
+    root_paths = parameters['//bases:roots']
+    for root_path in root_paths:
+        path = Path(root_path) / relpath
         if (path / 'setup.py').is_file():
             return path
-    return ASSERT.unreachable('cannot find package under: {}', relpath)
+    return ASSERT.unreachable(
+        'cannot find package {} under: {}', relpath, root_paths
+    )
 
 
 def _make_build_extra(extra, rule_build, deps):
