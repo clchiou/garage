@@ -1,6 +1,8 @@
 import shipyard2.rules.pythons
 
-(shipyard2.rules.pythons.define_package().build\
- .depend('//py/g1/bases:build')
- .depend('//third-party/sqlalchemy:build')
- )
+shipyard2.rules.pythons.define_package(
+    deps=[
+        '//py/g1/bases:build',
+        '//third-party/sqlalchemy:build',
+    ],
+)
