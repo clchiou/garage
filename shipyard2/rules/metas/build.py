@@ -27,6 +27,7 @@ import foreman
  # C++ libraries.
  .depend('config-boost').depend('//third-party/boost:build')
  .depend('//third-party/capnproto:build')
+ .depend('//third-party/capnproto-java:build')
  .depend('//third-party/nng:build')
  # Third-party Python packages.
  .depend('//third-party/lxml:build')
