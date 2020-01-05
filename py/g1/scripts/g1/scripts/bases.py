@@ -11,6 +11,7 @@ is more important then concurrent safe (we might change our mind later).
 __all__ = [
     'run',
     # Context manipulations.
+    'doing_capture_output',
     'doing_check',
     'doing_dry_run',
     'get_cwd',
@@ -36,6 +37,7 @@ LOG = logging.getLogger(__name__)
 _CONTEXT = {}
 
 # Context entry names and default values.
+_CAPTURE_OUTPUT = 'capture_output'
 _CHECK = 'check'
 _CWD = 'cwd'
 _DRY_RUN = 'dry_run'
@@ -43,6 +45,7 @@ _INPUT = 'input'
 _SUDO = 'sudo'
 _SUDO_ENVS = 'sudo_envs'
 _DEFAULTS = {
+    _CAPTURE_OUTPUT: False,
     _CHECK: True,
     _CWD: None,
     _DRY_RUN: False,
@@ -76,6 +79,10 @@ def _using(name, new_value):
             _CONTEXT.pop(name)
         else:
             _CONTEXT[name] = old_value
+
+
+def doing_capture_output(capture_output=True):
+    return _using(_CAPTURE_OUTPUT, capture_output)
 
 
 def doing_check(check=True):
@@ -139,6 +146,7 @@ def run(args):
         return subprocess.CompletedProcess(args, 0, b'', b'')
     return subprocess.run(
         args,
+        capture_output=_get(_CAPTURE_OUTPUT),
         check=_get(_CHECK),
         cwd=_get(_CWD),
         input=_get(_INPUT),

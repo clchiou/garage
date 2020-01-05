@@ -12,6 +12,11 @@ class BasesTest(unittest.TestCase):
         bases._CONTEXT.clear()
         super().tearDown()
 
+    def test_doing_capture_output(self):
+        self.do_test_using(
+            bases.doing_capture_output, bases._CAPTURE_OUTPUT, True, False
+        )
+
     def test_doing_check(self):
         self.do_test_using(bases.doing_check, bases._CHECK, True, False)
 
@@ -78,6 +83,7 @@ class BasesTest(unittest.TestCase):
         bases.run(['cat', Path('foo')])
         subprocess_mock.run.assert_called_once_with(
             ['cat', 'foo'],
+            capture_output=False,
             check=True,
             cwd=None,
             input=None,
@@ -92,6 +98,7 @@ class BasesTest(unittest.TestCase):
                     bases.run(['echo'])
         subprocess_mock.run.assert_called_once_with(
             ['sudo', '--non-interactive', '--preserve-env=X,Y', 'echo'],
+            capture_output=False,
             check=False,
             cwd=Path('foo'),
             input=None,

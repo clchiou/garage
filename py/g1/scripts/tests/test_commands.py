@@ -22,6 +22,7 @@ class CommandsTest(unittest.TestCase):
         self.subprocess_mock.run.assert_has_calls([
             unittest.mock.call(
                 args,
+                capture_output=False,
                 check=True,
                 cwd=unittest.mock.ANY,
                 input=None,
@@ -51,12 +52,14 @@ class CommandsTest(unittest.TestCase):
         self.subprocess_mock.run.assert_has_calls([
             unittest.mock.call(
                 ['md5sum', '--check', '--status', '-'],
+                capture_output=False,
                 check=False,
                 cwd=None,
                 input=b'123 foo',
             ),
             unittest.mock.call(
                 ['sha512sum', '--check', '--status', '-'],
+                capture_output=False,
                 check=False,
                 cwd=None,
                 input=b'456 bar',
