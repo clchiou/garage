@@ -8,6 +8,7 @@ __all__ = [
 
 import dataclasses
 import logging
+import typing
 
 import foreman
 
@@ -22,6 +23,7 @@ LOG = logging.getLogger(__name__)
 @dataclasses.dataclass(frozen=True)
 class PackageRules:
     build: foreman.Rule
+    build_extras: typing.Mapping[str, foreman.Rule]
 
 
 def define_host_package(
@@ -44,18 +46,22 @@ def define_host_package(
         LOG.info('export first-party host package: %s', src_path)
         scripts.export_path('PYTHONPATH', src_path)
 
-    return PackageRules(build=build)
+    return PackageRules(build=build, build_extras={})
 
 
 def define_package(
     *,
     name_prefix='',
+    host_deps=(),
+    deps=(),
+    extras=(),
     parameter_extra_commands=None,
 ):
     """Define a first-party package.
 
     This defines:
     * Rule: [name_prefix/]build.
+    * Rule: [name_prefix/]build/<extra> for each extra.
     """
     name_prefix = rules.canonicalize_name_prefix(name_prefix)
     rule_build = name_prefix + 'build'
@@ -69,7 +75,17 @@ def define_package(
         with scripts.using_cwd(src_path):
             _build(parameters, parameter_extra_commands)
 
-    return PackageRules(build=build)
+    for host_dep in host_deps:
+        build = build.depend(host_dep)
+    for dep in deps:
+        build = build.depend(dep)
+
+    build_extras = {
+        extra: _make_build_extra(extra, rule_build, extra_deps)
+        for extra, extra_deps in extras
+    }
+
+    return PackageRules(build=build, build_extras=build_extras)
 
 
 def _find_src_path(parameters):
@@ -79,6 +95,14 @@ def _find_src_path(parameters):
         if (path / 'setup.py').is_file():
             return path
     return ASSERT.unreachable('cannot find package under: {}', relpath)
+
+
+def _make_build_extra(extra, rule_build, deps):
+    rule = foreman.define_rule('%s/%s' % (rule_build, extra))
+    rule = rule.depend(rule_build)
+    for dep in deps:
+        rule = rule.depend(dep)
+    return rule
 
 
 def _build(parameters, parameter_extra_commands):
@@ -136,4 +160,4 @@ def define_pypi_package(
                 '%s==%s' % (package, version),
             ])
 
-    return PackageRules(build=build)
+    return PackageRules(build=build, build_extras={})
