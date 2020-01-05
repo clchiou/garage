@@ -56,7 +56,7 @@ def define_package(
     host_deps=(),
     deps=(),
     extras=(),
-    parameter_extra_commands=None,
+    make_global_options=None,
 ):
     """Define a first-party package.
 
@@ -74,7 +74,7 @@ def define_package(
         src_path = _find_src_path(parameters)
         LOG.info('build first-party package: %s', src_path)
         with scripts.using_cwd(src_path):
-            _build(parameters, parameter_extra_commands)
+            _build(parameters, make_global_options)
 
     for host_dep in host_deps:
         build = build.depend(host_dep)
@@ -109,7 +109,7 @@ def _make_build_extra(extra, rule_build, deps):
     return rule
 
 
-def _build(parameters, parameter_extra_commands):
+def _build(parameters, make_global_options):
     # `sudo --preserve-env` does not preserve PYTHONPATH (in case you
     # are curious, you may run `sudo sudo -V` to get the list of
     # preserved variables).
@@ -126,16 +126,16 @@ def _build(parameters, parameter_extra_commands):
             # pip would consider them already installed).
             '--upgrade',
             '--force-reinstall',
-            *_build_get_extra_commands(parameters, parameter_extra_commands),
+            *_build_get_global_options(parameters, make_global_options),
             '.',
         ])
 
 
-def _build_get_extra_commands(parameters, parameter_extra_commands):
-    if parameter_extra_commands is None:
+def _build_get_global_options(parameters, make_global_options):
+    if make_global_options is None:
         return
-    for command in parameters[parameter_extra_commands]:
-        yield '--global-option=%s' % command
+    for opt in make_global_options(parameters):
+        yield '--global-option=%s' % opt
 
 
 def define_pypi_package(
