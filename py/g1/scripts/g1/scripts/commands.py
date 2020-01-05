@@ -1,6 +1,7 @@
 """Wrappers of frequently-used commands."""
 
 __all__ = [
+    'cp',
     'ln',
     'mkdir',
     'rm',
@@ -25,6 +26,17 @@ from g1.bases.assertions import ASSERT
 
 from . import bases
 from . import utils
+
+
+def cp(src, dst, *, recursive=False, preserve=()):
+    bases.run([
+        'cp',
+        '--force',
+        *(('--recursive', ) if recursive else ()),
+        *(('--preserve=%s' % ','.join(preserve), ) if preserve else ()),
+        src,
+        dst,
+    ])
 
 
 def ln(target, link_name):

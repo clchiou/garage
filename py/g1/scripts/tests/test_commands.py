@@ -29,6 +29,10 @@ class CommandsTest(unittest.TestCase):
             ) for args in args_list
         ])
 
+    def test_cp(self):
+        commands.cp('a', 'b')
+        self.assert_runs(['cp', '--force', 'a', 'b'])
+
     def test_ln(self):
         commands.ln('a', 'b')
         self.assert_runs(['ln', '--symbolic', 'a', 'b'])
