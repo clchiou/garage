@@ -1,4 +1,4 @@
-## Build process
+### Containerized image build process
 
 The build process involves two pods: builder and application pod.
 

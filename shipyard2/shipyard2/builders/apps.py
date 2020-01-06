@@ -20,7 +20,7 @@ from . import merge
 @argparses.include(merge.cmd_merge)
 @argparses.end
 def main(args: bases.LABELS.args):
-    """Application builder."""
+    """Image builder."""
     if args.command == 'bootstrap':
         return bootstrap.cmd_bootstrap(args)
     elif args.command == 'build':
