@@ -102,7 +102,7 @@ shipyard2.rules.bases.define_distro_packages([
  .with_doc('path to site-packages directory')
  .with_derive(lambda ps: _add_version(ps, 'lib/python{}.{}')))
 
-foreman.define_parameter.list_typed('unused_modules').with_default([
+foreman.define_parameter.list_typed('unused-modules').with_default([
     'idlelib',
     'lib2to3',
     'tkinter',
@@ -139,7 +139,7 @@ def trim(parameters):
     LOG.info('remove unused python modules')
     with scripts.using_sudo():
         modules_dir_path = parameters['modules']
-        for module in parameters['unused_modules']:
+        for module in parameters['unused-modules']:
             scripts.rm(modules_dir_path / module, recursive=True)
 
 
