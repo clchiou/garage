@@ -87,10 +87,6 @@ def import_output_arguments(*, default):
     )
 
 
-def is_debug():
-    return logging.getLogger().isEnabledFor(logging.DEBUG)
-
-
 def get_repo_root_path():
     repo_root_path = Path(__file__).parent.parent.parent.parent
     ASSERT.predicate(repo_root_path / '.git', Path.exists)

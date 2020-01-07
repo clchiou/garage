@@ -16,6 +16,7 @@ import g1.containers.pods
 from g1.bases import argparses
 from g1.bases.assertions import ASSERT
 
+import shipyard2
 from shipyard2 import builders
 
 LOG = logging.getLogger(__name__)
@@ -64,7 +65,7 @@ def cmd_build(args):
         )
         builder_config_path = tempdir_path / 'builder.json'
         builder_config_path.write_text(json.dumps(builder_config))
-        if builders.is_debug():
+        if shipyard2.is_debug():
             LOG.debug('builder config: %s', builder_config_path.read_text())
         # The builder pod might not be cleaned up when `ctr pods run`
         # fails; so let's always do `ctr pods remove` on our way out.
@@ -151,7 +152,7 @@ def _get_apps(args):
         builder_script.append(
             'sudo -u plumber -g plumber "%s" build %s %s' % (
                 builders.PARAMS.foreman_path.get(),
-                '--debug' if builders.is_debug() else '',
+                '--debug' if shipyard2.is_debug() else '',
                 ' '.join('"%s"' % rule for rule in args.rule),
             )
         )
