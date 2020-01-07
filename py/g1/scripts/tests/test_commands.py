@@ -1,6 +1,7 @@
 import unittest
 import unittest.mock
 
+import subprocess
 from pathlib import Path
 
 from g1.scripts import bases
@@ -73,6 +74,17 @@ class CommandsTest(unittest.TestCase):
                 input=b'456 bar',
             ),
         ])
+
+    def test_write_bytes(self):
+        commands.write_bytes(b'bar', 'a/b/c')
+        self.subprocess_mock.run.assert_called_once_with(
+            ['tee', 'a/b/c'],
+            capture_output=False,
+            check=True,
+            cwd=None,
+            input=b'bar',
+            stdout=subprocess.DEVNULL,
+        )
 
     def test_extract(self):
         commands.extract('a/b/c.tgz')

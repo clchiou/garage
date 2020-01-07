@@ -7,6 +7,7 @@ __all__ = [
     'mkdir',
     'rm',
     'validate_checksum',
+    'write_bytes',
     # Archive.
     'extract',
     'tar_extract',
@@ -21,6 +22,7 @@ __all__ = [
     'git_clone',
 ]
 
+import subprocess
 from pathlib import Path
 
 from g1.bases.assertions import ASSERT
@@ -82,6 +84,11 @@ def _parse_checksum(checksum):
         if checksum.startswith(prefix):
             return command, checksum[len(prefix):]
     return ASSERT.unreachable('unknown checksum algorithm: {}', checksum)
+
+
+def write_bytes(data, path):
+    with bases.using_input(data), bases.using_stdout(subprocess.DEVNULL):
+        bases.run(['tee', path])
 
 
 def extract(archive_path, *, directory=None):
