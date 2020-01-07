@@ -1,4 +1,4 @@
-"""Base of application image."""
+"""Set up the base environment for build processes."""
 
 from pathlib import Path
 

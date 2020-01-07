@@ -171,11 +171,11 @@ def _get_apps(args):
 def _get_images(args):
     images = [
         {
-            'name': builders.BASE,
+            'name': shipyard2.BASE,
             'version': args.base_version,
         },
         {
-            'name': builders.BUILDER_BASE,
+            'name': shipyard2.BUILDER_BASE,
             'version': args.base_version,
         },
     ]

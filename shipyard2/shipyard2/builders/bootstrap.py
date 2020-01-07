@@ -10,6 +10,7 @@ import g1.containers.bases
 from g1.bases import argparses
 from g1.bases.assertions import ASSERT
 
+import shipyard2
 from shipyard2 import builders
 
 LOG = logging.getLogger(__name__)
@@ -42,7 +43,7 @@ def cmd_bootstrap(args):
             'images',
             'build-base',
             *('--prune-stash-path', builder_base_rootfs_path),
-            builders.BASE,
+            shipyard2.BASE,
             args.base_version,
             base_image_path,
         ])
@@ -51,7 +52,7 @@ def cmd_bootstrap(args):
             'images',
             'build',
             *('--rootfs', builder_base_rootfs_path),
-            builders.BUILDER_BASE,
+            shipyard2.BUILDER_BASE,
             args.base_version,
             builder_base_image_path,
         ])

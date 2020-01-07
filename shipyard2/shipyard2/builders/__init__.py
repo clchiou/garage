@@ -29,9 +29,6 @@ PARAMS = parameters.define(
     ),
 )
 
-BASE = 'base'
-BUILDER_BASE = 'builder-base'
-
 #
 # Package-private utilities.
 #
