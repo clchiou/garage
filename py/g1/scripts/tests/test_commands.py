@@ -29,6 +29,10 @@ class CommandsTest(unittest.TestCase):
             ) for args in args_list
         ])
 
+    def test_chown(self):
+        commands.chown('foo', None, 'bar')
+        self.assert_runs(['chown', 'foo', 'bar'])
+
     def test_cp(self):
         commands.cp('a', 'b')
         self.assert_runs(['cp', '--force', 'a', 'b'])

@@ -1,6 +1,7 @@
 """Wrappers of frequently-used commands."""
 
 __all__ = [
+    'chown',
     'cp',
     'ln',
     'mkdir',
@@ -26,6 +27,14 @@ from g1.bases.assertions import ASSERT
 
 from . import bases
 from . import utils
+
+
+def chown(owner, group, path):
+    bases.run([
+        'chown',
+        owner if group is None else '%s:%s' % (owner, group),
+        path,
+    ])
 
 
 def cp(src, dst, *, recursive=False, preserve=()):
