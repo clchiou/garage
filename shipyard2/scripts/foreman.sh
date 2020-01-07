@@ -8,6 +8,7 @@ which python3 > /dev/null || abort "python3 is unavailable"
 readonly DEPS=(
   "$(realpath "${HERE}/..")"  # shipyard2.
   "${ROOT}/py/g1/bases"
+  "${ROOT}/py/g1/containers"
   "${ROOT}/py/g1/scripts"
 )
 for dep in "${DEPS[@]}"; do
