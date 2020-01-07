@@ -94,7 +94,7 @@ def cmd_merge(args):
     g1.containers.bases.assert_root_privilege()
     ASSERT.not_empty(args.image)
     ASSERT.not_predicate(args.output, g1.containers.bases.lexists)
-    ctr_exec = builders.PARAMS.ctr_exec.get()
+    ctr_path = builders.get_ctr_path()
     rootfs_paths = _get_rootfs_paths(args)
     filter_rules = _get_filter_rules(args)
     with contextlib.ExitStack() as stack:
@@ -113,7 +113,7 @@ def cmd_merge(args):
         if not builders.PARAMS.dry_run.get():
             g1.containers.bases.rsync_copy(merged, filtered, filter_rules)
         builders.run([
-            ctr_exec,
+            ctr_path,
             'images',
             'build',
             *('--rootfs', filtered),
@@ -122,7 +122,7 @@ def cmd_merge(args):
             args.output,
         ])
         if args.import_output:
-            builders.run([ctr_exec, 'images', 'import', args.output])
+            builders.run([ctr_path, 'images', 'import', args.output])
     return 0
 
 

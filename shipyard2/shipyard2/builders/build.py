@@ -56,7 +56,7 @@ def cmd_build(args):
         images=_get_images(args),
         volumes=_get_volumes(args),
     )
-    ctr_exec = builders.PARAMS.ctr_exec.get()
+    ctr_path = builders.get_ctr_path()
     with contextlib.ExitStack() as stack:
         tempdir_path = Path(
             stack.enter_context(
@@ -69,10 +69,10 @@ def cmd_build(args):
             LOG.debug('builder config: %s', builder_config_path.read_text())
         # The builder pod might not be cleaned up when `ctr pods run`
         # fails; so let's always do `ctr pods remove` on our way out.
-        stack.callback(builders.run, [ctr_exec, 'pods', 'remove', builder_id])
+        stack.callback(builders.run, [ctr_path, 'pods', 'remove', builder_id])
         LOG.info('start builder pod')
         builders.run([
-            ctr_exec,
+            ctr_path,
             'pods',
             'run',
             *('--id', builder_id),
@@ -81,14 +81,14 @@ def cmd_build(args):
         LOG.info('export intermediate builder image to: %s', args.output)
         rootfs_path = tempdir_path / 'rootfs'
         builders.run([
-            ctr_exec,
+            ctr_path,
             'pods',
             'export-overlay',
             builder_id,
             rootfs_path,
         ])
         builders.run([
-            ctr_exec,
+            ctr_path,
             'images',
             'build',
             *('--rootfs', rootfs_path),
@@ -97,7 +97,7 @@ def cmd_build(args):
             args.output,
         ])
         if args.import_output:
-            builders.run([ctr_exec, 'images', 'import', args.output])
+            builders.run([ctr_path, 'images', 'import', args.output])
     return 0
 
 

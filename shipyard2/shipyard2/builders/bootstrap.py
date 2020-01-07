@@ -30,7 +30,7 @@ LOG = logging.getLogger(__name__)
 def cmd_bootstrap(args):
     g1.containers.bases.assert_root_privilege()
     ASSERT.predicate(args.output, Path.is_dir)
-    ctr_exec = builders.PARAMS.ctr_exec.get()
+    ctr_path = builders.get_ctr_path()
     base_image_path = args.output / 'base.tgz'
     builder_base_image_path = args.output / 'builder-base.tgz'
     with tempfile.TemporaryDirectory(dir=args.output) as tempdir_path:
@@ -38,7 +38,7 @@ def cmd_bootstrap(args):
         LOG.info('generate base and builder-base under: %s', tempdir_path)
         builder_base_rootfs_path = tempdir_path / 'builder-base'
         builders.run([
-            ctr_exec,
+            ctr_path,
             'images',
             'build-base',
             *('--prune-stash-path', builder_base_rootfs_path),
@@ -47,7 +47,7 @@ def cmd_bootstrap(args):
             base_image_path,
         ])
         builders.run([
-            ctr_exec,
+            ctr_path,
             'images',
             'build',
             *('--rootfs', builder_base_rootfs_path),
@@ -57,5 +57,5 @@ def cmd_bootstrap(args):
         ])
         if args.import_output:
             for path in (base_image_path, builder_base_image_path):
-                builders.run([ctr_exec, 'images', 'import', path])
+                builders.run([ctr_path, 'images', 'import', path])
     return 0

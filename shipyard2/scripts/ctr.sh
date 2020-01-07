@@ -10,11 +10,9 @@ source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 ensure_file "${BUILDER_PARAMS_PATH}"
 
 # XXX Because sudo does not find venv python3, as a workaround, we
-# export all of builder's dependencies (we could make sudo find venv
+# export all of ctr's dependencies (we could make sudo find venv
 # python3, but I think it is better to let sudo find distro python3).
 readonly DEPS=(
-  "$(realpath "${HERE}/..")"  # shipyard2.
-  "${ROOT}/py/foreman"
   "${ROOT}/py/g1/apps"
   "${ROOT}/py/g1/bases"
   "${ROOT}/py/g1/containers"
@@ -25,8 +23,7 @@ for dep in "${DEPS[@]}"; do
 done
 export PYTHONPATH
 
-# XXX Preserve BUILDER_PARAMS_PATH because builder calls ctr.
-exec sudo --preserve-env=BUILDER_PARAMS_PATH,PYTHONPATH \
-  python3 -m shipyard2.builders \
+exec sudo --preserve-env=PYTHONPATH \
+  python3 -m g1.containers \
   --parameter-file "${BUILDER_PARAMS_PATH#*.}" "${BUILDER_PARAMS_PATH}" \
   "${@}"

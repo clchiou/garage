@@ -16,11 +16,6 @@ LOG.addHandler(logging.NullHandler())
 PARAMS = parameters.define(
     __name__,
     parameters.Namespace(
-        ctr_exec=parameters.Parameter(
-            'ctr',
-            doc='set ctr executable (default to look up from PATH)',
-            type=str,
-        ),
         foreman_path=parameters.Parameter(
             '/usr/src/garage/shipyard2/scripts/foreman.sh',
             doc='set foreman path inside builder pod',
@@ -91,6 +86,13 @@ def get_repo_root_path():
     repo_root_path = Path(__file__).parent.parent.parent.parent
     ASSERT.predicate(repo_root_path / '.git', Path.exists)
     return repo_root_path
+
+
+def get_ctr_path():
+    return ASSERT.predicate(
+        Path(__file__).parent.parent.parent / 'scripts' / 'ctr.sh',
+        Path.is_file,
+    )
 
 
 def make_help_kwargs(help_text):
