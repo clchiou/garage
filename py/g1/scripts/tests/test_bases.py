@@ -1,6 +1,7 @@
 import unittest
 import unittest.mock
 
+import subprocess
 from pathlib import Path
 
 from g1.scripts import bases
@@ -35,6 +36,16 @@ class BasesTest(unittest.TestCase):
     def test_using_input(self):
         self.do_test_using(bases.using_input, bases._INPUT, b'1', b'2')
         self.do_test_using(bases.using_input, bases._INPUT, b'1', None)
+
+    def test_using_stdout(self):
+        self.do_test_using(
+            bases.using_stdout, bases._STDOUT, None, subprocess.PIPE
+        )
+
+    def test_using_stderr(self):
+        self.do_test_using(
+            bases.using_stderr, bases._STDERR, None, subprocess.DEVNULL
+        )
 
     def test_using_sudo(self):
         self.do_test_using(bases.using_sudo, bases._SUDO, True, False)

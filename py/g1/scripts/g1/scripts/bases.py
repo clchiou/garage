@@ -20,6 +20,8 @@ __all__ = [
     'using_cwd',
     'using_input',
     'using_relative_cwd',
+    'using_stderr',
+    'using_stdout',
     'using_sudo',
 ]
 
@@ -42,6 +44,8 @@ _CHECK = 'check'
 _CWD = 'cwd'
 _DRY_RUN = 'dry_run'
 _INPUT = 'input'
+_STDOUT = 'stdout'
+_STDERR = 'stderr'
 _SUDO = 'sudo'
 _SUDO_ENVS = 'sudo_envs'
 _DEFAULTS = {
@@ -50,6 +54,8 @@ _DEFAULTS = {
     _CWD: None,
     _DRY_RUN: False,
     _INPUT: None,
+    _STDOUT: None,
+    _STDERR: None,
     _SUDO: False,
     _SUDO_ENVS: (),
 }
@@ -123,6 +129,14 @@ def using_input(input):  # pylint: disable=redefined-builtin
     return _using(_INPUT, input)
 
 
+def using_stdout(stdout):
+    return _using(_STDOUT, stdout)
+
+
+def using_stderr(stderr):
+    return _using(_STDERR, stderr)
+
+
 def using_sudo(sudo=True):
     return _using(_SUDO, sudo)
 
@@ -144,10 +158,20 @@ def run(args):
     if _get(_DRY_RUN):
         # It seems better to return a fake value than None.
         return subprocess.CompletedProcess(args, 0, b'', b'')
+    # Work around subprocess.run limitation that it checks presence of
+    # stdout and stderr in kwargs, not whether their value is not None.
+    kwargs = {}
+    stdout = _get(_STDOUT)
+    if stdout is not None:
+        kwargs['stdout'] = stdout
+    stderr = _get(_STDERR)
+    if stderr is not None:
+        kwargs['stderr'] = stderr
     return subprocess.run(
         args,
         capture_output=_get(_CAPTURE_OUTPUT),
         check=_get(_CHECK),
         cwd=_get(_CWD),
         input=_get(_INPUT),
+        **kwargs,
     )
