@@ -150,7 +150,7 @@ def _get_pod_dir_path(parameters, name, version):
 def _parse_image_label(label):
     """Convert an image label to a label under shipyard2/rules."""
     label = foreman.Label.parse(label)
-    return str(foreman.Label('images' / label.path, label.name / 'build'))
+    return str(foreman.Label('images' / label.path, label.name / 'merge'))
 
 
 def _generate_release_metadata(parameters, pod_dir_path):
@@ -239,68 +239,59 @@ def _dump(obj, path):
 
 def _link_images(parameters, pod_dir_path, images):
     scripts.mkdir(pod_dir_path / _IMAGES_DIR_NAME)
-    _link_image(
+    _link(
+        _IMAGES_DIR_NAME,
         parameters,
         pod_dir_path,
         '//bases:%s' % shipyard2.BASE,
         parameters['//images/bases:base-version'],
     )
+    version = parameters['//images/bases:version']
     for label in images:
-        _link_image(
+        _link(
+            _IMAGES_DIR_NAME,
             parameters,
             pod_dir_path,
             label,
-            parameters['//images/bases:version'],
+            version,
         )
 
 
 def _link_volumes(parameters, pod_dir_path, volumes):
     scripts.mkdir(pod_dir_path / _VOLUMES_DIR_NAME)
     for volume in volumes:
-        ASSERT.predicate(
-            _link(
-                'volumes',
-                parameters,
-                pod_dir_path,
-                volume.label,
-                volume.version,
-            ) / shipyard2.rules.volumes.VOLUME_FILENAME,
-            Path.is_file,
+        _link(
+            _VOLUMES_DIR_NAME,
+            parameters,
+            pod_dir_path,
+            volume.label,
+            volume.version,
         )
 
 
-def _link_image(parameters, pod_dir_path, label, version):
-    ASSERT.predicate(
-        _link(
-            'images',
-            parameters,
-            pod_dir_path,
-            label,
-            version,
-        ) / shipyard2.rules.images.IMAGE_FILENAME,
-        Path.is_file,
-    )
-
-
-def _link(kind, parameters, pod_dir_path, label, version):
-    label = foreman.Label.parse(label)
-    link_path = pod_dir_path / kind / label.name
-    # Use os.path.relpath because Path.relative_to can't derive this
-    # type of relative path.
-    target_relpath = os.path.relpath(
+def _link(subdir_name, parameters, pod_dir_path, label, version):
+    if subdir_name == _IMAGES_DIR_NAME:
+        get_path = shipyard2.rules.images.get_image_path
+    else:
+        ASSERT.equal(subdir_name, _VOLUMES_DIR_NAME)
+        get_path = shipyard2.rules.volumes.get_volume_path
+    target_path = ASSERT.predicate(
         ASSERT.predicate(
-            ASSERT.predicate(
-                parameters['//releases:root'] / \
-                kind /
-                label.path /
-                label.name /
-                version,
-                Path.is_dir,
-            ),
+            get_path(parameters, label, version),
             Path.is_absolute,
         ),
-        link_path.parent,
+        # Err out when target file does not exist.
+        Path.is_file,
     )
+    link_path = (
+        pod_dir_path / \
+        subdir_name /
+        _get_label_name(label) /
+        target_path.name
+    )
+    # Use os.path.relpath because Path.relative_to can't derive this
+    # type of relative path.
+    target_relpath = os.path.relpath(target_path, link_path)
+    scripts.mkdir(link_path.parent)
     with scripts.using_cwd(link_path.parent):
         scripts.ln(target_relpath, link_path.name)
-    return link_path

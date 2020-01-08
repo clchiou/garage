@@ -1,7 +1,6 @@
 """Helpers for writing rules under //images."""
 
 __all__ = [
-    'IMAGE_FILENAME',
     'bootstrap',
     'define_image',
     'get_image_path',
@@ -22,23 +21,38 @@ import shipyard2.rules
 
 LOG = logging.getLogger(__name__)
 
-IMAGE_FILENAME = 'image.tar.gz'
+_BUILDER_IMAGE_FILENAME = 'builder.tar.gz'
+_IMAGE_FILENAME = 'image.tar.gz'
 
 
 @dataclasses.dataclass(frozen=True)
 class ImageRules:
     build: foreman.Rule
+    merge: foreman.Rule
 
 
 # NOTE: This function is generally called in the host system, not inside
 # a builder pod.
-def get_image_path(parameters, name, version):
+def get_image_path(parameters, label, version):
+    # We require absolute label for now.
+    label = foreman.Label.parse(label)
+    return (
+        parameters['//releases:root'] / \
+        'images' /
+        label.path /
+        label.name /
+        version /
+        _IMAGE_FILENAME
+    )
+
+
+def _get_image_path(parameters, name, version):
     return (
         parameters['//releases:root'] / \
         foreman.get_relpath() /
         name /
         version /
-        IMAGE_FILENAME
+        _IMAGE_FILENAME
     )
 
 
@@ -46,8 +60,14 @@ def _get_builder_name(name):
     return name + '-builder'
 
 
-def _get_builder_image_path(image_path):
-    return image_path.with_name('builder-image.tar.gz')
+def _get_builder_image_path(parameters, name, version):
+    return (
+        parameters['//releases:root'] / \
+        foreman.get_relpath() /
+        name /
+        version /
+        _BUILDER_IMAGE_FILENAME
+    )
 
 
 def bootstrap(parameters):
@@ -56,8 +76,8 @@ def bootstrap(parameters):
         parameters['//images/bases:version'],
     )
     image_paths = [
-        get_image_path(parameters, name, version)
-        for name in (shipyard2.BASE, shipyard2.BUILDER_BASE)
+        _get_image_path(parameters, shipyard2.BASE, version),
+        _get_builder_image_path(parameters, shipyard2.BUILDER_BASE, version),
     ]
     if all(map(Path.is_file, image_paths)):
         LOG.info('skip: bootstrap: %s', version)
@@ -73,6 +93,8 @@ def bootstrap(parameters):
         *('--base-version', version),
         *image_paths,
     ])
+    for image_path in image_paths:
+        _chown(image_path)
 
 
 def define_image(
@@ -82,72 +104,69 @@ def define_image(
     """Define an application image.
 
     This defines:
-    * Rule: name/build.  NOTE: This rule is generally run in the host
-      system, not inside a builder pod.
+    * Rule: name/build.
+    * Rule: name/merge.
+
+    NOTE: These rules are generally run in the host system, not inside a
+    builder pod.
     """
     ASSERT.not_empty(rules)
     name_prefix = shipyard2.rules.canonicalize_name_prefix(name)
     rule_build = name_prefix + 'build'
+    rule_merge = name_prefix + 'merge'
 
     @foreman.rule(rule_build)
     @foreman.rule.depend('//images/bases:build')
     @foreman.rule.depend('//releases:build')
     def build(parameters):
         version = parameters['//images/bases:version']
-        image_path = get_image_path(parameters, name, version)
-        if image_path.exists():
+        output = _get_builder_image_path(parameters, name, version)
+        if output.exists():
             LOG.info('skip: build image: %s %s', name, version)
             return
         LOG.info('build image: %s %s', name, version)
-        scripts.mkdir(image_path.parent)
-        try:
-            _build(parameters, name, rules, image_path)
-            _merge(parameters, name, image_path)
-        finally:
-            scripts.rm(_get_builder_image_path(image_path))
-            scripts.run([
-                parameters['//images/bases:ctr'],
-                'images',
-                'remove',
-                *('--nv', _get_builder_name(name), version),
-            ])
-            if image_path.exists():
-                user = getpass.getuser()
-                with scripts.using_sudo():
-                    scripts.chown(user, user, image_path)
+        scripts.mkdir(output.parent)
+        scripts.run([
+            parameters['//images/bases:builder'],
+            *_make_verbose_args(),
+            'build',
+            *_make_builder_id_args(parameters),
+            *('--base-version', parameters['//images/bases:base-version']),
+            *_make_builder_image_args(parameters),
+            *_make_image_data_args(parameters, name),
+            *_make_rule_args(rules),
+            _get_builder_name(name),
+            version,
+            output,
+        ])
+        _chown(output)
 
-    return ImageRules(build=build)
+    @foreman.rule(rule_merge)
+    @foreman.rule.depend('//images/bases:build')
+    @foreman.rule.depend('//releases:build')
+    @foreman.rule.depend(rule_build)
+    def merge(parameters):
+        version = parameters['//images/bases:version']
+        output = _get_image_path(parameters, name, version)
+        if output.exists():
+            LOG.info('skip: merge image: %s %s', name, version)
+            return
+        LOG.info('merge image: %s %s', name, version)
+        scripts.mkdir(output.parent)
+        scripts.run([
+            parameters['//images/bases:builder'],
+            *_make_verbose_args(),
+            'merge',
+            *_make_builder_image_args(parameters),
+            *('--image-nv', _get_builder_name(name), version),
+            *_make_filter_args(parameters),
+            name,
+            version,
+            output,
+        ])
+        _chown(output)
 
-
-def _build(parameters, name, rules, image_path):
-    scripts.run([
-        parameters['//images/bases:builder'],
-        *_make_verbose_args(),
-        'build',
-        *_make_builder_id_args(parameters),
-        *('--base-version', parameters['//images/bases:base-version']),
-        *_make_builder_image_args(parameters),
-        *_make_image_data_args(parameters, name),
-        *_make_rule_args(rules),
-        _get_builder_name(name),
-        parameters['//images/bases:version'],
-        _get_builder_image_path(image_path),
-    ])
-
-
-def _merge(parameters, name, image_path):
-    version = parameters['//images/bases:version']
-    scripts.run([
-        parameters['//images/bases:builder'],
-        *_make_verbose_args(),
-        'merge',
-        *_make_builder_image_args(parameters),
-        *('--image-nv', _get_builder_name(name), version),
-        *_make_filter_args(parameters),
-        name,
-        version,
-        image_path,
-    ])
+    return ImageRules(build=build, merge=merge)
 
 
 def _make_verbose_args():
@@ -206,3 +225,9 @@ def _make_filter_args(parameters):
             yield arg[len('exclude:'):]
         else:
             ASSERT.unreachable('unknown filter rule: {}', arg)
+
+
+def _chown(path):
+    user = getpass.getuser()
+    with scripts.using_sudo():
+        scripts.chown(user, user, path)

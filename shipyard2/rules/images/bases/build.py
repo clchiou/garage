@@ -6,7 +6,6 @@ import foreman
 
 from g1.bases.assertions import ASSERT
 
-import shipyard2
 import shipyard2.rules.images
 
 #
@@ -55,18 +54,8 @@ def build(parameters):
     ASSERT.predicate(SHIPYARD2_PATH.parent / '.git', Path.is_dir)
     ASSERT.predicate(parameters['//images/bases:builder'], Path.is_file)
     ASSERT.predicate(parameters['//images/bases:ctr'], Path.is_file)
-    base_version = ASSERT.not_none(parameters['base-version'])
+    ASSERT.not_none(parameters['base-version'])
     ASSERT.not_none(parameters['version'])
-    # We do not build but merely check the presence for base and
-    # builder-base image in the release directory (we assume that they
-    # have been built through some other means).
-    for base_name in (shipyard2.BASE, shipyard2.BUILDER_BASE):
-        ASSERT.predicate(
-            shipyard2.rules.images.get_image_path(
-                parameters, base_name, base_version
-            ),
-            Path.is_file,
-        )
 
 
 @foreman.rule

@@ -117,6 +117,7 @@ among them.  The directory structure is:
 
 * `images/${LABEL_PATH}/${IMAGE_NAME}/${IMAGE_VERSION}/...`
   + Image tarball: `image.tar.gz`.
+  + Intermediate builder image tarball: `builder.tar.gz`.
 
 * `volumes/${LABEL_PATH}/${VOLUME_NAME}/${VOLUME_VERSION}/...`
   + Volume tarball: `volume.tar.gz`.
