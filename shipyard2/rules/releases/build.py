@@ -22,6 +22,7 @@ from g1.bases.assertions import ASSERT
 # NOTE: This rule is generally run in the host system, not inside a
 # builder pod.
 @foreman.rule
+@foreman.rule.depend('//bases:dummy')
 def build(parameters):
     ASSERT.all(parameters['sources'], _is_source_repo)
     ASSERT.predicate(parameters['root'], Path.is_dir)

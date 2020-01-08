@@ -44,3 +44,8 @@ def build(parameters):
 
 def _is_root_dir(path):
     return (Path(path) / '.git').is_dir()
+
+
+# A dummy rule for rules that want to import base parameters but don't
+# want to depend on //bases:build.
+foreman.define_rule('dummy')
