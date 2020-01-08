@@ -9,6 +9,7 @@ is more important then concurrent safe (we might change our mind later).
 """
 
 __all__ = [
+    'popen',
     'run',
     # Context manipulations.
     'doing_capture_output',
@@ -145,7 +146,28 @@ def preserving_sudo_envs(sudo_envs):
     return _using(_SUDO_ENVS, sudo_envs)
 
 
+def popen(args):
+    LOG.debug('popen: args=%s, context=%s', args, _CONTEXT)
+    # It does not seem like we can return a fake Popen object.
+    ASSERT.false(_get(_DRY_RUN))
+    return subprocess.Popen(_prepare_args(args), **_prepare_kwargs())
+
+
 def run(args):
+    LOG.debug('run: args=%s, context=%s', args, _CONTEXT)
+    if _get(_DRY_RUN):
+        # It seems better to return a fake value than None.
+        return subprocess.CompletedProcess(args, 0, b'', b'')
+    return subprocess.run(
+        _prepare_args(args),
+        capture_output=_get(_CAPTURE_OUTPUT),
+        check=_get(_CHECK),
+        input=_get(_INPUT),
+        **_prepare_kwargs(),
+    )
+
+
+def _prepare_args(args):
     args = list(map(str, args))
     if _get(_SUDO):
         sudo_envs = _get(_SUDO_ENVS)
@@ -154,24 +176,19 @@ def run(args):
         else:
             preserve_envs_arg = ()
         args[:0] = ['sudo', '--non-interactive', *preserve_envs_arg]
-    LOG.debug('run: args=%s, context=%s', args, _CONTEXT)
-    if _get(_DRY_RUN):
-        # It seems better to return a fake value than None.
-        return subprocess.CompletedProcess(args, 0, b'', b'')
+    return args
+
+
+def _prepare_kwargs():
+    kwargs = {
+        'cwd': _get(_CWD),
+    }
     # Work around subprocess.run limitation that it checks presence of
     # stdout and stderr in kwargs, not whether their value is not None.
-    kwargs = {}
     stdout = _get(_STDOUT)
     if stdout is not None:
         kwargs['stdout'] = stdout
     stderr = _get(_STDERR)
     if stderr is not None:
         kwargs['stderr'] = stderr
-    return subprocess.run(
-        args,
-        capture_output=_get(_CAPTURE_OUTPUT),
-        check=_get(_CHECK),
-        cwd=_get(_CWD),
-        input=_get(_INPUT),
-        **kwargs,
-    )
+    return kwargs

@@ -90,6 +90,12 @@ class BasesTest(unittest.TestCase):
 
     @staticmethod
     @unittest.mock.patch(bases.__name__ + '.subprocess')
+    def test_popen(subprocess_mock):
+        bases.popen(['cat', Path('foo')])
+        subprocess_mock.Popen.assert_called_once_with(['cat', 'foo'], cwd=None)
+
+    @staticmethod
+    @unittest.mock.patch(bases.__name__ + '.subprocess')
     def test_run(subprocess_mock):
         bases.run(['cat', Path('foo')])
         subprocess_mock.run.assert_called_once_with(
