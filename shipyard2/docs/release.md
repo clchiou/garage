@@ -1,5 +1,5 @@
 NOTE: This is evolved from the
-[version 1 doc](../shipyard/docs/release.md).
+[version 1 doc](../../shipyard/docs/release.md).
 
 ### Overview of release management
 
