@@ -105,18 +105,20 @@ def cmd_merge(args):
             )
         )
         LOG.info('generate application image under: %s', tempdir_path)
-        merged = tempdir_path / 'merged'
-        merged.mkdir()
-        filtered = tempdir_path / 'filtered'
-        filtered.mkdir()
-        _mount_overlay(rootfs_paths, merged)
-        stack.callback(_umount_overlay, merged)
-        g1.containers.bases.rsync_copy(merged, filtered, filter_rules)
+        # NOTE: Do NOT overlay-mount these rootfs (and then rsync from
+        # the overlay) because the overlay does not include base and
+        # builder-base, and thus some tombstone files may not be copied
+        # correctly (I don't know why but rsync complains about this).
+        # For now our workaround is to rsync each rootfs sequentially.
+        for rootfs_path in rootfs_paths:
+            g1.containers.bases.rsync_copy(
+                rootfs_path, tempdir_path, filter_rules
+            )
         scripts.run([
             ctr_path,
             'images',
             'build',
-            *('--rootfs', filtered),
+            *('--rootfs', tempdir_path),
             args.name,
             args.version,
             args.output,
@@ -155,21 +157,3 @@ def _get_filter_rules(args):
         *('--%s=%s' % pair for pair in _DEFAULT_FILTERS),
         *('--%s=%s' % pair for pair in args.filter or ()),
     ]
-
-
-def _mount_overlay(rootfs_paths, mount_point):
-    # Call reversed() because in overlay file system, lower directories
-    # are ordered from high to low.
-    scripts.run([
-        'mount',
-        *('-t', 'overlay'),
-        *('-o', 'lowerdir=%s' % ':'.join(map(str, reversed(rootfs_paths)))),
-        'overlay',
-        mount_point,
-    ])
-
-
-def _umount_overlay(mount_point):
-    scripts.run(['umount', mount_point])
-    # Just a sanity check that rootfs is really unmounted.
-    ASSERT.predicate(mount_point, g1.containers.bases.is_empty_dir)
