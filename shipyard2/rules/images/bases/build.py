@@ -67,3 +67,10 @@ def build(parameters):
             ),
             Path.is_file,
         )
+
+
+@foreman.rule
+@foreman.rule.depend('//releases:build')
+@foreman.rule.depend('build')
+def bootstrap(parameters):
+    shipyard2.rules.images.bootstrap(parameters)

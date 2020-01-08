@@ -2,6 +2,7 @@
 
 __all__ = [
     'IMAGE_FILENAME',
+    'bootstrap',
     'define_image',
     'get_image_path',
 ]
@@ -9,6 +10,7 @@ __all__ = [
 import dataclasses
 import getpass
 import logging
+from pathlib import Path
 
 import foreman
 
@@ -46,6 +48,31 @@ def _get_builder_name(name):
 
 def _get_builder_image_path(image_path):
     return image_path.with_name('builder-image.tar.gz')
+
+
+def bootstrap(parameters):
+    version = ASSERT.equal(
+        parameters['//images/bases:base-version'],
+        parameters['//images/bases:version'],
+    )
+    image_paths = [
+        get_image_path(parameters, name, version)
+        for name in (shipyard2.BASE, shipyard2.BUILDER_BASE)
+    ]
+    if all(map(Path.is_file, image_paths)):
+        LOG.info('skip: bootstrap: %s', version)
+        return
+    ASSERT.not_any(image_paths, Path.is_file)
+    LOG.info('bootstrap: %s', version)
+    for image_path in image_paths:
+        scripts.mkdir(image_path.parent)
+    scripts.run([
+        parameters['//images/bases:builder'],
+        *_make_verbose_args(),
+        'bootstrap',
+        *('--base-version', version),
+        *image_paths,
+    ])
 
 
 def define_image(
