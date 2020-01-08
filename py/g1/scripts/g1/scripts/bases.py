@@ -22,6 +22,7 @@ __all__ = [
     'using_input',
     'using_relative_cwd',
     'using_stderr',
+    'using_stdin',
     'using_stdout',
     'using_sudo',
 ]
@@ -45,6 +46,7 @@ _CHECK = 'check'
 _CWD = 'cwd'
 _DRY_RUN = 'dry_run'
 _INPUT = 'input'
+_STDIN = 'stdin'
 _STDOUT = 'stdout'
 _STDERR = 'stderr'
 _SUDO = 'sudo'
@@ -55,6 +57,7 @@ _DEFAULTS = {
     _CWD: None,
     _DRY_RUN: False,
     _INPUT: None,
+    _STDIN: None,
     _STDOUT: None,
     _STDERR: None,
     _SUDO: False,
@@ -130,6 +133,10 @@ def using_input(input):  # pylint: disable=redefined-builtin
     return _using(_INPUT, input)
 
 
+def using_stdin(stdin):
+    return _using(_STDIN, stdin)
+
+
 def using_stdout(stdout):
     return _using(_STDOUT, stdout)
 
@@ -184,11 +191,10 @@ def _prepare_kwargs():
         'cwd': _get(_CWD),
     }
     # Work around subprocess.run limitation that it checks presence of
-    # stdout and stderr in kwargs, not whether their value is not None.
-    stdout = _get(_STDOUT)
-    if stdout is not None:
-        kwargs['stdout'] = stdout
-    stderr = _get(_STDERR)
-    if stderr is not None:
-        kwargs['stderr'] = stderr
+    # stdin, stdout, and stderr in kwargs, not whether their value is
+    # not None.
+    for key in (_STDIN, _STDOUT, _STDERR):
+        value = _get(key)
+        if value is not None:
+            kwargs[key] = value
     return kwargs

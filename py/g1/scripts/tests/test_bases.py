@@ -37,6 +37,11 @@ class BasesTest(unittest.TestCase):
         self.do_test_using(bases.using_input, bases._INPUT, b'1', b'2')
         self.do_test_using(bases.using_input, bases._INPUT, b'1', None)
 
+    def test_using_stdin(self):
+        self.do_test_using(
+            bases.using_stdin, bases._STDIN, subprocess.PIPE, None
+        )
+
     def test_using_stdout(self):
         self.do_test_using(
             bases.using_stdout, bases._STDOUT, None, subprocess.PIPE
