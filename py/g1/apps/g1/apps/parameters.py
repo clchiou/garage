@@ -298,7 +298,11 @@ def format_help(root_namespaces):
                     output.write(' ')
                     output.write(value.doc)
                 output.write(' (default: ')
-                output.write(json.dumps(value.default))
+                if value.type is object:
+                    # Sadly this is probably not JSON-serializable.
+                    output.write(str(value.default))
+                else:
+                    output.write(json.dumps(value.default))
                 if value.unit:
                     output.write(' ')
                     output.write(value.unit)
