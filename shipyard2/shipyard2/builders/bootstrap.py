@@ -7,6 +7,7 @@ import tempfile
 from pathlib import Path
 
 import g1.containers.bases
+from g1 import scripts
 from g1.bases import argparses
 from g1.bases.assertions import ASSERT
 
@@ -38,7 +39,7 @@ def cmd_bootstrap(args):
         tempdir_path = Path(tempdir_path)
         LOG.info('generate base and builder-base under: %s', tempdir_path)
         builder_base_rootfs_path = tempdir_path / 'builder-base'
-        builders.run([
+        scripts.run([
             ctr_path,
             'images',
             'build-base',
@@ -47,7 +48,7 @@ def cmd_bootstrap(args):
             args.base_version,
             base_image_path,
         ])
-        builders.run([
+        scripts.run([
             ctr_path,
             'images',
             'build',
@@ -58,5 +59,5 @@ def cmd_bootstrap(args):
         ])
         if args.import_output:
             for path in (base_image_path, builder_base_image_path):
-                builders.run([ctr_path, 'images', 'import', path])
+                scripts.run([ctr_path, 'images', 'import', path])
     return 0

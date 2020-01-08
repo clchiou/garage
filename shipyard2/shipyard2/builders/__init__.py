@@ -1,7 +1,6 @@
 """Commands of the build process."""
 
 import logging
-import subprocess
 from pathlib import Path
 
 import g1.containers.images
@@ -20,11 +19,6 @@ PARAMS = parameters.define(
             '/usr/src/garage/shipyard2/scripts/foreman.sh',
             doc='set foreman path inside builder pod',
             type=str,
-        ),
-        dry_run=parameters.Parameter(
-            False,
-            doc='whether to dry-run the build process',
-            type=bool,
         ),
     ),
 )
@@ -97,10 +91,3 @@ def make_help_kwargs(help_text):
         'help': help_text,
         'description': '%s%s.' % (help_text[0].upper(), help_text[1:]),
     }
-
-
-def run(args):
-    args = list(map(str, args))
-    LOG.debug('run: %s', args)
-    if not PARAMS.dry_run.get():
-        subprocess.run(args, check=True)

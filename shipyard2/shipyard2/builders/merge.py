@@ -9,6 +9,7 @@ from pathlib import Path
 
 import g1.containers.bases
 import g1.containers.images
+from g1 import scripts
 from g1.bases import argparses
 from g1.bases.assertions import ASSERT
 
@@ -110,9 +111,8 @@ def cmd_merge(args):
         filtered.mkdir()
         _mount_overlay(rootfs_paths, merged)
         stack.callback(_umount_overlay, merged)
-        if not builders.PARAMS.dry_run.get():
-            g1.containers.bases.rsync_copy(merged, filtered, filter_rules)
-        builders.run([
+        g1.containers.bases.rsync_copy(merged, filtered, filter_rules)
+        scripts.run([
             ctr_path,
             'images',
             'build',
@@ -122,7 +122,7 @@ def cmd_merge(args):
             args.output,
         ])
         if args.import_output:
-            builders.run([ctr_path, 'images', 'import', args.output])
+            scripts.run([ctr_path, 'images', 'import', args.output])
     return 0
 
 
@@ -160,7 +160,7 @@ def _get_filter_rules(args):
 def _mount_overlay(rootfs_paths, mount_point):
     # Call reversed() because in overlay file system, lower directories
     # are ordered from high to low.
-    builders.run([
+    scripts.run([
         'mount',
         *('-t', 'overlay'),
         *('-o', 'lowerdir=%s' % ':'.join(map(str, reversed(rootfs_paths)))),
@@ -170,6 +170,6 @@ def _mount_overlay(rootfs_paths, mount_point):
 
 
 def _umount_overlay(mount_point):
-    builders.run(['umount', mount_point])
+    scripts.run(['umount', mount_point])
     # Just a sanity check that rootfs is really unmounted.
     ASSERT.predicate(mount_point, g1.containers.bases.is_empty_dir)

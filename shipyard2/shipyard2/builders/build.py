@@ -13,6 +13,7 @@ import foreman
 import g1.containers.bases
 import g1.containers.images
 import g1.containers.pods
+from g1 import scripts
 from g1.bases import argparses
 from g1.bases.assertions import ASSERT
 
@@ -69,9 +70,9 @@ def cmd_build(args):
             LOG.debug('builder config: %s', builder_config_path.read_text())
         # The builder pod might not be cleaned up when `ctr pods run`
         # fails; so let's always do `ctr pods remove` on our way out.
-        stack.callback(builders.run, [ctr_path, 'pods', 'remove', builder_id])
+        stack.callback(scripts.run, [ctr_path, 'pods', 'remove', builder_id])
         LOG.info('start builder pod')
-        builders.run([
+        scripts.run([
             ctr_path,
             'pods',
             'run',
@@ -80,14 +81,14 @@ def cmd_build(args):
         ])
         LOG.info('export intermediate builder image to: %s', args.output)
         rootfs_path = tempdir_path / 'rootfs'
-        builders.run([
+        scripts.run([
             ctr_path,
             'pods',
             'export-overlay',
             builder_id,
             rootfs_path,
         ])
-        builders.run([
+        scripts.run([
             ctr_path,
             'images',
             'build',
@@ -97,7 +98,7 @@ def cmd_build(args):
             args.output,
         ])
         if args.import_output:
-            builders.run([ctr_path, 'images', 'import', args.output])
+            scripts.run([ctr_path, 'images', 'import', args.output])
     return 0
 
 
