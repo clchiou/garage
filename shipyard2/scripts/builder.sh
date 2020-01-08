@@ -18,6 +18,7 @@ readonly DEPS=(
   "${ROOT}/py/g1/apps"
   "${ROOT}/py/g1/bases"
   "${ROOT}/py/g1/containers"
+  "${ROOT}/py/g1/scripts"
   "${ROOT}/py/startup"
 )
 for dep in "${DEPS[@]}"; do

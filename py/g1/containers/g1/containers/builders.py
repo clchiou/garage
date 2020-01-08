@@ -27,10 +27,10 @@ import dataclasses
 import enum
 import logging
 import re
-import subprocess
 import typing
 from pathlib import Path
 
+from g1 import scripts
 from g1.bases import argparses
 from g1.bases import datetimes
 from g1.bases.assertions import ASSERT
@@ -87,21 +87,18 @@ def _create_image_rootfs(image_rootfs_path, prune_stash_path):
 def cmd_prepare_base_rootfs(image_rootfs_path):
     ASSERT.not_predicate(image_rootfs_path, Path.exists)
     bases.assert_root_privilege()
-    subprocess.run(
-        [
-            'debootstrap',
-            '--variant=minbase',
-            '--components=main',
-            # Install dbus for convenience.
-            # Install sudo for changing service user/group.
-            # Install tzdata for /etc/localtime.
-            '--include=dbus,sudo,systemd,tzdata',
-            'bionic',
-            str(image_rootfs_path),
-            'http://us.archive.ubuntu.com/ubuntu/',
-        ],
-        check=True,
-    )
+    scripts.run([
+        'debootstrap',
+        '--variant=minbase',
+        '--components=main',
+        # Install dbus for convenience.
+        # Install sudo for changing service user/group.
+        # Install tzdata for /etc/localtime.
+        '--include=dbus,sudo,systemd,tzdata',
+        'bionic',
+        image_rootfs_path,
+        'http://us.archive.ubuntu.com/ubuntu/',
+    ])
 
 
 @argparses.begin_parser(

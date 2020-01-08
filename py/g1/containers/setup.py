@@ -19,6 +19,7 @@ setup(
     install_requires=[
         'g1.apps',
         'g1.bases',
+        'g1.scripts',
     ],
     zip_safe=False,
 )

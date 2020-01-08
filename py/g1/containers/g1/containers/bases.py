@@ -41,9 +41,9 @@ import json
 import logging
 import os
 import shutil
-import subprocess
 from pathlib import Path
 
+from g1 import scripts
 from g1.apps import parameters
 from g1.bases import argparses
 from g1.bases import dataclasses as g1_dataclasses
@@ -272,16 +272,14 @@ def rsync_copy(src_path, dst_path, rsync_args=()):
     # We do NOT use ``shutil.copytree`` because shutil's file copy
     # functions in general do not preserve the file owner/group.
     LOG.info('copy: %s -> %s', src_path, dst_path)
-    subprocess.run(
-        [
-            'rsync',
-            '--archive',
-            *rsync_args,
-            '%s/' % src_path,
-            str(dst_path),
-        ],
-        check=True,
-    )
+    scripts.run([
+        'rsync',
+        '--archive',
+        *rsync_args,
+        # Trailing slash is an rsync trick.
+        '%s/' % src_path,
+        dst_path,
+    ])
 
 
 def read_jsonobject(type_, path):

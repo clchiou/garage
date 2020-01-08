@@ -82,6 +82,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from g1 import scripts
 from g1.bases import argparses
 from g1.bases import datetimes
 from g1.bases import functionals
@@ -525,18 +526,15 @@ def build_image(metadata, make_rootfs, output_path):
         _write_metadata(metadata, temp_output_dir_path)
         make_rootfs(get_rootfs_path(temp_output_dir_path))
         _setup_image_dir(temp_output_dir_path)
-        subprocess.run(
-            [
-                'tar',
-                '--create',
-                '--file=%s' % output_path,
-                '--gzip',
-                '--directory=%s' % temp_output_dir_path,
-                _METADATA,
-                _ROOTFS,
-            ],
-            check=True,
-        )
+        scripts.run([
+            'tar',
+            '--create',
+            *('--file', output_path),
+            '--gzip',
+            *('--directory', temp_output_dir_path),
+            _METADATA,
+            _ROOTFS,
+        ])
 
 
 #
@@ -545,13 +543,19 @@ def build_image(metadata, make_rootfs, output_path):
 
 
 def _extract_image(archive_path, dst_dir_path):
-    # TODO: Assume archive is always gzip-compressed for now.
-    # TODO: Should we use stdlib's tarfile rather than subprocess?
-    cmd = ['tar', '--extract', '--file=-', '--directory=%s' % dst_dir_path]
-    if bases.PARAMS.use_root_privilege.get():
-        cmd.extend(['--same-owner', '--same-permissions'])
+    # We assume archive is always gzip-compressed for now.
     hasher = hashlib.sha256()
-    with subprocess.Popen(cmd, stdin=subprocess.PIPE) as proc:
+    # If we are running as root, we can and should preserve the
+    # original owners and permissions.
+    i_am_root = bases.PARAMS.use_root_privilege.get()
+    # TODO: Should we use stdlib's tarfile rather than calling tar?
+    with scripts.using_stdin(subprocess.PIPE), scripts.popen([
+        'tar',
+        '--extract',
+        *('--file', '-'),
+        *('--directory', dst_dir_path),
+        *(('--same-owner', '--same-permissions') if i_am_root else ()),
+    ]) as proc:
         try:
             with gzip.open(archive_path, 'rb') as archive:
                 while True:

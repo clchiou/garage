@@ -56,6 +56,7 @@ import typing
 import uuid
 from pathlib import Path
 
+from g1 import scripts
 from g1.bases import argparses
 from g1.bases import datetimes
 from g1.bases.assertions import ASSERT
@@ -684,11 +685,10 @@ def _mount_overlay(pod_dir_path, config):
     # Call reverse() because in overlay file system, lower directories
     # are ordered from high to low.
     image_ids.reverse()
-    subprocess.run(
-        [
-            'mount',
-            '-t',
-            'overlay',
+    scripts.run([
+        'mount',
+        *('-t', 'overlay'),
+        *(
             '-o',
             'lowerdir=%s,upperdir=%s,workdir=%s' % (
                 ':'.join(
@@ -698,11 +698,10 @@ def _mount_overlay(pod_dir_path, config):
                 _get_upper_path(pod_dir_path),
                 _get_work_path(pod_dir_path),
             ),
-            'overlay',
-            str(rootfs_path),
-        ],
-        check=True,
-    )
+        ),
+        'overlay',
+        rootfs_path,
+    ])
 
 
 def _umount_overlay(pod_dir_path):
@@ -897,7 +896,8 @@ def _umount(path):
     ASSERT.not_predicate(path, Path.is_symlink)
     LOG.info('umount: %s', path)
     try:
-        subprocess.run(['umount', str(path)], check=True, capture_output=True)
+        with scripts.doing_capture_output():
+            scripts.run(['umount', path])
     except subprocess.CalledProcessError as exc:
         if _UMOUNT_ERROR_WHITELIST.search(exc.stderr, re.MULTILINE):
             LOG.debug('umount err: %s, %s', path, exc.stderr, exc_info=True)

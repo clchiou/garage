@@ -43,4 +43,5 @@ package() {
 package "g1/apps"
 package "g1/bases"
 package "g1/containers"
+package "g1/scripts"
 package "startup"

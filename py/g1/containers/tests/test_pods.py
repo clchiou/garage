@@ -165,7 +165,7 @@ class PodsTest(fixtures.TestCaseBase):
 
         with unittest.mock.patch.multiple(
             pods.__name__,
-            subprocess=unittest.mock.DEFAULT,
+            scripts=unittest.mock.DEFAULT,
             # We don't have a valid base image, and so we can't really
             # call ``builders.generate_unit_file``, etc.
             builders=unittest.mock.DEFAULT,
@@ -189,7 +189,7 @@ class PodsTest(fixtures.TestCaseBase):
         self.assertEqual(list(pods._get_graveyard_path().iterdir()), [])
         self.assertEqual(list(pods._get_tmp_path().iterdir()), [])
 
-        with unittest.mock.patch(pods.__name__ + '.subprocess'):
+        with unittest.mock.patch(pods.__name__ + '.scripts'):
             pods.cmd_remove(self.sample_pod_id)
         self.assertEqual(self.list_pod_dir_paths(), [])
         self.assertEqual(list(pods._get_graveyard_path().iterdir()), [])
@@ -382,7 +382,7 @@ class PodsTest(fixtures.TestCaseBase):
         self.create_pod_dir(pod_id_2, self.sample_config)
         self.assertEqual(self.list_pod_dir_paths(), [pod_id_1, pod_id_2])
 
-        with unittest.mock.patch(pods.__name__ + '.subprocess'):
+        with unittest.mock.patch(pods.__name__ + '.scripts'):
 
             with bases.acquiring_exclusive(pods._get_pod_dir_path(pod_id_2)):
                 pods._cleanup_top_dir(pods._get_active_path())
@@ -452,7 +452,7 @@ class PodsTest(fixtures.TestCaseBase):
             )
         with unittest.mock.patch.multiple(
             pods.__name__,
-            subprocess=unittest.mock.DEFAULT,
+            scripts=unittest.mock.DEFAULT,
             # We don't have a valid base image, and so we can't really
             # call ``builders.generate_unit_file``, etc.
             builders=unittest.mock.DEFAULT,
@@ -490,7 +490,7 @@ class PodsTest(fixtures.TestCaseBase):
     def test_remove_pod_dir(self):
         self.create_pod_dir(self.sample_pod_id, self.sample_config)
         self.assertTrue(self.sample_pod_dir_path.is_dir())
-        with unittest.mock.patch(pods.__name__ + '.subprocess'):
+        with unittest.mock.patch(pods.__name__ + '.scripts'):
             pods._remove_pod_dir(self.sample_pod_dir_path)
         self.assertFalse(self.sample_pod_dir_path.exists())
 
@@ -498,8 +498,8 @@ class PodsTest(fixtures.TestCaseBase):
     # Pod.
     #
 
-    @unittest.mock.patch(pods.__name__ + '.subprocess')
-    def test_mount_overlay(self, subprocess_mock):
+    @unittest.mock.patch(pods.__name__ + '.scripts')
+    def test_mount_overlay(self, scripts_mock):
         image_id_1 = self.make_image_id(1)
         image_id_2 = self.make_image_id(2)
         self.create_image_dir(
@@ -509,11 +509,10 @@ class PodsTest(fixtures.TestCaseBase):
         self.create_image_dir(image_id_2, self.sample_metadata)
 
         pods._mount_overlay(self.sample_pod_dir_path, self.sample_config)
-        subprocess_mock.run.assert_called_once_with(
-            [
-                'mount',
-                '-t',
-                'overlay',
+        scripts_mock.run.assert_called_once_with([
+            'mount',
+            *('-t', 'overlay'),
+            *(
                 '-o',
                 'lowerdir=%s,upperdir=%s,workdir=%s' % (
                     ':'.join([
@@ -523,11 +522,10 @@ class PodsTest(fixtures.TestCaseBase):
                     pods._get_upper_path(self.sample_pod_dir_path),
                     pods._get_work_path(self.sample_pod_dir_path),
                 ),
-                'overlay',
-                str(pods._get_rootfs_path(self.sample_pod_dir_path)),
-            ],
-            check=True,
-        )
+            ),
+            'overlay',
+            pods._get_rootfs_path(self.sample_pod_dir_path),
+        ])
 
     def test_make_bind_argument(self):
         self.assertEqual(
