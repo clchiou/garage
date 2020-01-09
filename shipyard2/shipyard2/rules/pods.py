@@ -297,7 +297,7 @@ def _link(subdir_name, parameters, pod_dir_path, label, version):
     )
     # Use os.path.relpath because Path.relative_to can't derive this
     # type of relative path.
-    target_relpath = os.path.relpath(target_path, link_path)
+    target_relpath = os.path.relpath(target_path, link_path.parent)
     scripts.mkdir(link_path.parent)
     with scripts.using_cwd(link_path.parent):
         scripts.ln(target_relpath, link_path.name)
