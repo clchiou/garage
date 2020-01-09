@@ -1,6 +1,8 @@
 import logging
 from pathlib import Path
 
+import foreman
+
 from g1.bases.assertions import ASSERT
 
 logging.getLogger(__name__).addHandler(logging.NullHandler())
@@ -67,3 +69,26 @@ def get_foreman_path():
 
 
 ASSERT.predicate(REPO_ROOT_PATH, is_source_repo)
+
+
+def look_like_image_rule(rule):
+    return rule.path.parts[0] == RELEASE_IMAGES_DIR_NAME
+
+
+def look_like_pod_rule(rule):
+    return rule.path.parts[0] == RELEASE_PODS_DIR_NAME
+
+
+def guess_label_from_rule(rule):
+    """Guess pod or image label from build rule.
+
+    For example, //pod/foo:bar/build becomes //foo:bar.
+    """
+    name_parts = rule.name.parts
+    ASSERT.less_or_equal(len(name_parts), 2)
+    return foreman.Label.parse(
+        '//%s:%s' % (
+            '/'.join(rule.path.parts[1:]),
+            BASE if name_parts[-1] == 'bootstrap' else name_parts[0]
+        )
+    )
