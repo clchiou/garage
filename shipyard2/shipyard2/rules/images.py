@@ -205,7 +205,7 @@ def _make_image_data_args(parameters, name):
     image_data_path = shipyard_data_path / 'image-data'
     if not (image_data_path / foreman.get_relpath() / name).is_dir():
         return ()
-    return ('--volume', '%s:/usr/src/image-data:ro' % image_data_path)
+    return ('--mount', '%s:/usr/src/image-data:ro' % image_data_path)
 
 
 def _make_rule_args(rules):

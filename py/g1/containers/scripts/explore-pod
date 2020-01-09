@@ -54,9 +54,9 @@ def add_arguments(parser: bases.LABELS.parser) -> bases.LABELS.parse:
         help='add image by tag',
     )
     parser.add_argument(
-        '--volume',
+        '--mount',
         action='append',
-        help='add volume of the form "source:target[:ro]"',
+        help='add mount of the form "source:target[:ro]"',
     )
 
 
@@ -78,10 +78,10 @@ def init(args):
     pod_id = args.pod_id or generate_pod_id()
     LOG.info('use pod id: %s', pod_id)
     images = parse_image_args(ASSERT.not_empty(args.image or ()))
-    volumes = parse_volume_args(args.volume or ())
+    mounts = parse_mount_args(args.mount or ())
     with tempfile.NamedTemporaryFile(suffix='.json') as config_tempfile:
         config_path = config_tempfile.name
-        write_config(images, volumes, config_path)
+        write_config(images, mounts, config_path)
         prepare_pod(pod_id, config_path)
     return pod_id
 
@@ -106,9 +106,9 @@ def parse_image_args(image_args):
     return images
 
 
-def parse_volume_args(volume_args):
-    volumes = []
-    for arg in volume_args:
+def parse_mount_args(mount_args):
+    mounts = []
+    for arg in mount_args:
         parts = arg.split(':')
         if ASSERT.in_(len(parts), (2, 3)) == 3:
             source, target, read_only = parts
@@ -116,22 +116,22 @@ def parse_volume_args(volume_args):
         else:
             source, target = parts
             read_only = False
-        volumes.append({
+        mounts.append({
             'source': source,
             'target': target,
             'read_only': read_only,
         })
-    return volumes
+    return mounts
 
 
-def write_config(images, volumes, config_path):
+def write_config(images, mounts, config_path):
     LOG.info('write config to: %s', config_path)
     config = {
         'name': 'explorer',
         'version': '0.0.1',
         'apps': [],
         'images': images,
-        'volumes': volumes,
+        'mounts': mounts,
     }
     with open(config_path, 'w') as config_file:
         json.dump(config, config_file)

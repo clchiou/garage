@@ -35,9 +35,9 @@ LOG = logging.getLogger(__name__)
 @builders.base_image_version_arguments
 @builders.select_image_arguments
 @argparses.argument(
-    '--volume',
+    '--mount',
     action='append',
-    help='add volume of the form "source:target[:ro]"',
+    help='add mount of the form "source:target[:ro]"',
 )
 @argparses.argument(
     '--rule',
@@ -55,7 +55,7 @@ def cmd_build(args):
     builder_config = _generate_builder_config(
         apps=_get_apps(args),
         images=_get_images(args),
-        volumes=_get_volumes(args),
+        mounts=_get_mounts(args),
     )
     ctr_path = builders.get_ctr_path()
     with contextlib.ExitStack() as stack:
@@ -111,13 +111,13 @@ def _get_builder_id(args):
     return builder_id
 
 
-def _generate_builder_config(apps, images, volumes):
+def _generate_builder_config(apps, images, mounts):
     return {
         'name': 'builder',
         'version': '0.0.1',
         'apps': apps,
         'images': images,
-        'volumes': volumes,
+        'mounts': mounts,
     }
 
 
@@ -197,25 +197,25 @@ def _get_images(args):
     return images
 
 
-def _get_volumes(args):
-    volumes = [
+def _get_mounts(args):
+    mounts = [
         {
             'source': str(builders.get_repo_root_path()),
             'target': '/usr/src/garage',
             'read_only': True
         },
     ]
-    for volume in args.volume or ():
-        parts = volume.split(':')
+    for mount in args.mount or ():
+        parts = mount.split(':')
         if ASSERT.in_(len(parts), (2, 3)) == 3:
             source, target, read_only = parts
             read_only = read_only == 'ro'
         else:
             source, target = parts
             read_only = False
-        volumes.append({
+        mounts.append({
             'source': source,
             'target': target,
             'read_only': read_only,
         })
-    return volumes
+    return mounts

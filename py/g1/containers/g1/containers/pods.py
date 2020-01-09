@@ -98,7 +98,7 @@ class PodConfig:
                 images.validate_tag(self.tag)
 
     @dataclasses.dataclass(frozen=True)
-    class Volume:
+    class Mount:
 
         source: str
         target: str
@@ -113,7 +113,7 @@ class PodConfig:
     apps: typing.List[App]
     # Image are ordered from low to high.
     images: typing.List[Image]
-    volumes: typing.List[Volume] = ()
+    mounts: typing.List[Mount] = ()
 
     def __post_init__(self):
         images.validate_name(self.name)
@@ -125,9 +125,9 @@ class PodConfig:
             self.apps,
         )
         ASSERT(
-            len(set(v.target for v in self.volumes)) == len(self.volumes),
-            'expect unique volume targets: {}',
-            self.volumes,
+            len(set(v.target for v in self.mounts)) == len(self.mounts),
+            'expect unique mount targets: {}',
+            self.mounts,
         )
 
 
@@ -751,7 +751,7 @@ def _run_pod(pod_id, *, debug=False):
         *(['--keep-unit'] if _is_running_from_system_service() else []),
         '--boot',
         '--directory=%s' % rootfs_path,
-        *(_make_bind_argument(volume) for volume in config.volumes),
+        *(_make_bind_argument(mount) for mount in config.mounts),
         '--notify-ready=yes',
         '--link-journal=try-host',
         *([] if debug else ['--quiet']),
@@ -773,11 +773,11 @@ def _make_hostname(pod_id):
     return 'ctr-%s' % pod_id
 
 
-def _make_bind_argument(volume):
+def _make_bind_argument(mount):
     return '--bind%s=%s:%s' % (
-        '-ro' if volume.read_only else '',
-        ASSERT.not_contains(volume.source, ':'),
-        ASSERT.not_contains(volume.target, ':'),
+        '-ro' if mount.read_only else '',
+        ASSERT.not_contains(mount.source, ':'),
+        ASSERT.not_contains(mount.target, ':'),
     )
 
 

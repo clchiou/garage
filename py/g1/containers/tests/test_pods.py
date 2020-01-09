@@ -37,8 +37,8 @@ class PodsTest(fixtures.TestCaseBase):
                 version='1.0',
             ),
         ],
-        volumes=[
-            pods.PodConfig.Volume(
+        mounts=[
+            pods.PodConfig.Mount(
                 source='/dev/null',
                 target='/this/is/pod/path',
                 read_only=True,
@@ -270,16 +270,16 @@ class PodsTest(fixtures.TestCaseBase):
                 images=self.sample_config.images,
             )
         with self.assertRaisesRegex(
-            AssertionError, r'expect unique volume targets:'
+            AssertionError, r'expect unique mount targets:'
         ):
             pods.PodConfig(
                 name='test-pod',
                 version='0.0.1',
                 apps=self.sample_config.apps,
                 images=self.sample_config.images,
-                volumes=[
-                    pods.PodConfig.Volume(source='/p', target='/a'),
-                    pods.PodConfig.Volume(source='/q', target='/a'),
+                mounts=[
+                    pods.PodConfig.Mount(source='/p', target='/a'),
+                    pods.PodConfig.Mount(source='/q', target='/a'),
                 ],
             )
         with self.assertRaisesRegex(AssertionError, r'expect only one'):
@@ -287,9 +287,9 @@ class PodsTest(fixtures.TestCaseBase):
         with self.assertRaisesRegex(AssertionError, r'expect.*xor.*be false'):
             pods.PodConfig.Image(name='name')
         with self.assertRaisesRegex(AssertionError, r'expect.*is_absolute'):
-            pods.PodConfig.Volume(source='foo', target='/bar')
+            pods.PodConfig.Mount(source='foo', target='/bar')
         with self.assertRaisesRegex(AssertionError, r'expect.*is_absolute'):
-            pods.PodConfig.Volume(source='/foo', target='bar')
+            pods.PodConfig.Mount(source='/foo', target='bar')
 
     def test_validate_id(self):
         self.assertEqual(
@@ -530,7 +530,7 @@ class PodsTest(fixtures.TestCaseBase):
     def test_make_bind_argument(self):
         self.assertEqual(
             pods._make_bind_argument(
-                pods.PodConfig.Volume(
+                pods.PodConfig.Mount(
                     source='/a',
                     target='/b',
                     read_only=True,
@@ -540,7 +540,7 @@ class PodsTest(fixtures.TestCaseBase):
         )
         self.assertEqual(
             pods._make_bind_argument(
-                pods.PodConfig.Volume(
+                pods.PodConfig.Mount(
                     source='/a',
                     target='/b',
                     read_only=False,
