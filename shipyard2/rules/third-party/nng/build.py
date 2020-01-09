@@ -36,7 +36,12 @@ def build(parameters):
     LOG.info('build nng')
     scripts.mkdir(build_dir_path)
     with scripts.using_cwd(build_dir_path):
-        scripts.run(['cmake', '-G', 'Ninja', '..'])
+        scripts.run([
+            'cmake',
+            *('-D', 'BUILD_SHARED_LIBS:BOOL=ON'),
+            *('-G', 'Ninja'),
+            '..',
+        ])
         scripts.run(['ninja'])
         # Skip `ninja test` for now.
         with scripts.using_sudo():
