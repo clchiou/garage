@@ -2,6 +2,7 @@
 
 __all__ = [
     'App',
+    'Mount',
     'Volume',
     'define_pod',
 ]
@@ -24,8 +25,9 @@ import shipyard2.rules
 import shipyard2.rules.images
 import shipyard2.rules.volumes
 
-# Re-export this.
+# Re-export these.
 App = pods.PodConfig.App
+Mount = pods.PodConfig.Mount
 
 LOG = logging.getLogger(__name__)
 
@@ -72,6 +74,7 @@ def define_pod(
     name: str,
     apps: typing.List[App] = (),
     images: typing.List[str] = (),
+    mounts: typing.List[Mount] = (),
     volumes: typing.List[Volume] = (),
 ):
     """Define a pod.
@@ -119,6 +122,7 @@ def define_pod(
                 version=version,
                 apps=apps,
                 images=images,
+                mounts=mounts,
                 volumes=volumes,
             )
             _link_images(parameters, pod_dir_path, images)
@@ -205,6 +209,7 @@ def _generate_deploy_instruction(
     version,
     apps,
     images,
+    mounts,
     volumes,
 ):
     _dump(
@@ -223,6 +228,7 @@ def _generate_deploy_instruction(
                         version=parameters['//images/bases:version'],
                     ),
                 ],
+                mounts=mounts,
             ),
             volumes=volumes,
         ),
