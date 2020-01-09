@@ -59,7 +59,7 @@ PARAMS = parameters.define(
     'g1.containers',
     parameters.Namespace(
         repository=parameters.Parameter(
-            '/var/lib/g1-containers',
+            '/var/lib/g1/containers',
             doc='path to the repository directory',
             type=str,
         ),
