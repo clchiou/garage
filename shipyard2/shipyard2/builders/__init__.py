@@ -1,27 +1,13 @@
 """Commands of the build process."""
 
 import logging
-from pathlib import Path
 
 import g1.containers.images
-from g1.apps import parameters
 from g1.bases import argparses
 from g1.bases import functionals
-from g1.bases.assertions import ASSERT
 
 LOG = logging.getLogger(__name__)
 LOG.addHandler(logging.NullHandler())
-
-PARAMS = parameters.define(
-    __name__,
-    parameters.Namespace(
-        foreman_path=parameters.Parameter(
-            '/usr/src/garage/shipyard2/scripts/foreman.sh',
-            doc='set foreman path inside builder pod',
-            type=str,
-        ),
-    ),
-)
 
 #
 # Package-private utilities.
@@ -70,17 +56,4 @@ def import_output_arguments(*, default):
         action=argparses.StoreBoolAction,
         default=default,
         help='also import output image (default: %(default_string)s)',
-    )
-
-
-def get_repo_root_path():
-    repo_root_path = Path(__file__).parent.parent.parent.parent
-    ASSERT.predicate(repo_root_path / '.git', Path.exists)
-    return repo_root_path
-
-
-def get_ctr_path():
-    return ASSERT.predicate(
-        Path(__file__).parent.parent.parent / 'scripts' / 'ctr.sh',
-        Path.is_file,
     )

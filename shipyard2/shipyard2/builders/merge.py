@@ -96,7 +96,7 @@ def cmd_merge(args):
     g1.containers.bases.assert_root_privilege()
     ASSERT.not_empty(args.image)
     ASSERT.not_predicate(args.output, g1.containers.bases.lexists)
-    ctr_path = builders.get_ctr_path()
+    ctr_path = shipyard2.get_ctr_path()
     rootfs_paths = _get_rootfs_paths(args)
     filter_rules = _get_filter_rules(args)
     with contextlib.ExitStack() as stack:

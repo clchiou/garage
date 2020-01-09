@@ -16,8 +16,4 @@ for dep in "${DEPS[@]}"; do
 done
 export PYTHONPATH
 
-# Put our `--path` before ${@:2} so that it is the first one.
-exec "${ROOT}/py/foreman/foreman.py" \
-  ${1:-} \
-  --path "$(realpath "${HERE}/../rules")" \
-  "${@:2}"
+exec "${ROOT}/py/foreman/foreman.py" "${@}"

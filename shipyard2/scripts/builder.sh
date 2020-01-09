@@ -9,6 +9,9 @@ source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 [[ -n "${CTR_PARAMS_PATH:-}" ]] || abort "expect CTR_PARAMS_PATH"
 ensure_file "${CTR_PARAMS_PATH}"
 
+[[ -n "${SHIPYARD2_PARAMS_PATH:-}" ]] || abort "expect SHIPYARD2_PARAMS_PATH"
+ensure_file "${SHIPYARD2_PARAMS_PATH}"
+
 # XXX Because sudo does not find venv python3, as a workaround, we
 # export all of builder's dependencies (we could make sudo find venv
 # python3, but I think it is better to let sudo find distro python3).
@@ -31,4 +34,5 @@ export PYTHONPATH
 exec sudo --preserve-env=CTR_PARAMS_PATH,PYTHONPATH \
   python3 -m shipyard2.builders \
   --parameter-file "${CTR_PARAMS_PATH#*.}" "${CTR_PARAMS_PATH}" \
+  --parameter-file "${SHIPYARD2_PARAMS_PATH#*.}" "${SHIPYARD2_PARAMS_PATH}" \
   "${@}"

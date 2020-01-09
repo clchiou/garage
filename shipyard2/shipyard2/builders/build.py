@@ -19,6 +19,7 @@ from g1.bases.assertions import ASSERT
 
 import shipyard2
 from shipyard2 import builders
+from shipyard2 import params
 
 LOG = logging.getLogger(__name__)
 
@@ -57,7 +58,7 @@ def cmd_build(args):
         images=_get_images(args),
         mounts=_get_mounts(args),
     )
-    ctr_path = builders.get_ctr_path()
+    ctr_path = shipyard2.get_ctr_path()
     with contextlib.ExitStack() as stack:
         tempdir_path = Path(
             stack.enter_context(
@@ -151,11 +152,21 @@ def _get_apps(args):
         builder_script.extend(_INITIALIZE_BUILDER)
     if args.rule:
         builder_script.append(
-            'sudo -u plumber -g plumber "%s" build %s %s' % (
-                builders.PARAMS.foreman_path.get(),
-                '--debug' if shipyard2.is_debug() else '',
-                ' '.join('"%s"' % rule for rule in args.rule),
-            )
+            ' '.join([
+                'sudo',
+                *('-u', 'plumber'),
+                *('-g', 'plumber'),
+                str(shipyard2.get_foreman_path()),
+                'build',
+                *(('--debug', ) if shipyard2.is_debug() else ()),
+                *_foreman_make_path_args(),
+                *(
+                    '--parameter',
+                    '//bases:roots=%s' %
+                    ','.join(map(str, params.get_source_paths())),
+                ),
+                *map(str, args.rule),
+            ])
         )
     ASSERT.not_empty(builder_script)
     return [
@@ -167,6 +178,12 @@ def _get_apps(args):
             'group': 'root',
         },
     ]
+
+
+def _foreman_make_path_args():
+    for path in params.get_source_paths():
+        yield '--path'
+        yield str(path / 'shipyard2' / 'rules')
 
 
 def _get_images(args):
@@ -198,13 +215,11 @@ def _get_images(args):
 
 
 def _get_mounts(args):
-    mounts = [
-        {
-            'source': str(builders.get_repo_root_path()),
-            'target': '/usr/src/garage',
-            'read_only': True
-        },
-    ]
+    mounts = [{
+        'source': str(host_path),
+        'target': str(params.get_source_path(host_path)),
+        'read_only': True,
+    } for host_path in params.get_source_host_paths()]
     for mount in args.mount or ():
         parts = mount.split(':')
         if ASSERT.in_(len(parts), (2, 3)) == 3:

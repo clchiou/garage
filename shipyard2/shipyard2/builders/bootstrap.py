@@ -38,7 +38,7 @@ def cmd_bootstrap(args):
     g1.containers.bases.assert_root_privilege()
     ASSERT.predicate(args.base.parent, Path.is_dir)
     ASSERT.predicate(args.builder_base.parent, Path.is_dir)
-    ctr_path = builders.get_ctr_path()
+    ctr_path = shipyard2.get_ctr_path()
     # Use base output directory for intermediate data.
     with tempfile.TemporaryDirectory(dir=args.base.parent) as tempdir_path:
         tempdir_path = Path(tempdir_path)

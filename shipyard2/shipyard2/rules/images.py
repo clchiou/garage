@@ -84,7 +84,7 @@ def bootstrap(parameters):
     for image_path in image_paths:
         scripts.mkdir(image_path.parent)
     scripts.run([
-        parameters['//images/bases:builder'],
+        shipyard2.get_builder_path(),
         *_make_verbose_args(),
         'bootstrap',
         *('--base-version', version),
@@ -124,7 +124,7 @@ def define_image(
         LOG.info('build image: %s %s', name, version)
         scripts.mkdir(output.parent)
         scripts.run([
-            parameters['//images/bases:builder'],
+            shipyard2.get_builder_path(),
             *_make_verbose_args(),
             'build',
             *_make_builder_id_args(parameters),
@@ -151,7 +151,7 @@ def define_image(
         LOG.info('merge image: %s %s', name, version)
         scripts.mkdir(output.parent)
         scripts.run([
-            parameters['//images/bases:builder'],
+            shipyard2.get_builder_path(),
             *_make_verbose_args(),
             'merge',
             *_make_builder_image_args(parameters),

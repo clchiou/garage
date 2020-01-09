@@ -1,7 +1,5 @@
 """Set up the base environment for image release processes."""
 
-from pathlib import Path
-
 import foreman
 
 from g1.bases.assertions import ASSERT
@@ -13,16 +11,6 @@ import shipyard2.rules.images
 # will only produce one application image per pod.  That is why we only
 # have one image version parameter.
 #
-
-SHIPYARD2_PATH = Path(__file__).parent.parent.parent.parent
-
-(foreman.define_parameter.path_typed('builder')\
- .with_doc('host path to script builder.sh')
- .with_default(SHIPYARD2_PATH / 'scripts' / 'builder.sh'))
-
-(foreman.define_parameter.path_typed('ctr')\
- .with_doc('host path to script ctr.sh')
- .with_default(SHIPYARD2_PATH / 'scripts' / 'ctr.sh'))
 
 (foreman.define_parameter('builder-id')\
  .with_doc('builder pod id (optional)'))
@@ -51,9 +39,6 @@ SHIPYARD2_PATH = Path(__file__).parent.parent.parent.parent
 @foreman.rule
 @foreman.rule.depend('//releases:build')
 def build(parameters):
-    ASSERT.predicate(SHIPYARD2_PATH.parent / '.git', Path.is_dir)
-    ASSERT.predicate(parameters['//images/bases:builder'], Path.is_file)
-    ASSERT.predicate(parameters['//images/bases:ctr'], Path.is_file)
     ASSERT.not_none(parameters['base-version'])
     ASSERT.not_none(parameters['version'])
 

@@ -1,6 +1,11 @@
 import logging
+from pathlib import Path
+
+from g1.bases.assertions import ASSERT
 
 logging.getLogger(__name__).addHandler(logging.NullHandler())
+
+REPO_ROOT_PATH = Path(__file__).parent.parent.parent
 
 BASE = 'base'
 BUILDER_BASE = 'builder-base'
@@ -34,3 +39,31 @@ def make_help_kwargs(help_text):
         'help': help_text,
         'description': '%s%s.' % (help_text[0].upper(), help_text[1:]),
     }
+
+
+def is_source_repo(path):
+    return (path / '.git').is_dir()
+
+
+def get_builder_path():
+    return ASSERT.predicate(
+        REPO_ROOT_PATH / 'shipyard2' / 'scripts' / 'builder.sh',
+        Path.is_file,
+    )
+
+
+def get_ctr_path():
+    return ASSERT.predicate(
+        REPO_ROOT_PATH / 'shipyard2' / 'scripts' / 'ctr.sh',
+        Path.is_file,
+    )
+
+
+def get_foreman_path():
+    return ASSERT.predicate(
+        REPO_ROOT_PATH / 'shipyard2' / 'scripts' / 'foreman.sh',
+        Path.is_file,
+    )
+
+
+ASSERT.predicate(REPO_ROOT_PATH, is_source_repo)
