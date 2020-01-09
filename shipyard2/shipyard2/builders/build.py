@@ -25,7 +25,7 @@ LOG = logging.getLogger(__name__)
 
 @argparses.begin_parser(
     'build',
-    **builders.make_help_kwargs('build intermediate builder image'),
+    **shipyard2.make_help_kwargs('build intermediate builder image'),
 )
 @argparses.argument(
     '--builder-id',

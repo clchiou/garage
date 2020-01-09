@@ -13,6 +13,7 @@ from g1 import scripts
 from g1.bases import argparses
 from g1.bases.assertions import ASSERT
 
+import shipyard2
 from shipyard2 import builders
 
 LOG = logging.getLogger(__name__)
@@ -69,7 +70,7 @@ _DEFAULT_FILTERS = (
 
 @argparses.begin_parser(
     'merge',
-    **builders.make_help_kwargs(
+    **shipyard2.make_help_kwargs(
         'merge intermediate builder images into application image'
     ),
 )

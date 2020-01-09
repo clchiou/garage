@@ -84,10 +84,3 @@ def get_ctr_path():
         Path(__file__).parent.parent.parent / 'scripts' / 'ctr.sh',
         Path.is_file,
     )
-
-
-def make_help_kwargs(help_text):
-    return {
-        'help': help_text,
-        'description': '%s%s.' % (help_text[0].upper(), help_text[1:]),
-    }

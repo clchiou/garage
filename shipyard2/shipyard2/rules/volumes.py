@@ -6,7 +6,7 @@ __all__ = [
 
 import foreman
 
-_VOLUME_FILENAME = 'volume.tar.gz'
+import shipyard2
 
 
 # NOTE: This function is generally called in the host system, not inside
@@ -16,9 +16,9 @@ def get_volume_path(parameters, label, version):
     label = foreman.Label.parse(label)
     return (
         parameters['//releases:root'] / \
-        'volumes' /
+        shipyard2.RELEASE_VOLUMES_DIR_NAME /
         label.path /
         label.name /
         version /
-        _VOLUME_FILENAME
+        shipyard2.VOLUME_DIR_VOLUME_FILENAME
     )

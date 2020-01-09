@@ -31,12 +31,6 @@ Mount = pods.PodConfig.Mount
 
 LOG = logging.getLogger(__name__)
 
-# Pod directory structure.
-_RELEASE_METADATA_FILENAME = 'release.json'
-_DEPLOY_INSTRUCTION_FILENAME = 'deploy.json'
-_IMAGES_DIR_NAME = 'images'
-_VOLUMES_DIR_NAME = 'volumes'
-
 
 @dataclasses.dataclass(frozen=True)
 class Volume:
@@ -108,7 +102,10 @@ def define_pod(
     def build(parameters):
         version = parameters['//pods/bases:version']
         pod_dir_path = _get_pod_dir_path(parameters, name, version)
-        if (pod_dir_path / _RELEASE_METADATA_FILENAME).exists():
+        if (
+            pod_dir_path / \
+            shipyard2.POD_DIR_RELEASE_METADATA_FILENAME
+        ).exists():
             LOG.info('skip: build pod: %s %s', name, version)
             return
         LOG.info('build pod: %s %s', name, version)
@@ -165,7 +162,7 @@ def _generate_release_metadata(parameters, pod_dir_path):
                 for source in parameters['//releases:sources']
             ],
         ),
-        pod_dir_path / _RELEASE_METADATA_FILENAME,
+        pod_dir_path / shipyard2.POD_DIR_RELEASE_METADATA_FILENAME,
     )
 
 
@@ -232,7 +229,7 @@ def _generate_deploy_instruction(
             ),
             volumes=volumes,
         ),
-        pod_dir_path / _DEPLOY_INSTRUCTION_FILENAME,
+        pod_dir_path / shipyard2.POD_DIR_DEPLOY_INSTRUCTION_FILENAME,
     )
 
 
@@ -244,9 +241,9 @@ def _dump(obj, path):
 
 
 def _link_images(parameters, pod_dir_path, images):
-    scripts.mkdir(pod_dir_path / _IMAGES_DIR_NAME)
+    scripts.mkdir(pod_dir_path / shipyard2.POD_DIR_IMAGES_DIR_NAME)
     _link(
-        _IMAGES_DIR_NAME,
+        shipyard2.POD_DIR_IMAGES_DIR_NAME,
         parameters,
         pod_dir_path,
         '//bases:%s' % shipyard2.BASE,
@@ -255,7 +252,7 @@ def _link_images(parameters, pod_dir_path, images):
     version = parameters['//images/bases:version']
     for label in images:
         _link(
-            _IMAGES_DIR_NAME,
+            shipyard2.POD_DIR_IMAGES_DIR_NAME,
             parameters,
             pod_dir_path,
             label,
@@ -264,10 +261,10 @@ def _link_images(parameters, pod_dir_path, images):
 
 
 def _link_volumes(parameters, pod_dir_path, volumes):
-    scripts.mkdir(pod_dir_path / _VOLUMES_DIR_NAME)
+    scripts.mkdir(pod_dir_path / shipyard2.POD_DIR_VOLUMES_DIR_NAME)
     for volume in volumes:
         _link(
-            _VOLUMES_DIR_NAME,
+            shipyard2.POD_DIR_VOLUMES_DIR_NAME,
             parameters,
             pod_dir_path,
             volume.label,
@@ -276,10 +273,10 @@ def _link_volumes(parameters, pod_dir_path, volumes):
 
 
 def _link(subdir_name, parameters, pod_dir_path, label, version):
-    if subdir_name == _IMAGES_DIR_NAME:
+    if subdir_name == shipyard2.POD_DIR_IMAGES_DIR_NAME:
         get_path = shipyard2.rules.images.get_image_path
     else:
-        ASSERT.equal(subdir_name, _VOLUMES_DIR_NAME)
+        ASSERT.equal(subdir_name, shipyard2.POD_DIR_VOLUMES_DIR_NAME)
         get_path = shipyard2.rules.volumes.get_volume_path
     target_path = ASSERT.predicate(
         ASSERT.predicate(

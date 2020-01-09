@@ -19,7 +19,7 @@ LOG = logging.getLogger(__name__)
 
 @argparses.begin_parser(
     'bootstrap',
-    **builders.make_help_kwargs('build base and builder-base image'),
+    **shipyard2.make_help_kwargs('build base and builder-base image'),
 )
 @builders.import_output_arguments(default=True)
 @builders.base_image_version_arguments

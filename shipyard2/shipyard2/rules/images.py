@@ -21,9 +21,6 @@ import shipyard2.rules
 
 LOG = logging.getLogger(__name__)
 
-_BUILDER_IMAGE_FILENAME = 'builder.tar.gz'
-_IMAGE_FILENAME = 'image.tar.gz'
-
 
 @dataclasses.dataclass(frozen=True)
 class ImageRules:
@@ -38,11 +35,11 @@ def get_image_path(parameters, label, version):
     label = foreman.Label.parse(label)
     return (
         parameters['//releases:root'] / \
-        'images' /
+        shipyard2.RELEASE_IMAGES_DIR_NAME /
         label.path /
         label.name /
         version /
-        _IMAGE_FILENAME
+        shipyard2.IMAGE_DIR_IMAGE_FILENAME
     )
 
 
@@ -52,7 +49,7 @@ def _get_image_path(parameters, name, version):
         foreman.get_relpath() /
         name /
         version /
-        _IMAGE_FILENAME
+        shipyard2.IMAGE_DIR_IMAGE_FILENAME
     )
 
 
@@ -66,7 +63,7 @@ def _get_builder_image_path(parameters, name, version):
         foreman.get_relpath() /
         name /
         version /
-        _BUILDER_IMAGE_FILENAME
+        shipyard2.IMAGE_DIR_BUILDER_IMAGE_FILENAME
     )
 
 
