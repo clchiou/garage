@@ -8,6 +8,7 @@ import sys
 
 from startup import startup
 
+import g1.scripts.parts
 from g1.apps import bases as apps_bases
 from g1.bases import argparses
 from g1.bases.assertions import ASSERT
@@ -200,7 +201,10 @@ def cmd_xars(args):
 @argparses.include(cmd_pods)
 @argparses.include(cmd_xars)
 @argparses.end
-def main(args: apps_bases.LABELS.args):
+def main(
+    args: apps_bases.LABELS.args,
+    _: g1.scripts.parts.LABELS.setup,
+):
     """Manage containerized application."""
     if args.entity == 'init':
         bases.cmd_init()

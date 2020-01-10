@@ -8,6 +8,7 @@ import tempfile
 
 from startup import startup
 
+import g1.scripts.parts
 from g1 import scripts
 from g1.apps import bases
 from g1.bases import argparses
@@ -60,7 +61,10 @@ def add_arguments(parser: bases.LABELS.parser) -> bases.LABELS.parse:
     )
 
 
-def main(args: bases.LABELS.args):
+def main(
+    args: bases.LABELS.args,
+    _: g1.scripts.parts.LABELS.setup,
+):
     # Resolve ctr location because sudo does not look up custom paths.
     global CTR
     CTR = ASSERT.not_none(shutil.which('ctr'))
