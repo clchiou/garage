@@ -5,6 +5,7 @@ __all__ = [
 
 from startup import startup
 
+import g1.scripts.parts
 from g1.apps import bases
 from g1.bases import argparses
 from g1.bases.assertions import ASSERT
@@ -19,7 +20,10 @@ from . import merge
 @argparses.include(build.cmd_build)
 @argparses.include(merge.cmd_merge)
 @argparses.end
-def main(args: bases.LABELS.args):
+def main(
+    args: bases.LABELS.args,
+    _: g1.scripts.parts.LABELS.setup,
+):
     """Image builder."""
     if args.command == 'bootstrap':
         return bootstrap.cmd_bootstrap(args)
