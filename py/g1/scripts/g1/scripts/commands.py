@@ -6,6 +6,7 @@ __all__ = [
     'ln',
     'mkdir',
     'rm',
+    'rmdir',
     'validate_checksum',
     'write_bytes',
     # Archive.
@@ -63,6 +64,16 @@ def rm(path, *, recursive=False):
         'rm',
         '--force',
         *(('--recursive', ) if recursive else ()),
+        path,
+    ])
+
+
+def rmdir(path, *, parents=False, ignore_fail_on_non_empty=False):
+    bases.run([
+        'rmdir',
+        *(('--parents', ) if parents else ()),
+        *(('--ignore-fail-on-non-empty', ) if ignore_fail_on_non_empty else
+          ()),
         path,
     ])
 

@@ -54,6 +54,10 @@ class CommandsTest(unittest.TestCase):
             ['rm', '--force', '--recursive', 'p/q'],
         )
 
+    def test_rmdir(self):
+        commands.rmdir('p/q')
+        self.assert_runs(['rmdir', 'p/q'])
+
     def test_validate_checksum(self):
         self.subprocess_mock.run.return_value.returncode = 0
         commands.validate_checksum('foo', 'md5:123')
