@@ -53,10 +53,6 @@ def _get_image_path(parameters, name, version):
     )
 
 
-def _get_builder_name(name):
-    return name + '-builder'
-
-
 def _get_builder_image_path(parameters, name, version):
     return (
         parameters['//releases:root'] / \
@@ -74,7 +70,7 @@ def bootstrap(parameters):
     )
     image_paths = [
         _get_image_path(parameters, shipyard2.BASE, version),
-        _get_builder_image_path(parameters, shipyard2.BUILDER_BASE, version),
+        _get_builder_image_path(parameters, shipyard2.BASE, version),
     ]
     if all(map(Path.is_file, image_paths)):
         LOG.info('skip: bootstrap: %s', version)
@@ -132,7 +128,7 @@ def define_image(
             *_make_builder_image_args(parameters),
             *_make_image_data_args(parameters, name),
             *_make_rule_args(rules),
-            _get_builder_name(name),
+            shipyard2.get_builder_name(name),
             version,
             output,
         ])
@@ -155,7 +151,7 @@ def define_image(
             *_make_verbose_args(),
             'merge',
             *_make_builder_image_args(parameters),
-            *('--image-nv', _get_builder_name(name), version),
+            *('--image-nv', shipyard2.get_builder_name(name), version),
             *_make_filter_args(parameters),
             name,
             version,

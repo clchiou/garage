@@ -108,7 +108,7 @@ def cmd_merge(args):
         LOG.info('generate application image under: %s', tempdir_path)
         # NOTE: Do NOT overlay-mount these rootfs (and then rsync from
         # the overlay) because the overlay does not include base and
-        # builder-base, and thus some tombstone files may not be copied
+        # base-builder, and thus some tombstone files may not be copied
         # correctly (I don't know why but rsync complains about this).
         # For now our workaround is to rsync each rootfs sequentially.
         for rootfs_path in rootfs_paths:

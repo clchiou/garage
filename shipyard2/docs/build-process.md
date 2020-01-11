@@ -10,7 +10,7 @@ The build process involves two pods: builder and application pod.
 * The application pod is builder pod without the build-time data.
 
 To run a builder pod (and build an application image), you need at least
-two images: base and builder-base (which are built by the bootstrap
+two images: base and base-builder (which are built by the bootstrap
 command of the builder).  On top of that, you may use intermediate
 builder images to save you time from rebuilding stuff.  The build
 process starts with these images, and builds application data in-place.
@@ -22,13 +22,13 @@ an intermediate builder image.
     +----------------------------------------+
     | intermediate builder images (optional) |
     +----------------------------------------+
-    | builder-base                           |
+    | base-builder                           |
     +----------------------------------------+
     | base                                   | (bottom layer)
     +----------------------------------------+
 
 * The base image is the bare minimum that all pods require.
-* The builder-base image contains extra data (such as Linux distro
+* The base-builder image contains extra data (such as Linux distro
   package repository).
 * The optional intermediate builder images are application data from
   previous builds (to save time from rebuilding stuff).

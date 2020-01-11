@@ -10,7 +10,6 @@ logging.getLogger(__name__).addHandler(logging.NullHandler())
 REPO_ROOT_PATH = Path(__file__).parent.parent.parent
 
 BASE = 'base'
-BUILDER_BASE = 'builder-base'
 
 # Top-level directories.
 RELEASE_ENVS_DIR_NAME = 'envs'
@@ -85,10 +84,15 @@ def guess_label_from_rule(rule):
     For example, //pod/foo:bar/build becomes //foo:bar.
     """
     name_parts = rule.name.parts
-    ASSERT.less_or_equal(len(name_parts), 2)
-    return foreman.Label.parse(
-        '//%s:%s' % (
-            '/'.join(rule.path.parts[1:]),
-            BASE if name_parts[-1] == 'bootstrap' else name_parts[0]
-        )
+    ASSERT(
+        len(name_parts) == 2 and name_parts[1] == 'build',
+        'expect pod or image build rule: {}',
+        rule,
     )
+    return foreman.Label.parse(
+        '//%s:%s' % ('/'.join(rule.path.parts[1:]), name_parts[0])
+    )
+
+
+def get_builder_name(name):
+    return name + '-builder'

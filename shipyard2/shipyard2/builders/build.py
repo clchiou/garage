@@ -193,7 +193,7 @@ def _get_images(args):
             'version': args.base_version,
         },
         {
-            'name': shipyard2.BUILDER_BASE,
+            'name': shipyard2.get_builder_name(shipyard2.BASE),
             'version': args.base_version,
         },
     ]

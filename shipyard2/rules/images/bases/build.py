@@ -4,6 +4,7 @@ import foreman
 
 from g1.bases.assertions import ASSERT
 
+import shipyard2
 import shipyard2.rules.images
 
 #
@@ -43,8 +44,8 @@ def build(parameters):
     ASSERT.not_none(parameters['version'])
 
 
-@foreman.rule
+@foreman.rule('%s/build' % shipyard2.BASE)
 @foreman.rule.depend('//releases:build')
 @foreman.rule.depend('build')
-def bootstrap(parameters):
+def base_build(parameters):
     shipyard2.rules.images.bootstrap(parameters)
