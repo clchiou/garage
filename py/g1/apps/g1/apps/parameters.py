@@ -77,16 +77,21 @@ class Parameter:
         self,
         default,
         doc=None,
+        *,
         type=None,  # pylint: disable=redefined-builtin
+        validator=None,
         unit=None,
     ):
         self.doc = doc
         self.type = type or default.__class__
+        self.validator = validator
         self.unit = unit
         self._value = self.default = self.validate(default)
         self._have_been_read = False
 
     def validate(self, value):
+        if self.validator:
+            ASSERT.predicate(value, self.validator)
         return ASSERT.isinstance(value, self.type)
 
     def get(self):

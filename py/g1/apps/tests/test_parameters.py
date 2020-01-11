@@ -40,6 +40,15 @@ class ParameterTest(unittest.TestCase):
         p.set(1)
         self.assertEqual(p.get(), 1)
 
+    def test_validator(self):
+        p = parameters.Parameter(0, validator=lambda x: x < 1)
+        self.assertEqual(p._value, 0)
+        with self.assertRaises(AssertionError):
+            p.set(1)
+        self.assertEqual(p._value, 0)
+        p.set(-1)
+        self.assertEqual(p._value, -1)
+
 
 class IterParametersTest(unittest.TestCase):
 
