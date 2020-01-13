@@ -4,7 +4,9 @@ __all__ = [
     'cmd_set_version',
 ]
 
+import json
 import logging
+from pathlib import Path
 
 import foreman
 
@@ -14,7 +16,6 @@ from g1.bases import functionals
 from g1.bases.assertions import ASSERT
 
 import shipyard2
-from shipyard2 import params
 
 from . import repos
 
@@ -52,8 +53,11 @@ change_version_arguments = functionals.compose(
 )
 @select_env_argument
 @argparses.argument(
-    '--image-version',
-    help='overwrite image version (default to the same as pod version)',
+    '--args-file',
+    type=Path,
+    action='append',
+    required=True,
+    help='add json file of foreman build command-line arguments',
 )
 @argparses.argument(
     'rule',
@@ -66,43 +70,32 @@ change_version_arguments = functionals.compose(
 )
 @argparses.end
 def cmd_build(args):
-    if shipyard2.look_like_image_rule(args.rule) and args.image_version:
-        ASSERT.equal(args.image_version, args.version)
     LOG.info('build: %s %s', args.rule, args.version)
     scripts.run([
         shipyard2.get_foreman_path(),
         'build',
         *(('--debug', ) if shipyard2.is_debug() else ()),
-        *_foreman_make_path_args(),
-        *_foreman_make_parameter_args(args),
+        *_read_args_file(args.args_file or ()),
+        *(
+            '--parameter',
+            '//%s:%s=%s' % (
+                args.rule.path,
+                args.rule.name.with_name('version'),
+                args.version,
+            ),
+        ),
         args.rule,
     ])
     if shipyard2.look_like_pod_rule(args.rule) and args.also_release:
         label = shipyard2.guess_label_from_rule(args.rule)
         LOG.info('release: %s %s -> %s', label, args.version, args.env)
-        _get_envs_dir().set_version(args.env, label, args.version)
+        _get_envs_dir(args).set_version(args.env, label, args.version)
     return 0
 
 
-def _foreman_make_path_args():
-    for path in params.get_source_host_paths():
-        yield '--path'
-        yield path / 'shipyard2' / 'rules'
-
-
-def _foreman_make_parameter_args(args):
-    for name, value in [
-        (
-            '//releases:sources',
-            ','.join(map(str, params.get_source_host_paths())),
-        ),
-        ('//releases:root', params.get_release_host_path()),
-        ('//images/bases:base-version', params.PARAMS.base_version.get()),
-        ('//images/bases:version', args.version),
-        ('//pods/bases:version', args.version),
-    ]:
-        yield '--parameter'
-        yield '%s=%s' % (name, value)
+def _read_args_file(args_file_paths):
+    for path in args_file_paths:
+        yield from ASSERT.isinstance(json.loads(path.read_text()), list)
 
 
 @argparses.begin_parser(
@@ -113,7 +106,7 @@ def _foreman_make_parameter_args(args):
 @argparses.end
 def cmd_set_version(args):
     LOG.info('release: %s %s -> %s', args.label, args.version, args.env)
-    _get_envs_dir().set_version(args.env, args.label, args.version)
+    _get_envs_dir(args).set_version(args.env, args.label, args.version)
     return 0
 
 
@@ -125,9 +118,9 @@ def cmd_set_version(args):
 @argparses.end
 def cmd_remove_version(args):
     LOG.info('un-release: %s %s -> %s', args.label, args.version, args.env)
-    _get_envs_dir().remove_version(args.env, args.label, args.version)
+    _get_envs_dir(args).remove_version(args.env, args.label, args.version)
     return 0
 
 
-def _get_envs_dir():
-    return repos.EnvsDir(params.get_release_host_path())
+def _get_envs_dir(args):
+    return repos.EnvsDir(args.release_repo)

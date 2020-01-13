@@ -2,13 +2,13 @@ __all__ = [
     'cmd_cleanup',
 ]
 
+import collections
 import logging
 
 from g1.bases import argparses
 from g1.bases.assertions import ASSERT
 
 import shipyard2
-from shipyard2 import params
 
 from . import repos
 
@@ -27,51 +27,54 @@ LOG = logging.getLogger(__name__)
 @argparses.end
 def cmd_cleanup(args):
     ASSERT.greater_or_equal(args.keep, 0)
-    repo_path = params.get_release_host_path()
     LOG.info('clean up pods')
     _cleanup(
         args.keep,
-        _get_current_pod_versions(repo_path),
-        repos.PodDir.group_dirs(repo_path),
+        _get_current_pod_versions(args.release_repo),
+        repos.PodDir.group_dirs(args.release_repo),
     )
     LOG.info('clean up builder images')
     # Builder images are not referenced by pods and thus do not have
     # current versions.
-    _cleanup(args.keep, {}, repos.BuilderImageDir.group_dirs(repo_path))
+    _cleanup(
+        args.keep,
+        {},
+        repos.BuilderImageDir.group_dirs(args.release_repo),
+    )
     LOG.info('clean up images')
     _cleanup(
         args.keep,
-        _get_current_image_versions(repo_path),
-        repos.ImageDir.group_dirs(repo_path),
+        _get_current_image_versions(args.release_repo),
+        repos.ImageDir.group_dirs(args.release_repo),
     )
     LOG.info('clean up volumes')
     _cleanup(
         args.keep,
-        _get_current_volume_versions(repo_path),
-        repos.VolumeDir.group_dirs(repo_path),
+        _get_current_volume_versions(args.release_repo),
+        repos.VolumeDir.group_dirs(args.release_repo),
     )
     return 0
 
 
 def _cleanup(to_keep, current_versions, groups):
     for label, dir_objects in groups.items():
-        current_version = current_versions.get(label)
+        current_version_set = current_versions.get(label, ())
         to_remove = len(dir_objects) - to_keep
         while to_remove > 0 and dir_objects:
             dir_object = dir_objects.pop()
-            if dir_object.version != current_version:
+            if dir_object.version not in current_version_set:
                 LOG.info('remove: %s %s', label, dir_object.version)
                 dir_object.remove()
                 to_remove -= 1
 
 
 def _get_current_pod_versions(repo_path):
-    current_versions = {}
+    current_versions = collections.defaultdict(set)
     envs_dir = repos.EnvsDir(repo_path)
     for env in envs_dir.envs:
         for pod_dir in envs_dir.iter_pod_dirs(env):
-            ASSERT.setitem(current_versions, pod_dir.label, pod_dir.version)
-    return current_versions
+            current_versions[pod_dir.label].add(pod_dir.version)
+    return dict(current_versions)
 
 
 def _get_current_image_versions(repo_path):
@@ -83,10 +86,8 @@ def _get_current_volume_versions(repo_path):
 
 
 def _get_pod_dep_versions(repo_path, iter_dir_objects):
-    current_versions = {}
+    current_versions = collections.defaultdict(set)
     for pod_dir in repos.PodDir.iter_dirs(repo_path):
         for dir_object in iter_dir_objects(pod_dir):
-            ASSERT.setitem(
-                current_versions, dir_object.label, dir_object.version
-            )
-    return current_versions
+            current_versions[dir_object.label].add(dir_object.version)
+    return dict(current_versions)

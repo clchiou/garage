@@ -5,6 +5,7 @@ __all__ = [
 
 import json
 import sys
+from pathlib import Path
 
 from startup import startup
 
@@ -14,7 +15,6 @@ from g1.bases import argparses
 from g1.bases.assertions import ASSERT
 
 import shipyard2
-from shipyard2 import params
 
 from . import build
 from . import cleanup
@@ -26,13 +26,12 @@ from . import repos
     **shipyard2.make_help_kwargs('initialize release repository'),
 )
 @argparses.end
-def cmd_init():
-    repo_path = params.get_release_host_path()
-    repos.EnvsDir.init(repo_path)
-    repos.PodDir.init(repo_path)
-    repos.BuilderImageDir.init(repo_path)
-    repos.ImageDir.init(repo_path)
-    repos.VolumeDir.init(repo_path)
+def cmd_init(args):
+    repos.EnvsDir.init(args.release_repo)
+    repos.PodDir.init(args.release_repo)
+    repos.BuilderImageDir.init(args.release_repo)
+    repos.ImageDir.init(args.release_repo)
+    repos.VolumeDir.init(args.release_repo)
     return 0
 
 
@@ -41,9 +40,8 @@ def cmd_init():
     **shipyard2.make_help_kwargs('list build artifacts'),
 )
 @argparses.end
-def cmd_list():
-    repo_path = params.get_release_host_path()
-    envs_dir = repos.EnvsDir(repo_path)
+def cmd_list(args):
+    envs_dir = repos.EnvsDir(args.release_repo)
     data = {
         'envs': {
             env: {
@@ -59,7 +57,7 @@ def cmd_list():
         ('images', repos.ImageDir),
         ('volumes', repos.VolumeDir),
     ):
-        groups = cls.group_dirs(repo_path)
+        groups = cls.group_dirs(args.release_repo)
         data[name] = {
             str(label): [obj.version for obj in dir_objects]
             for label, dir_objects in groups.items()
@@ -69,6 +67,12 @@ def cmd_list():
     return 0
 
 
+@argparses.argument(
+    '--release-repo',
+    type=Path,
+    required=True,
+    help='provide host path to release repository',
+)
 @argparses.begin_subparsers_for_subcmds(dest='command')
 @argparses.include(cmd_init)
 @argparses.include(cmd_list)
@@ -83,9 +87,9 @@ def main(
 ):
     """Release process manager."""
     if args.command == 'init':
-        return cmd_init()
+        return cmd_init(args)
     elif args.command == 'list':
-        return cmd_list()
+        return cmd_list(args)
     elif args.command == 'build':
         return build.cmd_build(args)
     elif args.command == 'set-version':
