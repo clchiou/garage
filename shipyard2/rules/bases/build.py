@@ -9,7 +9,7 @@ from g1.bases.assertions import ASSERT
 
 import shipyard2.rules.bases
 
-(foreman.define_parameter.list_typed('roots')\
+(foreman.define_parameter.path_list_typed('roots')\
  .with_doc('paths to the root directory of repositories')
  .with_default([Path(__file__).parent.parent.parent.parent]))
 
@@ -43,7 +43,7 @@ def build(parameters):
 
 
 def _is_root_dir(path):
-    return (Path(path) / '.git').is_dir()
+    return (path / '.git').is_dir()
 
 
 # A dummy rule for rules that want to import base parameters but don't

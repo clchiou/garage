@@ -9,7 +9,6 @@ __all__ = [
 import dataclasses
 import logging
 import typing
-from pathlib import Path
 
 import foreman
 
@@ -93,7 +92,7 @@ def _find_src_path(parameters):
     relpath = foreman.get_relpath()
     root_paths = parameters['//bases:roots']
     for root_path in root_paths:
-        path = Path(root_path) / relpath
+        path = root_path / relpath
         if (path / 'setup.py').is_file():
             return path
     return ASSERT.unreachable(
