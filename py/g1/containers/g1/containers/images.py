@@ -272,6 +272,7 @@ _IMAGE_LIST_COLUMNS = frozenset((
     'tags',
     'ref-count',
     'last-updated',
+    'rootfs',
 ))
 _IMAGE_LIST_DEFAULT_COLUMNS = (
     'id',
@@ -306,6 +307,7 @@ def cmd_list():
                 'tags': _find_tags(image_id),
                 'ref-count': _get_ref_count(image_dir_path),
                 'last-updated': last_updated,
+                'rootfs': get_rootfs_path(image_dir_path),
             }
 
 
