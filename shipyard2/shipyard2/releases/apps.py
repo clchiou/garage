@@ -14,8 +14,6 @@ from g1.apps import bases
 from g1.bases import argparses
 from g1.bases.assertions import ASSERT
 
-import shipyard2
-
 from . import build
 from . import cleanup
 from . import repos
@@ -23,7 +21,7 @@ from . import repos
 
 @argparses.begin_parser(
     'init',
-    **shipyard2.make_help_kwargs('initialize release repository'),
+    **argparses.make_help_kwargs('initialize release repository'),
 )
 @argparses.end
 def cmd_init(args):
@@ -37,7 +35,7 @@ def cmd_init(args):
 
 @argparses.begin_parser(
     'list',
-    **shipyard2.make_help_kwargs('list build artifacts'),
+    **argparses.make_help_kwargs('list build artifacts'),
 )
 @argparses.end
 def cmd_list(args):

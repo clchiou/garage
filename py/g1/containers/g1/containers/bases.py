@@ -6,7 +6,6 @@ __all__ = [
     'grace_period_arguments',
     'make_formatter_kwargs',
     'make_grace_period_kwargs',
-    'make_help_kwargs',
     # Extension to Path object.
     'delete_file',
     'is_empty_dir',
@@ -155,13 +154,6 @@ grace_period_arguments = argparses.argument(
 
 def make_grace_period_kwargs(args):
     return {'expiration': datetimes.utcnow() - args.grace_period}
-
-
-def make_help_kwargs(help_text):
-    return {
-        'help': help_text,
-        'description': '%s%s.' % (help_text[0].upper(), help_text[1:]),
-    }
 
 
 #

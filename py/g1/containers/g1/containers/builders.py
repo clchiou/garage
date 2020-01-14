@@ -51,7 +51,7 @@ def cmd_init():
 
 
 @argparses.begin_parser(
-    'build-base', **bases.make_help_kwargs('build a base image')
+    'build-base', **argparses.make_help_kwargs('build a base image')
 )
 @argparses.argument(
     '--prune-stash-path',
@@ -78,7 +78,7 @@ def _create_image_rootfs(image_rootfs_path, prune_stash_path):
 
 @argparses.begin_parser(
     'prepare-base-rootfs',
-    **bases.make_help_kwargs(
+    **argparses.make_help_kwargs(
         'prepare rootfs of a base image (useful for testing)',
     ),
 )
@@ -103,7 +103,7 @@ def cmd_prepare_base_rootfs(image_rootfs_path):
 
 @argparses.begin_parser(
     'setup-base-rootfs',
-    **bases.make_help_kwargs(
+    **argparses.make_help_kwargs(
         'set up rootfs of a base image (useful for testing)',
     ),
 )

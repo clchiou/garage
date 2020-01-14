@@ -199,7 +199,7 @@ def cmd_init():
     bases.make_dir(get_trees_path(), 0o750, bases.chown_app)
 
 
-@argparses.begin_parser('build', **bases.make_help_kwargs('build image'))
+@argparses.begin_parser('build', **argparses.make_help_kwargs('build image'))
 @argparses.argument(
     '--rootfs',
     type=Path,
@@ -220,7 +220,7 @@ def cmd_build_image(name, version, rootfs_path, output_path):
 
 
 @argparses.begin_parser(
-    'import', **bases.make_help_kwargs('import an image archive')
+    'import', **argparses.make_help_kwargs('import an image archive')
 )
 @argparses.argument('--tag', type=validate_tag, help='provide new image tag')
 @argparses.argument(
@@ -290,7 +290,7 @@ ASSERT.issuperset(_IMAGE_LIST_COLUMNS, _IMAGE_LIST_DEFAULT_COLUMNS)
 ASSERT.issuperset(_IMAGE_LIST_COLUMNS, IMAGE_LIST_STRINGIFIERS)
 
 
-@argparses.begin_parser('list', **bases.make_help_kwargs('list images'))
+@argparses.begin_parser('list', **argparses.make_help_kwargs('list images'))
 @bases.formatter_arguments(_IMAGE_LIST_COLUMNS, _IMAGE_LIST_DEFAULT_COLUMNS)
 @argparses.end
 def cmd_list():
@@ -311,7 +311,9 @@ def cmd_list():
             }
 
 
-@argparses.begin_parser('tag', **bases.make_help_kwargs('set tag to an image'))
+@argparses.begin_parser(
+    'tag', **argparses.make_help_kwargs('set tag to an image')
+)
 @select_image_arguments
 @argparses.argument('new_tag', type=validate_tag, help='provide new image tag')
 @argparses.end
@@ -326,7 +328,7 @@ def cmd_tag(*, image_id=None, name=None, version=None, tag=None, new_tag):
 
 
 @argparses.begin_parser(
-    'remove-tag', **bases.make_help_kwargs('remove tag from an image')
+    'remove-tag', **argparses.make_help_kwargs('remove tag from an image')
 )
 @argparses.argument(
     'tag', type=validate_tag, help='provide image tag for removal'
@@ -342,7 +344,8 @@ def cmd_remove_tag(tag):
 
 
 @argparses.begin_parser(
-    'remove', **bases.make_help_kwargs('remove an image from the repository')
+    'remove',
+    **argparses.make_help_kwargs('remove an image from the repository'),
 )
 @select_image_arguments
 @argparses.end
@@ -363,7 +366,7 @@ def cmd_remove(*, image_id=None, name=None, version=None, tag=None):
 
 
 @argparses.begin_parser(
-    'cleanup', **bases.make_help_kwargs('clean up image repository')
+    'cleanup', **argparses.make_help_kwargs('clean up image repository')
 )
 @bases.grace_period_arguments
 @argparses.end

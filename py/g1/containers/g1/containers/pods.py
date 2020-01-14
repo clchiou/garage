@@ -212,7 +212,7 @@ ASSERT.issuperset(_POD_LIST_COLUMNS, _POD_LIST_DEFAULT_COLUMNS)
 ASSERT.issuperset(_POD_LIST_COLUMNS, POD_LIST_STRINGIFIERS)
 
 
-@argparses.begin_parser('list', **bases.make_help_kwargs('list pods'))
+@argparses.begin_parser('list', **argparses.make_help_kwargs('list pods'))
 @bases.formatter_arguments(_POD_LIST_COLUMNS, _POD_LIST_DEFAULT_COLUMNS)
 @argparses.end
 def cmd_list():
@@ -250,7 +250,9 @@ ASSERT.issuperset(_POD_SHOW_COLUMNS, _POD_SHOW_DEFAULT_COLUMNS)
 ASSERT.issuperset(_POD_SHOW_COLUMNS, POD_SHOW_STRINGIFIERS)
 
 
-@argparses.begin_parser('show', **bases.make_help_kwargs('show pod status'))
+@argparses.begin_parser(
+    'show', **argparses.make_help_kwargs('show pod status')
+)
 @bases.formatter_arguments(_POD_SHOW_COLUMNS, _POD_SHOW_DEFAULT_COLUMNS)
 @_select_pod_arguments(positional=True)
 @argparses.end
@@ -268,7 +270,7 @@ def cmd_show(pod_id):
 
 
 @argparses.begin_parser(
-    'cat-config', **bases.make_help_kwargs('show pod config')
+    'cat-config', **argparses.make_help_kwargs('show pod config')
 )
 @_select_pod_arguments(positional=True)
 @argparses.end
@@ -280,7 +282,7 @@ def cmd_cat_config(pod_id, output):
 
 
 @argparses.begin_parser(
-    'generate-id', **bases.make_help_kwargs('generate a random pod id')
+    'generate-id', **argparses.make_help_kwargs('generate a random pod id')
 )
 @argparses.end
 def cmd_generate_id(output):
@@ -288,7 +290,7 @@ def cmd_generate_id(output):
     output.write('\n')
 
 
-@argparses.begin_parser('run', **bases.make_help_kwargs('run a pod'))
+@argparses.begin_parser('run', **argparses.make_help_kwargs('run a pod'))
 @_select_pod_arguments(positional=False)
 @_provide_config_arguments
 @argparses.end
@@ -298,7 +300,9 @@ def cmd_run(pod_id, config_path, *, debug=False):
     _run_pod(pod_id, debug=debug)
 
 
-@argparses.begin_parser('prepare', **bases.make_help_kwargs('prepare a pod'))
+@argparses.begin_parser(
+    'prepare', **argparses.make_help_kwargs('prepare a pod')
+)
 @_select_pod_arguments(positional=False)
 @_provide_config_arguments
 @argparses.end
@@ -326,7 +330,7 @@ def cmd_prepare(pod_id, config_path):
 
 
 @argparses.begin_parser(
-    'run-prepared', **bases.make_help_kwargs('run a prepared pod')
+    'run-prepared', **argparses.make_help_kwargs('run a prepared pod')
 )
 @_select_pod_arguments(positional=True)
 @argparses.end
@@ -341,7 +345,7 @@ def cmd_run_prepared(pod_id, *, debug=False):
 
 
 @argparses.begin_parser(
-    'export-overlay', **bases.make_help_kwargs('export overlay files')
+    'export-overlay', **argparses.make_help_kwargs('export overlay files')
 )
 @argparses.argument(
     '--include',
@@ -394,7 +398,7 @@ def cmd_export_overlay(pod_id, output_path, filter_patterns, *, debug=False):
 
 
 @argparses.begin_parser(
-    'remove', **bases.make_help_kwargs('remove an exited pod')
+    'remove', **argparses.make_help_kwargs('remove an exited pod')
 )
 @_select_pod_arguments(positional=True)
 @argparses.end
@@ -420,7 +424,7 @@ def cmd_remove(pod_id):
 
 
 @argparses.begin_parser(
-    'cleanup', **bases.make_help_kwargs('clean up pod repository')
+    'cleanup', **argparses.make_help_kwargs('clean up pod repository')
 )
 @bases.grace_period_arguments
 @argparses.end

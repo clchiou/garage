@@ -4,6 +4,7 @@ __all__ = [
     'AppendConstAndValueAction',
     'StoreBoolAction',
     'StoreEnumAction',
+    'make_help_kwargs',
     'parse_timedelta',
     # Decorator-based ArgumentParser builder.
     'make_argument_parser',
@@ -152,6 +153,13 @@ class StoreEnumAction(argparse.Action):
 
     def __call__(self, parser, namespace, values, option_string=None):
         setattr(namespace, self.dest, self.__parse(values))
+
+
+def make_help_kwargs(help_text):
+    return {
+        'help': help_text,
+        'description': '%s%s.' % (help_text[0].upper(), help_text[1:]),
+    }
 
 
 TIMEDELTA_PATTERN = re.compile(

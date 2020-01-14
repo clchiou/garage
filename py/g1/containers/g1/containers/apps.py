@@ -22,7 +22,7 @@ from . import xars
 
 
 @argparses.begin_parser(
-    'images', **bases.make_help_kwargs('manage container images')
+    'images', **argparses.make_help_kwargs('manage container images')
 )
 @argparses.begin_subparsers_for_subcmds(dest='command')
 @argparses.include(builders.cmd_build_base_image)
@@ -78,7 +78,7 @@ def cmd_images(args):
 
 
 @argparses.begin_parser(
-    'pods', **bases.make_help_kwargs('manage container pods')
+    'pods', **argparses.make_help_kwargs('manage container pods')
 )
 @argparses.begin_subparsers_for_subcmds(dest='command')
 @argparses.include(pods.cmd_list)
@@ -149,7 +149,7 @@ def get_debug():
     return logging.getLogger().isEnabledFor(logging.DEBUG)
 
 
-@argparses.begin_parser('xars', **bases.make_help_kwargs('manage xars.'))
+@argparses.begin_parser('xars', **argparses.make_help_kwargs('manage xars.'))
 @argparses.begin_subparsers_for_subcmds(dest='command')
 @argparses.include(xars.cmd_install)
 @argparses.include(xars.cmd_list)
@@ -189,11 +189,11 @@ def cmd_xars(args):
 
 @argparses.begin_subparsers_for_subcmds(dest='entity')
 @argparses.begin_parser(
-    'init', **bases.make_help_kwargs('initialize repository')
+    'init', **argparses.make_help_kwargs('initialize repository')
 )
 @argparses.end
 @argparses.begin_parser(
-    'cleanup', **bases.make_help_kwargs('clean up repository')
+    'cleanup', **argparses.make_help_kwargs('clean up repository')
 )
 @bases.grace_period_arguments
 @argparses.end

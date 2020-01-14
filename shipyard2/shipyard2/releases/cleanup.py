@@ -8,8 +8,6 @@ import logging
 from g1.bases import argparses
 from g1.bases.assertions import ASSERT
 
-import shipyard2
-
 from . import repos
 
 LOG = logging.getLogger(__name__)
@@ -17,7 +15,7 @@ LOG = logging.getLogger(__name__)
 
 @argparses.begin_parser(
     'cleanup',
-    **shipyard2.make_help_kwargs('clean up build artifacts'),
+    **argparses.make_help_kwargs('clean up build artifacts'),
 )
 @argparses.argument(
     'keep',

@@ -43,7 +43,7 @@ change_version_arguments = functionals.compose(
 
 @argparses.begin_parser(
     'build',
-    **shipyard2.make_help_kwargs('build pod or image'),
+    **argparses.make_help_kwargs('build pod or image'),
 )
 @argparses.argument(
     '--also-release',
@@ -100,7 +100,7 @@ def _read_args_file(args_file_paths):
 
 @argparses.begin_parser(
     'set-version',
-    **shipyard2.make_help_kwargs('set pod release version'),
+    **argparses.make_help_kwargs('set pod release version'),
 )
 @change_version_arguments
 @argparses.end
@@ -112,7 +112,7 @@ def cmd_set_version(args):
 
 @argparses.begin_parser(
     'remove-version',
-    **shipyard2.make_help_kwargs('remove pod release version'),
+    **argparses.make_help_kwargs('remove pod release version'),
 )
 @change_version_arguments
 @argparses.end

@@ -77,7 +77,8 @@ def cmd_init():
 
 
 @argparses.begin_parser(
-    'install', **bases.make_help_kwargs('install an image to xar repository')
+    'install',
+    **argparses.make_help_kwargs('install an image to xar repository'),
 )
 @images.select_image_arguments
 @_select_xar_arguments
@@ -130,7 +131,7 @@ ASSERT.issuperset(_XAR_LIST_COLUMNS, _XAR_LIST_DEFAULT_COLUMNS)
 ASSERT.issuperset(_XAR_LIST_COLUMNS, XAR_LIST_STRINGIFIERS)
 
 
-@argparses.begin_parser('list', **bases.make_help_kwargs('list xars'))
+@argparses.begin_parser('list', **argparses.make_help_kwargs('list xars'))
 @bases.formatter_arguments(_XAR_LIST_COLUMNS, _XAR_LIST_DEFAULT_COLUMNS)
 @argparses.end
 def cmd_list():
@@ -162,7 +163,7 @@ def _list_xar_dir(xar_dir_path):
         }
 
 
-@argparses.begin_parser('exec', **bases.make_help_kwargs('execute xar'))
+@argparses.begin_parser('exec', **argparses.make_help_kwargs('execute xar'))
 @_select_xar_arguments
 @argparses.argument(
     'args', nargs=argparse.REMAINDER, help='provide executable arguments'
@@ -191,7 +192,7 @@ def cmd_exec(xar_name, xar_args):
 
 @argparses.begin_parser(
     'uninstall',
-    **bases.make_help_kwargs('uninstall an image from xar repository'),
+    **argparses.make_help_kwargs('uninstall an image from xar repository'),
 )
 @_select_xar_arguments
 @argparses.end
@@ -207,7 +208,7 @@ def cmd_uninstall(xar_name):
 
 
 @argparses.begin_parser(
-    'cleanup', **bases.make_help_kwargs('clean up xar repository')
+    'cleanup', **argparses.make_help_kwargs('clean up xar repository')
 )
 @argparses.end
 def cmd_cleanup():

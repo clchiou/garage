@@ -35,13 +35,6 @@ def is_debug():
     return logging.getLogger().isEnabledFor(logging.DEBUG)
 
 
-def make_help_kwargs(help_text):
-    return {
-        'help': help_text,
-        'description': '%s%s.' % (help_text[0].upper(), help_text[1:]),
-    }
-
-
 def is_source_repo(path):
     return (path / '.git').is_dir()
 
