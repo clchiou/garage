@@ -837,7 +837,7 @@ def command_build(args, loader):
     for spec in args.parameter or ():
         if spec.startswith('@'):
             with open(spec[1:], 'r') as input_file:
-                pv_pairs = json.loads(input_file.read())
+                pv_pairs = json.loads(input_file.read()).items()
         else:
             pv_pairs = [spec.split('=', maxsplit=1)]
         for parameter_label, value in pv_pairs:
