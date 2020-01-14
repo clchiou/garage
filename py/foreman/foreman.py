@@ -635,6 +635,12 @@ define_parameter.list_typed = lambda name: (
     .with_parse(lambda value: value.split(',')))
 
 
+define_parameter.path_list_typed = lambda name: (
+    define_parameter(name)
+    .with_type(list)
+    .with_parse(lambda value: list(map(Path, value.split(',')))))
+
+
 define_parameter.namedtuple_typed = lambda namedtuple, name: (
     define_parameter(name)
     .with_type(namedtuple)
