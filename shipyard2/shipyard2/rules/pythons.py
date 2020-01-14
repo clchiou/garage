@@ -52,7 +52,7 @@ def define_build_time_package(
 def define_package(
     *,
     name_prefix='',
-    host_deps=(),
+    build_time_deps=(),
     deps=(),
     extras=(),
     make_global_options=None,
@@ -75,8 +75,8 @@ def define_package(
         with scripts.using_cwd(src_path):
             _build(parameters, make_global_options)
 
-    for host_dep in host_deps:
-        build = build.depend(host_dep)
+    for build_time_dep in build_time_deps:
+        build = build.depend(build_time_dep)
     for dep in deps:
         build = build.depend(dep)
 
