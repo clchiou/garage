@@ -19,6 +19,9 @@ import shipyard2
 
 from . import repos
 
+REPO_ROOT_PATH = Path(__file__).parent.parent.parent.parent
+ASSERT.predicate(REPO_ROOT_PATH / '.git', Path.is_dir)
+
 LOG = logging.getLogger(__name__)
 
 select_env_argument = argparses.argument(
@@ -72,7 +75,7 @@ change_version_arguments = functionals.compose(
 def cmd_build(args):
     LOG.info('build: %s %s', args.rule, args.version)
     scripts.run([
-        shipyard2.get_foreman_path(),
+        REPO_ROOT_PATH / 'shipyard2' / 'scripts' / 'foreman.sh',
         'build',
         *(('--debug', ) if shipyard2.is_debug() else ()),
         *_read_args_file(args.args_file or ()),
@@ -86,8 +89,8 @@ def cmd_build(args):
         ),
         args.rule,
     ])
-    if shipyard2.look_like_pod_rule(args.rule) and args.also_release:
-        label = shipyard2.guess_label_from_rule(args.rule)
+    if _look_like_pod_rule(args.rule) and args.also_release:
+        label = _guess_label_from_rule(args.rule)
         LOG.info('release: %s %s -> %s', label, args.version, args.env)
         _get_envs_dir(args).set_version(args.env, label, args.version)
     return 0
@@ -96,6 +99,26 @@ def cmd_build(args):
 def _read_args_file(args_file_paths):
     for path in args_file_paths:
         yield from ASSERT.isinstance(json.loads(path.read_text()), list)
+
+
+def _look_like_pod_rule(rule):
+    return rule.path.parts[0] == shipyard2.RELEASE_PODS_DIR_NAME
+
+
+def _guess_label_from_rule(rule):
+    """Guess pod or image label from build rule.
+
+    For example, //pod/foo:bar/build becomes //foo:bar.
+    """
+    name_parts = rule.name.parts
+    ASSERT(
+        len(name_parts) == 2 and name_parts[1] == 'build',
+        'expect pod or image build rule: {}',
+        rule,
+    )
+    return foreman.Label.parse(
+        '//%s:%s' % ('/'.join(rule.path.parts[1:]), name_parts[0])
+    )
 
 
 @argparses.begin_parser(

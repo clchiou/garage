@@ -71,7 +71,7 @@ def _build_base(stack, version, base_path, base_builder_path):
         base_path,
     ])
     utils.ctr_build_image(
-        shipyard2.get_builder_name(shipyard2.BASE),
+        utils.get_builder_name(shipyard2.BASE),
         version,
         base_builder_rootfs_path,
         base_builder_path,

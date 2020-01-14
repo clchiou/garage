@@ -1,4 +1,5 @@
 __all__ = [
+    'get_builder_name',
     'make_derive_builder_image_path',
     'make_derive_image_path',
     'parse_image_list_parameter',
@@ -17,6 +18,7 @@ __all__ = [
 import csv
 import functools
 import getpass
+import shutil
 
 import foreman
 
@@ -24,6 +26,10 @@ from g1 import scripts
 from g1.bases.assertions import ASSERT
 
 import shipyard2
+
+
+def get_builder_name(name):
+    return name + '-builder'
 
 
 def make_derive_builder_image_path(name):
@@ -108,11 +114,14 @@ def ctr_generate_pod_id():
 
 
 def ctr(args):
-    return scripts.run([
-        shipyard2.get_ctr_path(),
-        *(('--verbose', ) if shipyard2.is_debug() else ()),
-        *args,
-    ])
+    with scripts.using_sudo():
+        return scripts.run([
+            # Because sudo does not search into custom paths, let's look
+            # it up before sudo.
+            ASSERT.not_none(shutil.which('ctr')),
+            *(('--verbose', ) if shipyard2.is_debug() else ()),
+            *args,
+        ])
 
 
 def chown(path):

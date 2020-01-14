@@ -1,13 +1,6 @@
 import logging
-from pathlib import Path
-
-import foreman
-
-from g1.bases.assertions import ASSERT
 
 logging.getLogger(__name__).addHandler(logging.NullHandler())
-
-REPO_ROOT_PATH = Path(__file__).parent.parent.parent
 
 BASE = 'base'
 
@@ -33,59 +26,3 @@ VOLUME_DIR_VOLUME_FILENAME = 'volume.tar.gz'
 
 def is_debug():
     return logging.getLogger().isEnabledFor(logging.DEBUG)
-
-
-def is_source_repo(path):
-    return (path / '.git').is_dir()
-
-
-def get_builder_path():
-    return ASSERT.predicate(
-        REPO_ROOT_PATH / 'shipyard2' / 'scripts' / 'builder.sh',
-        Path.is_file,
-    )
-
-
-def get_ctr_path():
-    return ASSERT.predicate(
-        REPO_ROOT_PATH / 'shipyard2' / 'scripts' / 'ctr.sh',
-        Path.is_file,
-    )
-
-
-def get_foreman_path():
-    return ASSERT.predicate(
-        REPO_ROOT_PATH / 'shipyard2' / 'scripts' / 'foreman.sh',
-        Path.is_file,
-    )
-
-
-ASSERT.predicate(REPO_ROOT_PATH, is_source_repo)
-
-
-def look_like_image_rule(rule):
-    return rule.path.parts[0] == RELEASE_IMAGES_DIR_NAME
-
-
-def look_like_pod_rule(rule):
-    return rule.path.parts[0] == RELEASE_PODS_DIR_NAME
-
-
-def guess_label_from_rule(rule):
-    """Guess pod or image label from build rule.
-
-    For example, //pod/foo:bar/build becomes //foo:bar.
-    """
-    name_parts = rule.name.parts
-    ASSERT(
-        len(name_parts) == 2 and name_parts[1] == 'build',
-        'expect pod or image build rule: {}',
-        rule,
-    )
-    return foreman.Label.parse(
-        '//%s:%s' % ('/'.join(rule.path.parts[1:]), name_parts[0])
-    )
-
-
-def get_builder_name(name):
-    return name + '-builder'

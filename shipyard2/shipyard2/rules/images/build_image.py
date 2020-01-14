@@ -79,14 +79,14 @@ def build_image(
             rootfs_path,
         ])
         utils.ctr_build_image(
-            shipyard2.get_builder_name(name), version, rootfs_path, output
+            utils.get_builder_name(name), version, rootfs_path, output
         )
         utils.ctr_import_image(output)
 
 
 def _generate_builder_config(name, version, apps, images, mounts):
     return {
-        'name': shipyard2.get_builder_name(name),
+        'name': utils.get_builder_name(name),
         'version': version,
         'apps': apps,
         'images': images,
@@ -163,7 +163,7 @@ def _get_images(builder_images, base_version):
             'version': base_version,
         },
         {
-            'name': shipyard2.get_builder_name(shipyard2.BASE),
+            'name': utils.get_builder_name(shipyard2.BASE),
             'version': base_version,
         },
     ]

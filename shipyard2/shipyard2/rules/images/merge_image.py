@@ -9,8 +9,6 @@ from pathlib import Path
 
 from g1 import scripts
 
-import shipyard2
-
 from . import utils
 
 LOG = logging.getLogger(__name__)
@@ -79,7 +77,7 @@ def merge_image(
     rootfs_paths.append(
         utils.ctr_get_rootfs_path(
             'nv',
-            (shipyard2.get_builder_name(name), version),
+            (utils.get_builder_name(name), version),
         )
     )
     filter_rules = _get_filter_rules(filters)
