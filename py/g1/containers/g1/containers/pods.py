@@ -105,7 +105,9 @@ class PodConfig:
         read_only: bool = True
 
         def __post_init__(self):
-            ASSERT.predicate(Path(self.source), Path.is_absolute)
+            # Empty source path means host's /var/tmp.
+            if self.source:
+                ASSERT.predicate(Path(self.source), Path.is_absolute)
             ASSERT.predicate(Path(self.target), Path.is_absolute)
 
     name: str
