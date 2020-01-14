@@ -1,7 +1,7 @@
 """Helpers for writing rules that depends on //third-party/cpython."""
 
 __all__ = [
-    'define_host_package',
+    'define_build_time_package',
     'define_package',
     'define_pypi_package',
 ]
@@ -26,11 +26,11 @@ class PackageRules:
     build_extras: typing.Mapping[str, foreman.Rule]
 
 
-def define_host_package(
+def define_build_time_package(
     *,
     name_prefix='',
 ):
-    """Define a first-party host package.
+    """Define a first-party build-time package.
 
     This defines:
     * Rule: [name_prefix/]build.
