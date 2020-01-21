@@ -4,6 +4,7 @@ __all__ = [
     'define_build_time_package',
     'define_package',
     'define_pypi_package',
+    'find_package',
 ]
 
 import dataclasses
@@ -42,7 +43,7 @@ def define_build_time_package(
     @foreman.rule.depend('//bases:build')
     @foreman.rule.depend('//third-party/cpython:build')
     def build(parameters):
-        src_path = _find_src_path(parameters)
+        src_path = find_package(parameters, foreman.get_relpath())
         LOG.info('export first-party host package: %s', src_path)
         scripts.export_path('PYTHONPATH', src_path)
 
@@ -70,7 +71,7 @@ def define_package(
     @foreman.rule.depend('//bases:build')
     @foreman.rule.depend('//third-party/cpython:build')
     def build(parameters):
-        src_path = _find_src_path(parameters)
+        src_path = find_package(parameters, foreman.get_relpath())
         LOG.info('build first-party package: %s', src_path)
         with scripts.using_cwd(src_path):
             _build(parameters, make_global_options)
@@ -88,8 +89,8 @@ def define_package(
     return PackageRules(build=build, build_extras=build_extras)
 
 
-def _find_src_path(parameters):
-    relpath = foreman.get_relpath()
+def find_package(parameters, relpath):
+    """Find path to a first-party package."""
     root_paths = parameters['//bases:roots']
     for root_path in root_paths:
         path = root_path / relpath
