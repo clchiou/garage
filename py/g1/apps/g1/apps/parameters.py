@@ -1,3 +1,41 @@
+"""Parameters and hierarchy of parameter namespaces.
+
+This module provides:
+
+* A global registry of parameters (I am not sure whether this is a good
+  or bad design, but it is quite useful at the moment).
+* Parameters are grouped by namespaces, and namespaces are organized in
+  a global hierarchy.
+* Names (i.e., labels) that are globally unique to reference all
+  parameters.
+* Parameter values are loaded-able from command-line arguments and from
+  parameter value files (JSON or YAML formatted).
+
+We impose some restrictions on the exposed interface.  These are design
+choices that we think may be good for now, and we might revisit these
+restrictions if we have good use cases against these restrictions.
+
+* Parameters should have a functional default value (i.e., not None nor
+  some dummy values).  In most use cases your application should be
+  using the default values, or in other words, your user do not need to
+  provide parameter values (through command-line or parameter value
+  files) in most use cases.  If a parameter does not have a functional
+  default value in most use cases, maybe you should make it an explicit
+  command-line argument.
+
+* We do not expect concurrent read and write of parameter values, and we
+  provide no protection for concurrency at the moment.  We assume that
+  in (almost) all use cases, parameter values are loaded during program
+  startup (serially, not concurrently) and unchanged throughout the
+  entire lifetime of the process.
+
+* Parameters do not provide on-change callback; to prevent unintentional
+  write after read, parameters become immutable after the first read.
+
+* We do not load parameter values from environment variables as in
+  general we prefer explicit over implicit sources of parameter values.
+"""
+
 __all__ = [
     'Namespace',
     'Parameter',
