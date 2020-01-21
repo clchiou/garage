@@ -61,6 +61,9 @@ class EnvsDir:
     def _xar_top_path(self):
         return self.repo_path / shipyard2.RELEASE_XARS_DIR_NAME
 
+    def has_release(self, env, label):
+        return (self.top_path / env / label.path / label.name).is_symlink()
+
     def iter_pod_dirs(self, env):
         yield from self._iter_dirs(PodDir, self._pod_top_path, env)
 
@@ -141,6 +144,11 @@ class _Base:
         for dir_object in cls.sort_dirs(repo_path):
             groups[dir_object.label].append(dir_object)
         return dict(groups)
+
+    @classmethod
+    def from_relpath(cls, repo_path, relpath):
+        top_path = repo_path / cls._TOP_DIR_NAME
+        return cls(top_path, top_path / relpath)
 
     def __init__(self, top_path, path):
         ASSERT.predicate(path, Path.is_dir)

@@ -86,6 +86,7 @@ def cmd_list(args):
 @argparses.include(build.cmd_build)
 @argparses.include(build.cmd_release)
 @argparses.include(build.cmd_unrelease)
+@argparses.include(build.cmd_remove)
 @argparses.include(cleanup.cmd_cleanup)
 @argparses.end
 def main(
@@ -103,6 +104,8 @@ def main(
         return build.cmd_release(args)
     elif args.command == 'unrelease':
         return build.cmd_unrelease(args)
+    elif args.command == 'remove':
+        return build.cmd_remove(args)
     elif args.command == 'cleanup':
         return cleanup.cmd_cleanup(args)
     else:

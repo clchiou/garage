@@ -56,6 +56,7 @@ class ReposTest(unittest.TestCase):
             [self.get_pod_dir('foo/bar/0.0.1')],
         )
         self.assertEqual(envs_dir.sort_xar_dirs('production'), [])
+        self.assertTrue(envs_dir.has_release('production', self.FOO_BAR))
 
         envs_dir.release_pod('production', self.FOO_BAR, '0.0.2')
         self.assertEqual(
@@ -63,6 +64,7 @@ class ReposTest(unittest.TestCase):
             [self.get_pod_dir('foo/bar/0.0.2')],
         )
         self.assertEqual(envs_dir.sort_xar_dirs('production'), [])
+        self.assertTrue(envs_dir.has_release('production', self.FOO_BAR))
 
         envs_dir.release_xar('production', self.FOO_BAR, '0.0.3')
         self.assertEqual(envs_dir.sort_pod_dirs('production'), [])
@@ -70,10 +72,12 @@ class ReposTest(unittest.TestCase):
             envs_dir.sort_xar_dirs('production'),
             [self.get_xar_dir('foo/bar/0.0.3')],
         )
+        self.assertTrue(envs_dir.has_release('production', self.FOO_BAR))
 
         envs_dir.unrelease('production', self.FOO_BAR)
         self.assertEqual(envs_dir.sort_pod_dirs('production'), [])
         self.assertEqual(envs_dir.sort_xar_dirs('production'), [])
+        self.assertFalse(envs_dir.has_release('production', self.FOO_BAR))
 
     def test_pod_dir(self):
         d1 = self.get_pod_dir('foo/bar/0.0.1')

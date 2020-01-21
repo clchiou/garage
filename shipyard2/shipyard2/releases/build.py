@@ -35,6 +35,11 @@ select_label_argument = argparses.argument(
     help='provide pod label',
 )
 
+select_version_argument = argparses.argument(
+    'version',
+    help='provide build artifact version',
+)
+
 
 @argparses.begin_parser(
     'build',
@@ -59,10 +64,7 @@ select_label_argument = argparses.argument(
     type=foreman.Label.parse,
     help='provide pod or image build rule',
 )
-@argparses.argument(
-    'version',
-    help='provide pod or image version',
-)
+@select_version_argument
 @argparses.end
 def cmd_build(args):
     LOG.info('build: %s %s', args.rule, args.version)
@@ -137,13 +139,10 @@ def _guess_label_from_rule(rule):
 @argparses.argument(
     'type',
     choices=('pod', 'xar'),
-    help='provide release type',
+    help='provide build artifact type',
 )
 @select_label_argument
-@argparses.argument(
-    'version',
-    help='provide pod version',
-)
+@select_version_argument
 @argparses.end
 def cmd_release(args):
     LOG.info('release: %s %s to %s', args.label, args.version, args.env)
@@ -166,6 +165,50 @@ def cmd_release(args):
 def cmd_unrelease(args):
     LOG.info('unrelease: %s from %s', args.label, args.env)
     _get_envs_dir(args).unrelease(args.env, args.label)
+    return 0
+
+
+@argparses.begin_parser(
+    'remove',
+    **argparses.make_help_kwargs('remove build artifact'),
+)
+@argparses.argument(
+    'type',
+    choices=('pod', 'xar', 'builder', 'image', 'volume'),
+    help='provide build artifact type',
+)
+@select_label_argument
+@select_version_argument
+@argparses.end
+def cmd_remove(args):
+    if args.type == 'pod':
+        dir_object_type = repos.PodDir
+    elif args.type == 'xar':
+        dir_object_type = repos.XarDir
+    elif args.type == 'builder':
+        dir_object_type = repos.BuilderImageDir
+    elif args.type == 'image':
+        dir_object_type = repos.ImageDir
+    else:
+        ASSERT.equal(args.type, 'volume')
+        dir_object_type = repos.VolumeDir
+    if args.type == 'pod' or args.type == 'xar':
+        envs_dir = _get_envs_dir(args)
+        for env in envs_dir.envs:
+            if envs_dir.has_release(env, args.label):
+                LOG.warning(
+                    'skip: remove: %s %s %s',
+                    args.type,
+                    args.label,
+                    args.version,
+                )
+                return 1
+    dir_object = dir_object_type.from_relpath(
+        args.release_repo,
+        args.label.path / args.label.name / args.version,
+    )
+    LOG.info('remove: %s %s %s', args.type, args.label, args.version)
+    dir_object.remove()
     return 0
 
 
