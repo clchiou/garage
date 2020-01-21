@@ -41,8 +41,6 @@ def define_image(
     * Parameter: name/builder-id.
     * Parameter: name/builder-images.
     * Parameter: name/version.
-    * Parameter: name/image.
-    * Parameter: name/builder-image.
     * Rule: name/build.
     * Rule: name/merge.
 
@@ -54,8 +52,6 @@ def define_image(
     parameter_builder_id = name_prefix + 'builder-id'
     parameter_builder_images = name_prefix + 'builder-images'
     parameter_version = name_prefix + 'version'
-    parameter_image = name_prefix + 'image'
-    parameter_builder_image = name_prefix + 'builder-image'
     rule_build = name_prefix + 'build'
     rule_merge = name_prefix + 'merge'
 
@@ -74,21 +70,13 @@ def define_image(
     (foreman.define_parameter(parameter_version)\
      .with_doc('image version'))
 
-    (foreman.define_parameter.path_typed(parameter_image)\
-     .with_doc('host path to image output')
-     .with_derive(utils.make_derive_image_path(name)))
-
-    (foreman.define_parameter.path_typed(parameter_builder_image)\
-     .with_doc('host path to builder image output')
-     .with_derive(utils.make_derive_builder_image_path(name)))
-
     @foreman.rule(rule_build)
     @foreman.rule.depend('//images/bases:base/build')
     @foreman.rule.depend('//images/bases:build')
     @foreman.rule.depend('//releases:build')
     def build(parameters):
         version = ASSERT.not_none(parameters[parameter_version])
-        output = parameters[parameter_builder_image]
+        output = utils.get_builder_image_path(parameters, name)
         if output.exists():
             LOG.info('skip: build image: %s %s %s', name, version, output)
             return
@@ -119,7 +107,7 @@ def define_image(
     @foreman.rule.depend(rule_build)
     def merge(parameters):
         version = ASSERT.not_none(parameters[parameter_version])
-        output = parameters[parameter_image]
+        output = utils.get_image_path(parameters, name)
         if output.exists():
             LOG.info('skip: merge image: %s %s %s', name, version, output)
             return

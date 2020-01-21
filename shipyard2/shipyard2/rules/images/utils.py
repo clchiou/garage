@@ -1,7 +1,7 @@
 __all__ = [
     'get_builder_name',
-    'make_derive_builder_image_path',
-    'make_derive_image_path',
+    'get_builder_image_path',
+    'get_image_path',
     'parse_image_list_parameter',
     # `ctr` wrappers.
     'ctr_build_image',
@@ -16,7 +16,6 @@ __all__ = [
 ]
 
 import csv
-import functools
 import getpass
 import shutil
 
@@ -32,21 +31,13 @@ def get_builder_name(name):
     return name + '-builder'
 
 
-def make_derive_builder_image_path(name):
-    return functools.partial(_derive_builder_image_path, name=name)
-
-
-def _derive_builder_image_path(parameters, name):
-    return ASSERT.not_none(parameters['%s/image' % name]).with_name(
+def get_builder_image_path(parameters, name):
+    return get_image_path(parameters, name).with_name(
         shipyard2.IMAGE_DIR_BUILDER_IMAGE_FILENAME
     )
 
 
-def make_derive_image_path(name):
-    return functools.partial(_derive_image_path, name=name)
-
-
-def _derive_image_path(parameters, name):
+def get_image_path(parameters, name):
     return (
         parameters['//releases:root'] / \
         foreman.get_relpath() /
