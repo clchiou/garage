@@ -6,6 +6,7 @@ __all__ = [
     'ImageDir',
     'PodDir',
     'VolumeDir',
+    'XarDir',
 ]
 
 import collections
@@ -56,23 +57,46 @@ class EnvsDir:
     def _pod_top_path(self):
         return self.repo_path / shipyard2.RELEASE_PODS_DIR_NAME
 
+    @property
+    def _xar_top_path(self):
+        return self.repo_path / shipyard2.RELEASE_XARS_DIR_NAME
+
     def iter_pod_dirs(self, env):
+        yield from self._iter_dirs(PodDir, self._pod_top_path, env)
+
+    def iter_xar_dirs(self, env):
+        yield from self._iter_dirs(XarDir, self._xar_top_path, env)
+
+    def _iter_dirs(self, dir_object_type, target_top_path, env):
         ASSERT.in_(env, self.envs)
         # NOTE: rglob does NOT traverse into symlink directory (which is
         # good in this case).
         for link_path in (self.top_path / env).rglob('*'):
-            if link_path.is_symlink():
-                yield PodDir(self._pod_top_path, link_path.resolve())
+            if not link_path.is_symlink():
+                continue
+            target_path = link_path.resolve()
+            # XXX Is there a better way to match path prefix?
+            if str(target_path).startswith(str(target_top_path)):
+                yield dir_object_type(target_top_path, target_path)
 
     def sort_pod_dirs(self, env):
         return _sort_by_path(self.iter_pod_dirs(env))
 
-    def release(self, env, label, version):
+    def sort_xar_dirs(self, env):
+        return _sort_by_path(self.iter_xar_dirs(env))
+
+    def release_pod(self, env, label, version):
+        return self._release(PodDir, self._pod_top_path, env, label, version)
+
+    def release_xar(self, env, label, version):
+        return self._release(XarDir, self._xar_top_path, env, label, version)
+
+    def _release(self, dir_object_type, target_top_path, env, label, version):
         relpath = label.path / label.name
         link_path = self.top_path / env / relpath
-        pod_dir = PodDir(
-            self._pod_top_path,
-            self._pod_top_path / relpath / version,
+        dir_object = dir_object_type(
+            target_top_path,
+            target_top_path / relpath / version,
         )
         # We create a new env directory if env is not in self.envs.
         scripts.mkdir(link_path.parent)
@@ -80,7 +104,7 @@ class EnvsDir:
             scripts.rm(link_path)
         # Use os.path.relpath because Path.relative_to can't derive this
         # type of relative path.
-        target_relpath = os.path.relpath(pod_dir.path, link_path.parent)
+        target_relpath = os.path.relpath(dir_object.path, link_path.parent)
         with scripts.using_cwd(link_path.parent):
             scripts.ln(target_relpath, link_path.name)
 
@@ -190,6 +214,37 @@ class PodDir(_Base):
                     top_path,
                     link_path.resolve().parent,
                 )
+
+
+class XarDir(_Base):
+
+    _TOP_DIR_NAME = shipyard2.RELEASE_XARS_DIR_NAME
+    _FILENAME = shipyard2.XAR_DIR_RELEASE_METADATA_FILENAME
+
+    def __init__(self, top_path, path):
+        ASSERT.predicate(path, Path.is_dir)
+        for name, predicate in (
+            (shipyard2.XAR_DIR_RELEASE_METADATA_FILENAME, Path.is_file),
+            (shipyard2.XAR_DIR_DEPLOY_INSTRUCTION_FILENAME, Path.is_file),
+        ):
+            ASSERT.predicate(path / name, predicate)
+        ASSERT.any(
+            (
+                path / shipyard2.XAR_DIR_IMAGE_FILENAME,
+                path / shipyard2.XAR_DIR_ZIPAPP_FILENAME,
+            ),
+            Path.is_file,
+        )
+        super().__init__(top_path, path)
+
+    def get_image_dir(self):
+        link_path = self.path / shipyard2.XAR_DIR_IMAGE_FILENAME
+        if not link_path.is_symlink():
+            return None
+        return ImageDir(
+            self.top_path.parent / shipyard2.RELEASE_IMAGES_DIR_NAME,
+            link_path.resolve().parent,
+        )
 
 
 class BuilderImageDir(_Base):

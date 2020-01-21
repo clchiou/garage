@@ -27,6 +27,7 @@ from . import repos
 def cmd_init(args):
     repos.EnvsDir.init(args.release_repo)
     repos.PodDir.init(args.release_repo)
+    repos.XarDir.init(args.release_repo)
     repos.BuilderImageDir.init(args.release_repo)
     repos.ImageDir.init(args.release_repo)
     repos.VolumeDir.init(args.release_repo)
@@ -41,16 +42,24 @@ def cmd_init(args):
 def cmd_list(args):
     envs_dir = repos.EnvsDir(args.release_repo)
     data = {
-        'envs': {
+        'pod-releases': {
             env: {
                 str(pod_dir.label): pod_dir.version
                 for pod_dir in envs_dir.sort_pod_dirs(env)
             }
             for env in envs_dir.envs
         },
+        'xar-releases': {
+            env: {
+                str(xar_dir.label): xar_dir.version
+                for xar_dir in envs_dir.sort_xar_dirs(env)
+            }
+            for env in envs_dir.envs
+        },
     }
     for name, cls in (
         ('pods', repos.PodDir),
+        ('xars', repos.XarDir),
         ('builder-images', repos.BuilderImageDir),
         ('images', repos.ImageDir),
         ('volumes', repos.VolumeDir),

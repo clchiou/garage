@@ -7,6 +7,7 @@ BASE = 'base'
 # Top-level directories.
 RELEASE_ENVS_DIR_NAME = 'envs'
 RELEASE_PODS_DIR_NAME = 'pods'
+RELEASE_XARS_DIR_NAME = 'xars'
 RELEASE_IMAGES_DIR_NAME = 'images'
 RELEASE_VOLUMES_DIR_NAME = 'volumes'
 
@@ -15,6 +16,12 @@ POD_DIR_RELEASE_METADATA_FILENAME = 'release.json'
 POD_DIR_DEPLOY_INSTRUCTION_FILENAME = 'deploy.json'
 POD_DIR_IMAGES_DIR_NAME = 'images'
 POD_DIR_VOLUMES_DIR_NAME = 'volumes'
+
+# XAR directory structure.
+XAR_DIR_RELEASE_METADATA_FILENAME = 'release.json'
+XAR_DIR_DEPLOY_INSTRUCTION_FILENAME = 'deploy.json'
+XAR_DIR_IMAGE_FILENAME = 'image.tar.gz'
+XAR_DIR_ZIPAPP_FILENAME = 'app.zip'
 
 # Image directory structure.
 IMAGE_DIR_BUILDER_IMAGE_FILENAME = 'builder.tar.gz'

@@ -32,6 +32,10 @@ class ReposTest(unittest.TestCase):
         top_path = self.repo_path / shipyard2.RELEASE_PODS_DIR_NAME
         return repos.PodDir(top_path, top_path / relpath)
 
+    def get_xar_dir(self, relpath):
+        top_path = self.repo_path / shipyard2.RELEASE_XARS_DIR_NAME
+        return repos.XarDir(top_path, top_path / relpath)
+
     def get_builder_image_dir(self, relpath):
         top_path = self.repo_path / shipyard2.RELEASE_IMAGES_DIR_NAME
         return repos.BuilderImageDir(top_path, top_path / relpath)
@@ -51,13 +55,25 @@ class ReposTest(unittest.TestCase):
             envs_dir.sort_pod_dirs('production'),
             [self.get_pod_dir('foo/bar/0.0.1')],
         )
-        envs_dir.release('production', self.FOO_BAR, '0.0.2')
+        self.assertEqual(envs_dir.sort_xar_dirs('production'), [])
+
+        envs_dir.release_pod('production', self.FOO_BAR, '0.0.2')
         self.assertEqual(
             envs_dir.sort_pod_dirs('production'),
             [self.get_pod_dir('foo/bar/0.0.2')],
         )
+        self.assertEqual(envs_dir.sort_xar_dirs('production'), [])
+
+        envs_dir.release_xar('production', self.FOO_BAR, '0.0.3')
+        self.assertEqual(envs_dir.sort_pod_dirs('production'), [])
+        self.assertEqual(
+            envs_dir.sort_xar_dirs('production'),
+            [self.get_xar_dir('foo/bar/0.0.3')],
+        )
+
         envs_dir.unrelease('production', self.FOO_BAR)
         self.assertEqual(envs_dir.sort_pod_dirs('production'), [])
+        self.assertEqual(envs_dir.sort_xar_dirs('production'), [])
 
     def test_pod_dir(self):
         d1 = self.get_pod_dir('foo/bar/0.0.1')
@@ -79,6 +95,22 @@ class ReposTest(unittest.TestCase):
         )
         d1.remove()
         self.assertEqual(repos.PodDir.sort_dirs(self.repo_path), [d2])
+
+    def test_xar_dir(self):
+        d = self.get_xar_dir('foo/bar/0.0.3')
+        self.assertEqual(repos.XarDir.sort_dirs(self.repo_path), [d])
+        self.assertEqual(
+            repos.XarDir.group_dirs(self.repo_path),
+            {self.FOO_BAR: [d]},
+        )
+        self.assertEqual(d.label, self.FOO_BAR)
+        self.assertEqual(d.version, '0.0.3')
+        self.assertEqual(
+            d.get_image_dir(),
+            self.get_image_dir('spam/egg/0.0.1'),
+        )
+        d.remove()
+        self.assertEqual(repos.XarDir.sort_dirs(self.repo_path), [])
 
     def test_builder_image_dir(self):
         d = self.get_builder_image_dir('spam/egg/0.0.2')

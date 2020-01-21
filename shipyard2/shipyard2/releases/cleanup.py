@@ -31,6 +31,12 @@ def cmd_cleanup(args):
         _get_current_pod_versions(args.release_repo),
         repos.PodDir.group_dirs(args.release_repo),
     )
+    LOG.info('clean up xars')
+    _cleanup(
+        args.keep,
+        _get_current_xar_versions(args.release_repo),
+        repos.XarDir.group_dirs(args.release_repo),
+    )
     LOG.info('clean up builder images')
     # Builder images are not referenced by pods and thus do not have
     # current versions.
@@ -67,16 +73,35 @@ def _cleanup(to_keep, current_versions, groups):
 
 
 def _get_current_pod_versions(repo_path):
+    return _get_current_versions_from_envs(
+        repo_path, repos.EnvsDir.iter_pod_dirs
+    )
+
+
+def _get_current_xar_versions(repo_path):
+    return _get_current_versions_from_envs(
+        repo_path, repos.EnvsDir.iter_xar_dirs
+    )
+
+
+def _get_current_versions_from_envs(repo_path, iter_dir_objects):
     current_versions = collections.defaultdict(set)
     envs_dir = repos.EnvsDir(repo_path)
     for env in envs_dir.envs:
-        for pod_dir in envs_dir.iter_pod_dirs(env):
-            current_versions[pod_dir.label].add(pod_dir.version)
+        for dir_object in iter_dir_objects(envs_dir, env):
+            current_versions[dir_object.label].add(dir_object.version)
     return dict(current_versions)
 
 
 def _get_current_image_versions(repo_path):
-    return _get_pod_dep_versions(repo_path, repos.PodDir.iter_image_dirs)
+    current_versions = collections.defaultdict(set)
+    for labels_and_versions in (
+        _get_pod_dep_versions(repo_path, repos.PodDir.iter_image_dirs),
+        _get_xar_dep_versions(repo_path),
+    ):
+        for label, versions in labels_and_versions.items():
+            current_versions[label].update(versions)
+    return dict(current_versions)
 
 
 def _get_current_volume_versions(repo_path):
@@ -88,4 +113,13 @@ def _get_pod_dep_versions(repo_path, iter_dir_objects):
     for pod_dir in repos.PodDir.iter_dirs(repo_path):
         for dir_object in iter_dir_objects(pod_dir):
             current_versions[dir_object.label].add(dir_object.version)
+    return dict(current_versions)
+
+
+def _get_xar_dep_versions(repo_path):
+    current_versions = collections.defaultdict(set)
+    for xar_dir in repos.XarDir.iter_dirs(repo_path):
+        image_dir = xar_dir.get_image_dir()
+        if image_dir is not None:
+            current_versions[image_dir.label].add(image_dir.version)
     return dict(current_versions)

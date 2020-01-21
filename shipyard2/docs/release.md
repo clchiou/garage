@@ -40,8 +40,7 @@ fetch the rest of bundle from the HTTP server.  This scheme could be
 more efficient when you are deploying to lots of machines.
 
 There are some platform software that are not pods, such as the
-container runtime itself.  These software will be released as XARs.  For
-now we re-use pod deployment tools for deploying them.
+container runtime itself.  These software will be released as XARs.
 
 #### Environment and pod
 
@@ -98,6 +97,7 @@ of the year is generally enough.)
 
 We have three types of artifacts that need to be managed:
 * Pods.
+* XARs.
 * Containerized images.
 * Data files (e.g., systemd unit files, volume data).
 
@@ -114,6 +114,13 @@ among them.  The directory structure is:
     embedded in the deploy instruction file, by the way.)
   + Symlinks to images are under `images` directory.
   + Symlinks to volumes are under `volumes` directory.
+
+* `xars/${LABEL_PATH}/${XAR_NAME}/${XAR_VERSION}/...`
+  + Release metadata: `release.json` (same as above).
+  + Deploy instruction: `deploy.json` (same as above).
+  + Either:
+    * Symlink to XAR image tarball: `image.tar.gz`.
+    * Python zipapp: `app.zip`.
 
 * `images/${LABEL_PATH}/${IMAGE_NAME}/${IMAGE_VERSION}/...`
   + Image tarball: `image.tar.gz`.
