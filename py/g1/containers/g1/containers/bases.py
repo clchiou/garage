@@ -63,8 +63,7 @@ PARAMS = parameters.define(
             type=str,
         ),
         application_group=parameters.Parameter(
-            # TODO: Choose an application group to replace "root".
-            'root',
+            'plumber',
             doc='set application group',
             type=str,
         ),
