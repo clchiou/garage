@@ -8,7 +8,6 @@ __all__ = [
 ]
 
 import dataclasses
-import json
 import logging
 import os.path
 import typing
@@ -22,6 +21,7 @@ from g1.containers import pods
 
 import shipyard2
 import shipyard2.rules
+from shipyard2.rules import releases
 
 # Re-export these.
 App = pods.PodConfig.App
@@ -41,18 +41,6 @@ class Volume:
 @dataclasses.dataclass(frozen=True)
 class PodRules:
     build: foreman.Rule
-
-
-@dataclasses.dataclass(frozen=True)
-class ReleaseMetadata:
-
-    @dataclasses.dataclass(frozen=True)
-    class Source:
-        url: str
-        revision: str
-        dirty: bool
-
-    sources: typing.List[Source]
 
 
 @dataclasses.dataclass(frozen=True)
@@ -116,7 +104,10 @@ def define_pod(
         LOG.info('build pod: %s %s', name, version)
         try:
             scripts.mkdir(pod_dir_path)
-            _generate_release_metadata(parameters, pod_dir_path)
+            releases.generate_release_metadata(
+                parameters,
+                pod_dir_path / shipyard2.POD_DIR_RELEASE_METADATA_FILENAME,
+            )
             _generate_deploy_instruction(
                 parameters=parameters,
                 pod_dir_path=pod_dir_path,
@@ -176,50 +167,6 @@ def _parse_image_label(label):
     )
 
 
-def _generate_release_metadata(parameters, pod_dir_path):
-    _dump(
-        ReleaseMetadata(
-            sources=[
-                _git_get_source(repo_path)
-                for repo_path in parameters['//bases:roots']
-            ],
-        ),
-        pod_dir_path / shipyard2.POD_DIR_RELEASE_METADATA_FILENAME,
-    )
-
-
-def _git_get_source(source):
-    with scripts.using_cwd(source), scripts.doing_capture_output():
-        return ReleaseMetadata.Source(
-            url=_git_get_url(source),
-            revision=_git_get_revision(),
-            dirty=_git_get_dirty(),
-        )
-
-
-def _git_get_url(source):
-    proc = scripts.run(['git', 'remote', '--verbose'])
-    for remote in proc.stdout.decode('utf8').split('\n'):
-        remote = remote.split()
-        if remote[0] == 'origin':
-            return remote[1]
-    return ASSERT.unreachable('expect remote origin: {}', source)
-
-
-def _git_get_revision():
-    proc = scripts.run(['git', 'log', '-1', '--format=format:%H'])
-    return proc.stdout.decode('ascii').strip()
-
-
-def _git_get_dirty():
-    proc = scripts.run(['git', 'status', '--porcelain'])
-    for status in proc.stdout.decode('utf8').split('\n'):
-        # Be careful of empty line!
-        if status and not status.startswith('  '):
-            return True
-    return False
-
-
 def _generate_deploy_instruction(
     *,
     parameters,
@@ -231,7 +178,7 @@ def _generate_deploy_instruction(
     mounts,
     volumes,
 ):
-    _dump(
+    releases.dump(
         DeployInstruction(
             pod_config_template=pods.PodConfig(
                 name=name,
@@ -254,13 +201,6 @@ def _generate_deploy_instruction(
             volumes=volumes,
         ),
         pod_dir_path / shipyard2.POD_DIR_DEPLOY_INSTRUCTION_FILENAME,
-    )
-
-
-def _dump(obj, path):
-    scripts.write_bytes(
-        json.dumps(dataclasses.asdict(obj), indent=4).encode('ascii'),
-        path,
     )
 
 
