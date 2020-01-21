@@ -75,8 +75,8 @@ def cmd_list(args):
 @argparses.include(cmd_init)
 @argparses.include(cmd_list)
 @argparses.include(build.cmd_build)
-@argparses.include(build.cmd_set_version)
-@argparses.include(build.cmd_remove_version)
+@argparses.include(build.cmd_release)
+@argparses.include(build.cmd_unrelease)
 @argparses.include(cleanup.cmd_cleanup)
 @argparses.end
 def main(
@@ -90,10 +90,10 @@ def main(
         return cmd_list(args)
     elif args.command == 'build':
         return build.cmd_build(args)
-    elif args.command == 'set-version':
-        return build.cmd_set_version(args)
-    elif args.command == 'remove-version':
-        return build.cmd_remove_version(args)
+    elif args.command == 'release':
+        return build.cmd_release(args)
+    elif args.command == 'unrelease':
+        return build.cmd_unrelease(args)
     elif args.command == 'cleanup':
         return cleanup.cmd_cleanup(args)
     else:

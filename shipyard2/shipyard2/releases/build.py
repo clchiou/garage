@@ -1,7 +1,7 @@
 __all__ = [
     'cmd_build',
-    'cmd_remove_version',
-    'cmd_set_version',
+    'cmd_release',
+    'cmd_unrelease',
 ]
 
 import json
@@ -12,7 +12,6 @@ import foreman
 
 from g1 import scripts
 from g1.bases import argparses
-from g1.bases import functionals
 from g1.bases.assertions import ASSERT
 
 import shipyard2
@@ -30,17 +29,10 @@ select_env_argument = argparses.argument(
     help='provide environment (default: %(default)s)',
 )
 
-change_version_arguments = functionals.compose(
-    select_env_argument,
-    argparses.argument(
-        'label',
-        type=foreman.Label.parse,
-        help='provide pod label',
-    ),
-    argparses.argument(
-        'version',
-        help='provide pod version',
-    ),
+select_label_argument = argparses.argument(
+    'label',
+    type=foreman.Label.parse,
+    help='provide pod label',
 )
 
 
@@ -91,8 +83,8 @@ def cmd_build(args):
     ])
     if _look_like_pod_rule(args.rule) and args.also_release:
         label = _guess_label_from_rule(args.rule)
-        LOG.info('release: %s %s -> %s', label, args.version, args.env)
-        _get_envs_dir(args).set_version(args.env, label, args.version)
+        LOG.info('release: %s %s to %s', label, args.version, args.env)
+        _get_envs_dir(args).release(args.env, label, args.version)
     return 0
 
 
@@ -122,26 +114,32 @@ def _guess_label_from_rule(rule):
 
 
 @argparses.begin_parser(
-    'set-version',
-    **argparses.make_help_kwargs('set pod release version'),
+    'release',
+    **argparses.make_help_kwargs('release pod at given version'),
 )
-@change_version_arguments
+@select_env_argument
+@select_label_argument
+@argparses.argument(
+    'version',
+    help='provide pod version',
+)
 @argparses.end
-def cmd_set_version(args):
-    LOG.info('release: %s %s -> %s', args.label, args.version, args.env)
-    _get_envs_dir(args).set_version(args.env, args.label, args.version)
+def cmd_release(args):
+    LOG.info('release: %s %s to %s', args.label, args.version, args.env)
+    _get_envs_dir(args).release(args.env, args.label, args.version)
     return 0
 
 
 @argparses.begin_parser(
-    'remove-version',
-    **argparses.make_help_kwargs('remove pod release version'),
+    'unrelease',
+    **argparses.make_help_kwargs('undo pod release'),
 )
-@change_version_arguments
+@select_env_argument
+@select_label_argument
 @argparses.end
-def cmd_remove_version(args):
-    LOG.info('un-release: %s %s -> %s', args.label, args.version, args.env)
-    _get_envs_dir(args).remove_version(args.env, args.label, args.version)
+def cmd_unrelease(args):
+    LOG.info('unrelease: %s from %s', args.label, args.env)
+    _get_envs_dir(args).unrelease(args.env, args.label)
     return 0
 
 

@@ -15,6 +15,7 @@ from pathlib import Path
 import foreman
 
 from g1 import scripts
+from g1.bases import classes
 from g1.bases.assertions import ASSERT
 
 import shipyard2
@@ -43,6 +44,14 @@ class EnvsDir:
             p.name for p in self.top_path.iterdir() if p.is_dir()
         )
 
+    __repr__ = classes.make_repr('repo_path={self.repo_path} envs={self.envs}')
+
+    def __hash__(self):
+        return hash((self.repo_path, tuple(self.envs)))
+
+    def __eq__(self, other):
+        return self.repo_path == other.repo_path and self.envs == other.envs
+
     @property
     def _pod_top_path(self):
         return self.repo_path / shipyard2.RELEASE_PODS_DIR_NAME
@@ -58,10 +67,13 @@ class EnvsDir:
     def sort_pod_dirs(self, env):
         return _sort_by_path(self.iter_pod_dirs(env))
 
-    def set_version(self, env, label, version):
-        relpath = label.path / label.name / version
+    def release(self, env, label, version):
+        relpath = label.path / label.name
         link_path = self.top_path / env / relpath
-        pod_dir = PodDir(self._pod_top_path, self._pod_top_path / relpath)
+        pod_dir = PodDir(
+            self._pod_top_path,
+            self._pod_top_path / relpath / version,
+        )
         # We create a new env directory if env is not in self.envs.
         scripts.mkdir(link_path.parent)
         if link_path.is_symlink():
@@ -72,10 +84,10 @@ class EnvsDir:
         with scripts.using_cwd(link_path.parent):
             scripts.ln(target_relpath, link_path.name)
 
-    def remove_version(self, env, label, version):
+    def unrelease(self, env, label):
         ASSERT.in_(env, self.envs)
         _remove_file_and_maybe_parents(
-            self.top_path / env / label.path / label.name / version,
+            self.top_path / env / label.path / label.name,
             self.top_path / env,
         )
 
@@ -111,6 +123,14 @@ class _Base:
         ASSERT.predicate(path / self._FILENAME, Path.is_file)
         self.top_path = top_path
         self.path = path
+
+    __repr__ = classes.make_repr('path={self.path}')
+
+    def __hash__(self):
+        return hash((self.top_path, self.path))
+
+    def __eq__(self, other):
+        return self.top_path == other.top_path and self.path == other.path
 
     @property
     def label(self):
