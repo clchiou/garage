@@ -1,6 +1,6 @@
 import shipyard2.rules.xars
 
-shipyard2.rules.xars.define_python_zipapp(
+shipyard2.rules.xars.define_zipapp(
     name='ctr',
     python_version='3.7',
     packages=[

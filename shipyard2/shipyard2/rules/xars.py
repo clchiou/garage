@@ -1,7 +1,7 @@
 """Helpers for writing rules under //xars."""
 
 __all__ = [
-    'define_python_zipapp',
+    'define_zipapp',
 ]
 
 import dataclasses
@@ -32,7 +32,7 @@ class ZipappDeployInstruction:
     version: str
 
 
-def define_python_zipapp(
+def define_zipapp(
     *,
     name,
     packages,
