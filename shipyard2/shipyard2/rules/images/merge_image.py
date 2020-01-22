@@ -8,6 +8,7 @@ import tempfile
 from pathlib import Path
 
 from g1 import scripts
+from g1.containers import models
 from g1.containers import scripts as ctr_scripts
 
 from . import utils
@@ -73,13 +74,15 @@ def merge_image(
     output,
 ):
     rootfs_paths = [
-        ctr_scripts.ctr_get_image_rootfs_path(kind, args)
-        for kind, args in builder_images
+        ctr_scripts.ctr_get_image_rootfs_path(image)
+        for image in builder_images
     ]
     rootfs_paths.append(
         ctr_scripts.ctr_get_image_rootfs_path(
-            'nv',
-            (utils.get_builder_name(name), version),
+            models.PodConfig.Image(
+                name=utils.get_builder_name(name),
+                version=version,
+            )
         )
     )
     filter_rules = _get_filter_rules(filters)

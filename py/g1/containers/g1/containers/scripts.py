@@ -82,15 +82,14 @@ def ctr_import_image(image_path):
     return ctr(['images', 'import', image_path])
 
 
-def ctr_get_image_rootfs_path(kind, args):
-    if kind == 'id':
-        match = lambda row: row[0] == args[0]
-    elif kind == 'nv':
-        match = lambda row: row[1:3] == list(args)
-    elif kind == 'tag':
-        match = lambda row: args[0] in row[3]
+def ctr_get_image_rootfs_path(image):
+    if image.id is not None:
+        match = lambda row: row[0] == image.id
+    elif image.name is not None and image.version is not None:
+        match = lambda row: row[1] == image.name and row[2] == image.version
     else:
-        return ASSERT.unreachable('unknown kind: {} {}', kind, args)
+        ASSERT.not_none(image.tag)
+        match = lambda row: image.tag in row[3].split(' ')
     with scripts.doing_capture_output():
         proc = ctr([
             'images',
@@ -101,4 +100,4 @@ def ctr_get_image_rootfs_path(kind, args):
         for row in csv.reader(proc.stdout.decode('utf8').split('\n')):
             if match(row):
                 return row[4]
-    return ASSERT.unreachable('cannot find image: {} {}', kind, args)
+    return ASSERT.unreachable('cannot find image: {}', image)

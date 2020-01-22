@@ -3,6 +3,7 @@ __all__ = [
 ]
 
 import contextlib
+import dataclasses
 import json
 import logging
 import tempfile
@@ -154,7 +155,7 @@ def _foreman_make_path_args(root_host_paths):
 
 
 def _get_images(builder_images, base_version):
-    images = [
+    return [
         {
             'name': shipyard2.BASE,
             'version': base_version,
@@ -163,17 +164,8 @@ def _get_images(builder_images, base_version):
             'name': utils.get_builder_name(shipyard2.BASE),
             'version': base_version,
         },
+        *map(dataclasses.asdict, builder_images),
     ]
-    for kind, args in builder_images:
-        if kind == 'id':
-            images.append({'id': args[1]})
-        elif kind == 'nv':
-            images.append({'name': args[0], 'version': args[1]})
-        elif kind == 'tag':
-            images.append({'tag': args[0]})
-        else:
-            ASSERT.unreachable('unknown image: {}, {}', kind, args)
-    return images
 
 
 def _get_mounts(root_host_paths, shipyard_data_path, name, rules):

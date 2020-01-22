@@ -2,7 +2,7 @@ __all__ = [
     'get_builder_name',
     'get_builder_image_path',
     'get_image_path',
-    'parse_image_list_parameter',
+    'parse_images_parameter',
     # Helper commands.
     'chown',
     'rsync',
@@ -15,6 +15,7 @@ import foreman
 
 from g1 import scripts
 from g1.bases.assertions import ASSERT
+from g1.containers import models
 
 import shipyard2
 
@@ -39,19 +40,19 @@ def get_image_path(parameters, name):
     )
 
 
-def parse_image_list_parameter(value):
-    image_list = []
-    for image in value.split(','):
-        if image.startswith('id:'):
-            image_list.append(('id', (image[len('id:'):], )))
-        elif image.startswith('nv:'):
-            _, name, version = image.split(':', maxsplit=3)
-            image_list.append(('nv', (name, version)))
-        elif image.startswith('tag:'):
-            image_list.append(('tag', (image[len('tag:'):], )))
+def parse_images_parameter(value):
+    images = []
+    for v in value.split(','):
+        if v.startswith('id:'):
+            images.append(models.PodConfig.Image(id=v[len('id:'):]))
+        elif v.startswith('nv:'):
+            _, name, version = v.split(':', maxsplit=3)
+            images.append(models.PodConfig.Image(name=name, version=version))
+        elif v.startswith('tag:'):
+            images.append(models.PodConfig.Image(tag=v[len('tag:'):]))
         else:
-            ASSERT.unreachable('unknown image parameter: {}', image)
-    return image_list
+            ASSERT.unreachable('unknown image parameter: {}', v)
+    return images
 
 
 def chown(path):

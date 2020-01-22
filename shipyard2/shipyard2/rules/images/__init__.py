@@ -70,7 +70,7 @@ def define_image(
          'either: "id:XXX", "nv:XXX:YYY", or "tag:XXX"'
      )
      .with_type(list)
-     .with_parse(utils.parse_image_list_parameter)
+     .with_parse(utils.parse_images_parameter)
      .with_default([]))
 
     (foreman.define_parameter(parameter_version)\
