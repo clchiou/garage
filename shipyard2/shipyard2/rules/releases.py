@@ -1,11 +1,14 @@
 __all__ = [
     'dump',
     'generate_release_metadata',
+    'get_output_dir_path',
 ]
 
 import dataclasses
 import json
 import typing
+
+import foreman
 
 from g1 import scripts
 from g1.bases.assertions import ASSERT
@@ -21,6 +24,16 @@ class ReleaseMetadata:
         dirty: bool
 
     sources: typing.List[Source]
+
+
+def get_output_dir_path(parameters, name, version):
+    """Get pod or xar dir path under release repo."""
+    return (
+        parameters['//releases:root'] / \
+        foreman.get_relpath() /
+        name /
+        version
+    )
 
 
 def generate_release_metadata(parameters, metadata_path):

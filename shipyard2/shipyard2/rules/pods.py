@@ -22,6 +22,7 @@ from g1.containers import pods
 import shipyard2
 import shipyard2.rules
 from shipyard2.rules import releases
+from shipyard2.rules import images as _images
 
 # Re-export these.
 App = pods.PodConfig.App
@@ -80,6 +81,7 @@ def define_pod(
         'expect unique volume names: {}',
         volumes,
     )
+
     name_prefix = shipyard2.rules.canonicalize_name_prefix(name)
     parameter_version = name_prefix + 'version'
     rule_build = name_prefix + 'build'
@@ -94,7 +96,7 @@ def define_pod(
     @foreman.rule.depend('//releases:build')
     def build(parameters):
         version = ASSERT.not_none(parameters[parameter_version])
-        pod_dir_path = _get_pod_dir_path(parameters, name, version)
+        pod_dir_path = releases.get_output_dir_path(parameters, name, version)
         if (
             pod_dir_path / \
             shipyard2.POD_DIR_RELEASE_METADATA_FILENAME
@@ -126,45 +128,13 @@ def define_pod(
             raise
 
     for label in images:
-        build.depend(str(_parse_image_label(label)))
+        build.depend(str(_images.derive_rule(label)))
 
     return PodRules(build=build)
 
 
 def _get_label_name(label):
     return foreman.Label.parse(label).name
-
-
-def _get_base_version(parameters):
-    return parameters['//%s/bases:%s/version' % (
-        shipyard2.RELEASE_IMAGES_DIR_NAME,
-        shipyard2.BASE,
-    )]
-
-
-def _get_version(parameters, label):
-    return parameters['//%s/%s:%s/version' % (
-        shipyard2.RELEASE_IMAGES_DIR_NAME,
-        label.path,
-        label.name,
-    )]
-
-
-def _get_pod_dir_path(parameters, name, version):
-    return (
-        parameters['//releases:root'] / \
-        foreman.get_relpath() /
-        name /
-        version
-    )
-
-
-def _parse_image_label(label):
-    """Convert an image label to a rule."""
-    return foreman.Label(
-        shipyard2.RELEASE_IMAGES_DIR_NAME / label.path,
-        label.name / 'merge',
-    )
 
 
 def _generate_deploy_instruction(
@@ -187,12 +157,18 @@ def _generate_deploy_instruction(
                 images=[
                     pods.PodConfig.Image(
                         name=shipyard2.BASE,
-                        version=_get_base_version(parameters),
+                        version=_images.get_image_version(
+                            parameters,
+                            shipyard2.BASE_LABEL,
+                        ),
                     ),
                     *(
                         pods.PodConfig.Image(
                             name=str(image.name),
-                            version=_get_version(parameters, image),
+                            version=_images.get_image_version(
+                                parameters,
+                                image,
+                            ),
                         ) for image in images
                     ),
                 ],
@@ -210,8 +186,8 @@ def _link_images(parameters, pod_dir_path, images):
         shipyard2.POD_DIR_IMAGES_DIR_NAME,
         parameters,
         pod_dir_path,
-        foreman.Label.parse('//bases:%s' % shipyard2.BASE),
-        _get_base_version(parameters),
+        shipyard2.BASE_LABEL,
+        None,
     )
     for label in images:
         _link(
@@ -219,7 +195,7 @@ def _link_images(parameters, pod_dir_path, images):
             parameters,
             pod_dir_path,
             label,
-            _get_version(parameters, label),
+            None,
         )
 
 
@@ -237,23 +213,12 @@ def _link_volumes(parameters, pod_dir_path, volumes):
 
 def _link(sub_dir_name, parameters, pod_dir_path, label, version):
     if sub_dir_name == shipyard2.POD_DIR_IMAGES_DIR_NAME:
-        top_dir_name = shipyard2.RELEASE_IMAGES_DIR_NAME
-        filename = shipyard2.IMAGE_DIR_IMAGE_FILENAME
+        derive = lambda ps, l, _: _images.derive_image_path(ps, l)
     else:
         ASSERT.equal(sub_dir_name, shipyard2.POD_DIR_VOLUMES_DIR_NAME)
-        top_dir_name = shipyard2.RELEASE_VOLUMES_DIR_NAME
-        filename = shipyard2.VOLUME_DIR_VOLUME_FILENAME
+        derive = _derive_volume_path
     target_path = ASSERT.predicate(
-        ASSERT.predicate(
-            parameters['//releases:root'] / \
-            top_dir_name /
-            label.path /
-            label.name /
-            version /
-            filename,
-            Path.is_absolute,
-        ),
-        # Err out when target file does not exist.
+        derive(parameters, label, version),
         Path.is_file,
     )
     link_path = (
@@ -268,3 +233,14 @@ def _link(sub_dir_name, parameters, pod_dir_path, label, version):
     scripts.mkdir(link_path.parent)
     with scripts.using_cwd(link_path.parent):
         scripts.ln(target_relpath, link_path.name)
+
+
+def _derive_volume_path(parameters, label, version):
+    return (
+        parameters['//releases:root'] / \
+        shipyard2.RELEASE_VOLUMES_DIR_NAME /
+        label.path /
+        label.name /
+        version /
+        shipyard2.VOLUME_DIR_VOLUME_FILENAME
+    )

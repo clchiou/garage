@@ -1,8 +1,13 @@
 import logging
 
+import foreman
+
 logging.getLogger(__name__).addHandler(logging.NullHandler())
 
+# Name of the base image.
 BASE = 'base'
+# Label of the base image.
+BASE_LABEL = foreman.Label.parse('//bases:%s' % BASE)
 
 # Top-level directories.
 RELEASE_ENVS_DIR_NAME = 'envs'

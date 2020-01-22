@@ -2,6 +2,9 @@
 
 __all__ = [
     'define_image',
+    'derive_image_path',
+    'derive_rule',
+    'get_image_version',
 ]
 
 import dataclasses
@@ -123,3 +126,32 @@ def define_image(
         utils.chown(output)
 
     return ImageRules(build=build, merge=merge)
+
+
+def derive_rule(label):
+    """Derive image build rule from image label."""
+    return foreman.Label(
+        shipyard2.RELEASE_IMAGES_DIR_NAME / label.path,
+        label.name / 'merge',
+    )
+
+
+def derive_image_path(parameters, label):
+    """Derive image path under release repo from image label."""
+    return (
+        parameters['//releases:root'] / \
+        shipyard2.RELEASE_IMAGES_DIR_NAME /
+        label.path /
+        label.name /
+        get_image_version(parameters, label) /
+        shipyard2.IMAGE_DIR_IMAGE_FILENAME
+    )
+
+
+def get_image_version(parameters, label):
+    """Read image version parameter."""
+    return parameters['//%s/%s:%s/version' % (
+        shipyard2.RELEASE_IMAGES_DIR_NAME,
+        label.path,
+        label.name,
+    )]
