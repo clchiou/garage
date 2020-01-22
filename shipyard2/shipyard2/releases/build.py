@@ -73,6 +73,7 @@ def cmd_build(args):
         'build',
         *(('--debug', ) if shipyard2.is_debug() else ()),
         *_read_args_file(args.args_file or ()),
+        *('--parameter', '//bases:inside-builder-pod=false'),
         *(
             '--parameter',
             '//%s:%s=%s' % (

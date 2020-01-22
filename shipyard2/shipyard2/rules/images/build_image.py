@@ -132,6 +132,7 @@ def _get_apps(builder_images, root_host_paths, rules):
                 'build',
                 *(('--debug', ) if shipyard2.is_debug() else ()),
                 *_foreman_make_path_args(root_host_paths),
+                *('--parameter', '//bases:inside-builder-pod=true'),
                 *map(str, rules),
             ])
         )

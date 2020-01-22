@@ -19,4 +19,5 @@ from g1.bases.assertions import ASSERT
 @foreman.rule
 @foreman.rule.depend('//bases:dummy')
 def build(parameters):
+    ASSERT.is_(parameters['//bases:inside-builder-pod'], False)
     ASSERT.predicate(parameters['root'], Path.is_dir)

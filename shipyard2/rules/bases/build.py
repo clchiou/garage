@@ -17,6 +17,11 @@ import shipyard2.rules.bases
  .with_doc('path to the directory of intermediate build artifacts')
  .with_default(Path.home() / 'drydock'))
 
+# While this is not bulletproof, this should prevent accidentally
+# depending on wrong build rules.
+(foreman.define_parameter.bool_typed('inside-builder-pod')\
+ .with_doc('do not set this parameter; this is set by build tools'))
+
 # Install requisites for shipyard2.rules.bases.define_archive.
 shipyard2.rules.bases.define_distro_packages(
     name_prefix='archive/',
@@ -38,6 +43,7 @@ shipyard2.rules.bases.define_distro_packages(
 
 @foreman.rule
 def build(parameters):
+    ASSERT.is_(parameters['inside-builder-pod'], True)
     ASSERT.all(parameters['roots'], _is_root_dir)
     scripts.mkdir(parameters['drydock'])
 
