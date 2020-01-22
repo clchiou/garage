@@ -10,7 +10,6 @@ __all__ = [
 ]
 
 import collections
-import os.path
 from pathlib import Path
 
 import foreman
@@ -101,15 +100,8 @@ class EnvsDir:
             target_top_path,
             target_top_path / relpath / version,
         )
-        # We create a new env directory if env is not in self.envs.
-        scripts.mkdir(link_path.parent)
-        if link_path.is_symlink():
-            scripts.rm(link_path)
-        # Use os.path.relpath because Path.relative_to can't derive this
-        # type of relative path.
-        target_relpath = os.path.relpath(dir_object.path, link_path.parent)
-        with scripts.using_cwd(link_path.parent):
-            scripts.ln(target_relpath, link_path.name)
+        scripts.rm(link_path)
+        scripts.make_relative_symlink(dir_object.path, link_path)
 
     def unrelease(self, env, label):
         ASSERT.in_(env, self.envs)

@@ -9,7 +9,6 @@ __all__ = [
 
 import dataclasses
 import logging
-import os.path
 import typing
 from pathlib import Path
 
@@ -221,18 +220,10 @@ def _link(sub_dir_name, parameters, pod_dir_path, label, version):
         derive(parameters, label, version),
         Path.is_file,
     )
-    link_path = (
-        pod_dir_path / \
-        sub_dir_name /
-        label.name /
-        target_path.name
+    scripts.make_relative_symlink(
+        target_path,
+        pod_dir_path / sub_dir_name / label.name / target_path.name,
     )
-    # Use os.path.relpath because Path.relative_to can't derive this
-    # type of relative path.
-    target_relpath = os.path.relpath(target_path, link_path.parent)
-    scripts.mkdir(link_path.parent)
-    with scripts.using_cwd(link_path.parent):
-        scripts.ln(target_relpath, link_path.name)
 
 
 def _derive_volume_path(parameters, label, version):
