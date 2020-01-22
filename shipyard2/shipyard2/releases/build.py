@@ -139,7 +139,7 @@ def _guess_label_from_rule(rule):
 @select_env_argument
 @argparses.argument(
     'type',
-    choices=('pod', 'xar'),
+    choices=('pods', 'xars'),
     help='provide build artifact type',
 )
 @select_label_argument
@@ -147,10 +147,10 @@ def _guess_label_from_rule(rule):
 @argparses.end
 def cmd_release(args):
     LOG.info('release: %s %s to %s', args.label, args.version, args.env)
-    if args.type == 'pod':
+    if args.type == 'pods':
         release = _get_envs_dir(args).release_pod
     else:
-        ASSERT.equal(args.type, 'xar')
+        ASSERT.equal(args.type, 'xars')
         release = _get_envs_dir(args).release_xar
     release(args.env, args.label, args.version)
     return 0
@@ -175,25 +175,25 @@ def cmd_unrelease(args):
 )
 @argparses.argument(
     'type',
-    choices=('pod', 'xar', 'builder', 'image', 'volume'),
+    choices=('pods', 'xars', 'builder-images', 'images', 'volumes'),
     help='provide build artifact type',
 )
 @select_label_argument
 @select_version_argument
 @argparses.end
 def cmd_remove(args):
-    if args.type == 'pod':
+    if args.type == 'pods':
         dir_object_type = repos.PodDir
-    elif args.type == 'xar':
+    elif args.type == 'xars':
         dir_object_type = repos.XarDir
-    elif args.type == 'builder':
+    elif args.type == 'builder-images':
         dir_object_type = repos.BuilderImageDir
-    elif args.type == 'image':
+    elif args.type == 'images':
         dir_object_type = repos.ImageDir
     else:
-        ASSERT.equal(args.type, 'volume')
+        ASSERT.equal(args.type, 'volumes')
         dir_object_type = repos.VolumeDir
-    if args.type == 'pod' or args.type == 'xar':
+    if args.type == 'pods' or args.type == 'xars':
         envs_dir = _get_envs_dir(args)
         for env in envs_dir.envs:
             if envs_dir.has_release(env, args.label):
