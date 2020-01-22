@@ -4,11 +4,13 @@ __all__ = [
     'define_image',
     'derive_image_path',
     'derive_rule',
+    'generate_exec_wrapper',
     'get_image_version',
 ]
 
 import dataclasses
 import logging
+from pathlib import Path
 
 import foreman
 
@@ -155,3 +157,44 @@ def get_image_version(parameters, label):
         label.path,
         label.name,
     )]
+
+
+_WRAPPER_SCRIPT_TEMPLATE = '''\
+#!/usr/bin/env bash
+
+set -o errexit -o nounset -o pipefail
+
+readonly ROOT="$(realpath "$(dirname "${{BASH_SOURCE[-1]}}"){wrapper_to_root}")"
+
+readonly LIB_DIRS=(
+  "${{ROOT}}/usr/local/lib"
+  "${{ROOT}}/usr/lib"
+  "${{ROOT}}/usr/lib/x86_64-linux-gnu"
+)
+for lib_dir in "${{LIB_DIRS[@]}}"; do
+  LD_LIBRARY_PATH="${{LD_LIBRARY_PATH:-}}${{LD_LIBRARY_PATH:+:}}${{lib_dir}}"
+done
+export LD_LIBRARY_PATH
+
+exec "${{ROOT}}/{exec_relpath}" "${{@}}"
+'''
+
+
+def generate_exec_wrapper(exec_relpath, wrapper_relpath):
+    """Generate a wrapper script for the executable of a XAR.
+
+    To load shared libraries inside XAR image, the wrapper script sets
+    LD_LIBRARY_PATH before launching the executable.
+    """
+    ASSERT.not_predicate(Path(exec_relpath), Path.is_absolute)
+    wrapper_path = (
+        Path('/') / \
+        ASSERT.not_predicate(Path(wrapper_relpath), Path.is_absolute)
+    )
+    wrapper_script = _WRAPPER_SCRIPT_TEMPLATE.format(
+        wrapper_to_root=''.join(('/..', ) * (len(wrapper_path.parts) - 2)),
+        exec_relpath=exec_relpath,
+    )
+    with scripts.using_sudo():
+        scripts.write_bytes(wrapper_script.encode('utf8'), wrapper_path)
+        scripts.run(['chmod', '0755', wrapper_path])
