@@ -13,7 +13,7 @@ import foreman
 
 from g1 import scripts
 from g1.bases.assertions import ASSERT
-from g1.containers import pods
+from g1.containers import models as ctr_models
 
 import shipyard2
 import shipyard2.rules
@@ -112,7 +112,7 @@ def _build_xar(
             name=name,
             version=version,
             exec_relpath=exec_relpath,
-            image=pods.PodConfig.Image(
+            image=ctr_models.PodConfig.Image(
                 name=str(image.name),
                 version=images.get_image_version(parameters, image),
             ),

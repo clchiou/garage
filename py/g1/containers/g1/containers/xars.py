@@ -41,6 +41,7 @@ from g1.bases.assertions import ASSERT
 
 from . import bases
 from . import images
+from . import models
 
 LOG = logging.getLogger(__name__)
 
@@ -249,7 +250,7 @@ def _get_deps_path(xar_dir_path):
 
 
 def _get_ref_path(xar_dir_path, image_id):
-    return _get_deps_path(xar_dir_path) / images.validate_id(image_id)
+    return _get_deps_path(xar_dir_path) / models.validate_image_id(image_id)
 
 
 def _get_exec_path(xar_dir_path):
@@ -267,7 +268,7 @@ def _get_exec_relpath(exec_abspath, image_id):
 
 
 def _get_image_id(exec_abspath):
-    return images.validate_id(
+    return models.validate_image_id(
         exec_abspath.relative_to(images.get_trees_path().resolve()).parts[0]
     )
 
@@ -395,7 +396,7 @@ def _iter_ref_image_ids(xar_dir_path):
         if not ref_path.is_file():
             LOG.debug('encounter unknown file under deps: %s', ref_path)
         else:
-            yield images.validate_id(ref_path.name)
+            yield models.validate_image_id(ref_path.name)
 
 
 def _has_ref_image_id(xar_dir_path, image_id):

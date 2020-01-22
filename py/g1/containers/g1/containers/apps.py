@@ -17,6 +17,7 @@ from . import bases
 from . import builders
 from . import formatters
 from . import images
+from . import models
 from . import pods
 from . import xars
 
@@ -118,13 +119,13 @@ def cmd_pods(args):
         pods.cmd_generate_id(sys.stdout)
     elif args.command == 'run':
         pods.cmd_run(
-            pod_id=args.id or pods.generate_id(),
+            pod_id=args.id or models.generate_pod_id(),
             config_path=args.config,
             debug=get_debug(),
         )
     elif args.command == 'prepare':
         pods.cmd_prepare(
-            pod_id=args.id or pods.generate_id(),
+            pod_id=args.id or models.generate_pod_id(),
             config_path=args.config,
         )
     elif args.command == 'run-prepared':

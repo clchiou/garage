@@ -9,6 +9,7 @@ from pathlib import Path
 from g1.bases import datetimes
 from g1.containers import bases
 from g1.containers import images
+from g1.containers import models
 
 from tests import fixtures
 
@@ -251,7 +252,9 @@ class ImagesTest(fixtures.TestCaseBase):
             '0123456789abcdef' * 4,
         ):
             with self.subTest(test_data):
-                self.assertEqual(images.validate_id(test_data), test_data)
+                self.assertEqual(
+                    models.validate_image_id(test_data), test_data
+                )
 
         for test_data in (
             '',
@@ -264,14 +267,14 @@ class ImagesTest(fixtures.TestCaseBase):
                 with self.assertRaisesRegex(
                     AssertionError, r'expect .*fullmatch.*'
                 ):
-                    images.validate_id(test_data)
+                    models.validate_image_id(test_data)
 
-        self.do_test_validate(images.validate_name)
+        self.do_test_validate(models.validate_image_name)
 
-        self.do_test_validate(images.validate_version)
-        self.assertEqual(images.validate_version('0.0.1'), '0.0.1')
+        self.do_test_validate(models.validate_image_version)
+        self.assertEqual(models.validate_image_version('0.0.1'), '0.0.1')
 
-        self.do_test_validate(images.validate_tag)
+        self.do_test_validate(models.validate_image_tag)
 
         for test_data in (
             {

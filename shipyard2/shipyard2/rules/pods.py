@@ -16,7 +16,7 @@ import foreman
 
 from g1 import scripts
 from g1.bases.assertions import ASSERT
-from g1.containers import pods
+from g1.containers import models as ctr_models
 
 import shipyard2
 import shipyard2.rules
@@ -24,8 +24,8 @@ from shipyard2.rules import releases
 from shipyard2.rules import images as _images
 
 # Re-export these.
-App = pods.PodConfig.App
-Mount = pods.PodConfig.Mount
+App = ctr_models.PodConfig.App
+Mount = ctr_models.PodConfig.Mount
 
 LOG = logging.getLogger(__name__)
 
@@ -149,12 +149,12 @@ def _generate_deploy_instruction(
 ):
     releases.dump(
         DeployInstruction(
-            pod_config_template=pods.PodConfig(
+            pod_config_template=ctr_models.PodConfig(
                 name=name,
                 version=version,
                 apps=apps,
                 images=[
-                    pods.PodConfig.Image(
+                    ctr_models.PodConfig.Image(
                         name=shipyard2.BASE,
                         version=_images.get_image_version(
                             parameters,
@@ -162,7 +162,7 @@ def _generate_deploy_instruction(
                         ),
                     ),
                     *(
-                        pods.PodConfig.Image(
+                        ctr_models.PodConfig.Image(
                             name=str(image.name),
                             version=_images.get_image_version(
                                 parameters,

@@ -9,6 +9,7 @@ from g1.bases import datetimes
 from g1.containers import bases
 from g1.containers import builders
 from g1.containers import images
+from g1.containers import models
 from g1.containers import pods
 
 from tests import fixtures
@@ -18,27 +19,27 @@ class PodsTest(fixtures.TestCaseBase):
 
     sample_pod_id = '01234567-89ab-cdef-0123-456789abcdef'
 
-    sample_config = pods.PodConfig(
+    sample_config = models.PodConfig(
         name='test-pod',
         version='0.0.1',
         apps=[
-            pods.PodConfig.App(
+            models.PodConfig.App(
                 name='hello',
                 exec=['/bin/echo', 'hello', 'world'],
             ),
         ],
         images=[
-            pods.PodConfig.Image(
+            models.PodConfig.Image(
                 name='base',
                 version='0.0.1',
             ),
-            pods.PodConfig.Image(
+            models.PodConfig.Image(
                 name='sample-app',
                 version='1.0',
             ),
         ],
         mounts=[
-            pods.PodConfig.Mount(
+            models.PodConfig.Mount(
                 source='/dev/null',
                 target='/this/is/pod/path',
                 read_only=True,
@@ -251,7 +252,7 @@ class PodsTest(fixtures.TestCaseBase):
 
     def test_config(self):
         with self.assertRaisesRegex(AssertionError, r'expect non-empty'):
-            pods.PodConfig(
+            models.PodConfig(
                 name='test-pod',
                 version='0.0.1',
                 apps=self.sample_config.apps,
@@ -260,40 +261,40 @@ class PodsTest(fixtures.TestCaseBase):
         with self.assertRaisesRegex(
             AssertionError, r'expect unique app names:'
         ):
-            pods.PodConfig(
+            models.PodConfig(
                 name='test-pod',
                 version='0.0.1',
                 apps=[
-                    pods.PodConfig.App(name='some-app', exec=['/bin/true']),
-                    pods.PodConfig.App(name='some-app', exec=['/bin/false']),
+                    models.PodConfig.App(name='some-app', exec=['/bin/true']),
+                    models.PodConfig.App(name='some-app', exec=['/bin/false']),
                 ],
                 images=self.sample_config.images,
             )
         with self.assertRaisesRegex(
             AssertionError, r'expect unique mount targets:'
         ):
-            pods.PodConfig(
+            models.PodConfig(
                 name='test-pod',
                 version='0.0.1',
                 apps=self.sample_config.apps,
                 images=self.sample_config.images,
                 mounts=[
-                    pods.PodConfig.Mount(source='/p', target='/a'),
-                    pods.PodConfig.Mount(source='/q', target='/a'),
+                    models.PodConfig.Mount(source='/p', target='/a'),
+                    models.PodConfig.Mount(source='/q', target='/a'),
                 ],
             )
         with self.assertRaisesRegex(AssertionError, r'expect only one'):
-            pods.PodConfig.Image()
+            models.PodConfig.Image()
         with self.assertRaisesRegex(AssertionError, r'expect.*xor.*be false'):
-            pods.PodConfig.Image(name='name')
+            models.PodConfig.Image(name='name')
         with self.assertRaisesRegex(AssertionError, r'expect.*is_absolute'):
-            pods.PodConfig.Mount(source='foo', target='/bar')
+            models.PodConfig.Mount(source='foo', target='/bar')
         with self.assertRaisesRegex(AssertionError, r'expect.*is_absolute'):
-            pods.PodConfig.Mount(source='/foo', target='bar')
+            models.PodConfig.Mount(source='/foo', target='bar')
 
     def test_validate_id(self):
         self.assertEqual(
-            pods.validate_id(self.sample_pod_id), self.sample_pod_id
+            models.validate_pod_id(self.sample_pod_id), self.sample_pod_id
         )
         for test_data in (
             '',
@@ -304,14 +305,14 @@ class PodsTest(fixtures.TestCaseBase):
                 with self.assertRaisesRegex(
                     AssertionError, r'expect .*fullmatch.*'
                 ):
-                    pods.validate_id(test_data)
+                    models.validate_pod_id(test_data)
 
     def test_generate_id(self):
-        id1 = pods.generate_id()
-        id2 = pods.generate_id()
+        id1 = models.generate_pod_id()
+        id2 = models.generate_pod_id()
         self.assertNotEqual(id1, id2)
-        self.assertEqual(pods.validate_id(id1), id1)
-        self.assertEqual(pods.validate_id(id2), id2)
+        self.assertEqual(models.validate_pod_id(id1), id1)
+        self.assertEqual(models.validate_pod_id(id2), id2)
 
     #
     # Repo layout.
@@ -530,7 +531,7 @@ class PodsTest(fixtures.TestCaseBase):
     def test_make_bind_argument(self):
         self.assertEqual(
             pods._make_bind_argument(
-                pods.PodConfig.Mount(
+                models.PodConfig.Mount(
                     source='/a',
                     target='/b',
                     read_only=True,
@@ -540,7 +541,7 @@ class PodsTest(fixtures.TestCaseBase):
         )
         self.assertEqual(
             pods._make_bind_argument(
-                pods.PodConfig.Mount(
+                models.PodConfig.Mount(
                     source='/a',
                     target='/b',
                     read_only=False,
@@ -607,44 +608,44 @@ class PodsTest(fixtures.TestCaseBase):
         self.create_image_dir(self.sample_image_id, self.sample_metadata)
         images.cmd_tag(image_id=self.sample_image_id, new_tag='some-tag')
 
-        config = pods.PodConfig(
+        config = models.PodConfig(
             name='test-pod',
             version='0.0.1',
             apps=self.sample_config.apps,
-            images=[pods.PodConfig.Image(id=self.sample_image_id)],
+            images=[models.PodConfig.Image(id=self.sample_image_id)],
         )
         self.assertEqual(list_image_ids(config), [self.sample_image_id])
 
-        config = pods.PodConfig(
+        config = models.PodConfig(
             name='test-pod',
             version='0.0.1',
             apps=self.sample_config.apps,
-            images=[pods.PodConfig.Image(name='sample-app', version='1.0')],
+            images=[models.PodConfig.Image(name='sample-app', version='1.0')],
         )
         self.assertEqual(list_image_ids(config), [self.sample_image_id])
 
-        config = pods.PodConfig(
+        config = models.PodConfig(
             name='test-pod',
             version='0.0.1',
             apps=self.sample_config.apps,
-            images=[pods.PodConfig.Image(tag='some-tag')],
+            images=[models.PodConfig.Image(tag='some-tag')],
         )
         self.assertEqual(list_image_ids(config), [self.sample_image_id])
 
-        config = pods.PodConfig(
+        config = models.PodConfig(
             name='test-pod',
             version='0.0.1',
             apps=self.sample_config.apps,
-            images=[pods.PodConfig.Image(name='no-such-app', version='1.0')],
+            images=[models.PodConfig.Image(name='no-such-app', version='1.0')],
         )
         with self.assertRaisesRegex(AssertionError, r'expect non-None value'):
             list_image_ids(config)
 
-        config = pods.PodConfig(
+        config = models.PodConfig(
             name='test-pod',
             version='0.0.1',
             apps=self.sample_config.apps,
-            images=[pods.PodConfig.Image(tag='no-such-tag')],
+            images=[models.PodConfig.Image(tag='no-such-tag')],
         )
         with self.assertRaisesRegex(AssertionError, r'expect non-None value'):
             list_image_ids(config)
@@ -674,13 +675,13 @@ class PodsTest(fixtures.TestCaseBase):
             images._get_ref_count(images.get_image_dir_path(image_id_2)), 1
         )
 
-        config = pods.PodConfig(
+        config = models.PodConfig(
             name='test-pod',
             version='0.0.1',
             apps=self.sample_config.apps,
             images=[
-                pods.PodConfig.Image(id=image_id_1),
-                pods.PodConfig.Image(id=image_id_2),
+                models.PodConfig.Image(id=image_id_1),
+                models.PodConfig.Image(id=image_id_2),
             ],
         )
 
@@ -708,13 +709,13 @@ class PodsTest(fixtures.TestCaseBase):
 
         pods._add_ref_image_ids(
             self.sample_pod_dir_path,
-            pods.PodConfig(
+            models.PodConfig(
                 name='test-pod',
                 version='0.0.1',
                 apps=self.sample_config.apps,
                 images=[
-                    pods.PodConfig.Image(id=image_id_1),
-                    pods.PodConfig.Image(id=image_id_2),
+                    models.PodConfig.Image(id=image_id_1),
+                    models.PodConfig.Image(id=image_id_2),
                 ],
             ),
         )

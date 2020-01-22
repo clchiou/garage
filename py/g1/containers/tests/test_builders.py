@@ -5,6 +5,7 @@ from pathlib import Path
 
 from g1.containers import bases
 from g1.containers import builders
+from g1.containers import models
 
 from tests import fixtures
 
@@ -79,7 +80,7 @@ class BuildersTest(fixtures.TestCaseBase):
             self.test_repo_path,
             'some-pod',
             '0.0.1',
-            builders.App(
+            models.PodConfig.App(
                 name='hello-world',
                 exec=['/bin/echo', '"hello world"'],
                 user='root',
@@ -110,7 +111,7 @@ class BuildersTest(fixtures.TestCaseBase):
 
     def test_get_pod_app_exit_status(self):
         var_path = self.test_repo_path / 'var/lib/pod/exit-status'
-        app = builders.App(name='hello-world', exec=['/bin/echo'])
+        app = models.PodConfig.App(name='hello-world', exec=['/bin/echo'])
         self.assertEqual(
             builders.get_pod_app_exit_status(self.test_repo_path, app),
             (None, None),

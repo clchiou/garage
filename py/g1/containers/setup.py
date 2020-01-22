@@ -6,7 +6,7 @@ setup(
     name='g1.containers',
     entry_points={
         'console_scripts': [
-            'ctr = g1.containers.apps:run',
+            'ctr = g1.containers.apps:run [apps]',
         ],
     },
     cmdclass={
@@ -17,9 +17,13 @@ setup(
         'g1.containers',
     ],
     install_requires=[
-        'g1.apps',
         'g1.bases',
-        'g1.scripts[parts]',
     ],
+    extras_require={
+        'apps': [
+            'g1.apps',
+            'g1.scripts[parts]',
+        ],
+    },
     zip_safe=False,
 )

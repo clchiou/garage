@@ -9,8 +9,6 @@ The construction of a pod is divided into two phases:
 """
 
 __all__ = [
-    # Public interface.
-    'App',
     # Expose to apps.
     'cmd_build_base_image',
     'cmd_init',
@@ -27,7 +25,6 @@ import dataclasses
 import enum
 import logging
 import re
-import typing
 from pathlib import Path
 
 from g1 import scripts
@@ -210,35 +207,6 @@ def cmd_setup_base_rootfs(image_rootfs_path, prune_stash_path):
 #
 # Pod runtime.
 #
-
-_SERVICE_TYPES = frozenset((
-    'simple',
-    'exec',
-    'forking',
-    'oneshot',
-    'dbus',
-    'notify',
-    'idle',
-    None,
-))
-
-
-@dataclasses.dataclass(frozen=True)
-class App:
-    """Descriptor of systemd unit file of container app."""
-
-    name: str
-    exec: typing.List[str]
-    type: typing.Optional[str] = None
-    user: str = 'nobody'
-    group: str = 'nogroup'
-
-    # TODO: Support ".timer" and ".socket" unit file.
-
-    def __post_init__(self):
-        images.validate_name(self.name)
-        ASSERT.not_empty(self.exec)
-        ASSERT.in_(self.type, _SERVICE_TYPES)
 
 
 def _get_pod_etc_path(root_path):

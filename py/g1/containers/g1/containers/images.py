@@ -41,10 +41,6 @@ Image repository layout:
 __all__ = [
     # Public interface.
     'ImageMetadata',
-    'validate_id',
-    'validate_name',
-    'validate_tag',
-    'validate_version',
     # Expose to apps.
     'IMAGE_LIST_STRINGIFIERS',
     'cmd_build_image',
@@ -76,7 +72,6 @@ import gzip
 import hashlib
 import logging
 import os
-import re
 import shutil
 import subprocess
 import tempfile
@@ -89,6 +84,7 @@ from g1.bases import functionals
 from g1.bases.assertions import ASSERT
 
 from . import bases
+from . import models
 
 LOG = logging.getLogger(__name__)
 
@@ -104,32 +100,8 @@ class ImageMetadata:
     version: str
 
     def __post_init__(self):
-        validate_name(self.name)
-        validate_version(self.version)
-
-
-# SHA-256.
-_ID_PATTERN = re.compile(r'[0-9a-f]{64}')
-
-# For now, let's only allow a restrictive set of names.
-_NAME_PATTERN = re.compile(r'[a-z0-9]+(-[a-z0-9]+)*')
-_VERSION_PATTERN = re.compile(r'[a-z0-9]+((?:-|\.)[a-z0-9]+)*')
-
-
-def validate_id(image_id):
-    return ASSERT.predicate(image_id, _ID_PATTERN.fullmatch)
-
-
-def validate_name(name):
-    return ASSERT.predicate(name, _NAME_PATTERN.fullmatch)
-
-
-def validate_version(version):
-    return ASSERT.predicate(version, _VERSION_PATTERN.fullmatch)
-
-
-def validate_tag(tag):
-    return ASSERT.predicate(tag, _NAME_PATTERN.fullmatch)
+        models.validate_image_name(self.name)
+        models.validate_image_version(self.version)
 
 
 #
@@ -146,7 +118,11 @@ def validate_tag(tag):
 
 select_image_arguments = functionals.compose(
     argparses.begin_mutually_exclusive_group(required=True),
-    argparses.argument('--id', type=validate_id, help='provide image id'),
+    argparses.argument(
+        '--id',
+        type=models.validate_image_id,
+        help='provide image id',
+    ),
     argparses.argument(
         '--nv',
         metavar=('NAME', 'VERSION'),
@@ -154,19 +130,23 @@ select_image_arguments = functionals.compose(
         nargs=2,
         help='provide image name and version',
     ),
-    argparses.argument('--tag', type=validate_tag, help='provide image tag'),
+    argparses.argument(
+        '--tag',
+        type=models.validate_image_tag,
+        help='provide image tag',
+    ),
     argparses.end,
 )
 
 image_output_arguments = functionals.compose(
     argparses.argument(
         'name',
-        type=validate_name,
+        type=models.validate_image_name,
         help='provide output image name',
     ),
     argparses.argument(
         'version',
-        type=validate_version,
+        type=models.validate_image_version,
         help='provide output image version',
     ),
     argparses.argument(
@@ -180,8 +160,9 @@ image_output_arguments = functionals.compose(
 def make_select_image_kwargs(args):
     return {
         'image_id': args.id,
-        'name': validate_name(args.nv[0]) if args.nv else None,
-        'version': validate_version(args.nv[1]) if args.nv else None,
+        'name': models.validate_image_name(args.nv[0]) if args.nv else None,
+        'version':
+        models.validate_image_version(args.nv[1]) if args.nv else None,
         'tag': args.tag,
     }
 
@@ -222,7 +203,9 @@ def cmd_build_image(name, version, rootfs_path, output_path):
 @argparses.begin_parser(
     'import', **argparses.make_help_kwargs('import an image archive')
 )
-@argparses.argument('--tag', type=validate_tag, help='provide new image tag')
+@argparses.argument(
+    '--tag', type=models.validate_image_tag, help='provide new image tag'
+)
 @argparses.argument(
     'path', type=Path, help='import image archive from this path'
 )
@@ -315,7 +298,9 @@ def cmd_list():
     'tag', **argparses.make_help_kwargs('set tag to an image')
 )
 @select_image_arguments
-@argparses.argument('new_tag', type=validate_tag, help='provide new image tag')
+@argparses.argument(
+    'new_tag', type=models.validate_image_tag, help='provide new image tag'
+)
 @argparses.end
 def cmd_tag(*, image_id=None, name=None, version=None, tag=None, new_tag):
     bases.assert_root_privilege()
@@ -331,7 +316,9 @@ def cmd_tag(*, image_id=None, name=None, version=None, tag=None, new_tag):
     'remove-tag', **argparses.make_help_kwargs('remove tag from an image')
 )
 @argparses.argument(
-    'tag', type=validate_tag, help='provide image tag for removal'
+    'tag',
+    type=models.validate_image_tag,
+    help='provide image tag for removal',
 )
 @argparses.end
 def cmd_remove_tag(tag):
@@ -441,11 +428,11 @@ def _get_tmp_path():
 
 
 def get_image_dir_path(image_id):
-    return get_trees_path() / validate_id(image_id)
+    return get_trees_path() / models.validate_image_id(image_id)
 
 
 def _get_id(image_dir_path):
-    return validate_id(image_dir_path.name)
+    return models.validate_image_id(image_dir_path.name)
 
 
 def _get_metadata_path(image_dir_path):
@@ -457,11 +444,11 @@ def get_rootfs_path(image_dir_path):
 
 
 def _get_tag_path(tag):
-    return _get_tags_path() / validate_tag(tag)
+    return _get_tags_path() / models.validate_image_tag(tag)
 
 
 def _get_tag(tag_path):
-    return validate_tag(tag_path.name)
+    return models.validate_image_tag(tag_path.name)
 
 
 def _get_tag_target(image_dir_path):

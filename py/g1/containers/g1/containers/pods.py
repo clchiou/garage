@@ -23,10 +23,6 @@ For now the pod repository layout is very simple:
 """
 
 __all__ = [
-    # Public interface.
-    'PodConfig',
-    'generate_id',
-    'validate_id',
     # Expose to apps.
     'POD_LIST_STRINGIFIERS',
     'POD_SHOW_STRINGIFIERS',
@@ -52,8 +48,6 @@ import re
 import shutil
 import subprocess
 import tempfile
-import typing
-import uuid
 from pathlib import Path
 
 from g1 import scripts
@@ -64,87 +58,9 @@ from g1.bases.assertions import ASSERT
 from . import bases
 from . import builders
 from . import images
+from . import models
 
 LOG = logging.getLogger(__name__)
-
-#
-# Data type.
-#
-
-
-@dataclasses.dataclass(frozen=True)
-class PodConfig:
-
-    # Re-export ``App`` type.
-    App = builders.App
-
-    @dataclasses.dataclass(frozen=True)
-    class Image:
-
-        id: typing.Optional[str] = None
-        name: typing.Optional[str] = None
-        version: typing.Optional[str] = None
-        tag: typing.Optional[str] = None
-
-        def __post_init__(self):
-            ASSERT.only_one((self.id, self.name or self.version, self.tag))
-            ASSERT.not_xor(self.name, self.version)
-            if self.id:
-                images.validate_id(self.id)
-            elif self.name:
-                images.validate_name(self.name)
-                images.validate_version(self.version)
-            else:
-                images.validate_tag(self.tag)
-
-    @dataclasses.dataclass(frozen=True)
-    class Mount:
-
-        source: str
-        target: str
-        read_only: bool = True
-
-        def __post_init__(self):
-            # Empty source path means host's /var/tmp.
-            if self.source:
-                ASSERT.predicate(Path(self.source), Path.is_absolute)
-            ASSERT.predicate(Path(self.target), Path.is_absolute)
-
-    name: str
-    version: str
-    apps: typing.List[App]
-    # Image are ordered from low to high.
-    images: typing.List[Image]
-    mounts: typing.List[Mount] = ()
-
-    def __post_init__(self):
-        images.validate_name(self.name)
-        images.validate_version(self.version)
-        ASSERT.not_empty(self.images)
-        ASSERT(
-            len(set(u.name for u in self.apps)) == len(self.apps),
-            'expect unique app names: {}',
-            self.apps,
-        )
-        ASSERT(
-            len(set(v.target for v in self.mounts)) == len(self.mounts),
-            'expect unique mount targets: {}',
-            self.mounts,
-        )
-
-
-_UUID_PATTERN = re.compile(
-    r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
-)
-
-
-def generate_id():
-    return validate_id(str(uuid.uuid4()))
-
-
-def validate_id(pod_id):
-    return ASSERT.predicate(pod_id, _UUID_PATTERN.fullmatch)
-
 
 #
 # Top-level commands.  You need to check root privilege and acquire all
@@ -164,7 +80,9 @@ def validate_id(pod_id):
 
 def _select_pod_arguments(*, positional):
     return argparses.argument(
-        'id' if positional else '--id', type=validate_id, help='set pod id'
+        'id' if positional else '--id',
+        type=models.validate_pod_id,
+        help='set pod id',
     )
 
 
@@ -288,7 +206,7 @@ def cmd_cat_config(pod_id, output):
 )
 @argparses.end
 def cmd_generate_id(output):
-    output.write(generate_id())
+    output.write(models.generate_pod_id())
     output.write('\n')
 
 
@@ -317,7 +235,7 @@ def cmd_prepare(pod_id, config_path):
     if bases.lexists(_get_pod_dir_path(pod_id)):
         LOG.info('skip duplicated pod: %s', pod_id)
         return
-    config = bases.read_jsonobject(PodConfig, config_path)
+    config = bases.read_jsonobject(models.PodConfig, config_path)
     tmp_path = _create_tmp_pod_dir()
     try:
         _prepare_pod_dir(tmp_path, pod_id, config)
@@ -533,11 +451,11 @@ def _get_tmp_path():
 
 
 def _get_pod_dir_path(pod_id):
-    return _get_active_path() / validate_id(pod_id)
+    return _get_active_path() / models.validate_pod_id(pod_id)
 
 
 def _get_id(pod_dir_path):
-    return validate_id(pod_dir_path.name)
+    return models.validate_pod_id(pod_dir_path.name)
 
 
 def _get_config_path(pod_dir_path):
@@ -614,7 +532,7 @@ def _maybe_move_pod_dir_to_active(dir_path, pod_id):
 def _move_pod_dir_to_graveyard(dir_path):
     dst_path = _get_graveyard_path() / dir_path.name
     if bases.lexists(dst_path):
-        dst_path.with_name('%s_%s' % (dst_path.name, generate_id()))
+        dst_path.with_name('%s_%s' % (dst_path.name, models.generate_pod_id()))
         LOG.debug(
             'rename duplicated pod directory under graveyard: %s -> %s',
             dir_path.name,
@@ -798,12 +716,14 @@ def _iter_configs():
 
 
 def _read_config(pod_dir_path):
-    return bases.read_jsonobject(PodConfig, _get_config_path(pod_dir_path))
+    return bases.read_jsonobject(
+        models.PodConfig, _get_config_path(pod_dir_path)
+    )
 
 
 def _read_orig_config(pod_dir_path):
     return bases.read_jsonobject(
-        PodConfig, _get_orig_config_path(pod_dir_path)
+        models.PodConfig, _get_orig_config_path(pod_dir_path)
     )
 
 
@@ -849,7 +769,7 @@ def _add_ref_image_ids(pod_dir_path, config):
         new_images = []
         for image_id in _iter_image_ids(config):
             images.add_ref(image_id, deps_path / image_id)
-            new_images.append(PodConfig.Image(id=image_id))
+            new_images.append(models.PodConfig.Image(id=image_id))
         new_config = dataclasses.replace(config, images=new_images)
     _pod_dir_create_config(pod_dir_path, new_config)
     return new_config
@@ -864,7 +784,7 @@ def _iter_ref_image_ids(pod_dir_path):
         if not ref_path.is_file():
             LOG.debug('encounter unknown file under deps: %s', ref_path)
         else:
-            yield images.validate_id(ref_path.name)
+            yield models.validate_image_id(ref_path.name)
 
 
 def _get_image_rootfs_path(image_id):
