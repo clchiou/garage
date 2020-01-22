@@ -7,6 +7,8 @@ __all__ = [
     'ctr_remove_pod',
     'ctr_run_pod',
     'ctr_run_prepared_pod',
+    # XAR commands.
+    'ctr_install_xar',
     # Image commands.
     'ctr_build_image',
     'ctr_get_image_rootfs_path',
@@ -52,6 +54,17 @@ def ctr_run_pod(pod_id, config_path):
 
 def ctr_remove_pod(pod_id):
     return ctr(['pods', 'remove', pod_id])
+
+
+def ctr_install_xar(name, exec_relpath, image):
+    if image.id is not None:
+        image_args = ('--id', image.id)
+    elif image.name is not None and image.version is not None:
+        image_args = ('--nv', image.name, image.version)
+    else:
+        ASSERT.not_none(image.tag)
+        image_args = ('--tag', image.tag)
+    return ctr(['xars', 'install', *image_args, name, exec_relpath])
 
 
 def ctr_build_image(name, version, rootfs_path, image_path):
