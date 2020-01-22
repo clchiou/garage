@@ -17,6 +17,7 @@ import foreman
 from g1 import scripts
 from g1.bases.assertions import ASSERT
 from g1.containers import models as ctr_models
+from g1.operations import models as ops_models
 
 import shipyard2
 import shipyard2.rules
@@ -26,27 +27,14 @@ from shipyard2.rules import images as _images
 # Re-export these.
 App = ctr_models.PodConfig.App
 Mount = ctr_models.PodConfig.Mount
+Volume = ops_models.PodDeployInstruction.Volume
 
 LOG = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass(frozen=True)
-class Volume:
-    label: str
-    version: str
-    target: str
-    read_only: bool = True
-
-
-@dataclasses.dataclass(frozen=True)
 class PodRules:
     build: foreman.Rule
-
-
-@dataclasses.dataclass(frozen=True)
-class DeployInstruction:
-    pod_config_template: pods.PodConfig
-    volumes: typing.List[Volume]
 
 
 def define_pod(
@@ -148,7 +136,7 @@ def _generate_deploy_instruction(
     volumes,
 ):
     releases.dump(
-        DeployInstruction(
+        ops_models.PodDeployInstruction(
             pod_config_template=ctr_models.PodConfig(
                 name=name,
                 version=version,

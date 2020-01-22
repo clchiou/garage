@@ -14,6 +14,7 @@ import foreman
 from g1 import scripts
 from g1.bases.assertions import ASSERT
 from g1.containers import models as ctr_models
+from g1.operations import models as ops_models
 
 import shipyard2
 import shipyard2.rules
@@ -32,14 +33,6 @@ class XarRules:
 @dataclasses.dataclass(frozen=True)
 class ZipappRules:
     build: foreman.Rule
-
-
-@dataclasses.dataclass(frozen=True)
-class XarDeployInstruction:
-    name: str
-    version: str
-    exec_relpath: str
-    image: pods.PodConfig.Image
 
 
 def _run_build(build_func, parameters, kind, name, version, **kwargs):
@@ -108,7 +101,7 @@ def _build_xar(
     parameters, name, version, xar_dir_path, *, exec_relpath, image
 ):
     releases.dump(
-        XarDeployInstruction(
+        ops_models.XarDeployInstruction(
             name=name,
             version=version,
             exec_relpath=exec_relpath,
@@ -169,7 +162,7 @@ def _build_zipapp(
     parameters, name, version, xar_dir_path, *, python_exec, packages
 ):
     releases.dump(
-        XarDeployInstruction(
+        ops_models.XarDeployInstruction(
             name=name,
             version=version,
             exec_relpath=None,
