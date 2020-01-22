@@ -4,6 +4,7 @@ __all__ = [
     'chown',
     'cp',
     'ln',
+    'make_relative_symlink',
     'mkdir',
     'rm',
     'rmdir',
@@ -23,6 +24,7 @@ __all__ = [
     'git_clone',
 ]
 
+import os.path
 import subprocess
 from pathlib import Path
 
@@ -49,6 +51,19 @@ def cp(src, dst, *, recursive=False, preserve=()):
         src,
         dst,
     ])
+
+
+def make_relative_symlink(target_path, link_path):
+    # TODO: We require both paths being absolute for now as I am not
+    # sure whether os.path.relpath will work correctly.
+    target_path = ASSERT.predicate(Path(target_path), Path.is_absolute)
+    link_path = ASSERT.predicate(Path(link_path), Path.is_absolute)
+    # Use os.path.relpath because Path.relative_to cannot derive this
+    # type of relative path.
+    target_relpath = os.path.relpath(target_path, link_path.parent)
+    mkdir(link_path.parent)
+    with bases.using_cwd(link_path.parent):
+        ln(target_relpath, link_path.name)
 
 
 def ln(target, link_name):

@@ -38,6 +38,13 @@ class CommandsTest(unittest.TestCase):
         commands.cp('a', 'b')
         self.assert_runs(['cp', '--force', 'a', 'b'])
 
+    def test_make_relative_symlink(self):
+        commands.make_relative_symlink('/a/d/e', '/a/b/c')
+        self.assert_runs(
+            ['mkdir', '--parents', '/a/b'],
+            ['ln', '--symbolic', '../d/e', 'c'],
+        )
+
     def test_ln(self):
         commands.ln('a', 'b')
         self.assert_runs(['ln', '--symbolic', 'a', 'b'])
