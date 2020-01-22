@@ -8,6 +8,7 @@ import tempfile
 from pathlib import Path
 
 from g1 import scripts
+from g1.containers import scripts as ctr_scripts
 
 from . import utils
 
@@ -72,10 +73,11 @@ def merge_image(
     output,
 ):
     rootfs_paths = [
-        utils.ctr_get_rootfs_path(kind, args) for kind, args in builder_images
+        ctr_scripts.ctr_get_image_rootfs_path(kind, args)
+        for kind, args in builder_images
     ]
     rootfs_paths.append(
-        utils.ctr_get_rootfs_path(
+        ctr_scripts.ctr_get_image_rootfs_path(
             'nv',
             (utils.get_builder_name(name), version),
         )
@@ -96,7 +98,7 @@ def merge_image(
         with scripts.using_sudo():
             for rootfs_path in rootfs_paths:
                 utils.rsync(rootfs_path, output_rootfs_path, filter_rules)
-        utils.ctr_build_image(name, version, output_rootfs_path, output)
+        ctr_scripts.ctr_build_image(name, version, output_rootfs_path, output)
 
 
 def _get_filter_rules(filters):

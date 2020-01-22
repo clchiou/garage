@@ -16,6 +16,7 @@ import foreman
 
 from g1 import scripts
 from g1.bases.assertions import ASSERT
+from g1.containers import models
 
 import shipyard2
 import shipyard2.rules
@@ -88,7 +89,7 @@ def define_image(
         LOG.info('build image: %s %s %s', name, version, output)
         builder_id = parameters[parameter_builder_id]
         if builder_id is None:
-            builder_id = utils.ctr_generate_pod_id()
+            builder_id = models.generate_pod_id()
             LOG.info('generate builder pod id: %s', builder_id)
         scripts.mkdir(output.parent)
         build_image.build_image(

@@ -11,6 +11,7 @@ from pathlib import Path
 import foreman
 
 from g1.bases.assertions import ASSERT
+from g1.containers import scripts as ctr_scripts
 
 import shipyard2
 
@@ -61,27 +62,22 @@ def build_image(
             LOG.debug('builder config: %s', builder_config_path.read_text())
         # The builder pod might not be cleaned up when `ctr pods run`
         # fails; so let's always do `ctr pods remove` on our way out.
-        stack.callback(utils.ctr, ['pods', 'remove', builder_id])
+        stack.callback(ctr_scripts.ctr_remove_pod, builder_id)
         LOG.info('start builder pod')
-        utils.ctr([
-            'pods',
-            'run',
-            *('--id', builder_id),
-            builder_config_path,
-        ])
+        ctr_scripts.ctr_run_pod(builder_id, builder_config_path)
         LOG.info('export intermediate builder image to: %s', output)
         rootfs_path = tempdir_path / 'rootfs'
         stack.callback(utils.sudo_rm, rootfs_path)
-        utils.ctr([
+        ctr_scripts.ctr([
             'pods',
             'export-overlay',
             builder_id,
             rootfs_path,
         ])
-        utils.ctr_build_image(
+        ctr_scripts.ctr_build_image(
             utils.get_builder_name(name), version, rootfs_path, output
         )
-        utils.ctr_import_image(output)
+        ctr_scripts.ctr_import_image(output)
 
 
 def _generate_builder_config(name, version, apps, images, mounts):

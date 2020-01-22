@@ -24,6 +24,9 @@ setup(
             'g1.apps',
             'g1.scripts[parts]',
         ],
+        'scripts': [
+            'g1.scripts',
+        ],
     },
     zip_safe=False,
 )

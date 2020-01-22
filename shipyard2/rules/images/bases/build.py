@@ -9,6 +9,7 @@ import foreman
 
 from g1 import scripts
 from g1.bases.assertions import ASSERT
+from g1.containers import scripts as ctr_scripts
 
 import shipyard2
 from shipyard2.rules.images import utils
@@ -43,7 +44,7 @@ def base_build(parameters):
     for image_path in image_paths:
         utils.chown(image_path)
     for image_path in image_paths:
-        utils.ctr_import_image(image_path)
+        ctr_scripts.ctr_import_image(image_path)
 
 
 def _build_base(stack, version, base_path, base_builder_path):
@@ -54,7 +55,7 @@ def _build_base(stack, version, base_path, base_builder_path):
     LOG.info('generate base and base-builder under: %s', tempdir_path)
     base_builder_rootfs_path = Path(tempdir_path) / 'base-builder'
     stack.callback(utils.sudo_rm, base_builder_rootfs_path)
-    utils.ctr([
+    ctr_scripts.ctr([
         'images',
         'build-base',
         *('--prune-stash-path', base_builder_rootfs_path),
@@ -62,7 +63,7 @@ def _build_base(stack, version, base_path, base_builder_path):
         version,
         base_path,
     ])
-    utils.ctr_build_image(
+    ctr_scripts.ctr_build_image(
         utils.get_builder_name(shipyard2.BASE),
         version,
         base_builder_rootfs_path,

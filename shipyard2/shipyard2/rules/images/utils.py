@@ -3,21 +3,13 @@ __all__ = [
     'get_builder_image_path',
     'get_image_path',
     'parse_image_list_parameter',
-    # `ctr` wrappers.
-    'ctr_build_image',
-    'ctr_generate_pod_id',
-    'ctr_get_rootfs_path',
-    'ctr_import_image',
-    'ctr',
     # Helper commands.
     'chown',
     'rsync',
     'sudo_rm',
 ]
 
-import csv
 import getpass
-import shutil
 
 import foreman
 
@@ -60,59 +52,6 @@ def parse_image_list_parameter(value):
         else:
             ASSERT.unreachable('unknown image parameter: {}', image)
     return image_list
-
-
-def ctr_build_image(name, version, rootfs_path, image_path):
-    return ctr([
-        'images',
-        'build',
-        *('--rootfs', rootfs_path),
-        name,
-        version,
-        image_path,
-    ])
-
-
-def ctr_import_image(image_path):
-    return ctr(['images', 'import', image_path])
-
-
-def ctr_get_rootfs_path(kind, args):
-    if kind == 'id':
-        match = lambda row: row[0] == args[0]
-    elif kind == 'nv':
-        match = lambda row: row[1:3] == list(args)
-    elif kind == 'tag':
-        match = lambda row: args[0] in row[3]
-    else:
-        return ASSERT.unreachable('unknown kind: {} {}', kind, args)
-    with scripts.doing_capture_output():
-        proc = ctr([
-            'images',
-            'list',
-            *('--format', 'csv'),
-            *('--columns', 'id,name,version,tags,rootfs'),
-        ])
-        for row in csv.reader(proc.stdout.decode('utf8').split('\n')):
-            if match(row):
-                return row[4]
-    return ASSERT.unreachable('cannot find image: {} {}', kind, args)
-
-
-def ctr_generate_pod_id():
-    with scripts.doing_capture_output():
-        return ctr(['pods', 'generate-id']).stdout.decode('utf8').strip()
-
-
-def ctr(args):
-    with scripts.using_sudo():
-        return scripts.run([
-            # Because sudo does not search into custom paths, let's look
-            # it up before sudo.
-            ASSERT.not_none(shutil.which('ctr')),
-            *(('--verbose', ) if shipyard2.is_debug() else ()),
-            *args,
-        ])
 
 
 def chown(path):
