@@ -82,6 +82,7 @@ from g1.bases import argparses
 from g1.bases import datetimes
 from g1.bases import functionals
 from g1.bases.assertions import ASSERT
+from g1.texts import jsons
 
 from . import bases
 from . import models
@@ -671,13 +672,13 @@ def _iter_metadatas():
 
 def read_metadata(image_dir_path):
     """Read image metadata from an image directory."""
-    return bases.read_jsonobject(
+    return jsons.load_dataobject(
         ImageMetadata, _get_metadata_path(image_dir_path)
     )
 
 
 def _write_metadata(metadata, image_dir_path):
-    bases.write_jsonobject(metadata, _get_metadata_path(image_dir_path))
+    jsons.dump_dataobject(metadata, _get_metadata_path(image_dir_path))
 
 
 def add_ref(image_id, dst_path):

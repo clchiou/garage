@@ -1,20 +1,12 @@
 import unittest
 
 import contextlib
-import dataclasses
 import shutil
 import subprocess
-import typing
 
 from g1.containers import bases
 
 from tests import fixtures
-
-
-@dataclasses.dataclass(frozen=True)
-class TestData:
-    s: str
-    l: typing.List[int]
 
 
 class BasesTest(fixtures.TestCaseBase):
@@ -104,12 +96,6 @@ class BasesTest(fixtures.TestCaseBase):
             OSError, r'Cannot call rmtree on a symbolic link'
         ):
             shutil.rmtree(self.test_repo_path / 'dir-link-2')
-
-    def test_jsonobject(self):
-        path = self.test_repo_path / 'data'
-        expect = TestData(s='s', l=[1, 2, 3])
-        bases.write_jsonobject(expect, path)
-        self.assertEqual(bases.read_jsonobject(TestData, path), expect)
 
 
 class FileLockTest(fixtures.TestCaseBase):

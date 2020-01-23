@@ -10,6 +10,7 @@ from g1.bases import argparses
 from g1.bases.assertions import ASSERT
 from g1.containers import bases as ctr_bases
 from g1.containers import scripts as ctr_scripts
+from g1.texts import jsons
 
 from . import models
 
@@ -27,7 +28,7 @@ LOG = logging.getLogger(__name__)
 @argparses.end
 def cmd_install(args):
     ASSERT.predicate(args.bundle, Path.is_dir)
-    instruction = ctr_bases.read_jsonobject(
+    instruction = jsons.load_dataobject(
         models.XarDeployInstruction,
         args.bundle / models.BUNDLE_DEPLOY_INSTRUCTION_FILENAME,
     )

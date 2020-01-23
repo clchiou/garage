@@ -6,6 +6,7 @@ from pathlib import Path
 from g1.containers import bases
 from g1.containers import images
 from g1.containers import xars
+from g1.texts import jsons
 
 from tests import fixtures
 
@@ -49,7 +50,7 @@ class XarsTest(fixtures.TestCaseBase):
     def create_image_dir(image_id, metadata, exec_relpath):
         image_dir_path = images.get_image_dir_path(image_id)
         image_dir_path.mkdir()
-        bases.write_jsonobject(
+        jsons.dump_dataobject(
             metadata,
             images._get_metadata_path(image_dir_path),
         )

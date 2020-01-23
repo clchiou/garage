@@ -18,10 +18,8 @@ __all__ = [
     'chown_app',
     'chown_root',
     'make_dir',
-    'read_jsonobject',
     'rsync_copy',
     'setup_file',
-    'write_jsonobject',
     # File lock.
     'FileLock',
     'NotLocked',
@@ -32,11 +30,9 @@ __all__ = [
 ]
 
 import contextlib
-import dataclasses
 import errno
 import fcntl
 import grp
-import json
 import logging
 import os
 import shutil
@@ -45,7 +41,6 @@ from pathlib import Path
 from g1 import scripts
 from g1.apps import parameters
 from g1.bases import argparses
-from g1.bases import dataclasses as g1_dataclasses
 from g1.bases import datetimes
 from g1.bases import functionals
 from g1.bases.assertions import ASSERT
@@ -272,14 +267,6 @@ def rsync_copy(src_path, dst_path, rsync_args=()):
         '%s/' % src_path,
         dst_path,
     ])
-
-
-def read_jsonobject(type_, path):
-    return g1_dataclasses.fromdict(type_, json.loads(path.read_bytes()))
-
-
-def write_jsonobject(obj, path):
-    path.write_text(json.dumps(dataclasses.asdict(obj)), encoding='utf-8')
 
 
 #

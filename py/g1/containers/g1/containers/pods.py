@@ -54,6 +54,7 @@ from g1 import scripts
 from g1.bases import argparses
 from g1.bases import datetimes
 from g1.bases.assertions import ASSERT
+from g1.texts import jsons
 
 from . import bases
 from . import builders
@@ -235,7 +236,7 @@ def cmd_prepare(pod_id, config_path):
     if bases.lexists(_get_pod_dir_path(pod_id)):
         LOG.info('skip duplicated pod: %s', pod_id)
         return
-    config = bases.read_jsonobject(models.PodConfig, config_path)
+    config = jsons.load_dataobject(models.PodConfig, config_path)
     tmp_path = _create_tmp_pod_dir()
     try:
         _prepare_pod_dir(tmp_path, pod_id, config)
@@ -716,23 +717,23 @@ def _iter_configs():
 
 
 def _read_config(pod_dir_path):
-    return bases.read_jsonobject(
+    return jsons.load_dataobject(
         models.PodConfig, _get_config_path(pod_dir_path)
     )
 
 
 def _read_orig_config(pod_dir_path):
-    return bases.read_jsonobject(
+    return jsons.load_dataobject(
         models.PodConfig, _get_orig_config_path(pod_dir_path)
     )
 
 
 def _write_config(config, pod_dir_path):
-    bases.write_jsonobject(config, _get_config_path(pod_dir_path))
+    jsons.dump_dataobject(config, _get_config_path(pod_dir_path))
 
 
 def _write_orig_config(config, pod_dir_path):
-    bases.write_jsonobject(config, _get_orig_config_path(pod_dir_path))
+    jsons.dump_dataobject(config, _get_orig_config_path(pod_dir_path))
 
 
 def _iter_image_ids(config):

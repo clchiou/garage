@@ -10,6 +10,7 @@ from g1.bases import datetimes
 from g1.containers import bases
 from g1.containers import images
 from g1.containers import models
+from g1.texts import jsons
 
 from tests import fixtures
 
@@ -34,7 +35,7 @@ class ImagesTest(fixtures.TestCaseBase):
     def create_image_dir(self, image_id, metadata=None):
         image_dir_path = images.get_image_dir_path(image_id)
         image_dir_path.mkdir()
-        bases.write_jsonobject(
+        jsons.dump_dataobject(
             metadata or self.sample_metadata,
             images._get_metadata_path(image_dir_path),
         )
@@ -52,7 +53,7 @@ class ImagesTest(fixtures.TestCaseBase):
     def make_image_archive(cls, archive_basepath):
         tmp_dir_path = archive_basepath.with_suffix('.tmp')
         tmp_dir_path.mkdir()
-        bases.write_jsonobject(
+        jsons.dump_dataobject(
             cls.sample_metadata, images._get_metadata_path(tmp_dir_path)
         )
         images.get_rootfs_path(tmp_dir_path).mkdir()
@@ -444,7 +445,7 @@ class ImagesTest(fixtures.TestCaseBase):
 
         def create_src_dir(src_path):
             src_path.mkdir()
-            bases.write_jsonobject(
+            jsons.dump_dataobject(
                 self.sample_metadata, images._get_metadata_path(src_path)
             )
 

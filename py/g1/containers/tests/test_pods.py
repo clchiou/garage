@@ -11,6 +11,7 @@ from g1.containers import builders
 from g1.containers import images
 from g1.containers import models
 from g1.containers import pods
+from g1.texts import jsons
 
 from tests import fixtures
 
@@ -96,7 +97,7 @@ class PodsTest(fixtures.TestCaseBase):
     def create_image_dir(image_id, metadata):
         image_dir_path = images.get_image_dir_path(image_id)
         image_dir_path.mkdir()
-        bases.write_jsonobject(
+        jsons.dump_dataobject(
             metadata,
             images._get_metadata_path(image_dir_path),
         )
@@ -155,7 +156,7 @@ class PodsTest(fixtures.TestCaseBase):
 
     def test_cmd_prepare(self):
         config_path = self.test_repo_path / 'sample-config'
-        bases.write_jsonobject(self.sample_config, config_path)
+        jsons.dump_dataobject(self.sample_config, config_path)
         for i, image in enumerate(self.sample_config.images):
             self.create_image_dir(
                 self.make_image_id(i + 1),
@@ -180,7 +181,7 @@ class PodsTest(fixtures.TestCaseBase):
 
     def test_cmd_remove(self):
         config_path = self.test_repo_path / 'sample-config'
-        bases.write_jsonobject(self.sample_config, config_path)
+        jsons.dump_dataobject(self.sample_config, config_path)
         self.assertEqual(self.list_pod_dir_paths(), [])
         self.assertEqual(list(pods._get_graveyard_path().iterdir()), [])
         self.assertEqual(list(pods._get_tmp_path().iterdir()), [])

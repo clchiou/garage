@@ -23,6 +23,7 @@ setup(
         'apps': [
             'g1.apps',
             'g1.scripts[parts]',
+            'g1.texts',
         ],
         'scripts': [
             'g1.scripts',

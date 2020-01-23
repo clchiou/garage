@@ -28,6 +28,7 @@ setup(
             'g1.apps',
             'g1.containers[scripts]',
             'g1.scripts[parts]',
+            'g1.texts',
         ],
     },
     zip_safe=False,

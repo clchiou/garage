@@ -9,6 +9,7 @@ shipyard2.rules.xars.define_zipapp(
         'py/g1/containers',
         'py/g1/operations',
         'py/g1/scripts',
+        'py/g1/texts',
         'py/startup',
     ],
 )
