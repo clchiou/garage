@@ -89,6 +89,7 @@ def cmd_init():
     assert_group_exist(PARAMS.application_group.get())
     # For rsync_copy.
     check_program_exist('rsync')
+    assert_root_privilege()
     make_dir(get_repo_path(), 0o750, chown_app, parents=True)
 
 
