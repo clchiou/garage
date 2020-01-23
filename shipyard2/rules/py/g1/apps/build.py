@@ -10,5 +10,6 @@ shipyard2.rules.pythons.define_package(
     ],
     extras=[
         ('asyncs', ['//py/g1/asyncs/kernels:build']),
+        ('yamls', ['//third-party/pyyaml:build']),
     ],
 )

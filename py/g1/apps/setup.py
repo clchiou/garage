@@ -18,6 +18,9 @@ setup(
         'asyncs': [
             'g1.asyncs.kernels',
         ],
+        'yamls': [
+            'PyYAML',
+        ],
     },
     zip_safe=False,
 )
