@@ -38,6 +38,7 @@ from pathlib import Path
 
 from g1.bases import argparses
 from g1.bases.assertions import ASSERT
+from g1.texts.columns import argparses as columns_argparses
 
 from . import bases
 from . import images
@@ -133,7 +134,9 @@ ASSERT.issuperset(_XAR_LIST_COLUMNS, XAR_LIST_STRINGIFIERS)
 
 
 @argparses.begin_parser('list', **argparses.make_help_kwargs('list xars'))
-@bases.formatter_arguments(_XAR_LIST_COLUMNS, _XAR_LIST_DEFAULT_COLUMNS)
+@columns_argparses.columnar_arguments(
+    _XAR_LIST_COLUMNS, _XAR_LIST_DEFAULT_COLUMNS
+)
 @argparses.end
 def cmd_list():
     # Don't need root privilege here.

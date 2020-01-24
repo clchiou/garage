@@ -2,17 +2,17 @@ import unittest
 
 import io
 
-from g1.containers import formatters
+from g1.texts import columns
 
 
-class FormatterTest(unittest.TestCase):
+class ColumnarTest(unittest.TestCase):
 
     def test_stringifiers(self):
-        formatter = formatters.Formatter(['x'], stringifiers={'x': hex})
-        formatter.append({'x': 0x1})
-        formatter.append({'x': 0x12})
+        columnar = columns.Columnar(['x'], stringifiers={'x': hex})
+        columnar.append({'x': 0x1})
+        columnar.append({'x': 0x12})
         buffer = io.StringIO()
-        formatter.output(buffer)
+        columnar.output(buffer)
         self.assertEqual(
             buffer.getvalue(),
             'x   \n'
@@ -21,11 +21,11 @@ class FormatterTest(unittest.TestCase):
         )
 
     def test_column_widths(self):
-        formatter = formatters.Formatter(['x', 'y'])
-        formatter.append({'x': '', 'y': ''})
-        formatter.append({'x': '---', 'y': '--'})
+        columnar = columns.Columnar(['x', 'y'])
+        columnar.append({'x': '', 'y': ''})
+        columnar.append({'x': '---', 'y': '--'})
         buffer = io.StringIO()
-        formatter.output(buffer)
+        columnar.output(buffer)
         self.assertEqual(
             buffer.getvalue(),
             'x   y \n'
@@ -33,22 +33,22 @@ class FormatterTest(unittest.TestCase):
             '--- --\n',
         )
 
-        formatter = formatters.Formatter(['x', 'y'], header=False)
-        formatter.append({'x': '', 'y': ''})
-        formatter.append({'x': '---', 'y': '--'})
+        columnar = columns.Columnar(['x', 'y'], header=False)
+        columnar.append({'x': '', 'y': ''})
+        columnar.append({'x': '---', 'y': '--'})
         buffer = io.StringIO()
-        formatter.output(buffer)
+        columnar.output(buffer)
         self.assertEqual(
             buffer.getvalue(),
             '      \n'
             '--- --\n',
         )
 
-        formatter = formatters.Formatter(['xxxx', 'yyyyy'])
-        formatter.append({'xxxx': '', 'yyyyy': ''})
-        formatter.append({'xxxx': '---', 'yyyyy': '--'})
+        columnar = columns.Columnar(['xxxx', 'yyyyy'])
+        columnar.append({'xxxx': '', 'yyyyy': ''})
+        columnar.append({'xxxx': '---', 'yyyyy': '--'})
         buffer = io.StringIO()
-        formatter.output(buffer)
+        columnar.output(buffer)
         self.assertEqual(
             buffer.getvalue(),
             'xxxx yyyyy\n'
@@ -56,11 +56,11 @@ class FormatterTest(unittest.TestCase):
             '---  --   \n',
         )
 
-        formatter = formatters.Formatter(['xxxx', 'yyyyy'], header=False)
-        formatter.append({'xxxx': '', 'yyyyy': ''})
-        formatter.append({'xxxx': '---', 'yyyyy': '--'})
+        columnar = columns.Columnar(['xxxx', 'yyyyy'], header=False)
+        columnar.append({'xxxx': '', 'yyyyy': ''})
+        columnar.append({'xxxx': '---', 'yyyyy': '--'})
         buffer = io.StringIO()
-        formatter.output(buffer)
+        columnar.output(buffer)
         self.assertEqual(
             buffer.getvalue(),
             '      \n'
@@ -68,55 +68,55 @@ class FormatterTest(unittest.TestCase):
         )
 
     def test_sort(self):
-        formatter = formatters.Formatter(['x'])
-        formatter.append({'x': 3})
-        formatter.append({'x': 1})
-        formatter.append({'x': 2})
+        columnar = columns.Columnar(['x'])
+        columnar.append({'x': 3})
+        columnar.append({'x': 1})
+        columnar.append({'x': 2})
         buffer = io.StringIO()
-        formatter.output(buffer)
+        columnar.output(buffer)
         self.assertEqual(buffer.getvalue(), 'x\n3\n1\n2\n')
 
-        formatter.sort(key=lambda row: row['x'])
+        columnar.sort(key=lambda row: row['x'])
         buffer = io.StringIO()
-        formatter.output(buffer)
+        columnar.output(buffer)
         self.assertEqual(buffer.getvalue(), 'x\n1\n2\n3\n')
 
     def test_empty_columns(self):
         for kwargs, expect in (
             (
                 {
-                    'format': formatters.Formats.CSV,
+                    'format': columns.Formats.CSV,
                     'header': False,
                 },
                 '\r\n',
             ),
             (
                 {
-                    'format': formatters.Formats.CSV,
+                    'format': columns.Formats.CSV,
                     'header': True,
                 },
                 '\r\n\r\n',
             ),
             (
                 {
-                    'format': formatters.Formats.TEXT,
+                    'format': columns.Formats.TEXT,
                     'header': False,
                 },
                 '\n',
             ),
             (
                 {
-                    'format': formatters.Formats.TEXT,
+                    'format': columns.Formats.TEXT,
                     'header': True,
                 },
                 '\n\n',
             ),
         ):
             with self.subTest(kwargs):
-                formatter = formatters.Formatter([], **kwargs)
-                formatter.append({'x': 1})
+                columnar = columns.Columnar([], **kwargs)
+                columnar.append({'x': 1})
                 buffer = io.StringIO()
-                formatter.output(buffer)
+                columnar.output(buffer)
                 self.assertEqual(buffer.getvalue(), expect)
 
 

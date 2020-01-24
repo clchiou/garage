@@ -12,10 +12,11 @@ import g1.scripts.parts
 from g1.apps import bases as apps_bases
 from g1.bases import argparses
 from g1.bases.assertions import ASSERT
+from g1.texts import columns
+from g1.texts.columns import argparses as columns_argparses
 
 from . import bases
 from . import builders
-from . import formatters
 from . import images
 from . import models
 from . import pods
@@ -54,14 +55,14 @@ def cmd_images(args):
     elif args.command == 'import':
         images.cmd_import(args.path, tag=args.tag)
     elif args.command == 'list':
-        formatter = formatters.Formatter(
-            **bases.make_formatter_kwargs(args),
+        columnar = columns.Columnar(
+            **columns_argparses.make_columnar_kwargs(args),
             stringifiers=images.IMAGE_LIST_STRINGIFIERS,
         )
         for row in images.cmd_list():
-            formatter.append(row)
-        formatter.sort(lambda row: (row['name'], row['version'], row['id']))
-        formatter.output(sys.stdout)
+            columnar.append(row)
+        columnar.sort(lambda row: (row['name'], row['version'], row['id']))
+        columnar.output(sys.stdout)
     elif args.command == 'tag':
         images.cmd_tag(
             **images.make_select_image_kwargs(args),
@@ -96,23 +97,23 @@ def cmd_images(args):
 @argparses.end
 def cmd_pods(args):
     if args.command == 'list':
-        formatter = formatters.Formatter(
-            **bases.make_formatter_kwargs(args),
+        columnar = columns.Columnar(
+            **columns_argparses.make_columnar_kwargs(args),
             stringifiers=pods.POD_LIST_STRINGIFIERS,
         )
         for row in pods.cmd_list():
-            formatter.append(row)
-        formatter.sort(lambda row: (row['name'], row['version'], row['id']))
-        formatter.output(sys.stdout)
+            columnar.append(row)
+        columnar.sort(lambda row: (row['name'], row['version'], row['id']))
+        columnar.output(sys.stdout)
     elif args.command == 'show':
-        formatter = formatters.Formatter(
-            **bases.make_formatter_kwargs(args),
+        columnar = columns.Columnar(
+            **columns_argparses.make_columnar_kwargs(args),
             stringifiers=pods.POD_SHOW_STRINGIFIERS,
         )
         for row in pods.cmd_show(args.id):
-            formatter.append(row)
-        formatter.sort(lambda row: row['name'])
-        formatter.output(sys.stdout)
+            columnar.append(row)
+        columnar.sort(lambda row: row['name'])
+        columnar.output(sys.stdout)
     elif args.command == 'cat-config':
         pods.cmd_cat_config(args.id, sys.stdout.buffer)
     elif args.command == 'generate-id':
@@ -167,16 +168,16 @@ def cmd_xars(args):
             exec_relpath=args.exec,
         )
     elif args.command == 'list':
-        formatter = formatters.Formatter(
-            **bases.make_formatter_kwargs(args),
+        columnar = columns.Columnar(
+            **columns_argparses.make_columnar_kwargs(args),
             stringifiers=xars.XAR_LIST_STRINGIFIERS,
         )
         for row in xars.cmd_list():
-            formatter.append(row)
-        formatter.sort(
+            columnar.append(row)
+        columnar.sort(
             lambda row: (row['xar'], row['name'], row['version'], row['id'])
         )
-        formatter.output(sys.stdout)
+        columnar.output(sys.stdout)
     elif args.command == 'exec':
         xars.cmd_exec(args.name, args.args)
     elif args.command == 'uninstall':

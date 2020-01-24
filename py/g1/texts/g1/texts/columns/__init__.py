@@ -1,14 +1,17 @@
 """Format and output columns of data."""
 
 __all__ = [
+    'Columnar',
     'Formats',
-    'Formatter',
 ]
 
 import csv
 import enum
+import logging
 
 from g1.bases.assertions import ASSERT
+
+logging.getLogger(__name__).addHandler(logging.NullHandler())
 
 
 class Formats(enum.Enum):
@@ -16,7 +19,7 @@ class Formats(enum.Enum):
     TEXT = enum.auto()
 
 
-class Formatter:
+class Columnar:
 
     def __init__(
         self,

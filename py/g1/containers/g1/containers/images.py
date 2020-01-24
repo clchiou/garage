@@ -83,6 +83,7 @@ from g1.bases import datetimes
 from g1.bases import functionals
 from g1.bases.assertions import ASSERT
 from g1.texts import jsons
+from g1.texts.columns import argparses as columns_argparses
 
 from . import bases
 from . import models
@@ -275,7 +276,9 @@ ASSERT.issuperset(_IMAGE_LIST_COLUMNS, IMAGE_LIST_STRINGIFIERS)
 
 
 @argparses.begin_parser('list', **argparses.make_help_kwargs('list images'))
-@bases.formatter_arguments(_IMAGE_LIST_COLUMNS, _IMAGE_LIST_DEFAULT_COLUMNS)
+@columns_argparses.columnar_arguments(
+    _IMAGE_LIST_COLUMNS, _IMAGE_LIST_DEFAULT_COLUMNS
+)
 @argparses.end
 def cmd_list():
     # Don't need root privilege here.

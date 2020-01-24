@@ -55,6 +55,7 @@ from g1.bases import argparses
 from g1.bases import datetimes
 from g1.bases.assertions import ASSERT
 from g1.texts import jsons
+from g1.texts.columns import argparses as columns_argparses
 
 from . import bases
 from . import builders
@@ -134,7 +135,9 @@ ASSERT.issuperset(_POD_LIST_COLUMNS, POD_LIST_STRINGIFIERS)
 
 
 @argparses.begin_parser('list', **argparses.make_help_kwargs('list pods'))
-@bases.formatter_arguments(_POD_LIST_COLUMNS, _POD_LIST_DEFAULT_COLUMNS)
+@columns_argparses.columnar_arguments(
+    _POD_LIST_COLUMNS, _POD_LIST_DEFAULT_COLUMNS
+)
 @argparses.end
 def cmd_list():
     # Don't need root privilege here.
@@ -174,7 +177,9 @@ ASSERT.issuperset(_POD_SHOW_COLUMNS, POD_SHOW_STRINGIFIERS)
 @argparses.begin_parser(
     'show', **argparses.make_help_kwargs('show pod status')
 )
-@bases.formatter_arguments(_POD_SHOW_COLUMNS, _POD_SHOW_DEFAULT_COLUMNS)
+@columns_argparses.columnar_arguments(
+    _POD_SHOW_COLUMNS, _POD_SHOW_DEFAULT_COLUMNS
+)
 @_select_pod_arguments(positional=True)
 @argparses.end
 def cmd_show(pod_id):

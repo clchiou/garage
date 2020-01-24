@@ -9,6 +9,7 @@ setup(
     },
     packages=[
         'g1.texts',
+        'g1.texts.columns',
     ],
     install_requires=[
         'g1.bases',
