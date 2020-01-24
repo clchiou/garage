@@ -38,12 +38,6 @@ PARAMS = parameters.define(
             doc='set application group',
             type=str,
         ),
-        use_root_privilege=parameters.Parameter(
-            True,
-            doc='whether to check the process has root privilege '
-            '(you may set this to false while testing)',
-            type=bool,
-        ),
         xar_runner_script_directory=parameters.Parameter(
             '/usr/local/bin',
             doc='path to the xar runner script directory',
@@ -91,18 +85,12 @@ def make_grace_period_kwargs(args):
 
 def chown_app(path):
     """Change owner to root and group to the application group."""
-    if PARAMS.use_root_privilege.get():
-        shutil.chown(
-            path,
-            'root',
-            ASSERT.true(PARAMS.application_group.get()),
-        )
+    shutil.chown(path, 'root', ASSERT.true(PARAMS.application_group.get()))
 
 
 def chown_root(path):
     """Change owner and group to root."""
-    if PARAMS.use_root_privilege.get():
-        shutil.chown(path, 'root', 'root')
+    shutil.chown(path, 'root', 'root')
 
 
 def make_dir(path, mode, chown, *, parents=False, exist_ok=True):
