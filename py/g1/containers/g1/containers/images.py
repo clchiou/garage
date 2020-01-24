@@ -82,6 +82,7 @@ from g1 import scripts
 from g1.bases import argparses
 from g1.bases import datetimes
 from g1.bases import functionals
+from g1.bases import oses
 from g1.bases.assertions import ASSERT
 from g1.files import locks
 from g1.texts import jsons
@@ -177,7 +178,7 @@ def cmd_init():
     scripts.assert_command_exist('tar')
     # For build_image.
     scripts.check_command_exist('tar')
-    bases.assert_root_privilege()
+    oses.assert_root_privilege()
     bases.make_dir(_get_image_repo_path(), 0o750, bases.chown_app)
     bases.make_dir(_get_tags_path(), 0o750, bases.chown_app)
     bases.make_dir(_get_tmp_path(), 0o750, bases.chown_app)
@@ -223,7 +224,7 @@ def cmd_import(image_archive_path, *, tag=None):
     For images having the same name and version, it is an error to have
     different IDs.
     """
-    bases.assert_root_privilege()
+    oses.assert_root_privilege()
     ASSERT.predicate(image_archive_path, Path.is_file)
     with _using_tmp() as tmp_path:
         image_id = _extract_image(image_archive_path, tmp_path)
@@ -309,7 +310,7 @@ def cmd_list():
 )
 @argparses.end
 def cmd_tag(*, image_id=None, name=None, version=None, tag=None, new_tag):
-    bases.assert_root_privilege()
+    oses.assert_root_privilege()
     with locks.acquiring_exclusive(_get_tags_path()):
         with locks.acquiring_shared(get_trees_path()):
             image_dir_path = ASSERT.not_none(
@@ -328,7 +329,7 @@ def cmd_tag(*, image_id=None, name=None, version=None, tag=None, new_tag):
 )
 @argparses.end
 def cmd_remove_tag(tag):
-    bases.assert_root_privilege()
+    oses.assert_root_privilege()
     with locks.acquiring_exclusive(_get_tags_path()):
         try:
             _get_tag_path(tag).unlink()
@@ -344,7 +345,7 @@ def cmd_remove_tag(tag):
 @argparses.end
 def cmd_remove(*, image_id=None, name=None, version=None, tag=None):
     """Remove an image, or no-op if image does not exist."""
-    bases.assert_root_privilege()
+    oses.assert_root_privilege()
     with locks.acquiring_exclusive(_get_tags_path()), \
         locks.acquiring_exclusive(get_trees_path()):
         image_dir_path = _find_image_dir_path(image_id, name, version, tag)
@@ -364,7 +365,7 @@ def cmd_remove(*, image_id=None, name=None, version=None, tag=None):
 @bases.grace_period_arguments
 @argparses.end
 def cmd_cleanup(expiration):
-    bases.assert_root_privilege()
+    oses.assert_root_privilege()
     with locks.acquiring_exclusive(_get_tmp_path()):
         _cleanup_tmp()
     with locks.acquiring_exclusive(_get_tags_path()), \
@@ -545,7 +546,7 @@ def _extract_image(archive_path, dst_dir_path):
     hasher = hashlib.sha256()
     # If we are running as root, we can and should preserve the
     # original owners and permissions.
-    i_am_root = bases.PARAMS.use_root_privilege.get()
+    i_am_root = oses.has_root_privilege()
     # TODO: Should we use stdlib's tarfile rather than calling tar?
     with scripts.using_stdin(subprocess.PIPE), scripts.popen([
         'tar',

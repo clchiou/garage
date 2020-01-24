@@ -5,8 +5,6 @@ __all__ = [
     'grace_period_arguments',
     'make_grace_period_kwargs',
     # App-specific helpers.
-    'assert_group_exist',
-    'assert_root_privilege',
     'chown_app',
     'chown_root',
     'make_dir',
@@ -14,9 +12,7 @@ __all__ = [
     'setup_file',
 ]
 
-import grp
 import logging
-import os
 import shutil
 from pathlib import Path
 
@@ -24,6 +20,7 @@ from g1 import scripts
 from g1.apps import parameters
 from g1.bases import argparses
 from g1.bases import datetimes
+from g1.bases import oses
 from g1.bases.assertions import ASSERT
 
 LOG = logging.getLogger(__name__)
@@ -60,10 +57,10 @@ REPO_LAYOUT_VERSION = 'v1'
 
 def cmd_init():
     """Initialize the repository."""
-    assert_group_exist(PARAMS.application_group.get())
+    oses.assert_group_exist(PARAMS.application_group.get())
     # For rsync_copy.
     scripts.check_command_exist('rsync')
-    assert_root_privilege()
+    oses.assert_root_privilege()
     make_dir(get_repo_path(), 0o750, chown_app, parents=True)
 
 
@@ -90,20 +87,6 @@ def make_grace_period_kwargs(args):
 #
 # App-specific helpers.
 #
-
-
-def assert_group_exist(name):
-    # Assume it's unit testing if not use_root_privilege.
-    if PARAMS.use_root_privilege.get():
-        try:
-            grp.getgrnam(name)
-        except KeyError:
-            raise AssertionError('expect group: %s' % name) from None
-
-
-def assert_root_privilege():
-    if PARAMS.use_root_privilege.get():
-        ASSERT.equal(os.geteuid(), 0)
 
 
 def chown_app(path):

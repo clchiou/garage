@@ -31,6 +31,7 @@ import g1.files
 from g1 import scripts
 from g1.bases import argparses
 from g1.bases import datetimes
+from g1.bases import oses
 from g1.bases.assertions import ASSERT
 
 from . import bases
@@ -60,7 +61,7 @@ def cmd_init():
 @images.image_output_arguments
 @argparses.end
 def cmd_build_base_image(name, version, base_image_path, prune_stash_path):
-    bases.assert_root_privilege()
+    oses.assert_root_privilege()
     LOG.info('create base image: %s', base_image_path)
     images.build_image(
         images.ImageMetadata(name=name, version=version),
@@ -84,7 +85,7 @@ def _create_image_rootfs(image_rootfs_path, prune_stash_path):
 @argparses.end
 def cmd_prepare_base_rootfs(image_rootfs_path):
     ASSERT.not_predicate(image_rootfs_path, Path.exists)
-    bases.assert_root_privilege()
+    oses.assert_root_privilege()
     scripts.run([
         'debootstrap',
         '--variant=minbase',
@@ -115,7 +116,7 @@ def cmd_prepare_base_rootfs(image_rootfs_path):
 @argparses.end
 def cmd_setup_base_rootfs(image_rootfs_path, prune_stash_path):
     ASSERT.predicate(image_rootfs_path, Path.is_dir)
-    bases.assert_root_privilege()
+    oses.assert_root_privilege()
     # Remove unneeded files.
     for dir_relpath in (
         'usr/share/doc',

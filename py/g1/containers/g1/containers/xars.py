@@ -37,6 +37,7 @@ import re
 from pathlib import Path
 
 import g1.files
+from g1.bases import oses
 from g1.bases import argparses
 from g1.bases.assertions import ASSERT
 from g1.files import locks
@@ -75,7 +76,7 @@ _select_xar_arguments = argparses.argument(
 
 
 def cmd_init():
-    bases.assert_root_privilege()
+    oses.assert_root_privilege()
     ASSERT.predicate(_get_xar_runner_script_dir_path(), Path.is_dir)
     bases.make_dir(_get_xars_repo_path(), 0o750, bases.chown_app)
 
@@ -99,7 +100,7 @@ def cmd_install(
     xar_name,
     exec_relpath,
 ):
-    bases.assert_root_privilege()
+    oses.assert_root_privilege()
     with _locking_top_dirs():
         if image_id is None:
             image_id = ASSERT.not_none(
@@ -203,7 +204,7 @@ def cmd_exec(xar_name, xar_args):
 @_select_xar_arguments
 @argparses.end
 def cmd_uninstall(xar_name):
-    bases.assert_root_privilege()
+    oses.assert_root_privilege()
     with _locking_top_dirs():
         xar_dir_path = _get_xar_dir_path(xar_name)
         if not xar_dir_path.exists():
@@ -218,7 +219,7 @@ def cmd_uninstall(xar_name):
 )
 @argparses.end
 def cmd_cleanup():
-    bases.assert_root_privilege()
+    oses.assert_root_privilege()
     with locks.acquiring_exclusive(_get_xars_repo_path()):
         for xar_dir_path in _get_xars_repo_path().iterdir():
             if not xar_dir_path.is_dir():

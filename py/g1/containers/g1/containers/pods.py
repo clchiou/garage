@@ -54,6 +54,7 @@ import g1.files
 from g1 import scripts
 from g1.bases import argparses
 from g1.bases import datetimes
+from g1.bases import oses
 from g1.bases.assertions import ASSERT
 from g1.files import locks
 from g1.texts import jsons
@@ -105,7 +106,7 @@ def cmd_init():
     scripts.assert_command_exist('umount')
     # Use systemd-nspawn of the host system for now.
     scripts.assert_command_exist('systemd-nspawn')
-    bases.assert_root_privilege()
+    oses.assert_root_privilege()
     bases.make_dir(_get_pod_repo_path(), 0o750, bases.chown_app)
     bases.make_dir(_get_active_path(), 0o750, bases.chown_app)
     bases.make_dir(_get_graveyard_path(), 0o750, bases.chown_app)
@@ -223,7 +224,7 @@ def cmd_generate_id(output):
 @_provide_config_arguments
 @argparses.end
 def cmd_run(pod_id, config_path, *, debug=False):
-    bases.assert_root_privilege()
+    oses.assert_root_privilege()
     cmd_prepare(pod_id, config_path)
     _run_pod(pod_id, debug=debug)
 
@@ -236,7 +237,7 @@ def cmd_run(pod_id, config_path, *, debug=False):
 @argparses.end
 def cmd_prepare(pod_id, config_path):
     """Prepare a pod directory, or no-op if pod exists."""
-    bases.assert_root_privilege()
+    oses.assert_root_privilege()
     # Make sure that it is safe to create a pod with this ID.
     ASSERT.not_equal(_pod_id_to_machine_id(pod_id), _read_host_machine_id())
     # Check before really preparing the pod.
@@ -263,7 +264,7 @@ def cmd_prepare(pod_id, config_path):
 @_select_pod_arguments(positional=True)
 @argparses.end
 def cmd_run_prepared(pod_id, *, debug=False):
-    bases.assert_root_privilege()
+    oses.assert_root_privilege()
     pod_dir_path = ASSERT.predicate(_get_pod_dir_path(pod_id), Path.is_dir)
     _lock_pod_dir_for_exec(pod_dir_path)
     if g1.files.is_empty_dir(_get_rootfs_path(pod_dir_path)):
@@ -293,7 +294,7 @@ def cmd_run_prepared(pod_id, *, debug=False):
 @argparses.argument('output', type=Path, help='provide output path')
 @argparses.end
 def cmd_export_overlay(pod_id, output_path, filter_patterns, *, debug=False):
-    bases.assert_root_privilege()
+    oses.assert_root_privilege()
     ASSERT.not_predicate(output_path, g1.files.lexists)
     # Exclude pod-generated files.
     # TODO: Right now we hard-code the list, but this is fragile.
@@ -332,7 +333,7 @@ def cmd_export_overlay(pod_id, output_path, filter_patterns, *, debug=False):
 @argparses.end
 def cmd_remove(pod_id):
     """Remove a pod, or no-op if pod does not exist."""
-    bases.assert_root_privilege()
+    oses.assert_root_privilege()
     pod_dir_path = _get_pod_dir_path(pod_id)
     with locks.acquiring_exclusive(_get_active_path()):
         if not pod_dir_path.is_dir():
@@ -357,7 +358,7 @@ def cmd_remove(pod_id):
 @bases.grace_period_arguments
 @argparses.end
 def cmd_cleanup(expiration):
-    bases.assert_root_privilege()
+    oses.assert_root_privilege()
     _cleanup_active(expiration)
     for top_dir_path in (
         _get_tmp_path(),
