@@ -3,10 +3,11 @@ __all__ = [
 ]
 
 import logging
+import shutil
 from pathlib import Path
 
-from g1 import scripts
 from g1.bases import argparses
+from g1.bases import oses
 from g1.bases.assertions import ASSERT
 from g1.containers import bases as ctr_bases
 from g1.containers import scripts as ctr_scripts
@@ -27,6 +28,7 @@ LOG = logging.getLogger(__name__)
 )
 @argparses.end
 def cmd_install(args):
+    oses.assert_root_privilege()
     ASSERT.predicate(args.bundle, Path.is_dir)
     instruction = jsons.load_dataobject(
         models.XarDeployInstruction,
@@ -34,14 +36,13 @@ def cmd_install(args):
     )
     if instruction.is_zipapp():
         LOG.info('install zipapp: %s', args.bundle)
-        with scripts.using_sudo():
-            scripts.cp(
-                ASSERT.predicate(
-                    args.bundle / models.XAR_BUNDLE_ZIPAPP_FILENAME,
-                    Path.is_file,
-                ),
-                _get_zipapp_target_path(instruction.name),
-            )
+        shutil.copy(
+            ASSERT.predicate(
+                args.bundle / models.XAR_BUNDLE_ZIPAPP_FILENAME,
+                Path.is_file,
+            ),
+            bases.get_zipapp_target_path(instruction.name),
+        )
     else:
         LOG.info('install xar: %s', args.bundle)
         ctr_scripts.ctr_import_image(
@@ -64,9 +65,9 @@ def cmd_install(args):
 @argparses.argument('zipapp', help='provide zipapp name')
 @argparses.end
 def cmd_uninstall(args):
+    oses.assert_root_privilege()
     LOG.info('uninstall zipapp: %s', args.zipapp)
-    with scripts.using_sudo():
-        scripts.rm(_get_zipapp_target_path(args.zipapp))
+    _get_zipapp_target_path(args.zipapp).unlink()
     return 0
 
 
