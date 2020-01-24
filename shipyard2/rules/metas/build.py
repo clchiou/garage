@@ -15,6 +15,7 @@ import foreman
  .depend('//py/g1/http/servers:build')
  .depend('//py/g1/messaging:build')
  .depend('//py/g1/networks/servers:build')
+ .depend('//py/g1/operations:build')
  .depend('//py/g1/scripts:build')
  .depend('//py/g1/texts:build')
  .depend('//py/g1/third-party/capnp:build')
