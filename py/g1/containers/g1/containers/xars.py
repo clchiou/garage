@@ -36,6 +36,7 @@ import os
 import re
 from pathlib import Path
 
+import g1.files
 from g1.bases import argparses
 from g1.bases.assertions import ASSERT
 from g1.files import locks
@@ -151,7 +152,7 @@ def _list_xar_dir(xar_dir_path):
     for image_id in _iter_ref_image_ids(xar_dir_path):
         metadata = images.read_metadata(images.get_image_dir_path(image_id))
         exec_path = _get_exec_path(xar_dir_path)
-        if bases.lexists(exec_path):
+        if g1.files.lexists(exec_path):
             exec_relpath = _get_exec_relpath(exec_path.resolve(), image_id)
         else:
             exec_relpath = None
@@ -363,8 +364,8 @@ def _update_xar_dir(xar_dir_path, image_id, exec_relpath):
 def _uninstall_xar_dir(xar_dir_path):
     LOG.info('remove xar: %s', xar_dir_path)
     xar_name = _get_name(xar_dir_path)
-    bases.delete_file(_get_xar_runner_script_path(xar_name))
-    bases.delete_file(_get_exec_path(xar_dir_path))
+    g1.files.remove(_get_xar_runner_script_path(xar_name))
+    g1.files.remove(_get_exec_path(xar_dir_path))
 
 
 def _cleanup_xar_dir(xar_dir_path):
@@ -386,8 +387,8 @@ def _cleanup_xar_dir(xar_dir_path):
 def _remove_xar_dir(xar_dir_path):
     LOG.info('remove xar: %s', xar_dir_path)
     xar_name = _get_name(xar_dir_path)
-    bases.delete_file(_get_xar_runner_script_path(xar_name))
-    bases.delete_file(xar_dir_path)
+    g1.files.remove(_get_xar_runner_script_path(xar_name))
+    g1.files.remove(xar_dir_path)
 
 
 #

@@ -4,10 +4,6 @@ __all__ = [
     # Command-line arguments.
     'grace_period_arguments',
     'make_grace_period_kwargs',
-    # Extension to Path object.
-    'delete_file',
-    'is_empty_dir',
-    'lexists',
     # App-specific helpers.
     'assert_group_exist',
     'assert_program_exist',
@@ -91,48 +87,6 @@ grace_period_arguments = argparses.argument(
 
 def make_grace_period_kwargs(args):
     return {'expiration': datetimes.utcnow() - args.grace_period}
-
-
-#
-# Extension to Path object.
-#
-
-
-def is_empty_dir(path):
-    """True on empty directory."""
-    try:
-        next(path.iterdir())
-    except StopIteration:
-        return True
-    except (FileNotFoundError, NotADirectoryError):
-        return False
-    else:
-        return False
-
-
-def lexists(path):
-    """True if a file or symlink exists.
-
-    ``lexists`` differs from ``Path.exists`` when path points to a
-    broken but existent symlink: The former returns true but the latter
-    returns false.
-    """
-    try:
-        path.lstat()
-    except FileNotFoundError:
-        return False
-    else:
-        return True
-
-
-def delete_file(path):
-    """Delete a file, handling symlink to directory correctly."""
-    if not lexists(path):
-        pass
-    elif not path.is_dir() or path.is_symlink():
-        path.unlink()
-    else:
-        shutil.rmtree(path)
 
 
 #

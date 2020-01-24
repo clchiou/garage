@@ -50,6 +50,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+import g1.files
 from g1 import scripts
 from g1.bases import argparses
 from g1.bases import datetimes
@@ -239,7 +240,7 @@ def cmd_prepare(pod_id, config_path):
     # Make sure that it is safe to create a pod with this ID.
     ASSERT.not_equal(_pod_id_to_machine_id(pod_id), _read_host_machine_id())
     # Check before really preparing the pod.
-    if bases.lexists(_get_pod_dir_path(pod_id)):
+    if g1.files.lexists(_get_pod_dir_path(pod_id)):
         LOG.info('skip duplicated pod: %s', pod_id)
         return
     config = jsons.load_dataobject(models.PodConfig, config_path)
@@ -265,7 +266,7 @@ def cmd_run_prepared(pod_id, *, debug=False):
     bases.assert_root_privilege()
     pod_dir_path = ASSERT.predicate(_get_pod_dir_path(pod_id), Path.is_dir)
     _lock_pod_dir_for_exec(pod_dir_path)
-    if bases.is_empty_dir(_get_rootfs_path(pod_dir_path)):
+    if g1.files.is_empty_dir(_get_rootfs_path(pod_dir_path)):
         LOG.warning('overlay is not mounted; system probably rebooted')
         _mount_overlay(pod_dir_path, _read_config(pod_dir_path))
     _run_pod(pod_id, debug=debug)
@@ -293,7 +294,7 @@ def cmd_run_prepared(pod_id, *, debug=False):
 @argparses.end
 def cmd_export_overlay(pod_id, output_path, filter_patterns, *, debug=False):
     bases.assert_root_privilege()
-    ASSERT.not_predicate(output_path, bases.lexists)
+    ASSERT.not_predicate(output_path, g1.files.lexists)
     # Exclude pod-generated files.
     # TODO: Right now we hard-code the list, but this is fragile.
     filter_args = [
@@ -529,7 +530,7 @@ def _iter_pod_dir_paths():
 
 def _maybe_move_pod_dir_to_active(dir_path, pod_id):
     pod_dir_path = _get_pod_dir_path(pod_id)
-    if bases.lexists(pod_dir_path):
+    if g1.files.lexists(pod_dir_path):
         return False
     else:
         dir_path.rename(pod_dir_path)
@@ -538,14 +539,14 @@ def _maybe_move_pod_dir_to_active(dir_path, pod_id):
 
 def _move_pod_dir_to_graveyard(dir_path):
     dst_path = _get_graveyard_path() / dir_path.name
-    if bases.lexists(dst_path):
+    if g1.files.lexists(dst_path):
         dst_path.with_name('%s_%s' % (dst_path.name, models.generate_pod_id()))
         LOG.debug(
             'rename duplicated pod directory under graveyard: %s -> %s',
             dir_path.name,
             dst_path.name,
         )
-        ASSERT.not_predicate(dst_path, bases.lexists)
+        ASSERT.not_predicate(dst_path, g1.files.lexists)
     dir_path.rename(dst_path)
     return dst_path
 
@@ -639,7 +640,7 @@ def _umount_overlay(pod_dir_path):
     rootfs_path = _get_rootfs_path(pod_dir_path)
     _umount(rootfs_path)
     # Just a sanity check that rootfs is really unmounted.
-    ASSERT.predicate(rootfs_path, bases.is_empty_dir)
+    ASSERT.predicate(rootfs_path, g1.files.is_empty_dir)
 
 
 def _generate_hostname(rootfs_path, pod_id):

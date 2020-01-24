@@ -77,6 +77,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+import g1.files
 from g1 import scripts
 from g1.bases import argparses
 from g1.bases import datetimes
@@ -389,7 +390,7 @@ def _using_tmp():
             tmp_lock.acquire_exclusive()
         except:
             if tmp_path:
-                bases.delete_file(tmp_path)
+                g1.files.remove(tmp_path)
             if tmp_lock:
                 tmp_lock.release()
                 tmp_lock.close()
@@ -397,7 +398,7 @@ def _using_tmp():
     try:
         yield tmp_path
     finally:
-        bases.delete_file(tmp_path)
+        g1.files.remove(tmp_path)
         tmp_lock.release()
         tmp_lock.close()
 
@@ -505,7 +506,7 @@ def _cleanup_tags():
                 tag_path.unlink()
         else:
             LOG.info('remove unknown file under tags: %s', tag_path)
-            bases.delete_file(tag_path)
+            g1.files.remove(tag_path)
 
 
 #
@@ -514,7 +515,7 @@ def _cleanup_tags():
 
 
 def build_image(metadata, make_rootfs, output_path):
-    ASSERT.not_predicate(output_path, bases.lexists)
+    ASSERT.not_predicate(output_path, g1.files.lexists)
     with tempfile.TemporaryDirectory(
         dir=output_path.parent,
         prefix=output_path.name + '-',
@@ -630,7 +631,7 @@ def _find_image_dir_path(image_id, name, version, tag):
         image_dir_path = get_image_dir_path(image_id)
     else:
         tag_path = _get_tag_path(tag)
-        if not bases.lexists(tag_path):
+        if not g1.files.lexists(tag_path):
             return None
         image_dir_path = _get_image_dir_path_from_tag(tag_path)
     return image_dir_path if image_dir_path.is_dir() else None

@@ -27,6 +27,7 @@ import logging
 import re
 from pathlib import Path
 
+import g1.files
 from g1 import scripts
 from g1.bases import argparses
 from g1.bases import datetimes
@@ -128,7 +129,7 @@ def cmd_setup_base_rootfs(image_rootfs_path, prune_stash_path):
         if dir_path.is_dir():
             if prune_stash_path:
                 dst_path = ASSERT.not_predicate(
-                    prune_stash_path / dir_relpath, bases.lexists
+                    prune_stash_path / dir_relpath, g1.files.lexists
                 )
                 dst_path.mkdir(mode=0o755, parents=True, exist_ok=True)
                 _move_dir_content(dir_path, dst_path)
@@ -148,7 +149,7 @@ def cmd_setup_base_rootfs(image_rootfs_path, prune_stash_path):
         image_rootfs_path / 'run/systemd/resolve/stub-resolv.conf',
     ):
         LOG.info('remove: %s', path)
-        bases.delete_file(path)
+        g1.files.remove(path)
     # Replace certain config files.
     for path, content in (
         (image_rootfs_path / 'etc/default/locale', _LOCALE),
@@ -173,7 +174,7 @@ def cmd_setup_base_rootfs(image_rootfs_path, prune_stash_path):
             # There should have no duplicated units, right?
             ASSERT.not_in(unit_path.name, _BASE_UNITS)
             LOG.info('remove: %s', unit_path)
-            bases.delete_file(unit_path)
+            g1.files.remove(unit_path)
     ASSERT.empty(base_units)
     # Create unit files.
     for unit_dir_path, unit_files in (
@@ -264,7 +265,7 @@ def generate_unit_file(root_path, pod_name, pod_version, app):
         exec_start = app.exec
     ASSERT.not_predicate(
         _get_pod_unit_path(pod_etc_path, app),
-        bases.lexists,
+        g1.files.lexists,
     ).write_text(
         '''\
 [Unit]
@@ -289,7 +290,7 @@ ExecStopPost=/usr/sbin/pod-exit "%n"
     )
     ASSERT.not_predicate(
         _get_pod_wants_path(pod_etc_path, app),
-        bases.lexists,
+        g1.files.lexists,
     ).symlink_to(Path('..') / _get_pod_unit_filename(app))
 
 
@@ -329,7 +330,7 @@ def get_pod_app_exit_status(root_path, app):
 def _clear_dir_content(dir_path):
     LOG.info('clear directory content: %s', dir_path)
     for path in dir_path.iterdir():
-        bases.delete_file(path)
+        g1.files.remove(path)
 
 
 def _move_dir_content(src_path, dst_path):

@@ -3,7 +3,7 @@ import unittest
 import time
 from pathlib import Path
 
-from g1.containers import bases
+import g1.files
 from g1.containers import builders
 from g1.containers import models
 
@@ -72,7 +72,7 @@ class BuildersTest(fixtures.TestCaseBase):
         pod_target_wants = etc_path / 'pod.target.wants'
         pod_target_wants.mkdir()
         link_path = pod_target_wants / 'hello-world.service'
-        self.assertFalse(bases.lexists(link_path))
+        self.assertFalse(g1.files.lexists(link_path))
         unit_path = etc_path / 'hello-world.service'
         self.assertFalse(unit_path.exists())
 
@@ -87,7 +87,7 @@ class BuildersTest(fixtures.TestCaseBase):
                 group='root',
             ),
         )
-        self.assertTrue(bases.lexists(link_path))
+        self.assertTrue(g1.files.lexists(link_path))
         self.assertTrue(link_path.samefile(unit_path))
         self.assertTrue(unit_path.exists())
         self.assertEqual(

@@ -6,6 +6,7 @@ import shutil
 import time
 from pathlib import Path
 
+import g1.files
 from g1.bases import datetimes
 from g1.containers import bases
 from g1.containers import images
@@ -584,14 +585,14 @@ class ImagesTest(
         tag_path_2.symlink_to(
             images._get_tag_target(self.sample_image_dir_path)
         )
-        self.assertTrue(bases.lexists(tag_path_1))
-        self.assertTrue(bases.lexists(tag_path_2))
+        self.assertTrue(g1.files.lexists(tag_path_1))
+        self.assertTrue(g1.files.lexists(tag_path_2))
 
         self.assertTrue(
             images._maybe_remove_image_dir(self.sample_image_dir_path)
         )
-        self.assertFalse(bases.lexists(tag_path_1))
-        self.assertFalse(bases.lexists(tag_path_2))
+        self.assertFalse(g1.files.lexists(tag_path_1))
+        self.assertFalse(g1.files.lexists(tag_path_2))
 
         self.create_image_dir(self.sample_image_id)
         tag_path_1.symlink_to(
@@ -600,8 +601,8 @@ class ImagesTest(
         tag_path_2.symlink_to(
             images._get_tag_target(self.sample_image_dir_path)
         )
-        self.assertTrue(bases.lexists(tag_path_1))
-        self.assertTrue(bases.lexists(tag_path_2))
+        self.assertTrue(g1.files.lexists(tag_path_1))
+        self.assertTrue(g1.files.lexists(tag_path_2))
 
         images.add_ref(self.sample_image_id, some_path)
 
@@ -609,8 +610,8 @@ class ImagesTest(
             images._maybe_remove_image_dir(self.sample_image_dir_path)
         )
         self.assertTrue(self.sample_image_dir_path.is_dir())
-        self.assertTrue(bases.lexists(tag_path_1))
-        self.assertTrue(bases.lexists(tag_path_2))
+        self.assertTrue(g1.files.lexists(tag_path_1))
+        self.assertTrue(g1.files.lexists(tag_path_2))
 
         some_path.unlink()
 
@@ -618,8 +619,8 @@ class ImagesTest(
             images._maybe_remove_image_dir(self.sample_image_dir_path)
         )
         self.assertFalse(self.sample_image_dir_path.is_dir())
-        self.assertFalse(bases.lexists(tag_path_1))
-        self.assertFalse(bases.lexists(tag_path_2))
+        self.assertFalse(g1.files.lexists(tag_path_1))
+        self.assertFalse(g1.files.lexists(tag_path_2))
 
     #
     # Metadata.
