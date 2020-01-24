@@ -9,10 +9,10 @@ from pathlib import Path
 from g1.bases import argparses
 from g1.bases import oses
 from g1.bases.assertions import ASSERT
-from g1.containers import bases as ctr_bases
 from g1.containers import scripts as ctr_scripts
 from g1.texts import jsons
 
+from . import bases
 from . import models
 
 LOG = logging.getLogger(__name__)
@@ -67,12 +67,8 @@ def cmd_install(args):
 def cmd_uninstall(args):
     oses.assert_root_privilege()
     LOG.info('uninstall zipapp: %s', args.zipapp)
-    _get_zipapp_target_path(args.zipapp).unlink()
+    bases.get_zipapp_target_path(args.zipapp).unlink()
     return 0
-
-
-def _get_zipapp_target_path(name):
-    return Path(ctr_bases.PARAMS.xar_runner_script_directory.get()) / name
 
 
 @argparses.begin_parser('xars', **argparses.make_help_kwargs('manage xar'))
