@@ -38,6 +38,7 @@ from pathlib import Path
 
 from g1.bases import argparses
 from g1.bases.assertions import ASSERT
+from g1.files import locks
 from g1.texts.columns import argparses as columns_argparses
 
 from . import bases
@@ -154,7 +155,7 @@ def _list_xar_dir(xar_dir_path):
             exec_relpath = _get_exec_relpath(exec_path.resolve(), image_id)
         else:
             exec_relpath = None
-        active = bases.is_locked_by_other(
+        active = locks.is_locked_by_other(
             _get_ref_path(xar_dir_path, image_id)
         )
         yield {
@@ -175,14 +176,14 @@ def _list_xar_dir(xar_dir_path):
 @argparses.end
 def cmd_exec(xar_name, xar_args):
     # Don't need root privilege here.
-    with bases.acquiring_shared(_get_xars_repo_path()):
+    with locks.acquiring_shared(_get_xars_repo_path()):
         xar_dir_path = ASSERT.predicate(
             _get_xar_dir_path(xar_name), Path.is_dir
         )
         exec_abspath = ASSERT.predicate(
             _get_exec_path(xar_dir_path), Path.exists
         ).resolve()
-        lock = bases.FileLock(
+        lock = locks.FileLock(
             _get_ref_path(xar_dir_path, _get_image_id(exec_abspath)),
             close_on_exec=False,
         )
@@ -217,7 +218,7 @@ def cmd_uninstall(xar_name):
 @argparses.end
 def cmd_cleanup():
     bases.assert_root_privilege()
-    with bases.acquiring_exclusive(_get_xars_repo_path()):
+    with locks.acquiring_exclusive(_get_xars_repo_path()):
         for xar_dir_path in _get_xars_repo_path().iterdir():
             if not xar_dir_path.is_dir():
                 LOG.info('remove unknown file: %s', xar_dir_path)
@@ -299,11 +300,11 @@ def _get_xar_runner_script_path(xar_name):
 @contextlib.contextmanager
 def _locking_top_dirs(*, read_only=False):
     if read_only:
-        acquiring = bases.acquiring_shared
+        acquiring = locks.acquiring_shared
     else:
-        acquiring = bases.acquiring_exclusive
+        acquiring = locks.acquiring_exclusive
     with acquiring(_get_xars_repo_path()):
-        with bases.acquiring_shared(images.get_trees_path()):
+        with locks.acquiring_shared(images.get_trees_path()):
             yield
 
 
@@ -412,7 +413,7 @@ def _add_ref_image_id(xar_dir_path, image_id):
 
 def _maybe_remove_ref_image_id(xar_dir_path, image_id):
     ref_path = _get_ref_path(xar_dir_path, image_id)
-    if bases.is_locked_by_other(ref_path):
+    if locks.is_locked_by_other(ref_path):
         return False
     else:
         ref_path.unlink()

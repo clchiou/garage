@@ -10,12 +10,21 @@ from g1.bases import datetimes
 from g1.containers import bases
 from g1.containers import images
 from g1.containers import models
+from g1.files import locks
 from g1.texts import jsons
+
+try:
+    from g1.devtools.tests import filelocks
+except ImportError:
+    filelocks = None
 
 from tests import fixtures
 
 
-class ImagesTest(fixtures.TestCaseBase):
+class ImagesTest(
+    fixtures.TestCaseBase,
+    filelocks.Fixture if filelocks else object,
+):
 
     sample_image_id = '0123456789abcdef' * 4
 
@@ -227,6 +236,7 @@ class ImagesTest(fixtures.TestCaseBase):
     # Locking strategy.
     #
 
+    @unittest.skipUnless(filelocks, 'g1.tests.filelocks unavailable')
     def test_using_tmp(self):
         tmp_dir_path = images._get_tmp_path()
         self.assertTrue(self.check_shared(tmp_dir_path))
@@ -401,7 +411,7 @@ class ImagesTest(fixtures.TestCaseBase):
         (tmp_path / 'some-file').touch()
         self.assertEqual(self.list_dir(tmp_path), ['some-dir', 'some-file'])
 
-        lock = bases.FileLock(tmp_path / 'some-dir')
+        lock = locks.FileLock(tmp_path / 'some-dir')
         try:
             lock.acquire_shared()
             images._cleanup_tmp()

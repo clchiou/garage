@@ -8,10 +8,18 @@ from g1.containers import images
 from g1.containers import xars
 from g1.texts import jsons
 
+try:
+    from g1.devtools.tests import filelocks
+except ImportError:
+    filelocks = None
+
 from tests import fixtures
 
 
-class XarsTest(fixtures.TestCaseBase):
+class XarsTest(
+    fixtures.TestCaseBase,
+    filelocks.Fixture if filelocks else object,
+):
 
     sample_xar_name = 'foo.sh'
 
@@ -162,6 +170,7 @@ class XarsTest(fixtures.TestCaseBase):
             }],
         )
 
+    @unittest.skipUnless(filelocks, 'g1.tests.filelocks unavailable')
     @unittest.mock.patch(xars.__name__ + '.os')
     def test_cmd_exec(self, os_mock):
         with self.assertRaisesRegex(AssertionError, r'expect.*is_dir.*foo.sh'):
@@ -188,6 +197,7 @@ class XarsTest(fixtures.TestCaseBase):
         os_mock.execv.assert_not_called()
         os_mock.execv.reset_mock()
 
+    @unittest.skipUnless(filelocks, 'g1.tests.filelocks unavailable')
     def test_cmd_uninstall(self):
         self.assertEqual(self.list_xar_dir_paths(), [])
 
@@ -216,6 +226,7 @@ class XarsTest(fixtures.TestCaseBase):
         self.assertEqual(self.list_xar_dir_paths(), [])
         self.assertFalse(self.sample_xar_runner_script_path.exists())
 
+    @unittest.skipUnless(filelocks, 'g1.tests.filelocks unavailable')
     def test_cmd_cleanup(self):
         self.assertEqual(self.list_xar_dir_paths(), [])
 
@@ -432,6 +443,7 @@ class XarsTest(fixtures.TestCaseBase):
     # Dependent images.
     #
 
+    @unittest.skipUnless(filelocks, 'g1.tests.filelocks unavailable')
     def test_ref_image_ids(self):
         image_id_1 = self.make_image_id(1)
         self.create_image_dir(

@@ -22,6 +22,7 @@ setup(
     extras_require={
         'apps': [
             'g1.apps',
+            'g1.files',
             'g1.scripts[parts]',
             'g1.texts',
         ],

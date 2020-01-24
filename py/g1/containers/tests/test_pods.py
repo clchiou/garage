@@ -11,12 +11,21 @@ from g1.containers import builders
 from g1.containers import images
 from g1.containers import models
 from g1.containers import pods
+from g1.files import locks
 from g1.texts import jsons
+
+try:
+    from g1.devtools.tests import filelocks
+except ImportError:
+    filelocks = None
 
 from tests import fixtures
 
 
-class PodsTest(fixtures.TestCaseBase):
+class PodsTest(
+    fixtures.TestCaseBase,
+    filelocks.Fixture if filelocks else object,
+):
 
     sample_pod_id = '01234567-89ab-cdef-0123-456789abcdef'
 
@@ -154,6 +163,7 @@ class PodsTest(fixtures.TestCaseBase):
             pods._get_config_path(self.sample_pod_dir_path).read_bytes(),
         )
 
+    @unittest.skipUnless(filelocks, 'g1.tests.filelocks unavailable')
     def test_cmd_prepare(self):
         config_path = self.test_repo_path / 'sample-config'
         jsons.dump_dataobject(self.sample_config, config_path)
@@ -197,6 +207,7 @@ class PodsTest(fixtures.TestCaseBase):
         self.assertEqual(list(pods._get_graveyard_path().iterdir()), [])
         self.assertEqual(list(pods._get_tmp_path().iterdir()), [])
 
+    @unittest.skipUnless(filelocks, 'g1.tests.filelocks unavailable')
     def test_cmd_cleanup(self):
         future = datetimes.utcnow() + datetime.timedelta(days=1)
         pod_id_1 = self.make_pod_id(1)
@@ -218,6 +229,7 @@ class PodsTest(fixtures.TestCaseBase):
         self.assertEqual(self.list_graveyard(), [])
         self.assertEqual(self.list_tmp(), [])
 
+    @unittest.skipUnless(filelocks, 'g1.tests.filelocks unavailable')
     def test_cleanup_active(self):
         future = datetimes.utcnow() + datetime.timedelta(days=1)
         pod_id_1 = self.make_pod_id(1)
@@ -243,6 +255,7 @@ class PodsTest(fixtures.TestCaseBase):
     # Locking strategy.
     #
 
+    @unittest.skipUnless(filelocks, 'g1.tests.filelocks unavailable')
     def test_create_tmp_pod_dir(self):
         tmp_path = pods._create_tmp_pod_dir()
         self.assertFalse(self.check_exclusive(tmp_path))
@@ -386,7 +399,7 @@ class PodsTest(fixtures.TestCaseBase):
 
         with unittest.mock.patch(pods.__name__ + '.scripts'):
 
-            with bases.acquiring_exclusive(pods._get_pod_dir_path(pod_id_2)):
+            with locks.acquiring_exclusive(pods._get_pod_dir_path(pod_id_2)):
                 pods._cleanup_top_dir(pods._get_active_path())
             self.assertEqual(self.list_pod_dir_paths(), [pod_id_2])
 

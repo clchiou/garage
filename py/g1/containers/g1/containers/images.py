@@ -82,6 +82,7 @@ from g1.bases import argparses
 from g1.bases import datetimes
 from g1.bases import functionals
 from g1.bases.assertions import ASSERT
+from g1.files import locks
 from g1.texts import jsons
 from g1.texts.columns import argparses as columns_argparses
 
@@ -234,9 +235,9 @@ def cmd_import(image_archive_path, *, tag=None):
         with contextlib.ExitStack() as stack:
             if tag:
                 stack.enter_context(
-                    bases.acquiring_exclusive(_get_tags_path())
+                    locks.acquiring_exclusive(_get_tags_path())
                 )
-            stack.enter_context(bases.acquiring_exclusive(get_trees_path()))
+            stack.enter_context(locks.acquiring_exclusive(get_trees_path()))
             if not _maybe_import_image_dir(tmp_path, image_id):
                 return
             if tag:
@@ -282,8 +283,8 @@ ASSERT.issuperset(_IMAGE_LIST_COLUMNS, IMAGE_LIST_STRINGIFIERS)
 @argparses.end
 def cmd_list():
     # Don't need root privilege here.
-    with bases.acquiring_shared(_get_tags_path()), \
-        bases.acquiring_shared(get_trees_path()):
+    with locks.acquiring_shared(_get_tags_path()), \
+        locks.acquiring_shared(get_trees_path()):
         for image_dir_path, metadata in _iter_metadatas():
             image_id = _get_id(image_dir_path)
             last_updated = _get_last_updated(image_dir_path)
@@ -308,8 +309,8 @@ def cmd_list():
 @argparses.end
 def cmd_tag(*, image_id=None, name=None, version=None, tag=None, new_tag):
     bases.assert_root_privilege()
-    with bases.acquiring_exclusive(_get_tags_path()):
-        with bases.acquiring_shared(get_trees_path()):
+    with locks.acquiring_exclusive(_get_tags_path()):
+        with locks.acquiring_shared(get_trees_path()):
             image_dir_path = ASSERT.not_none(
                 _find_image_dir_path(image_id, name, version, tag)
             )
@@ -327,7 +328,7 @@ def cmd_tag(*, image_id=None, name=None, version=None, tag=None, new_tag):
 @argparses.end
 def cmd_remove_tag(tag):
     bases.assert_root_privilege()
-    with bases.acquiring_exclusive(_get_tags_path()):
+    with locks.acquiring_exclusive(_get_tags_path()):
         try:
             _get_tag_path(tag).unlink()
         except FileNotFoundError:
@@ -343,8 +344,8 @@ def cmd_remove_tag(tag):
 def cmd_remove(*, image_id=None, name=None, version=None, tag=None):
     """Remove an image, or no-op if image does not exist."""
     bases.assert_root_privilege()
-    with bases.acquiring_exclusive(_get_tags_path()), \
-        bases.acquiring_exclusive(get_trees_path()):
+    with locks.acquiring_exclusive(_get_tags_path()), \
+        locks.acquiring_exclusive(get_trees_path()):
         image_dir_path = _find_image_dir_path(image_id, name, version, tag)
         if image_dir_path:
             if not _maybe_remove_image_dir(image_dir_path):
@@ -363,10 +364,10 @@ def cmd_remove(*, image_id=None, name=None, version=None, tag=None):
 @argparses.end
 def cmd_cleanup(expiration):
     bases.assert_root_privilege()
-    with bases.acquiring_exclusive(_get_tmp_path()):
+    with locks.acquiring_exclusive(_get_tmp_path()):
         _cleanup_tmp()
-    with bases.acquiring_exclusive(_get_tags_path()), \
-        bases.acquiring_exclusive(get_trees_path()):
+    with locks.acquiring_exclusive(_get_tags_path()), \
+        locks.acquiring_exclusive(get_trees_path()):
         _cleanup_trees(expiration)
         _cleanup_tags()
 
@@ -381,10 +382,10 @@ def _using_tmp():
     tmp_dir_path = _get_tmp_path()
     tmp_path = None
     tmp_lock = None
-    with bases.acquiring_exclusive(tmp_dir_path):
+    with locks.acquiring_exclusive(tmp_dir_path):
         try:
             tmp_path = Path(tempfile.mkdtemp(dir=tmp_dir_path))
-            tmp_lock = bases.FileLock(tmp_path)
+            tmp_lock = locks.FileLock(tmp_path)
             tmp_lock.acquire_exclusive()
         except:
             if tmp_path:
@@ -474,7 +475,7 @@ def _cleanup_tmp():
             LOG.info('remove unknown temporary file: %s', tmp_path)
             tmp_path.unlink()
             continue
-        tmp_lock = bases.try_acquire_exclusive(tmp_path)
+        tmp_lock = locks.try_acquire_exclusive(tmp_path)
         if not tmp_lock:
             continue
         try:

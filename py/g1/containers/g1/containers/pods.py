@@ -54,6 +54,7 @@ from g1 import scripts
 from g1.bases import argparses
 from g1.bases import datetimes
 from g1.bases.assertions import ASSERT
+from g1.files import locks
 from g1.texts import jsons
 from g1.texts.columns import argparses as columns_argparses
 
@@ -141,7 +142,7 @@ ASSERT.issuperset(_POD_LIST_COLUMNS, POD_LIST_STRINGIFIERS)
 @argparses.end
 def cmd_list():
     # Don't need root privilege here.
-    with bases.acquiring_shared(_get_active_path()):
+    with locks.acquiring_shared(_get_active_path()):
         for pod_dir_path, config in _iter_configs():
             pod_status = _get_pod_status(pod_dir_path, config)
             yield {
@@ -151,7 +152,7 @@ def cmd_list():
                 # Use _iter_image_ids rather than _iter_ref_image_ids
                 # for ordered results.
                 'images': list(_iter_image_ids(config)),
-                'active': bases.is_locked_by_other(pod_dir_path),
+                'active': locks.is_locked_by_other(pod_dir_path),
                 'last-updated': _get_last_updated(pod_status),
             }
 
@@ -184,7 +185,7 @@ ASSERT.issuperset(_POD_SHOW_COLUMNS, POD_SHOW_STRINGIFIERS)
 @argparses.end
 def cmd_show(pod_id):
     # Don't need root privilege here.
-    with bases.acquiring_shared(_get_active_path()):
+    with locks.acquiring_shared(_get_active_path()):
         pod_dir_path = ASSERT.predicate(_get_pod_dir_path(pod_id), Path.is_dir)
         config = _read_config(pod_dir_path)
         pod_status = _get_pod_status(pod_dir_path, config)
@@ -245,7 +246,7 @@ def cmd_prepare(pod_id, config_path):
     tmp_path = _create_tmp_pod_dir()
     try:
         _prepare_pod_dir(tmp_path, pod_id, config)
-        with bases.acquiring_exclusive(_get_active_path()):
+        with locks.acquiring_exclusive(_get_active_path()):
             if _maybe_move_pod_dir_to_active(tmp_path, pod_id):
                 tmp_path = None
             else:
@@ -312,9 +313,9 @@ def cmd_export_overlay(pod_id, output_path, filter_patterns, *, debug=False):
     if debug:
         # Log which files are included/excluded due to filter rules.
         filter_args.append('--debug=FILTER2')
-    with bases.acquiring_exclusive(_get_active_path()):
+    with locks.acquiring_exclusive(_get_active_path()):
         pod_dir_path = ASSERT.predicate(_get_pod_dir_path(pod_id), Path.is_dir)
-        pod_dir_lock = ASSERT.true(bases.try_acquire_exclusive(pod_dir_path))
+        pod_dir_lock = ASSERT.true(locks.try_acquire_exclusive(pod_dir_path))
     try:
         upper_path = _get_upper_path(pod_dir_path)
         bases.rsync_copy(upper_path, output_path, filter_args)
@@ -332,16 +333,16 @@ def cmd_remove(pod_id):
     """Remove a pod, or no-op if pod does not exist."""
     bases.assert_root_privilege()
     pod_dir_path = _get_pod_dir_path(pod_id)
-    with bases.acquiring_exclusive(_get_active_path()):
+    with locks.acquiring_exclusive(_get_active_path()):
         if not pod_dir_path.is_dir():
             LOG.debug('pod does not exist: %s', pod_id)
             return
-        pod_dir_lock = bases.try_acquire_exclusive(pod_dir_path)
+        pod_dir_lock = locks.try_acquire_exclusive(pod_dir_path)
         if not pod_dir_lock:
             LOG.warning('pod is still active: %s', pod_id)
             return
     try:
-        with bases.acquiring_exclusive(_get_graveyard_path()):
+        with locks.acquiring_exclusive(_get_graveyard_path()):
             grave_path = _move_pod_dir_to_graveyard(pod_dir_path)
         _remove_pod_dir(grave_path)
     finally:
@@ -361,16 +362,16 @@ def cmd_cleanup(expiration):
         _get_tmp_path(),
         _get_graveyard_path(),
     ):
-        with bases.acquiring_exclusive(top_dir_path):
+        with locks.acquiring_exclusive(top_dir_path):
             _cleanup_top_dir(top_dir_path)
 
 
 def _cleanup_active(expiration):
     LOG.info('remove pods before: %s', expiration)
-    with bases.acquiring_exclusive(_get_active_path()):
+    with locks.acquiring_exclusive(_get_active_path()):
         for pod_dir_path, config in _iter_configs():
             pod_id = _get_id(pod_dir_path)
-            pod_dir_lock = bases.try_acquire_exclusive(pod_dir_path)
+            pod_dir_lock = locks.try_acquire_exclusive(pod_dir_path)
             if not pod_dir_lock:
                 LOG.debug('pod is still active: %s', pod_id)
                 continue
@@ -383,7 +384,7 @@ def _cleanup_active(expiration):
                         _get_config_path(pod_dir_path).stat().st_mtime
                     )
                 if last_updated < expiration:
-                    with bases.acquiring_exclusive(_get_graveyard_path()):
+                    with locks.acquiring_exclusive(_get_graveyard_path()):
                         LOG.info('clean up pod: %s', pod_id)
                         _move_pod_dir_to_graveyard(pod_dir_path)
             finally:
@@ -402,7 +403,7 @@ def _create_tmp_pod_dir():
     NOTE: This lock is not released/close on exec.
     """
     tmp_dir_path = _get_tmp_path()
-    with bases.acquiring_exclusive(tmp_dir_path):
+    with locks.acquiring_exclusive(tmp_dir_path):
         tmp_path = Path(tempfile.mkdtemp(dir=tmp_dir_path))
         try:
             bases.setup_file(tmp_path, 0o750, bases.chown_app)
@@ -418,7 +419,7 @@ def _lock_pod_dir_for_exec(pod_dir_path):
 
     NOTE: This lock is not released/close on exec.
     """
-    pod_dir_lock = bases.FileLock(pod_dir_path, close_on_exec=False)
+    pod_dir_lock = locks.FileLock(pod_dir_path, close_on_exec=False)
     pod_dir_lock.acquire_exclusive()
 
 
@@ -503,7 +504,7 @@ def _cleanup_top_dir(top_dir_path):
             LOG.info('remove unknown file: %s', path)
             path.unlink()
             continue
-        lock = bases.try_acquire_exclusive(path)
+        lock = locks.try_acquire_exclusive(path)
         if not lock:
             continue
         try:
@@ -590,7 +591,7 @@ def _pod_dir_create_orig_config(pod_dir_path, config):
 def _remove_pod_dir(pod_dir_path):
     LOG.info('remove pod directory: %s', pod_dir_path)
     _umount_overlay(pod_dir_path)
-    with bases.acquiring_shared(images.get_trees_path()):
+    with locks.acquiring_shared(images.get_trees_path()):
         for ref_image_id in _iter_ref_image_ids(pod_dir_path):
             images.touch(ref_image_id)
     shutil.rmtree(pod_dir_path)
@@ -769,7 +770,7 @@ def _iter_image_ids(config):
 
 def _add_ref_image_ids(pod_dir_path, config):
     deps_path = _get_deps_path(pod_dir_path)
-    with bases.acquiring_shared(images.get_trees_path()):
+    with locks.acquiring_shared(images.get_trees_path()):
         # Replace pod config with resolved image IDs because tags may
         # change over time.
         new_images = []
