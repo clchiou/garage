@@ -17,27 +17,21 @@ __all__ = [
 
 import csv
 import logging
-import shutil
 
 from g1 import scripts
 from g1.bases.assertions import ASSERT
 
-# Look up `ctr` because sudo does not search into custom paths.
-_CTR = None
 _VERBOSE = None
 
 
 def ctr(args):
-    global _CTR, _VERBOSE
-    if _CTR is None:
-        _CTR = ASSERT.not_none(shutil.which('ctr'))
+    global _VERBOSE
     if _VERBOSE is None:
         if logging.getLogger().isEnabledFor(logging.DEBUG):
             _VERBOSE = ('--verbose', )
         else:
             _VERBOSE = ()
-    with scripts.using_sudo():
-        return scripts.run([_CTR, *_VERBOSE, *args])
+    return scripts.run(['ctr', *_VERBOSE, *args])
 
 
 def ctr_prepare_pod(pod_id, config_path):

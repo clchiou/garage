@@ -43,8 +43,9 @@ def base_build(parameters):
         _build_base(stack, version, image_paths[0], image_paths[1])
     for image_path in image_paths:
         utils.chown(image_path)
-    for image_path in image_paths:
-        ctr_scripts.ctr_import_image(image_path)
+    with scripts.using_sudo():
+        for image_path in image_paths:
+            ctr_scripts.ctr_import_image(image_path)
 
 
 def _build_base(stack, version, base_path, base_builder_path):
@@ -54,7 +55,8 @@ def _build_base(stack, version, base_path, base_builder_path):
     )
     LOG.info('generate base and base-builder under: %s', tempdir_path)
     base_builder_rootfs_path = Path(tempdir_path) / 'base-builder'
-    stack.callback(utils.sudo_rm, base_builder_rootfs_path)
+    stack.enter_context(scripts.using_sudo())
+    stack.callback(scripts.rm, base_builder_rootfs_path, recursive=True)
     ctr_scripts.ctr([
         'images',
         'build-base',

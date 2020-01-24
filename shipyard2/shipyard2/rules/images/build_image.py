@@ -11,6 +11,7 @@ from pathlib import Path
 
 import foreman
 
+from g1 import scripts
 from g1.bases.assertions import ASSERT
 from g1.containers import scripts as ctr_scripts
 
@@ -21,6 +22,7 @@ from . import utils
 LOG = logging.getLogger(__name__)
 
 
+@scripts.using_sudo()
 def build_image(
     *,
     parameters,
@@ -68,7 +70,7 @@ def build_image(
         ctr_scripts.ctr_run_pod(builder_id, builder_config_path)
         LOG.info('export intermediate builder image to: %s', output)
         rootfs_path = tempdir_path / 'rootfs'
-        stack.callback(utils.sudo_rm, rootfs_path)
+        stack.callback(scripts.rm, rootfs_path, recursive=True)
         ctr_scripts.ctr([
             'pods',
             'export-overlay',

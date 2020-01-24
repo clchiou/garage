@@ -6,7 +6,6 @@ __all__ = [
     # Helper commands.
     'chown',
     'rsync',
-    'sudo_rm',
 ]
 
 import getpass
@@ -70,8 +69,3 @@ def rsync(src_path, dst_path, rsync_args=()):
         '%s/' % src_path,
         dst_path,
     ])
-
-
-def sudo_rm(path):
-    with scripts.using_sudo():
-        scripts.rm(path, recursive=True)

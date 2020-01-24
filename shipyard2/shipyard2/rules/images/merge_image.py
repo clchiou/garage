@@ -65,6 +65,7 @@ _DEFAULT_FILTERS = (
 )
 
 
+@scripts.using_sudo()
 def merge_image(
     *,
     name,
@@ -91,16 +92,15 @@ def merge_image(
             tempfile.TemporaryDirectory(dir=output.parent)
         )
         output_rootfs_path = Path(tempdir_path) / 'rootfs'
-        stack.callback(utils.sudo_rm, output_rootfs_path)
+        stack.callback(scripts.rm, output_rootfs_path, recursive=True)
         LOG.info('generate application image under: %s', output_rootfs_path)
         # NOTE: Do NOT overlay-mount these rootfs (and then rsync from
         # the overlay) because the overlay does not include base and
         # base-builder, and thus some tombstone files may not be copied
         # correctly (I don't know why but rsync complains about this).
         # For now our workaround is to rsync each rootfs sequentially.
-        with scripts.using_sudo():
-            for rootfs_path in rootfs_paths:
-                utils.rsync(rootfs_path, output_rootfs_path, filter_rules)
+        for rootfs_path in rootfs_paths:
+            utils.rsync(rootfs_path, output_rootfs_path, filter_rules)
         ctr_scripts.ctr_build_image(name, version, output_rootfs_path, output)
 
 
