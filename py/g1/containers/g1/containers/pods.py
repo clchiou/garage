@@ -101,10 +101,10 @@ def _stringify_last_updated(last_updated):
 
 def cmd_init():
     """Initialize the pod repository."""
-    bases.assert_program_exist('mount')
-    bases.assert_program_exist('umount')
+    scripts.assert_command_exist('mount')
+    scripts.assert_command_exist('umount')
     # Use systemd-nspawn of the host system for now.
-    bases.assert_program_exist('systemd-nspawn')
+    scripts.assert_command_exist('systemd-nspawn')
     bases.assert_root_privilege()
     bases.make_dir(_get_pod_repo_path(), 0o750, bases.chown_app)
     bases.make_dir(_get_active_path(), 0o750, bases.chown_app)

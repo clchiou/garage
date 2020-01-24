@@ -8,6 +8,12 @@ from g1.scripts import utils
 
 class UtilsTest(unittest.TestCase):
 
+    def test_assert_command_exist(self):
+        with self.assertRaisesRegex(
+            AssertionError, r'expect command exist: no-such-command'
+        ):
+            utils.assert_command_exist('no-such-command')
+
     def test_get_url_path(self):
         self.assertEqual(
             utils.get_url_path('http://x/y/z?a=1'),

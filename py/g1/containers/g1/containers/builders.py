@@ -40,7 +40,7 @@ LOG = logging.getLogger(__name__)
 
 
 def cmd_init():
-    bases.check_program_exist('debootstrap')
+    scripts.check_command_exist('debootstrap')
 
 
 #

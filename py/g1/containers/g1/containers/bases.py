@@ -6,9 +6,7 @@ __all__ = [
     'make_grace_period_kwargs',
     # App-specific helpers.
     'assert_group_exist',
-    'assert_program_exist',
     'assert_root_privilege',
-    'check_program_exist',
     'chown_app',
     'chown_root',
     'make_dir',
@@ -64,7 +62,7 @@ def cmd_init():
     """Initialize the repository."""
     assert_group_exist(PARAMS.application_group.get())
     # For rsync_copy.
-    check_program_exist('rsync')
+    scripts.check_command_exist('rsync')
     assert_root_privilege()
     make_dir(get_repo_path(), 0o750, chown_app, parents=True)
 
@@ -92,22 +90,6 @@ def make_grace_period_kwargs(args):
 #
 # App-specific helpers.
 #
-
-
-def assert_program_exist(program):
-    # Assume it's unit testing if not use_root_privilege.
-    if PARAMS.use_root_privilege.get():
-        ASSERT.not_none(shutil.which(program))
-
-
-def check_program_exist(program):
-    # Assume it's unit testing if not use_root_privilege.
-    if PARAMS.use_root_privilege.get():
-        if not shutil.which(program):
-            LOG.warning(
-                'program %s does not exist; certain features are unavailable',
-                program
-            )
 
 
 def assert_group_exist(name):

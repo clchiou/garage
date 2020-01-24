@@ -1,6 +1,8 @@
 __all__ = [
     'ArchiveTypes',
     'Compressors',
+    'assert_command_exist',
+    'check_command_exist',
     'export_path',
     'get_url_path',
     'guess_archive_type',
@@ -11,8 +13,11 @@ __all__ = [
 import enum
 import logging
 import os
+import shutil
 import urllib.parse
 from pathlib import Path
+
+from g1.bases.assertions import ASSERT
 
 from . import bases
 
@@ -32,6 +37,17 @@ class Compressors(enum.Enum):
     GZIP = enum.auto()
     XZ = enum.auto()
     ZIP = enum.auto()
+
+
+def assert_command_exist(command):
+    ASSERT.predicate(command, shutil.which, message='expect command exist: {}')
+
+
+def check_command_exist(command):
+    if not shutil.which(command):
+        LOG.warning(
+            'command %s does not exist; some features are unavailable', command
+        )
 
 
 def export_path(var, path):

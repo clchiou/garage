@@ -174,9 +174,9 @@ def make_select_image_kwargs(args):
 def cmd_init():
     """Initialize the image repository."""
     # For _extract_image.
-    bases.assert_program_exist('tar')
+    scripts.assert_command_exist('tar')
     # For build_image.
-    bases.check_program_exist('tar')
+    scripts.check_command_exist('tar')
     bases.assert_root_privilege()
     bases.make_dir(_get_image_repo_path(), 0o750, bases.chown_app)
     bases.make_dir(_get_tags_path(), 0o750, bases.chown_app)
