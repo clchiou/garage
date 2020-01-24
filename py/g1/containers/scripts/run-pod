@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Run a pod for exploration."""
+"""Prepare a dummy pod and then run it."""
 
 import json
 import logging
-import shutil
 import tempfile
 
 from startup import startup
@@ -13,10 +12,10 @@ from g1 import scripts
 from g1.apps import bases
 from g1.bases import argparses
 from g1.bases.assertions import ASSERT
+from g1.containers import models as ctr_models
+from g1.containers import scripts as ctr_scripts
 
 LOG = logging.getLogger()  # Use the root logger.
-
-CTR = None  # Resolve it in main.
 
 
 @startup
@@ -61,39 +60,33 @@ def add_arguments(parser: bases.LABELS.parser) -> bases.LABELS.parse:
     )
 
 
+# NOTE: Use sudo rather than requiring root privilege to run this script
+# because this is a development script, and we do not expect the user to
+# install its dependent libraries to the system; in other words, do NOT
+# `sudo run-pod` because the python3 that sudo finds will not be able to
+# find the dependent libraries.
+@scripts.using_sudo()
 def main(
     args: bases.LABELS.args,
     _: g1.scripts.parts.LABELS.setup,
 ):
-    # Resolve ctr location because sudo does not look up custom paths.
-    global CTR
-    CTR = ASSERT.not_none(shutil.which('ctr'))
-    LOG.info('use ctr: %s', CTR)
-
     pod_id = init(args)
-    run_pod(pod_id)
+    ctr_scripts.ctr_run_prepared_pod(pod_id)
     # Only remove on normal exit; on error, keep pod for diagnosis.
     if not args.keep:
-        remove_pod(pod_id)
+        ctr_scripts.ctr_remove_pod(pod_id)
     return 0
 
 
 def init(args):
-    pod_id = args.pod_id or generate_pod_id()
+    pod_id = args.pod_id or ctr_models.generate_pod_id()
     LOG.info('use pod id: %s', pod_id)
     images = parse_image_args(ASSERT.not_empty(args.image or ()))
     mounts = parse_mount_args(args.mount or ())
     with tempfile.NamedTemporaryFile(suffix='.json') as config_tempfile:
-        config_path = config_tempfile.name
-        write_config(images, mounts, config_path)
-        prepare_pod(pod_id, config_path)
+        write_config(images, mounts, config_tempfile.name)
+        ctr_scripts.ctr_prepare_pod(pod_id, config_tempfile.name)
     return pod_id
-
-
-def generate_pod_id():
-    with scripts.doing_capture_output():
-        proc = scripts.run([CTR, 'pods', 'generate-id'])
-        return proc.stdout.decode('utf-8').strip()
 
 
 def parse_image_args(image_args):
@@ -131,7 +124,7 @@ def parse_mount_args(mount_args):
 def write_config(images, mounts, config_path):
     LOG.info('write config to: %s', config_path)
     config = {
-        'name': 'explorer',
+        'name': 'dummy',
         'version': '0.0.1',
         'apps': [],
         'images': images,
@@ -139,21 +132,6 @@ def write_config(images, mounts, config_path):
     }
     with open(config_path, 'w') as config_file:
         json.dump(config, config_file)
-
-
-def prepare_pod(pod_id, config_path):
-    with scripts.using_sudo():
-        scripts.run([CTR, 'pods', 'prepare', '--id', pod_id, config_path])
-
-
-def run_pod(pod_id):
-    with scripts.using_sudo():
-        scripts.run([CTR, 'pods', 'run-prepared', pod_id])
-
-
-def remove_pod(pod_id):
-    with scripts.using_sudo():
-        scripts.run([CTR, 'pods', 'remove', pod_id])
 
 
 if __name__ == '__main__':
