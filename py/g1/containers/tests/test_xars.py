@@ -37,7 +37,7 @@ class XarsTest(
         self.xar_runner_script_dir_path = self.test_repo_path / 'runner-bin'
         self.xar_runner_script_dir_path.mkdir()
         bases.PARAMS.xar_runner_script_directory.unsafe_set(
-            str(self.xar_runner_script_dir_path)
+            self.xar_runner_script_dir_path
         )
         bases.cmd_init()
         images.cmd_init()

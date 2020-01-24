@@ -18,7 +18,7 @@ class TestCaseBase(unittest.TestCase):
         unittest.mock.patch('g1.scripts.assert_command_exist').start()
         self.test_repo_tempdir = tempfile.TemporaryDirectory()
         self.test_repo_path = Path(self.test_repo_tempdir.name)
-        bases.PARAMS.repository.unsafe_set(self.test_repo_tempdir.name)
+        bases.PARAMS.repository.unsafe_set(self.test_repo_path)
 
     def tearDown(self):
         self.test_repo_tempdir.cleanup()

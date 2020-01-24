@@ -287,7 +287,7 @@ def _get_exec_target(image_id, exec_relpath):
 
 
 def _get_xar_runner_script_dir_path():
-    return Path(bases.PARAMS.xar_runner_script_directory.get()).absolute()
+    return bases.PARAMS.xar_runner_script_directory.get()
 
 
 def _get_xar_runner_script_path(xar_name):

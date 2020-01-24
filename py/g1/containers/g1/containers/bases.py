@@ -29,19 +29,26 @@ PARAMS = parameters.define(
     'g1.containers',
     parameters.Namespace(
         repository=parameters.Parameter(
-            '/var/lib/g1/containers',
+            Path('/var/lib/g1/containers'),
             doc='path to the repository directory',
-            type=str,
+            type=Path,
+            parse=Path,
+            validate=Path.is_absolute,
+            format=str,
         ),
         application_group=parameters.Parameter(
             'plumber',
             doc='set application group',
             type=str,
+            validate=bool,  # Check not empty.
         ),
         xar_runner_script_directory=parameters.Parameter(
-            '/usr/local/bin',
+            Path('/usr/local/bin'),
             doc='path to the xar runner script directory',
-            type=str,
+            type=Path,
+            parse=Path,
+            validate=Path.is_absolute,
+            format=str,
         ),
     ),
 )
@@ -59,7 +66,7 @@ def cmd_init():
 
 
 def get_repo_path():
-    return (Path(PARAMS.repository.get()) / REPO_LAYOUT_VERSION).absolute()
+    return PARAMS.repository.get() / REPO_LAYOUT_VERSION
 
 
 #
