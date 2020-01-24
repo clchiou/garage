@@ -45,7 +45,9 @@ def make_executor_params(
         max_executors=parameters.Parameter(max_executors),
         name_prefix=parameters.Parameter(name_prefix),
         daemon=parameters.Parameter(daemon, type=(bool, type(None))),
-        default_priority=parameters.Parameter(default_priority, type=object),
+        default_priority=parameters.Parameter(
+            default_priority, type=object, format=str
+        ),
     )
 
 

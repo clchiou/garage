@@ -117,20 +117,36 @@ class Parameter:
         doc=None,
         *,
         type=None,  # pylint: disable=redefined-builtin
-        validator=None,
+        parse=None,
+        validate=None,
+        format=None,  # pylint: disable=redefined-builtin
         unit=None,
     ):
+        """Make a parameter.
+
+        * type is default to default value's type, and set() will check
+          new parameter value's type.
+        * parse is used by the parameter value loader to parse the "raw"
+          value.  Note that raw value might not be string-typed.
+        * validate is an optional validation function (in addition to
+          the type check).
+        # format is for producing help text.  It does NOT have to be
+          inverse of parse.
+        """
         self.doc = doc
         self.type = type or default.__class__
-        self.validator = validator
+        self.parse = parse
+        self.validate = validate
+        self.format = format
         self.unit = unit
-        self._value = self.default = self.validate(default)
+        self._value = self.default = self._validate(default)
         self._have_been_read = False
 
-    def validate(self, value):
-        if self.validator:
-            ASSERT.predicate(value, self.validator)
-        return ASSERT.isinstance(value, self.type)
+    def _validate(self, value):
+        ASSERT.isinstance(value, self.type)
+        if self.validate:
+            ASSERT.predicate(value, self.validate)
+        return value
 
     def get(self):
         """Read parameter value.
@@ -144,7 +160,7 @@ class Parameter:
 
     def set(self, value):
         ASSERT.false(self._have_been_read)
-        self._value = self.validate(value)
+        self._value = self._validate(value)
 
     def unsafe_set(self, value):
         """Set parameter value unsafely.
@@ -284,6 +300,8 @@ def load_parameters(
             value = value_str
         else:
             value = json.loads(value_str)
+        if parameter.parse:
+            value = parameter.parse(value)
         parameter.set(value)
 
     INITIALIZED = True
@@ -341,11 +359,7 @@ def format_help(root_namespaces):
                     output.write(' ')
                     output.write(value.doc)
                 output.write(' (default: ')
-                if value.type is object:
-                    # Sadly this is probably not JSON-serializable.
-                    output.write(str(value.default))
-                else:
-                    output.write(json.dumps(value.default))
+                output.write((value.format or json.dumps)(value.default))
                 if value.unit:
                     output.write(' ')
                     output.write(value.unit)
@@ -377,6 +391,8 @@ def load_config_forest(config_forest, root_namespaces):
                 load(entry, value)
             else:
                 ASSERT.isinstance(entry, Parameter)
+                if entry.parse:
+                    value = entry.parse(value)
                 entry.set(value)
 
     for module_path, config_tree in config_forest.items():
