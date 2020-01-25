@@ -27,6 +27,7 @@ setup(
         'apps': [
             'g1.apps',
             'g1.containers[scripts]',
+            'g1.files',
             'g1.scripts[parts]',
             'g1.texts',
         ],
