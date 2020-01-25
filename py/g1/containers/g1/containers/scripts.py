@@ -9,10 +9,12 @@ __all__ = [
     'ctr_run_prepared_pod',
     # XAR commands.
     'ctr_install_xar',
+    'ctr_uninstall_xar',
     # Image commands.
     'ctr_build_image',
     'ctr_get_image_rootfs_path',
     'ctr_import_image',
+    'ctr_remove_image',
 ]
 
 import csv
@@ -51,14 +53,11 @@ def ctr_remove_pod(pod_id):
 
 
 def ctr_install_xar(name, exec_relpath, image):
-    if image.id is not None:
-        image_args = ('--id', image.id)
-    elif image.name is not None and image.version is not None:
-        image_args = ('--nv', image.name, image.version)
-    else:
-        ASSERT.not_none(image.tag)
-        image_args = ('--tag', image.tag)
-    return ctr(['xars', 'install', *image_args, name, exec_relpath])
+    return ctr(['xars', 'install', *_image_to_args(image), name, exec_relpath])
+
+
+def ctr_uninstall_xar(name):
+    return ctr(['xars', 'uninstall', name])
 
 
 def ctr_build_image(name, version, rootfs_path, image_path):
@@ -74,6 +73,10 @@ def ctr_build_image(name, version, rootfs_path, image_path):
 
 def ctr_import_image(image_path):
     return ctr(['images', 'import', image_path])
+
+
+def ctr_remove_image(image):
+    return ctr(['images', 'remove', *_image_to_args(image)])
 
 
 def ctr_get_image_rootfs_path(image):
@@ -95,3 +98,13 @@ def ctr_get_image_rootfs_path(image):
             if match(row):
                 return row[4]
     return ASSERT.unreachable('cannot find image: {}', image)
+
+
+def _image_to_args(image):
+    if image.id is not None:
+        return ('--id', image.id)
+    elif image.name is not None and image.version is not None:
+        return ('--nv', image.name, image.version)
+    else:
+        ASSERT.not_none(image.tag)
+        return ('--tag', image.tag)
