@@ -3,6 +3,12 @@ __all__ = [
     'PodConfig',
     'generate_pod_id',
     'validate_pod_id',
+    'validate_pod_name',
+    'validate_pod_version',
+    # XAR.
+    'validate_xar_name',
+    # App.
+    'validate_app_name',
     # Image.
     'validate_image_id',
     'validate_image_name',
@@ -46,7 +52,7 @@ class PodConfig:
         # TODO: Support ".timer" and ".socket" unit file.
 
         def __post_init__(self):
-            validate_image_name(self.name)
+            validate_app_name(self.name)
             ASSERT.not_empty(self.exec)
             ASSERT.in_(self.type, _SERVICE_TYPES)
 
@@ -90,8 +96,8 @@ class PodConfig:
     mounts: typing.List[Mount] = ()
 
     def __post_init__(self):
-        validate_image_name(self.name)
-        validate_image_version(self.version)
+        validate_pod_name(self.name)
+        validate_pod_version(self.version)
         ASSERT.not_empty(self.images)
         ASSERT(
             len(set(u.name for u in self.apps)) == len(self.apps),
@@ -104,6 +110,28 @@ class PodConfig:
             self.mounts,
         )
 
+
+# Generic name and version pattern.
+# For now, let's only allow a restrictive set of names.
+_NAME_PATTERN = re.compile(r'[a-z0-9]+(-[a-z0-9]+)*')
+_VERSION_PATTERN = re.compile(r'[a-z0-9]+((?:-|\.)[a-z0-9]+)*')
+
+
+def validate_name(name):
+    return ASSERT.predicate(name, _NAME_PATTERN.fullmatch)
+
+
+def validate_version(version):
+    return ASSERT.predicate(version, _VERSION_PATTERN.fullmatch)
+
+
+# For now these are just an alias of the generic validator.
+validate_pod_name = validate_name
+validate_pod_version = validate_version
+validate_app_name = validate_name
+validate_image_name = validate_name
+validate_image_version = validate_version
+validate_image_tag = validate_name
 
 _UUID_PATTERN = re.compile(
     r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
@@ -118,25 +146,17 @@ def generate_pod_id():
     return validate_pod_id(str(uuid.uuid4()))
 
 
+# Allow xar names like "foo_bar.sh".
+_XAR_NAME_PATTERN = re.compile(r'[\w\-.]+')
+
+
+def validate_xar_name(name):
+    return ASSERT.predicate(name, _XAR_NAME_PATTERN.fullmatch)
+
+
 # SHA-256.
 _ID_PATTERN = re.compile(r'[0-9a-f]{64}')
-
-# For now, let's only allow a restrictive set of names.
-_NAME_PATTERN = re.compile(r'[a-z0-9]+(-[a-z0-9]+)*')
-_VERSION_PATTERN = re.compile(r'[a-z0-9]+((?:-|\.)[a-z0-9]+)*')
 
 
 def validate_image_id(image_id):
     return ASSERT.predicate(image_id, _ID_PATTERN.fullmatch)
-
-
-def validate_image_name(name):
-    return ASSERT.predicate(name, _NAME_PATTERN.fullmatch)
-
-
-def validate_image_version(version):
-    return ASSERT.predicate(version, _VERSION_PATTERN.fullmatch)
-
-
-def validate_image_tag(tag):
-    return ASSERT.predicate(tag, _NAME_PATTERN.fullmatch)

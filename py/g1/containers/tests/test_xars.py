@@ -5,6 +5,7 @@ from pathlib import Path
 
 from g1.containers import bases
 from g1.containers import images
+from g1.containers import models
 from g1.containers import xars
 from g1.texts import jsons
 
@@ -105,8 +106,8 @@ class XarsTest(
             'hello-world',
             '01_23.sh',
         ):
-            self.assertEqual(xars.validate_name(xar_name), xar_name)
-            self.assertEqual(xars.validate_name(xar_name), xar_name)
+            self.assertEqual(models.validate_xar_name(xar_name), xar_name)
+            self.assertEqual(models.validate_xar_name(xar_name), xar_name)
         for invalid_xar_name in (
             '',
             'a/b',
@@ -114,7 +115,7 @@ class XarsTest(
             with self.assertRaisesRegex(
                 AssertionError, r'expect .*fullmatch.*'
             ):
-                xars.validate_name(invalid_xar_name)
+                models.validate_xar_name(invalid_xar_name)
 
     #
     # Top-level commands.

@@ -17,8 +17,6 @@ Xar repository layout:
 """
 
 __all__ = [
-    # Public interface.
-    'validate_name',
     # Expose to apps.
     'XAR_LIST_STRINGIFIERS',
     'cmd_cleanup',
@@ -33,7 +31,6 @@ import argparse
 import contextlib
 import logging
 import os
-import re
 from pathlib import Path
 
 import g1.files
@@ -49,14 +46,6 @@ from . import models
 
 LOG = logging.getLogger(__name__)
 
-# Allow xar names like "foo_bar.sh".
-_NAME_PATTERN = re.compile(r'[\w\-.]+')
-
-
-def validate_name(name):
-    return ASSERT.predicate(name, _NAME_PATTERN.fullmatch)
-
-
 #
 # Top-level commands.  You need to check root privilege and acquire all
 # file locks here.
@@ -71,7 +60,7 @@ def validate_name(name):
 #
 
 _select_xar_arguments = argparses.argument(
-    'name', type=validate_name, help='provide xar name'
+    'name', type=models.validate_xar_name, help='provide xar name'
 )
 
 
@@ -244,11 +233,11 @@ def _get_xars_repo_path():
 
 
 def _get_xar_dir_path(xar_name):
-    return _get_xars_repo_path() / validate_name(xar_name)
+    return _get_xars_repo_path() / models.validate_xar_name(xar_name)
 
 
 def _get_name(xar_dir_path):
-    return validate_name(xar_dir_path.name)
+    return models.validate_xar_name(xar_dir_path.name)
 
 
 def _get_deps_path(xar_dir_path):
@@ -291,7 +280,9 @@ def _get_xar_runner_script_dir_path():
 
 
 def _get_xar_runner_script_path(xar_name):
-    return _get_xar_runner_script_dir_path() / validate_name(xar_name)
+    return (
+        _get_xar_runner_script_dir_path() / models.validate_xar_name(xar_name)
+    )
 
 
 #
