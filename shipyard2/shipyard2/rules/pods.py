@@ -137,6 +137,7 @@ def _generate_deploy_instruction(
 ):
     releases.dump(
         ops_models.PodDeployInstruction(
+            label=str(releases.get_output_label(name)),
             pod_config_template=ctr_models.PodConfig(
                 name=name,
                 version=version,

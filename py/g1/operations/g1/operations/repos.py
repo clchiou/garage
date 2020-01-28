@@ -67,7 +67,7 @@ class BundleDirInterface:
     install = classes.abstract_method
     uninstall = classes.abstract_method
 
-    name = classes.abstract_property
+    label = classes.abstract_property
     version = classes.abstract_property
 
     __repr__ = classes.make_repr('path={self.path_unchecked}')
@@ -93,8 +93,6 @@ class OpsDirInterface:
     cleanup = classes.abstract_method
 
     check_invariants = classes.abstract_method
-
-    get_ops_dir_name = classes.abstract_method
 
     init_from_bundle_dir = classes.abstract_method
     activate = classes.abstract_method
@@ -183,10 +181,17 @@ class OpsDirs:
     def tmp_dir_path(self):
         return self.path / _TMP
 
-    def _get_ops_dir_path(self, name, version):
+    def _get_ops_dir_path(self, label, version):
+        # Underscore '_' is not a validate character of label path and
+        # version for now; so it should be safe to join them with it.
         return (
             self.active_dir_path / \
-            self.ops_dir_type.get_ops_dir_name(name, version)
+            (
+                '%s__%s' % (
+                    label[2:].replace('/', '_').replace(':', '__'),
+                    version,
+                )
+            )
         )
 
     @contextlib.contextmanager
@@ -215,8 +220,8 @@ class OpsDirs:
         return ops_dirs
 
     @contextlib.contextmanager
-    def using_ops_dir(self, name, version):
-        ops_dir_path = self._get_ops_dir_path(name, version)
+    def using_ops_dir(self, label, version):
+        ops_dir_path = self._get_ops_dir_path(label, version)
         with locks.acquiring_shared(self.active_dir_path):
             ops_dir_lock = self._try_lock_ops_dir(ops_dir_path)
         if not ops_dir_lock:
@@ -230,9 +235,9 @@ class OpsDirs:
 
     def install(self, bundle_dir):
         """Install bundle."""
-        log_args = (self.kind, bundle_dir.name, bundle_dir.version)
+        log_args = (self.kind, bundle_dir.label, bundle_dir.version)
         ops_dir_path = self._get_ops_dir_path(
-            bundle_dir.name, bundle_dir.version
+            bundle_dir.label, bundle_dir.version
         )
         if ops_dir_path.exists():
             LOG.info('skip: %s install: %s %s', *log_args)
@@ -271,9 +276,9 @@ class OpsDirs:
                 raise
             return tmp_ops_dir
 
-    def uninstall(self, name, version):
-        log_args = (self.kind, name, version)
-        ops_dir_path = self._get_ops_dir_path(name, version)
+    def uninstall(self, label, version):
+        log_args = (self.kind, label, version)
+        ops_dir_path = self._get_ops_dir_path(label, version)
         with locks.acquiring_exclusive(self.active_dir_path):
             ops_dir_lock = self._try_lock_ops_dir(ops_dir_path)
             if not ops_dir_lock:

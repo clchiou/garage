@@ -13,27 +13,27 @@ from tests import fixtures
 class TestCaseBase(fixtures.TestCaseBase):
 
     XAR_DEPLOY_INSTRUCTION = models.XarDeployInstruction(
-        name='dummy-xar',
+        label='//for/bar:dummy-xar',
         version='0.0.1',
         exec_relpath='usr/local/bin/dummy-xar',
         image=ctr_models.PodConfig.Image(tag='some-tag'),
     )
 
     XAR_METADATA = models.XarMetadata(
-        name=XAR_DEPLOY_INSTRUCTION.name,
+        label=XAR_DEPLOY_INSTRUCTION.label,
         version=XAR_DEPLOY_INSTRUCTION.version,
         image=XAR_DEPLOY_INSTRUCTION.image,
     )
 
     ZIPAPP_DEPLOY_INSTRUCTION = models.XarDeployInstruction(
-        name='dummy-zipapp',
+        label='//foo/bar:dummy-zipapp',
         version='0.0.2',
         exec_relpath=None,
         image=None,
     )
 
     ZIPAPP_METADATA = models.XarMetadata(
-        name=ZIPAPP_DEPLOY_INSTRUCTION.name,
+        label=ZIPAPP_DEPLOY_INSTRUCTION.label,
         version=ZIPAPP_DEPLOY_INSTRUCTION.version,
         image=ZIPAPP_DEPLOY_INSTRUCTION.image,
     )
@@ -232,7 +232,7 @@ class XarOpsDirTest(TestCaseBase):
 class InvarianceTest(TestCaseBase):
 
     XAR_DEPLOY_INSTRUCTION_2 = models.XarDeployInstruction(
-        name='dummy-xar',
+        label='//spam/egg:dummy-xar',
         version='0.0.2',
         exec_relpath='usr/local/bin/dummy-xar',
         image=ctr_models.PodConfig.Image(tag='some-tag'),
@@ -265,7 +265,7 @@ class InvarianceTest(TestCaseBase):
             self.assertEqual(actual[0].metadata, self.XAR_METADATA)
         with self.assertRaisesRegex(
             AssertionError,
-            r'expect unique xar name: dummy-xar',
+            r'expect unique xar label name:',
         ):
             ops_dirs.install(b2)
         with ops_dirs.listing_ops_dirs() as actual:

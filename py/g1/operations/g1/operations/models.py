@@ -53,10 +53,30 @@ def _get_label_name(pattern, label):
 
 
 # For now these are just an alias of the generic version validator.
+_POD_LABEL_PATTERN = _ABSOLUTE_LABEL_PATTERN
+validate_pod_label = validate_absolute_label
 _VOLUME_LABEL_PATTERN = _ABSOLUTE_LABEL_PATTERN
 validate_volume_label = validate_absolute_label
 validate_volume_version = ctr_models.validate_version
 validate_xar_version = ctr_models.validate_version
+
+_XAR_LABEL_PATTERN = re.compile(
+    r'''
+    //
+    (?P<path>
+        [a-z0-9]+(?:-[a-z0-9]+)*
+        (?:/[a-z0-9]+(?:-[a-z0-9]+)*)*
+    )
+    :
+    # Allow xar names like "foo_bar.sh".
+    (?P<name>[\w\-.]+)
+    ''',
+    re.VERBOSE,
+)
+
+
+def validate_xar_label(label):
+    return ASSERT.predicate(label, _XAR_LABEL_PATTERN.fullmatch)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -78,10 +98,13 @@ class PodDeployInstruction:
         def name(self):
             return _get_label_name(_VOLUME_LABEL_PATTERN, self.label)
 
+    label: str
     pod_config_template: ctr_models.PodConfig
     volumes: typing.List[Volume]
 
     def __post_init__(self):
+        validate_pod_label(self.label)
+        ASSERT.equal(self.name, self.pod_config_template.name)
         # Only allow specifying image for pods by name for now.
         ASSERT.all(
             image.name is not None and image.version is not None
@@ -103,6 +126,10 @@ class PodDeployInstruction:
             self.volumes,
         )
 
+    @property
+    def name(self):
+        return _get_label_name(_POD_LABEL_PATTERN, self.label)
+
     # For now, images is just an alias of pod_config_template.images.
     @property
     def images(self):
@@ -111,17 +138,21 @@ class PodDeployInstruction:
 
 @dataclasses.dataclass(frozen=True)
 class XarDeployInstruction:
-    name: str
+    label: str
     version: str
     exec_relpath: typing.Optional[str]
     image: typing.Optional[ctr_models.PodConfig.Image]
 
     def __post_init__(self):
-        ctr_models.validate_xar_name(self.name)
+        validate_xar_label(self.label)
         validate_xar_version(self.version)
         ASSERT.not_xor(self.exec_relpath is None, self.image is None)
         if self.exec_relpath is not None:
             ASSERT.not_predicate(Path(self.exec_relpath), Path.is_absolute)
+
+    @property
+    def name(self):
+        return _get_label_name(_XAR_LABEL_PATTERN, self.label)
 
     def is_zipapp(self):
         return self.exec_relpath is None
@@ -129,13 +160,17 @@ class XarDeployInstruction:
 
 @dataclasses.dataclass(frozen=True)
 class XarMetadata:
-    name: str
+    label: str
     version: str
     image: typing.Optional[ctr_models.PodConfig.Image]
 
     def __post_init__(self):
-        ctr_models.validate_xar_name(self.name)
+        validate_xar_label(self.label)
         validate_xar_version(self.version)
+
+    @property
+    def name(self):
+        return _get_label_name(_XAR_LABEL_PATTERN, self.label)
 
     def is_zipapp(self):
         return self.image is None

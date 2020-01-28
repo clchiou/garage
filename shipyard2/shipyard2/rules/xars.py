@@ -102,7 +102,7 @@ def _build_xar(
 ):
     releases.dump(
         ops_models.XarDeployInstruction(
-            name=name,
+            label=str(releases.get_output_label(name)),
             version=version,
             exec_relpath=exec_relpath,
             image=ctr_models.PodConfig.Image(
@@ -163,7 +163,7 @@ def _build_zipapp(
 ):
     releases.dump(
         ops_models.XarDeployInstruction(
-            name=name,
+            label=str(releases.get_output_label(name)),
             version=version,
             exec_relpath=None,
             image=None,

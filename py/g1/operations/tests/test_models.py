@@ -41,6 +41,7 @@ class ModelsTest(unittest.TestCase):
             r'expect unique image names:',
         ):
             models.PodDeployInstruction(
+                label='//foo/bar:dummy',
                 pod_config_template=ctr_models.PodConfig(
                     name='dummy',
                     version='0.0.1',
@@ -65,6 +66,7 @@ class ModelsTest(unittest.TestCase):
             r'expect unique volume names:',
         ):
             models.PodDeployInstruction(
+                label='//foo/bar:dummy',
                 pod_config_template=ctr_models.PodConfig(
                     name='dummy',
                     version='0.0.1',

@@ -57,8 +57,8 @@ class XarBundleDir(repos.BundleDirInterface):
         return self._check()
 
     @property
-    def name(self):
-        return self.deploy_instruction.name
+    def label(self):
+        return self.deploy_instruction.label
 
     @property
     def version(self):
@@ -76,13 +76,13 @@ class XarBundleDir(repos.BundleDirInterface):
 
     def install(self):
         if self.deploy_instruction.is_zipapp():
-            LOG.info('xars install zipapp: %s %s', self.name, self.version)
+            LOG.info('xars install zipapp: %s %s', self.label, self.version)
             bases.copy_exec(
                 self.zipapp_path,
                 bases.get_zipapp_target_path(self.deploy_instruction.name),
             )
         else:
-            LOG.info('xars install xar: %s %s', self.name, self.version)
+            LOG.info('xars install xar: %s %s', self.label, self.version)
             ctr_scripts.ctr_import_image(self.image_path)
             ctr_scripts.ctr_install_xar(
                 self.deploy_instruction.name,
@@ -93,12 +93,12 @@ class XarBundleDir(repos.BundleDirInterface):
 
     def uninstall(self):
         if self.deploy_instruction.is_zipapp():
-            LOG.info('xars uninstall zipapp: %s %s', self.name, self.version)
+            LOG.info('xars uninstall zipapp: %s %s', self.label, self.version)
             path = bases.get_zipapp_target_path(self.deploy_instruction.name)
             if path.exists():
                 path.unlink()
         else:
-            LOG.info('xars uninstall xar: %s %s', self.name, self.version)
+            LOG.info('xars uninstall xar: %s %s', self.label, self.version)
             ctr_scripts.ctr_uninstall_xar(self.deploy_instruction.name)
             ctr_scripts.ctr_remove_image(self.deploy_instruction.image)
         return True
@@ -153,21 +153,16 @@ class XarOpsDir(repos.OpsDirInterface):
             metadata = self._load_metadata(ops_dir.path)
             ASSERT(
                 metadata.name != self.metadata.name,
-                'expect unique xar name: {}',
-                self.metadata.name,
+                'expect unique xar label name: {}, {}',
+                metadata.label,
+                self.metadata.label,
             )
-
-    @staticmethod
-    def get_ops_dir_name(name, version):
-        # Underscore '_' is not a validate character of name and version
-        # for now; so it is safe to join name and version with it.
-        return '%s_%s' % (name, version)
 
     def init_from_bundle_dir(self, bundle_dir):
         deploy_instruction = bundle_dir.deploy_instruction
         jsons.dump_dataobject(
             models.XarMetadata(
-                name=deploy_instruction.name,
+                label=deploy_instruction.label,
                 version=deploy_instruction.version,
                 image=deploy_instruction.image,
             ),
@@ -182,16 +177,15 @@ class XarOpsDir(repos.OpsDirInterface):
         pass  # Nothing here.
 
     def uninstall(self):
-        name = self.metadata.name
-        version = self.metadata.version
+        log_args = (self.metadata.label, self.metadata.version)
         if self.metadata.is_zipapp():
-            LOG.info('xars uninstall zipapp: %s %s', name, version)
-            path = bases.get_zipapp_target_path(name)
+            LOG.info('xars uninstall zipapp: %s %s', *log_args)
+            path = bases.get_zipapp_target_path(self.metadata.name)
             if path.exists():
                 path.unlink()
         else:
-            LOG.info('xars uninstall xar: %s %s', name, version)
-            ctr_scripts.ctr_uninstall_xar(name)
+            LOG.info('xars uninstall xar: %s %s', *log_args)
+            ctr_scripts.ctr_uninstall_xar(self.metadata.name)
             ctr_scripts.ctr_remove_image(self.metadata.image)
         return True
 

@@ -9,7 +9,6 @@ from pathlib import Path
 from g1.bases import argparses
 from g1.bases import oses
 from g1.bases.assertions import ASSERT
-from g1.containers import models as ctr_models
 from g1.texts import columns
 from g1.texts.columns import argparses as columns_argparses
 
@@ -19,12 +18,12 @@ from . import xar_ops_dirs
 LOG = logging.getLogger(__name__)
 
 _XAR_LIST_COLUMNS = frozenset((
-    'name',
+    'label',
     'version',
     'zipapp',
 ))
 _XAR_LIST_DEFAULT_COLUMNS = (
-    'name',
+    'label',
     'version',
     'zipapp',
 )
@@ -50,11 +49,11 @@ def cmd_list(args):
     with ops_dirs.listing_ops_dirs() as active_ops_dirs:
         for ops_dir in active_ops_dirs:
             columnar.append({
-                'name': ops_dir.metadata.name,
+                'label': ops_dir.metadata.label,
                 'version': ops_dir.metadata.version,
                 'zipapp': ops_dir.metadata.is_zipapp(),
             })
-    columnar.sort(lambda row: (row['name'], row['version']))
+    columnar.sort(lambda row: (row['label'], row['version']))
     columnar.output(sys.stdout)
     return 0
 
@@ -82,7 +81,7 @@ def cmd_install(args):
     'uninstall', **argparses.make_help_kwargs('uninstall xar')
 )
 @argparses.argument(
-    'name', type=ctr_models.validate_xar_name, help='provide xar name'
+    'label', type=models.validate_xar_label, help='provide xar label'
 )
 @argparses.argument(
     'version', type=models.validate_xar_version, help='provide xar version'
@@ -92,7 +91,7 @@ def cmd_uninstall(args):
     oses.assert_root_privilege()
     ops_dirs = xar_ops_dirs.make_xar_ops_dirs()
     ops_dirs.check()
-    ops_dirs.uninstall(args.name, args.version)
+    ops_dirs.uninstall(args.label, args.version)
     return 0
 
 

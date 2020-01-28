@@ -17,7 +17,7 @@ from tests import fixtures
 
 class NullBundleDir(repos.BundleDirInterface):
 
-    name = 'dummy'
+    label = '//foo/bar:dummy'
     version = '0.0.1'
 
     def __init__(self, path):
@@ -49,10 +49,6 @@ class NullOpsDir(repos.OpsDirInterface):
 
     def check_invariants(self, ops_dirs):
         pass
-
-    @staticmethod
-    def get_ops_dir_name(name, version):
-        return '%s-%s' % (name, version)
 
     def init_from_bundle_dir(self, bundle_dir):
         pass
@@ -126,7 +122,7 @@ class OpsDirsTest(
         bundle_dir = self.make_bundle_dir()
         self.assertTrue(ops_dirs.install(bundle_dir))
         with ops_dirs.using_ops_dir(
-            bundle_dir.name, bundle_dir.version
+            bundle_dir.label, bundle_dir.version
         ) as ops_dir:
             self.assertIsNotNone(ops_dir)
         # You cannot remove an ops dir under active dir.
@@ -168,14 +164,14 @@ class OpsDirsTest(
 
         with self.using_shared(ops_dirs.active_dir_path):
             with ops_dirs.using_ops_dir(
-                NullBundleDir.name,
+                NullBundleDir.label,
                 NullBundleDir.version,
             ) as actual:
                 self.assertEqual(actual, ops_dir)
         with self.using_exclusive(ops_dirs.active_dir_path):
             with self.assertRaises(locks.NotLocked):
                 with ops_dirs.using_ops_dir(
-                    NullBundleDir.name,
+                    NullBundleDir.label,
                     NullBundleDir.version,
                 ):
                     pass
@@ -184,7 +180,7 @@ class OpsDirsTest(
         self.assertTrue(self.check_shared(ops_dirs.active_dir_path))
         self.assertTrue(self.check_exclusive(ops_dirs.active_dir_path))
         with ops_dirs.using_ops_dir(
-            NullBundleDir.name,
+            NullBundleDir.label,
             NullBundleDir.version,
         ) as actual:
             self.assertTrue(self.check_shared(ops_dirs.active_dir_path))
@@ -225,7 +221,7 @@ class OpsDirsTest(
         self.assert_emptiness(ops_dirs, True, True, True)
 
         self.assertFalse(
-            ops_dirs.uninstall(NullBundleDir.name, NullBundleDir.version)
+            ops_dirs.uninstall(NullBundleDir.label, NullBundleDir.version)
         )
         self.assert_emptiness(ops_dirs, True, True, True)
 
@@ -233,7 +229,7 @@ class OpsDirsTest(
         self.assert_emptiness(ops_dirs, False, True, True)
 
         self.assertTrue(
-            ops_dirs.uninstall(NullBundleDir.name, NullBundleDir.version)
+            ops_dirs.uninstall(NullBundleDir.label, NullBundleDir.version)
         )
         self.assert_emptiness(ops_dirs, True, True, True)
 
@@ -242,7 +238,7 @@ class OpsDirsTest(
         ops_dirs = self.make_ops_dirs()
         with self.using_shared(ops_dirs.active_dir_path):
             with self.assertRaises(locks.NotLocked):
-                ops_dirs.uninstall(NullBundleDir.name, NullBundleDir.version)
+                ops_dirs.uninstall(NullBundleDir.label, NullBundleDir.version)
 
     def test_move_to_graveyard(self):
         ops_dirs = self.make_ops_dirs()

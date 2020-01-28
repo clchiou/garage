@@ -2,6 +2,7 @@ __all__ = [
     'dump',
     'generate_release_metadata',
     'get_output_dir_path',
+    'get_output_label',
 ]
 
 import dataclasses
@@ -24,6 +25,12 @@ class ReleaseMetadata:
         dirty: bool
 
     sources: typing.List[Source]
+
+
+def get_output_label(name):
+    return foreman.Label.parse(
+        '//%s:%s' % ('/'.join(foreman.get_relpath().parts[1:]), name)
+    )
 
 
 def get_output_dir_path(parameters, name, version):
