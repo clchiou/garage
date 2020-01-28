@@ -5,7 +5,9 @@ __all__ = [
 ]
 
 import dataclasses
+import re
 import typing
+from pathlib import Path
 
 from g1.bases.assertions import ASSERT
 from g1.containers import models as ctr_models
@@ -23,6 +25,35 @@ BUNDLE_DEPLOY_INSTRUCTION_FILENAME = 'deploy.json'
 XAR_BUNDLE_IMAGE_FILENAME = 'image.tar.gz'
 XAR_BUNDLE_ZIPAPP_FILENAME = 'app.zip'
 
+# For now, let's only allow a restrictive set of labels.
+_ABSOLUTE_LABEL_PATTERN = re.compile(
+    r'''
+    //
+    (?P<path>
+        [a-z0-9]+(?:-[a-z0-9]+)*
+        (?:/[a-z0-9]+(?:-[a-z0-9]+)*)*
+    )
+    :
+    (?P<name>[a-z0-9]+(?:-[a-z0-9]+)*)
+    ''',
+    re.VERBOSE,
+)
+
+
+def validate_absolute_label(label):
+    return ASSERT.predicate(label, _ABSOLUTE_LABEL_PATTERN.fullmatch)
+
+
+def _get_label_name(pattern, label):
+    return pattern.fullmatch(label).group('name')
+
+
+# For now these are just an alias of the generic version validator.
+_VOLUME_LABEL_PATTERN = _ABSOLUTE_LABEL_PATTERN
+validate_volume_label = validate_absolute_label
+validate_volume_version = ctr_models.validate_version
+validate_xar_version = ctr_models.validate_version
+
 
 @dataclasses.dataclass(frozen=True)
 class PodDeployInstruction:
@@ -34,8 +65,44 @@ class PodDeployInstruction:
         target: str
         read_only: bool = True
 
+        def __post_init__(self):
+            validate_volume_label(self.label)
+            validate_volume_version(self.version)
+            ASSERT.predicate(Path(self.target), Path.is_absolute)
+
+        @property
+        def name(self):
+            return _get_label_name(_VOLUME_LABEL_PATTERN, self.label)
+
     pod_config_template: ctr_models.PodConfig
     volumes: typing.List[Volume]
+
+    def __post_init__(self):
+        # Only allow specifying image for pods by name for now.
+        ASSERT.all(
+            image.name is not None and image.version is not None
+            for image in self.images
+        )
+        # Due to bundle directory layout, image names and volume names
+        # are expected to be unique.  (This layout restriction should be
+        # not too restrictive in practice.)
+        image_names = [image.name for image in self.images]
+        ASSERT(
+            len(image_names) == len(set(image_names)),
+            'expect unique image names: {}',
+            self.images,
+        )
+        volume_names = [volume.name for volume in self.volumes]
+        ASSERT(
+            len(volume_names) == len(set(volume_names)),
+            'expect unique volume names: {}',
+            self.volumes,
+        )
+
+    # For now, images is just an alias of pod_config_template.images.
+    @property
+    def images(self):
+        return self.pod_config_template.images
 
 
 @dataclasses.dataclass(frozen=True)
@@ -46,7 +113,11 @@ class XarDeployInstruction:
     image: typing.Optional[ctr_models.PodConfig.Image]
 
     def __post_init__(self):
+        ctr_models.validate_xar_name(self.name)
+        validate_xar_version(self.version)
         ASSERT.not_xor(self.exec_relpath is None, self.image is None)
+        if self.exec_relpath is not None:
+            ASSERT.not_predicate(Path(self.exec_relpath), Path.is_absolute)
 
     def is_zipapp(self):
         return self.exec_relpath is None
@@ -57,6 +128,10 @@ class XarMetadata:
     name: str
     version: str
     image: typing.Optional[ctr_models.PodConfig.Image]
+
+    def __post_init__(self):
+        ctr_models.validate_xar_name(self.name)
+        validate_xar_version(self.version)
 
     def is_zipapp(self):
         return self.image is None

@@ -9,7 +9,7 @@ Operations repository layout:
     removed.
   + `tmp` is a scratchpad for preparing pod operations directory.
 * `xars/...`
-  + `active/<xar-label-and-version>` are XAR operations directories.
+  + `active/<xar-name-and-version>` are XAR operations directories.
     (See `pod-label-and-version` above.)
   + `graveyard` is the directory of XAR operations directories to be
     removed.
@@ -18,7 +18,7 @@ Operations repository layout:
 Pod operations directory layout:
 
 * `metadata` is pod operations metadata (JSON-formatted).
-* `volumes/<volume-label>` are directories of volume data.
+* `volumes/<volume-name>` are directories of volume data.
 
 XAR operations directory layout:
 

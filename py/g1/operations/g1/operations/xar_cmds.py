@@ -9,9 +9,11 @@ from pathlib import Path
 from g1.bases import argparses
 from g1.bases import oses
 from g1.bases.assertions import ASSERT
+from g1.containers import models as ctr_models
 from g1.texts import columns
 from g1.texts.columns import argparses as columns_argparses
 
+from . import models
 from . import xar_ops_dirs
 
 LOG = logging.getLogger(__name__)
@@ -79,8 +81,12 @@ def cmd_install(args):
 @argparses.begin_parser(
     'uninstall', **argparses.make_help_kwargs('uninstall xar')
 )
-@argparses.argument('name', help='provide xar name')
-@argparses.argument('version', help='provide xar version')
+@argparses.argument(
+    'name', type=ctr_models.validate_xar_name, help='provide xar name'
+)
+@argparses.argument(
+    'version', type=models.validate_xar_version, help='provide xar version'
+)
 @argparses.end
 def cmd_uninstall(args):
     oses.assert_root_privilege()

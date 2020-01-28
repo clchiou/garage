@@ -159,6 +159,8 @@ class XarOpsDir(repos.OpsDirInterface):
 
     @staticmethod
     def get_ops_dir_name(name, version):
+        # Underscore '_' is not a validate character of name and version
+        # for now; so it is safe to join name and version with it.
         return '%s_%s' % (name, version)
 
     def init_from_bundle_dir(self, bundle_dir):
