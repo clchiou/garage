@@ -23,3 +23,6 @@ Pod operations directory layout:
 XAR operations directory layout:
 
 * `metadata` is XAR operations metadata (JSON-formatted).
+
+For bundle layout, please refer to the pod directory layout specified in
+[release doc](../../../../shipyard2/docs/release.md).

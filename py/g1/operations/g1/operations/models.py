@@ -22,6 +22,10 @@ OPS_DIR_VOLUMES_DIR_NAME = 'volumes'
 
 # Bundle directory structure.
 BUNDLE_DEPLOY_INSTRUCTION_FILENAME = 'deploy.json'
+POD_BUNDLE_IMAGES_DIR_NAME = 'images'
+POD_BUNDLE_IMAGE_FILENAME = 'image.tar.gz'
+POD_BUNDLE_VOLUMES_DIR_NAME = 'volumes'
+POD_BUNDLE_VOLUME_FILENAME = 'volume.tar.gz'
 XAR_BUNDLE_IMAGE_FILENAME = 'image.tar.gz'
 XAR_BUNDLE_ZIPAPP_FILENAME = 'app.zip'
 
