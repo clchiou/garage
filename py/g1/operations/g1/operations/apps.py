@@ -13,6 +13,7 @@ from g1.bases import oses
 from g1.bases.assertions import ASSERT
 
 from . import bases
+from . import pod_cmds
 from . import pod_ops_dirs
 from . import xar_cmds
 from . import xar_ops_dirs
@@ -39,12 +40,15 @@ def cmd_init():
 
 @argparses.begin_subparsers_for_subcmds(dest='subject')
 @argparses.include(cmd_init)
+@argparses.include(pod_cmds.main)
 @argparses.include(xar_cmds.main)
 @argparses.end
 def main(args: apps_bases.LABELS.args, _: g1.scripts.parts.LABELS.setup):
     """Operations tool."""
     if args.subject == 'init':
         return cmd_init()
+    elif args.subject == 'pods':
+        return pod_cmds.main(args)
     elif args.subject == 'xars':
         return xar_cmds.main(args)
     else:
