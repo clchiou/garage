@@ -66,16 +66,19 @@ class XarBundleDir(repos.BundleDirInterface):
         return True
 
     def uninstall(self):
-        if self.deploy_instruction.is_zipapp():
-            LOG.info('xars uninstall zipapp: %s %s', self.label, self.version)
-            path = bases.get_zipapp_target_path(self.deploy_instruction.name)
-            if path.exists():
-                path.unlink()
-        else:
-            LOG.info('xars uninstall xar: %s %s', self.label, self.version)
-            ctr_scripts.ctr_uninstall_xar(self.deploy_instruction.name)
-            ctr_scripts.ctr_remove_image(self.deploy_instruction.image)
-        return True
+        return _uninstall(self, self.deploy_instruction)
+
+
+def _uninstall(dir_obj, inst_like_obj):
+    log_args = (dir_obj.label, dir_obj.version)
+    if inst_like_obj.is_zipapp():
+        LOG.info('xars uninstall zipapp: %s %s', *log_args)
+        g1.files.remove(bases.get_zipapp_target_path(inst_like_obj.name))
+    else:
+        LOG.info('xars uninstall xar: %s %s', *log_args)
+        ctr_scripts.ctr_uninstall_xar(inst_like_obj.name)
+        ctr_scripts.ctr_remove_image(inst_like_obj.image)
+    return True
 
 
 class XarOpsDir(repos.OpsDirInterface):
@@ -97,8 +100,7 @@ class XarOpsDir(repos.OpsDirInterface):
         return bases.get_zipapp_target_path(self.metadata.name)
 
     def cleanup(self):
-        if self._metadata_path.exists():
-            self._metadata_path.unlink()
+        g1.files.remove(self.metadata_path)
         ASSERT.predicate(self.path, g1.files.is_empty_dir)
 
     def check_invariants(self, active_ops_dirs):
@@ -131,17 +133,7 @@ class XarOpsDir(repos.OpsDirInterface):
         pass  # Nothing here.
 
     def uninstall(self):
-        log_args = (self.metadata.label, self.metadata.version)
-        if self.metadata.is_zipapp():
-            LOG.info('xars uninstall zipapp: %s %s', *log_args)
-            path = bases.get_zipapp_target_path(self.metadata.name)
-            if path.exists():
-                path.unlink()
-        else:
-            LOG.info('xars uninstall xar: %s %s', *log_args)
-            ctr_scripts.ctr_uninstall_xar(self.metadata.name)
-            ctr_scripts.ctr_remove_image(self.metadata.image)
-        return True
+        return _uninstall(self, self.metadata)
 
 
 def make_xar_ops_dirs():
