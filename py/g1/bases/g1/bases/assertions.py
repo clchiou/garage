@@ -67,6 +67,15 @@ def _only_one(xs):
     return count == 1
 
 
+def _unique(xs):
+    seen = set()
+    for x in xs:
+        if x in seen:
+            return False
+        seen.add(x)
+    return True
+
+
 def _issubset_proper(u, v):
     return u.issubset(v) and u != v
 
@@ -369,6 +378,18 @@ class Assertions:
         _assert_collection,
         _only_one,
         message='expect only one {1}, not {0!r}',
+    )
+
+    unique = partialmethod(
+        _assert_collection,
+        _unique,
+        message='expect unique elements in {0!r}',
+    )
+
+    not_unique = partialmethod(
+        _assert_collection,
+        functionals.compose(operator.not_, _unique),
+        message='expect non-unique elements in {0!r}',
     )
 
 

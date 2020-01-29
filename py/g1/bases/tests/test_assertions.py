@@ -244,6 +244,8 @@ class AssertionsTest(unittest.TestCase):
             ('any', (True, True, True)),
             ('not_any', (False, False, False)),
             ('only_one', (False, True, False)),
+            ('unique', (1, 2, 3)),
+            ('not_unique', (1, 1, 2)),
         ]
         for check_name, collection in checks:
             with self.subTest(check=check_name):
@@ -257,6 +259,8 @@ class AssertionsTest(unittest.TestCase):
             ('any', (False, False, False)),
             ('not_any', (False, True, False)),
             ('only_one', (True, True, False)),
+            ('unique', (1, 2, 2)),
+            ('not_unique', (1, 2, 3)),
         ]
         for check_name, collection in checks:
             with self.subTest(check=check_name):
