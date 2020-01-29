@@ -3,6 +3,7 @@
 __all__ = [
     'ctr',
     # Pod commands.
+    'ctr_add_ref_to_pod',
     'ctr_prepare_pod',
     'ctr_remove_pod',
     'ctr_run_pod',
@@ -46,6 +47,10 @@ def ctr_run_prepared_pod(pod_id):
 
 def ctr_run_pod(pod_id, config_path):
     return ctr(['pods', 'run', '--id', pod_id, config_path])
+
+
+def ctr_add_ref_to_pod(pod_id, target_path):
+    return ctr(['pods', 'add-ref', pod_id, target_path])
 
 
 def ctr_remove_pod(pod_id):

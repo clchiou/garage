@@ -148,6 +148,7 @@ class PodsTest(
                 'name': 'hello',
                 'status': None,
                 'last-updated': None,
+                'ref-count': 1,
             }],
         )
 
@@ -197,10 +198,21 @@ class PodsTest(
         self.assertEqual(list(pods._get_tmp_path().iterdir()), [])
 
         self.create_pod_dir(self.sample_pod_id, self.sample_config)
+        self.assertEqual(pods._get_ref_count(self.sample_pod_dir_path), 1)
         self.assertEqual(self.list_pod_dir_paths(), [self.sample_pod_id])
         self.assertEqual(list(pods._get_graveyard_path().iterdir()), [])
         self.assertEqual(list(pods._get_tmp_path().iterdir()), [])
 
+        ref_path = self.test_repo_path / 'ref'
+        pods.cmd_add_ref(self.sample_pod_id, ref_path)
+        with unittest.mock.patch(pods.__name__ + '.scripts'):
+            pods.cmd_remove(self.sample_pod_id)
+        self.assertEqual(pods._get_ref_count(self.sample_pod_dir_path), 2)
+        self.assertEqual(self.list_pod_dir_paths(), [self.sample_pod_id])
+        self.assertEqual(list(pods._get_graveyard_path().iterdir()), [])
+        self.assertEqual(list(pods._get_tmp_path().iterdir()), [])
+
+        ref_path.unlink()
         with unittest.mock.patch(pods.__name__ + '.scripts'):
             pods.cmd_remove(self.sample_pod_id)
         self.assertEqual(self.list_pod_dir_paths(), [])
@@ -218,8 +230,16 @@ class PodsTest(
         self.assertEqual(self.list_graveyard(), [])
         self.assertEqual(self.list_tmp(), [])
 
+        ref_path = self.test_repo_path / 'ref'
+        pods.cmd_add_ref(pod_id_1, ref_path)
+        pods.cmd_cleanup(future)
+        self.assertEqual(self.list_active(), [pod_id_1])
+        self.assertEqual(self.list_graveyard(), [])
+        self.assertEqual(self.list_tmp(), [])
+        ref_path.unlink()
+
         with self.using_exclusive(pods._get_pod_dir_path(pod_id_1)):
-            pods.cmd_cleanup(datetimes.utcnow() + datetime.timedelta(days=1))
+            pods.cmd_cleanup(future)
         self.assertEqual(self.list_active(), [pod_id_1])
         self.assertEqual(self.list_graveyard(), [])
         self.assertEqual(self.list_tmp(), [])

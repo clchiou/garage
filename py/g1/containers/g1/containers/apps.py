@@ -90,6 +90,7 @@ def cmd_images(args):
 @argparses.include(pods.cmd_run)
 @argparses.include(pods.cmd_prepare)
 @argparses.include(pods.cmd_run_prepared)
+@argparses.include(pods.cmd_add_ref)
 @argparses.include(pods.cmd_export_overlay)
 @argparses.include(pods.cmd_remove)
 @argparses.include(pods.cmd_cleanup)
@@ -131,6 +132,8 @@ def cmd_pods(args):
         )
     elif args.command == 'run-prepared':
         pods.cmd_run_prepared(pod_id=args.id, debug=get_debug())
+    elif args.command == 'add-ref':
+        pods.cmd_add_ref(pod_id=args.id, target_path=args.target)
     elif args.command == 'export-overlay':
         pods.cmd_export_overlay(
             pod_id=args.id,

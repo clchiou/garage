@@ -26,6 +26,7 @@ __all__ = [
     # Expose to apps.
     'POD_LIST_STRINGIFIERS',
     'POD_SHOW_STRINGIFIERS',
+    'cmd_add_ref',
     'cmd_cat_config',
     'cmd_cleanup',
     'cmd_export_overlay',
@@ -120,6 +121,7 @@ _POD_LIST_COLUMNS = frozenset((
     'images',
     'active',
     'last-updated',
+    'ref-count',
 ))
 _POD_LIST_DEFAULT_COLUMNS = (
     'id',
@@ -127,6 +129,7 @@ _POD_LIST_DEFAULT_COLUMNS = (
     'version',
     'active',
     'last-updated',
+    'ref-count',
 )
 POD_LIST_STRINGIFIERS = {
     'images': ' '.join,
@@ -156,6 +159,7 @@ def cmd_list():
                 'images': list(_iter_image_ids(config)),
                 'active': locks.is_locked_by_other(pod_dir_path),
                 'last-updated': _get_last_updated(pod_status),
+                'ref-count': _get_ref_count(pod_dir_path),
             }
 
 
@@ -163,11 +167,13 @@ _POD_SHOW_COLUMNS = frozenset((
     'name',
     'status',
     'last-updated',
+    'ref-count',
 ))
 _POD_SHOW_DEFAULT_COLUMNS = (
     'name',
     'status',
     'last-updated',
+    'ref-count',
 )
 POD_SHOW_STRINGIFIERS = {
     'status': lambda status: '' if status is None else str(status),
@@ -195,6 +201,7 @@ def cmd_show(pod_id):
             'name': app.name,
             'status': pod_status.get(app.name, (None, None))[0],
             'last-updated': pod_status.get(app.name, (None, None))[1],
+            'ref-count': _get_ref_count(pod_dir_path),
         } for app in config.apps]
 
 
@@ -273,6 +280,24 @@ def cmd_run_prepared(pod_id, *, debug=False):
     _run_pod(pod_id, debug=debug)
 
 
+# NOTE: This prevents a pod from being removed or cleaned up; if not
+# careful, you might have pod "leak" issue.
+@argparses.begin_parser(
+    'add-ref', **argparses.make_help_kwargs('add a reference to pod')
+)
+@_select_pod_arguments(positional=True)
+@argparses.argument('target', type=Path, help='provide target path')
+@argparses.end
+def cmd_add_ref(pod_id, target_path):
+    oses.assert_root_privilege()
+    with locks.acquiring_shared(_get_active_path()):
+        _add_ref(
+            ASSERT.predicate(_get_pod_dir_path(pod_id), Path.is_dir),
+            ASSERT.not_predicate(target_path, g1.files.lexists),
+        )
+    return 0
+
+
 @argparses.begin_parser(
     'export-overlay', **argparses.make_help_kwargs('export overlay files')
 )
@@ -339,6 +364,9 @@ def cmd_remove(pod_id):
         if not pod_dir_path.is_dir():
             LOG.debug('pod does not exist: %s', pod_id)
             return
+        if _get_ref_count(pod_dir_path) > 1:
+            LOG.debug('pod is still referenced: %s', pod_id)
+            return
         pod_dir_lock = locks.try_acquire_exclusive(pod_dir_path)
         if not pod_dir_lock:
             LOG.warning('pod is still active: %s', pod_id)
@@ -373,6 +401,9 @@ def _cleanup_active(expiration):
     with locks.acquiring_exclusive(_get_active_path()):
         for pod_dir_path, config in _iter_configs():
             pod_id = _get_id(pod_dir_path)
+            if _get_ref_count(pod_dir_path) > 1:
+                LOG.debug('pod is still referenced: %s', pod_id)
+                continue
             pod_dir_lock = locks.try_acquire_exclusive(pod_dir_path)
             if not pod_dir_lock:
                 LOG.debug('pod is still active: %s', pod_id)
@@ -759,6 +790,25 @@ def _iter_image_ids(config):
                 )
             )
         yield image_id
+
+
+#
+# Ref-count on config.
+#
+
+
+def _get_ref_count(pod_dir_path):
+    try:
+        return _get_config_path(pod_dir_path).stat().st_nlink
+    except FileNotFoundError:
+        return 0
+
+
+def _add_ref(pod_dir_path, dst_path):
+    os.link(
+        ASSERT.predicate(_get_config_path(pod_dir_path), Path.is_file),
+        dst_path,
+    )
 
 
 #
