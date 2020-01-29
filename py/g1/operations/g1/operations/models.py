@@ -114,18 +114,8 @@ class PodDeployInstruction:
         # Due to bundle directory layout, image names and volume names
         # are expected to be unique.  (This layout restriction should be
         # not too restrictive in practice.)
-        image_names = [image.name for image in self.images]
-        ASSERT(
-            len(image_names) == len(set(image_names)),
-            'expect unique image names: {}',
-            self.images,
-        )
-        volume_names = [volume.name for volume in self.volumes]
-        ASSERT(
-            len(volume_names) == len(set(volume_names)),
-            'expect unique volume names: {}',
-            self.volumes,
-        )
+        ASSERT.unique(image.name for image in self.images)
+        ASSERT.unique(volume.name for volume in self.volumes)
 
     # We can make this alias because we require that label.name equals
     # to pod_config_template.name.

@@ -57,17 +57,8 @@ def define_pod(
     # derive label path for images and volumes from pod label).
     ASSERT.all(images, lambda label: label.startswith('//'))
     ASSERT.all(volumes, lambda volume: volume.label.startswith('//'))
-    ASSERT(
-        len(set(map(_get_label_name, images))) == len(images),
-        'expect unique image names: {}',
-        images,
-    )
-    ASSERT(
-        len(set(_get_label_name(volume.label) for volume in volumes)) == \
-        len(volumes),
-        'expect unique volume names: {}',
-        volumes,
-    )
+    ASSERT.unique(map(_get_label_name, images))
+    ASSERT.unique(_get_label_name(volume.label) for volume in volumes)
 
     name_prefix = shipyard2.rules.canonicalize_name_prefix(name)
     parameter_version = name_prefix + 'version'

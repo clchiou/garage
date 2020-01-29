@@ -38,7 +38,7 @@ class ModelsTest(unittest.TestCase):
     def test_not_unique_image_names(self):
         with self.assertRaisesRegex(
             AssertionError,
-            r'expect unique image names:',
+            r'expect unique elements in ',
         ):
             models.PodDeployInstruction(
                 label='//foo/bar:dummy',
@@ -63,7 +63,7 @@ class ModelsTest(unittest.TestCase):
     def test_not_unique_volume_names(self):
         with self.assertRaisesRegex(
             AssertionError,
-            r'expect unique volume names:',
+            r'expect unique elements in ',
         ):
             models.PodDeployInstruction(
                 label='//foo/bar:dummy',

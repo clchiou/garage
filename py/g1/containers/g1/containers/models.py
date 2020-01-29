@@ -100,16 +100,8 @@ class PodConfig:
         validate_pod_name(self.name)
         validate_pod_version(self.version)
         ASSERT.not_empty(self.images)
-        ASSERT(
-            len(set(u.name for u in self.apps)) == len(self.apps),
-            'expect unique app names: {}',
-            self.apps,
-        )
-        ASSERT(
-            len(set(v.target for v in self.mounts)) == len(self.mounts),
-            'expect unique mount targets: {}',
-            self.mounts,
-        )
+        ASSERT.unique(app.name for app in self.apps)
+        ASSERT.unique(mount.target for mount in self.mounts)
 
 
 # Generic name and version pattern.

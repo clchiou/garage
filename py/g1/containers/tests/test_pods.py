@@ -293,7 +293,7 @@ class PodsTest(
                 images=[],
             )
         with self.assertRaisesRegex(
-            AssertionError, r'expect unique app names:'
+            AssertionError, r'expect unique elements in '
         ):
             models.PodConfig(
                 name='test-pod',
@@ -305,7 +305,7 @@ class PodsTest(
                 images=self.sample_config.images,
             )
         with self.assertRaisesRegex(
-            AssertionError, r'expect unique mount targets:'
+            AssertionError, r'expect unique elements in '
         ):
             models.PodConfig(
                 name='test-pod',
