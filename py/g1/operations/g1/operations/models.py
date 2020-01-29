@@ -126,9 +126,16 @@ class PodDeployInstruction:
             self.volumes,
         )
 
+    # We can make this alias because we require that label.name equals
+    # to pod_config_template.name.
     @property
     def name(self):
-        return _get_label_name(_POD_LABEL_PATTERN, self.label)
+        return self.pod_config_template.name
+
+    # For now, version is just an alias of pod_config_template.version.
+    @property
+    def version(self):
+        return self.pod_config_template.version
 
     # For now, images is just an alias of pod_config_template.images.
     @property

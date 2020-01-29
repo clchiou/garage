@@ -47,8 +47,10 @@ from pathlib import Path
 from g1.bases import classes
 from g1.bases.assertions import ASSERT
 from g1.files import locks
+from g1.texts import jsons
 
 from . import bases
+from . import models
 
 LOG = logging.getLogger(__name__)
 
@@ -67,9 +69,6 @@ class BundleDirInterface:
     install = classes.abstract_method
     uninstall = classes.abstract_method
 
-    label = classes.abstract_property
-    version = classes.abstract_property
-
     __repr__ = classes.make_repr('path={self.path_unchecked}')
 
     def __eq__(self, other):
@@ -82,6 +81,34 @@ class BundleDirInterface:
     def path(self):
         self.check()
         return self.path_unchecked
+
+    deploy_instruction_type = classes.abstract_property
+
+    def load_deploy_instruction(self):
+        return jsons.load_dataobject(
+            self.deploy_instruction_type,
+            ASSERT.predicate(
+                self.path_unchecked / \
+                models.BUNDLE_DEPLOY_INSTRUCTION_FILENAME,
+                Path.is_file,
+            )
+        )
+
+    # XXX: This annotation works around pylint no-member false errors.
+    deploy_instruction: object
+
+    @classes.memorizing_property
+    def deploy_instruction(self):  # pylint: disable=function-redefined
+        self.check()
+        return self.load_deploy_instruction()
+
+    @property
+    def label(self):
+        return self.deploy_instruction.label
+
+    @property
+    def version(self):
+        return self.deploy_instruction.version
 
 
 class OpsDirInterface:
@@ -111,6 +138,31 @@ class OpsDirInterface:
     def path(self):
         self.check()
         return self.path_unchecked
+
+    @property
+    def metadata_path(self):
+        return self.path / models.OPS_DIR_METADATA_FILENAME
+
+    metadata_type = classes.abstract_property
+
+    # XXX: This annotation works around pylint no-member false errors.
+    metadata: object
+
+    @classes.memorizing_property
+    def metadata(self):  # pylint: disable=function-redefined
+        return jsons.load_dataobject(self.metadata_type, self.metadata_path)
+
+    @property
+    def label(self):
+        return self.metadata.label
+
+    @property
+    def version(self):
+        return self.metadata.version
+
+    @property
+    def volumes_dir_path(self):
+        return self.path / models.OPS_DIR_VOLUMES_DIR_NAME
 
     def remove(self):
         # Just a sanity check.  An ops dir under the active directory

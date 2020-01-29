@@ -7,7 +7,6 @@ import logging
 from pathlib import Path
 
 import g1.files
-from g1.bases import classes
 from g1.bases.assertions import ASSERT
 from g1.containers import scripts as ctr_scripts
 from g1.texts import jsons
@@ -21,20 +20,14 @@ LOG = logging.getLogger(__name__)
 
 class XarBundleDir(repos.BundleDirInterface):
 
+    deploy_instruction_type = models.XarDeployInstruction
+
     def __init__(self, path):
         self.path_unchecked = path
 
-    def _check(self):
+    def check(self):
         ASSERT.predicate(self.path_unchecked, Path.is_dir)
-        deploy_instruction = jsons.load_dataobject(
-            models.XarDeployInstruction,
-            ASSERT.predicate(
-                self.path_unchecked / \
-                models.BUNDLE_DEPLOY_INSTRUCTION_FILENAME,
-                Path.is_file,
-            )
-        )
-        if deploy_instruction.is_zipapp():
+        if self.load_deploy_instruction().is_zipapp():
             ASSERT.predicate(
                 self.path_unchecked / models.XAR_BUNDLE_ZIPAPP_FILENAME,
                 Path.is_file,
@@ -44,25 +37,6 @@ class XarBundleDir(repos.BundleDirInterface):
                 self.path_unchecked / models.XAR_BUNDLE_IMAGE_FILENAME,
                 Path.is_file,
             )
-        return deploy_instruction
-
-    def check(self):
-        self._check()
-
-    # XXX: This annotation works around pylint no-member false errors.
-    deploy_instruction: models.XarDeployInstruction
-
-    @classes.memorizing_property
-    def deploy_instruction(self):  # pylint: disable=function-redefined
-        return self._check()
-
-    @property
-    def label(self):
-        return self.deploy_instruction.label
-
-    @property
-    def version(self):
-        return self.deploy_instruction.version
 
     @property
     def zipapp_path(self):
@@ -106,12 +80,7 @@ class XarBundleDir(repos.BundleDirInterface):
 
 class XarOpsDir(repos.OpsDirInterface):
 
-    @staticmethod
-    def _load_metadata(xar_ops_dir_path):
-        return jsons.load_dataobject(
-            models.XarMetadata,
-            xar_ops_dir_path / models.OPS_DIR_METADATA_FILENAME,
-        )
+    metadata_type = models.XarMetadata
 
     def __init__(self, path):
         self.path_unchecked = path
@@ -121,20 +90,6 @@ class XarOpsDir(repos.OpsDirInterface):
 
     def check(self):
         ASSERT.predicate(self.path_unchecked, Path.is_dir)
-
-    # XXX: This annotation works around pylint no-member false errors.
-    _metadata_path: Path
-
-    @classes.memorizing_property
-    def _metadata_path(self):  # pylint: disable=function-redefined
-        return self.path / models.OPS_DIR_METADATA_FILENAME
-
-    # XXX: This annotation works around pylint no-member false errors.
-    metadata: models.XarMetadata
-
-    @classes.memorizing_property
-    def metadata(self):  # pylint: disable=function-redefined
-        return self._load_metadata(self.path)
 
     @property
     def zipapp_target_path(self):
@@ -148,27 +103,25 @@ class XarOpsDir(repos.OpsDirInterface):
 
     def check_invariants(self, active_ops_dirs):
         self.check()
-        ASSERT.predicate(self._metadata_path, Path.is_file)
+        ASSERT.predicate(self.metadata_path, Path.is_file)
         for ops_dir in active_ops_dirs:
-            metadata = self._load_metadata(ops_dir.path)
             ASSERT(
-                metadata.name != self.metadata.name,
+                ops_dir.metadata.name != self.metadata.name,
                 'expect unique xar label name: {}, {}',
-                metadata.label,
-                self.metadata.label,
+                ops_dir.label,
+                self.label,
             )
 
     def init_from_bundle_dir(self, bundle_dir):
-        deploy_instruction = bundle_dir.deploy_instruction
         jsons.dump_dataobject(
             models.XarMetadata(
-                label=deploy_instruction.label,
-                version=deploy_instruction.version,
-                image=deploy_instruction.image,
+                label=bundle_dir.label,
+                version=bundle_dir.version,
+                image=bundle_dir.deploy_instruction.image,
             ),
-            self._metadata_path,
+            self.metadata_path,
         )
-        bases.set_file_attrs(self._metadata_path)
+        bases.set_file_attrs(self.metadata_path)
 
     def activate(self):
         pass  # Nothing here.

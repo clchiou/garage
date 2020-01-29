@@ -155,10 +155,6 @@ class XarOpsDirTest(TestCaseBase):
         ops_dir.init_from_bundle_dir(bundle_dir)
         return ops_dir
 
-    @property
-    def test_metadata_path(self):
-        return self.test_ops_dir_path / 'metadata'
-
     def test_init(self):
         ops_dir = xar_ops_dirs.XarOpsDir(self.test_ops_dir_path)
         with self.assertRaises(AssertionError):
@@ -181,10 +177,11 @@ class XarOpsDirTest(TestCaseBase):
         self.do_test_cleanup(self.make_ops_dir())
 
     def do_test_init_from_bundle_dir(self):
+        test_metadata_path = self.test_ops_dir_path / 'metadata'
         ops_dir = self.make_ops_dir()
         self.assertEqual(self.list_dir(self.test_ops_dir_path), ['metadata'])
-        self.assertTrue(self.test_metadata_path.is_file())
-        self.assertEqual(ops_dir._metadata_path, self.test_metadata_path)
+        self.assertTrue(test_metadata_path.is_file())
+        self.assertEqual(ops_dir.metadata_path, test_metadata_path)
         return ops_dir
 
     def test_init_from_bundle_dir_xar(self):

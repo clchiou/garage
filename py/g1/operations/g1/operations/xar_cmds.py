@@ -49,8 +49,8 @@ def cmd_list(args):
     with ops_dirs.listing_ops_dirs() as active_ops_dirs:
         for ops_dir in active_ops_dirs:
             columnar.append({
-                'label': ops_dir.metadata.label,
-                'version': ops_dir.metadata.version,
+                'label': ops_dir.label,
+                'version': ops_dir.version,
                 'zipapp': ops_dir.metadata.is_zipapp(),
             })
     columnar.sort(lambda row: (row['label'], row['version']))
