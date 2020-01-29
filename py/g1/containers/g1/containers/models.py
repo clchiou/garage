@@ -1,6 +1,7 @@
 __all__ = [
     # Pod.
     'PodConfig',
+    'generate_machine_name',
     'generate_pod_id',
     'validate_pod_id',
     'validate_pod_name',
@@ -144,6 +145,10 @@ def validate_pod_id(pod_id):
 
 def generate_pod_id():
     return validate_pod_id(str(uuid.uuid4()))
+
+
+def generate_machine_name(pod_id):
+    return 'pod-%s' % pod_id
 
 
 # Allow xar names like "foo_bar.sh".

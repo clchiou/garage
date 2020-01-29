@@ -645,7 +645,7 @@ def _umount_overlay(pod_dir_path):
 
 
 def _generate_hostname(rootfs_path, pod_id):
-    hostname = _make_hostname(pod_id)
+    hostname = models.generate_machine_name(pod_id)
     (rootfs_path / 'etc/hostname').write_text(hostname + '\n')
     (rootfs_path / 'etc/hosts').write_text(
         '127.0.0.1\tlocalhost\n'
@@ -679,7 +679,7 @@ def _run_pod(pod_id, *, debug=False):
         # probably more cross-platform).
         'systemd-nspawn',
         '--uuid=%s' % pod_id,
-        '--machine=%s' % _make_hostname(pod_id),
+        '--machine=%s' % models.generate_machine_name(pod_id),
         '--register=yes',
         *(['--keep-unit'] if _is_running_from_system_service() else []),
         '--boot',
@@ -700,10 +700,6 @@ def _run_pod(pod_id, *, debug=False):
     LOG.debug('run pod: args=%s', args)
     os.execvp(args[0], args)
     ASSERT.unreachable('unable to start pod: {}', pod_id)
-
-
-def _make_hostname(pod_id):
-    return 'ctr-%s' % pod_id
 
 
 def _make_bind_argument(mount):
