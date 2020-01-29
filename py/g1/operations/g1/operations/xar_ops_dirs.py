@@ -112,7 +112,8 @@ class XarOpsDir(repos.OpsDirInterface):
                 self.label,
             )
 
-    def init_from_bundle_dir(self, bundle_dir):
+    def init_from_bundle_dir(self, bundle_dir, target_ops_dir_path):
+        del target_ops_dir_path  # Unused.
         jsons.dump_dataobject(
             models.XarMetadata(
                 label=bundle_dir.label,

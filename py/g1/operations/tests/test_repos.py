@@ -50,7 +50,7 @@ class NullOpsDir(repos.OpsDirInterface):
     def check_invariants(self, ops_dirs):
         pass
 
-    def init_from_bundle_dir(self, bundle_dir):
+    def init_from_bundle_dir(self, bundle_dir, target_ops_dir_path):
         pass
 
     def activate(self):

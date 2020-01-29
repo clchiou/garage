@@ -296,7 +296,7 @@ class OpsDirs:
             return False
         tmp_ops_dir = self._make_tmp_ops_dir()
         try:
-            tmp_ops_dir.init_from_bundle_dir(bundle_dir)
+            tmp_ops_dir.init_from_bundle_dir(bundle_dir, ops_dir_path)
             with locks.acquiring_exclusive(self.active_dir_path):
                 if ops_dir_path.exists():
                     LOG.info('skip: %s install: %s %s', *log_args)

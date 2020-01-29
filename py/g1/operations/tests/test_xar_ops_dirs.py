@@ -152,7 +152,7 @@ class XarOpsDirTest(TestCaseBase):
         ops_dir = xar_ops_dirs.XarOpsDir(self.test_ops_dir_path)
         ops_dir.init()
         ops_dir.check()
-        ops_dir.init_from_bundle_dir(bundle_dir)
+        ops_dir.init_from_bundle_dir(bundle_dir, ops_dir.path_unchecked)
         return ops_dir
 
     def test_init(self):
