@@ -6,12 +6,14 @@ __all__ = [
 from startup import startup
 
 import g1.scripts.parts
+from g1 import scripts
 from g1.apps import bases as apps_bases
 from g1.bases import argparses
 from g1.bases import oses
 from g1.bases.assertions import ASSERT
 
 from . import bases
+from . import pod_ops_dirs
 from . import xar_cmds
 from . import xar_ops_dirs
 
@@ -23,10 +25,15 @@ from . import xar_ops_dirs
 @argparses.end
 def cmd_init():
     oses.assert_root_privilege()
+    scripts.assert_command_exist('ctr')
+    scripts.assert_command_exist('tar')
     bases.make_dir(bases.get_repo_path(), parents=True)
-    ops_dirs = xar_ops_dirs.make_xar_ops_dirs()
-    ops_dirs.init()
-    ops_dirs.check()
+    for ops_dirs in (
+        pod_ops_dirs.make_pod_ops_dirs(),
+        xar_ops_dirs.make_xar_ops_dirs(),
+    ):
+        ops_dirs.init()
+        ops_dirs.check()
     return 0
 
 

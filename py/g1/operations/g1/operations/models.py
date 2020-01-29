@@ -1,5 +1,6 @@
 __all__ = [
     'PodDeployInstruction',
+    'PodMetadata',
     'XarDeployInstruction',
     'XarMetadata',
 ]
@@ -141,6 +142,39 @@ class PodDeployInstruction:
     @property
     def images(self):
         return self.pod_config_template.images
+
+
+@dataclasses.dataclass(frozen=True)
+class PodMetadata:
+    label: str
+    pod_id: str
+    pod_config: ctr_models.PodConfig
+
+    def __post_init__(self):
+        validate_pod_label(self.label)
+        ASSERT.equal(self.name, self.pod_config.name)
+        ctr_models.validate_pod_id(self.pod_id)
+        # Only allow specifying image for pods by name for now.
+        ASSERT.all(
+            image.name is not None and image.version is not None
+            for image in self.images
+        )
+
+    # We can make this alias because we require that label.name equals
+    # to pod_config.name.
+    @property
+    def name(self):
+        return self.pod_config.name
+
+    # For now, version is just an alias of pod_config.version.
+    @property
+    def version(self):
+        return self.pod_config.version
+
+    # For now, images is just an alias of pod_config.images.
+    @property
+    def images(self):
+        return self.pod_config.images
 
 
 @dataclasses.dataclass(frozen=True)
