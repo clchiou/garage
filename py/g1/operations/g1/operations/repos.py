@@ -2,39 +2,29 @@
 
 General design of the interface:
 
-* Directory objects are lazy: They do not check nor load directory
-  contents during __init__.  Also, __init__ should never fail (except
-  OOM, but we don't handle that case).
-
 * The ``path`` property is the path of the directory.
 
-* The ``init`` method will populate directory contents (maybe be with
-  sentinel values).  If the init call succeeds, subsequent check call
-  should pass.
-
-* The ``check`` method will check directory contents.  It is also called
-  indirectly through property accesses.
-
-* The ``cleanup`` method clears directory contents (you cannot simply
-  remove the directory as an ops dir might require custom steps to clear
-  its contents).  The directory might be partially cleaned up, and
-  cleanup should handle such cases.  If the cleanup call succeeds, you
-  may remove the directory.  You should not call cleanup when an ops dir
-  is still active.
-
-* The ``check_invariants`` method checks invariance among all active
+* The ``check_invariants`` method checks invariants among all active
   operations directories.
-
-* The ``activate`` and ``deactivate`` method changes an ops dir to
-  active/inactive state.
 
 * The ``install`` and ``uninstall`` method should return false if the
   call skips the install/uninstall step.
+
+* The ``uninstall`` method clears directory contents (you cannot simply
+  remove the directory as an ops dir might require custom steps to
+  uninstall stuff).  The directory might be partially uninstalled, and
+  uninstall method should handle such cases.  If the uninstall call
+  succeeds, the directory should be empty.
+
+* You should not call uninstall when an ops dir is still active.
+
+* The ``start`` and ``stop`` method changes an ops dir to active or
+  inactive state.
 """
 
 __all__ = [
-    'BundleDirInterface',
-    'OpsDirInterface',
+    'AbstractBundleDir',
+    'AbstractOpsDir',
     'OpsDirs',
 ]
 
@@ -60,47 +50,31 @@ _GRAVEYARD = 'graveyard'
 _TMP = 'tmp'
 
 
-class BundleDirInterface:
-
-    path_unchecked = classes.abstract_property
-
-    check = classes.abstract_method
-
-    install = classes.abstract_method
-    uninstall = classes.abstract_method
-
-    __repr__ = classes.make_repr('path={self.path_unchecked}')
-
-    def __eq__(self, other):
-        return self.path_unchecked == other.path_unchecked
-
-    def __hash__(self):
-        return hash(self.path_unchecked)
-
-    @classes.memorizing_property
-    def path(self):
-        self.check()
-        return self.path_unchecked
+class AbstractBundleDir:
 
     deploy_instruction_type = classes.abstract_property
 
-    def load_deploy_instruction(self):
-        return jsons.load_dataobject(
+    post_init = classes.abstract_method
+
+    def __init__(self, path):
+        self.path = path
+        self.deploy_instruction = jsons.load_dataobject(
             self.deploy_instruction_type,
-            ASSERT.predicate(
-                self.path_unchecked / \
-                models.BUNDLE_DEPLOY_INSTRUCTION_FILENAME,
-                Path.is_file,
-            )
+            ASSERT.predicate(self.deploy_instruction_path, Path.is_file)
         )
+        self.post_init()
 
-    # XXX: This annotation works around pylint no-member false errors.
-    deploy_instruction: object
+    __repr__ = classes.make_repr('path={self.path}')
 
-    @classes.memorizing_property
-    def deploy_instruction(self):  # pylint: disable=function-redefined
-        self.check()
-        return self.load_deploy_instruction()
+    def __eq__(self, other):
+        return self.path == other.path
+
+    def __hash__(self):
+        return hash(self.path)
+
+    @property
+    def deploy_instruction_path(self):
+        return self.path / models.BUNDLE_DEPLOY_INSTRUCTION_FILENAME
 
     @property
     def label(self):
@@ -111,46 +85,40 @@ class BundleDirInterface:
         return self.deploy_instruction.version
 
 
-class OpsDirInterface:
+class AbstractOpsDir:
 
-    path_unchecked = classes.abstract_property
-
-    init = classes.abstract_method
-    check = classes.abstract_method
-    cleanup = classes.abstract_method
+    metadata_type = classes.abstract_property
 
     check_invariants = classes.abstract_method
-
-    init_from_bundle_dir = classes.abstract_method
-    activate = classes.abstract_method
-    deactivate = classes.abstract_method
+    install = classes.abstract_method
+    start = classes.abstract_method
+    stop = classes.abstract_method
     uninstall = classes.abstract_method
 
-    __repr__ = classes.make_repr('path={self.path_unchecked}')
+    def __init__(self, path):
+        self.path = path
+
+    __repr__ = classes.make_repr('path={self.path}')
 
     def __eq__(self, other):
-        return self.path_unchecked == other.path_unchecked
+        return self.path == other.path
 
     def __hash__(self):
-        return hash(self.path_unchecked)
-
-    @classes.memorizing_property
-    def path(self):
-        self.check()
-        return self.path_unchecked
+        return hash(self.path)
 
     @property
     def metadata_path(self):
         return self.path / models.OPS_DIR_METADATA_FILENAME
-
-    metadata_type = classes.abstract_property
 
     # XXX: This annotation works around pylint no-member false errors.
     metadata: object
 
     @classes.memorizing_property
     def metadata(self):  # pylint: disable=function-redefined
-        return jsons.load_dataobject(self.metadata_type, self.metadata_path)
+        return jsons.load_dataobject(
+            self.metadata_type,
+            ASSERT.predicate(self.metadata_path, Path.is_file),
+        )
 
     @property
     def label(self):
@@ -164,13 +132,6 @@ class OpsDirInterface:
     def volumes_dir_path(self):
         return self.path / models.OPS_DIR_VOLUMES_DIR_NAME
 
-    def remove(self):
-        # Just a sanity check.  An ops dir under the active directory
-        # could be in active state, and so we should not remove it.
-        ASSERT.not_equal(self.path_unchecked.parent.name, _ACTIVE)
-        self.cleanup()
-        self.path.rmdir()  # pylint: disable=no-member
-
 
 class OpsDirs:
     """Manage collection of operations directories.
@@ -183,6 +144,19 @@ class OpsDirs:
     alphabetical order to avoid deadlock.
     """
 
+    @staticmethod
+    def init(path):
+        bases.make_dir(path)
+        bases.make_dir(path / _ACTIVE)
+        bases.make_dir(path / _GRAVEYARD)
+        bases.make_dir(path / _TMP)
+
+    def post_init(self):
+        ASSERT.predicate(self.path, Path.is_dir)
+        ASSERT.predicate(self.active_dir_path, Path.is_dir)
+        ASSERT.predicate(self.graveyard_dir_path, Path.is_dir)
+        ASSERT.predicate(self.tmp_dir_path, Path.is_dir)
+
     def __init__(
         self,
         kind,
@@ -192,40 +166,24 @@ class OpsDirs:
         ops_dir_type,
     ):
         self.kind = kind
-        self.path_unchecked = path
+        self.path = path
         self.bundle_dir_type = bundle_dir_type
         self.ops_dir_type = ops_dir_type
+        self.post_init()
 
-    __repr__ = classes.make_repr('path={self.path_unchecked}')
+    __repr__ = classes.make_repr('path={self.path}')
 
     def __eq__(self, other):
-        return self.path_unchecked == other.path_unchecked
+        return self.path == other.path
 
     def __hash__(self):
-        return hash(self.path_unchecked)
+        return hash(self.path)
 
-    def init(self):
-        bases.make_dir(self.path_unchecked)
-        bases.make_dir(self.path_unchecked / _ACTIVE)
-        bases.make_dir(self.path_unchecked / _GRAVEYARD)
-        bases.make_dir(self.path_unchecked / _TMP)
-
-    def check(self):
-        ASSERT.predicate(self.path_unchecked, Path.is_dir)
-        ASSERT.predicate(self.path_unchecked / _ACTIVE, Path.is_dir)
-        ASSERT.predicate(self.path_unchecked / _GRAVEYARD, Path.is_dir)
-        ASSERT.predicate(self.path_unchecked / _TMP, Path.is_dir)
-
-    @classes.memorizing_property
-    def path(self):
-        self.check()
-        return self.path_unchecked
-
-    @classes.memorizing_property
+    @property
     def active_dir_path(self):
         return self.path / _ACTIVE
 
-    @classes.memorizing_property
+    @property
     def graveyard_dir_path(self):
         return self.path / _GRAVEYARD
 
@@ -258,9 +216,7 @@ class OpsDirs:
 
     def _list_ops_dirs(self):
         ops_dirs = []
-        for ops_dir_path in (
-            self.active_dir_path.iterdir()  # pylint: disable=no-member
-        ):
+        for ops_dir_path in self.active_dir_path.iterdir():
             if not ops_dir_path.is_dir():
                 LOG.debug(
                     '%s: unknown file under active: %s',
@@ -285,48 +241,42 @@ class OpsDirs:
             ops_dir_lock.release()
             ops_dir_lock.close()
 
-    def install(self, bundle_dir):
+    def install(self, bundle_dir_path):
         """Install bundle."""
+        bundle_dir = self.bundle_dir_type(bundle_dir_path)
         log_args = (self.kind, bundle_dir.label, bundle_dir.version)
-        ops_dir_path = self._get_ops_dir_path(
+        target_ops_dir_path = self._get_ops_dir_path(
             bundle_dir.label, bundle_dir.version
         )
-        if ops_dir_path.exists():
+        if target_ops_dir_path.exists():
             LOG.info('skip: %s install: %s %s', *log_args)
             return False
-        tmp_ops_dir = self._make_tmp_ops_dir()
+        ops_dir_path = ops_dir_lock = ops_dir = None
         try:
-            tmp_ops_dir.init_from_bundle_dir(bundle_dir, ops_dir_path)
+            LOG.info('%s install: prepare: %s %s', *log_args)
+            with locks.acquiring_exclusive(self.tmp_dir_path):
+                ops_dir_path = Path(tempfile.mkdtemp(dir=self.tmp_dir_path))
+                ops_dir_lock = self._lock_ops_dir(ops_dir_path)
+            bases.set_dir_attrs(ops_dir_path)
+            ops_dir = self.ops_dir_type(ops_dir_path)
+            ops_dir.install(bundle_dir, target_ops_dir_path)
             with locks.acquiring_exclusive(self.active_dir_path):
-                if ops_dir_path.exists():
+                if target_ops_dir_path.exists():
                     LOG.info('skip: %s install: %s %s', *log_args)
                     return False
-                LOG.info('%s install: %s %s', *log_args)
-                tmp_ops_dir.check_invariants(self._list_ops_dirs())
-                try:
-                    bundle_dir.install()
-                except:
-                    if not bundle_dir.uninstall():
-                        LOG.error('%s: unable to rollback: %s %s', *log_args)
-                    raise
-                tmp_ops_dir.path.rename(ops_dir_path)
-                tmp_ops_dir = None
+                LOG.info('%s install: commit: %s %s', *log_args)
+                ops_dir.check_invariants(self._list_ops_dirs())
+                ops_dir_path.rename(target_ops_dir_path)
+                ops_dir_path = ops_dir = None
         finally:
-            if tmp_ops_dir:
-                tmp_ops_dir.remove()
+            if ops_dir:
+                ops_dir.uninstall()
+            if ops_dir_path:
+                ops_dir_path.rmdir()
+            if ops_dir_lock:
+                ops_dir_lock.release()
+                ops_dir_lock.close()
         return True
-
-    def _make_tmp_ops_dir(self):
-        with locks.acquiring_exclusive(self.tmp_dir_path):
-            tmp_ops_dir = self.ops_dir_type(
-                Path(tempfile.mkdtemp(dir=self.tmp_dir_path))
-            )
-            try:
-                tmp_ops_dir.init()
-            except:
-                tmp_ops_dir.remove()
-                raise
-            return tmp_ops_dir
 
     def uninstall(self, label, version):
         log_args = (self.kind, label, version)
@@ -336,12 +286,10 @@ class OpsDirs:
             if not ops_dir_lock:
                 LOG.info('skip: %s uninstall: %s %s', *log_args)
                 return False
-        LOG.info('%s uninstall: %s %s', *log_args)
         try:
-            ops_dir = self.ops_dir_type(ops_dir_path)
-            ops_dir.deactivate()
-            ops_dir.uninstall()
-            self.ops_dir_type(self._move_to_graveyard(ops_dir_path)).remove()
+            LOG.info('%s uninstall: %s %s', *log_args)
+            self.ops_dir_type(ops_dir_path).stop()
+            self._remove_ops_dir(self._move_to_graveyard(ops_dir_path))
         finally:
             ops_dir_lock.release()
             ops_dir_lock.close()
@@ -384,10 +332,13 @@ class OpsDirs:
                 continue
             try:
                 LOG.info('%s cleanup: %s', *log_args)
-                self.ops_dir_type(ops_dir_path).remove()
+                self._remove_ops_dir(ops_dir_path)
             finally:
                 ops_dir_lock.release()
                 ops_dir_lock.close()
+
+    def _lock_ops_dir(self, ops_dir_path):
+        return ASSERT.not_none(self._try_lock_ops_dir(ops_dir_path))
 
     def _try_lock_ops_dir(self, ops_dir_path):
         """Try to lock an ops dir exclusively.
@@ -406,3 +357,11 @@ class OpsDirs:
             LOG.debug('%s: cannot lock: locked by other: %s', *log_args)
             return None
         return ops_dir_lock
+
+    def _remove_ops_dir(self, ops_dir_path):
+        # Just a sanity check.  An ops dir under the active directory
+        # could be in active state, and so we should not remove it.
+        ASSERT.not_equal(ops_dir_path.parent.name, _ACTIVE)
+        ops_dir = self.ops_dir_type(ops_dir_path)
+        ops_dir.uninstall()
+        ops_dir.path.rmdir()

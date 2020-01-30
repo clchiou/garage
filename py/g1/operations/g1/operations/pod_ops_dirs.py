@@ -1,6 +1,6 @@
 __all__ = [
-    'PodBundleDir',
-    'make_pod_ops_dirs',
+    'init',
+    'make_ops_dirs',
 ]
 
 import dataclasses
@@ -21,75 +21,40 @@ from . import repos
 LOG = logging.getLogger(__name__)
 
 
-class PodBundleDir(repos.BundleDirInterface):
+class PodBundleDir(repos.AbstractBundleDir):
 
     deploy_instruction_type = models.PodDeployInstruction
 
-    def __init__(self, path):
-        self.path_unchecked = path
+    def post_init(self):
+        ASSERT.predicate(self.path, Path.is_dir)
+        ASSERT.predicate(self.deploy_instruction_path, Path.is_file)
+        ASSERT.all((path for _, path in self.iter_images()), Path.is_file)
+        ASSERT.all((path for _, path in self.iter_volumes()), Path.is_file)
 
-    def _get_image_path(self, image):
-        return (
-            self.path_unchecked / \
-            models.POD_BUNDLE_IMAGES_DIR_NAME /
-            image.name /
-            models.POD_BUNDLE_IMAGE_FILENAME
-        )
-
-    def get_volume_path(self, volume):
-        return (
-            self.path_unchecked / \
-            models.POD_BUNDLE_VOLUMES_DIR_NAME /
-            volume.name /
-            models.POD_BUNDLE_VOLUME_FILENAME
-        )
-
-    def check(self):
-        ASSERT.predicate(self.path_unchecked, Path.is_dir)
-        deploy_instruction = self.load_deploy_instruction()
-        for image in deploy_instruction.images:
-            ASSERT.predicate(self._get_image_path(image), Path.is_file)
-        for volume in deploy_instruction.volumes:
-            ASSERT.predicate(self.get_volume_path(volume), Path.is_file)
-
-    def install(self):
-        LOG.info('pods install images: %s %s', self.label, self.version)
+    def iter_images(self):
         for image in self.deploy_instruction.images:
-            ctr_scripts.ctr_import_image(self._get_image_path(image))
-        return True
+            yield image, (
+                self.path / \
+                models.POD_BUNDLE_IMAGES_DIR_NAME /
+                image.name /
+                models.POD_BUNDLE_IMAGE_FILENAME
+            )
 
-    def uninstall(self):
-        return _uninstall(self, self.deploy_instruction.images)
+    def iter_volumes(self):
+        for volume in self.deploy_instruction.volumes:
+            yield volume, (
+                self.path / \
+                models.POD_BUNDLE_VOLUMES_DIR_NAME /
+                volume.name /
+                models.POD_BUNDLE_VOLUME_FILENAME
+            )
 
 
-def _uninstall(dir_obj, images):
-    LOG.info('pods uninstall images: %s %s', dir_obj.label, dir_obj.version)
-    for image in images:
-        ctr_scripts.ctr_remove_image(image)
-    return True
-
-
-class PodOpsDir(repos.OpsDirInterface):
+class PodOpsDir(repos.AbstractOpsDir):
 
     metadata_type = models.PodMetadata
 
-    def __init__(self, path):
-        self.path_unchecked = path
-
-    def init(self):
-        bases.make_dir(self.path_unchecked)
-
-    def check(self):
-        ASSERT.predicate(self.path_unchecked, Path.is_dir)
-
-    def cleanup(self):
-        g1.files.remove(self.volumes_dir_path)
-        g1.files.remove(self.metadata_path)
-        ASSERT.predicate(self.path, g1.files.is_empty_dir)
-
     def check_invariants(self, active_ops_dirs):
-        self.check()
-        ASSERT.predicate(self.metadata_path, Path.is_file)
         # We check uniqueness of UUIDs here, but to be honest, UUID is
         # quite unlikely to conflict.
         for ops_dir in active_ops_dirs:
@@ -99,10 +64,12 @@ class PodOpsDir(repos.OpsDirInterface):
                 self.metadata.pod_id,
             )
 
-    def init_from_bundle_dir(self, bundle_dir, target_ops_dir_path):
-        # Generate pod metadata.
+    def install(self, bundle_dir, target_ops_dir_path):
+        ASSERT.isinstance(bundle_dir, PodBundleDir)
+        log_args = (bundle_dir.label, bundle_dir.version)
+
         pod_id = ctr_models.generate_pod_id()
-        LOG.info('generate pod metadata: %s', pod_id)
+        LOG.info('pods install: metadata: %s %s %s', *log_args, pod_id)
         jsons.dump_dataobject(
             models.PodMetadata(
                 label=bundle_dir.label,
@@ -118,21 +85,30 @@ class PodOpsDir(repos.OpsDirInterface):
             self.metadata_path,
         )
         bases.set_file_attrs(self.metadata_path)
-        # Extract volumes.
+        # Sanity check of the just-written metadata file.
+        ASSERT.equal(self.label, bundle_dir.label)
+        ASSERT.equal(self.version, bundle_dir.version)
+
+        LOG.info('pods install: images: %s %s', *log_args)
+        for _, image_path in bundle_dir.iter_images():
+            ctr_scripts.ctr_import_image(image_path)
+
+        LOG.info('pods install: volumes: %s %s', *log_args)
         bases.make_dir(self.volumes_dir_path)
-        for volume in bundle_dir.deploy_instruction.volumes:
-            tarball_path = bundle_dir.get_volume_path(volume)
+        for volume, volume_path in bundle_dir.iter_volumes():
             volume_dir_path = self.volumes_dir_path / volume.name
-            LOG.info('extract volume: %s -> %s', tarball_path, volume_dir_path)
-            bases.make_dir(volume_dir_path)
+            LOG.debug('pods: extract: %s -> %s', volume_path, volume_dir_path)
+            bases.make_dir(ASSERT.not_predicate(volume_dir_path, Path.exists))
             scripts.tar_extract(
-                tarball_path,
+                volume_path,
                 directory=volume_dir_path,
                 extra_args=(
                     '--same-owner',
                     '--same-permissions',
                 ),
             )
+
+        return True
 
     @staticmethod
     def _generate_mounts(deploy_instruction, target_ops_dir_path):
@@ -151,20 +127,37 @@ class PodOpsDir(repos.OpsDirInterface):
             )
         return mounts
 
-    def activate(self):
+    def start(self):
         pass  # Nothing here.
 
-    def deactivate(self):
+    def stop(self):
         pass  # Nothing here.
 
     def uninstall(self):
-        return _uninstall(self, self.metadata.images)
+        if not self.metadata_path.exists():
+            LOG.info('skip: pods uninstall: metadata was removed')
+            return False
+        LOG.info('pods uninstall: images: %s %s', self.label, self.version)
+        for image in self.metadata.images:
+            ctr_scripts.ctr_remove_image(image)
+        g1.files.remove(self.volumes_dir_path)
+        g1.files.remove(self.metadata_path)  # Remove metadata last.
+        ASSERT.predicate(self.path, g1.files.is_empty_dir)
+        return True
 
 
-def make_pod_ops_dirs():
+def init():
+    repos.OpsDirs.init(_get_ops_dirs_path())
+
+
+def make_ops_dirs():
     return repos.OpsDirs(
         models.REPO_PODS_DIR_NAME,
-        bases.get_repo_path() / models.REPO_PODS_DIR_NAME,
+        _get_ops_dirs_path(),
         bundle_dir_type=PodBundleDir,
         ops_dir_type=PodOpsDir,
     )
+
+
+def _get_ops_dirs_path():
+    return bases.get_repo_path() / models.REPO_PODS_DIR_NAME

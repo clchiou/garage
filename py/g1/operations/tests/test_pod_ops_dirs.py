@@ -13,7 +13,7 @@ from g1.texts import jsons
 from tests import fixtures
 
 
-class TestCaseBase(fixtures.TestCaseBase):
+class PodOpsDirTest(fixtures.TestCaseBase):
 
     DEPLOY_INSTRUCTION = models.PodDeployInstruction(
         label='//foo/bar:dummy',
@@ -70,7 +70,6 @@ class TestCaseBase(fixtures.TestCaseBase):
         super().tearDown()
 
     def make_bundle_dir(self):
-        self.test_bundle_dir_path.mkdir()
         jsons.dump_dataobject(
             self.DEPLOY_INSTRUCTION,
             self.test_bundle_dir_path / \
@@ -82,64 +81,23 @@ class TestCaseBase(fixtures.TestCaseBase):
         ):
             path.parent.mkdir(parents=True)
             path.touch()
-        bundle_dir = pod_ops_dirs.PodBundleDir(self.test_bundle_dir_path)
-        bundle_dir.check()
-        return bundle_dir
+        return pod_ops_dirs.PodBundleDir(self.test_bundle_dir_path)
 
-
-class PodBundleDirTest(TestCaseBase):
-
-    def test_bundle_dir(self):
-        bundle_dir = self.make_bundle_dir()
-        self.assertEqual(bundle_dir.label, '//foo/bar:dummy')
-        self.assertEqual(bundle_dir.version, '0.0.1')
-
-        self.assertTrue(bundle_dir.install())
-        self.ctr_scripts_mock.ctr_import_image.assert_called_once_with(
-            self.test_bundle_dir_path / self.BUNDLE_IMAGE_RELPATH,
-        )
-
-        self.assertTrue(bundle_dir.uninstall())
-        self.ctr_scripts_mock.ctr_remove_image.assert_called_once_with(
-            self.DEPLOY_INSTRUCTION.images[0],
-        )
-
-    def test_invalid_bundle_dir(self):
-        self.test_bundle_dir_path.mkdir()
-        bundle_dir = pod_ops_dirs.PodBundleDir(self.test_bundle_dir_path)
-        with self.assertRaises(AssertionError):
-            bundle_dir.check()
-        jsons.dump_dataobject(
-            self.DEPLOY_INSTRUCTION,
-            self.test_bundle_dir_path / \
-            models.BUNDLE_DEPLOY_INSTRUCTION_FILENAME,
-        )
-        with self.assertRaises(AssertionError):
-            bundle_dir.check()
-
-
-class PodOpsDirTest(TestCaseBase):
-
-    def make_ops_dir(self, bundle_dir):
-        ops_dir = pod_ops_dirs.PodOpsDir(self.test_ops_dir_path)
-        ops_dir.init()
-        ops_dir.check()
-        ops_dir.init_from_bundle_dir(bundle_dir, ops_dir.path_unchecked)
-        return ops_dir
-
-    def test_cleanup(self):
-        ops_dir = self.make_ops_dir(self.make_bundle_dir())
-        self.assertFalse(g1.files.is_empty_dir(self.test_ops_dir_path))
-        ops_dir.cleanup()
-        self.assertTrue(g1.files.is_empty_dir(self.test_ops_dir_path))
+    def make_ops_dir(self):
+        return pod_ops_dirs.PodOpsDir(self.test_ops_dir_path)
 
     def test_check_invariants(self):
-        ops_dir = self.make_ops_dir(self.make_bundle_dir())
+        bundle_dir = self.make_bundle_dir()
+        ops_dir = self.make_ops_dir()
+        ops_dir.install(bundle_dir, ops_dir.path)
         with self.assertRaisesRegex(AssertionError, r'expect unique pod id:'):
             ops_dir.check_invariants([ops_dir])
 
-    def test_init_from_bundle_dir(self):
-        self.make_ops_dir(self.make_bundle_dir())
+    def test_install(self):
+        bundle_dir = self.make_bundle_dir()
+        ops_dir = self.make_ops_dir()
+
+        ops_dir.install(bundle_dir, ops_dir.path)
         self.assertEqual(
             self.list_dir(self.test_ops_dir_path),
             ['metadata', 'volumes'],
@@ -155,6 +113,11 @@ class PodOpsDirTest(TestCaseBase):
                 self.test_ops_dir_path / 'volumes' / 'some-volume'
             )
         )
+        self.ctr_scripts_mock.ctr_import_image.assert_called_once_with(
+            self.test_bundle_dir_path / self.BUNDLE_IMAGE_RELPATH,
+        )
+        self.scripts_mock.tar_extract.assert_called_once()
+        # Check installed metadata file contents.
         metadata = jsons.load_dataobject(
             models.PodMetadata,
             self.test_ops_dir_path / 'metadata',
@@ -177,14 +140,13 @@ class PodOpsDirTest(TestCaseBase):
             )
         )
 
-    def test_uninstall(self):
-        bundle_dir = self.make_bundle_dir()
-        ops_dir = self.make_ops_dir(bundle_dir)
-        bundle_dir.install()
-        ops_dir.uninstall()
+        self.assertTrue(ops_dir.uninstall())
+        self.assertTrue(g1.files.is_empty_dir(self.test_ops_dir_path))
         self.ctr_scripts_mock.ctr_remove_image.assert_called_once_with(
             self.DEPLOY_INSTRUCTION.images[0],
         )
+
+        self.assertFalse(ops_dir.uninstall())
 
 
 if __name__ == '__main__':

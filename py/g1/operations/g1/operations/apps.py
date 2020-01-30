@@ -29,12 +29,8 @@ def cmd_init():
     scripts.assert_command_exist('ctr')
     scripts.assert_command_exist('tar')
     bases.make_dir(bases.get_repo_path(), parents=True)
-    for ops_dirs in (
-        pod_ops_dirs.make_pod_ops_dirs(),
-        xar_ops_dirs.make_xar_ops_dirs(),
-    ):
-        ops_dirs.init()
-        ops_dirs.check()
+    pod_ops_dirs.init()
+    xar_ops_dirs.init()
     return 0
 
 

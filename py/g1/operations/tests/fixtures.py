@@ -20,7 +20,9 @@ class TestCaseBase(unittest.TestCase):
         self.test_zipapp_dir_path.mkdir()
         bases.PARAMS.zipapp_directory.unsafe_set(self.test_zipapp_dir_path)
         self.test_bundle_dir_path = test_dir_path / 'bundle'
+        self.test_bundle_dir_path.mkdir()
         self.test_ops_dir_path = test_dir_path / 'ops-dir'
+        self.test_ops_dir_path.mkdir()
         unittest.mock.patch('g1.operations.bases._chown').start()
 
     def tearDown(self):

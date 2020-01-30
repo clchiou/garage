@@ -40,13 +40,11 @@ ASSERT.issuperset(_XAR_LIST_COLUMNS, _XAR_LIST_STRINGIFIERS)
 )
 @argparses.end
 def cmd_list(args):
-    ops_dirs = xar_ops_dirs.make_xar_ops_dirs()
-    ops_dirs.check()
     columnar = columns.Columnar(
         **columns_argparses.make_columnar_kwargs(args),
         stringifiers=_XAR_LIST_STRINGIFIERS,
     )
-    with ops_dirs.listing_ops_dirs() as active_ops_dirs:
+    with xar_ops_dirs.make_ops_dirs().listing_ops_dirs() as active_ops_dirs:
         for ops_dir in active_ops_dirs:
             columnar.append({
                 'label': ops_dir.label,
@@ -69,11 +67,7 @@ def cmd_list(args):
 @argparses.end
 def cmd_install(args):
     oses.assert_root_privilege()
-    bundle_dir = xar_ops_dirs.XarBundleDir(args.bundle)
-    bundle_dir.check()
-    ops_dirs = xar_ops_dirs.make_xar_ops_dirs()
-    ops_dirs.check()
-    ops_dirs.install(bundle_dir)
+    xar_ops_dirs.make_ops_dirs().install(args.bundle)
     return 0
 
 
@@ -89,9 +83,7 @@ def cmd_install(args):
 @argparses.end
 def cmd_uninstall(args):
     oses.assert_root_privilege()
-    ops_dirs = xar_ops_dirs.make_xar_ops_dirs()
-    ops_dirs.check()
-    ops_dirs.uninstall(args.label, args.version)
+    xar_ops_dirs.make_ops_dirs().uninstall(args.label, args.version)
     return 0
 
 

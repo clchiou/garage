@@ -53,13 +53,11 @@ ASSERT.issuperset(_POD_LIST_COLUMNS, _POD_LIST_STRINGIFIERS)
 )
 @argparses.end
 def cmd_list(args):
-    ops_dirs = pod_ops_dirs.make_pod_ops_dirs()
-    ops_dirs.check()
     columnar = columns.Columnar(
         **columns_argparses.make_columnar_kwargs(args),
         stringifiers=_POD_LIST_STRINGIFIERS,
     )
-    with ops_dirs.listing_ops_dirs() as active_ops_dirs:
+    with pod_ops_dirs.make_ops_dirs().listing_ops_dirs() as active_ops_dirs:
         for ops_dir in active_ops_dirs:
             columnar.append({
                 'label': ops_dir.label,
@@ -89,10 +87,8 @@ def cmd_list(args):
 def cmd_install(args):
     oses.assert_root_privilege()
     bundle_dir = pod_ops_dirs.PodBundleDir(args.bundle)
-    bundle_dir.check()
-    ops_dirs = pod_ops_dirs.make_pod_ops_dirs()
-    ops_dirs.check()
-    ops_dirs.install(bundle_dir)
+    ops_dirs = pod_ops_dirs.make_ops_dirs()
+    ops_dirs.install(bundle_dir.path)
     if args.also_start:
         return _start(ops_dirs, bundle_dir.label, bundle_dir.version)
     return 0
@@ -103,9 +99,7 @@ def cmd_install(args):
 @argparses.end
 def cmd_start(args):
     oses.assert_root_privilege()
-    ops_dirs = pod_ops_dirs.make_pod_ops_dirs()
-    ops_dirs.check()
-    return _start(ops_dirs, args.label, args.version)
+    return _start(pod_ops_dirs.make_ops_dirs(), args.label, args.version)
 
 
 def _start(ops_dirs, label, version):
@@ -114,7 +108,7 @@ def _start(ops_dirs, label, version):
         ops_dirs,
         label,
         version,
-        lambda ops_dir: ops_dir.activate(),
+        lambda ops_dir: ops_dir.start(),
     )
 
 
@@ -123,14 +117,12 @@ def _start(ops_dirs, label, version):
 @argparses.end
 def cmd_stop(args):
     oses.assert_root_privilege()
-    ops_dirs = pod_ops_dirs.make_pod_ops_dirs()
-    ops_dirs.check()
     return _ops_dir_apply(
         'stop',
-        ops_dirs,
+        pod_ops_dirs.make_ops_dirs(),
         args.label,
         args.version,
-        lambda ops_dir: ops_dir.deactivate(),
+        lambda ops_dir: ops_dir.stop(),
     )
 
 
@@ -151,9 +143,7 @@ def _ops_dir_apply(cmd, ops_dirs, label, version, func):
 @argparses.end
 def cmd_uninstall(args):
     oses.assert_root_privilege()
-    ops_dirs = pod_ops_dirs.make_pod_ops_dirs()
-    ops_dirs.check()
-    ops_dirs.uninstall(args.label, args.version)
+    pod_ops_dirs.make_ops_dirs().uninstall(args.label, args.version)
     return 0
 
 

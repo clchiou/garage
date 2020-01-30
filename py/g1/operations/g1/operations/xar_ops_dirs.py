@@ -1,6 +1,6 @@
 __all__ = [
-    'XarBundleDir',
-    'make_xar_ops_dirs',
+    'init',
+    'make_ops_dirs',
 ]
 
 import logging
@@ -18,25 +18,17 @@ from . import repos
 LOG = logging.getLogger(__name__)
 
 
-class XarBundleDir(repos.BundleDirInterface):
+class XarBundleDir(repos.AbstractBundleDir):
 
     deploy_instruction_type = models.XarDeployInstruction
 
-    def __init__(self, path):
-        self.path_unchecked = path
-
-    def check(self):
-        ASSERT.predicate(self.path_unchecked, Path.is_dir)
-        if self.load_deploy_instruction().is_zipapp():
-            ASSERT.predicate(
-                self.path_unchecked / models.XAR_BUNDLE_ZIPAPP_FILENAME,
-                Path.is_file,
-            )
+    def post_init(self):
+        ASSERT.predicate(self.path, Path.is_dir)
+        ASSERT.predicate(self.deploy_instruction_path, Path.is_file)
+        if self.deploy_instruction.is_zipapp():
+            ASSERT.predicate(self.zipapp_path, Path.is_file)
         else:
-            ASSERT.predicate(
-                self.path_unchecked / models.XAR_BUNDLE_IMAGE_FILENAME,
-                Path.is_file,
-            )
+            ASSERT.predicate(self.image_path, Path.is_file)
 
     @property
     def zipapp_path(self):
@@ -48,64 +40,17 @@ class XarBundleDir(repos.BundleDirInterface):
         ASSERT.false(self.deploy_instruction.is_zipapp())
         return self.path / models.XAR_BUNDLE_IMAGE_FILENAME
 
-    def install(self):
-        if self.deploy_instruction.is_zipapp():
-            LOG.info('xars install zipapp: %s %s', self.label, self.version)
-            bases.copy_exec(
-                self.zipapp_path,
-                bases.get_zipapp_target_path(self.deploy_instruction.name),
-            )
-        else:
-            LOG.info('xars install xar: %s %s', self.label, self.version)
-            ctr_scripts.ctr_import_image(self.image_path)
-            ctr_scripts.ctr_install_xar(
-                self.deploy_instruction.name,
-                self.deploy_instruction.exec_relpath,
-                self.deploy_instruction.image,
-            )
-        return True
 
-    def uninstall(self):
-        return _uninstall(self, self.deploy_instruction)
-
-
-def _uninstall(dir_obj, inst_like_obj):
-    log_args = (dir_obj.label, dir_obj.version)
-    if inst_like_obj.is_zipapp():
-        LOG.info('xars uninstall zipapp: %s %s', *log_args)
-        g1.files.remove(bases.get_zipapp_target_path(inst_like_obj.name))
-    else:
-        LOG.info('xars uninstall xar: %s %s', *log_args)
-        ctr_scripts.ctr_uninstall_xar(inst_like_obj.name)
-        ctr_scripts.ctr_remove_image(inst_like_obj.image)
-    return True
-
-
-class XarOpsDir(repos.OpsDirInterface):
+class XarOpsDir(repos.AbstractOpsDir):
 
     metadata_type = models.XarMetadata
-
-    def __init__(self, path):
-        self.path_unchecked = path
-
-    def init(self):
-        bases.make_dir(self.path_unchecked)
-
-    def check(self):
-        ASSERT.predicate(self.path_unchecked, Path.is_dir)
 
     @property
     def zipapp_target_path(self):
         ASSERT.true(self.metadata.is_zipapp())
         return bases.get_zipapp_target_path(self.metadata.name)
 
-    def cleanup(self):
-        g1.files.remove(self.metadata_path)
-        ASSERT.predicate(self.path, g1.files.is_empty_dir)
-
     def check_invariants(self, active_ops_dirs):
-        self.check()
-        ASSERT.predicate(self.metadata_path, Path.is_file)
         for ops_dir in active_ops_dirs:
             ASSERT(
                 ops_dir.metadata.name != self.metadata.name,
@@ -114,8 +59,12 @@ class XarOpsDir(repos.OpsDirInterface):
                 self.label,
             )
 
-    def init_from_bundle_dir(self, bundle_dir, target_ops_dir_path):
+    def install(self, bundle_dir, target_ops_dir_path):
         del target_ops_dir_path  # Unused.
+        ASSERT.isinstance(bundle_dir, XarBundleDir)
+        log_args = (bundle_dir.label, bundle_dir.version)
+
+        LOG.info('xars install: metadata: %s %s', *log_args)
         jsons.dump_dataobject(
             models.XarMetadata(
                 label=bundle_dir.label,
@@ -125,21 +74,59 @@ class XarOpsDir(repos.OpsDirInterface):
             self.metadata_path,
         )
         bases.set_file_attrs(self.metadata_path)
+        # Sanity check of the just-written metadata file.
+        ASSERT.equal(self.label, bundle_dir.label)
+        ASSERT.equal(self.version, bundle_dir.version)
 
-    def activate(self):
+        if bundle_dir.deploy_instruction.is_zipapp():
+            LOG.info('xars install: zipapp: %s %s', *log_args)
+            bases.copy_exec(bundle_dir.zipapp_path, self.zipapp_target_path)
+        else:
+            LOG.info('xars install: xar: %s %s', *log_args)
+            ctr_scripts.ctr_import_image(bundle_dir.image_path)
+            ctr_scripts.ctr_install_xar(
+                bundle_dir.deploy_instruction.name,
+                bundle_dir.deploy_instruction.exec_relpath,
+                bundle_dir.deploy_instruction.image,
+            )
+
+        return True
+
+    def start(self):
         pass  # Nothing here.
 
-    def deactivate(self):
+    def stop(self):
         pass  # Nothing here.
 
     def uninstall(self):
-        return _uninstall(self, self.metadata)
+        if not self.metadata_path.exists():
+            LOG.info('skip: xars uninstall: metadata was removed')
+            return False
+        log_args = (self.label, self.version)
+        if self.metadata.is_zipapp():
+            LOG.info('xars uninstall: zipapp: %s %s', *log_args)
+            g1.files.remove(self.zipapp_target_path)
+        else:
+            LOG.info('xars uninstall: xar: %s %s', *log_args)
+            ctr_scripts.ctr_uninstall_xar(self.metadata.name)
+            ctr_scripts.ctr_remove_image(self.metadata.image)
+        g1.files.remove(self.metadata_path)  # Remove metadata last.
+        ASSERT.predicate(self.path, g1.files.is_empty_dir)
+        return True
 
 
-def make_xar_ops_dirs():
+def init():
+    repos.OpsDirs.init(_get_ops_dirs_path())
+
+
+def make_ops_dirs():
     return repos.OpsDirs(
         models.REPO_XARS_DIR_NAME,
-        bases.get_repo_path() / models.REPO_XARS_DIR_NAME,
+        _get_ops_dirs_path(),
         bundle_dir_type=XarBundleDir,
         ops_dir_type=XarOpsDir,
     )
+
+
+def _get_ops_dirs_path():
+    return bases.get_repo_path() / models.REPO_XARS_DIR_NAME
