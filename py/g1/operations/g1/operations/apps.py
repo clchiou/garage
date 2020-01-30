@@ -27,6 +27,7 @@ from . import xar_ops_dirs
 def cmd_init():
     oses.assert_root_privilege()
     scripts.assert_command_exist('ctr')
+    scripts.assert_command_exist('systemctl')
     scripts.assert_command_exist('tar')
     bases.make_dir(bases.get_repo_path(), parents=True)
     pod_ops_dirs.init()

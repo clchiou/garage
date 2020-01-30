@@ -32,15 +32,29 @@ select_pod_arguments = functionals.compose(
     ),
 )
 
+select_unit_arguments = functionals.compose(
+    argparses.begin_mutually_exclusive_group(required=False),
+    argparses.argument(
+        '--unit',
+        action='append',
+        help='add systemd unit name to be started',
+    ),
+    argparses.argument(
+        '--unit-all',
+        action=argparses.StoreBoolAction,
+        default=False,
+        help='start all systemd units (default: %(default_string)s)',
+    ),
+    argparses.end,
+)
+
 _POD_LIST_COLUMNS = frozenset((
     'label',
     'version',
-    'id',
 ))
 _POD_LIST_DEFAULT_COLUMNS = (
     'label',
     'version',
-    'id',
 )
 _POD_LIST_STRINGIFIERS = {}
 ASSERT.issuperset(_POD_LIST_COLUMNS, _POD_LIST_DEFAULT_COLUMNS)
@@ -62,9 +76,8 @@ def cmd_list(args):
             columnar.append({
                 'label': ops_dir.label,
                 'version': ops_dir.version,
-                'id': ops_dir.metadata.pod_id,
             })
-    columnar.sort(lambda row: (row['label'], row['version'], row['id']))
+    columnar.sort(lambda row: (row['label'], row['version']))
     columnar.output(sys.stdout)
     return 0
 
@@ -78,6 +91,7 @@ def cmd_list(args):
     default=True,
     help='also start pod after install (default: %(default_string)s)',
 )
+@select_unit_arguments
 @argparses.argument(
     'bundle',
     type=Path,
@@ -90,29 +104,38 @@ def cmd_install(args):
     ops_dirs = pod_ops_dirs.make_ops_dirs()
     ops_dirs.install(bundle_dir.path)
     if args.also_start:
-        return _start(ops_dirs, bundle_dir.label, bundle_dir.version)
+        return _start(ops_dirs, bundle_dir.label, bundle_dir.version, args)
     return 0
 
 
 @argparses.begin_parser('start', **argparses.make_help_kwargs('start pod'))
+@select_unit_arguments
 @select_pod_arguments
 @argparses.end
 def cmd_start(args):
     oses.assert_root_privilege()
-    return _start(pod_ops_dirs.make_ops_dirs(), args.label, args.version)
+    return _start(pod_ops_dirs.make_ops_dirs(), args.label, args.version, args)
 
 
-def _start(ops_dirs, label, version):
+def _start(ops_dirs, label, version, args):
     return _ops_dir_apply(
         'start',
         ops_dirs,
         label,
         version,
-        lambda ops_dir: ops_dir.start(),
+        lambda ops_dir: ops_dir.start(
+            unit_names=args.unit,
+            all_units=args.unit_all,
+        ),
     )
 
 
 @argparses.begin_parser('stop', **argparses.make_help_kwargs('stop pod'))
+@argparses.argument(
+    '--unit',
+    action='append',
+    help='add systemd unit name to be stopped (default to all)',
+)
 @select_pod_arguments
 @argparses.end
 def cmd_stop(args):
@@ -122,7 +145,7 @@ def cmd_stop(args):
         pod_ops_dirs.make_ops_dirs(),
         args.label,
         args.version,
-        lambda ops_dir: ops_dir.stop(),
+        lambda ops_dir: ops_dir.stop(unit_names=args.unit),
     )
 
 

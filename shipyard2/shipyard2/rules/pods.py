@@ -3,6 +3,7 @@
 __all__ = [
     'App',
     'Mount',
+    'SystemdUnit',
     'Volume',
     'define_pod',
 ]
@@ -27,6 +28,7 @@ from shipyard2.rules import images as _images
 # Re-export these.
 App = ctr_models.PodConfig.App
 Mount = ctr_models.PodConfig.Mount
+SystemdUnit = ops_models.PodDeployInstruction.SystemdUnit
 Volume = ops_models.PodDeployInstruction.Volume
 
 LOG = logging.getLogger(__name__)
@@ -44,6 +46,7 @@ def define_pod(
     images: typing.List[str] = (),
     mounts: typing.List[Mount] = (),
     volumes: typing.List[Volume] = (),
+    systemd_units: typing.List[SystemdUnit] = (),
 ):
     """Define a pod.
 
@@ -97,6 +100,7 @@ def define_pod(
                 images=images,
                 mounts=mounts,
                 volumes=volumes,
+                systemd_units=systemd_units,
             )
             _link_images(parameters, pod_dir_path, images)
             _link_volumes(parameters, pod_dir_path, volumes)
@@ -125,6 +129,7 @@ def _generate_deploy_instruction(
     images,
     mounts,
     volumes,
+    systemd_units,
 ):
     releases.dump(
         ops_models.PodDeployInstruction(
@@ -154,6 +159,7 @@ def _generate_deploy_instruction(
                 mounts=mounts,
             ),
             volumes=volumes,
+            systemd_units=systemd_units,
         ),
         pod_dir_path / shipyard2.POD_DIR_DEPLOY_INSTRUCTION_FILENAME,
     )

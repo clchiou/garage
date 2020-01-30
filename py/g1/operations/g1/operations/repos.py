@@ -129,6 +129,10 @@ class AbstractOpsDir:
         return self.metadata.version
 
     @property
+    def refs_dir_path(self):
+        return self.path / models.OPS_DIR_REFS_DIR_NAME
+
+    @property
     def volumes_dir_path(self):
         return self.path / models.OPS_DIR_VOLUMES_DIR_NAME
 

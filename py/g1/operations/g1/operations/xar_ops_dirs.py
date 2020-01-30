@@ -64,6 +64,7 @@ class XarOpsDir(repos.AbstractOpsDir):
         ASSERT.isinstance(bundle_dir, XarBundleDir)
         log_args = (bundle_dir.label, bundle_dir.version)
 
+        # Make metadata first so that uninstall may roll back properly.
         LOG.info('xars install: metadata: %s %s', *log_args)
         jsons.dump_dataobject(
             models.XarMetadata(

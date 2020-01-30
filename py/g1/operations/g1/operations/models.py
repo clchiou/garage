@@ -19,7 +19,11 @@ REPO_XARS_DIR_NAME = 'xars'
 
 # Operations directory structure.
 OPS_DIR_METADATA_FILENAME = 'metadata'
+OPS_DIR_REFS_DIR_NAME = 'refs'
 OPS_DIR_VOLUMES_DIR_NAME = 'volumes'
+
+# Reserve this prefix for ourselves.
+ENV_PREFIX = 'pod'
 
 # Bundle directory structure.
 BUNDLE_DEPLOY_INSTRUCTION_FILENAME = 'deploy.json'
@@ -80,6 +84,17 @@ def validate_xar_label(label):
     return ASSERT.predicate(label, _XAR_LABEL_PATTERN.fullmatch)
 
 
+# We do not use systemd unit templates (we implement our own feature),
+# and we only support service and timer unit for now.
+_SYSTEMD_UNIT_NAME_PATTERN = re.compile(
+    r'[a-z0-9]+(?:-[a-z0-9]+)*\.(?:service|timer)'
+)
+
+
+def _validate_systemd_unit_name(name):
+    return ASSERT.predicate(name, _SYSTEMD_UNIT_NAME_PATTERN.fullmatch)
+
+
 @dataclasses.dataclass(frozen=True)
 class PodDeployInstruction:
 
@@ -99,29 +114,39 @@ class PodDeployInstruction:
         def name(self):
             return _get_label_name(_VOLUME_LABEL_PATTERN, self.label)
 
+    @dataclasses.dataclass(frozen=True)
+    class SystemdUnit:
+        name: str
+        contents: str
+        envs: typing.Mapping[str, str] = \
+            dataclasses.field(default_factory=dict)
+        auto_start: bool = True
+
+        def __post_init__(self):
+            _validate_systemd_unit_name(self.name)
+            ASSERT.not_any(key.startswith(ENV_PREFIX) for key in self.envs)
+
     label: str
     pod_config_template: ctr_models.PodConfig
-    volumes: typing.List[Volume]
+    volumes: typing.List[Volume] = ()
+    systemd_units: typing.List[SystemdUnit] = ()
 
     def __post_init__(self):
         validate_pod_label(self.label)
-        ASSERT.equal(self.name, self.pod_config_template.name)
-        # Only allow specifying image for pods by name for now.
-        ASSERT.all(
-            image.name is not None and image.version is not None
-            for image in self.images
+        ASSERT.equal(
+            _get_label_name(_POD_LABEL_PATTERN, self.label),
+            self.pod_config_template.name,
         )
+        # Only allow specifying image for pods by name for now.
+        ASSERT.all(self.images, lambda image: image.name and image.version)
         # Due to bundle directory layout, image names and volume names
         # are expected to be unique.  (This layout restriction should be
         # not too restrictive in practice.)
-        ASSERT.unique(image.name for image in self.images)
-        ASSERT.unique(volume.name for volume in self.volumes)
-
-    # We can make this alias because we require that label.name equals
-    # to pod_config_template.name.
-    @property
-    def name(self):
-        return self.pod_config_template.name
+        ASSERT.unique(self.images, lambda image: image.name)
+        ASSERT.unique(self.volumes, lambda volume: volume.name)
+        # The current implementation does not resolve any unit name
+        # conflicts.
+        ASSERT.unique(self.systemd_units, lambda unit: unit.name)
 
     # For now, version is just an alias of pod_config_template.version.
     @property
@@ -134,37 +159,53 @@ class PodDeployInstruction:
         return self.pod_config_template.images
 
 
+_SYSTEMD_UNITS_DIR_PATH = Path('/etc/systemd/system')
+
+
 @dataclasses.dataclass(frozen=True)
 class PodMetadata:
+
+    @dataclasses.dataclass(frozen=True)
+    class SystemdUnitConfig:
+        pod_id: str
+        name: str
+        auto_start: bool = True
+
+        def __post_init__(self):
+            ctr_models.validate_pod_id(self.pod_id)
+            _validate_systemd_unit_name(self.name)
+
+        @property
+        def unit_name(self):
+            # This naming scheme should be sufficiently human-readable
+            # and unlikely to conflict.
+            return '%s_%s' % (
+                ctr_models.generate_machine_name(self.pod_id),
+                self.name,
+            )
+
+        @property
+        def unit_path(self):
+            return _SYSTEMD_UNITS_DIR_PATH / self.unit_name
+
+        @property
+        def unit_config_path(self):
+            unit_path = self.unit_path
+            return unit_path.with_name(unit_path.name + '.d') / '10-pod.conf'
+
     label: str
-    pod_id: str
-    pod_config: ctr_models.PodConfig
+    version: str
+    images: typing.List[ctr_models.PodConfig.Image]
+    systemd_unit_configs: typing.List[SystemdUnitConfig] = ()
 
     def __post_init__(self):
         validate_pod_label(self.label)
-        ASSERT.equal(self.name, self.pod_config.name)
-        ctr_models.validate_pod_id(self.pod_id)
+        ctr_models.validate_pod_version(self.version)
         # Only allow specifying image for pods by name for now.
-        ASSERT.all(
-            image.name is not None and image.version is not None
-            for image in self.images
-        )
-
-    # We can make this alias because we require that label.name equals
-    # to pod_config.name.
-    @property
-    def name(self):
-        return self.pod_config.name
-
-    # For now, version is just an alias of pod_config.version.
-    @property
-    def version(self):
-        return self.pod_config.version
-
-    # For now, images is just an alias of pod_config.images.
-    @property
-    def images(self):
-        return self.pod_config.images
+        ASSERT.all(self.images, lambda image: image.name and image.version)
+        # The current implementation does not resolve any unit name
+        # conflicts.
+        ASSERT.unique(self.systemd_unit_configs, lambda config: config.name)
 
 
 @dataclasses.dataclass(frozen=True)

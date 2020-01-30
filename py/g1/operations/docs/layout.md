@@ -18,6 +18,7 @@ Operations repository layout:
 Pod operations directory layout:
 
 * `metadata` is pod operations metadata (JSON-formatted).
+* `refs` is a directory of references to pod.
 * `volumes/<volume-name>` are directories of volume data.
 
 XAR operations directory layout:
