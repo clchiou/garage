@@ -4,6 +4,7 @@ __all__ = [
     'fromdict',
 ]
 
+import collections.abc
 import dataclasses
 
 from . import typings
@@ -17,7 +18,8 @@ def fromdict(dataclass, data):
     ignores dict entries that do not correspond to any dataclass field.
 
     This only handles a small number of "structure" schema definitions,
-    namely, typing.List, typing.Tuple, and typing.Optional.
+    namely, typing.List, typing.Tuple, typing.Optional, and
+    typing.Mapping.
     """
 
     def convert(type_, value):
@@ -41,6 +43,17 @@ def fromdict(dataclass, data):
                     return convert(optional_type_, value)
                 else:
                     return value
+
+            elif type_.__origin__ in (
+                collections.abc.Mapping,
+                collections.abc.MutableMapping,
+            ):
+                ASSERT.equal(len(type_.__args__), 2)
+                return {
+                    convert(type_.__args__[0], k):
+                    convert(type_.__args__[1], v)
+                    for k, v in value.items()
+                }
 
             else:
                 return value
