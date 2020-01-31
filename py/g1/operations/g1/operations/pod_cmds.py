@@ -16,6 +16,7 @@ from g1.texts.columns import argparses as columns_argparses
 
 from . import models
 from . import pod_ops_dirs
+from . import systemds
 
 LOG = logging.getLogger(__name__)
 
@@ -48,15 +49,32 @@ select_unit_arguments = functionals.compose(
     argparses.end,
 )
 
+
+def bool_to_str(b):
+    return 'true' if b else 'false'
+
+
 _POD_LIST_COLUMNS = frozenset((
     'label',
     'version',
+    'id',
+    'name',
+    'unit',
+    'auto-start',
+    'enabled',
+    'active',
 ))
 _POD_LIST_DEFAULT_COLUMNS = (
     'label',
     'version',
+    'id',
+    'name',
 )
-_POD_LIST_STRINGIFIERS = {}
+_POD_LIST_STRINGIFIERS = {
+    'auto-start': bool_to_str,
+    'enabled': bool_to_str,
+    'active': bool_to_str,
+}
 ASSERT.issuperset(_POD_LIST_COLUMNS, _POD_LIST_DEFAULT_COLUMNS)
 ASSERT.issuperset(_POD_LIST_COLUMNS, _POD_LIST_STRINGIFIERS)
 
@@ -73,11 +91,18 @@ def cmd_list(args):
     )
     with pod_ops_dirs.make_ops_dirs().listing_ops_dirs() as active_ops_dirs:
         for ops_dir in active_ops_dirs:
-            columnar.append({
-                'label': ops_dir.label,
-                'version': ops_dir.version,
-            })
-    columnar.sort(lambda row: (row['label'], row['version']))
+            for config in ops_dir.metadata.systemd_unit_configs:
+                columnar.append({
+                    'label': ops_dir.label,
+                    'version': ops_dir.version,
+                    'id': config.pod_id,
+                    'name': config.name,
+                    'unit': config.unit_name,
+                    'auto-start': config.auto_start,
+                    'enabled': systemds.is_enabled(config),
+                    'active': systemds.is_active(config),
+                })
+    columnar.sort(lambda row: (row['label'], row['version'], row['name']))
     columnar.output(sys.stdout)
     return 0
 
