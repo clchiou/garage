@@ -32,13 +32,14 @@ def columnar_arguments(columns, default_columns):
             ),
             default=','.join(default_columns),
             help=(
-                'set output columns (available columns are: %(columns)s) '
+                'set output columns that are comma separated '
+                'from available columns: %(columns)s '
                 '(default: %(default)s)'
             ),
         ),
         argparses.apply(
             lambda action:
-            setattr(action, 'columns', ','.join(sorted(columns)))
+            setattr(action, 'columns', ', '.join(sorted(columns)))
         ),
         argparses.end,
     )
