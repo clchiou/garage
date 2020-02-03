@@ -19,6 +19,7 @@ from . import bases
 from . import models
 from . import repos
 from . import systemds
+from . import tokens
 
 LOG = logging.getLogger(__name__)
 
@@ -108,13 +109,26 @@ class PodOpsDir(repos.AbstractOpsDir):
         LOG.debug('pods install: images: %s %s', *log_args)
         for _, image_path in bundle_dir.iter_images():
             ctr_scripts.ctr_import_image(image_path)
+        LOG.debug('pods install: tokens: %s %s', *log_args)
+        assignments = {}
+        with tokens.make_tokens_database().writing() as active_tokens:
+            for config in self.metadata.systemd_unit_configs:
+                assignments[config.pod_id] = {}
+                for name in bundle_dir.deploy_instruction.token_names:
+                    assignments[config.pod_id][name] = \
+                        active_tokens.assign(name, config.pod_id)
         LOG.debug('pods install: prepare pods: %s %s', *log_args)
         bases.make_dir(self.refs_dir_path)
         for config in self.metadata.systemd_unit_configs:
             pod_config = self._make_pod_config(
                 bundle_dir.deploy_instruction,
                 target_ops_dir_path,
-                systemds.make_envs(config, self.metadata, units[config.name]),
+                systemds.make_envs(
+                    config,
+                    self.metadata,
+                    units[config.name].envs,
+                    assignments[config.pod_id],
+                ),
             )
             with tempfile.NamedTemporaryFile() as config_tempfile:
                 config_path = Path(config_tempfile.name)
@@ -125,7 +139,12 @@ class PodOpsDir(repos.AbstractOpsDir):
             )
         LOG.debug('pods install: systemd units: %s %s', *log_args)
         for config in self.metadata.systemd_unit_configs:
-            systemds.install(config, self.metadata, units[config.name])
+            systemds.install(
+                config,
+                self.metadata,
+                units[config.name],
+                assignments[config.pod_id],
+            )
         systemds.daemon_reload()
         return True
 
@@ -207,6 +226,10 @@ class PodOpsDir(repos.AbstractOpsDir):
         g1.files.remove(self.refs_dir_path)
         for config in self.metadata.systemd_unit_configs:
             ctr_scripts.ctr_remove_pod(config.pod_id)
+        LOG.debug('pods uninstall: tokens: %s %s', *log_args)
+        with tokens.make_tokens_database().writing() as active_tokens:
+            for config in self.metadata.systemd_unit_configs:
+                active_tokens.unassign_all(config.pod_id)
         LOG.debug('pods uninstall: images: %s %s', *log_args)
         for image in self.metadata.images:
             ctr_scripts.ctr_remove_image(image)

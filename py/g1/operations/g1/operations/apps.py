@@ -12,6 +12,7 @@ from g1.bases.assertions import ASSERT
 
 from . import pod_cmds
 from . import repo_cmds
+from . import token_cmds
 from . import xar_cmds
 
 
@@ -19,6 +20,7 @@ from . import xar_cmds
 @argparses.include(repo_cmds.main)
 @argparses.include(pod_cmds.main)
 @argparses.include(xar_cmds.main)
+@argparses.include(token_cmds.main)
 @argparses.end
 def main(args: apps_bases.LABELS.args, _: g1.scripts.parts.LABELS.setup):
     """Operations tool."""
@@ -28,6 +30,8 @@ def main(args: apps_bases.LABELS.args, _: g1.scripts.parts.LABELS.setup):
         return pod_cmds.main(args)
     elif args.subject == 'xars':
         return xar_cmds.main(args)
+    elif args.subject == 'tokens':
+        return token_cmds.main(args)
     else:
         return ASSERT.unreachable('unknown subject: {}', args.subject)
 

@@ -7,6 +7,7 @@ import g1.files
 from g1.containers import models as ctr_models
 from g1.operations import models
 from g1.operations import pod_ops_dirs
+from g1.operations import tokens
 from g1.texts import jsons
 
 from tests import fixtures
@@ -100,6 +101,7 @@ class PodOpsDirTest(fixtures.TestCaseBase):
             pod_ops_dirs.__name__ + '.ctr_models.generate_pod_id'
         ).start()
         mock.side_effect = [self.POD_ID_1, self.POD_ID_2]
+        tokens.init()
 
     def tearDown(self):
         unittest.mock.patch.stopall()
@@ -178,8 +180,12 @@ class PodOpsDirTest(fixtures.TestCaseBase):
         ])
         # Check systemd units.
         self.systemds_mock.install.assert_has_calls([
-            unittest.mock.call(self.CONFIG_1, ops_dir.metadata, self.UNIT_1),
-            unittest.mock.call(self.CONFIG_2, ops_dir.metadata, self.UNIT_2),
+            unittest.mock.call(
+                self.CONFIG_1, ops_dir.metadata, self.UNIT_1, {}
+            ),
+            unittest.mock.call(
+                self.CONFIG_2, ops_dir.metadata, self.UNIT_2, {}
+            ),
         ])
         self.systemds_mock.daemon_reload.assert_called_once()
 

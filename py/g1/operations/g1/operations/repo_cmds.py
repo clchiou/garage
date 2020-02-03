@@ -9,6 +9,7 @@ from g1.bases.assertions import ASSERT
 
 from . import bases
 from . import pod_ops_dirs
+from . import tokens
 from . import xar_ops_dirs
 
 
@@ -25,6 +26,7 @@ def cmd_init():
     bases.make_dir(bases.get_repo_path(), parents=True)
     pod_ops_dirs.init()
     xar_ops_dirs.init()
+    tokens.init()
     return 0
 
 
@@ -35,8 +37,10 @@ def cmd_init():
 @argparses.end
 def cmd_cleanup():
     oses.assert_root_privilege()
-    pod_ops_dirs.make_ops_dirs().cleanup()
+    ops_dirs = pod_ops_dirs.make_ops_dirs()
+    ops_dirs.cleanup()
     xar_ops_dirs.make_ops_dirs().cleanup()
+    tokens.make_tokens_database().cleanup(ops_dirs)
     return 0
 
 

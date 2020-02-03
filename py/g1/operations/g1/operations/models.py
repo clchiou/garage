@@ -16,6 +16,7 @@ from g1.containers import models as ctr_models
 # Operations repository structure.
 REPO_PODS_DIR_NAME = 'pods'
 REPO_XARS_DIR_NAME = 'xars'
+REPO_TOKENS_DIR_NAME = 'tokens'
 
 # Operations directory structure.
 OPS_DIR_METADATA_FILENAME = 'metadata'
@@ -95,6 +96,14 @@ def _validate_systemd_unit_name(name):
     return ASSERT.predicate(name, _SYSTEMD_UNIT_NAME_PATTERN.fullmatch)
 
 
+# Use underscore rather than dash for names like foo_bar.
+_TOKEN_NAME_PATTERN = re.compile(r'[a-z0-9]+(?:_[a-z0-9]+)*')
+
+
+def validate_token_name(name):
+    return ASSERT.predicate(name, _TOKEN_NAME_PATTERN.fullmatch)
+
+
 @dataclasses.dataclass(frozen=True)
 class PodDeployInstruction:
 
@@ -130,6 +139,7 @@ class PodDeployInstruction:
     pod_config_template: ctr_models.PodConfig
     volumes: typing.List[Volume] = ()
     systemd_units: typing.List[SystemdUnit] = ()
+    token_names: typing.List[str] = ()
 
     def __post_init__(self):
         validate_pod_label(self.label)
@@ -147,6 +157,8 @@ class PodDeployInstruction:
         # The current implementation does not resolve any unit name
         # conflicts.
         ASSERT.unique(self.systemd_units, lambda unit: unit.name)
+        ASSERT.all(self.token_names, validate_token_name)
+        ASSERT.unique(self.token_names)
 
     # For now, version is just an alias of pod_config_template.version.
     @property

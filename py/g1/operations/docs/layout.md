@@ -14,6 +14,11 @@ Operations repository layout:
   + `graveyard` is the directory of XAR operations directories to be
     removed.
   + `tmp` is a scratchpad for preparing XAR operations directory.
+* `tokens/...`
+  + This directory stores token definitions and assignments.  For now we
+    just use a JSON file `tokens` to store all info (we might migrate to
+    SQLite in the future).  The current implementation is very naive and
+    not very efficient.
 
 Pod operations directory layout:
 

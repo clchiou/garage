@@ -14,8 +14,8 @@ class TestCaseBase(unittest.TestCase):
         self._test_dir_tempdir = tempfile.TemporaryDirectory()
         test_dir_path = Path(self._test_dir_tempdir.name)
         self.test_repo_path = test_dir_path / 'repo'
-        self.test_repo_path.mkdir()
         bases.PARAMS.repository.unsafe_set(self.test_repo_path)
+        bases.get_repo_path().mkdir(parents=True)
         self.test_zipapp_dir_path = test_dir_path / 'bin'
         self.test_zipapp_dir_path.mkdir()
         bases.PARAMS.zipapp_directory.unsafe_set(self.test_zipapp_dir_path)

@@ -24,19 +24,24 @@ from . import models
 LOG = logging.getLogger(__name__)
 
 
-def make_envs(config, pod_metadata, unit):
-    return {
+def make_envs(config, pod_metadata, *envs_list):
+    merged_envs = {
         ('%s_id' % models.ENV_PREFIX): config.pod_id,
         ('%s_label' % models.ENV_PREFIX): pod_metadata.label,
         ('%s_version' % models.ENV_PREFIX): pod_metadata.version,
-        **unit.envs,
     }
+    for envs in envs_list:
+        for k, v in envs.items():
+            # Forbid overwriting env entries.
+            ASSERT.setitem(merged_envs, k, v)
+    return merged_envs
 
 
-def install(config, pod_metadata, unit):
+def install(config, pod_metadata, unit, *envs_list):
     _make_unit_file(unit.contents, config.unit_path)
     _make_unit_config_file(
-        make_envs(config, pod_metadata, unit), config.unit_config_path
+        make_envs(config, pod_metadata, unit.envs, *envs_list),
+        config.unit_config_path,
     )
     return True
 

@@ -47,6 +47,7 @@ def define_pod(
     mounts: typing.List[Mount] = (),
     volumes: typing.List[Volume] = (),
     systemd_units: typing.List[SystemdUnit] = (),
+    token_names: typing.List[str] = (),
 ):
     """Define a pod.
 
@@ -101,6 +102,7 @@ def define_pod(
                 mounts=mounts,
                 volumes=volumes,
                 systemd_units=systemd_units,
+                token_names=token_names,
             )
             _link_images(parameters, pod_dir_path, images)
             _link_volumes(parameters, pod_dir_path, volumes)
@@ -130,6 +132,7 @@ def _generate_deploy_instruction(
     mounts,
     volumes,
     systemd_units,
+    token_names,
 ):
     releases.dump(
         ops_models.PodDeployInstruction(
@@ -160,6 +163,7 @@ def _generate_deploy_instruction(
             ),
             volumes=volumes,
             systemd_units=systemd_units,
+            token_names=token_names,
         ),
         pod_dir_path / shipyard2.POD_DIR_DEPLOY_INSTRUCTION_FILENAME,
     )
