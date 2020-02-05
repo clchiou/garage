@@ -235,10 +235,8 @@ class OpsDirs:
     def using_ops_dir(self, label, version):
         ops_dir_path = self._get_ops_dir_path(label, version)
         with locks.acquiring_shared(self.active_dir_path):
-            ops_dir_lock = self._try_lock_ops_dir(ops_dir_path)
-        if not ops_dir_lock:
-            yield None
-            return
+            ASSERT.predicate(ops_dir_path, Path.is_dir)
+            ops_dir_lock = locks.acquire_exclusive(ops_dir_path)
         try:
             yield self.ops_dir_type(ops_dir_path)
         finally:
@@ -246,7 +244,16 @@ class OpsDirs:
             ops_dir_lock.close()
 
     def install(self, bundle_dir_path):
-        """Install bundle."""
+        """Install bundle.
+
+        * While we try to roll back on error, it does not mean that
+          install is transactional.  On the contrary, it is very hard to
+          make it transactional because install involves copying,
+          moving, and changing a lot of files.
+        * Roll back could fail and leave partial states in the system.
+          You may run cleanup, which will try to remove these partial
+          states.
+        """
         bundle_dir = self.bundle_dir_type(bundle_dir_path)
         log_args = (self.kind, bundle_dir.label, bundle_dir.version)
         target_ops_dir_path = self._get_ops_dir_path(
@@ -260,7 +267,7 @@ class OpsDirs:
             LOG.info('%s install: prepare: %s %s', *log_args)
             with locks.acquiring_exclusive(self.tmp_dir_path):
                 ops_dir_path = Path(tempfile.mkdtemp(dir=self.tmp_dir_path))
-                ops_dir_lock = self._lock_ops_dir(ops_dir_path)
+                ops_dir_lock = locks.acquire_exclusive(ops_dir_path)
             bases.set_dir_attrs(ops_dir_path)
             ops_dir = self.ops_dir_type(ops_dir_path)
             ops_dir.install(bundle_dir, target_ops_dir_path)
@@ -286,10 +293,10 @@ class OpsDirs:
         log_args = (self.kind, label, version)
         ops_dir_path = self._get_ops_dir_path(label, version)
         with locks.acquiring_exclusive(self.active_dir_path):
-            ops_dir_lock = self._try_lock_ops_dir(ops_dir_path)
-            if not ops_dir_lock:
+            if not ops_dir_path.is_dir():
                 LOG.info('skip: %s uninstall: %s %s', *log_args)
                 return False
+            ops_dir_lock = locks.acquire_exclusive(ops_dir_path)
         try:
             LOG.info('%s uninstall: %s %s', *log_args)
             self.ops_dir_type(ops_dir_path).stop()
@@ -330,7 +337,7 @@ class OpsDirs:
                 LOG.warning('%s cleanup: %s; reason: unknown file', *log_args)
                 ops_dir_path.unlink()
                 continue
-            ops_dir_lock = self._try_lock_ops_dir(ops_dir_path)
+            ops_dir_lock = locks.try_acquire_exclusive(ops_dir_path)
             if not ops_dir_lock:
                 LOG.info('skip: %s cleanup: %s', *log_args)
                 continue
@@ -340,27 +347,6 @@ class OpsDirs:
             finally:
                 ops_dir_lock.release()
                 ops_dir_lock.close()
-
-    def _lock_ops_dir(self, ops_dir_path):
-        return ASSERT.not_none(self._try_lock_ops_dir(ops_dir_path))
-
-    def _try_lock_ops_dir(self, ops_dir_path):
-        """Try to lock an ops dir exclusively.
-
-        NOTE: Caller is required to lock the active dir.
-        """
-        log_args = (self.kind, ops_dir_path)
-        if not ops_dir_path.exists():
-            LOG.debug('%s: cannot lock: no such directory: %s', *log_args)
-            return None
-        if not ops_dir_path.is_dir():
-            LOG.debug('%s: cannot lock: not a directory: %s', *log_args)
-            return None
-        ops_dir_lock = locks.try_acquire_exclusive(ops_dir_path)
-        if not ops_dir_lock:
-            LOG.debug('%s: cannot lock: locked by other: %s', *log_args)
-            return None
-        return ops_dir_lock
 
     def _remove_ops_dir(self, ops_dir_path):
         # Just a sanity check.  An ops dir under the active directory

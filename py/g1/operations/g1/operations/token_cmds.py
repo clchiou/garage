@@ -169,6 +169,10 @@ def cmd_undefine(args):
         )
     tokens_database = tokens.make_tokens_database()
     with tokens_database.writing() as active_tokens:
+        if not active_tokens.has_definition(args.name):
+            LOG.info('skip: tokens undefine: %s', args.name)
+            return 0
+        LOG.info('tokens undefine: %s', args.name)
         ASSERT.isdisjoint(
             active_pod_ids, active_tokens.iter_pod_ids(args.name)
         )

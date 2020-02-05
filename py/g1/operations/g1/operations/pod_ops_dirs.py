@@ -216,6 +216,7 @@ class PodOpsDir(repos.AbstractOpsDir):
     def uninstall(self):
         if not self.metadata_path.exists():
             LOG.info('skip: pods uninstall: metadata was removed')
+            ASSERT.predicate(self.path, g1.files.is_empty_dir)
             return False
         log_args = (self.label, self.version)
         LOG.debug('pods uninstall: systemd units: %s %s', *log_args)

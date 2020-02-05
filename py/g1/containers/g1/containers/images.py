@@ -350,8 +350,7 @@ def cmd_remove(*, image_id=None, name=None, version=None, tag=None):
         locks.acquiring_exclusive(get_trees_path()):
         image_dir_path = _find_image_dir_path(image_id, name, version, tag)
         if image_dir_path:
-            if not _maybe_remove_image_dir(image_dir_path):
-                LOG.warning('image is still being used')
+            ASSERT.true(_maybe_remove_image_dir(image_dir_path))
         else:
             LOG.debug(
                 'image does not exist: image_id=%s, nv=%s:%s, tag=%s',
@@ -661,7 +660,7 @@ def _maybe_remove_image_dir(image_dir_path):
             shutil.rmtree(image_dir_path)
         return True
     else:
-        LOG.debug('not remove image directory: %s', image_dir_path)
+        LOG.debug('not remove active image directory: %s', image_dir_path)
         return False
 
 

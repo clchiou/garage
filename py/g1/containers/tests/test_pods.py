@@ -206,7 +206,10 @@ class PodsTest(
         ref_path = self.test_repo_path / 'ref'
         pods.cmd_add_ref(self.sample_pod_id, ref_path)
         with unittest.mock.patch(pods.__name__ + '.scripts'):
-            pods.cmd_remove(self.sample_pod_id)
+            with self.assertRaisesRegex(
+                AssertionError, r'expect x <= 1, not 2'
+            ):
+                pods.cmd_remove(self.sample_pod_id)
         self.assertEqual(pods._get_ref_count(self.sample_pod_dir_path), 2)
         self.assertEqual(self.list_pod_dir_paths(), [self.sample_pod_id])
         self.assertEqual(list(pods._get_graveyard_path().iterdir()), [])

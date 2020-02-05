@@ -102,6 +102,7 @@ class XarOpsDir(repos.AbstractOpsDir):
     def uninstall(self):
         if not self.metadata_path.exists():
             LOG.info('skip: xars uninstall: metadata was removed')
+            ASSERT.predicate(self.path, g1.files.is_empty_dir)
             return False
         log_args = (self.label, self.version)
         if self.metadata.is_zipapp():

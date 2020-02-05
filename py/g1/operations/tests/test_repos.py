@@ -154,7 +154,13 @@ class OpsDirsTest(
     @unittest.skipUnless(filelocks, 'g1.tests.filelocks unavailable')
     def test_using_ops_dir(self):
         ops_dirs = self.make_ops_dirs()
-        self.assert_using_ops_dir(ops_dirs, None)
+        with self.assertRaisesRegex(AssertionError, r'expect.*Path.is_dir'):
+            with ops_dirs.using_ops_dir(
+                self.DEPLOY_INSTRUCTION.label,
+                self.DEPLOY_INSTRUCTION.version,
+            ):
+                pass
+
         ops_dir = self.do_install(ops_dirs)
         self.assert_using_ops_dir(ops_dirs, ops_dir)
 

@@ -1,6 +1,7 @@
 __all__ = [
     'FileLock',
     'NotLocked',
+    'acquire_exclusive',
     'acquiring_exclusive',
     'acquiring_shared',
     'try_acquire_exclusive',
@@ -98,6 +99,10 @@ def try_acquire_exclusive(path):
         return None
     else:
         return lock
+
+
+def acquire_exclusive(path):
+    return ASSERT.not_none(try_acquire_exclusive(path))
 
 
 def is_locked_by_other(path):

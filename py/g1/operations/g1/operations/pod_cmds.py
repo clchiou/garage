@@ -176,9 +176,6 @@ def cmd_stop(args):
 
 def _ops_dir_apply(cmd, ops_dirs, label, version, func):
     with ops_dirs.using_ops_dir(label, version) as ops_dir:
-        if ops_dir is None:
-            LOG.error('pods: cannot lock: %s %s', label, version)
-            return 1
         LOG.info('pods %s: %s %s', cmd, label, version)
         func(ops_dir)
     return 0

@@ -364,13 +364,8 @@ def cmd_remove(pod_id):
         if not pod_dir_path.is_dir():
             LOG.debug('pod does not exist: %s', pod_id)
             return
-        if _get_ref_count(pod_dir_path) > 1:
-            LOG.debug('pod is still referenced: %s', pod_id)
-            return
-        pod_dir_lock = locks.try_acquire_exclusive(pod_dir_path)
-        if not pod_dir_lock:
-            LOG.warning('pod is still active: %s', pod_id)
-            return
+        ASSERT.less_or_equal(_get_ref_count(pod_dir_path), 1)
+        pod_dir_lock = locks.acquire_exclusive(pod_dir_path)
     try:
         with locks.acquiring_exclusive(_get_graveyard_path()):
             grave_path = _move_pod_dir_to_graveyard(pod_dir_path)
