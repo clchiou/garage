@@ -5,4 +5,7 @@ shipyard2.rules.pythons.define_package(
         '//py/g1/bases:build',
         '//third-party/sqlalchemy:build',
     ],
+    extras=[
+        ('parts', ['//py/g1/apps:build']),
+    ],
 )
