@@ -1,8 +1,11 @@
 import unittest
 
+import re
+
 from sqlalchemy import (
     Integer,
     String,
+    and_,
 )
 
 from g1.databases import records
@@ -11,198 +14,263 @@ from g1.databases import sqlite
 
 class RecordsSchemaTest(unittest.TestCase):
 
-    def test_keyless_schema(self):
-        schema = records.RecordsSchema('test', data_column_name='more_data')
-        self.assertEqual(schema.key_column_names, ())
-        self.assertEqual(schema.data_column_name, 'more_data')
-
-        engine = sqlite.create_engine('sqlite://', trace=True)
-        with self.assertLogs(sqlite.__name__, level='DEBUG') as cm:
-            rs = records.Records(engine, schema)
-            # Repeated creations are okay.
-            rs.create_all()
-            rs.create_all()
-            rs.create_indices()
-            rs.create_indices()
-        self.assertRegex(
-            '\n'.join(cm.output),
-            r'(?m:'
-            r'^.*CREATE TABLE test \($'
-            r'\n^.*more_data BLOB NOT NULL\s*$'
-            r'\n^.*\)\s*$'
-            r')',
+    @staticmethod
+    def make_keyed_schema():
+        return records.RecordsSchema(
+            'test',
+            [('key1', Integer), ('key2', Integer)],
+            [('value1', String), ('value2', String)],
+            index_column_names=[
+                ('key1', 'value1'),
+                ('value1', 'value2'),
+            ],
         )
+
+    @staticmethod
+    def make_keyless_schema():
+        return records.RecordsSchema(
+            'test',
+            value_column_names_and_types=[
+                ('value1', String),
+                ('value2', String),
+            ],
+            index_column_names=[
+                ('value1', 'value2'),
+            ],
+        )
+
+    def assert_query_regex(self, query, expect):
+        self.assertRegex(re.sub(r'\s+', ' ', str(query)), expect)
 
     def test_keyed_schema(self):
-
-        with self.assertRaises(AssertionError):
-            records.RecordsSchema('test', (('data', Integer), ))
-
         schema = records.RecordsSchema(
             'test',
-            (('key1', Integer), ('key2', String)),
+            [('key1', Integer), ('key2', String)],
+            index_column_names=[
+                ('key1', 'data'),
+                ('key2', 'data'),
+            ],
         )
         self.assertEqual(schema.key_column_names, ('key1', 'key2'))
-        self.assertEqual(schema.data_column_name, 'data')
-
+        self.assertEqual(schema.value_column_names, ('data', ))
         engine = sqlite.create_engine('sqlite://', trace=True)
         with self.assertLogs(sqlite.__name__, level='DEBUG') as cm:
             rs = records.Records(engine, schema)
             # Repeated creations are okay.
-            rs.create_all()
-            rs.create_all()
-            rs.create_indices()
-            rs.create_indices()
+            for _ in range(3):
+                rs.create_all()
+            for _ in range(3):
+                rs.create_indices()
         self.assertRegex(
             '\n'.join(cm.output),
             r'(?m:'
-            r'^.*CREATE TABLE test \($'
-            r'\n^.*key1 INTEGER NOT NULL,\s*$'
-            r'\n^.*key2 VARCHAR NOT NULL,\s*$'
-            r'\n^.*data BLOB NOT NULL,\s*$'
-            r'\n^.*CONSTRAINT unique_test__key1__key2 '
-            r'UNIQUE \(key1, key2\)\s*$'
-            r'\n^.*\)\s*$'
+            r'^CREATE TABLE test \($\n'
+            r'^.*key1 INTEGER NOT NULL,\s*$\n'
+            r'^.*key2 VARCHAR NOT NULL,\s*$\n'
+            r'^.*data BLOB NOT NULL,\s*$\n'
+            r'^.*PRIMARY KEY \(key1, key2\)$\n'
             r'(?s:.*)'  # 's' makes '.' match multiple lines.
-            r'\n^.*CREATE INDEX IF NOT EXISTS '
-            r'index_test__key1__key2 ON test \(key1, key2\)\s*$'
-            r'\n^.*CREATE INDEX IF NOT EXISTS '
-            r'index_test__key1__key2 ON test \(key1, key2\)\s*$'
+            r'^.*CREATE INDEX IF NOT EXISTS '
+            r'index_test__key1__data ON test \(key1, data\)$\n'
+            r'^.*CREATE INDEX IF NOT EXISTS '
+            r'index_test__key2__data ON test \(key2, data\)$\n'
             r')',
         )
+        self.assertTrue(schema.is_keyed())
+        schema.assert_keyed()
+        with self.assertRaisesRegex(AssertionError, r'expect keyless schema'):
+            schema.assert_keyless()
+
+    def test_keyless_schema(self):
+        schema = records.RecordsSchema('test')
+        self.assertEqual(schema.key_column_names, ())
+        self.assertEqual(schema.value_column_names, ('data', ))
+        engine = sqlite.create_engine('sqlite://', trace=True)
+        with self.assertLogs(sqlite.__name__, level='DEBUG') as cm:
+            rs = records.Records(engine, schema)
+            # Repeated creations are okay.
+            for _ in range(3):
+                rs.create_all()
+            for _ in range(3):
+                rs.create_indices()
+        self.assertRegex(
+            '\n'.join(cm.output),
+            r'(?m:'
+            r'^CREATE TABLE test \($\n'
+            r'^\s*data BLOB NOT NULL$\n'
+            r'^\s*\)$\n'
+            r')',
+        )
+        self.assertFalse(schema.is_keyed())
+        with self.assertRaisesRegex(AssertionError, r'expect keyed schema'):
+            schema.assert_keyed()
+        schema.assert_keyless()
+
+    def test_conflicting_key_name(self):
+        with self.assertRaisesRegex(AssertionError, r'isdisjoint'):
+            records.RecordsSchema('test', [('data', Integer)])
+
+    def test_query_count(self):
+        for schema in (self.make_keyed_schema(), self.make_keyless_schema()):
+            with self.subTest(schema.is_keyed()):
+                self.assert_query_regex(
+                    schema.query_count(),
+                    r'SELECT count\(\*\) AS \w+ FROM test',
+                )
+                self.assert_query_regex(
+                    schema.query_count(lambda cs: cs.value1 == 1),
+                    r'SELECT count\(\*\) AS \w+ FROM test '
+                    r'WHERE test.value1 = :\w+',
+                )
+
+    def test_query_contains_keys(self):
+        schema = self.make_keyed_schema()
+        self.assert_query_regex(
+            schema.query_contains_keys((1, 2)),
+            r'SELECT :\w+ AS \w+ FROM test '
+            r'WHERE test.key1 = :\w+ AND test.key2 = :\w+ '
+            r'LIMIT :\w+',
+        )
+        with self.assertRaisesRegex(AssertionError, r'expect x == 2, not 3'):
+            schema.query_contains_keys((1, 2, 3))
+
+    def test_query_keys(self):
+        schema = self.make_keyed_schema()
+        self.assert_query_regex(
+            schema.query_keys(),
+            r'SELECT test.key1, test.key2 FROM test',
+        )
+        self.assert_query_regex(
+            schema.query_keys(lambda cs: cs.key1 == 1),
+            r'SELECT test.key1, test.key2 FROM test '
+            r'WHERE test.key1 = :\w+',
+        )
+
+    def test_query_values(self):
+        for schema in (self.make_keyed_schema(), self.make_keyless_schema()):
+            with self.subTest(schema.is_keyed()):
+                self.assert_query_regex(
+                    schema.query_values(),
+                    r'SELECT test.value1, test.value2 FROM test',
+                )
+                self.assert_query_regex(
+                    schema.query_values(lambda cs: cs.value1 == 1),
+                    r'SELECT test.value1, test.value2 FROM test '
+                    r'WHERE test.value1 = :\w+',
+                )
+
+    def test_query_values_by_keys(self):
+        schema = self.make_keyed_schema()
+        self.assert_query_regex(
+            schema.query_values_by_keys((1, 2)),
+            r'SELECT test.value1, test.value2 FROM test '
+            r'WHERE test.key1 = :\w+ AND test.key2 = :\w+',
+        )
+        with self.assertRaisesRegex(AssertionError, r'expect x == 2, not 3'):
+            schema.query_values_by_keys((1, 2, 3))
+
+    def test_query_items(self):
+        schema = self.make_keyed_schema()
+        self.assert_query_regex(
+            schema.query_items(),
+            r'SELECT test.key1, test.key2, test.value1, test.value2 FROM test',
+        )
+        self.assert_query_regex(
+            schema.query_items(lambda cs: and_(cs.key1 == 1, cs.value1 == 2)),
+            r'SELECT test.key1, test.key2, test.value1, test.value2 FROM test '
+            r'WHERE test.key1 = :\w+ AND test.value1 = :\w+',
+        )
+
+    def test_make_upsert_statement(self):
+        schema = self.make_keyed_schema()
+        self.assert_query_regex(
+            schema.make_upsert_statement(),
+            r'INSERT OR REPLACE INTO test \(key1, key2, value1, value2\) '
+            r'VALUES \(:key1, :key2, :value1, :value2\)'
+        )
+
+    def test_make_insert_statement(self):
+        schema = self.make_keyless_schema()
+        self.assert_query_regex(
+            schema.make_insert_statement(),
+            r'INSERT INTO test \(value1, value2\) '
+            r'VALUES \(:value1, :value2\)'
+        )
+
+    def test_make_record(self):
+        schema = self.make_keyed_schema()
+        self.assertEqual(
+            schema.make_record((1, 2), (3, 4)),
+            {
+                'key1': 1,
+                'key2': 2,
+                'value1': 3,
+                'value2': 4,
+            },
+        )
+        with self.assertRaisesRegex(AssertionError, r'expect x == 2, not 3'):
+            schema.make_record((1, 2, 0), (3, 4))
+        with self.assertRaisesRegex(AssertionError, r'expect x == 2, not 3'):
+            schema.make_record((1, 2), (3, 4, 0))
 
 
 class RecordsTest(unittest.TestCase):
 
-    def assert_records(self, rs, keys_list, records_list):
-        self.assertEqual(bool(rs), bool(records_list))
-        self.assertEqual(len(rs), len(records_list))
-        self.assertEqual(list(rs.records()), records_list)
-        if keys_list:
-            self.assertEqual(list(rs), keys_list)
-            self.assertEqual(list(rs.keys()), keys_list)
-            self.assertEqual(
-                list(rs.items()), list(zip(keys_list, records_list))
-            )
-            for keys in keys_list:
-                self.assertIn(keys, rs)
+    def setUp(self):
+        super().setUp()
+        self.engine = sqlite.create_engine('sqlite://')
 
-    def test_keyless_schema(self):
-        schema = records.RecordsSchema('test', data_column_name='more_data')
-        engine = sqlite.create_engine('sqlite://')
-        rs = records.Records(engine, schema)
+    def make_keyed_records(self):
+        rs = records.Records(
+            self.engine,
+            RecordsSchemaTest.make_keyed_schema(),
+        )
         rs.create_all()
-        rs.create_indices()
+        return rs
 
-        self.assert_records(rs, [], [])
-
-        rs.append(b'hello')
-        self.assert_records(rs, [], [b'hello'])
-
-        rs.append(b'world')
-        self.assert_records(rs, [], [b'hello', b'world'])
-
-        rs.extend([b'spam', b'egg'])
-        self.assert_records(rs, [], [b'hello', b'world', b'spam', b'egg'])
-
-        mq = lambda q, _: q
-        for func, args in (
-            (rs.__contains__, (1, )),
-            (rs.__getitem__, (1, )),
-            (rs.keys, ()),
-            (rs.items, ()),
-            (rs.get, (1, )),
-            (rs.count, (mq, )),
-            (rs.search_keys, (mq, )),
-            (rs.search_records, (mq, )),
-            (rs.search_items, (mq, )),
-            (rs.insert, (1, b'')),
-            (rs.update, ([(1, b'')], )),
-        ):
-            with self.subTest(func):
-                with self.assertRaisesRegex(
-                    AssertionError, r'expect non-empty'
-                ):
-                    # Call ``next`` in case ``func`` is a generator
-                    # function (such as ``search``).
-                    next(func(*args))
-
-    def test_keyed_schema(self):
-        schema = records.RecordsSchema(
-            'test',
-            (('key1', Integer), ('key2', String)),
+    def make_keyless_records(self):
+        rs = records.Records(
+            self.engine,
+            RecordsSchemaTest.make_keyless_schema(),
         )
-        engine = sqlite.create_engine('sqlite://')
-        rs = records.Records(engine, schema)
         rs.create_all()
-        rs.create_indices()
+        return rs
 
-        self.assert_records(rs, [], [])
+    def assert_keyed(self, actual, expect):
+        self.assertEqual(bool(actual), bool(expect))
+        self.assertEqual(len(actual), len(expect))
+        self.assertEqual(sorted(actual.keys()), sorted(expect.keys()))
+        self.assertEqual(sorted(actual.values()), sorted(expect.values()))
+        self.assertEqual(sorted(actual.items()), sorted(expect.items()))
+        for key_tuple, value_tuple in expect.items():
+            self.assertIn(key_tuple, actual)
+            self.assertEqual(actual[key_tuple], value_tuple)
+            self.assertEqual(actual.get(key_tuple), value_tuple)
 
-        rs[1, 'x'] = b'1x'
-        self.assert_records(
-            rs,
-            [(1, 'x')],
-            [b'1x'],
-        )
+    def assert_keyless(self, actual, expect):
+        self.assertEqual(bool(actual), bool(expect))
+        self.assertEqual(len(actual), len(expect))
+        self.assertEqual(sorted(actual), sorted(expect))
 
-        rs.insert((1, 'y'), b'1y')
-        self.assert_records(
-            rs,
-            [(1, 'x'), (1, 'y')],
-            [b'1x', b'1y'],
-        )
+    def test_keyed(self):
+        rs = self.make_keyed_records()
+        self.assert_keyed(rs, {})
 
-        rs.update([((2, 'x'), b'2x'), ((2, 'y'), b'2y')])
-        self.assert_records(
-            rs,
-            [(1, 'x'), (1, 'y'), (2, 'x'), (2, 'y')],
-            [b'1x', b'1y', b'2x', b'2y'],
-        )
+        # Repeated creations are okay.
+        for _ in range(3):
+            rs.create_all()
+        for _ in range(3):
+            rs.create_indices()
 
-        self.assertEqual(rs.get((1, 'x')), b'1x')
-        self.assertEqual(rs.get((2, 'x')), b'2x')
-        self.assertIsNone(rs.get((3, 'x')))
-        self.assertEqual(rs.get((3, 'x'), 'nothing'), 'nothing')
-
-        self.assertEqual(rs.count(lambda c: c.key1 == 1), 2)
-        self.assertEqual(rs.count(lambda c: c.key1 == 2), 2)
-        self.assertEqual(rs.count(), 4)
-        self.assertEqual(
-            list(rs.search_keys(lambda c: c.key1 == 1)),
-            [(1, 'x'), (1, 'y')],
-        )
-        self.assertEqual(
-            list(rs.search_records(lambda c: c.key1 == 1)),
-            [b'1x', b'1y'],
-        )
-        self.assertEqual(
-            list(rs.search_items(lambda c: c.key1 == 1)),
-            [((1, 'x'), b'1x'), ((1, 'y'), b'1y')],
-        )
-
-        rs[1, 'z'] = b'1z'
-        self.assertEqual(rs.count(lambda c: c.key1 == 1), 3)
-        self.assertEqual(rs.count(lambda c: c.key1 == 2), 2)
-        self.assertEqual(rs.count(), 5)
-        self.assertEqual(
-            list(rs.search_keys(lambda c: c.key1 == 1)),
-            [(1, 'x'), (1, 'y'), (1, 'z')],
-        )
-        self.assertEqual(
-            list(rs.search_records(lambda c: c.key1 == 1)),
-            [b'1x', b'1y', b'1z'],
-        )
-
-        with self.assertRaises(KeyError):
-            rs[3, '']  # pylint: disable=pointless-statement
-
+        with self.assertRaisesRegex(AssertionError, r'expect x == 2, not 3'):
+            rs[1, 2, 3] = ('x', 'y')
+        with self.assertRaisesRegex(AssertionError, r'expect x == 2, not 1'):
+            rs[1, 2] = 'x'
         for func, args in (
-            (rs.__contains__, (1, )),
-            (rs.get, (1, )),
-            (rs.__setitem__, (1, b'')),
-            (rs.insert, (1, b'')),
-            (rs.update, ([(1, b'')], )),
+            (rs.__contains__, ((1, ), )),
+            (rs.get, ((1, ), )),
+            (rs.update, ([((1, ), ('x', 'y'))], )),
+            (rs.update, ([((1, 2), ('x', ))], )),
         ):
             with self.subTest(func):
                 with self.assertRaisesRegex(
@@ -210,34 +278,111 @@ class RecordsTest(unittest.TestCase):
                 ):
                     func(*args)
 
+        self.assert_keyed(rs, {})
+
+        with self.assertRaisesRegex(KeyError, r'\(1, 2\)'):
+            rs[1, 2]  # pylint: disable=pointless-statement
+        self.assertIsNone(rs.get((1, 2)))
+        self.assertNotIn((1, 2), rs)
+        self.assertEqual(rs.get((1, 2), 'default'), 'default')
+
+        rs[1, 2] = ('x', 'y')
+        self.assert_keyed(rs, {(1, 2): ('x', 'y')})
+
+        rs.update({
+            (3, 4): ('p', 'q'),
+            (5, 6): ('a', 'b'),
+        })
+        self.assert_keyed(
+            rs,
+            {
+                (1, 2): ('x', 'y'),
+                (3, 4): ('p', 'q'),
+                (5, 6): ('a', 'b'),
+            },
+        )
+        self.assertEqual(rs.count(), 3)
+        self.assertEqual(rs.count(lambda cs: cs.key1 <= 3), 2)
+        self.assertEqual(
+            sorted(rs.search_keys(lambda cs: cs.key1 <= 3)),
+            [(1, 2), (3, 4)],
+        )
+        self.assertEqual(
+            sorted(rs.search_values(lambda cs: cs.key1 <= 3)),
+            [('p', 'q'), ('x', 'y')],
+        )
+        self.assertEqual(
+            sorted(rs.search_items(lambda cs: cs.key1 <= 3)),
+            [((1, 2), ('x', 'y')), ((3, 4), ('p', 'q'))],
+        )
+
+        rs[1, 2] = ('u', 'v')
+        self.assert_keyed(
+            rs,
+            {
+                (1, 2): ('u', 'v'),
+                (3, 4): ('p', 'q'),
+                (5, 6): ('a', 'b'),
+            },
+        )
+
         for func, args in (
-            (rs.append, (b'', )),
-            (rs.extend, ([b''], )),
+            (rs.append, (('x', 'y'), )),
+            (rs.extend, ([], )),
         ):
             with self.subTest(func):
-                with self.assertRaisesRegex(AssertionError, r'expect empty'):
+                with self.assertRaisesRegex(
+                    AssertionError,
+                    r'expect keyless schema',
+                ):
                     func(*args)
 
-    def test_unique_constraint(self):
-        schema = records.RecordsSchema('test', (('k', Integer), ))
-        engine = sqlite.create_engine('sqlite://')
-        rs = records.Records(engine, schema)
-        rs.create_all()
-        rs.create_indices()
+    def test_keyless(self):
+        rs = self.make_keyless_records()
+        self.assert_keyless(rs, [])
 
-        self.assert_records(rs, [], [])
+        with self.assertRaisesRegex(AssertionError, r'expect x == 2, not 1'):
+            rs.append(('x', ))
+        with self.assertRaisesRegex(AssertionError, r'expect x == 2, not 1'):
+            rs.extend([('x', )])
+        self.assert_keyless(rs, [])
+        self.assertEqual(sorted(rs.search_values()), [])
 
-        rs[1] = b'1'
-        self.assert_records(rs, [(1, )], [b'1'])
+        rs.append(('hello', 'world'))
+        self.assert_keyless(rs, [('hello', 'world')])
+        self.assertEqual(rs.count(), 1)
+        self.assertEqual(rs.count(lambda cs: cs.value1 == 'spam'), 0)
+        self.assertEqual(
+            sorted(rs.search_values(lambda cs: cs.value1 == 'spam')),
+            [],
+        )
 
-        rs[1] = b'2'
-        self.assert_records(rs, [(1, )], [b'2'])
+        rs.extend([('spam', 'egg')])
+        self.assert_keyless(rs, [('hello', 'world'), ('spam', 'egg')])
+        self.assertEqual(rs.count(lambda cs: cs.value1 == 'spam'), 1)
+        self.assertEqual(
+            sorted(rs.search_values(lambda cs: cs.value1 == 'spam')),
+            [('spam', 'egg')],
+        )
 
-        rs.insert(1, b'3')
-        self.assert_records(rs, [(1, )], [b'3'])
-
-        rs.update({1: b'4'})
-        self.assert_records(rs, [(1, )], [b'4'])
+        for method, args in (
+            (rs.__contains__, (1, )),
+            (rs.__getitem__, (1, )),
+            (rs.__setitem__, (1, 2)),
+            (rs.keys, ()),
+            (rs.items, ()),
+            (rs.get, (1, )),
+            (rs.search_keys, ()),
+            (rs.search_items, ()),
+            (rs.update, ([], )),
+        ):
+            with self.subTest(method):
+                with self.assertRaisesRegex(
+                    AssertionError,
+                    r'expect keyed schema',
+                ):
+                    # Call next in case func is a generator function.
+                    next(method(*args))
 
 
 if __name__ == '__main__':
