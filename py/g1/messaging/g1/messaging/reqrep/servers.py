@@ -59,14 +59,14 @@ class Server:
         self._internal_server_error_name = None
         self._internal_server_error_wire = None
 
-        self._error_types = {
-            field.name: ASSERT(
+        self._declared_error_types = {
+            ASSERT(
                 typings.is_recursive_type(field.type)
                 and typings.is_union_type(field.type)
                 and typings.match_optional_type(field.type),
                 'expect typing.Optional[T]: {!r}',
                 field,
-            )
+            ): field.name
             for field in dataclasses.fields(self._response_type.Error)
         }
 
@@ -75,14 +75,10 @@ class Server:
         self.socket = nng.asyncs.Socket(nng.Protocols.REP0)
 
     def _match_error_type(self, error):
-        name = self._error_types.get(type(error))
-        if name is not None:
-            return name
-        # Match error type the slow way.
-        for name, error_type in self._error_types.items():
-            if isinstance(error, error_type):
-                return name
-        return None
+        # NOTE: We match the exact type rather than calling isinstance
+        # because error types could form a hierarchy, and isinstance
+        # might match a parent error type rather than a child type.
+        return self._declared_error_types.get(type(error))
 
     def _set_error(self, name, error):
         ASSERT.isinstance(error, Exception)
@@ -190,7 +186,6 @@ class Server:
     def _make_error_response(self, error):
         error_name = self._match_error_type(error)
         if not error_name:
-            LOG.warning('unknown error type: %r', error)
             ASSERT.true(self._internal_server_error)
             error_name = self._internal_server_error_name
             error = self._internal_server_error
