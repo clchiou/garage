@@ -120,6 +120,10 @@ def parse_args_list(args_list):
         # Make a special case for identifier-kind of strings.
         if not IDENTIFIER_PATTERN.fullmatch(value):
             value = json.loads(value)
+        elif value == 'true':
+            value = True
+        elif value == 'false':
+            value = False
         kwargs[name] = value
     return kwargs
 
