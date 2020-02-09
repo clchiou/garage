@@ -59,16 +59,24 @@ class Server:
         self._internal_server_error_name = None
         self._internal_server_error_wire = None
 
-        self._declared_error_types = {
-            ASSERT(
-                typings.is_recursive_type(field.type)
-                and typings.is_union_type(field.type)
-                and typings.match_optional_type(field.type),
-                'expect typing.Optional[T]: {!r}',
-                field,
-            ): field.name
-            for field in dataclasses.fields(self._response_type.Error)
-        }
+        # When there is only one error type, reqrep.make_annotations
+        # would not generate Optional[T].
+        fields = dataclasses.fields(self._response_type.Error)
+        if len(fields) == 1:
+            self._declared_error_types = {
+                ASSERT.issubclass(fields[0].type, Exception): fields[0].name
+            }
+        else:
+            self._declared_error_types = {
+                ASSERT(
+                    typings.is_recursive_type(field.type)
+                    and typings.is_union_type(field.type)
+                    and typings.match_optional_type(field.type),
+                    'expect typing.Optional[T]: {!r}',
+                    field,
+                ): field.name
+                for field in fields
+            }
 
         self._stack = None
         # For convenience, create socket before ``__enter__``.

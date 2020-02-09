@@ -34,6 +34,13 @@ class TestInterface:
         raise NotImplementedError
 
 
+@reqrep.raising(InternalServerError)
+class TestOnlyOneError:
+
+    def f(self):
+        raise NotImplementedError
+
+
 # Don't inherit from ``TestInterface`` because we intentionally leave
 # out ``f`` unimplemented.
 class TestApplication:
@@ -51,6 +58,20 @@ WIRE_DATA = jsons.JsonWireData()
 
 
 class ServerTest(unittest.TestCase):
+
+    def test_only_one_error(self):
+        request_type, response_type = \
+            reqrep.generate_interface_types(TestOnlyOneError)
+        server = servers.Server(
+            TestOnlyOneError(),
+            request_type,
+            response_type,
+            WIRE_DATA,
+        )
+        self.assertEqual(
+            server._declared_error_types,
+            {InternalServerError: 'internal_server_error'},
+        )
 
     def test_nested(self):
         server = servers.Server(
