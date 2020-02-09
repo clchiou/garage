@@ -11,6 +11,10 @@ setup(
         'g1.bases',
     ],
     extras_require={
+        'parts': [
+            'g1.apps',
+            'g1.asyncs.servers[parts]',
+        ],
         'reqrep': [
             'g1.asyncs.bases',
             'nng[asyncs]',
