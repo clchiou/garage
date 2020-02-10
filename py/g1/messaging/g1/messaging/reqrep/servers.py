@@ -45,12 +45,11 @@ class Server:
     """
 
     def __init__(self, application, request_type, response_type, wiredata):
-
         self._application = application
         self._request_type = request_type
         self._response_type = response_type
         self._wiredata = wiredata
-
+        self._warning_level_exc_types = set()
         # Prepared errors.
         self._invalid_request_error = None
         self._invalid_request_error_name = None
@@ -58,7 +57,6 @@ class Server:
         self._internal_server_error = None
         self._internal_server_error_name = None
         self._internal_server_error_wire = None
-
         # When there is only one error type, reqrep.make_annotations
         # would not generate Optional[T].
         fields = dataclasses.fields(self._response_type.Error)
@@ -77,10 +75,12 @@ class Server:
                 ): field.name
                 for field in fields
             }
-
         self._stack = None
         # For convenience, create socket before ``__enter__``.
         self.socket = nng.asyncs.Socket(nng.Protocols.REP0)
+
+    def register_warning_level_exc_type(self, exc_type):
+        self._warning_level_exc_types.add(exc_type)
 
     def _match_error_type(self, error):
         # NOTE: We match the exact type rather than calling isinstance
@@ -173,7 +173,11 @@ class Server:
                 }
             )
         except Exception as exc:
-            LOG.warning('server error: %r', request, exc_info=True)
+            if type(exc) in self._warning_level_exc_types:  # pylint: disable=unidiomatic-typecheck
+                log = LOG.warning
+            else:
+                log = LOG.error
+            log('server error: %r', request, exc_info=True)
             response = self._make_error_response(exc)
         else:
             response = self._response_type(
