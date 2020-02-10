@@ -33,6 +33,9 @@ class TestInterface:
     def g(self):
         raise NotImplementedError
 
+    def h(self):
+        raise NotImplementedError
+
 
 @reqrep.raising(InternalServerError)
 class TestOnlyOneError:
@@ -50,6 +53,10 @@ class TestApplication:
 
     async def g(self):
         return object()
+
+    async def h(self):
+        # Test error that is not declared in the interface.
+        raise RuntimeError
 
 
 Request, Response = reqrep.generate_interface_types(TestInterface, 'Test')
@@ -85,11 +92,13 @@ class ServerTest(unittest.TestCase):
     @kernels.with_kernel
     def test_serve(self):
         server = servers.Server(
-            TestApplication(), Request, Response, WIRE_DATA
+            TestApplication(),
+            Request,
+            Response,
+            WIRE_DATA,
+            invalid_request_error=InvalidRequestError(),
+            internal_server_error=InternalServerError(),
         )
-
-        server.invalid_request_error = InvalidRequestError()
-        server.internal_server_error = InternalServerError()
 
         wire_request = WIRE_DATA.to_lower(
             Request(args=Request.m.greet(name='world'))
@@ -124,6 +133,14 @@ class ServerTest(unittest.TestCase):
                 server._internal_server_error_wire,
             )
         self.assertRegex('\n'.join(cm.output), r'to_lower error: ')
+
+        wire_request = WIRE_DATA.to_lower(Request(args=Request.m.h()))
+        with self.assertLogs(servers.__name__, level='DEBUG') as cm:
+            self.assertEqual(
+                kernels.run(server._serve(wire_request)),
+                server._internal_server_error_wire,
+            )
+        self.assertRegex('\n'.join(cm.output), r'server error: ')
 
     @kernels.with_kernel
     def test_end_to_end(self):

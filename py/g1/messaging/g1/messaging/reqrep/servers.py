@@ -44,19 +44,22 @@ class Server:
     provides some sorts of server start/stop callbacks to application.
     """
 
-    def __init__(self, application, request_type, response_type, wiredata):
+    def __init__(
+        self,
+        application,
+        request_type,
+        response_type,
+        wiredata,
+        *,
+        warning_level_exc_types=(),
+        invalid_request_error=None,
+        internal_server_error=None,
+    ):
         self._application = application
         self._request_type = request_type
         self._response_type = response_type
         self._wiredata = wiredata
-        self._warning_level_exc_types = set()
-        # Prepared errors.
-        self._invalid_request_error = None
-        self._invalid_request_error_name = None
-        self._invalid_request_error_wire = None
-        self._internal_server_error = None
-        self._internal_server_error_name = None
-        self._internal_server_error_wire = None
+        self._warning_level_exc_types = frozenset(warning_level_exc_types)
         # When there is only one error type, reqrep.make_annotations
         # would not generate Optional[T].
         fields = dataclasses.fields(self._response_type.Error)
@@ -78,39 +81,32 @@ class Server:
         self._stack = None
         # For convenience, create socket before ``__enter__``.
         self.socket = nng.asyncs.Socket(nng.Protocols.REP0)
+        # Prepared errors.
+        self._invalid_request_error_wire = self._lower_error_or_none(
+            invalid_request_error
+        )
+        self._internal_server_error_wire = self._lower_error_or_none(
+            internal_server_error
+        )
 
-    def register_warning_level_exc_type(self, exc_type):
-        self._warning_level_exc_types.add(exc_type)
+    def _lower_error_or_none(self, error):
+        if error is None:
+            return None
+        ASSERT.isinstance(error, Exception)
+        error_name = ASSERT(
+            self._match_error_type(error), 'unknown error type: {!r}', error
+        )
+        return self._wiredata.to_lower(
+            self._response_type(
+                error=self._response_type.Error(**{error_name: error})
+            )
+        )
 
     def _match_error_type(self, error):
         # NOTE: We match the exact type rather than calling isinstance
         # because error types could form a hierarchy, and isinstance
         # might match a parent error type rather than a child type.
         return self._declared_error_types.get(type(error))
-
-    def _set_error(self, name, error):
-        ASSERT.isinstance(error, Exception)
-        error_name = ASSERT(
-            self._match_error_type(error), 'unknown error type: {!r}', error
-        )
-        wire_error = self._wiredata.to_lower(
-            self._response_type(
-                error=self._response_type.Error(**{error_name: error})
-            )
-        )
-        setattr(self, name, error)
-        setattr(self, name + '_name', error_name)
-        setattr(self, name + '_wire', wire_error)
-
-    invalid_request_error = property(
-        lambda self: getattr(self, '_invalid_request_error'),
-        lambda self, error: self._set_error('_invalid_request_error', error),
-    )
-
-    internal_server_error = property(
-        lambda self: getattr(self, '_internal_server_error'),
-        lambda self, error: self._set_error('_internal_server_error', error),
-    )
 
     __repr__ = classes.make_repr('{self.socket!r}')
 
@@ -179,6 +175,8 @@ class Server:
                 log = LOG.error
             log('server error: %r', request, exc_info=True)
             response = self._make_error_response(exc)
+            if response is None:
+                return self._internal_server_error_wire
         else:
             response = self._response_type(
                 result=self._response_type.Result(**{method_name: result})
@@ -197,10 +195,8 @@ class Server:
 
     def _make_error_response(self, error):
         error_name = self._match_error_type(error)
-        if not error_name:
-            ASSERT.true(self._internal_server_error)
-            error_name = self._internal_server_error_name
-            error = self._internal_server_error
+        if error_name is None:
+            return None
         return self._response_type(
             error=self._response_type.Error(**{error_name: error})
         )
