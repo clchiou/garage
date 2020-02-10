@@ -1,5 +1,12 @@
+# Java.
+.idea
+.gradle
+gradle
+gradlew
+gradlew.bat
+
+# Python.
 *.egg-info
-*.pyc
 __pycache__
 build
 dist
