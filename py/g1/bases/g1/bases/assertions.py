@@ -57,6 +57,10 @@ def _not_in(x, xs):
     return x not in xs
 
 
+def _in_range(v, pair):
+    return pair[0] <= v < pair[1]
+
+
 def _only_one(xs):
     count = 0
     for x in xs:
@@ -250,6 +254,16 @@ class Assertions:
     )
     less_or_equal = partialmethod(
         _assert_2, operator.le, message='expect x <= {1!r}, not {0!r}'
+    )
+    in_range = partialmethod(
+        _assert_2,
+        _in_range,
+        message='expect {1[0]!r} <= x < {1[1]!r}, not {0!r}',
+    )
+    not_in_range = partialmethod(
+        _assert_2,
+        functionals.compose(operator.not_, _in_range),
+        message='expect not {1[0]!r} <= x < {1[1]!r}, not {0!r}',
     )
 
     startswith = partialmethod(

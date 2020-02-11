@@ -74,6 +74,8 @@ class AssertionsTest(unittest.TestCase):
             ('less', (0, 1), 0),
             ('less_or_equal', (0, 1), 0),
             ('less_or_equal', (1, 1), 1),
+            ('in_range', (0, (0, 1)), 0),
+            ('not_in_range', (1, (0, 1)), 1),
             ('startswith', ('hello world', 'hello'), 'hello world'),
             ('startswith', (b'hello world', b'hello'), b'hello world'),
             ('not_startswith', ('hello', 'hello world'), 'hello'),
@@ -172,6 +174,8 @@ class AssertionsTest(unittest.TestCase):
             ('greater_or_equal', (-1, 0), r'expect x >= 0, not -1'),
             ('less', (0, 0), r'expect x < 0, not 0'),
             ('less_or_equal', (1, 0), r'expect x <= 0, not 1'),
+            ('in_range', (1, (0, 1)), r'expect 0 <= x < 1, not 1'),
+            ('not_in_range', (0, (0, 1)), r'expect not 0 <= x < 1, not 0'),
             (
                 'startswith',
                 ('P', 'Q'),
