@@ -147,6 +147,22 @@ RecursiveStruct.__annotations__ = {'struct_field': RecursiveStruct}
 dataclasses.dataclass(frozen=True)(RecursiveStruct)
 
 
+class IntSubType(int):
+    pass
+
+
+@dataclasses.dataclass(frozen=True)
+class TestSubType:
+
+    @dataclasses.dataclass(frozen=True)
+    class IntSubTypeUnion:
+        int_sub_type: typing.Optional[IntSubType]
+        irrelevant: typing.Optional[NoneType]
+
+    int_sub_type: IntSubType
+    int_sub_type_union: IntSubTypeUnion
+
+
 @unittest.skipUnless(tests, 'g1.tests unavailable')
 @unittest.skipUnless(
     tests and tests.check_program(['capnp', '--version']),
@@ -545,6 +561,38 @@ class ObjectsTest(unittest.TestCase):
             str(builder),
             '(structField = (structField = (structField = ())))',
         )
+
+    def test_sub_type(self):
+        schema = self.loader.struct_schemas['unittest.test_2:TestSubType']
+        converter = objects.DataclassConverter(schema, TestSubType)
+        dataobject = TestSubType(
+            int_sub_type=IntSubType(1),
+            int_sub_type_union=TestSubType.IntSubTypeUnion(
+                int_sub_type=IntSubType(2),
+                irrelevant=None,
+            ),
+        )
+
+        def do_test(reader):
+            actual = converter.from_reader(reader)
+            self.assertEqual(actual, dataobject)
+
+            self.assertIs(type(actual.int_sub_type), IntSubType)
+            self.assertEqual(actual.int_sub_type, 1)
+
+            self.assertIs(
+                type(actual.int_sub_type_union.int_sub_type), IntSubType
+            )
+            self.assertEqual(actual.int_sub_type_union.int_sub_type, 2)
+            self.assertIsNone(actual.int_sub_type_union.irrelevant)
+
+        message = capnp.MessageBuilder()
+        builder = message.init_root(schema)
+        converter.to_builder(dataobject, builder)
+        do_test(builder.as_reader())
+
+        mr = capnp.MessageReader.from_message_bytes(message.to_message_bytes())
+        do_test(mr.get_root(schema))
 
 
 if __name__ == '__main__':

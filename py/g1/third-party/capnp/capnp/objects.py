@@ -401,8 +401,15 @@ def _make_field_converter(sf_type, df_type):
         return operator.getitem, operator.setitem
 
     elif issubclass(df_type, int):
+        # NOTE: For now we only support sub-types of int.  If there are
+        # use cases of sub-types other types, we will add support to
+        # them as well.
         TYPE_ASSERT.in_(sf_type.which, _INT_TYPES)
-        return operator.getitem, operator.setitem
+        if df_type is int:
+            getter = operator.getitem
+        else:
+            getter = functools.partial(_int_subtype_getter, df_type)
+        return getter, operator.setitem
 
     elif issubclass(df_type, float):
         TYPE_ASSERT.in_(sf_type.which, _FLOAT_TYPES)
@@ -502,8 +509,15 @@ def _make_union_member_converter(sf_type, df_type):
         return operator.getitem, _union_setter
 
     elif issubclass(df_type, int):
+        # NOTE: For now we only support sub-types of int.  If there are
+        # use cases of sub-types other types, we will add support to
+        # them as well.
         TYPE_ASSERT.in_(sf_type.which, _INT_TYPES)
-        return operator.getitem, _union_setter
+        if df_type is int:
+            getter = operator.getitem
+        else:
+            getter = functools.partial(_union_int_subtype_getter, df_type)
+        return getter, _union_setter
 
     elif issubclass(df_type, float):
         TYPE_ASSERT.in_(sf_type.which, _FLOAT_TYPES)
@@ -612,6 +626,10 @@ def _enum_getter(enum_type, reader, name):
     return enum_type(reader[name])
 
 
+def _int_subtype_getter(int_subtype, reader, name):
+    return int_subtype(reader[name])
+
+
 def _none_getter(reader, name):  # pylint: disable=useless-return
     ASSERT.is_(reader[name], _capnp.VOID)
     return None
@@ -651,6 +669,13 @@ def _union_enum_getter(enum_type, reader, name):
     if enum_value is None:
         return None
     return enum_type(enum_value)
+
+
+def _union_int_subtype_getter(int_subtype, reader, name):
+    int_value = reader[name]
+    if int_value is None:
+        return None
+    return int_subtype(int_value)
 
 
 def _union_none_getter(reader, name):  # pylint: disable=useless-return

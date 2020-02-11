@@ -119,3 +119,13 @@ struct TestNestedUnionStruct {
 struct RecursiveStruct {
   structField @0 :RecursiveStruct;
 }
+
+using IntSubType = Int32;
+
+struct TestSubType {
+  intSubType @0 :IntSubType;
+  intSubTypeUnion :union {
+    intSubType @1 :IntSubType;
+    irrelevant @2 :Void;
+  }
+}
