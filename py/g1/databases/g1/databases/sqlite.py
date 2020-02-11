@@ -1,6 +1,7 @@
 __all__ = [
     'create_engine',
     'attaching',
+    'upsert',
 ]
 
 import contextlib
@@ -100,3 +101,7 @@ def attaching(conn, db_name, db_path):
         yield
     finally:
         conn.execute(_DETACH_STMT.bindparams(db_name=db_name))
+
+
+def upsert(table):
+    return table.insert().prefix_with('OR REPLACE')

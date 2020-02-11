@@ -30,6 +30,7 @@ from sqlalchemy import (
 
 from g1.bases.assertions import ASSERT
 
+from . import sqlite
 from . import utils
 
 
@@ -136,8 +137,7 @@ class RecordsSchema:
         )
 
     def make_upsert_statement(self):
-        # NOTE: This is SQLite-specific.
-        return self.make_insert_statement().prefix_with('OR REPLACE')
+        return sqlite.upsert(self.table)
 
     def make_insert_statement(self):
         return self.table.insert()  # pylint: disable=no-value-for-parameter
