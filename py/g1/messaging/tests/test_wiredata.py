@@ -27,6 +27,10 @@ class SubType:
     s: str
 
 
+class IntSubType(int):
+    pass
+
+
 @dataclasses.dataclass
 class TestType:
     n: type(None)
@@ -39,6 +43,7 @@ class TestType:
     l: typing.List[typing.Union[int, str]]
     u0: typing.Optional[SubType]
     u1: typing.Optional[SubType]
+    int_sub_type: IntSubType
     default_x: int = 1
 
 
@@ -57,6 +62,7 @@ class JsonWireDataTest(unittest.TestCase):
         l=[1, 2, 3, 'x', 'y', 'z'],
         u0=SubType(y=1, s='x'),
         u1=None,
+        int_sub_type=IntSubType(1),
     )
 
     raw_test_obj = {
@@ -112,6 +118,8 @@ class JsonWireDataTest(unittest.TestCase):
         # typing.Optional[SubType]
         'u1':
         None,
+        'int_sub_type':
+        1,
         # int
         'default_x':
         1,
@@ -155,6 +163,14 @@ class JsonWireDataTest(unittest.TestCase):
                     ),
                     self.test_obj,
                 )
+
+    def test_int_sub_type(self):
+        actual = self.json_wire_data.to_upper(
+            TestType,
+            self.json_wire_data.to_lower(self.test_obj),
+        )
+        self.assertEqual(actual.int_sub_type, 1)
+        self.assertIs(type(actual.int_sub_type), IntSubType)
 
     def test_match_recursive_type(self):
 

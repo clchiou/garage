@@ -246,7 +246,11 @@ class JsonWireData(wiredata.WireData):
             )
 
         elif issubclass(value_type, _DIRECTLY_SERIALIZABLE_TYPES):
-            return ASSERT.isinstance(raw_value, value_type)
+            if value_type in _DIRECTLY_SERIALIZABLE_TYPES:
+                return ASSERT.isinstance(raw_value, value_type)
+            else:
+                # Support sub-type of int, etc.
+                return value_type(raw_value)
 
         else:
             return ASSERT.unreachable(
