@@ -132,7 +132,7 @@ class Session:
                 LOG.warning('retry %d times: %r', retry_count, request)
 
             future = adapters.FutureAdapter(
-                submit(self.send_blocking, request, **kwargs)
+                submit(self._send, request, kwargs)
             )
             try:
                 return await future.get_result()
@@ -154,6 +154,13 @@ class Session:
                 )
 
                 await timers.sleep(backoff)
+
+    def _send(self, request, kwargs):
+        response = self.send_blocking(request, **kwargs)
+        # Force consuming contents in an executor thread (since you
+        # should not do this in an asynchronous task).
+        response.content  # pylint: disable=pointless-statement
+        return response
 
     def send_blocking(self, request, **kwargs):
         """Send a request in a blocking manner.
