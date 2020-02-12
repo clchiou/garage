@@ -87,6 +87,26 @@ class FilesTest(unittest.TestCase):
         ):
             shutil.rmtree(self.test_dir_path / 'dir-link-2')
 
+    def test_remove_empty_dir(self):
+        # Safe to call on non-existent file or a regular file.
+        file_path = self.test_dir_path / 'some-file'
+        g1.files.remove_empty_dir(file_path)
+        file_path.touch()
+        g1.files.remove_empty_dir(file_path)
+        self.assertTrue(file_path.exists())
+
+        dir_path = self.test_dir_path / 'some-dir'
+        dir_path.mkdir()
+        file_path = dir_path / 'some-file'
+        file_path.touch()
+        g1.files.remove_empty_dir(dir_path)
+        self.assertTrue(dir_path.exists())
+        self.assertTrue(file_path.exists())
+
+        file_path.unlink()
+        g1.files.remove_empty_dir(dir_path)
+        self.assertFalse(dir_path.exists())
+
 
 if __name__ == '__main__':
     unittest.main()

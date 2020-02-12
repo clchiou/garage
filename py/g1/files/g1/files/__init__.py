@@ -3,6 +3,7 @@ __all__ = [
     'is_empty_dir',
     'lexists',
     'remove',
+    'remove_empty_dir',
 ]
 
 import logging
@@ -51,3 +52,12 @@ def remove(path):
         path.unlink()
     else:
         shutil.rmtree(path)
+
+
+def remove_empty_dir(path):
+    try:
+        next(path.iterdir())
+    except StopIteration:
+        path.rmdir()
+    except (FileNotFoundError, NotADirectoryError):
+        pass
