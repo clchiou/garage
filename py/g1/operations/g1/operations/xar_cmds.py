@@ -2,7 +2,6 @@ __all__ = [
     'main',
 ]
 
-import logging
 import sys
 from pathlib import Path
 
@@ -14,8 +13,6 @@ from g1.texts.columns import argparses as columns_argparses
 
 from . import models
 from . import xar_ops_dirs
-
-LOG = logging.getLogger(__name__)
 
 _XAR_LIST_COLUMNS = frozenset((
     'label',

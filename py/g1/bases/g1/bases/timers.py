@@ -12,12 +12,9 @@ __all__ = [
     'timeout_to_key',
 ]
 
-import logging
 import time
 
 from .assertions import ASSERT
-
-LOG = logging.getLogger(__name__)
 
 
 def make(timeout):
