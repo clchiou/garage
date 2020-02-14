@@ -34,12 +34,28 @@ restrictions if we have good use cases against these restrictions.
 
 * We do not load parameter values from environment variables as in
   general we prefer explicit over implicit sources of parameter values.
+
+As to how to make a parameter object, here is the rule of thumb:
+
+* If a parameter cannot have a default value, use RequiredParameter.
+* If a parameter's default value is static, use Parameter.  Also you
+  don't need to pass the type parameter.
+* If a parameter's default value can be overridden by user, use
+  Parameter with an explicit type parameter.
+* If user may choose not to provide a default value to a parameter, use
+  make_parameter.
+* If a parameter's value is constant, use ConstParameter.
 """
 
 __all__ = [
+    # Namespace.
     'Namespace',
-    'Parameter',
     'define',
+    # Parameter.
+    'ConstParameter',
+    'Parameter',
+    'RequiredParameter',
+    'make_parameter',
 ]
 
 import argparse
@@ -109,37 +125,25 @@ class Namespace(_Namespace):
         super(_Namespace, self).__setattr__('_doc', _doc)
 
 
-class Parameter:
+class ParameterBase:
 
     def __init__(
         self,
-        default,
-        doc=None,
         *,
         type=None,  # pylint: disable=redefined-builtin
+        doc=None,
         parse=None,
         validate=None,
         format=None,  # pylint: disable=redefined-builtin
         unit=None,
     ):
-        """Make a parameter.
-
-        * type is default to default value's type, and set() will check
-          new parameter value's type.
-        * parse is used by the parameter value loader to parse the "raw"
-          value.  Note that raw value might not be string-typed.
-        * validate is an optional validation function (in addition to
-          the type check).
-        # format is for producing help text.  It does NOT have to be
-          inverse of parse.
-        """
+        self.type = type
         self.doc = doc
-        self.type = type or default.__class__
         self.parse = parse
         self.validate = validate
         self.format = format
         self.unit = unit
-        self._value = self.default = self._validate(default)
+        self._value = None
         self._have_been_read = False
 
     def _validate(self, value):
@@ -170,6 +174,64 @@ class Parameter:
         global INITIALIZED
         self._value = value
         INITIALIZED = True
+
+
+class Parameter(ParameterBase):
+
+    def __init__(self, default, doc=None, **kwargs):
+        """Make a parameter.
+
+        * type is default to default value's type, and set() will check
+          new parameter value's type.
+        * parse is used by the parameter value loader to parse the "raw"
+          value.  Note that raw value might not be string-typed.
+        * validate is an optional validation function (in addition to
+          the type check).
+        # format is for producing help text.  It does NOT have to be
+          inverse of parse.
+        """
+        kwargs.setdefault('type', type(default))
+        super().__init__(doc=doc, **kwargs)
+        self._value = self.default = self._validate(default)
+
+
+class ConstParameter(ParameterBase):
+
+    def __init__(self, value, doc=None, **kwargs):
+        kwargs.setdefault('type', type(value))
+        super().__init__(doc=doc, **kwargs)
+        self._value = self.value = self._validate(value)
+
+    def set(self, value):
+        ASSERT.unreachable('cannot set to a const parameter: {}', value)
+
+
+class RequiredParameter(ParameterBase):
+    """Parameter that user is required to explicitly set its value.
+
+    Use this class as an exception rather than a norm.  If you find that
+    you use this class a lot in an application, you might want to
+    redesign that application.
+    """
+
+    def __init__(self, type, doc=None, **kwargs):  # pylint: disable=redefined-builtin
+        ASSERT.is_not(type, None.__class__)
+        super().__init__(type=type, doc=doc, **kwargs)
+
+    def get(self):
+        ASSERT.not_none(self._value)
+        return super().get()
+
+
+def make_parameter(default, type, doc=None, **kwargs):  # pylint: disable=redefined-builtin
+    """Make a parameter object.
+
+    If default is None, it will make a RequiredParameter object.
+    """
+    if default is None:
+        return RequiredParameter(type, doc, **kwargs)
+    else:
+        return Parameter(default, doc, type=type, **kwargs)
 
 
 #
@@ -291,11 +353,11 @@ def load_parameters(
 
     for name, value_str in args.parameter or ():
         parameter = parameter_table[name]
-        # Make a special case for ``str`` type so that you do not have
-        # to type extra quotes like '"string"' on command line.
+        # Make a special case for str and Path type so that you do not
+        # have to type extra quotes like '"string"' on command line.
         if (
             isinstance(parameter.type, type)
-            and issubclass(parameter.type, str)
+            and issubclass(parameter.type, (str, Path))
         ):
             value = value_str
         else:
@@ -321,7 +383,7 @@ def iter_parameters(module_path, root_namespace):
             if isinstance(value, Namespace):
                 yield from do_iter(value)
             else:
-                ASSERT.isinstance(value, Parameter)
+                ASSERT.isinstance(value, ParameterBase)
                 label = labels.Label(module_path, '.'.join(parts))
                 yield label, value
             parts.pop()
@@ -354,14 +416,28 @@ def format_help(root_namespaces):
                 output.write('\n')
                 format_namespace(value, indent + 1)
             else:
-                ASSERT.isinstance(value, Parameter)
+                ASSERT.isinstance(value, ParameterBase)
                 if value.doc:
                     output.write(' ')
                     output.write(value.doc)
-                output.write(' (default: ')
-                output.write((value.format or json.dumps)(value.default))
+                if isinstance(value, Parameter):
+                    output.write(' (default: ')
+                    output.write((value.format or json.dumps)(value.default))
+                elif isinstance(value, ConstParameter):
+                    output.write(' (value: ')
+                    output.write((value.format or json.dumps)(value.value))
+                else:
+                    ASSERT.isinstance(value, RequiredParameter)
+                    output.write(' (type: ')
+                    if isinstance(value.type, type):
+                        output.write(value.type.__name__)
+                    else:
+                        output.write(', '.join(t.__name__ for t in value.type))
                 if value.unit:
-                    output.write(' ')
+                    if isinstance(value, RequiredParameter):
+                        output.write(', unit: ')
+                    else:
+                        output.write(' ')
                     output.write(value.unit)
                 output.write(')\n')
 
@@ -390,7 +466,7 @@ def load_config_forest(config_forest, root_namespaces):
             if isinstance(entry, Namespace):
                 load(entry, value)
             else:
-                ASSERT.isinstance(entry, Parameter)
+                ASSERT.isinstance(entry, ParameterBase)
                 if entry.parse:
                     value = entry.parse(value)
                 entry.set(value)

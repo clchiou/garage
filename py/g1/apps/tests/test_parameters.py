@@ -40,6 +40,10 @@ class ParameterTest(unittest.TestCase):
         p.set(1)
         self.assertEqual(p.get(), 1)
 
+        p = parameters.RequiredParameter(int)
+        with self.assertRaises(AssertionError):
+            p.set('')
+
     def test_validate(self):
         p = parameters.Parameter(0, validate=lambda x: x < 1)
         self.assertEqual(p._value, 0)
@@ -48,6 +52,11 @@ class ParameterTest(unittest.TestCase):
         self.assertEqual(p._value, 0)
         p.set(-1)
         self.assertEqual(p._value, -1)
+
+    def test_read_without_write(self):
+        p = parameters.RequiredParameter(int)
+        with self.assertRaises(AssertionError):
+            p.get()
 
 
 class IterParametersTest(unittest.TestCase):

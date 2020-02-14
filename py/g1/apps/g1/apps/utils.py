@@ -36,7 +36,7 @@ def _prepare(defaults, kwargs):
     defaults.update(kwargs)
     for name in defaults:
         value = defaults[name]
-        if isinstance(value, parameters.Parameter):
+        if isinstance(value, parameters.ParameterBase):
             defaults[name] = value.get()
     return defaults
 
