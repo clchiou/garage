@@ -2,6 +2,7 @@ from g1.apps import bases
 from g1.apps import parameters
 from g1.apps import utils
 from g1.bases import labels
+from g1.bases.assertions import ASSERT
 
 from . import executors
 
@@ -39,14 +40,21 @@ def make_executor_params(
     name_prefix='',
     daemon=None,
     default_priority=None,
+    parse_priority=None,
 ):
+    # default_priority, when provided, is usually a domain object; so
+    # caller should also provide a parse function.
+    ASSERT.not_xor(default_priority is None, parse_priority is None)
     return parameters.Namespace(
         'make executor',
         max_executors=parameters.Parameter(max_executors, type=int),
         name_prefix=parameters.Parameter(name_prefix, type=str),
         daemon=parameters.Parameter(daemon, type=(bool, type(None))),
-        default_priority=parameters.Parameter(
-            default_priority, type=object, format=str
+        default_priority=(
+            parameters.ConstParameter(None) if default_priority is None else \
+            parameters.Parameter(
+                default_priority, parse=parse_priority, format=str
+            )
         ),
     )
 
