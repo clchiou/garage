@@ -614,9 +614,10 @@ class HttpStream:
         # Should we wrap ``sys.stderr`` in an async adapter?
         environ['wsgi.errors'] = sys.stderr
 
-        environ['REQUEST_METHOD'] = self._get_first_header(':method')
+        environ['REQUEST_METHOD'] = self._get_first_header(':method').upper()
 
         parsed_path = urllib.parse.urlsplit(self._get_first_header(':path'))
+        environ['SCRIPT_NAME'] = ''
         environ['PATH_INFO'] = parsed_path.path
         environ['QUERY_STRING'] = parsed_path.query
 

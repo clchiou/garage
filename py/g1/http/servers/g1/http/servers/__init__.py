@@ -36,7 +36,6 @@ class HttpServer:
             'wsgi.multiprocess': False,
             'wsgi.run_once': False,
             'SERVER_SOFTWARE': VERSION,
-            'SCRIPT_NAME': '',
             'SERVER_NAME': socket.getfqdn(address[0]),
             'SERVER_PORT': address[1],
             'SERVER_PROTOCOL': 'HTTP/2.0',
