@@ -602,6 +602,10 @@ class HttpStream:
 
         finally:
             self._response_body.close()
+            # In case self._write is never called, but the outgoing
+            # handler was already started and is being blocked on
+            # response body data, this unblocks the outgoing handler.
+            self._session._outgoing_gate.unblock()
 
         LOG.info('wsgi app completes: %s %s %s://%s%s', *log_args)
 
