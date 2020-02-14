@@ -11,6 +11,7 @@ import random
 from pathlib import Path
 
 import g1.files
+from g1.bases import timers
 from g1.bases.assertions import ASSERT
 
 LOG = logging.getLogger(__name__)
@@ -158,6 +159,19 @@ class Cache(CacheInterface):
             self.evict()
 
     def evict(self):
+        stopwatch = timers.Stopwatch()
+        stopwatch.start()
+        num_evicted = self._evict()
+        stopwatch.stop()
+        LOG.info(
+            'evict %d entries in %f seconds: %s',
+            num_evicted,
+            stopwatch.get_duration(),
+            self._cache_dir_path,
+        )
+        return num_evicted
+
+    def _evict(self):
         # Estimate post-eviction size per directory, given that MD5
         # yields a uniform distribution of sizes.
         #
@@ -173,7 +187,6 @@ class Cache(CacheInterface):
                 dir_path, target_size_per_dir, get_recency
             )
         self._eviction_countdown = self._estimate_eviction_countdown()
-        LOG.info('evict %d entries: %s', num_evicted, self._cache_dir_path)
         return num_evicted
 
     def _evict_dir(self, dir_path, target_size, get_recency):
