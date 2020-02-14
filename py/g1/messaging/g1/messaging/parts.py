@@ -30,13 +30,6 @@ def setup_server(module_labels, module_params):
             'server': module_labels.server,
         },
     )
-    utils.define_binder(
-        on_graceful_exit,
-        g1.asyncs.servers.parts.LABELS.serve,
-        {
-            'server': module_labels.server,
-        },
-    )
 
 
 def make_server_params(url=None, parallelism=1):
@@ -52,14 +45,12 @@ def make_server_params(url=None, parallelism=1):
     )
 
 
-def make_server(params, server) -> g1.asyncs.servers.parts.LABELS.serve:
-    server.socket.listen(params.url.get())
-    return servers.run_server(server, parallelism=params.parallelism.get())
-
-
-async def on_graceful_exit(
-    graceful_exit: g1.asyncs.servers.parts.LABELS.graceful_exit,
-    server,
+def make_server(params, server) -> (
+    g1.asyncs.servers.parts.LABELS.serve,
+    g1.asyncs.servers.parts.LABELS.shutdown,
 ):
-    await graceful_exit.wait()
-    server.socket.close()
+    server.socket.listen(params.url.get())
+    return (
+        servers.run_server(server, parallelism=params.parallelism.get()),
+        server.socket.close,
+    )

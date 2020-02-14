@@ -20,6 +20,7 @@ LABELS = labels.make_labels(
     'graceful_exit',
     'grace_period',
     'serve',
+    'shutdown',
 )
 
 PARAMS = parameters.define(
@@ -51,3 +52,17 @@ def start_servers(server_queue: LABELS.server_queue, serves: [LABELS.serve]):
     for serve in serves:
         if serve:
             server_queue.spawn(serve)
+
+
+@utils.define_binder_for(LABELS.serve)
+async def on_graceful_exit(
+    graceful_exit: LABELS.graceful_exit, shutdowns: [LABELS.shutdown]
+):
+    await graceful_exit.wait()
+    for shutdown in shutdowns:
+        if shutdown:
+            shutdown()
+
+
+# Trick to make ``shutdown`` "optional".
+startup.set(LABELS.shutdown, None)

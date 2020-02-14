@@ -39,8 +39,12 @@ def setup_http_server(module_labels, module_params):
     utils.define_maker(
         make_server_socket,
         {
-            'params': module_labels.server_socket_params,
-            'return': module_labels.server_socket,
+            'params':
+            module_labels.server_socket_params,
+            'return': (
+                module_labels.server_socket,
+                g1.asyncs.servers.parts.LABELS.shutdown,
+            ),
         },
     )
     utils.define_binder(
@@ -51,21 +55,6 @@ def setup_http_server(module_labels, module_params):
             'application': module_labels.application,
         },
     )
-    utils.define_binder(
-        on_graceful_exit,
-        g1.asyncs.servers.parts.LABELS.serve,
-        {
-            'server_socket': module_labels.server_socket,
-        },
-    )
-
-
-async def on_graceful_exit(
-    graceful_exit: g1.asyncs.servers.parts.LABELS.graceful_exit,
-    server_socket,
-):
-    await graceful_exit.wait()
-    server_socket.close()
 
 
 def make_server_socket_params(**kwargs):
@@ -81,11 +70,12 @@ def make_server_socket(
     exit_stack: asyncs.LABELS.exit_stack,
     params,
 ):
-    return g1.networks.servers.parts.make_server_socket(
+    server_socket = g1.networks.servers.parts.make_server_socket(
         exit_stack,
         params,
         make_ssl_context(params),
     )
+    return server_socket, server_socket.close
 
 
 def make_ssl_context_params():
