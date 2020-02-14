@@ -2,19 +2,65 @@
 
 Examples:
 >>> condition = threading.Condition()
->>> timers.make(timeout=10)
+>>> timer = timers.make(timeout=10)
 >>> with condition:
 ...     condition.wait(timer.get_timeout())
 """
 
 __all__ = [
+    'Stopwatch',
+    'TimeUnits',
     'make',
     'timeout_to_key',
 ]
 
+import enum
 import time
 
 from .assertions import ASSERT
+
+
+class TimeUnits(enum.Enum):
+    SECONDS = enum.auto()
+    NANOSECONDS = enum.auto()
+
+
+class Stopwatch:
+    """Measure amounts of time.
+
+    By default, it uses ``time.perf_counter_ns``, which should be good
+    for measuring wall-clock time of a function call.  For other use
+    cases, try ``time.monotonic_ns``, which should be good for measuring
+    long time durations, or ``time.process_time_ns``, which should be
+    good for measuring (system and user) CPU time of a function call.
+    """
+
+    def __init__(self, *, clock=time.perf_counter_ns):
+        self._clock = clock
+        self._duration = None
+        self._start = None
+
+    def start(self):
+        ASSERT.none(self._start)
+        self._duration = None
+        self._start = self._clock()
+
+    def stop(self):
+        now = self._clock()
+        ASSERT.not_none(self._start)
+        self._duration = now - self._start
+        self._start = None
+
+    def get_duration(self, unit=TimeUnits.SECONDS):
+        if self._start is not None:
+            duration_ns = self._clock() - self._start
+        else:
+            duration_ns = ASSERT.not_none(self._duration)
+        if unit is TimeUnits.SECONDS:
+            return duration_ns / 1e9
+        else:
+            ASSERT.is_(unit, TimeUnits.NANOSECONDS)
+            return duration_ns
 
 
 def make(timeout):

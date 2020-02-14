@@ -4,6 +4,27 @@ import unittest.mock
 from g1.bases import timers
 
 
+class StopwatchTest(unittest.TestCase):
+
+    def test_invalid_uses(self):
+        stopwatch = timers.Stopwatch()
+        with self.assertRaisesRegex(AssertionError, r'expect non-None value'):
+            stopwatch.stop()
+        with self.assertRaisesRegex(AssertionError, r'expect non-None value'):
+            stopwatch.get_duration()
+        stopwatch.start()
+        with self.assertRaisesRegex(AssertionError, r'expect None, not '):
+            stopwatch.start()
+
+    def test_stopwatch(self):
+        stopwatch = timers.Stopwatch(clock=[6e9, 3e9, 1e9].pop)
+        stopwatch.start()
+        self.assertEqual(stopwatch.get_duration(), 2.0)
+        stopwatch.stop()
+        for _ in range(3):
+            self.assertEqual(stopwatch.get_duration(), 5.0)
+
+
 class TimersTest(unittest.TestCase):
 
     @unittest.mock.patch('time.monotonic')
