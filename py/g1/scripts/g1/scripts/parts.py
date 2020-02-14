@@ -14,11 +14,7 @@ LABELS = labels.make_labels(
 PARAMS = parameters.define(
     'g1.scripts',
     parameters.Namespace(
-        dry_run=parameters.Parameter(
-            False,
-            doc='whether to dry-run commands',
-            type=bool,
-        ),
+        dry_run=parameters.Parameter(False, 'whether to dry-run commands'),
     ),
 )
 

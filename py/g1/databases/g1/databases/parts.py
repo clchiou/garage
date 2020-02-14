@@ -41,24 +41,25 @@ def setup_create_engine(module_labels, module_params):
     )
 
 
-def make_create_engine_params(db_url='', dialect='', **kwargs):
+def make_create_engine_params(db_url=None, dialect=None, **kwargs):
 
-    dialect = get_dialect(db_url, dialect)
+    if dialect is None:
+        dialect = _get_dialect(ASSERT.not_none(db_url))
 
     if dialect == 'postgresql':
         params = parameters.Namespace(
             'make PostgreSQL database engine',
-            db_url=parameters.Parameter(db_url),
-            dialect=parameters.Parameter(dialect),
+            db_url=parameters.make_parameter(db_url, str),
+            dialect=parameters.ConstParameter(dialect),
         )
 
     elif dialect == 'sqlite':
         params = parameters.Namespace(
             'make SQLite database engine',
-            db_url=parameters.Parameter(db_url),
-            dialect=parameters.Parameter(dialect),
+            db_url=parameters.make_parameter(db_url, str),
+            dialect=parameters.ConstParameter(dialect),
             check_same_thread=parameters.Parameter(
-                kwargs.get('check_same_thread', True)
+                kwargs.get('check_same_thread', True), type=bool
             ),
             trace=parameters.Parameter(
                 kwargs.get('trace'), type=(bool, type(None))
@@ -100,10 +101,8 @@ def make_create_engine(params):
     return functools.partial(create_engine, **kwargs)
 
 
-def get_dialect(db_url, dialect):
-    for name in ('postgresql', 'sqlite'):
-        if db_url.startswith(name) or dialect == name:
-            break
-    else:
-        ASSERT.unreachable('unsupported dialect: {!r}', db_url or dialect)
-    return name
+def _get_dialect(db_url):
+    for dialect in ('postgresql', 'sqlite'):
+        if db_url.startswith(dialect):
+            return dialect
+    return ASSERT.unreachable('unsupported dialect: {}', db_url)

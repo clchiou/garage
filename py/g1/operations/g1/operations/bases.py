@@ -22,22 +22,19 @@ PARAMS = parameters.define(
     parameters.Namespace(
         repository=parameters.Parameter(
             Path('/var/lib/g1/operations'),
-            doc='path to the repository directory',
-            type=Path,
+            'path to the repository directory',
             parse=Path,
             validate=Path.is_absolute,
             format=str,
         ),
         application_group=parameters.Parameter(
             'plumber',
-            doc='set application group',
-            type=str,
+            'set application group',
             validate=bool,  # Check not empty.
         ),
         zipapp_directory=parameters.Parameter(
             Path('/usr/local/bin'),
-            doc='path to install zipapp',
-            type=Path,
+            'path to install zipapp',
             parse=Path,
             validate=Path.is_absolute,
             format=str,

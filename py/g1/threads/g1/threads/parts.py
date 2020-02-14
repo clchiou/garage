@@ -42,8 +42,8 @@ def make_executor_params(
 ):
     return parameters.Namespace(
         'make executor',
-        max_executors=parameters.Parameter(max_executors),
-        name_prefix=parameters.Parameter(name_prefix),
+        max_executors=parameters.Parameter(max_executors, type=int),
+        name_prefix=parameters.Parameter(name_prefix, type=str),
         daemon=parameters.Parameter(daemon, type=(bool, type(None))),
         default_priority=parameters.Parameter(
             default_priority, type=object, format=str

@@ -12,10 +12,10 @@ def make_server_socket_params(
 ):
     return parameters.Namespace(
         'make server socket',
-        host=parameters.Parameter(host),
-        port=parameters.Parameter(port),
-        reuse_address=parameters.Parameter(reuse_address),
-        reuse_port=parameters.Parameter(reuse_port),
+        host=parameters.Parameter(host, type=str),
+        port=parameters.Parameter(port, type=int),
+        reuse_address=parameters.Parameter(reuse_address, type=bool),
+        reuse_port=parameters.Parameter(reuse_port, type=bool),
     )
 
 

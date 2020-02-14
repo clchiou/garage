@@ -51,15 +51,15 @@ def make_session_params(
 ):
     return parameters.Namespace(
         'make HTTP client session',
-        user_agent=parameters.Parameter(user_agent),
-        cache_size=parameters.Parameter(cache_size),
+        user_agent=parameters.Parameter(user_agent, type=str),
+        cache_size=parameters.Parameter(cache_size, type=int),
         max_request_rate=parameters.Parameter(
             max_request_rate,
             type=(int, float),
             unit='requests/second',
         ),
-        max_requests=parameters.Parameter(max_requests),
-        max_retries=parameters.Parameter(max_retries),
+        max_requests=parameters.Parameter(max_requests, type=int),
+        max_retries=parameters.Parameter(max_retries, type=int),
         backoff_base=parameters.Parameter(
             backoff_base,
             type=(int, float),

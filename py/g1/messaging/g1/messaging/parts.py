@@ -2,7 +2,6 @@ import g1.asyncs.servers.parts
 from g1.apps import parameters
 from g1.apps import utils
 from g1.bases import labels
-from g1.bases.assertions import ASSERT
 
 from .reqrep import servers
 
@@ -40,25 +39,21 @@ def setup_server(module_labels, module_params):
     )
 
 
-def make_server_params(url='', parallelism=1):
+def make_server_params(url=None, parallelism=1):
     return parameters.Namespace(
         'make server socket',
-        url=parameters.Parameter(
-            url,
-            doc='url that server listens on',
-            type=str,
-        ),
+        url=parameters.make_parameter(url, str, 'url that server listens on'),
         parallelism=parameters.Parameter(
             parallelism,
-            doc='number of server tasks',
+            'number of server tasks',
             type=int,
-            validate=lambda v: v > 0,
+            validate=(0).__lt__,
         ),
     )
 
 
 def make_server(params, server) -> g1.asyncs.servers.parts.LABELS.serve:
-    server.socket.listen(ASSERT.true(params.url.get()))
+    server.socket.listen(params.url.get())
     return servers.run_server(server, parallelism=params.parallelism.get())
 
 
