@@ -22,6 +22,7 @@ import foreman
  .depend('//py/g1/third-party/capnp:build')
  .depend('//py/g1/third-party/nng:build')
  .depend('//py/g1/threads:build')
+ .depend('//py/g1/webs:build')
  .depend('//py/startup:build')
  .depend('third-party')
  )
