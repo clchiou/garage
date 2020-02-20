@@ -37,9 +37,9 @@ def python(
     authkey = authkey or str(random.randint(1, 1e8))
     with contextlib.ExitStack() as stack:
         address = stack.enter_context(create_socket())
-        stack.enter_context(start_server(
+        server_proc = stack.enter_context(start_server(
             executable, address, authkey, max_workers, popen_kwargs or {}))
-        connector = Connector(address, protocol, authkey)
+        connector = Connector(server_proc, address, protocol, authkey)
         try:
             yield connector
         finally:
@@ -50,7 +50,7 @@ def python(
 def create_socket():
     tempdir = tempfile.mkdtemp()
     try:
-        socket_path = tempfile.mktemp(dir=tempdir)
+        socket_path = os.path.join(tempdir, 'server.socket')
         LOG.info('socket path %s', socket_path)
         yield socket_path
     finally:

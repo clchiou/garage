@@ -27,7 +27,8 @@ class RpcConnectionError(RpcError):
 
 class Connector:
 
-    def __init__(self, address, protocol, authkey):
+    def __init__(self, server_proc, address, protocol, authkey):
+        self.server_proc = server_proc
         self.address = address
         self.protocol = protocol
         self.authkey = bytes(authkey, encoding='ascii')
