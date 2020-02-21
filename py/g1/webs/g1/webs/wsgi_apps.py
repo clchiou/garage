@@ -15,6 +15,7 @@ from g1.asyncs import servers
 from g1.asyncs.bases import locks
 from g1.asyncs.bases import streams
 from g1.asyncs.bases import tasks
+from g1.bases import contexts
 from g1.bases.assertions import ASSERT
 
 from . import consts
@@ -50,8 +51,20 @@ class HttpError(Exception):
 class Request:
 
     environ: typing.Mapping[str, str]
-    context: typing.Mapping[str, typing.Any] = \
-        dataclasses.field(default_factory=dict)
+
+    #
+    # NOTE: Handlers are expected to mutate context content directly.
+    # Although the context object support hierarchical interface (and
+    # thus no mutation on the content), mutation is preferred because,
+    # with mutation, handlers do not have to be fitted into a hierarchy,
+    # and sibling handlers may see context changes made by each other.
+    #
+    # Of course, when a handler passes the context to a non-handler, and
+    # you are worried that the non-handler code might "corrupt" the
+    # context content, the handler may use context's hierarchy interface
+    # to isolate context changes made by the non-handler code.
+    #
+    context: contexts.Context
 
     @property
     def method(self):
@@ -244,7 +257,7 @@ class Application:
 
     async def __call__(self, environ, start_response):
         ASSERT.false(self._handler_queue.is_closed())
-        request = Request(environ=environ)
+        request = Request(environ=environ, context=contexts.Context())
         response = _Response(start_response)
         # Handler task may linger on after application completes.  You
         # could do tricks with this feature.
@@ -273,8 +286,10 @@ class Application:
         )
         if not isinstance(exc, HttpError):
             LOG.error(
-                '%s %s%s%s: handler crashes before commits response',
+                '%s %s%s%s context=%r: '
+                'handler crashes before commits response',
                 *log_args,
+                request.context,
                 exc_info=exc,
             )
             # TODO: What headers should we set in this case?
@@ -284,7 +299,12 @@ class Application:
         if 300 <= exc.status < 400:
             LOG.info('%s %s%s%s -> %d %s %s: %s', *log_args, exc.location, exc)
         else:
-            LOG.warning('%s %s%s%s -> %d %s', *log_args, exc_info=exc)
+            LOG.warning(
+                '%s %s%s%s -> %d %s context=%r',
+                *log_args,
+                request.context,
+                exc_info=exc,
+            )
         response.status = exc.status
         response.headers.update(exc.headers)
         if exc.content:

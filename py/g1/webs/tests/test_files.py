@@ -3,6 +3,7 @@ import unittest
 from pathlib import Path
 
 from g1.asyncs import kernels
+from g1.bases import contexts
 from g1.webs import consts
 from g1.webs import wsgi_apps
 from g1.webs.handlers import files
@@ -12,7 +13,9 @@ class FilesTest(unittest.TestCase):
 
     @staticmethod
     def make_request(path_str):
-        return wsgi_apps.Request(environ={'PATH_INFO': path_str})
+        return wsgi_apps.Request(
+            environ={'PATH_INFO': path_str}, context=contexts.Context()
+        )
 
     def test_get_local_path(self):
         dir_path = Path(__file__).parent.parent.resolve()
@@ -55,7 +58,7 @@ class HandlerTest(unittest.TestCase):
         self.handler = None
 
     def assert_request(self, context):
-        self.assertEqual(self.request.context, context)
+        self.assertEqual(self.request.context.asdict(), context)
 
     def assert_response(self, status, headers, content):
         self.assertIs(self.response.status, status)
@@ -74,6 +77,7 @@ class HandlerTest(unittest.TestCase):
                 'REQUEST_METHOD': method,
                 'PATH_INFO': path_str,
             },
+            context=contexts.Context(),
         )
 
     def run_handler(self):
@@ -112,7 +116,7 @@ class HandlerTest(unittest.TestCase):
         self.assert_response(
             consts.Statuses.OK, response_headers, local_path.read_bytes()
         )
-        with self.assertRaisesRegex(AssertionError, r'expect.*not containing'):
+        with self.assertRaisesRegex(AssertionError, r'expect.*not in'):
             self.run_handler()
 
         self.set_request(consts.METHOD_GET, '..')
@@ -139,7 +143,7 @@ class HandlerTest(unittest.TestCase):
             files.LOCAL_PATH:
             self.DIR_PATH / 'tests/test_files.py',
         })
-        with self.assertRaisesRegex(AssertionError, r'expect.*not containing'):
+        with self.assertRaisesRegex(AssertionError, r'expect.*not in'):
             self.run_handler()
 
         self.set_request(consts.METHOD_GET, '..')

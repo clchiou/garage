@@ -9,7 +9,6 @@ __all__ = [
 import mimetypes
 
 from g1.bases import labels
-from g1.bases.assertions import ASSERT
 
 from .. import consts
 from .. import wsgi_apps
@@ -29,7 +28,7 @@ def make_handler(local_dir_path):
 
 
 def get_local_path(request, local_dir_path):
-    path_str = composers.PathPatternRouter.get_path_str(request)
+    path_str = composers.get_path_str(request)
     # We use ``resolve`` to normalize path, which also follows symlinks.
     # A side effect is that this handler rejects any symlink to file
     # that is out of scope, which may be not bad.
@@ -78,10 +77,8 @@ class PathChecker:
 
     async def __call__(self, request, response):
         del response  # Unused.
-        ASSERT.setitem(
-            request.context,
-            LOCAL_PATH,
-            get_local_path(request, self._local_dir_path),
+        request.context.set(
+            LOCAL_PATH, get_local_path(request, self._local_dir_path)
         )
 
 

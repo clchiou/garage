@@ -1,6 +1,7 @@
 import unittest
 
 from g1.asyncs import kernels
+from g1.bases import contexts
 from g1.webs import consts
 from g1.webs import wsgi_apps
 from g1.webs.handlers import composers
@@ -32,7 +33,9 @@ class TestCaseBase(unittest.TestCase):
     def set_request(self, **kwargs):
         environ = self.ENVIRON.copy()
         environ.update(**kwargs)
-        self.request = wsgi_apps.Request(environ=environ)
+        self.request = wsgi_apps.Request(
+            environ=environ, context=contexts.Context()
+        )
 
     def make_noop_handler(self, name):
 
@@ -144,6 +147,9 @@ class MethodRouterTest(TestCaseBase):
 
 class PathPatternRouterTest(TestCaseBase):
 
+    def assert_context_keys(self, expect):
+        self.assertEqual(list(self.request.context.asdict()), expect)
+
     def run_handler(self, path):
         self.set_request(PATH_INFO=path)
         self.response = wsgi_apps._Response(None)
@@ -161,48 +167,33 @@ class PathPatternRouterTest(TestCaseBase):
             (r'/a', self.make_noop_handler('/a')),
         ])
         self.set_request()
-        self.assertEqual(self.request.context, {})
-        self.assertIsNone(composers.PathPatternRouter.group(self.request))
-        self.assertNotIn(composers.PATH_MATCH, self.request.context)
-        self.assertEqual(
-            composers.PathPatternRouter.get_path_str(self.request),
-            '/foo/bar',
-        )
+        self.assertEqual(self.request.context.asdict(), {})
+        self.assertIsNone(composers.group(self.request))
+        self.assertIsNone(self.request.context.get(composers.PATH_MATCH))
+        self.assertEqual(composers.get_path_str(self.request), '/foo/bar')
 
         self.run_handler('/a/p/x')
         self.assertEqual(self.calls, ['/a/p'])
-        self.assertEqual(set(self.request.context), {composers.PATH_MATCH})
-        self.assertEqual(
-            composers.PathPatternRouter.get_path_str(self.request),
-            '/x',
-        )
+        self.assert_context_keys([composers.PATH_MATCH])
+        self.assertEqual(composers.get_path_str(self.request), '/x')
         self.assert_response(consts.Statuses.OK, {})
 
         self.run_handler('/a/q')
         self.assertEqual(self.calls, ['/a/q'])
-        self.assertEqual(set(self.request.context), {composers.PATH_MATCH})
-        self.assertEqual(
-            composers.PathPatternRouter.get_path_str(self.request),
-            '',
-        )
+        self.assert_context_keys([composers.PATH_MATCH])
+        self.assertEqual(composers.get_path_str(self.request), '')
         self.assert_response(consts.Statuses.OK, {})
 
         self.run_handler('/a/q/')
         self.assertEqual(self.calls, ['/a/q'])
-        self.assertEqual(set(self.request.context), {composers.PATH_MATCH})
-        self.assertEqual(
-            composers.PathPatternRouter.get_path_str(self.request),
-            '/',
-        )
+        self.assert_context_keys([composers.PATH_MATCH])
+        self.assertEqual(composers.get_path_str(self.request), '/')
         self.assert_response(consts.Statuses.OK, {})
 
         self.run_handler('/a/r/foo/bar')
         self.assertEqual(self.calls, ['/a'])
-        self.assertEqual(set(self.request.context), {composers.PATH_MATCH})
-        self.assertEqual(
-            composers.PathPatternRouter.get_path_str(self.request),
-            '/r/foo/bar',
-        )
+        self.assert_context_keys([composers.PATH_MATCH])
+        self.assertEqual(composers.get_path_str(self.request), '/r/foo/bar')
         self.assert_response(consts.Statuses.OK, {})
 
         with self.assertRaisesRegex(
@@ -215,8 +206,8 @@ class PathPatternRouterTest(TestCaseBase):
 
         # You cannot override a PATH_MATCH entry in context.
         self.run_handler('/a/p/x')
-        self.assertIn(composers.PATH_MATCH, self.request.context)
-        with self.assertRaisesRegex(AssertionError, r'expect.*not containing'):
+        self.assertIn(composers.PATH_MATCH, self.request.context.asdict())
+        with self.assertRaisesRegex(AssertionError, r'expect.*not in'):
             kernels.run(
                 self.handler(self.request, wsgi_apps.Response(self.response)),
                 timeout=0.01,
@@ -231,32 +222,22 @@ class PathPatternRouterTest(TestCaseBase):
 
         self.run_handler('/012-suffix/spam/egg')
         self.assertEqual(self.calls, ['digits'])
-        self.assertEqual(set(self.request.context), {composers.PATH_MATCH})
+        self.assert_context_keys([composers.PATH_MATCH])
+        self.assertEqual(composers.get_path_str(self.request), '/spam/egg')
+        self.assertEqual(composers.group(self.request), '/012-suffix')
         self.assertEqual(
-            composers.PathPatternRouter.get_path_str(self.request),
-            '/spam/egg',
-        )
-        self.assertEqual(
-            composers.PathPatternRouter.group(self.request), '/012-suffix'
-        )
-        self.assertEqual(
-            composers.PathPatternRouter.group(self.request, 'd', 'l'),
+            composers.group(self.request, 'd', 'l'),
             ('012', None),
         )
         self.assert_response(consts.Statuses.OK, {})
 
         self.run_handler('/abcxyz/spam/egg')
         self.assertEqual(self.calls, ['letters'])
-        self.assertEqual(set(self.request.context), {composers.PATH_MATCH})
+        self.assert_context_keys([composers.PATH_MATCH])
+        self.assertEqual(composers.get_path_str(self.request), '/spam/egg')
+        self.assertEqual(composers.group(self.request), '/abcxyz')
         self.assertEqual(
-            composers.PathPatternRouter.get_path_str(self.request),
-            '/spam/egg',
-        )
-        self.assertEqual(
-            composers.PathPatternRouter.group(self.request), '/abcxyz'
-        )
-        self.assertEqual(
-            composers.PathPatternRouter.group(self.request, 'd', 'l'),
+            composers.group(self.request, 'd', 'l'),
             (None, 'abc'),
         )
         self.assert_response(consts.Statuses.OK, {})
@@ -272,16 +253,11 @@ class PathPatternRouterTest(TestCaseBase):
 
         self.run_handler('/012-suffix/spam/egg')
         self.assertEqual(self.calls, ['digits'])
-        self.assertEqual(set(self.request.context), {composers.PATH_MATCH})
+        self.assert_context_keys([composers.PATH_MATCH])
+        self.assertEqual(composers.get_path_str(self.request), '/spam/egg')
+        self.assertEqual(composers.group(self.request), '/012-suffix')
         self.assertEqual(
-            composers.PathPatternRouter.get_path_str(self.request),
-            '/spam/egg',
-        )
-        self.assertEqual(
-            composers.PathPatternRouter.group(self.request), '/012-suffix'
-        )
-        self.assertEqual(
-            composers.PathPatternRouter.group(self.request, 0, 1, 2, 3, 4),
+            composers.group(self.request, 0, 1, 2, 3, 4),
             ('/012-suffix', '/012-suffix', '012', None, None),
         )
         self.assert_response(consts.Statuses.OK, {})

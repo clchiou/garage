@@ -6,6 +6,9 @@ __all__ = [
     'PathPatternRouter',
     # Context.
     'PATH_MATCH',
+    'get_path',
+    'get_path_str',
+    'group',
 ]
 
 import re
@@ -60,6 +63,25 @@ class MethodRouter:
 PATH_MATCH = labels.Label(__name__, 'path_match')
 
 
+def group(request, *groups, default=None):
+    match = request.context.get(PATH_MATCH)
+    if match is None:
+        return default
+    return match.group(*groups)
+
+
+def get_path_str(request):
+    path_str = request.path_str
+    match = request.context.get(PATH_MATCH)
+    if match is not None:
+        path_str = path_str[match.end():]
+    return path_str
+
+
+def get_path(request):
+    return consts.UrlPath(get_path_str(request))
+
+
 class PathPatternRouter:
     """Route to one of the handlers bases on request path.
 
@@ -85,24 +107,5 @@ class PathPatternRouter:
                 consts.Statuses.NOT_FOUND,
                 'path does not match any pattern: %s' % request.path_str,
             )
-        ASSERT.setitem(request.context, PATH_MATCH, match)
+        request.context.set(PATH_MATCH, match)
         return await self._handlers[match.lastgroup](request, response)
-
-    @staticmethod
-    def group(request, *groups, default=None):
-        match = request.context.get(PATH_MATCH)
-        if not match:
-            return default
-        return match.group(*groups)
-
-    @staticmethod
-    def get_path_str(request):
-        path_str = request.path_str
-        match = request.context.get(PATH_MATCH)
-        if match:
-            path_str = path_str[match.end():]
-        return path_str
-
-    @classmethod
-    def get_path(cls, request):
-        return consts.UrlPath(cls.get_path_str(request))
