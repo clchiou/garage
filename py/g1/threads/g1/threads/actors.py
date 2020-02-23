@@ -77,8 +77,8 @@ class Stub:
     def __enter__(self):
         return self
 
-    def __exit__(self, *_):
-        self.shutdown()
+    def __exit__(self, exc_type, *_):
+        self.shutdown(graceful=not exc_type)
 
     def shutdown(self, graceful=True, timeout=None):
         """Shut down the actor and wait for termination."""
