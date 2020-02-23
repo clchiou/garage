@@ -1,7 +1,6 @@
 import unittest
 
 import sys
-import threading
 
 from g1.threads import actors
 from g1.threads import futures
@@ -42,15 +41,6 @@ class ActorsTest(unittest.TestCase):
         self.assertTrue(stub.queue.is_closed())
         self.assertEqual(len(stub.queue), 0)
         self.assertTrue(stub.future.is_completed())
-
-    def test_object_based_actor_context(self):
-        obj = HavingContext()
-        stub = actors.Stub.from_object(obj)
-        try:
-            self.assertTrue(obj.entered.wait(timeout=1))
-        finally:
-            stub.shutdown()
-        self.assertFalse(hasattr(stub, 'm'))
 
     def test_object_based_actor_invalid_message(self):
         with actors.Stub.from_object(Base('Alice')) as stub:
@@ -159,19 +149,6 @@ class Derived(Base):
 
     def greet(self, other):
         return 'Hello, %s! I am %s, derived.' % (other, self.name)
-
-
-class HavingContext:
-
-    def __init__(self):
-        self.entered = threading.Event()
-
-    def __enter__(self):
-        self.entered.set()
-        return self
-
-    def __exit__(self, *_):
-        pass
 
 
 if __name__ == '__main__':

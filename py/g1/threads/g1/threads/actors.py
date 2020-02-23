@@ -20,7 +20,6 @@ __all__ = [
     'function_caller',
 ]
 
-import contextlib
 import functools
 import logging
 import threading
@@ -128,15 +127,14 @@ def make_method_caller(obj):
 def method_caller(obj, queue):
     """Actor that interprets messages as method calls of an object."""
     LOG.info('start')
-    with obj if hasattr(obj, '__enter__') else contextlib.nullcontext():
-        while True:
-            try:
-                call = ASSERT.isinstance(queue.get(), MethodCall)
-            except queues.Closed:
-                break
-            with call.future.catching_exception(reraise=False):
-                method = getattr(obj, ASSERT.isinstance(call.method, str))
-                call.future.set_result(method(*call.args, **call.kwargs))
+    while True:
+        try:
+            call = ASSERT.isinstance(queue.get(), MethodCall)
+        except queues.Closed:
+            break
+        with call.future.catching_exception(reraise=False):
+            method = getattr(obj, ASSERT.isinstance(call.method, str))
+            call.future.set_result(method(*call.args, **call.kwargs))
     LOG.info('exit')
 
 
