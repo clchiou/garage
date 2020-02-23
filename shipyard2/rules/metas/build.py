@@ -4,6 +4,7 @@ import foreman
 
 (foreman.define_rule('all').with_doc('build everything')\
  .depend('//py/g1/apps:build')
+ .depend('//py/g1/asyncs/agents:build')
  .depend('//py/g1/asyncs/bases:build')
  .depend('//py/g1/asyncs/kernels:build')
  .depend('//py/g1/asyncs/servers:build')
