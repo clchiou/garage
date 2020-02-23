@@ -9,7 +9,7 @@ from g1.threads import futures
 class ActorsTest(unittest.TestCase):
 
     def test_object_based_actor(self):
-        with actors.Stub.from_object(Base('Alice')) as stub:
+        with actors.from_object(Base('Alice')) as stub:
             self.assertFalse(stub.queue.is_closed())
             self.assertFalse(stub.future.is_completed())
 
@@ -24,7 +24,7 @@ class ActorsTest(unittest.TestCase):
         self.assertTrue(stub.future.is_completed())
 
     def test_object_based_actor_derived(self):
-        with actors.Stub.from_object(Derived('Alice')) as stub:
+        with actors.from_object(Derived('Alice')) as stub:
             self.assertFalse(stub.queue.is_closed())
             self.assertFalse(stub.future.is_completed())
 
@@ -43,13 +43,13 @@ class ActorsTest(unittest.TestCase):
         self.assertTrue(stub.future.is_completed())
 
     def test_object_based_actor_invalid_message(self):
-        with actors.Stub.from_object(Base('Alice')) as stub:
+        with actors.from_object(Base('Alice')) as stub:
             stub.queue.put(None)
             with self.assertRaisesRegex(AssertionError, r'expect.*MethodCall'):
                 stub.future.get_result()
 
     def test_object_based_actor_not_str(self):
-        with actors.Stub.from_object(Base('Alice')) as stub:
+        with actors.from_object(Base('Alice')) as stub:
             future = futures.Future()
             call = actors.MethodCall(
                 method=None, args=(), kwargs={}, future=future

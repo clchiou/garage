@@ -17,6 +17,7 @@ is just a function.
 __all__ = [
     'MethodCall',
     'Stub',
+    'from_object',
     'function_caller',
 ]
 
@@ -35,17 +36,17 @@ from . import queues
 LOG = logging.getLogger(__name__)
 
 
+def from_object(obj, **kwargs):
+    """Make a object-based actor."""
+    return Stub(
+        actor=make_method_caller(obj),
+        method_names=classes.get_public_method_names(obj),
+        **kwargs,
+    )
+
+
 class Stub:
     """Stub for interacting with an actor."""
-
-    @classmethod
-    def from_object(cls, obj, **kwargs):
-        """Make a object-based actor."""
-        return cls(
-            actor=make_method_caller(obj),
-            method_names=classes.get_public_method_names(obj),
-            **kwargs,
-        )
 
     def __init__(
         self,
