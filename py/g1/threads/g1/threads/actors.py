@@ -64,9 +64,9 @@ class Stub:
             self.m = make_senders(method_names, self.queue)
 
         self._thread = threading.Thread(
-            target=futures.wrap_thread_target(actor, reraise=False),
+            target=futures.wrap_thread_target(actor, self.future),
             name=name,
-            args=(self.future, self.queue),
+            args=(self.queue, ),
             daemon=daemon,
         )
         self._thread.start()

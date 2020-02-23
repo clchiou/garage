@@ -293,7 +293,7 @@ def as_completed(fs, timeout=None):
         num_futures -= 1
 
 
-def wrap_thread_target(target, *, reraise=True):
+def wrap_thread_target(target, future):
     """Wrap a thread's target function with a future object.
 
     With this, you may call ``sys.exit`` inside a thread, and re-raises
@@ -301,16 +301,19 @@ def wrap_thread_target(target, *, reraise=True):
 
     Examples:
     >>> f = Future()
-    >>> t = threading.Thread(target=wrap_thread_target(sys.exit), args=(f, 1))
+    >>> t = threading.Thread(target=wrap_thread_target(sys.exit, f))
     >>> t.start()
     >>> t.join()
     >>> f.get_exception()
-    SystemExit(1)
+    SystemExit()
     """
 
     @functools.wraps(target)
-    def wrapper(future, *args, **kwargs):
-        with future.catching_exception(reraise=reraise):
+    def wrapper(*args, **kwargs):
+        # We set reraise to False because, when an exception reaches
+        # CPython runtime thread runner, CPython usually just logs its
+        # stack trace, which we prefer doing at the thread-join site.
+        with future.catching_exception(reraise=False):
             future.set_result(target(*args, **kwargs))
 
     return wrapper

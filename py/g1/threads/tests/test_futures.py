@@ -102,10 +102,7 @@ class FuturesTest(unittest.TestCase):
 
     def test_wrap_thread_target(self):
         f = futures.Future()
-        t = threading.Thread(
-            target=futures.wrap_thread_target(sys.exit),
-            args=(f, ),
-        )
+        t = threading.Thread(target=futures.wrap_thread_target(sys.exit, f))
         t.start()
         t.join()
         self.assertTrue(f.is_completed())
