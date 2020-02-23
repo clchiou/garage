@@ -259,6 +259,18 @@ class JoiningTest(unittest.TestCase):
         with self.assertRaises(errors.Cancelled):
             t.get_result_nonblocking()
 
+    def test_always_cancel(self):
+
+        async def test_cancel(t):
+            async with tasks.joining(t, always_cancel=True):
+                pass
+
+        t = self.k.spawn(locks.Event().wait)
+        self.k.run(test_cancel(t))
+        self.assertTrue(t.is_completed())
+        with self.assertRaises(errors.Cancelled):
+            t.get_result_nonblocking()
+
 
 class GetTaskTest(unittest.TestCase):
 

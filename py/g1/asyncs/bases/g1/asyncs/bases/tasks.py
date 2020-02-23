@@ -166,27 +166,32 @@ async def join_and_log_on_error(task):
 
 
 class joining:
-    """Reasonable default policy on joining a task."""
+    """Ensure the given task cannot outlive a scope."""
 
-    def __init__(self, task):
+    def __init__(self, task, *, always_cancel=False, log_error=True):
         self._task = task
+        self._always_cancel = always_cancel
+        self._log_error = log_error
 
     async def __aenter__(self):
         return self._task
 
     async def __aexit__(self, exc_type, *_):
-        if exc_type:
+        if exc_type or self._always_cancel:
             self._task.cancel()
-        await join_and_log_on_error(self._task)
+        if self._log_error:
+            await join_and_log_on_error(self._task)
+        else:
+            await self._task.join()
 
 
 def spawn(awaitable):
     return contexts.get_kernel().spawn(awaitable)
 
 
-def spawn_onto_stack(awaitable, stack):
+def spawn_onto_stack(awaitable, stack, **kwargs):
     task = spawn(awaitable)
-    stack.push_async_exit(joining(task).__aexit__)
+    stack.push_async_exit(joining(task, **kwargs).__aexit__)
     return task
 
 
