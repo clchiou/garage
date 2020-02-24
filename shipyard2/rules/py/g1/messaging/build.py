@@ -8,14 +8,13 @@ shipyard2.rules.pythons.define_package(
         (
             'parts',
             [
-                '//py/g1/apps:build',
-                '//py/g1/asyncs/servers:build/parts',
+                '//py/g1/apps:build/asyncs',
+                '//py/g1/asyncs/agents:build/parts',
             ],
         ),
         (
             'reqrep',
             [
-                '//py/g1/asyncs/bases:build',
                 '//py/g1/third-party/nng:build/asyncs',
             ],
         ),

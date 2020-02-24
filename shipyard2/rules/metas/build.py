@@ -7,7 +7,6 @@ import foreman
  .depend('//py/g1/asyncs/agents:build')
  .depend('//py/g1/asyncs/bases:build')
  .depend('//py/g1/asyncs/kernels:build')
- .depend('//py/g1/asyncs/servers:build')
  .depend('//py/g1/bases:build')
  .depend('//py/g1/containers:build')
  .depend('//py/g1/databases:build')
