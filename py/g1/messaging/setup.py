@@ -12,11 +12,10 @@ setup(
     ],
     extras_require={
         'parts': [
-            'g1.apps',
-            'g1.asyncs.servers[parts]',
+            'g1.apps[asyncs]',
+            'g1.asyncs.agents[parts]',
         ],
         'reqrep': [
-            'g1.asyncs.bases',
             'nng[asyncs]',
         ],
         'wiredata.capnps': [

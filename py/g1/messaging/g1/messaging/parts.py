@@ -1,4 +1,5 @@
-import g1.asyncs.servers.parts
+import g1.asyncs.agents.parts
+from g1.apps import asyncs
 from g1.apps import parameters
 from g1.apps import utils
 from g1.bases import labels
@@ -6,8 +7,8 @@ from g1.bases import labels
 from .reqrep import servers
 
 SERVER_LABEL_NAMES = (
-    'server_params',
     'server',
+    'params',
 )
 
 
@@ -22,12 +23,12 @@ def define_server(module_path=None, **kwargs):
 
 
 def setup_server(module_labels, module_params):
-    utils.depend_parameter_for(module_labels.server_params, module_params)
+    utils.depend_parameter_for(module_labels.params, module_params)
     utils.define_maker(
-        make_server,
+        make_agent,
         {
-            'params': module_labels.server_params,
             'server': module_labels.server,
+            'params': module_labels.params,
         },
     )
 
@@ -45,12 +46,15 @@ def make_server_params(url=None, parallelism=1):
     )
 
 
-def make_server(params, server) -> (
-    g1.asyncs.servers.parts.LABELS.serve,
-    g1.asyncs.servers.parts.LABELS.shutdown,
+def make_agent(
+    exit_stack: asyncs.LABELS.exit_stack,
+    server,
+    params,
+    agent_queue: g1.asyncs.agents.parts.LABELS.agent_queue,
+    shutdown_queue: g1.asyncs.agents.parts.LABELS.shutdown_queue,
 ):
+    exit_stack.enter_context(server)
     server.socket.listen(params.url.get())
-    return (
-        servers.run_server(server, parallelism=params.parallelism.get()),
-        server.socket.close,
-    )
+    for _ in range(params.parallelism.get()):
+        agent_queue.spawn(server.serve)
+    shutdown_queue.put_nonblocking(server.shutdown)

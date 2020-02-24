@@ -1,6 +1,6 @@
 """Calculator server using parts."""
 
-import g1.asyncs.servers.parts
+import g1.asyncs.agents.parts
 import g1.messaging.parts
 from g1.apps import asyncs
 from g1.apps import utils
@@ -46,8 +46,8 @@ def make_server() -> LABELS.server:
     )
 
 
-def main(supervise_servers: g1.asyncs.servers.parts.LABELS.supervise_servers):
-    kernels.run(supervise_servers)
+def main(supervise_agents: g1.asyncs.agents.parts.LABELS.supervise_agents):
+    kernels.run(supervise_agents)
     return 0
 
 

@@ -178,36 +178,8 @@ class ServerTest(unittest.TestCase):
         app = TestApplication()
         server = servers.Server(app, Request, Response, WIRE_DATA)
         with clients.Client(Request, Response, WIRE_DATA) as client:
-            do_test(client, server, servers.run_server(server))
-
-    @kernels.with_kernel
-    def test_run_server(self):
-
-        called = [0]
-
-        async def noop():
-            called[0] += 1
-
-        async def err():
-            raise ValueError
-
-        server_mock = unittest.mock.MagicMock()
-        server_mock.serve = noop
-
-        self.assertIsNone(
-            kernels.run(
-                servers.run_server(server_mock, parallelism=4),
-                timeout=1,
-            )
-        )
-        self.assertEqual(called[0], 4)
-
-        server_mock.serve = err
-        with self.assertRaises(ValueError):
-            kernels.run(
-                servers.run_server(server_mock, parallelism=4),
-                timeout=1,
-            )
+            with server:
+                do_test(client, server, server.serve)
 
 
 if __name__ == '__main__':
