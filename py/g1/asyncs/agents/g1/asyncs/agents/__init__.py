@@ -90,7 +90,7 @@ async def supervise_agents(
 
         internal_tasks = [
             tasks.spawn_onto_stack(
-                awaitable, stack, always_cancel=True, log_error=False
+                awaitable, stack, always_cancel=True, log_on_error=False
             ) for awaitable in (
                 join_agents(agent_queue, start_exiting),
                 request_graceful_exit(graceful_exit, start_exiting),

@@ -168,10 +168,10 @@ async def join_and_log_on_error(task):
 class joining:
     """Ensure the given task cannot outlive a scope."""
 
-    def __init__(self, task, *, always_cancel=False, log_error=True):
+    def __init__(self, task, *, always_cancel=False, log_on_error=True):
         self._task = task
         self._always_cancel = always_cancel
-        self._log_error = log_error
+        self._log_on_error = log_on_error
 
     async def __aenter__(self):
         return self._task
@@ -179,7 +179,7 @@ class joining:
     async def __aexit__(self, exc_type, *_):
         if exc_type or self._always_cancel:
             self._task.cancel()
-        if self._log_error:
+        if self._log_on_error:
             await join_and_log_on_error(self._task)
         else:
             await self._task.join()
