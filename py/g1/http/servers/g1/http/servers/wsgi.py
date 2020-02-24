@@ -573,7 +573,7 @@ class HttpStream:
             self._get_first_header(':path'),
         )
 
-        LOG.info('wsgi app starts: %s %s %s://%s%s', *log_args)
+        LOG.debug('wsgi app starts: %s %s %s://%s%s', *log_args)
 
         try:
             app = await self._session._application(
@@ -607,7 +607,7 @@ class HttpStream:
             # response body data, this unblocks the outgoing handler.
             self._session._outgoing_gate.unblock()
 
-        LOG.info('wsgi app completes: %s %s %s://%s%s', *log_args)
+        LOG.debug('wsgi app completes: %s %s %s://%s%s', *log_args)
 
     def _make_environ(self):
 

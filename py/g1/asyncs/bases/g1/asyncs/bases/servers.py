@@ -50,7 +50,12 @@ async def supervise_server(queue, server_tasks):
                 if exc:
                     raise ServerError('server task error: %r' % task) from exc
                 else:
-                    LOG.info('server task exit: %r', task)
+                    # Log at DEBUG rather than INFO level because
+                    # supervise_server could actually be called in a
+                    # request handler (when the handler is sufficiently
+                    # complex), and we do not want to over-log at INFO
+                    # level.
+                    LOG.debug('server task exit: %r', task)
                     break
             else:
                 if exc:
