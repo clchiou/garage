@@ -7,11 +7,12 @@ setup(
     ],
     install_requires=[
         'g1.asyncs.bases',
-        'g1.asyncs.servers',
     ],
     extras_require={
         'parts': [
             'g1.apps[asyncs]',
+            'g1.asyncs.agents[parts]',
+            'g1.bases',
         ],
     },
     zip_safe=False,
