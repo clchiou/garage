@@ -3,8 +3,6 @@ from g1.apps import utils
 from g1.bases import labels
 
 import g1.networks.servers.parts
-# For now this is just an alias.
-from g1.networks.servers.parts import make_server_params
 
 from .. import servers
 from . import nghttp2
@@ -17,7 +15,6 @@ SERVER_LABEL_NAMES = (
 
 def define_server(module_path=None, **kwargs):
     module_path = module_path or servers.__name__
-    kwargs.setdefault('protocols', (nghttp2.NGHTTP2_PROTO_VERSION_ID, ))
     module_labels = labels.make_nested_labels(module_path, SERVER_LABEL_NAMES)
     setup_server(
         module_labels,
@@ -38,3 +35,8 @@ def setup_server(module_labels, module_params):
             'return': module_labels.server.handler,
         },
     )
+
+
+def make_server_params(**kwargs):
+    kwargs.setdefault('protocols', (nghttp2.NGHTTP2_PROTO_VERSION_ID, ))
+    return g1.networks.servers.parts.make_server_params(**kwargs)
