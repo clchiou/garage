@@ -7,13 +7,12 @@ setup(
     ],
     install_requires=[
         'g1.asyncs.bases',
-        'g1.asyncs.servers',
         'g1.bases',
-        'g1.networks.servers',
     ],
     extras_require={
         'parts': [
-            'g1.apps[asyncs]',
+            'g1.apps',
+            'g1.networks.servers[parts]',
         ],
     },
     zip_safe=False,

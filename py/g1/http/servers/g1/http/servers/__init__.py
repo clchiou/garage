@@ -1,13 +1,10 @@
 __all__ = [
     'HttpServer',
-    'serve_http',
 ]
 
 import logging
 import socket
 import ssl
-
-from g1.networks.servers import TcpServer
 
 from . import nghttp2 as ng
 from . import wsgi
@@ -24,11 +21,8 @@ VERSION = '%s/nghttp2=%s' % (
 class HttpServer:
 
     def __init__(self, server_socket, application):
-        self._server_socket = server_socket
-        self._application = application
-
-        address = self._server_socket.target.getsockname()
-        is_ssl = isinstance(self._server_socket.target, ssl.SSLSocket)
+        address = server_socket.target.getsockname()
+        is_ssl = isinstance(server_socket.target, ssl.SSLSocket)
         self._environ = {
             'wsgi.version': (1, 0),
             'wsgi.url_scheme': 'https' if is_ssl else 'http',
@@ -40,18 +34,13 @@ class HttpServer:
             'SERVER_PORT': address[1],
             'SERVER_PROTOCOL': 'HTTP/2.0',
         }
+        self._application = application
 
-    async def serve(self):
-        server = TcpServer(self._server_socket, self._handle_client)
-        return await server.serve()
-
-    async def _handle_client(self, sock, addr):
+    async def __call__(self, client_socket, address):
         environ = self._environ.copy()
-        environ['REMOTE_ADDR'] = addr[0]
-        environ['REMOTE_PORT'] = addr[1]
-        session = wsgi.HttpSession(sock, addr, self._application, environ)
+        environ['REMOTE_ADDR'] = address[0]
+        environ['REMOTE_PORT'] = address[1]
+        session = wsgi.HttpSession(
+            client_socket, address, self._application, environ
+        )
         return await session.serve()
-
-
-async def serve_http(server_socket, application):
-    return await HttpServer(server_socket, application).serve()

@@ -19,8 +19,8 @@ import ssl
 import sys
 import urllib.parse
 
-from g1.asyncs import servers
 from g1.asyncs.bases import locks
+from g1.asyncs.bases import servers
 from g1.asyncs.bases import streams
 from g1.asyncs.bases import tasks
 from g1.asyncs.bases import timers
@@ -139,7 +139,7 @@ class HttpSession:
         self._prepare()
         try:
             self._incoming_handler = self._queue.spawn(self._handle_incoming)
-            await servers.supervise_handlers(
+            await servers.supervise_server(
                 self._queue,
                 (
                     self._incoming_handler,
