@@ -2,12 +2,12 @@
 
 from startup import startup
 
+import g1.asyncs.agents.parts
+import g1.webs.parts
 from g1.apps import asyncs
 from g1.asyncs import kernels
 
-import g1.webs.parts
-
-LABELS = g1.webs.parts.define_web_app(
+LABELS = g1.webs.parts.define_server(
     host='127.0.0.1',
     port=8000,
     reuse_address=True,
@@ -25,8 +25,8 @@ async def handler(request, response):
 startup.set(LABELS.handler, handler)
 
 
-def main(supervise_servers: g1.asyncs.servers.parts.LABELS.supervise_servers):
-    kernels.run(supervise_servers)
+def main(supervise_agents: g1.asyncs.agents.parts.LABELS.supervise_agents):
+    kernels.run(supervise_agents)
     return 0
 
 

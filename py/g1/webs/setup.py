@@ -8,12 +8,12 @@ setup(
     ],
     install_requires=[
         'g1.asyncs.bases',
-        'g1.asyncs.servers',
         'g1.bases',
     ],
     extras_require={
         'parts': [
             'g1.apps',
+            'g1.asyncs.agents[parts]',
             'g1.http.servers[parts]',
         ],
     },

@@ -11,8 +11,8 @@ import logging
 import typing
 import urllib.parse
 
-from g1.asyncs import servers
 from g1.asyncs.bases import locks
+from g1.asyncs.bases import servers
 from g1.asyncs.bases import streams
 from g1.asyncs.bases import tasks
 from g1.bases import contexts
@@ -250,7 +250,7 @@ class Application:
         self._handler_queue = tasks.CompletionQueue()
 
     async def serve(self):
-        await servers.supervise_handlers(self._handler_queue, ())
+        await servers.supervise_server(self._handler_queue, ())
 
     def shutdown(self):
         self._handler_queue.close()
