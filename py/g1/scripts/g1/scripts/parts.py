@@ -4,7 +4,7 @@ from g1.apps import bases
 from g1.apps import parameters
 from g1.bases import labels
 
-from g1 import scripts
+from .. import scripts
 
 LABELS = labels.make_labels(
     'g1.scripts',
