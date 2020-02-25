@@ -35,6 +35,8 @@ from . import queues
 
 LOG = logging.getLogger(__name__)
 
+NON_GRACE_PERIOD = 0.1  # Unit: seconds.
+
 
 def from_object(obj, **kwargs):
     """Make a object-based actor."""
@@ -78,17 +80,23 @@ class Stub:
         return self
 
     def __exit__(self, exc_type, *_):
-        self.shutdown(graceful=not exc_type)
+        graceful = not exc_type
+        self.shutdown(graceful)
+        try:
+            self.join(None if graceful else NON_GRACE_PERIOD)
+        except futures.Timeout:
+            LOG.warning('actor join timeout: %r', self)
 
-    def shutdown(self, graceful=True, timeout=None):
-        """Shut down the actor and wait for termination."""
+    def shutdown(self, graceful=True):
         items = self.queue.close(graceful)
         if items:
             LOG.warning('drop %d messages', len(items))
+        return items
+
+    def join(self, timeout=None):
         exc = self.future.get_exception(timeout)
         if exc:
             LOG.error('actor crash: %r', self, exc_info=exc)
-        return items
 
 
 class MethodCall(typing.NamedTuple):

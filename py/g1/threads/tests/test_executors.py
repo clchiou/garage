@@ -8,6 +8,7 @@ except ImportError:
     tests = None
 
 from g1.threads import executors
+from g1.threads import futures
 from g1.threads import queues
 
 
@@ -54,7 +55,9 @@ class ExecutorTest(unittest.TestCase):
             self.assertTrue(f3.get_result(timeout=1))
 
             with self.assertLogs(executors.__name__) as cm:
-                items = executor.shutdown(graceful=True, timeout=0.001)
+                items = executor.shutdown(graceful=True)
+                with self.assertRaises(futures.Timeout):
+                    executor.join(timeout=0.001)
 
             self.assertEqual(len(cm.output), 1)
             self.assertRegex(cm.output[0], r'not join 2 executor')
@@ -80,6 +83,7 @@ class ExecutorTest(unittest.TestCase):
             event1.set()
             event2.set()
             executor.shutdown()
+            executor.join()
 
     def test_shutdown_not_graceful(self):
         executor = executors.Executor(2)
@@ -123,6 +127,18 @@ class ExecutorTest(unittest.TestCase):
         finally:
             event.set()
             executor.shutdown()
+            executor.join()
+
+    def test_join(self):
+        executor = executors.Executor(1)
+        with self.assertRaises(futures.Timeout):
+            executor.join(timeout=0.01)
+        for stub in executor.stubs:
+            self.assertFalse(stub.future.is_completed())
+        executor.shutdown()
+        executor.join(timeout=0.01)
+        for stub in executor.stubs:
+            self.assertTrue(stub.future.is_completed())
 
 
 class PriorityExecutorTest(unittest.TestCase):

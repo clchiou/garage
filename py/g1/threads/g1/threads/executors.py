@@ -73,7 +73,12 @@ class Executor:
         return self
 
     def __exit__(self, exc_type, *_):
-        self.shutdown(graceful=not exc_type)
+        graceful = not exc_type
+        self.shutdown(graceful)
+        try:
+            self.join(None if graceful else actors.NON_GRACE_PERIOD)
+        except futures.Timeout:
+            pass
 
     def submit(self, func, *args, **kwargs):
         future = futures.Future()
@@ -83,15 +88,13 @@ class Executor:
         self.queue.put(call)
         return future
 
-    def shutdown(self, graceful=True, timeout=None):
+    def shutdown(self, graceful=True):
         items = self.queue.close(graceful)
         if items:
             LOG.warning('drop %d tasks', len(items))
-        if graceful:
-            self._join(timeout)
         return items
 
-    def _join(self, timeout):
+    def join(self, timeout=None):
         stubs = {stub.future: stub for stub in self.stubs}
         for f in futures.as_completed(stubs, timeout):
             stub = stubs.pop(f)
@@ -99,7 +102,8 @@ class Executor:
             if exc:
                 LOG.error('executor crash: %r', stub, exc_info=exc)
         if stubs:
-            LOG.warning('not join %d executor', len(stubs))
+            LOG.warning('not join %d executors', len(stubs))
+            raise futures.Timeout
 
 
 class PriorityExecutor(Executor):

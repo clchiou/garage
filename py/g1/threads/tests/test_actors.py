@@ -113,6 +113,15 @@ class ActorsTest(unittest.TestCase):
                 future.get_result()
             self.assertFalse(stub.future.is_completed())
 
+    def test_join(self):
+        stub = actors.Stub(actor=actors.function_caller)
+        with self.assertRaises(futures.Timeout):
+            stub.join(timeout=0.01)
+        self.assertFalse(stub.future.is_completed())
+        stub.shutdown()
+        stub.join(timeout=0.01)
+        self.assertTrue(stub.future.is_completed())
+
 
 class Base:
 
