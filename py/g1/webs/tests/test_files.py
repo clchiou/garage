@@ -89,7 +89,7 @@ class HandlerTest(unittest.TestCase):
 
     @kernels.with_kernel
     def test_all(self):
-        self.handler = files.make_handler(self.DIR_PATH)
+        self.handler = files.make_dir_handler(self.DIR_PATH)
         local_path = self.DIR_PATH / 'tests/test_files.py'
         response_headers = {
             consts.HEADER_CONTENT_TYPE: 'text/x-python',
@@ -136,7 +136,7 @@ class HandlerTest(unittest.TestCase):
 
     @kernels.with_kernel
     def test_path_checker(self):
-        self.handler = files.PathChecker(self.DIR_PATH)
+        self.handler = files.DirHandler(self.DIR_PATH).check
         self.set_request(consts.METHOD_GET, 'tests/test_files.py')
         self.run_handler()
         self.assert_request({
@@ -155,8 +155,8 @@ class HandlerTest(unittest.TestCase):
             self.run_handler()
 
     @kernels.with_kernel
-    def test_file_handler(self):
-        handler = files.FileHandler(self.DIR_PATH)
+    def test_dir_handler(self):
+        handler = files.DirHandler(self.DIR_PATH)
         local_path = self.DIR_PATH / 'tests/test_files.py'
         response_headers = {
             consts.HEADER_CONTENT_TYPE: 'text/x-python',
@@ -184,6 +184,29 @@ class HandlerTest(unittest.TestCase):
         self.set_request(consts.METHOD_GET, 'tests')
         with self.assertRaisesRegex(wsgi_apps.HttpError, r'not a file: '):
             self.run_handler()
+
+    @kernels.with_kernel
+    def test_file_handler(self):
+        local_path = self.DIR_PATH / 'tests/test_files.py'
+        handler = files.FileHandler(local_path)
+        response_headers = {
+            consts.HEADER_CONTENT_TYPE: 'text/x-python',
+            consts.HEADER_CONTENT_LENGTH: str(local_path.stat().st_size),
+        }
+
+        self.handler = handler.head
+        self.set_request(consts.METHOD_HEAD, 'tests/test_files.py')
+        self.run_handler()
+        self.assert_request({})
+        self.assert_response(consts.Statuses.OK, response_headers, b'')
+
+        self.handler = handler.get
+        self.set_request(consts.METHOD_GET, 'tests/test_files.py')
+        self.run_handler()
+        self.assert_request({})
+        self.assert_response(
+            consts.Statuses.OK, response_headers, local_path.read_bytes()
+        )
 
 
 if __name__ == '__main__':

@@ -22,7 +22,7 @@ LABELS = g1.webs.parts.define_server(
 @startup
 def make_handler() -> LABELS.handler:
     return g1.webs.handlers.responses.Defaults(
-        g1.webs.handlers.files.make_handler(Path.cwd()),
+        g1.webs.handlers.files.make_dir_handler(Path.cwd()),
         [('Cache-Control', 'public, max-age=31536000')],
         [],
     )

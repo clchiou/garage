@@ -1,7 +1,8 @@
 __all__ = [
+    'DirHandler',
     'FileHandler',
-    'PathChecker',
-    'make_handler',
+    'make_dir_handler',
+    'make_file_handler',
     # Context.
     'LOCAL_PATH',
 ]
@@ -16,10 +17,20 @@ from .. import wsgi_apps
 from . import composers
 
 
-def make_handler(local_dir_path):
-    file_handler = FileHandler(local_dir_path)
+def make_dir_handler(local_dir_path):
+    dir_handler = DirHandler(local_dir_path)
     return composers.Chain([
-        PathChecker(local_dir_path),
+        dir_handler.check,
+        composers.MethodRouter({
+            consts.METHOD_HEAD: dir_handler.head,
+            consts.METHOD_GET: dir_handler.get,
+        }),
+    ])
+
+
+def make_file_handler(local_file_path):
+    file_handler = FileHandler(local_file_path)
+    return composers.Chain([
         composers.MethodRouter({
             consts.METHOD_HEAD: file_handler.head,
             consts.METHOD_GET: file_handler.get,
@@ -41,8 +52,8 @@ def get_local_path(request, local_dir_path):
             'out of scope: %s vs %s' % (local_path, local_dir_path),
         ) from None
     if not local_path.is_file():
-        # We don't want this to be a generic file handler, and so we
-        # do not handle directories.
+        # We don't want this to be a generic dir handler, and so we do
+        # not handle directories.
         raise wsgi_apps.HttpError(
             consts.Statuses.NOT_FOUND, 'not a file: %s' % local_path
         )
@@ -65,30 +76,24 @@ def guess_content_type(filename):
 LOCAL_PATH = labels.Label(__name__, 'local_path')
 
 
-class PathChecker:
-    """Check whether request path is under the given directory.
-
-    Use this to pre-check for FileHandler when it is wrapped deeply
-    inside other handlers.
-    """
-
-    def __init__(self, local_dir_path):
-        self._local_dir_path = local_dir_path.resolve()
-
-    async def __call__(self, request, response):
-        del response  # Unused.
-        request.context.set(
-            LOCAL_PATH, get_local_path(request, self._local_dir_path)
-        )
-
-
-class FileHandler:
+class DirHandler:
     """Serve files under the given directory."""
 
     def __init__(self, local_dir_path):
         if not mimetypes.inited:
             mimetypes.init()
         self._local_dir_path = local_dir_path.resolve()
+
+    async def check(self, request, response):
+        """Check whether request path is under the given directory.
+
+        Use this to pre-check for DirHandler when it is wrapped deeply
+        inside other handlers.
+        """
+        del response  # Unused.
+        request.context.set(
+            LOCAL_PATH, get_local_path(request, self._local_dir_path)
+        )
 
     def _prepare(self, request, response):
         local_path = request.context.get(LOCAL_PATH)
@@ -109,5 +114,31 @@ class FileHandler:
     async def get(self, request, response):
         local_path = self._prepare(request, response)
         await response.write(local_path.read_bytes())
+
+    __call__ = get
+
+
+class FileHandler:
+    """Serve a (small) file."""
+
+    def __init__(self, local_file_path, headers=()):
+        if not mimetypes.inited:
+            mimetypes.init()
+        self._headers = {
+            consts.HEADER_CONTENT_TYPE:
+            guess_content_type(local_file_path.name),
+            consts.HEADER_CONTENT_LENGTH: str(local_file_path.stat().st_size),
+        }
+        self._headers.update(headers)
+        self._content = local_file_path.read_bytes()
+
+    async def head(self, request, response):
+        del request  # Unused.
+        response.status = consts.Statuses.OK
+        response.headers.update(self._headers)
+
+    async def get(self, request, response):
+        await self.head(request, response)
+        await response.write(self._content)
 
     __call__ = get
