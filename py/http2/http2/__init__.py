@@ -210,6 +210,8 @@ class Session:
     async def _serve_tick(self):
         try:
             data = await self._sock.recv(self.INCOMING_BUFFER_SIZE)
+        except (BrokenPipeError, ConnectionResetError):
+            return False
         except OSError as exc:
             LOG.warning('session=%s: %r', self._id, exc)
             return False
@@ -300,6 +302,8 @@ class Session:
         # Unfortunately SSLSocket disallow scatter/gather sendmsg.
         try:
             await self._sock.sendall(b''.join(buffers))
+        except (BrokenPipeError, ConnectionResetError):
+            return False
         except OSError as exc:
             LOG.warning('session=%s: %r', self._id, exc)
             return False

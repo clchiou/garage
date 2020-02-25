@@ -56,7 +56,7 @@ async def serve(graceful_exit, make_server_socket, handle_client, *,
                     server_socket, server_side=True)
             while True:
                 sock, addr = await server_socket.accept()
-                logger.info('serve client from: %r', addr)
+                logger.debug('serve client from: %r', addr)
                 handler = await handlers.spawn(handle_client(sock, addr))
                 connections[handler] = sock
 
