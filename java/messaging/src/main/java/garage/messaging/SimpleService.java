@@ -364,7 +364,7 @@ public class SimpleService {
                     LOG.info("socket has probably been closed: {}", socket);
                     break;
                 }
-                LOG.info("receive request: size={}", request.remaining());
+                LOG.debug("receive request: size={}", request.remaining());
 
                 ByteBuffer response;
                 try {
@@ -374,7 +374,7 @@ public class SimpleService {
                     continue;
                 }
 
-                LOG.info("send response: size={}", response.remaining());
+                LOG.debug("send response: size={}", response.remaining());
                 try {
                     socket.send(response);
                 } catch (nanomsg.Error.EBADF e) {
