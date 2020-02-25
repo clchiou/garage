@@ -172,13 +172,13 @@ class Client(_ClientMixin):
                 status_code = '???'
             LOG.warning(
                 'encounter HTTP error: status=%s, %s %s',
-                status_code, request.method, request.uri, exc_info=True,
+                status_code, request.method, request.uri,
             )
             raise HttpError('%s %s' % (request.method, request.uri)) from exc
         except Exception:
             LOG.warning(
                 'encounter generic error: %s %s',
-                request.method, request.uri, exc_info=True,
+                request.method, request.uri,
             )
             raise
 

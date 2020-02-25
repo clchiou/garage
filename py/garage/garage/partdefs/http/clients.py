@@ -67,6 +67,13 @@ def create_maker(part_list, params):
 
         if params.send_kwargs.get():
             send_kwargs = json.loads(params.send_kwargs.get())
+            if not send_kwargs.get('verify', True):
+                import urllib3.exceptions
+                import warnings
+                warnings.filterwarnings(
+                    'ignore',
+                    category=urllib3.exceptions.InsecureRequestWarning,
+                )
         else:
             send_kwargs = None
 

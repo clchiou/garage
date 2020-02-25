@@ -136,11 +136,11 @@ class Spider:
 
     # Called by Task.
     def process(self, request, estimate):
-        LOG.info('request %s %s', request.method, request.uri)
+        LOG.debug('request %s %s', request.method, request.uri)
         try:
             response = self._client.send(request)
         except clients.HttpError as exc:
-            LOG.exception('cannot request %s %s', request.method, request.uri)
+            LOG.warning('cannot request %s %s', request.method, request.uri)
             if self._parser.on_request_error(request, exc):
                 raise
             return  # Cannot proceed; return now.

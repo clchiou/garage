@@ -156,14 +156,14 @@ class Session:
         try:
             peer_name = self._sock.getpeername()
         except OSError as exc:
-            LOG.warning('connection has already been closed: %r', exc)
+            LOG.debug('connection has already been closed: %r', exc)
             await self._sock.close()
             return
 
         # Create nghttp2_session object
         self._session, self._user_data = self._make_session()
-        LOG.info('session=%s: create %s session for client: %s',
-                 self._id, self._scheme.name, peer_name)
+        LOG.debug('session=%s: create %s session for client: %s',
+                  self._id, self._scheme.name, peer_name)
 
         try:
             # Disable Nagle algorithm
@@ -186,7 +186,7 @@ class Session:
                         if not await self._serve_tick():
                             break
             except curio.TaskTimeout:
-                LOG.warning('session=%s: settings timeout', self._id)
+                LOG.debug('session=%s: settings timeout', self._id)
                 error_code = NGHTTP2_SETTINGS_TIMEOUT
 
             # Graceful exit
@@ -196,7 +196,7 @@ class Session:
             await self._sendall()
 
         finally:
-            LOG.info('session=%s: destroy session', self._id)
+            LOG.debug('session=%s: destroy session', self._id)
             nghttp2_session_del(self._session)
 
             # Disown objects
@@ -216,14 +216,14 @@ class Session:
 
         LOG.debug('session=%s: recv %d bytes', self._id, len(data))
         if not data:
-            LOG.info('session=%s: connection is closed', self._id)
+            LOG.debug('session=%s: connection is closed', self._id)
             return False
 
         try:
             rc = nghttp2_session_mem_recv(self._session, data, len(data))
         except Nghttp2Error as exc:
             if exc.error_code == NGHTTP2_ERR_BAD_CLIENT_MAGIC:
-                LOG.warning('session=%s: bad client magic', self._id)
+                LOG.debug('session=%s: bad client magic', self._id)
                 return False
             raise
 

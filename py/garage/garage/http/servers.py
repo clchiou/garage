@@ -122,7 +122,7 @@ class Handler:
         self.timeout = timeout
 
     async def __call__(self, stream):
-        LOG.info(
+        LOG.debug(
             '%s: %s %s',
             stream, stream.request.method.name, stream.request.path,
         )
@@ -133,14 +133,14 @@ class Handler:
             except Redirection as redirection:
                 await stream.submit_response(redirection.as_response())
         except http2.StreamClosed:
-            LOG.warning(
+            LOG.debug(
                 'stream is closed: %s: %s %s',
                 stream, stream.request.method.name, stream.request.path,
             )
         except HttpError as exc:
             response = exc.as_response()
             if isinstance(exc, ClientError):
-                LOG.warning(
+                LOG.debug(
                     'request handler rejects request because %s: %s: %s %s %s',
                     exc,
                     stream, stream.request.method.name, stream.request.path,
