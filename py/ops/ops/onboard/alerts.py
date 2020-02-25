@@ -15,6 +15,7 @@ import re
 import selectors
 import subprocess
 import sys
+import urllib.error
 import urllib.request
 
 from garage import apps
@@ -208,7 +209,7 @@ class SourceLog:
                 else:
                     break
             if self._proc.poll() is None:
-                raise RuntimeError('cannot stop process: %r', self._proc)
+                raise RuntimeError('cannot stop process: %r' % self._proc)
             self._proc = None
 
     def __init__(self, config):
@@ -288,8 +289,11 @@ class DestinationSlack:
         self.icon_emoji = config.get('icon_emoji', ':robot_face:')
 
     def send(self, message):
-        # urlopen checks the HTTP status code for us.
-        urllib.request.urlopen(self._make_request(**message))
+        try:
+            # urlopen checks the HTTP status code for us.
+            urllib.request.urlopen(self._make_request(**message))
+        except urllib.error.HTTPError as exc:
+            LOG.warning('cannot send to slack: %r', exc)
 
     def _make_request(
             self, *,
