@@ -53,8 +53,10 @@ class Connector:
         try:
             with self.connect() as server:
                 server.shutdown()
-        except (ConnectionResetError, RpcConnectionError):
-            LOG.warning('cannot shutdown server', exc_info=True)
+        except (
+            ConnectionRefusedError, ConnectionResetError, RpcConnectionError
+        ) as exc:
+            LOG.warning('cannot shutdown server: %r', exc)
 
 
 class ServerStub:
@@ -92,7 +94,11 @@ class ServerStub:
             if err:
                 LOG.error('cannot close stub due to %s', err)
         except RpcError as exc:
-            LOG.warning('cannot send close request', exc_info=True)
+            LOG.warning(
+                'cannot send close request: %r',
+                exc,
+                exc_info=not isinstance(exc.__cause__, BrokenPipeError),
+            )
             err = exc
         if not err:
             self._closed = True
