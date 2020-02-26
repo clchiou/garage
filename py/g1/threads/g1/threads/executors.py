@@ -32,15 +32,12 @@ class Executor:
         name_prefix='',
         daemon=None,
     ):
-
         # In case ``__init__`` raises.
         self.queue = None
-
         if max_executors <= 0:
             # Use this because Executor is often used to parallelize I/O
             # instead of computationally-heavy tasks.
             max_executors = max(os.cpu_count(), 1) * 8
-
         if not name_prefix:
             names = (
                 'executor-%02d' % self._COUNTER()
@@ -50,14 +47,14 @@ class Executor:
             names = (
                 '%s-%02d' % (name_prefix, i) for i in range(max_executors)
             )
-
         self.queue = queue if queue is not None else queues.Queue()
+        self.daemon = daemon
         self.stubs = tuple(
             actors.Stub(
                 name=name,
                 actor=actors.function_caller,
                 queue=self.queue,
-                daemon=daemon,
+                daemon=self.daemon,
             ) for name in names
         )
 
@@ -73,7 +70,10 @@ class Executor:
         return self
 
     def __exit__(self, exc_type, *_):
-        graceful = not exc_type
+        # Or should I use the actual daemon property that actor thread
+        # has?  (It could be inherited from the thread that creates this
+        # executor.)
+        graceful = not exc_type and not self.daemon
         self.shutdown(graceful)
         try:
             self.join(None if graceful else actors.NON_GRACE_PERIOD)
