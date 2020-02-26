@@ -1,49 +1,17 @@
 """Calculator server using parts."""
 
+from startup import startup
+
 import g1.asyncs.agents.parts
-import g1.messaging.parts
+import g1.messaging.parts.servers
 from g1.apps import asyncs
-from g1.apps import utils
 from g1.asyncs import kernels
-from g1.messaging import reqrep
-from g1.messaging.reqrep import servers
-from g1.messaging.wiredata import jsons
 
-LABELS = g1.messaging.parts.define_server()
+from examples import interfaces
 
+LABELS = g1.messaging.parts.servers.define_server()
 
-class Calculator:
-
-    async def add(self, x: float, y: float) -> float:
-        del self  # Unused.
-        return x + y
-
-    async def sub(self, x: float, y: float) -> float:
-        del self  # Unused.
-        return x - y
-
-    async def mul(self, x: float, y: float) -> float:
-        del self  # Unused.
-        return x * y
-
-    @reqrep.raising(ZeroDivisionError)
-    async def div(self, x: float, y: float) -> float:
-        del self  # Unused.
-        return x / y
-
-
-CalculatorRequest, CalculatorResponse = \
-    reqrep.generate_interface_types(Calculator)
-
-
-@utils.define_maker
-def make_server() -> LABELS.server:
-    return servers.Server(
-        Calculator(),
-        CalculatorRequest,
-        CalculatorResponse,
-        jsons.JsonWireData(),
-    )
+startup.add_func(interfaces.make_server, {'return': LABELS.server})
 
 
 def main(supervise_agents: g1.asyncs.agents.parts.LABELS.supervise_agents):

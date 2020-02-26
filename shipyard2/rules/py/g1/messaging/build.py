@@ -6,7 +6,13 @@ shipyard2.rules.pythons.define_package(
     ],
     extras=[
         (
-            'parts',
+            'parts/clients',
+            [
+                '//py/g1/apps:build/asyncs',
+            ],
+        ),
+        (
+            'parts/servers',
             [
                 '//py/g1/apps:build/asyncs',
                 '//py/g1/asyncs/agents:build/parts',

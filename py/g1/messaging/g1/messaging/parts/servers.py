@@ -4,7 +4,7 @@ from g1.apps import parameters
 from g1.apps import utils
 from g1.bases import labels
 
-from .reqrep import servers
+from ..reqrep import servers
 
 SERVER_LABEL_NAMES = (
     # Input.
@@ -37,7 +37,7 @@ def setup_server(module_labels, module_params):
 
 def make_server_params(url=None, parallelism=1):
     return parameters.Namespace(
-        'make server socket',
+        'configure messaging server',
         url=parameters.make_parameter(url, str, 'url that server listens on'),
         parallelism=parameters.Parameter(
             parallelism,
