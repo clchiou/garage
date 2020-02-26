@@ -12,8 +12,10 @@ from . import postgresql
 from . import sqlite
 
 DATABASE_LABEL_NAMES = (
-    'create_engine_params',
+    # Output.
     'create_engine',
+    # Private.
+    'create_engine_params',
 )
 
 

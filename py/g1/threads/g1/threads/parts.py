@@ -7,8 +7,10 @@ from g1.bases.assertions import ASSERT
 from . import executors
 
 EXECUTOR_LABEL_NAMES = (
-    'executor_params',
+    # Output.
     'executor',
+    # Private.
+    'executor_params',
 )
 
 

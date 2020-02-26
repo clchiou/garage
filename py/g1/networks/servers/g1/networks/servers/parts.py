@@ -10,14 +10,14 @@ from .. import servers
 from . import sockets
 
 SERVER_LABEL_NAMES = (
-    'params',
-    # Server.
-    'server',
+    # Input.
     'handler',
-    # Server socket.
+    # Private.
+    'server',
     'socket',
-    # SSL context.
     'ssl_context',
+    # Parameters of socket and ssl_context.
+    'params',
     'certificate',
     'private_key',
     'client_authentication',

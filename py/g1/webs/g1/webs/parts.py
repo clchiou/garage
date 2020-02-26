@@ -9,7 +9,9 @@ from g1.http.servers.parts import make_server_params
 from . import wsgi_apps
 
 SERVER_LABEL_NAMES = (
+    # Input.
     'handler',
+    # Private.
     ('server', g1.http.servers.parts.SERVER_LABEL_NAMES),
 )
 

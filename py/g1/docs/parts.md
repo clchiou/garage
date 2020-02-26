@@ -36,6 +36,13 @@ X, you would do these:
     this instance.
   * Dependent part names.
 
+  Also:
+
+  * In more complex parts modules, `X_LABEL_NAMES` may actually be a
+    tree rather than a list of strings.
+  * For documentation, you may organize names of `X_LABEL_NAMES` into
+    "Input", "Output", and "Private" sections.
+
 * Define a function `make_X_params` that creates parameter namespace of
   a part instance.
 

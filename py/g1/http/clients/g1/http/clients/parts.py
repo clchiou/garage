@@ -7,8 +7,10 @@ from .. import clients
 from . import policies
 
 SESSION_LABEL_NAMES = (
-    'session_params',
+    # Output.
     'session',
+    # Private.
+    'session_params',
 )
 
 

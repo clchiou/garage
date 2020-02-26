@@ -7,7 +7,9 @@ from .. import servers
 from . import nghttp2
 
 SERVER_LABEL_NAMES = (
+    # Input.
     'application',
+    # Private.
     ('server', g1.networks.servers.parts.SERVER_LABEL_NAMES),
 )
 

@@ -7,8 +7,10 @@ from g1.bases import labels
 from .reqrep import servers
 
 SERVER_LABEL_NAMES = (
+    # Input.
     'server',
-    'params',
+    # Private.
+    'server_params',
 )
 
 
@@ -23,12 +25,12 @@ def define_server(module_path=None, **kwargs):
 
 
 def setup_server(module_labels, module_params):
-    utils.depend_parameter_for(module_labels.params, module_params)
+    utils.depend_parameter_for(module_labels.server_params, module_params)
     utils.define_maker(
         make_agent,
         {
             'server': module_labels.server,
-            'params': module_labels.params,
+            'params': module_labels.server_params,
         },
     )
 
