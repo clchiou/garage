@@ -9,20 +9,14 @@ Examples:
 
 __all__ = [
     'Stopwatch',
-    'TimeUnits',
     'make',
     'timeout_to_key',
 ]
 
-import enum
 import time
 
 from .assertions import ASSERT
-
-
-class TimeUnits(enum.Enum):
-    SECONDS = enum.auto()
-    NANOSECONDS = enum.auto()
+from . import times
 
 
 class Stopwatch:
@@ -51,16 +45,12 @@ class Stopwatch:
         self._duration = now - self._start
         self._start = None
 
-    def get_duration(self, unit=TimeUnits.SECONDS):
+    def get_duration(self, unit=times.Units.SECONDS):
         if self._start is not None:
             duration_ns = self._clock() - self._start
         else:
             duration_ns = ASSERT.not_none(self._duration)
-        if unit is TimeUnits.SECONDS:
-            return duration_ns / 1e9
-        else:
-            ASSERT.is_(unit, TimeUnits.NANOSECONDS)
-            return duration_ns
+        return times.convert(times.Units.NANOSECONDS, unit, duration_ns)
 
 
 def make(timeout):
