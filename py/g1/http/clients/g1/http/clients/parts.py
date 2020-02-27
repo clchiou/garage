@@ -7,6 +7,8 @@ from .. import clients
 from . import policies
 
 SESSION_LABEL_NAMES = (
+    # Input.
+    'executor',
     # Output.
     'session',
     # Private.
@@ -14,7 +16,7 @@ SESSION_LABEL_NAMES = (
 )
 
 
-def define_session(module_path=None, *, executor_label=None, **kwargs):
+def define_session(module_path=None, **kwargs):
     """Define a session object under ``module_path``."""
     module_path = module_path or clients.__name__
     module_labels = labels.make_labels(module_path, *SESSION_LABEL_NAMES)
@@ -24,20 +26,20 @@ def define_session(module_path=None, *, executor_label=None, **kwargs):
             module_path,
             make_session_params(**kwargs),
         ),
-        executor_label=executor_label,
     )
     return module_labels
 
 
-def setup_session(module_labels, module_params, *, executor_label=None):
+def setup_session(module_labels, module_params):
     utils.depend_parameter_for(module_labels.session_params, module_params)
-    annotations = {
-        'params': module_labels.session_params,
-        'return': module_labels.session,
-    }
-    if executor_label:
-        annotations['executor'] = executor_label
-    utils.define_maker(make_session, annotations)
+    utils.define_maker(
+        make_session,
+        {
+            'params': module_labels.session_params,
+            'executor': module_labels.executor,
+            'return': module_labels.session,
+        },
+    )
 
 
 def make_session_params(
@@ -70,35 +72,34 @@ def make_session_params(
     )
 
 
-def make_session(params, executor=None):
-
-    max_request_rate = params.max_request_rate.get()
-    if max_request_rate > 0:
-        rate_limit = policies.TokenBucket(
-            max_request_rate,
-            ASSERT.greater(params.max_requests.get(), 0),
-        )
-    else:
-        rate_limit = None
-
-    max_retries = params.max_retries.get()
-    if max_retries > 0:
-        retry = policies.ExponentialBackoff(
-            max_retries,
-            ASSERT.greater(params.backoff_base.get(), 0),
-        )
-    else:
-        retry = None
-
+def make_session(params, executor):
     session = clients.Session(
         executor=executor,
         cache_size=ASSERT.greater(params.cache_size.get(), 0),
-        rate_limit=rate_limit,
-        retry=retry,
+        rate_limit=_make_rate_limit(params),
+        retry=_make_retry(params),
     )
-
     user_agent = params.user_agent.get()
     if user_agent:
         session.headers['User-Agent'] = user_agent
-
     return session
+
+
+def _make_rate_limit(params):
+    max_request_rate = params.max_request_rate.get()
+    if max_request_rate <= 0:
+        return None
+    return policies.TokenBucket(
+        max_request_rate,
+        ASSERT.greater(params.max_requests.get(), 0),
+    )
+
+
+def _make_retry(params):
+    max_retries = params.max_retries.get()
+    if max_retries <= 0:
+        return None
+    return policies.ExponentialBackoff(
+        max_retries,
+        ASSERT.greater(params.backoff_base.get(), 0),
+    )

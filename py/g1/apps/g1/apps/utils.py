@@ -1,6 +1,7 @@
 """Utilities for external users."""
 
 __all__ = [
+    'bind_label',
     'define_binder',
     'define_binder_for',
     'define_maker',
@@ -26,6 +27,10 @@ def get_annotations(func):
     if signature.return_annotation is not signature.empty:
         annotations['return'] = signature.return_annotation
     return annotations
+
+
+def bind_label(source_label, target_label):
+    startup.add_func(lambda x: x, {'x': source_label, 'return': target_label})
 
 
 def _prepare(defaults, kwargs):

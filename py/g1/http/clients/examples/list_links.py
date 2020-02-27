@@ -3,14 +3,18 @@
 from startup import startup
 
 from g1.apps import asyncs
+from g1.apps import utils
 from g1.asyncs import kernels
 from g1.http import clients
 
 import g1.http.clients.parts
 import g1.threads.parts
 
-LABELS = g1.http.clients.parts.define_session(
-    executor_label=g1.threads.parts.define_executor().executor,
+LABELS = g1.http.clients.parts.define_session()
+
+utils.bind_label(
+    g1.threads.parts.define_executor().executor,
+    LABELS.executor,
 )
 
 

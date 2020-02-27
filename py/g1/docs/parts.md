@@ -58,3 +58,12 @@ X, you would do these:
 
 * Declare an "extras" entry named `parts` in `setup.py` for the parts'
   dependencies, such as other parts and the helper libraries.
+
+#### Composition of parts
+
+The simplest method of composing parts is to fully "embed" one part
+inside another part.  Using this method, the embedded part will usually
+appear in the "Private" section of the embedding part.
+
+Another method is to define two parts separately, and then bind the
+output labels of one part to the input labels of another.
