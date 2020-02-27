@@ -8,6 +8,7 @@ import dataclasses
 import hashlib
 import logging
 import random
+import threading
 from pathlib import Path
 
 import g1.files
@@ -30,6 +31,9 @@ class CacheInterface:
     _SENTINEL = object()
 
     def get_stats(self):
+        raise NotImplementedError
+
+    def estimate_size(self):
         raise NotImplementedError
 
     def evict(self):
@@ -55,6 +59,9 @@ class NullCache(CacheInterface):
             num_hits=0,
             num_misses=self._num_misses,
         )
+
+    def estimate_size(self):
+        return 0
 
     def evict(self):
         return 0
@@ -99,7 +106,9 @@ class Cache(CacheInterface):
         capacity,
         *,
         post_eviction_size=None,
+        executor=None,  # Use this to evict in the background.
     ):
+        self._lock = threading.Lock()
         self._cache_dir_path = ASSERT.predicate(cache_dir_path, Path.is_dir)
         self._capacity = ASSERT.greater(capacity, 0)
         self._post_eviction_size = (
@@ -112,6 +121,7 @@ class Cache(CacheInterface):
             self._capacity,
             self._post_eviction_size,
         )
+        self._executor = executor
         # By the way, if cache cold start is an issue, we could store
         # and load this table from a file.
         self._access_log = collections.OrderedDict()
@@ -151,14 +161,22 @@ class Cache(CacheInterface):
         # Just a guess of how far away we are from the next eviction.
         return self._capacity - self.estimate_size()
 
-    def _maybe_evict(self):
-        if (
+    def _should_evict(self):
+        return (
             len(self._access_log) > self._capacity
             or self._eviction_countdown < 0
-        ):
-            self.evict()
+        )
+
+    def _maybe_evict(self):
+        with self._lock:
+            if self._should_evict():
+                self._evict_require_lock_by_caller()
 
     def evict(self):
+        with self._lock:
+            return self._evict_require_lock_by_caller()
+
+    def _evict_require_lock_by_caller(self):
         stopwatch = timers.Stopwatch()
         stopwatch.start()
         num_evicted = self._evict()
@@ -205,6 +223,10 @@ class Cache(CacheInterface):
         return self._cache_dir_path / self._get_relpath(key)
 
     def get(self, key, default=None):
+        with self._lock:
+            return self._get_require_lock_by_caller(key, default)
+
+    def _get_require_lock_by_caller(self, key, default):
         path = self._get_path(key)
         if not path.exists():
             self._num_misses += 1
@@ -215,19 +237,27 @@ class Cache(CacheInterface):
         return value
 
     def set(self, key, value):
+        with self._lock:
+            return self._set_require_lock_by_caller(key, value)
+
+    def _set_require_lock_by_caller(self, key, value):
         path = self._get_path(key)
         if not path.exists():
             path.parent.mkdir(exist_ok=True)
             self._eviction_countdown -= 1
         path.write_bytes(value)
         self._log_access(path)
-        # Sadly this will cause some callers to wait for unexpectedly
-        # long (due to unexpected eviction).  If this becomes a serious
-        # issue, we should find some way to push evictions into
-        # background.
-        self._maybe_evict()
+        if self._should_evict():
+            if self._executor:
+                self._executor.submit(self._maybe_evict)
+            else:
+                self._evict_require_lock_by_caller()
 
     def pop(self, key, default=CacheInterface._SENTINEL):
+        with self._lock:
+            return self._pop_require_lock_by_caller(key, default)
+
+    def _pop_require_lock_by_caller(self, key, default):
         path = self._get_path(key)
         if not path.exists():
             if default is self._SENTINEL:
