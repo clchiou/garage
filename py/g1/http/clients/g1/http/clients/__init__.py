@@ -57,7 +57,7 @@ class Session:
         # unfinished HTTP requests in the executor (if it is not fine,
         # you may always provide an executor to me, and properly shut it
         # down on process exit).
-        self.executor = executor or executors.Executor(daemon=True)
+        self._executor = executor or executors.Executor(daemon=True)
         self._session = requests.Session()
         self._cache = collections.LruCache(cache_size)
         self._rate_limit = rate_limit or policies.unlimited
@@ -88,25 +88,27 @@ class Session:
         with priority (this requires ``PriorityExecutor``).  For now, we
         do not support setting ``priority`` in ``request``.
         """
-
         # For now ``stream`` and asynchronous does not mix well.
         ASSERT.false(request._kwargs.get('stream'))
         ASSERT.false(kwargs.get('stream'))
 
         cache_key = kwargs.pop('cache_key', None)
         if cache_key is not None:
-            try:
-                task = self._cache[cache_key]
-                cache_result = 'hit'
-            except KeyError:
-                task = self._cache[cache_key] = \
-                    tasks.spawn(self.send(request, **kwargs))
-                cache_result = 'miss'
-            finally:
-                LOG.debug(
-                    'send: cache %s: cache_key=%r, %r, kwargs=%r',
-                    cache_result, cache_key, request, kwargs
+            task = self._cache.get(cache_key)
+            if task is None:
+                task = self._cache[cache_key] = tasks.spawn(
+                    self.send(request, **kwargs)
                 )
+                cache_result = 'miss'
+            else:
+                cache_result = 'hit'
+            LOG.debug(
+                'send: cache %s: cache_key=%r, %r, kwargs=%r',
+                cache_result,
+                cache_key,
+                request,
+                kwargs,
+            )
             # Here is a risk that, if all task waiting for this task get
             # cancelled before this task completes, this task might not
             # be joined, but this risk is probably too small.
@@ -114,46 +116,39 @@ class Session:
 
         priority = kwargs.pop('priority', None)
         if priority is None:
-            submit = self.executor.submit
+            submit_send = lambda: self._executor.submit(
+                self._send, request, kwargs
+            )
         else:
             LOG.debug(
                 'send: priority=%r, %r, kwargs=%r', priority, request, kwargs
             )
-            submit = functools.partial(
-                self.executor.submit_with_priority,
-                priority,
+            submit_send = lambda: self._executor.submit_with_priority(
+                priority, self._send, request, kwargs
             )
 
         for retry_count in itertools.count():
-
             await self._rate_limit()
-
             if retry_count:
                 LOG.warning('retry %d times: %r', retry_count, request)
-
-            future = adapters.FutureAdapter(
-                submit(self._send, request, kwargs)
-            )
-            try:
+            future = adapters.FutureAdapter(submit_send())
+            exc = await future.get_exception()
+            if not exc:
                 return await future.get_result()
-
-            except requests.RequestException as exc:
-                backoff = self._retry(retry_count)
-                if backoff is None:
-                    raise
-
-                if exc.response:
-                    status_code = exc.response.status_code
-                else:
-                    status_code = '???'
-                LOG.warning(
-                    'http error: status_code=%s, %r',
-                    status_code,
-                    request,
-                    exc_info=exc,
-                )
-
-                await timers.sleep(backoff)
+            if not isinstance(exc, requests.RequestException):
+                raise exc
+            status_code = exc.response.status_code if exc.response else None
+            LOG.warning(
+                'http error: status_code=%s, %r',
+                status_code,
+                request,
+                exc_info=exc if not status_code else None,
+            )
+            backoff = self._retry(retry_count)
+            if backoff is None:
+                raise exc
+            await timers.sleep(backoff)
+        ASSERT.unreachable('retry loop should not break')
 
     def _send(self, request, kwargs):
         response = self.send_blocking(request, **kwargs)
@@ -168,18 +163,14 @@ class Session:
         This does not implement rate limit nor retry.
         """
         LOG.debug('send: %r, kwargs=%r', request, kwargs)
-
         # ``requests.Session.get`` and friends do a little more than
         # ``requests.Session.request``; so let's use the former.
         method = getattr(self._session, request.method.lower())
-
         # ``kwargs`` may overwrite ``request._kwargs``.
         final_kwargs = request._kwargs.copy()
         final_kwargs.update(kwargs)
-
         response = method(request.url, **final_kwargs)
         response.raise_for_status()
-
         return response
 
 
@@ -223,9 +214,7 @@ def html(self, encoding=None, errors=None):
         contents = self.content.decode(encoding=encoding, errors=errors)
         parser = get_html_parser(None)
         return lxml.etree.fromstring(contents, parser)
-
     ASSERT.none(errors)
-
     parser = get_html_parser(encoding or self.encoding)
     return lxml.etree.fromstring(self.content, parser)
 
