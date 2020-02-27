@@ -32,7 +32,7 @@ class BackgroundTasks:
 
     def __init__(self):
         self.queue = tasks.CompletionQueue()
-        self._leftover = []
+        self._leftover = set()
 
     async def supervise(self):
         # We assume you don't care to join background jobs on process
@@ -44,24 +44,22 @@ class BackgroundTasks:
                 LOG.warning('background task error: %r', task, exc_info=exc)
             else:
                 LOG.debug('background task exit: %r', task)
-        # NOTE: In a non-graceful exit, we won't reach here (so tasks
-        # won't be cancelled by us), but that's fine since it's a
-        # non-graceful exit anyway.
-        leftover, self._leftover = self._leftover, []
-        await _cleanup(leftover)
+        # NOTE: In a non-graceful exit, it will not reach here (so tasks
+        # will not be cancelled by _cleanup), but that is fine since it
+        # is a non-graceful exit anyway.
+        await _cleanup(self._leftover)
 
     def shutdown(self):
         # Use extend because shutdown could be called multiple times.
-        self._leftover.extend(self.queue.close(graceful=False))
+        self._leftover.update(self.queue.close(graceful=False))
 
 
-async def _cleanup(leftover):
+async def _cleanup(leftover):  # This modifies leftover in-place.
     if not leftover:
         return
     LOG.info('cancel %d background tasks on exit', len(leftover))
     for task in leftover:
         task.cancel()
-    leftover = set(leftover)
     with timers.timeout_ignore(NON_GRACE_PERIOD):
         async for task in tasks.as_completed(leftover):
             leftover.remove(task)
