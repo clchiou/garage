@@ -85,27 +85,21 @@ def get_path(request):
 class PathPatternRouter:
     """Route to one of the handlers bases on request path.
 
-    It takes a list of pattern-handler pairs.  If you are also using
-    groups in the patterns, you should use named groups "(?P<name>...)"
-    because patterns are concatenated.
+    It takes a list of pattern-handler pairs, and matches request
+    against them serially.
     """
 
     def __init__(self, handlers):
         ASSERT.not_empty(handlers)
-        path_patterns = []
-        self._handlers = {}
-        for i, (pattern, handler) in enumerate(handlers):
-            group_name = '_%s__%d' % (self.__class__.__name__, i)
-            path_patterns.append('(?P<%s>%s)' % (group_name, pattern))
-            self._handlers[group_name] = handler
-        self._path_pattern = re.compile('|'.join(path_patterns))
+        self._handlers = [(re.compile(p), h) for p, h in handlers]
 
     async def __call__(self, request, response):
-        match = self._path_pattern.match(request.path_str)
-        if not match:
-            raise wsgi_apps.HttpError(
-                consts.Statuses.NOT_FOUND,
-                'path does not match any pattern: %s' % request.path_str,
-            )
-        request.context.set(PATH_MATCH, match)
-        return await self._handlers[match.lastgroup](request, response)
+        for regex, handler in self._handlers:
+            match = regex.match(request.path_str)
+            if match:
+                request.context.set(PATH_MATCH, match)
+                return await handler(request, response)
+        raise wsgi_apps.HttpError(
+            consts.Statuses.NOT_FOUND,
+            'path does not match any pattern: %s' % request.path_str,
+        )

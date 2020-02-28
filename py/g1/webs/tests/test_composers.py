@@ -198,7 +198,7 @@ class PathPatternRouterTest(TestCaseBase):
 
         with self.assertRaisesRegex(
             wsgi_apps.HttpError,
-            r'path does not match any pattern: ',
+            r'path does not match any pattern: /foo/bar',
         ) as cm:
             self.run_handler('/foo/bar')
         self.assertEqual(self.calls, [])
@@ -225,10 +225,7 @@ class PathPatternRouterTest(TestCaseBase):
         self.assert_context_keys([composers.PATH_MATCH])
         self.assertEqual(composers.get_path_str(self.request), '/spam/egg')
         self.assertEqual(composers.group(self.request), '/012-suffix')
-        self.assertEqual(
-            composers.group(self.request, 'd', 'l'),
-            ('012', None),
-        )
+        self.assertEqual(composers.group(self.request, 'd'), '012')
         self.assert_response(consts.Statuses.OK, {})
 
         self.run_handler('/abcxyz/spam/egg')
@@ -236,16 +233,11 @@ class PathPatternRouterTest(TestCaseBase):
         self.assert_context_keys([composers.PATH_MATCH])
         self.assertEqual(composers.get_path_str(self.request), '/spam/egg')
         self.assertEqual(composers.group(self.request), '/abcxyz')
-        self.assertEqual(
-            composers.group(self.request, 'd', 'l'),
-            (None, 'abc'),
-        )
+        self.assertEqual(composers.group(self.request, 'l'), 'abc')
         self.assert_response(consts.Statuses.OK, {})
 
     @kernels.with_kernel
     def test_user_defined_groups(self):
-        # Although we test this usage, this usage is not recommended;
-        # use named groups instead.
         self.handler = composers.PathPatternRouter([
             (r'/(\d+)-suffix', self.make_noop_handler('digits')),
             (r'/([a-z]+)-suffix', self.make_noop_handler('letters')),
@@ -257,8 +249,8 @@ class PathPatternRouterTest(TestCaseBase):
         self.assertEqual(composers.get_path_str(self.request), '/spam/egg')
         self.assertEqual(composers.group(self.request), '/012-suffix')
         self.assertEqual(
-            composers.group(self.request, 0, 1, 2, 3, 4),
-            ('/012-suffix', '/012-suffix', '012', None, None),
+            composers.group(self.request, 0, 1),
+            ('/012-suffix', '012'),
         )
         self.assert_response(consts.Statuses.OK, {})
 
