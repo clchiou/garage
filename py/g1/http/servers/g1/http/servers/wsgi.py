@@ -559,6 +559,9 @@ class HttpStream:
     def _get_first_header(self, name):
         return ASSERT.getitem(self._request_headers, name)[0]
 
+    def _maybe_get_first_header(self, name):
+        return self._request_headers.get(name, (None, ))[0]
+
     def _start_wsgi_task(self):
         ASSERT.none(self._task)
         self._task = self._session._queue.spawn(self._run_wsgi)
@@ -569,7 +572,8 @@ class HttpStream:
             self._session._address,
             self._get_first_header(':method'),
             self._get_first_header(':scheme'),
-            self._get_first_header(':authority'),
+            self._maybe_get_first_header('host')
+            or self._maybe_get_first_header(':authority'),
             self._get_first_header(':path'),
         )
 
