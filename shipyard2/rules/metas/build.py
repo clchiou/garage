@@ -37,6 +37,7 @@ import foreman
  .depend('//third-party/nng:build')
  # Third-party Python packages.
  .depend('//third-party/lxml:build')
+ .depend('//third-party/mako:build')
  .depend('//third-party/pyyaml:build')
  .depend('//third-party/requests:build')
  .depend('//third-party/sqlalchemy:build')
