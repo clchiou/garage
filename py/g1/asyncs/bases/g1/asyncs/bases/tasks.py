@@ -43,7 +43,9 @@ class CompletionQueue:
     implementation, and thus may be more efficient.
     """
 
-    def __init__(self):
+    def __init__(self, *, always_cancel=False, log_on_error=True):
+        self._always_cancel = always_cancel
+        self._log_on_error = log_on_error
         self._gate = locks.Gate()
         self._completed = collections.deque()
         self._uncompleted = set()
@@ -60,21 +62,20 @@ class CompletionQueue:
         return self
 
     async def __aexit__(self, exc_type, *_):
-        """Reasonable default policy on joining tasks.
+        """Ensure that the queued tasks cannot outlive a scope.
 
-        * First, it will close the queue.
-        * On normal exit, it will join all remaining tasks.
-        * On error, it will cancel tasks before joining them.
-
-        This is not guaranteed to fit any use case though.  On those
-        cases, you will have to roll your own context manager.
+        This is similar to the ``joining`` context manager, but applies
+        to all remaining tasks.  Also, the queue is closed on exit.
         """
         tasks = self.close(graceful=False)
-        if exc_type:
+        if exc_type or self._always_cancel:
             for task in tasks:
                 task.cancel()
         for task in tasks:
-            await join_and_log_on_error(task)
+            if self._log_on_error:
+                await join_and_log_on_error(task)
+            else:
+                await task.join()
 
     def is_closed(self):
         return self._closed
@@ -178,7 +179,14 @@ async def join_and_log_on_error(task):
 
 
 class joining:
-    """Ensure the given task cannot outlive a scope."""
+    """Ensure that the given task cannot outlive a scope.
+
+    * If the code nested inside the context raises (including
+      BaseException such as task cancellation) or always_cancel is set
+      to True, the task is cancelled.
+    * Then the task is joined, and if log_on_error is set to True (which
+      is the default), task error is logged.
+    """
 
     def __init__(self, task, *, always_cancel=False, log_on_error=True):
         self._task = task
