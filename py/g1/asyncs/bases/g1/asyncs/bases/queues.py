@@ -84,13 +84,17 @@ class QueueBase:
         self.__putter_gate.unblock()
         return items
 
+    async def gettable(self):
+        """Block until queue is gettable."""
+        while not self.__queue and not self.__closed:
+            await self.__getter_gate.wait()
+
     async def get(self):
         """Get an item from the queue.
 
         If the queue is closed and empty, ``get`` raises ``Closed``.
         """
-        while not self.__queue and not self.__closed:
-            await self.__getter_gate.wait()
+        await self.gettable()
         return self.get_nonblocking()
 
     def get_nonblocking(self):
@@ -102,16 +106,18 @@ class QueueBase:
         else:
             raise Empty
 
+    async def puttable(self):
+        """Block until queue is puttable."""
+        while not self.__closed and self.is_full():
+            await self.__putter_gate.wait()
+
     async def put(self, item):
         """Put an item into the queue.
 
         If the queue is closed, ``put`` raises ``Closed``.
         """
-        while True:
-            try:
-                return self.put_nonblocking(item)
-            except Full:
-                await self.__putter_gate.wait()
+        await self.puttable()
+        return self.put_nonblocking(item)
 
     def put_nonblocking(self, item):
         if self.__closed:
