@@ -70,6 +70,23 @@ class CompletionQueueTest(unittest.TestCase):
 
         self.assertEqual(ts, {t1, t2})
 
+    def test_get_nonblocking(self):
+        tq = tasks.CompletionQueue()
+        with self.assertRaises(tasks.Empty):
+            tq.get_nonblocking()
+        t1 = self.k.spawn(square(1))
+        t2 = self.k.spawn(square(2))
+        tq.put_nonblocking(t1)
+        tq.put_nonblocking(t2)
+        tq.close()
+        with self.assertRaises(tasks.Empty):
+            tq.get_nonblocking()
+        self.k.run(timeout=0.01)
+        self.assertIs(tq.get_nonblocking(), t1)
+        self.assertIs(tq.get_nonblocking(), t2)
+        with self.assertRaises(tasks.Closed):
+            tq.get_nonblocking()
+
     def test_close_repeatedly(self):
         tq = tasks.CompletionQueue()
         self.assertFalse(tq.is_closed())

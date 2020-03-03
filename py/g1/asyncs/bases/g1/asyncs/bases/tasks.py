@@ -4,6 +4,7 @@ __all__ = [
     'Cancelled',
     'Closed',
     'CompletionQueue',
+    'Empty',
     'as_completed',
     'get_all_tasks',
     'get_current_task',
@@ -28,6 +29,10 @@ LOG = logging.getLogger(__name__)
 
 
 class Closed(Exception):
+    pass
+
+
+class Empty(Exception):
     pass
 
 
@@ -103,12 +108,19 @@ class CompletionQueue:
 
     async def get(self):
         while True:
-            if self._completed:
-                return self._completed.popleft()
-            elif self._uncompleted or not self._closed:
-                await self._gate.wait()
-            else:
-                raise Closed
+            try:
+                return self.get_nonblocking()
+            except Empty:
+                pass
+            await self._gate.wait()
+
+    def get_nonblocking(self):
+        if self._completed:
+            return self._completed.popleft()
+        elif self._uncompleted or not self._closed:
+            raise Empty
+        else:
+            raise Closed
 
     def put_nonblocking(self, task):
         if self._closed:
