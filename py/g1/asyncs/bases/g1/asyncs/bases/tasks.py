@@ -110,7 +110,7 @@ class CompletionQueue:
             else:
                 raise Closed
 
-    def put(self, task):
+    def put_nonblocking(self, task):
         if self._closed:
             raise Closed
         self._uncompleted.add(task)
@@ -126,7 +126,7 @@ class CompletionQueue:
             raise Closed
         task = spawn(awaitable)
         try:
-            self.put(task)
+            self.put_nonblocking(task)
         except BaseException:
             # This should never happen...
             LOG.critical('put should never fail here: %r, %r', self, task)

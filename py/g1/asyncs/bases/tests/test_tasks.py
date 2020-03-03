@@ -34,13 +34,13 @@ class CompletionQueueTest(unittest.TestCase):
         self.assertEqual(len(tq), 0)
 
         t1 = self.k.spawn(square(1))
-        tq.put(t1)
+        tq.put_nonblocking(t1)
         self.assertFalse(tq.is_closed())
         self.assertTrue(tq)
         self.assertEqual(len(tq), 1)
 
         t2 = self.k.spawn(square(1))
-        tq.put(t2)
+        tq.put_nonblocking(t2)
         self.assertFalse(tq.is_closed())
         self.assertTrue(tq)
         self.assertEqual(len(tq), 2)
@@ -51,7 +51,7 @@ class CompletionQueueTest(unittest.TestCase):
         self.assertEqual(len(tq), 2)
 
         with self.assertRaises(tasks.Closed):
-            tq.put(None)
+            tq.put_nonblocking(None)
 
         ts = set()
 
@@ -75,7 +75,7 @@ class CompletionQueueTest(unittest.TestCase):
         self.assertFalse(tq.is_closed())
 
         t1 = self.k.spawn(square(1))
-        tq.put(t1)
+        tq.put_nonblocking(t1)
 
         self.assertEqual(tq.close(True), [])
         self.assertTrue(tq.is_closed())
@@ -123,10 +123,10 @@ class CompletionQueueTest(unittest.TestCase):
         tq = tasks.CompletionQueue()
 
         t1 = self.k.spawn(square(1))
-        tq.put(t1)
+        tq.put_nonblocking(t1)
 
         t2 = self.k.spawn(square(2))
-        tq.put(t2)
+        tq.put_nonblocking(t2)
 
         async def do_with_queue():
             async with tq:
@@ -148,13 +148,13 @@ class CompletionQueueTest(unittest.TestCase):
         event = locks.Event()
 
         t1 = self.k.spawn(event.wait)
-        tq.put(t1)
+        tq.put_nonblocking(t1)
 
         t2 = self.k.spawn(event.wait)
-        tq.put(t2)
+        tq.put_nonblocking(t2)
 
         t3 = self.k.spawn(raises('test message'))
-        tq.put(t3)
+        tq.put_nonblocking(t3)
 
         async def do_with_queue():
             async with tq:
@@ -189,7 +189,7 @@ class CompletionQueueWithoutKernelTest(unittest.TestCase):
         self.assertEqual(len(tq), 0)
 
         task = Task(None, square(7))
-        tq.put(task)
+        tq.put_nonblocking(task)
         self.assertFalse(tq.is_closed())
         self.assertTrue(tq)
         self.assertEqual(len(tq), 1)
