@@ -4,6 +4,7 @@ setup(
     name='g1.http.clients',
     packages=[
         'g1.http.clients',
+        'g1.http.clients.parts',
     ],
     install_requires=[
         'g1.asyncs.bases',
