@@ -4,7 +4,8 @@ import unittest.mock
 import requests
 
 from g1.asyncs import kernels
-from g1.http import clients
+from g1.http.clients import bases
+from g1.http.clients import clients
 from g1.http.clients import policies
 from g1.threads import executors
 
@@ -12,7 +13,7 @@ from g1.threads import executors
 class TestCaseBase(unittest.TestCase):
 
     URL = 'http://localhost/index.html'
-    REQUEST = clients.Request('GET', URL)
+    REQUEST = bases.Request('GET', URL)
 
     executor = None
 
@@ -24,7 +25,7 @@ class TestCaseBase(unittest.TestCase):
     def setUp(self):
         super().setUp()
         mock_session_class = unittest.mock.patch(
-            clients.__name__ + '.requests.Session'
+            bases.__name__ + '.requests.Session'
         ).start()
         self.mock_session = mock_session_class.return_value
         self.mock_response = None

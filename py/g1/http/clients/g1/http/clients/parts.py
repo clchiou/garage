@@ -3,7 +3,7 @@ from g1.apps import utils
 from g1.bases import labels
 from g1.bases.assertions import ASSERT
 
-from .. import clients
+from . import clients
 from . import policies
 
 SESSION_LABEL_NAMES = (
@@ -18,7 +18,7 @@ SESSION_LABEL_NAMES = (
 
 def define_session(module_path=None, **kwargs):
     """Define a session object under ``module_path``."""
-    module_path = module_path or clients.__name__
+    module_path = module_path or __package__
     module_labels = labels.make_labels(module_path, *SESSION_LABEL_NAMES)
     setup_session(
         module_labels,
