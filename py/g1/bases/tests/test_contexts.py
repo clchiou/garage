@@ -10,7 +10,10 @@ class ContextTest(unittest.TestCase):
         self.assertEqual(context.asdict(), expect)
         for key, value in expect.items():
             self.assertEqual(context.get(key), value)
+            self.assertEqual(context[key], value)
         self.assertIsNone(context.get('no-such-key'))
+        with self.assertRaises(KeyError):
+            context['no-suck-key']  # pylint: disable=pointless-statement
 
     def test_context(self):
         self.assert_context(contexts.Context({'y': 0}), {'y': 0})

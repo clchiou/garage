@@ -32,6 +32,9 @@ class Context:
             ASSERT.isdisjoint(frozenset(content), self._context)
         return Context(_context=self._context.new_child(content))
 
+    def __getitem__(self, key):
+        return self._context[key]
+
     def get(self, key, default=None):
         return self._context.get(key, default)
 
