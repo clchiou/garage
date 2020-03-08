@@ -6,6 +6,7 @@ from g1.asyncs import kernels
 from g1.bases import contexts
 from g1.webs import consts
 from g1.webs import wsgi_apps
+from g1.webs.handlers import etags
 from g1.webs.handlers import files
 
 
@@ -94,6 +95,7 @@ class HandlerTest(unittest.TestCase):
         response_headers = {
             consts.HEADER_CONTENT_TYPE: 'text/x-python',
             consts.HEADER_CONTENT_LENGTH: str(local_path.stat().st_size),
+            consts.HEADER_ETAG: etags.compute_etag(local_path.read_bytes()),
         }
 
         self.set_request(consts.METHOD_OPTIONS, 'tests/test_files.py')
@@ -161,6 +163,7 @@ class HandlerTest(unittest.TestCase):
         response_headers = {
             consts.HEADER_CONTENT_TYPE: 'text/x-python',
             consts.HEADER_CONTENT_LENGTH: str(local_path.stat().st_size),
+            consts.HEADER_ETAG: etags.compute_etag(local_path.read_bytes()),
         }
 
         self.handler = handler.head
@@ -192,6 +195,7 @@ class HandlerTest(unittest.TestCase):
         response_headers = {
             consts.HEADER_CONTENT_TYPE: 'text/x-python',
             consts.HEADER_CONTENT_LENGTH: str(local_path.stat().st_size),
+            consts.HEADER_ETAG: etags.compute_etag(local_path.read_bytes()),
         }
 
         self.handler = handler.head

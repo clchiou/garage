@@ -15,6 +15,7 @@ from .. import consts
 from .. import wsgi_apps
 
 from . import composers
+from . import etags
 
 
 def make_dir_handler(local_dir_path):
@@ -99,21 +100,25 @@ class DirHandler:
         local_path = request.context.get(LOCAL_PATH)
         if local_path is None:
             local_path = get_local_path(request, self._local_dir_path)
+        content = local_path.read_bytes()
         response.status = consts.Statuses.OK
         response.headers.update({
             consts.HEADER_CONTENT_TYPE:
             guess_content_type(local_path.name),
             consts.HEADER_CONTENT_LENGTH:
-            str(local_path.stat().st_size),
+            str(len(content)),
+            consts.HEADER_ETAG:
+            etags.compute_etag(content),
         })
-        return local_path
+        etags.maybe_raise_304(request, response)
+        return content
 
     async def head(self, request, response):
         self._prepare(request, response)
 
     async def get(self, request, response):
-        local_path = self._prepare(request, response)
-        await response.write(local_path.read_bytes())
+        content = self._prepare(request, response)
+        await response.write(content)
 
     __call__ = get
 
@@ -124,18 +129,19 @@ class FileHandler:
     def __init__(self, local_file_path, headers=()):
         if not mimetypes.inited:
             mimetypes.init()
+        self._content = local_file_path.read_bytes()
         self._headers = {
             consts.HEADER_CONTENT_TYPE:
             guess_content_type(local_file_path.name),
-            consts.HEADER_CONTENT_LENGTH: str(local_file_path.stat().st_size),
+            consts.HEADER_CONTENT_LENGTH: str(len(self._content)),
+            consts.HEADER_ETAG: etags.compute_etag(self._content),
         }
         self._headers.update(headers)
-        self._content = local_file_path.read_bytes()
 
     async def head(self, request, response):
-        del request  # Unused.
         response.status = consts.Statuses.OK
         response.headers.update(self._headers)
+        etags.maybe_raise_304(request, response)
 
     async def get(self, request, response):
         await self.head(request, response)

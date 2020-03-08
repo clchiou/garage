@@ -66,6 +66,10 @@ class Request:
     #
     context: contexts.Context
 
+    def get_header(self, name, default=None):
+        environ_name = 'HTTP_' + name.replace('-', '_').upper()
+        return self.environ.get(environ_name, default)
+
     @property
     def method(self):
         return self.environ['REQUEST_METHOD']

@@ -18,6 +18,8 @@ __all__ = [
     'HEADER_CONTENT_LENGTH',
     'HEADER_CONTENT_TYPE',
     'HEADER_DATE',
+    'HEADER_ETAG',
+    'HEADER_IF_NONE_MATCH',
     'HEADER_LOCATION',
 ]
 
@@ -38,4 +40,6 @@ HEADER_ALLOW = 'Allow'
 HEADER_CONTENT_LENGTH = 'Content-Length'
 HEADER_CONTENT_TYPE = 'Content-Type'
 HEADER_DATE = 'Date'
+HEADER_ETAG = 'ETag'
+HEADER_IF_NONE_MATCH = 'If-None-Match'
 HEADER_LOCATION = 'Location'
