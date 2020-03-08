@@ -13,7 +13,7 @@ import sqlalchemy
 
 from g1.bases.assertions import ASSERT
 
-PATTERN_DB_URL = re.compile(r'sqlite(\+pysqlcipher)?://')
+DB_URL_PATTERN = re.compile(r'sqlite(\+pysqlcipher)?://')
 
 
 def create_engine(
@@ -23,7 +23,7 @@ def create_engine(
     trace=False,
     pragmas=(),
 ):
-    ASSERT(PATTERN_DB_URL.match(db_url), 'expect sqlite URL, not {!r}', db_url)
+    ASSERT(DB_URL_PATTERN.match(db_url), 'expect sqlite URL, not {!r}', db_url)
 
     engine = sqlalchemy.create_engine(
         db_url,

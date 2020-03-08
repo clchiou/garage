@@ -19,7 +19,7 @@ from .assertions import ASSERT
 importlib = None
 
 # Module path only accepts identifiers.
-PATTERN_MODULE_PATH = re.compile(
+MODULE_PATH_PATTERN = re.compile(
     r'''
     (?:[a-zA-Z_]\w*)
     (?:\.[a-zA-Z_]\w*)*
@@ -30,14 +30,14 @@ PATTERN_MODULE_PATH = re.compile(
 # Object path accepts both identifiers and numeric element indexes (this
 # is a strict subset of ``str.format``).
 # XXX: Should we also accept string literals as indexes?
-PATTERN_OBJECT_PATH = re.compile(
+OBJECT_PATH_PATTERN = re.compile(
     r'''
     (?:[a-zA-Z_]\w*)
     (?: \.[a-zA-Z_]\w* | \[\d+\])*
     ''',
     re.VERBOSE,
 )
-PATTERN_FIELD_NAME = re.compile(
+FIELD_NAME_PATTERN = re.compile(
     r'\.?([a-zA-Z_]\w*) | \[(\d+)\]',
     re.VERBOSE,
 )
@@ -59,8 +59,8 @@ class Label(str):
         return super().__new__(
             cls,
             '%s:%s' % (
-                ASSERT.predicate(module_path, PATTERN_MODULE_PATH.fullmatch),
-                ASSERT.predicate(object_path, PATTERN_OBJECT_PATH.fullmatch),
+                ASSERT.predicate(module_path, MODULE_PATH_PATTERN.fullmatch),
+                ASSERT.predicate(object_path, OBJECT_PATH_PATTERN.fullmatch),
             ),
         )
 
@@ -134,7 +134,7 @@ def load_global(label, *, invalidate_caches=False):
         importlib.invalidate_caches()
 
     value = importlib.import_module(label.module_path)
-    for match in PATTERN_FIELD_NAME.finditer(label.object_path):
+    for match in FIELD_NAME_PATTERN.finditer(label.object_path):
         if match.group(1):
             value = getattr(value, match.group(1))
         else:
