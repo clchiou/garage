@@ -5,6 +5,7 @@ from pathlib import Path
 from startup import startup
 
 import g1.asyncs.agents.parts
+import g1.webs.handlers.composers
 import g1.webs.handlers.files
 import g1.webs.handlers.responses
 import g1.webs.parts
@@ -21,11 +22,12 @@ LABELS = g1.webs.parts.define_server(
 
 @startup
 def make_handler() -> LABELS.handler:
-    return g1.webs.handlers.responses.Defaults(
+    return g1.webs.handlers.composers.Chain([
+        g1.webs.handlers.responses.Defaults([
+            ('Cache-Control', 'public, max-age=31536000')
+        ]),
         g1.webs.handlers.files.make_dir_handler(Path.cwd()),
-        [('Cache-Control', 'public, max-age=31536000')],
-        [],
-    )
+    ])
 
 
 def main(supervise_agents: g1.asyncs.agents.parts.LABELS.supervise_agents):

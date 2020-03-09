@@ -2,6 +2,7 @@
 
 __all__ = [
     'Defaults',
+    'ErrorDefaults',
 ]
 
 import datetime
@@ -31,22 +32,34 @@ RFC_7231_MONTHS = (
 RFC_7231_DAY_NAMES = ('Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun')
 
 
+# NOTE: Generally you should place this before the application handler
+# so that the application handler may access these defaults (say, it may
+# copy the defaults to the exception object when raising 304).
 class Defaults:
+
+    def __init__(self, headers, *, auto_date=True):
+        self._headers = headers
+        self._auto_date = auto_date
+
+    async def __call__(self, request, response):
+        del request  # Unused.
+        _setdefaults(response.headers, self._headers)
+        if consts.HEADER_DATE not in response.headers and self._auto_date:
+            response.headers[consts.HEADER_DATE] = rfc_7231_date()
+
+
+class ErrorDefaults:
 
     def __init__(
         self,
         handler,
-        headers=(),
-        error_headers=None,
+        error_headers,
         error_contents=None,  # status-to-content dict.
         *,
         auto_date=True,
     ):
         self._handler = handler
-        self._headers = headers
-        self._error_headers = (
-            error_headers if error_headers is not None else headers
-        )
+        self._error_headers = error_headers
         self._error_contents = (
             error_contents if error_contents is not None else {}
         )
@@ -54,11 +67,7 @@ class Defaults:
 
     async def __call__(self, request, response):
         try:
-            result = await self._handler(request, response)
-            _setdefaults(response.headers, self._headers)
-            if consts.HEADER_DATE not in response.headers and self._auto_date:
-                response.headers[consts.HEADER_DATE] = rfc_7231_date()
-            return result
+            return await self._handler(request, response)
         except wsgi_apps.HttpError as exc:
             _setdefaults(exc.headers, self._error_headers)
             if consts.HEADER_DATE not in exc.headers and self._auto_date:

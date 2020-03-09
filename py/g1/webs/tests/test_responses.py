@@ -53,7 +53,7 @@ class DefaultsTest(unittest.TestCase):
 
     @kernels.with_kernel
     def test_defaults(self):
-        self.handler = responses.Defaults(self.noop, [('x', 'y')])
+        self.handler = responses.Defaults([('x', 'y')])
         self.run_handler([])
         self.assert_response(
             consts.Statuses.OK,
@@ -73,7 +73,7 @@ class DefaultsTest(unittest.TestCase):
 
     @kernels.with_kernel
     def test_error_headers(self):
-        self.handler = responses.Defaults(self.not_found, [('x', 'y')])
+        self.handler = responses.ErrorDefaults(self.not_found, [('x', 'y')])
         with self.assertRaises(wsgi_apps.HttpError) as cm:
             self.run_handler([])
         self.assert_http_error(
@@ -99,9 +99,10 @@ class DefaultsTest(unittest.TestCase):
 
     @kernels.with_kernel
     def test_error_contents(self):
-        self.handler = responses.Defaults(
+        self.handler = responses.ErrorDefaults(
             self.not_found,
-            error_contents={consts.Statuses.NOT_FOUND: b'hello world'},
+            (),
+            {consts.Statuses.NOT_FOUND: b'hello world'},
         )
         with self.assertRaises(wsgi_apps.HttpError) as cm:
             self.run_handler([])
@@ -114,11 +115,13 @@ class DefaultsTest(unittest.TestCase):
 
     @kernels.with_kernel
     def test_no_auto_date(self):
-        self.handler = responses.Defaults(self.noop, auto_date=False)
+        self.handler = responses.Defaults((), auto_date=False)
         self.run_handler([])
         self.assert_response(consts.Statuses.OK, {})
 
-        self.handler = responses.Defaults(self.not_found, auto_date=False)
+        self.handler = responses.ErrorDefaults(
+            self.not_found, (), auto_date=False
+        )
         with self.assertRaises(wsgi_apps.HttpError) as cm:
             self.run_handler([])
         self.assert_http_error(cm.exception, consts.Statuses.NOT_FOUND, {})
