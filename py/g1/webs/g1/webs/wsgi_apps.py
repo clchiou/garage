@@ -208,7 +208,11 @@ class _Response:
         """Reset response status, headers, and content."""
         ASSERT.false(self.is_committed())
         self._status = consts.Statuses.OK
-        self.headers.clear()
+        # Don't do `self.headers.clear`, but replace it with a new
+        # headers object instead because application code might still
+        # keep a reference to the old headers object, and clearing it
+        # would cause confusing results.
+        self.headers = self.Headers(self._committed)
         # It's safe to replace ``_content`` because the response is not
         # committed yet, and ``read`` can only be called after commit.
         self._content.close()
