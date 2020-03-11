@@ -311,12 +311,7 @@ class Application:
         if 300 <= exc.status < 400:
             LOG.info('%s %s%s%s -> %d %s %s: %s', *log_args, exc.location, exc)
         else:
-            LOG.warning(
-                '%s %s%s%s -> %d %s context=%r',
-                *log_args,
-                request.context,
-                exc_info=exc,
-            )
+            LOG.warning('%s %s%s%s -> %d %s', *log_args, exc_info=exc)
         response.status = exc.status
         response.headers.update(exc.headers)
         if exc.content:
