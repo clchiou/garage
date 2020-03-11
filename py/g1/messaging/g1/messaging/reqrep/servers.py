@@ -158,9 +158,11 @@ class Server:
         except Exception as exc:
             if type(exc) in self._warning_level_exc_types:  # pylint: disable=unidiomatic-typecheck
                 log = LOG.warning
+                exc_info = False
             else:
                 log = LOG.error
-            log('server error: %r', request, exc_info=True)
+                exc_info = True
+            log('server error: %r -> %r', request, exc, exc_info=exc_info)
             response = self._make_error_response(exc)
             if response is None:
                 return self._internal_server_error_wire
