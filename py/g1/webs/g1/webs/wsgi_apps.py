@@ -30,11 +30,15 @@ class HttpError(Exception):
         ASSERT.in_range(status, (300, 400))
         return cls(status, message, {consts.HEADER_LOCATION: location})
 
+    # The headers argument can be either dict or pairs.  Note that while
+    # HTTP headers can be duplicated, we still use a dict to represent
+    # headers because here we are a producer rather than a parser of
+    # HTTP headers.
     def __init__(self, status, message, headers=None, content=b''):
         super().__init__(message)
         self.status = ASSERT.in_range(_cast_status(status), (300, 600))
         self.headers = ASSERT.predicate(
-            headers if headers is not None else {},
+            dict(headers) if headers is not None else {},
             lambda hdrs: all(
                 isinstance(k, str) and isinstance(v, str)
                 for k, v in hdrs.items()
