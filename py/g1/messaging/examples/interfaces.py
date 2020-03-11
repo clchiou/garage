@@ -1,5 +1,6 @@
 from g1.messaging import reqrep
 from g1.messaging.reqrep import clients
+from g1.messaging.reqrep import inprocs
 from g1.messaging.reqrep import servers
 from g1.messaging.wiredata import jsons
 
@@ -33,6 +34,14 @@ def make_client():
         CalculatorRequest,
         CalculatorResponse,
         jsons.JsonWireData(),
+    )
+
+
+def make_inproc_server():
+    return inprocs.InprocServer(
+        Calculator(),
+        CalculatorRequest,
+        CalculatorResponse,
     )
 
 

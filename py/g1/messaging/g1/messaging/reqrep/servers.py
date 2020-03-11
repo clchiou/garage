@@ -10,7 +10,6 @@ import nng
 import nng.asyncs
 
 from g1.bases import classes
-from g1.bases import typings
 from g1.bases.assertions import ASSERT
 
 from . import utils
@@ -44,24 +43,9 @@ class Server:
         self._response_type = response_type
         self._wiredata = wiredata
         self._warning_level_exc_types = frozenset(warning_level_exc_types)
-        # When there is only one error type, reqrep.make_annotations
-        # would not generate Optional[T].
-        fields = dataclasses.fields(self._response_type.Error)
-        if len(fields) == 1:
-            self._declared_error_types = {
-                ASSERT.issubclass(fields[0].type, Exception): fields[0].name
-            }
-        else:
-            self._declared_error_types = {
-                ASSERT(
-                    typings.is_recursive_type(field.type)
-                    and typings.is_union_type(field.type)
-                    and typings.match_optional_type(field.type),
-                    'expect typing.Optional[T]: {!r}',
-                    field,
-                ): field.name
-                for field in fields
-            }
+        self._declared_error_types = utils.get_declared_error_types(
+            self._response_type
+        )
         self._stack = None
         # For convenience, create socket before ``__enter__``.
         self.socket = nng.asyncs.Socket(nng.Protocols.REP0)
