@@ -309,7 +309,9 @@ class Application:
             return
         log_args += (exc.status.value, exc.status.phrase)
         if 300 <= exc.status < 400:
-            LOG.info('%s %s%s%s -> %d %s %s: %s', *log_args, exc.location, exc)
+            LOG.debug(
+                '%s %s%s%s -> %d %s %s: %s', *log_args, exc.location, exc
+            )
         else:
             LOG.warning('%s %s%s%s -> %d %s', *log_args, exc_info=exc)
         response.status = exc.status
