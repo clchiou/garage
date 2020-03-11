@@ -57,6 +57,6 @@ def _get_var_path(name):
             'capnp',
         ])
         return ASSERT.predicate(
-            Path(proc.stdout.decode('utf8').strip()),
+            Path(proc.stdout.decode('utf-8').strip()),
             Path.is_dir,
         )

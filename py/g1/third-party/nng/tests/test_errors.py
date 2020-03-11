@@ -23,7 +23,7 @@ class NngErrorTest(unittest.TestCase):
                     str(error),
                     '%s: %s' % (
                         errno.name,
-                        _nng.F.nng_strerror(errno).decode('utf8'),
+                        _nng.F.nng_strerror(errno).decode('utf-8'),
                     ),
                 )
 

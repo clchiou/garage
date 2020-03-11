@@ -197,5 +197,5 @@ def generate_exec_wrapper(exec_relpath, wrapper_relpath):
         exec_relpath=exec_relpath,
     )
     with scripts.using_sudo():
-        scripts.write_bytes(wrapper_script.encode('utf8'), wrapper_path)
+        scripts.write_bytes(wrapper_script.encode('utf-8'), wrapper_path)
         scripts.run(['chmod', '0755', wrapper_path])

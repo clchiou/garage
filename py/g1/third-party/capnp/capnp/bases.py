@@ -64,4 +64,4 @@ def def_f0(*funcs):
 
 def to_str(bytes_or_buffer):
     # capnp's text objects are always UTF-8 encoded.
-    return str(bytes_or_buffer, 'utf8')
+    return str(bytes_or_buffer, 'utf-8')

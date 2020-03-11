@@ -38,8 +38,8 @@ def main(argv):
         try:
             with nng.Socket(nng.Protocols.REQ0) as socket:
                 socket.dial(argv[2])
-                socket.send(argv[3].encode('utf8'))
-                print(socket.recv().decode('utf8'))
+                socket.send(argv[3].encode('utf-8'))
+                print(socket.recv().decode('utf-8'))
         except nng.NngError as exc:
             print('request: nng error: %s' % exc)
 

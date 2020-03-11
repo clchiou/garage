@@ -39,13 +39,13 @@ class UnknownError(NngError):
 
     def __str__(self):
         # pylint: disable=unsubscriptable-object
-        return _nng.F.nng_strerror(self.args[0]).decode('utf8')
+        return _nng.F.nng_strerror(self.args[0]).decode('utf-8')
 
 
 def _load_str_error(errno):
     if errno is None:
         raise KeyError(errno)
-    return _nng.F.nng_strerror(errno).decode('utf8')
+    return _nng.F.nng_strerror(errno).decode('utf-8')
 
 
 ERROR_MESSAGES = collections.LoadingDict(_load_str_error)
@@ -61,7 +61,7 @@ def str_error_with_predefined_message(self):
 def str_error(self):
     return '%s: %s' % (
         self.errno.name,
-        _nng.F.nng_strerror(self.args[0]).decode('utf8'),
+        _nng.F.nng_strerror(self.args[0]).decode('utf-8'),
     )
 
 

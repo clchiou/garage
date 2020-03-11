@@ -118,7 +118,7 @@ def get_string(self, *, name, type_name):
     value = ctypes.c_char_p()
     errors.check(getopt(self._handle, name, ctypes.byref(value)))
     try:
-        return value.value.decode('utf8')  # pylint: disable=no-member
+        return value.value.decode('utf-8')  # pylint: disable=no-member
     finally:
         _nng.F.nng_strfree(value)
 

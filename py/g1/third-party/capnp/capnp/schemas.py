@@ -268,7 +268,7 @@ class _Schema:
         @classes.memorizing_property
         def text(self):
             ASSERT.true(self._raw.isText())
-            return str(self._raw.getText(), 'utf8')
+            return str(self._raw.getText(), 'utf-8')
 
     class Annotation(bases.Base):
 

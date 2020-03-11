@@ -307,7 +307,7 @@ def _enum_to_upper(message, value):
 def _text_to_upper(message, value):
     del message  # Unused.
     # Should I return a memory view instead?
-    return str(value.asText(), 'utf8')
+    return str(value.asText(), 'utf-8')
 
 
 def _data_to_upper(message, value):

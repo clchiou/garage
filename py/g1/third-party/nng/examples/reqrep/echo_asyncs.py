@@ -29,8 +29,8 @@ def main(argv):
     async def request():
         with nng.asyncs.Socket(nng.Protocols.REQ0) as socket:
             socket.dial(argv[2])
-            await socket.send(argv[3].encode('utf8'))
-            print((await socket.recv()).decode('utf8'))
+            await socket.send(argv[3].encode('utf-8'))
+            print((await socket.recv()).decode('utf-8'))
 
     target = request if argv[1] == 'client' else serve
     kernels.run(target)

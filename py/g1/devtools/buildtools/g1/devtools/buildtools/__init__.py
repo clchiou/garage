@@ -31,7 +31,7 @@ def read_package_config(packages):
     args = (
         subprocess.run(cmd, check=True, stdout=subprocess.PIPE) \
         .stdout
-        .decode('utf8')
+        .decode('utf-8')
     )
     args = shlex.split(args)
     config = {

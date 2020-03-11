@@ -66,7 +66,7 @@ def _git_get_source(source):
 
 def _git_get_url(source):
     proc = scripts.run(['git', 'remote', '--verbose'])
-    for remote in proc.stdout.decode('utf8').split('\n'):
+    for remote in proc.stdout.decode('utf-8').split('\n'):
         remote = remote.split()
         if remote[0] == 'origin':
             return remote[1]
@@ -80,7 +80,7 @@ def _git_get_revision():
 
 def _git_get_dirty():
     proc = scripts.run(['git', 'status', '--porcelain'])
-    for status in proc.stdout.decode('utf8').split('\n'):
+    for status in proc.stdout.decode('utf-8').split('\n'):
         # Be careful of empty line!
         if status and not status.startswith('  '):
             return True

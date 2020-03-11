@@ -58,7 +58,7 @@ class StringTest(unittest.TestCase):
         self.assertEqual(holder.size(), 0)
 
         data_str = '你好，世界'
-        data = data_str.encode('utf8')
+        data = data_str.encode('utf-8')
         holder.set(data_str)
         self.assertEqual(holder.get(), data)
         self.assertEqual(holder.size(), len(data))
@@ -96,7 +96,7 @@ class StringTest(unittest.TestCase):
     def test_text_reader(self):
         holder = _capnp_test.StringPtrHolder()
         data_str = '你好，世界'
-        data = data_str.encode('utf8')
+        data = data_str.encode('utf-8')
         holder.set(data_str)
         self.assertIsInstance(holder.asReader(), memoryview)
         self.assertEqual(holder.asReader(), data)
@@ -107,7 +107,7 @@ class StringTest(unittest.TestCase):
 
     def test_text_builder(self):
         data_str = '你好，世界'
-        data = data_str.encode('utf8')
+        data = data_str.encode('utf-8')
         builder = _capnp_test.makeTextBuilder(data_str)
         self.assertIsInstance(builder, memoryview)
         self.assertEqual(builder, data)

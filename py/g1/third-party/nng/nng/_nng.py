@@ -494,5 +494,5 @@ F = collections.Namespace(
 
 def ensure_bytes(str_or_bytes):
     if isinstance(str_or_bytes, str):
-        str_or_bytes = str_or_bytes.encode('utf8')
+        str_or_bytes = str_or_bytes.encode('utf-8')
     return str_or_bytes

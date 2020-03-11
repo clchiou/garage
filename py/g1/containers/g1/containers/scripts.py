@@ -99,7 +99,7 @@ def ctr_get_image_rootfs_path(image):
             *('--format', 'csv'),
             *('--columns', 'id,name,version,tags,rootfs'),
         ])
-        for row in csv.reader(proc.stdout.decode('utf8').split('\n')):
+        for row in csv.reader(proc.stdout.decode('utf-8').split('\n')):
             if match(row):
                 return row[4]
     return ASSERT.unreachable('cannot find image: {}', image)
