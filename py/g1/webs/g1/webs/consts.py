@@ -21,6 +21,7 @@ __all__ = [
     'HEADER_ETAG',
     'HEADER_IF_NONE_MATCH',
     'HEADER_LOCATION',
+    'HEADER_RETRY_AFTER',
 ]
 
 # Rename HTTPStatus for consistency.
@@ -43,3 +44,4 @@ HEADER_DATE = 'Date'
 HEADER_ETAG = 'ETag'
 HEADER_IF_NONE_MATCH = 'If-None-Match'
 HEADER_LOCATION = 'Location'
+HEADER_RETRY_AFTER = 'Retry-After'
