@@ -23,6 +23,8 @@ __all__ = [
 
 import logging
 
+from . import tasks
+
 LOG = logging.getLogger(__name__)
 
 
@@ -48,7 +50,14 @@ async def supervise_server(queue, server_tasks):
             exc = task.get_exception_nonblocking()
             if task in server_tasks:
                 if exc:
-                    raise ServerError('server task error: %r' % task) from exc
+                    if isinstance(exc, tasks.Cancelled):
+                        # Log at DEBUG rather than INFO level for the
+                        # same reason below.
+                        LOG.debug('server task is cancelled: %r', task)
+                    else:
+                        raise ServerError(
+                            'server task error: %r' % task
+                        ) from exc
                 else:
                     # Log at DEBUG rather than INFO level because
                     # supervise_server could actually be called in a
@@ -59,6 +68,9 @@ async def supervise_server(queue, server_tasks):
                     break
             else:
                 if exc:
-                    LOG.error('handler task error: %r', task, exc_info=exc)
+                    if isinstance(exc, tasks.Cancelled):
+                        LOG.debug('handler task is cancelled: %r', task)
+                    else:
+                        LOG.error('handler task error: %r', task, exc_info=exc)
                 else:
                     LOG.debug('handler task exit: %r', task)
