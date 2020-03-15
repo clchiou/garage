@@ -11,6 +11,7 @@ import logging
 import lxml.etree
 import requests
 import requests.cookies
+import urllib3.exceptions
 
 from g1.asyncs.bases import adapters
 from g1.asyncs.bases import tasks
@@ -69,11 +70,14 @@ class Sender:
                 LOG.warning('retry %d times: %r', retry_count, request)
             try:
                 return await self._send(request, **kwargs)
-            except requests.RequestException as exc:
+            except (
+                requests.RequestException,
+                urllib3.exceptions.HTTPError,
+            ) as exc:
                 backoff = self._retry(retry_count)
                 if backoff is None:
                     raise
-                if exc.response:
+                if getattr(exc, 'response', None):
                     status_code = exc.response.status_code
                 else:
                     status_code = None
