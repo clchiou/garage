@@ -40,6 +40,7 @@ class FilesTest(unittest.TestCase):
 
     def test_guess_content_type(self):
         for filename, expect in (
+            ('foo.js', 'text/javascript'),
             ('foo.txt', 'text/plain'),
             ('foo.txt.tar', 'application/x-tar'),
             ('foo.txt.tar.gz', 'application/x-tar+gzip'),

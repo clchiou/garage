@@ -61,9 +61,22 @@ def get_local_path(request, local_dir_path):
     return local_path
 
 
+_CONTENT_TYPE_FIXES = {
+    # Although RFC4329 obsoletes text/javascript and recommends
+    # application/javascript (and the stdlib correctly implements the
+    # RFC), the HTML spec still chooses text/javascript (for
+    # compatibility reason).  For more details:
+    # https://html.spec.whatwg.org/multipage/infrastructure.html#dependencies
+    'application/javascript': 'text/javascript',
+}
+
+
 def guess_content_type(filename):
     content_type, file_encoding = mimetypes.guess_type(filename)
     if content_type:
+        fixed_type = _CONTENT_TYPE_FIXES.get(content_type)
+        if fixed_type is not None:
+            content_type = fixed_type
         if file_encoding:
             content_type = '%s+%s' % (content_type, file_encoding)
     else:
