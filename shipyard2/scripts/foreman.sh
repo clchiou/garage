@@ -9,7 +9,7 @@ readonly DEPS=(
   "$(realpath "${HERE}/..")"  # shipyard2.
   "${ROOT}/py/g1/bases"
   "${ROOT}/py/g1/containers"
-  "${ROOT}/py/g1/operations"
+  "${ROOT}/py/g1/operations/cores"
   "${ROOT}/py/g1/scripts"
 )
 for dep in "${DEPS[@]}"; do

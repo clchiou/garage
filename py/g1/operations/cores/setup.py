@@ -3,10 +3,10 @@ from setuptools import setup
 from g1.devtools import buildtools
 
 setup(
-    name='g1.operations',
+    name='g1.operations.cores',
     entry_points={
         'console_scripts': [
-            'ops = g1.operations.apps:run [apps]',
+            'ops = g1.operations.cores.apps:run [apps]',
         ],
     },
     # For now, ops tool only depends on first-party, pure-Python
@@ -14,10 +14,10 @@ setup(
     # future (thus not zipapp-able) and it will be turned into a XAR.
     cmdclass={
         'bdist_zipapp':
-        buildtools.make_bdist_zipapp(main='g1.operations.apps:run'),
+        buildtools.make_bdist_zipapp(main='g1.operations.cores.apps:run'),
     },
     packages=[
-        'g1.operations',
+        'g1.operations.cores',
     ],
     install_requires=[
         'g1.bases',

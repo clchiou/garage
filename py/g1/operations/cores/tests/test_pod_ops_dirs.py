@@ -5,9 +5,9 @@ from pathlib import Path
 
 import g1.files
 from g1.containers import models as ctr_models
-from g1.operations import models
-from g1.operations import pod_ops_dirs
-from g1.operations import tokens
+from g1.operations.cores import models
+from g1.operations.cores import pod_ops_dirs
+from g1.operations.cores import tokens
 from g1.texts import jsons
 
 from tests import fixtures

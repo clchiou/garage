@@ -4,7 +4,7 @@ import unittest.mock
 import tempfile
 from pathlib import Path
 
-from g1.operations import tokens
+from g1.operations.cores import tokens
 
 
 class DefinitionTest(unittest.TestCase):

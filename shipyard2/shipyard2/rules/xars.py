@@ -14,7 +14,7 @@ import foreman
 from g1 import scripts
 from g1.bases.assertions import ASSERT
 from g1.containers import models as ctr_models
-from g1.operations import models as ops_models
+from g1.operations.cores import models as ops_models
 
 import shipyard2
 import shipyard2.rules

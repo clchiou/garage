@@ -3,8 +3,8 @@ import unittest.mock
 
 import g1.files
 from g1.containers import models as ctr_models
-from g1.operations import models
-from g1.operations import xar_ops_dirs
+from g1.operations.cores import models
+from g1.operations.cores import xar_ops_dirs
 from g1.texts import jsons
 
 from tests import fixtures

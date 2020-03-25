@@ -1,7 +1,7 @@
 import unittest
 
 from g1.containers import models as ctr_models
-from g1.operations import models
+from g1.operations.cores import models
 
 
 class ModelsTest(unittest.TestCase):

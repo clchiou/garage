@@ -4,7 +4,7 @@ import unittest.mock
 import tempfile
 from pathlib import Path
 
-from g1.operations import bases
+from g1.operations.cores import bases
 
 
 class TestCaseBase(unittest.TestCase):
@@ -23,7 +23,7 @@ class TestCaseBase(unittest.TestCase):
         self.test_bundle_dir_path.mkdir()
         self.test_ops_dir_path = test_dir_path / 'ops-dir'
         self.test_ops_dir_path.mkdir()
-        unittest.mock.patch('g1.operations.bases._chown').start()
+        unittest.mock.patch('g1.operations.cores.bases._chown').start()
 
     def tearDown(self):
         self._test_dir_tempdir.cleanup()

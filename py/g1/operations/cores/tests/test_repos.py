@@ -6,8 +6,8 @@ from pathlib import Path
 import g1.files
 from g1.bases.assertions import ASSERT
 from g1.files import locks
-from g1.operations import models
-from g1.operations import repos
+from g1.operations.cores import models
+from g1.operations.cores import repos
 from g1.texts import jsons
 
 try:

@@ -2,7 +2,7 @@ import logging
 
 import foreman
 
-from g1.operations import models as ops_models
+from g1.operations.cores import models as ops_models
 
 logging.getLogger(__name__).addHandler(logging.NullHandler())
 
