@@ -636,10 +636,11 @@ def refetch_all(args):
     Use this to work around the known issue that `rkt image gc` also
     collects still-in-use images.
     """
-    scripts.execute([
-        'rkt', 'fetch',
-        'coreos.com/rkt/stage1-coreos:' + deps.PACKAGES['rkt'].version,
-    ])
+    # Sadly, the rkt projects has been terminated.
+    #scripts.execute([
+    #    'rkt', 'fetch',
+    #    'coreos.com/rkt/stage1-coreos:' + deps.PACKAGES['rkt'].version,
+    #])
     repo = repos.Repo(args.root)
     image_ids = _list_image_ids()
     for pod_dir_name in repo.get_pod_dir_names():
