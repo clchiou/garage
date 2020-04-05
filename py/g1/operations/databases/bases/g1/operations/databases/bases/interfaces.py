@@ -491,8 +491,14 @@ DatabaseRequest, DatabaseResponse = reqrep.generate_interface_types(
 @dataclasses.dataclass(frozen=True)
 class DatabaseEvent:
     """Event of a key space change."""
-    previous: typing.Optional[KeyValue]
-    current: typing.Optional[KeyValue]
+
+    __module__ = 'g1.operations.databases'
+
+    # Although these fields are None-able, we strip off typing.Optional
+    # annotation from them because our capnp converter does not support
+    # typing.Union nor typing.Optional.
+    previous: KeyValue
+    current: KeyValue
 
     def __post_init__(self):
         ASSERT.any((self.previous is not None, self.current is not None))

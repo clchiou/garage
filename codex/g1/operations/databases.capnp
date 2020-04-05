@@ -211,3 +211,8 @@ struct DatabaseResponse {
     error @1 :Error;
   }
 }
+
+struct DatabaseEvent {
+  previous @0 :KeyValue;
+  current @1 :KeyValue;
+}
