@@ -1,0 +1,90 @@
+#!/usr/bin/env python3
+
+import pprint
+
+try:
+    import capnp
+except ImportError:
+    capnp = None
+
+from startup import startup
+
+import g1.messaging.parts.subscribers
+from g1.apps import asyncs
+from g1.asyncs import kernels
+from g1.asyncs.bases import queues
+from g1.bases import datetimes
+from g1.bases import labels
+from g1.bases.assertions import ASSERT
+from g1.messaging.pubsub import subscribers
+from g1.messaging.wiredata import jsons
+
+try:
+    from g1.messaging.wiredata import capnps
+except ImportError:
+    capnps = None
+
+LABELS = g1.messaging.parts.subscribers.define_subscriber()
+
+
+@startup
+def add_arguments(parser: asyncs.LABELS.parser) -> asyncs.LABELS.parse:
+    if capnp and capnps:
+        parser.add_argument(
+            '--format',
+            default='json',
+            choices=('json', 'binary', 'packed'),
+            help='select packet format (default: %(default)s)',
+        )
+        parser.add_argument(
+            '--schema',
+            action='append',
+            help='add schema file path',
+        )
+    parser.add_argument('message_type', help='set label to message type')
+
+
+@startup
+def make_subscriber(args: asyncs.LABELS.args) -> (LABELS.subscriber, 'queue'):
+    message_type = labels.load_global(args.message_type)
+    queue = queues.Queue()
+    if capnp and capnps and args.format != 'json':
+        loader = capnp.SchemaLoader()
+        for schema_path in args.schema or ():
+            with open(schema_path, 'rb') as schema_file:
+                loader.load_once(schema_file.read())
+        if args.format == 'binary':
+            wiredata = capnps.CapnpWireData(loader)
+        else:
+            ASSERT.equal(args.format, 'packed')
+            wiredata = capnps.CapnpPackedWireData(loader)
+    else:
+        wiredata = jsons.JsonWireData()
+    return subscribers.Subscriber(message_type, queue, wiredata), queue
+
+
+@startup
+def make_agent(
+    agent_queue: g1.asyncs.agents.parts.LABELS.agent_queue,
+    queue: 'queue',
+):
+    agent_queue.spawn(print_messages(queue))
+
+
+async def print_messages(queue):
+    try:
+        while True:
+            message = await queue.get()
+            print(datetimes.utcnow().isoformat(), pprint.pformat(message))
+    except queues.Closed:
+        pass
+
+
+def main(supervise_agents: g1.asyncs.agents.parts.LABELS.supervise_agents):
+    """Generic subscriber."""
+    kernels.run(supervise_agents)
+    return 0
+
+
+if __name__ == '__main__':
+    asyncs.run(main)

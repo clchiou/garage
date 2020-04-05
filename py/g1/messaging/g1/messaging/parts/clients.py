@@ -4,9 +4,9 @@ from g1.apps import asyncs
 from g1.apps import parameters
 from g1.apps import utils
 from g1.bases import labels
-from g1.bases import times
 
 from ..reqrep import clients
+from . import utils as parts_utils
 
 CLIENT_LABEL_NAMES = (
     # Input.
@@ -66,18 +66,12 @@ def configure_client(
 ):
     exit_stack.enter_context(client)
     if params.send_timeout.get() is not None:
-        client.socket.send_timeout = _to_milliseconds_int(
+        client.socket.send_timeout = parts_utils.to_milliseconds_int(
             params.send_timeout.get()
         )
     if params.recv_timeout.get() is not None:
-        client.socket.recv_timeout = _to_milliseconds_int(
+        client.socket.recv_timeout = parts_utils.to_milliseconds_int(
             params.recv_timeout.get()
         )
     for url in params.urls.get():
         client.socket.dial(url)
-
-
-def _to_milliseconds_int(seconds):
-    return int(
-        times.convert(times.Units.SECONDS, times.Units.MILLISECONDS, seconds)
-    )

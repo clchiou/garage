@@ -12,10 +12,24 @@ shipyard2.rules.pythons.define_package(
             ],
         ),
         (
+            'parts/pubsub',
+            [
+                '//py/g1/apps:build/asyncs',
+                '//py/g1/asyncs/agents:build/parts',
+            ],
+        ),
+        (
             'parts/servers',
             [
                 '//py/g1/apps:build/asyncs',
                 '//py/g1/asyncs/agents:build/parts',
+            ],
+        ),
+        (
+            'pubsub',
+            [
+                '//py/g1/asyncs/bases:build',
+                '//py/g1/third-party/nng:build/asyncs',
             ],
         ),
         (

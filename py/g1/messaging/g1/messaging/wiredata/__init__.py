@@ -12,6 +12,9 @@ __all__ = [
 ]
 
 import dataclasses
+import logging
+
+logging.getLogger(__name__).addHandler(logging.NullHandler())
 
 
 class WireData:
