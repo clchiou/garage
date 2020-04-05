@@ -14,6 +14,7 @@ __all__ = [
     'JsonWireData',
 ]
 
+import base64
 import dataclasses
 import datetime
 import enum
@@ -139,6 +140,11 @@ class JsonWireData(wiredata.WireData):
             ASSERT.issubclass(value_type, enum.Enum)
             return value.name
 
+        # JSON does not support binary type; so it has to be encoded.
+        elif isinstance(value, bytes):
+            ASSERT.issubclass(value_type, bytes)
+            return base64.standard_b64encode(value).decode('ascii')
+
         elif isinstance(value, Exception):
             ASSERT.issubclass(value_type, Exception)
             return {
@@ -235,6 +241,9 @@ class JsonWireData(wiredata.WireData):
 
         elif issubclass(value_type, enum.Enum):
             return value_type[raw_value]
+
+        elif issubclass(value_type, bytes):
+            return base64.standard_b64decode(raw_value.encode('ascii'))
 
         elif issubclass(value_type, Exception):
             ASSERT.equal(len(raw_value), 1)

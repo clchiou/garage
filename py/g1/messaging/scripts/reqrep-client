@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import base64
 import dataclasses
 import json
 import pprint
@@ -112,18 +113,29 @@ def main(args: asyncs.LABELS.args):
 
 IDENTIFIER_PATTERN = re.compile(r'[a-zA-Z_]\w*')
 
+# For now we do not support escaping quotation "\"" inside the string.
+BINARY_STRING = re.compile(r'b"[^"]*"')
+
 
 def parse_args_list(args_list):
     kwargs = {}
     for arg_str in args_list:
         name, value = arg_str.split('=', maxsplit=1)
         # Make a special case for identifier-kind of strings.
-        if not IDENTIFIER_PATTERN.fullmatch(value):
-            value = json.loads(value)
+        if IDENTIFIER_PATTERN.fullmatch(value):
+            pass
+        elif BINARY_STRING.fullmatch(value):
+            # Assume it can be encoded in UTF-8 for now.
+            value = (
+                base64.standard_b64encode(value[2:-1].encode('utf-8'))\
+                .decode('ascii')
+            )
         elif value == 'true':
             value = True
         elif value == 'false':
             value = False
+        else:
+            value = json.loads(value)
         kwargs[name] = value
     return kwargs
 

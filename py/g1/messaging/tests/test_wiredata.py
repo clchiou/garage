@@ -35,6 +35,7 @@ class IntSubType(int):
 class TestType:
     n: type(None)
     x: int
+    b: bytes
     dt: datetime.datetime
     sub_obj: SubType
     en: TestEnum
@@ -52,6 +53,7 @@ class JsonWireDataTest(unittest.TestCase):
     test_obj = TestType(
         n=None,
         x=1,
+        b=b'hello world',
         dt=datetime.datetime(
             2000, 1, 2, 3, 4, 5, 6, tzinfo=datetime.timezone.utc
         ),
@@ -72,6 +74,9 @@ class JsonWireDataTest(unittest.TestCase):
         # int
         'x':
         1,
+        # bytes (BASE-64 encoded)
+        'b':
+        'aGVsbG8gd29ybGQ=',
         # datetime
         'dt':
         '2000-01-02T03:04:05.000006+00:00',
