@@ -4,6 +4,7 @@ __all__ = [
     'OptionsBase',
     'make',
     'getopt_string',
+    'setopt_opaque',
     'setopt_string',
 ]
 
@@ -135,3 +136,9 @@ def getopt_string(self, name):
 
 def setopt_string(self, name, value):
     return set_string(self, name=name, value=value, type_name='string')
+
+
+def setopt_opaque(self, name, value):
+    ASSERT.isinstance(value, bytes)
+    setopt = _nng.F[self._setopt_prefix]
+    errors.check(setopt(self._handle, name, value, len(value)))

@@ -57,10 +57,10 @@ class OptionsTest(unittest.TestCase):
                     self.assert_prop(socket, name)
 
         with nng.Socket(nng.Protocols.SUB0) as socket:
-            socket.subscribe('topic-1')
-            socket.unsubscribe('topic-1')
+            socket.subscribe(b'topic-1')
+            socket.unsubscribe(b'topic-1')
             with self.assertRaises(nng.Errors.ENOENT):
-                socket.unsubscribe('topic-2')
+                socket.unsubscribe(b'topic-2')
 
     def test_context_options(self):
 
@@ -86,10 +86,10 @@ class OptionsTest(unittest.TestCase):
 
         with nng.Socket(nng.Protocols.SUB0) as socket:
             with nng.Context(socket) as context:
-                context.subscribe('topic-1')
-                context.unsubscribe('topic-1')
+                context.subscribe(b'topic-1')
+                context.unsubscribe(b'topic-1')
                 with self.assertRaises(nng.Errors.ENOENT):
-                    context.unsubscribe('topic-2')
+                    context.unsubscribe(b'topic-2')
 
     def test_inproc_options(self):
         with nng.Socket(nng.Protocols.REP0) as socket:

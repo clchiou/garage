@@ -55,12 +55,12 @@ class ContextOptions(options.OptionsBase):
     # Protocol "pubsub0" options.
 
     def subscribe(self, topic):
-        options.setopt_string(
+        options.setopt_opaque(
             self, _nng.Options.NNG_OPT_SUB_SUBSCRIBE[0], topic
         )
 
     def unsubscribe(self, topic):
-        options.setopt_string(
+        options.setopt_opaque(
             self, _nng.Options.NNG_OPT_SUB_UNSUBSCRIBE[0], topic
         )
 
