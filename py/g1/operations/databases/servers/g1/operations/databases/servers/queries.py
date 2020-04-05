@@ -270,7 +270,14 @@ def lease_scan_expired(tables, *, current_time):
         tables.leases_key_ids.c.key_id == tables.keyspace.c.key_id,
     )
     return select(
-        [tables.keyspace.c.key_id, tables.keyspace.c.key],
+        [
+            tables.keyspace.c.revision,
+            tables.keyspace.c.key,
+            tables.keyspace.c.value,
+            tables.keyspace.c.key_id,
+            # Put key_id at last so that the column order is compatible
+            # with _make_pair.
+        ],
         distinct=True,
     ).select_from(joined)
 

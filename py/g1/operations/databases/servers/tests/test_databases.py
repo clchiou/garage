@@ -686,9 +686,10 @@ class DatabasesTest(unittest.TestCase):
             sorted(
                 databases.lease_expire(
                     self.engine, self.tables, current_time=10004
-                )
+                ),
+                key=lambda kv: kv.revision,
             ),
-            [b'k%d' % i for i in range(1, 6 + 1)],
+            [kv(i, b'k%d' % i, b'x') for i in range(1, 6 + 1)],
         )
         assert_after_expire()
         self.assertEqual(

@@ -35,6 +35,14 @@ def with_kernel(test_method):
     return wrapper
 
 
+def de(p, c):
+    return interfaces.DatabaseEvent(previous=p, current=c)
+
+
+def kv(r, k, v):
+    return interfaces.KeyValue(revision=r, key=k, value=v)
+
+
 class ServersTest(unittest.TestCase):
 
     def setUp(self):
@@ -54,16 +62,26 @@ class ServersTest(unittest.TestCase):
         self.mock_time = mock_time.time
         self.mock_time.return_value = 0
         self.engine = sqlite.create_engine('sqlite://')
-        self.server = servers.DatabaseServer(self.engine)
+        self.publisher = unittest.mock.Mock()
+        self.server = servers.DatabaseServer(self.engine, self.publisher)
 
     def tearDown(self):
         unittest.mock.patch.stopall()
         super().tearDown()
 
+    def assert_publish(self, events):
+        if not events:
+            self.publisher.publish_nonblocking.assert_not_called()
+        else:
+            self.publisher.publish_nonblocking.assert_has_calls([
+                unittest.mock.call(event) for event in events
+            ])
+
     @synchronous
     async def test_no_transaction(self):
         self.assertEqual(await self.server.get_revision(), 0)
         self.assertIsNone(await self.server.get(key=b'k1'))
+        self.assert_publish([])
 
         self.assertIsNone(await self.server.set(key=b'k1', value=b'v1'))
         self.assertEqual(await self.server.get_revision(), 1)
@@ -71,6 +89,7 @@ class ServersTest(unittest.TestCase):
             await self.server.get(key=b'k1'),
             interfaces.KeyValue(revision=1, key=b'k1', value=b'v1'),
         )
+        self.assert_publish([de(None, kv(1, b'k1', b'v1'))])
 
         self.assertEqual(
             await self.server.set(key=b'k1', value=b'v2'),
@@ -81,6 +100,10 @@ class ServersTest(unittest.TestCase):
             await self.server.get(key=b'k1'),
             interfaces.KeyValue(revision=2, key=b'k1', value=b'v2'),
         )
+        self.assert_publish([
+            de(None, kv(1, b'k1', b'v1')),
+            de(kv(1, b'k1', b'v1'), kv(2, b'k1', b'v2')),
+        ])
 
         self.assertEqual(
             await self.server.delete(),
@@ -88,6 +111,11 @@ class ServersTest(unittest.TestCase):
         )
         self.assertEqual(await self.server.get_revision(), 3)
         self.assertIsNone(await self.server.get(key=b'k1'))
+        self.assert_publish([
+            de(None, kv(1, b'k1', b'v1')),
+            de(kv(1, b'k1', b'v1'), kv(2, b'k1', b'v2')),
+            de(kv(2, b'k1', b'v2'), None),
+        ])
 
     @synchronous
     async def test_transaction(self):
@@ -104,7 +132,9 @@ class ServersTest(unittest.TestCase):
             await self.server.get(key=b'k1', transaction=1),
             interfaces.KeyValue(revision=1, key=b'k1', value=b'v1'),
         )
+        self.assert_publish([])
         await self.server.commit(transaction=1)
+        self.assert_publish([de(None, kv(1, b'k1', b'v1'))])
 
         self.assertEqual(await self.server.get_revision(), 1)
         self.assertEqual(
@@ -112,6 +142,7 @@ class ServersTest(unittest.TestCase):
             interfaces.KeyValue(revision=1, key=b'k1', value=b'v1'),
         )
 
+        self.publisher.publish_nonblocking.reset_mock()
         await self.server.begin(transaction=2)
         self.assertEqual(await self.server.get_revision(transaction=2), 1)
         self.assertEqual(self.server._tx_revision, 1)
@@ -126,6 +157,7 @@ class ServersTest(unittest.TestCase):
             interfaces.KeyValue(revision=2, key=b'k1', value=b'v2'),
         )
         await self.server.rollback(transaction=2)
+        self.publisher.publish_nonblocking.assert_not_called()
 
         self.assertEqual(await self.server.get_revision(), 1)
         self.assertEqual(
@@ -171,6 +203,7 @@ class ServersTest(unittest.TestCase):
         self.assertEqual(kernels.run(self.server.get_revision()), 2)
         self.assertIsNone(kernels.run(self.server.get(key=b'k1')))
         self.assertIsNone(kernels.run(self.server.lease_get(lease=1)))
+        self.assert_publish([de(None, kv(1, b'k1', b'v1'))])
 
         self.server.shutdown()
         kernels.run(timeout=0.01)

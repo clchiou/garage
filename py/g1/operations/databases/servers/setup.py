@@ -23,8 +23,9 @@ setup(
         'parts': [
             'g1.apps',
             'g1.asyncs.agents[parts]',
+            'g1.asyncs.bases',
             'g1.databases[parts]',
-            'g1.messaging[parts.servers,reqrep]',
+            'g1.messaging[parts.pubsub,parts.servers,pubsub,reqrep]',
             'g1.operations.databases.bases[capnps]',
         ],
     },

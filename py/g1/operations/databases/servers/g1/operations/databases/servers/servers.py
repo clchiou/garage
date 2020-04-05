@@ -2,6 +2,7 @@ __all__ = [
     'DatabaseServer',
 ]
 
+import collections
 import functools
 import logging
 import time
@@ -10,6 +11,7 @@ import sqlalchemy
 
 from g1.asyncs.bases import tasks
 from g1.asyncs.bases import timers
+from g1.bases.assertions import ASSERT
 from g1.operations.databases.bases import interfaces
 
 from . import connections
@@ -66,7 +68,7 @@ async def _sleep(amount, result):
 
 class DatabaseServer(interfaces.DatabaseInterface):
 
-    def __init__(self, engine):
+    def __init__(self, engine, publisher):
         self._engine = engine
         self._manager = connections.ConnectionManager(self._engine.connect())
         self._metadata = sqlalchemy.MetaData()
@@ -77,6 +79,9 @@ class DatabaseServer(interfaces.DatabaseInterface):
         # to prevent deadlocks due to client crashes.
         self._timer_queue = tasks.CompletionQueue()
         self._tx_expiration = time.monotonic()
+        # For publishing database events.
+        self._publisher = publisher
+        self._pending_events = collections.deque()
 
     async def serve(self):
         async for timer_task in self._timer_queue:
@@ -115,10 +120,12 @@ class DatabaseServer(interfaces.DatabaseInterface):
     def _rollback(self, transaction):
         self._manager.rollback(transaction)
         self._tx_revision = None
+        self._pending_events.clear()
 
     def _rollback_due_to_timeout(self):
         self._manager.rollback_due_to_timeout()
         self._tx_revision = None
+        self._pending_events.clear()
 
     async def commit(self, *, transaction):
         async with self._manager.writing(transaction) as conn:
@@ -127,6 +134,11 @@ class DatabaseServer(interfaces.DatabaseInterface):
             )
         self._manager.commit(transaction)
         self._tx_revision = None
+        try:
+            for event in self._pending_events:
+                self._publisher.publish_nonblocking(event)
+        finally:
+            self._pending_events.clear()
 
     def _update_tx_expiration(self):
         if self._manager.tx_id == 0:
@@ -157,8 +169,48 @@ class DatabaseServer(interfaces.DatabaseInterface):
     count = _make_reader(databases.count)
     scan_keys = _make_reader(databases.scan_keys)
     scan = _make_reader(databases.scan)
-    set = _make_writer(databases.set, need_tx_revision=True)
-    delete = _make_writer(databases.delete, need_tx_revision=True)
+    _set = _make_writer(databases.set, need_tx_revision=True)
+    _delete = _make_writer(databases.delete, need_tx_revision=True)
+
+    async def set(self, *, key, value, transaction=0):
+        prior = await self._set(key=key, value=value, transaction=transaction)
+        if transaction != 0:
+            revision = ASSERT.not_none(self._tx_revision) + 1
+        else:
+            ASSERT.equal(self._manager.tx_id, 0)
+            async with self._manager.reading() as conn:
+                revision = databases.get_revision(conn, self._tables)
+        self._maybe_publish_events(
+            transaction,
+            [
+                interfaces.DatabaseEvent(
+                    previous=prior,
+                    current=interfaces.
+                    KeyValue(revision=revision, key=key, value=value),
+                ),
+            ],
+        )
+        return prior
+
+    async def delete(self, *, key_start=b'', key_end=b'', transaction=0):
+        prior = await self._delete(
+            key_start=key_start, key_end=key_end, transaction=transaction
+        )
+        self._maybe_publish_events(
+            transaction,
+            (
+                interfaces.DatabaseEvent(previous=previous, current=None)
+                for previous in prior
+            ),
+        )
+        return prior
+
+    def _maybe_publish_events(self, transaction, events):
+        if transaction == 0:
+            for event in events:
+                self._publisher.publish_nonblocking(event)
+        else:
+            self._pending_events.extend(events)
 
     #
     # Leases.
@@ -180,15 +232,23 @@ class DatabaseServer(interfaces.DatabaseInterface):
         return result
 
     async def _lease_expire(self):
+        prior = ()
         try:
             async with self._manager.transacting() as conn:
-                keys = databases.lease_expire(
+                prior = databases.lease_expire(
                     conn, self._tables, current_time=time.time()
                 )
-                if keys:
-                    LOG.info('expire keys: %r', keys)
         except interfaces.TransactionTimeoutError:
             LOG.warning('lease_expire: timeout on beginning transaction')
+        if prior:
+            LOG.info('expire %d pairs', len(prior))
+            self._maybe_publish_events(
+                0,
+                (
+                    interfaces.DatabaseEvent(previous=previous, current=None)
+                    for previous in prior
+                ),
+            )
 
     #
     # Maintenance.

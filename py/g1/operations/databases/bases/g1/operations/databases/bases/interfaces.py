@@ -1,6 +1,6 @@
 __all__ = [
     'DATABASE_PORT',
-    'DATABASE_WATCH_PORT',
+    'DATABASE_PUBLISHER_PORT',
     # Database interface.
     'DatabaseInterface',
     'DatabaseRequest',
@@ -41,7 +41,7 @@ from g1.bases.assertions import ASSERT
 from g1.messaging import reqrep
 
 DATABASE_PORT = 2390
-DATABASE_WATCH_PORT = 2391
+DATABASE_PUBLISHER_PORT = 2391
 
 # Type aliases.  Integers are 64-bit.
 Revision = int

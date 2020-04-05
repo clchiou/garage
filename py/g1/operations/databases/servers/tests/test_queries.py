@@ -425,8 +425,10 @@ class QueriesTest(unittest.TestCase):
             queries.lease_scan_expired(self.tables, current_time=1),
             r'''
             SELECT DISTINCT
-                keyspace.key_id,
-                keyspace.key
+                keyspace.revision,
+                keyspace.key,
+                keyspace.value,
+                keyspace.key_id
             FROM
                 \(SELECT
                     leases.lease AS lease

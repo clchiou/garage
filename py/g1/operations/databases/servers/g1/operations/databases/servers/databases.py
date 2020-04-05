@@ -112,7 +112,7 @@ def delete(conn, tables, *, tx_revision=None, **kwargs):
         return prior  # `delete` is idempotent.
     revision = _handle_tx_revision(conn, tables, tx_revision)
     _execute(conn, queries.delete_key_ids(tables, key_ids=key_ids))
-    _record_deletions(conn, tables, revision, [pair.key for pair in prior])
+    _record_deletions(conn, tables, revision, (pair.key for pair in prior))
     _execute(conn, queries.lease_delete_key_ids(tables, key_ids=key_ids))
     return prior
 
@@ -197,23 +197,23 @@ def lease_dissociate(conn, tables, *, lease, key):
 
 
 def lease_expire(conn, tables, *, tx_revision=None, **kwargs):
+    prior = []
     key_ids = []
-    keys = []
     with _executing(
         conn,
         queries.lease_scan_expired(tables, **kwargs),
     ) as result:
         for row in result:
-            key_ids.append(row[0])
-            keys.append(row[1])
+            prior.append(_make_pair(row))
+            key_ids.append(row[-1])
     if not key_ids:
         return []
     revision = _handle_tx_revision(conn, tables, tx_revision)
     _execute(conn, queries.delete_key_ids(tables, key_ids=key_ids))
-    _record_deletions(conn, tables, revision, keys)
+    _record_deletions(conn, tables, revision, (pair.key for pair in prior))
     _execute(conn, queries.lease_delete_expired(tables, **kwargs))
     _execute(conn, queries.lease_delete_key_ids(tables, key_ids=key_ids))
-    return keys
+    return prior
 
 
 def lease_revoke(conn, tables, **kwargs):
