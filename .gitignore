@@ -1,3 +1,6 @@
+# Cap'n Proto.
+*.schema
+
 # Java.
 .idea
 .gradle
