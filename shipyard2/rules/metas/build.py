@@ -21,6 +21,7 @@ import foreman
  .depend('//py/g1/operations/databases/bases:build')
  .depend('//py/g1/operations/databases/clients:build')
  .depend('//py/g1/operations/databases/servers:build')
+ .depend('//py/g1/operations/databases/subscribers:build')
  .depend('//py/g1/scripts:build')
  .depend('//py/g1/texts:build')
  .depend('//py/g1/third-party/capnp:build')
