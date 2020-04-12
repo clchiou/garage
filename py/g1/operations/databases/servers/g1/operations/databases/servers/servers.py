@@ -174,22 +174,23 @@ class DatabaseServer(interfaces.DatabaseInterface):
 
     async def set(self, *, key, value, transaction=0):
         prior = await self._set(key=key, value=value, transaction=transaction)
-        if transaction != 0:
-            revision = ASSERT.not_none(self._tx_revision) + 1
-        else:
-            ASSERT.equal(self._manager.tx_id, 0)
-            async with self._manager.reading() as conn:
-                revision = databases.get_revision(conn, self._tables)
-        self._maybe_publish_events(
-            transaction,
-            [
-                interfaces.DatabaseEvent(
-                    previous=prior,
-                    current=interfaces.
-                    KeyValue(revision=revision, key=key, value=value),
-                ),
-            ],
-        )
+        if prior is None or prior.value != value:
+            if transaction != 0:
+                revision = ASSERT.not_none(self._tx_revision) + 1
+            else:
+                ASSERT.equal(self._manager.tx_id, 0)
+                async with self._manager.reading() as conn:
+                    revision = databases.get_revision(conn, self._tables)
+            self._maybe_publish_events(
+                transaction,
+                [
+                    interfaces.DatabaseEvent(
+                        previous=prior,
+                        current=interfaces.
+                        KeyValue(revision=revision, key=key, value=value),
+                    ),
+                ],
+            )
         return prior
 
     async def delete(self, *, key_start=b'', key_end=b'', transaction=0):

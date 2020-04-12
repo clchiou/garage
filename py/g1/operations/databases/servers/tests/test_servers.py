@@ -209,6 +209,23 @@ class ServersTest(unittest.TestCase):
         kernels.run(timeout=0.01)
         self.assertIsNone(server_task.get_result_nonblocking())
 
+    @synchronous
+    async def test_set_not_publish(self):
+        self.assertIsNone(await self.server.set(key=b'k1', value=b'v1'))
+        self.publisher.publish_nonblocking.assert_called_once_with(
+            interfaces.DatabaseEvent(
+                previous=None,
+                current=kv(1, b'k1', b'v1'),
+            ),
+        )
+        self.publisher.publish_nonblocking.reset_mock()
+
+        self.assertEqual(
+            await self.server.set(key=b'k1', value=b'v1'),
+            kv(1, b'k1', b'v1'),
+        )
+        self.publisher.publish_nonblocking.assert_not_called()
+
 
 if __name__ == '__main__':
     unittest.main()
