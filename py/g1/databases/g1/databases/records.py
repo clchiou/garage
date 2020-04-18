@@ -142,6 +142,12 @@ class RecordsSchema:
     def make_insert_statement(self):
         return self.table.insert()  # pylint: disable=no-value-for-parameter
 
+    def make_delete_statement(self, make_where_clause=None):
+        return self._maybe_add_where_clause(
+            self.table.delete(),  # pylint: disable=no-value-for-parameter
+            make_where_clause,
+        )
+
     def make_record(self, keys, values):
         ASSERT.equal(len(keys), len(self.key_columns))
         ASSERT.equal(len(values), len(self.value_columns))
@@ -275,6 +281,11 @@ class Records(collections.abc.Collection):
             self._schema.make_insert_statement(),
             [self._schema.make_record((), record) for record in records],
         )
+
+    def delete(self, make_where_clause=None):
+        # This works in both keyed and keyless schema.
+        with self._engine.connect() as conn:
+            conn.execute(self._schema.make_delete_statement(make_where_clause))
 
 
 def _execute(engine, statement, arg):

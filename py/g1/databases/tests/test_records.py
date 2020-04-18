@@ -197,6 +197,19 @@ class RecordsSchemaTest(unittest.TestCase):
             r'VALUES \(:value1, :value2\)'
         )
 
+    def test_make_delete_statement(self):
+        for schema in (self.make_keyed_schema(), self.make_keyless_schema()):
+            with self.subTest(schema.is_keyed()):
+                self.assert_query_regex(
+                    schema.make_delete_statement(),
+                    r'DELETE FROM test',
+                )
+                self.assert_query_regex(
+                    schema.make_delete_statement(lambda cs: cs.value1 == 1),
+                    r'DELETE FROM test '
+                    r'WHERE test.value1 = :\w+',
+                )
+
     def test_make_record(self):
         schema = self.make_keyed_schema()
         self.assertEqual(
@@ -325,6 +338,8 @@ class RecordsTest(unittest.TestCase):
                 (5, 6): ('a', 'b'),
             },
         )
+        rs.delete(lambda cs: cs.key1 < 4)
+        self.assert_keyed(rs, {(5, 6): ('a', 'b')})
 
         for func, args in (
             (rs.append, (('x', 'y'), )),
@@ -364,6 +379,8 @@ class RecordsTest(unittest.TestCase):
             sorted(rs.search_values(lambda cs: cs.value1 == 'spam')),
             [('spam', 'egg')],
         )
+        rs.delete(lambda cs: cs.value1 == 'spam')
+        self.assert_keyless(rs, [('hello', 'world')])
 
         for method, args in (
             (rs.__contains__, (1, )),
