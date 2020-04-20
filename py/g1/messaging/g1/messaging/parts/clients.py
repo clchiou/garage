@@ -37,7 +37,7 @@ def setup_client(module_labels, module_params):
     )
 
 
-def make_client_params(urls=None, send_timeout=None, recv_timeout=None):
+def make_client_params(urls=None, send_timeout=2, recv_timeout=4):
     return parameters.Namespace(
         'configure messaging client',
         urls=parameters.make_parameter(
