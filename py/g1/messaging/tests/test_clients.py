@@ -73,6 +73,25 @@ class ClientTest(unittest.TestCase):
                 self.assertEqual(task.get_result_nonblocking(), 'hello world')
 
     @kernels.with_kernel
+    def test_timeout(self):
+        with clients.Client(Request, Response, WIRE_DATA) as client:
+            client.socket.send_timeout = 1  # Unit: milliseconds.
+            client.socket.dial('inproc://%s' % uuid.uuid4())
+
+            task = tasks.spawn(client.m.greet(name='world'))
+            kernels.run(timeout=0.01)
+            self.assertTrue(task.is_completed())
+            with self.assertRaises(clients.ServerTimeoutError):
+                task.get_result_nonblocking()
+
+            task = tasks.spawn(
+                client.m.greet.on_timeout_return(42)(name='world')
+            )
+            kernels.run(timeout=0.01)
+            self.assertTrue(task.is_completed())
+            self.assertEqual(task.get_result_nonblocking(), 42)
+
+    @kernels.with_kernel
     def test_error(self):
         with clients.Client(Request, Response, WIRE_DATA) as client:
             with nng.Socket(nng.Protocols.REP0) as socket:
