@@ -1,0 +1,5 @@
+//
+// Settings script for configuring the build.
+//
+
+rootProject.name = 'g1'

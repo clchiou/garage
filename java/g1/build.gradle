@@ -1,0 +1,32 @@
+//
+// Build script for configuring the projects.
+//
+
+plugins {
+    id 'com.github.johnrengelman.shadow' version '5.2.0'
+    id 'java'
+    id 'java-library'
+}
+
+subprojects {
+    ext {
+    }
+
+    // TODO: Java 8 is LTS.  The next LTS is Java 11, and the next next
+    // LTS is Java 17 (to be released).  Consider upgrading to Java 17.
+    sourceCompatibility = '1.8'
+    targetCompatibility = '1.8'
+
+    repositories {
+        jcenter()
+    }
+
+    shadowJar {
+        // Don't know what are these - just remove them.
+        exclude 'META-INF/maven/**'
+        exclude 'OSGI-OPT/**'
+    }
+}
+
+// For now the root project is empty.
+shadowJar.enabled = false
