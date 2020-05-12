@@ -11,6 +11,8 @@ plugins {
 subprojects {
     ext {
         args4jVersion = '2.33'
+        // TODO: Upgrading to 2.0.0 when it is out of the alpha state.
+        slf4jVersion = '2.0.0-alpha1'
     }
 
     // TODO: Java 8 is LTS.  The next LTS is Java 11, and the next next
