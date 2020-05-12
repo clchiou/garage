@@ -3,3 +3,5 @@
 //
 
 rootProject.name = 'g1'
+include ':base'
+include ':example'

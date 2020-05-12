@@ -1,0 +1,5 @@
+apply plugin: 'java-library'
+
+dependencies {
+    implementation "args4j:args4j:${project.ext.args4jVersion}"
+}
