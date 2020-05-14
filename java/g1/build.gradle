@@ -11,8 +11,13 @@ plugins {
 subprojects {
     ext {
         args4jVersion = '2.33'
+        guavaVersion = '29.0-jre'
+        reflectionsVersion = '0.9.12'
         // TODO: Upgrading to 2.0.0 when it is out of the alpha state.
         slf4jVersion = '2.0.0-alpha1'
+        snakeyamlVersion = '1.26'
+
+        junitVersion = '5.6.2'
     }
 
     // TODO: Java 8 is LTS.  The next LTS is Java 11, and the next next
