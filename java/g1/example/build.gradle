@@ -1,5 +1,15 @@
 apply plugin: 'com.github.johnrengelman.shadow'
 apply plugin: 'java'
+apply plugin: 'nu.studer.jooq'
+
+buildscript {
+    repositories {
+        jcenter()
+    }
+    dependencies {
+        classpath "org.jooq:jooq-codegen:${project.ext.jooqVersion}"
+    }
+}
 
 dependencies {
     implementation "com.google.guava:guava:${project.ext.guavaVersion}"
@@ -9,5 +19,55 @@ dependencies {
     annotationProcessor "com.google.dagger:dagger-compiler:${project.ext.daggerVersion}"
     implementation "com.google.dagger:dagger:${project.ext.daggerVersion}"
 
+    implementation "org.jooq:jooq:${project.ext.jooqVersion}"
+    implementation "org.xerial:sqlite-jdbc:${sqliteJdbcVersion}"
+    jooqRuntime "org.xerial:sqlite-jdbc:${sqliteJdbcVersion}"
+
     implementation project(':base')
 }
+
+//
+// jOOQ build script.
+//
+
+def jooqGeneratedSchemaDir = "${buildDir}/tmp/generateExampleSchema"
+def jooqGeneratedSourceDir = "${ext.generatedSourcesDir}/jooq/java/main"
+
+task generateExampleSchema(type: Exec) {
+    doFirst {
+        mkdir jooqGeneratedSchemaDir
+        mkdir jooqGeneratedSourceDir
+    }
+    commandLine(
+        'sqlite3',
+        "${jooqGeneratedSchemaDir}/example.db",
+        ".read ${projectDir}/src/main/sql/example.sql"
+    )
+}
+
+jooq {
+    example(sourceSets.main) {
+        jdbc {
+            driver = 'org.sqlite.JDBC'
+            url = "jdbc:sqlite:${jooqGeneratedSchemaDir}/example.db"
+        }
+        generator {
+            database {
+                name = 'org.jooq.meta.sqlite.SQLiteDatabase'
+            }
+            generate {
+                relations = true
+                deprecated = false
+                records = true
+                immutablePojos = true
+                fluentSetters = true
+            }
+            target {
+                packageName = 'g1.example.jooq'
+                directory = jooqGeneratedSourceDir
+            }
+        }
+    }
+}
+
+generateExampleJooqSchemaSource.dependsOn generateExampleSchema

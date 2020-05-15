@@ -6,10 +6,13 @@ plugins {
     id 'com.github.johnrengelman.shadow' version '5.2.0'
     id 'java'
     id 'java-library'
+    id 'nu.studer.jooq' version '4.2'
 }
 
 subprojects {
     ext {
+        generatedSourcesDir = "${project.buildDir}/generated/sources"
+
         args4jVersion = '2.33'
         guavaVersion = '29.0-jre'
         reflectionsVersion = '0.9.12'
@@ -18,6 +21,9 @@ subprojects {
         snakeyamlVersion = '1.26'
 
         daggerVersion = '2.27'
+
+        jooqVersion = '3.13.2'
+        sqliteJdbcVersion = '3.31.1'
 
         junitVersion = '5.6.2'
     }
