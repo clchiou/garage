@@ -1,0 +1,9 @@
+apply plugin: 'java-library'
+
+dependencies {
+    implementation "org.slf4j:slf4j-api:${project.ext.slf4jVersion}"
+
+    implementation "org.apache.lucene:lucene-core:${project.ext.lucene8Version}"
+
+    implementation project(':base')
+}

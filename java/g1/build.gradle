@@ -27,6 +27,10 @@ subprojects {
 
         capnprotoVersion = '0.1.5'
 
+        // Lucene is not forward-compatible across major versions; so we
+        // include the major version in the dependency string.
+        lucene8Version = '8.5.1'
+
         junitVersion = '5.6.2'
     }
 

@@ -26,7 +26,10 @@ dependencies {
 
     implementation "org.capnproto:runtime:${project.ext.capnprotoVersion}"
 
+    implementation "org.apache.lucene:lucene-core:${project.ext.lucene8Version}"
+
     implementation project(':base')
+    implementation project(':search')
 }
 
 //
