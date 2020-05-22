@@ -350,13 +350,17 @@ class Session:
                 frame.headers.cat == NGHTTP2_HCAT_REQUEST and
                 (frame.hd.flags & NGHTTP2_FLAG_END_STREAM) != 0):
             stream = self._get_stream(frame.hd.stream_id)
-            stream._on_request_done()
-            self._stream_queue.put_nowait(stream)
+            if stream._on_request_done():
+                self._stream_queue.put_nowait(stream)
+            else:
+                self._rst_stream_if_not_closed(frame.hd.stream_id)
         if (frame.hd.type == NGHTTP2_DATA and
                 (frame.hd.flags & NGHTTP2_FLAG_END_STREAM) != 0):
             stream = self._get_stream(frame.hd.stream_id)
-            stream._on_request_done()
-            self._stream_queue.put_nowait(stream)
+            if stream._on_request_done():
+                self._stream_queue.put_nowait(stream)
+            else:
+                self._rst_stream_if_not_closed(frame.hd.stream_id)
         return 0
 
     @declare_callback(nghttp2_on_data_chunk_recv_callback)
@@ -529,9 +533,16 @@ class Stream:
             body = b''.join(self._data_chunks)
         else:
             body = None
-        self.request = Request._make(self._headers, body)
-        del self._headers
-        del self._data_chunks
+        try:
+            self.request = Request._make(self._headers, body)
+        except Exception as exc:
+            LOG.warning('invalid request headers: %r', exc)
+            return False
+        else:
+            return True
+        finally:
+            del self._headers
+            del self._data_chunks
 
     def _on_close(self, error_code):
         ASSERT.not_none(self._session)
