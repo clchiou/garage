@@ -30,6 +30,7 @@ dependencies {
 
     implementation project(':base')
     implementation project(':search')
+    implementation project(':third-party:nng')
 }
 
 //

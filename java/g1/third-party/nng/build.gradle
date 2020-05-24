@@ -1,0 +1,15 @@
+apply plugin: 'java-library'
+
+dependencies {
+    implementation "com.google.guava:guava:${project.ext.guavaVersion}"
+    implementation "org.slf4j:slf4j-api:${project.ext.slf4jVersion}"
+
+    implementation "net.java.dev.jna:jna:${project.ext.jnaVersion}"
+
+    testImplementation "org.junit.jupiter:junit-jupiter-api:${project.ext.junitVersion}"
+    testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:${project.ext.junitVersion}"
+}
+
+test {
+    useJUnitPlatform()
+}
