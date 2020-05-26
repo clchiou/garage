@@ -34,7 +34,12 @@ public class Context implements AutoCloseable {
     }
 
     public void send(byte[] data) {
-        checkArgument(data.length > 0);
+        send(data, data.length);
+    }
+
+    public void send(byte[] data, int length) {
+        checkArgument(0 < length);
+        checkArgument(length <= data.length);
         Pointer aio = allocAio();
         try {
             // Strangely, aio's default is not NNG_DURATION_DEFAULT
@@ -43,7 +48,7 @@ public class Context implements AutoCloseable {
             NNG.nng_aio_set_timeout(aio, NNG_DURATION_DEFAULT);
             Pointer message = allocMessage();
             try {
-                check(NNG.nng_msg_append(message, data, data.length));
+                check(NNG.nng_msg_append(message, data, length));
                 NNG.nng_aio_set_msg(aio, message);
                 NNG.nng_ctx_send(checkNotNull(context), aio);
                 NNG.nng_aio_wait(aio);

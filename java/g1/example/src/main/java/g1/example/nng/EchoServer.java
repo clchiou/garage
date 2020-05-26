@@ -13,6 +13,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 
 public class EchoServer extends ConfiguredApp {
     private static final Logger LOG = LoggerFactory.getLogger(
@@ -36,11 +37,12 @@ public class EchoServer extends ConfiguredApp {
                 .log("protocol: {}");
             socket.listen(url);
             try (Context context = new Context(socket)) {
-                byte[] message = context.recv();
+                byte[] request = context.recv();
                 LOG.atInfo()
-                    .addArgument(new String(message, StandardCharsets.UTF_8))
-                    .log("recv: {}");
-                context.send(message);
+                    .addArgument(Arrays.toString(request))
+                    .addArgument(new String(request, StandardCharsets.UTF_8))
+                    .log("recv: {} aka \"{}\"");
+                context.send(request);
             }
         }
     }

@@ -11,14 +11,21 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public class ReqRepTest {
 
     @Test
-    public void testReq() throws Exception {
-        final String url = "inproc://nng.ReqRepTest::testReq";
-        final boolean[] success = {false};
-        Thread thread = new Thread(() -> {
+    public void testReqRep() throws Exception {
+        final String url = "inproc://nng.ReqRepTest::testReqRep";
+        final byte[][] testdata = {
+            {1, 2, 3, 4, 5, 6, 7, 8, 9},
+            {15, 14, 13},
+            {99, 97, 95, 93, 91},
+        };
+        final boolean[] success = {false, false};
+        Thread thread1 = new Thread(() -> {
             try (Socket socket = Socket.open(Protocols.REP0)) {
                 socket.listen(url);
                 try (Context context = new Context(socket)) {
-                    context.send(context.recv());
+                    for (int i = 0; i < testdata.length; i++) {
+                        context.send(context.recv());
+                    }
                 }
             } catch (Exception e) {
                 // Make it an unchecked exception.
@@ -26,53 +33,30 @@ public class ReqRepTest {
             }
             success[0] = true;
         });
-        thread.setDaemon(true);
-        thread.start();
-        try (Socket socket = Socket.open(Protocols.REQ0)) {
-            socket.dial(url);
-            try (Context context = new Context(socket)) {
-                byte[] expect = {1, 2, 3, 4, 5, 6, 7, 8, 9};
-                context.send(expect);
-                byte[] actual = context.recv();
-                assertArrayEquals(actual, expect);
-            }
-        } finally {
-            thread.join(4000);
-            assertFalse(thread.isAlive());
-        }
-        assertTrue(success[0]);
-    }
-
-    @Test
-    public void testRep() throws Exception {
-        final String url = "inproc://nng.ReqRepTest::testRep";
-        final boolean[] success = {false};
-        Thread thread = new Thread(() -> {
+        Thread thread2 = new Thread(() -> {
             try (Socket socket = Socket.open(Protocols.REQ0)) {
                 socket.dial(url);
                 try (Context context = new Context(socket)) {
-                    byte[] expect = {1, 2, 3, 4, 5, 6, 7, 8, 9};
-                    context.send(expect);
-                    byte[] actual = context.recv();
-                    assertArrayEquals(actual, expect);
+                    for (byte[] expect : testdata) {
+                        context.send(expect);
+                        assertArrayEquals(context.recv(), expect);
+                    }
                 }
             } catch (Exception e) {
                 // Make it an unchecked exception.
                 throw new RuntimeException(e);
             }
-            success[0] = true;
+            success[1] = true;
         });
-        thread.setDaemon(true);
-        thread.start();
-        try (Socket socket = Socket.open(Protocols.REP0)) {
-            socket.listen(url);
-            try (Context context = new Context(socket)) {
-                context.send(context.recv());
-            }
-        } finally {
-            thread.join(4000);
-            assertFalse(thread.isAlive());
-        }
+        thread1.setDaemon(true);
+        thread2.setDaemon(true);
+        thread1.start();
+        thread2.start();
+        thread1.join(1000);
+        thread2.join(1000);
+        assertFalse(thread1.isAlive());
+        assertFalse(thread2.isAlive());
         assertTrue(success[0]);
+        assertTrue(success[1]);
     }
 }
