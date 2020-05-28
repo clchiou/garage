@@ -29,6 +29,7 @@ dependencies {
     implementation "org.apache.lucene:lucene-core:${project.ext.lucene8Version}"
 
     implementation project(':base')
+    implementation project(':messaging')
     implementation project(':search')
     implementation project(':third-party:nng')
 }

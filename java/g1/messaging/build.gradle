@@ -1,0 +1,45 @@
+apply plugin: 'java-library'
+
+dependencies {
+    implementation "com.google.guava:guava:${project.ext.guavaVersion}"
+    implementation "org.slf4j:slf4j-api:${project.ext.slf4jVersion}"
+
+    annotationProcessor "com.google.dagger:dagger-compiler:${project.ext.daggerVersion}"
+    implementation "com.google.dagger:dagger:${project.ext.daggerVersion}"
+
+    implementation "org.capnproto:runtime:${project.ext.capnprotoVersion}"
+
+    testImplementation "org.junit.jupiter:junit-jupiter-api:${project.ext.junitVersion}"
+    testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:${project.ext.junitVersion}"
+
+    implementation project(':base')
+    implementation project(':third-party:nng')
+}
+
+test {
+    useJUnitPlatform()
+}
+
+//
+// Cap'n Proto build script.
+//
+
+def capnprotoTestSourceDir = "${projectDir}/src/test/capnproto"
+def capnprotoTestGeneratedSourceDir = "${ext.generatedSourcesDir}/capnproto/java/test"
+
+sourceSets.test.java.srcDir new File(capnprotoTestGeneratedSourceDir)
+
+task compileTestCapnproto(type: Exec) {
+    doFirst {
+        mkdir capnprotoTestGeneratedSourceDir
+    }
+    commandLine(
+        'capnp',
+        'compile',
+        "--output=java:${capnprotoTestGeneratedSourceDir}",
+        "--src-prefix=${capnprotoTestSourceDir}",
+        "${capnprotoTestSourceDir}/g1/messaging/calculator.capnp"
+    )
+}
+
+compileTestJava.dependsOn compileTestCapnproto
