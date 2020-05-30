@@ -117,6 +117,11 @@ public enum Options {
     /* package private */ void set(nng_socket.ByValue socket, Object value) {
         checkState(writable);
         switch (unit) {
+            case BYTES: {
+                byte[] bs = (byte[]) value;
+                check(NNG.nng_socket_set(socket, name, bs, bs.length));
+                break;
+            }
             case BOOL:
                 check(NNG.nng_socket_set_bool(socket, name, (Boolean) value));
                 break;

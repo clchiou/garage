@@ -51,7 +51,7 @@ public interface Nng extends Library {
     int nng_socket_get(
         nng_socket.ByValue socket,
         String option,
-        Pointer value,
+        byte[] value,
         /* size_t* */ LongByReference size
     );
 
@@ -100,7 +100,7 @@ public interface Nng extends Library {
     int nng_socket_set(
         nng_socket.ByValue socket,
         String option,
-        Pointer value,
+        byte[] value,
         /* size_t */ long size
     );
 
@@ -130,6 +130,18 @@ public interface Nng extends Library {
 
     int nng_socket_set_string(
         nng_socket.ByValue socket, String option, String value
+    );
+
+    int nng_sendmsg(
+        nng_socket.ByValue socket,
+        /* nng_msg* */ Pointer message,
+        int flags
+    );
+
+    int nng_recvmsg(
+        nng_socket.ByValue socket,
+        /* nng_msg** */ PointerByReference message,
+        int flags
     );
 
     //

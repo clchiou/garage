@@ -4,6 +4,7 @@ package nng;
  * Represent units of option values.
  */
 /* package private */ enum Units {
+    BYTES,
     BOOL,
     INT,
     MILLISECOND,

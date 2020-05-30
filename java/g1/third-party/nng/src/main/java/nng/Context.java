@@ -1,13 +1,14 @@
 package nng;
 
 import com.sun.jna.Pointer;
-import com.sun.jna.ptr.PointerByReference;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static nng.Constants.NNG_DURATION_DEFAULT;
 import static nng.Error.check;
 import static nng.Nng.NNG;
+import static nng.Utils.allocAio;
+import static nng.Utils.allocMessage;
 
 /**
  * Higher-level representation of socket context.
@@ -19,18 +20,6 @@ public class Context implements AutoCloseable {
         nng_ctx context = new nng_ctx();
         check(NNG.nng_ctx_open(context, socket.socket));
         this.context = new nng_ctx.ByValue(context);
-    }
-
-    private static Pointer allocAio() {
-        PointerByReference aio = new PointerByReference();
-        check(NNG.nng_aio_alloc(aio, null, null));
-        return aio.getValue();
-    }
-
-    private static Pointer allocMessage() {
-        PointerByReference message = new PointerByReference();
-        check(NNG.nng_msg_alloc(message, 0));
-        return message.getValue();
     }
 
     public void send(byte[] data) {
