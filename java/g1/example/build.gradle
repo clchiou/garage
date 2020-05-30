@@ -2,14 +2,8 @@ apply plugin: 'com.github.johnrengelman.shadow'
 apply plugin: 'java'
 apply plugin: 'nu.studer.jooq'
 
-buildscript {
-    repositories {
-        jcenter()
-    }
-    dependencies {
-        classpath "org.jooq:jooq-codegen:${project.ext.jooqVersion}"
-    }
-}
+apply from: "${rootProject.projectDir}/scripts/base.gradle"
+apply from: "${rootProject.projectDir}/scripts/shadowJar.gradle"
 
 dependencies {
     implementation "args4j:args4j:${project.ext.args4jVersion}"

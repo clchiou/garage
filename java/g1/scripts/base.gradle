@@ -1,0 +1,38 @@
+//
+// Plugin for base project configurations.
+//
+
+ext {
+    generatedSourcesDir = "${project.buildDir}/generated/sources"
+
+    args4jVersion = '2.33'
+    guavaVersion = '29.0-jre'
+    reflectionsVersion = '0.9.12'
+    // TODO: Upgrading to 2.0.0 when it is out of the alpha state.
+    slf4jVersion = '2.0.0-alpha1'
+    snakeyamlVersion = '1.26'
+
+    daggerVersion = '2.27'
+
+    jooqVersion = '3.13.2'
+    sqliteJdbcVersion = '3.31.1'
+
+    capnprotoVersion = '0.1.5'
+
+    // Lucene is not forward-compatible across major versions; so we
+    // include the major version in the dependency string.
+    lucene8Version = '8.5.1'
+
+    jnaVersion = '5.5.0'
+
+    junitVersion = '5.6.2'
+}
+
+// TODO: Java 8 is LTS.  The next LTS is Java 11, and the next next
+// LTS is Java 17 (to be released).  Consider upgrading to Java 17.
+sourceCompatibility = '1.8'
+targetCompatibility = '1.8'
+
+repositories {
+    jcenter()
+}
