@@ -107,10 +107,47 @@ public enum Options {
         }
     }
 
+    /* package private */ Object get(nng_ctx.ByValue socket) {
+        checkState(readable);
+        switch (unit) {
+            case BOOL:
+                return get(
+                    socket, NNG::nng_ctx_get_bool, new BoolByReference()
+                ).getValue();
+            case INT:
+                return get(
+                    socket, NNG::nng_ctx_get_int, new IntByReference()
+                ).getValue();
+            case MILLISECOND:
+                return get(
+                    socket, NNG::nng_ctx_get_ms, new IntByReference()
+                ).getValue();
+            case SIZE:
+                return get(
+                    socket, NNG::nng_ctx_get_size, new LongByReference()
+                ).getValue();
+            case STRING:
+                return get(
+                    socket,
+                    NNG::nng_ctx_get_string,
+                    new PointerByReference()
+                ).getValue().getString(0, StandardCharsets.UTF_8.name());
+            default:
+                throw new AssertionError("unhandled unit: " + unit);
+        }
+    }
+
     private <RefType extends ByReference> RefType get(
-        nng_socket.ByValue socket, Getter<RefType> getter, RefType ref
+        nng_socket.ByValue socket, SocketGetter<RefType> getter, RefType ref
     ) {
         check(getter.get(socket, name, ref));
+        return ref;
+    }
+
+    private <RefType extends ByReference> RefType get(
+        nng_ctx.ByValue context, ContextGetter<RefType> getter, RefType ref
+    ) {
+        check(getter.get(context, name, ref));
         return ref;
     }
 
@@ -142,7 +179,39 @@ public enum Options {
         }
     }
 
-    private interface Getter<RefType extends ByReference> {
+    /* package private */ void set(nng_ctx.ByValue socket, Object value) {
+        checkState(writable);
+        switch (unit) {
+            case BYTES: {
+                byte[] bs = (byte[]) value;
+                check(NNG.nng_ctx_set(socket, name, bs, bs.length));
+                break;
+            }
+            case BOOL:
+                check(NNG.nng_ctx_set_bool(socket, name, (Boolean) value));
+                break;
+            case INT:
+                check(NNG.nng_ctx_set_int(socket, name, (Integer) value));
+                break;
+            case MILLISECOND:
+                check(NNG.nng_ctx_set_ms(socket, name, (Integer) value));
+                break;
+            case SIZE:
+                check(NNG.nng_ctx_set_size(socket, name, (Long) value));
+                break;
+            case STRING:
+                check(NNG.nng_ctx_set_string(socket, name, (String) value));
+                break;
+            default:
+                throw new AssertionError("unhandled unit: " + unit);
+        }
+    }
+
+    private interface SocketGetter<RefType extends ByReference> {
         int get(nng_socket.ByValue socket, String name, RefType ref);
+    }
+
+    private interface ContextGetter<RefType extends ByReference> {
+        int get(nng_ctx.ByValue context, String name, RefType ref);
     }
 }

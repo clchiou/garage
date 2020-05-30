@@ -90,6 +90,7 @@ public interface Nng extends Library {
         String option,
         /* char** */ PointerByReference value
     );
+
     // TODO: Add mapping for nng_sockaddr and NngSockaddrByReference.
     // int nng_socket_get_addr(
     //     nng_socket.ByValue socket,
@@ -132,6 +133,11 @@ public interface Nng extends Library {
         nng_socket.ByValue socket, String option, String value
     );
 
+    // TODO: Add mapping for nng_sockaddr and NngSockaddrByReference.
+    // int nng_socket_set_addr(
+    //     nng_socket.ByValue socket, String option, nng_sockaddr value
+    // );
+
     int nng_sendmsg(
         nng_socket.ByValue socket,
         /* nng_msg* */ Pointer message,
@@ -151,6 +157,90 @@ public interface Nng extends Library {
     int nng_ctx_open(nng_ctx context, nng_socket.ByValue socket);
 
     int nng_ctx_close(nng_ctx.ByValue context);
+
+    int nng_ctx_get(
+        nng_ctx.ByValue context,
+        String option,
+        byte[] value,
+        /* size_t* */ LongByReference size
+    );
+
+    int nng_ctx_get_bool(
+        nng_ctx.ByValue context, String option, BoolByReference value
+    );
+
+    int nng_ctx_get_int(
+        nng_ctx.ByValue context, String option, IntByReference value
+    );
+
+    int nng_ctx_get_ms(
+        nng_ctx.ByValue context,
+        String option,
+        /* nng_duration* */ IntByReference value
+    );
+
+    int nng_ctx_get_uint64(
+        nng_ctx.ByValue context,
+        String option,
+        /* uint64_t* */ LongByReference value
+    );
+
+    int nng_ctx_get_size(
+        nng_ctx.ByValue context,
+        String option,
+        /* size_t* */ LongByReference value
+    );
+
+    int nng_ctx_get_ptr(
+        nng_ctx.ByValue context, String option, PointerByReference value
+    );
+
+    int nng_ctx_get_string(
+        nng_ctx.ByValue context,
+        String option,
+        /* char** */ PointerByReference value
+    );
+
+    // TODO: Add mapping for nng_sockaddr and NngSockaddrByReference.
+    // int nng_ctx_get_addr(
+    //     nng_ctx.ByValue context, String option, NngSockaddrByReference value
+    // );
+
+    int nng_ctx_set(
+        nng_ctx.ByValue context,
+        String option,
+        byte[] value,
+        /* size_t */ long size
+    );
+
+    int nng_ctx_set_bool(
+        nng_ctx.ByValue context, String option, boolean value
+    );
+
+    int nng_ctx_set_int(nng_ctx.ByValue context, String option, int value);
+
+    int nng_ctx_set_ms(
+        nng_ctx.ByValue context, String option, /* nng_duration */ int value
+    );
+
+    int nng_ctx_set_uint64(
+        nng_ctx.ByValue context, String option, /* uint64_t */ long value
+    );
+
+    int nng_ctx_set_size(
+        nng_ctx.ByValue context, String option, /* size_t */ long value
+    );
+
+    int nng_ctx_set_ptr(nng_ctx.ByValue context, String option, Pointer value);
+
+    int nng_ctx_set_string(
+        nng_ctx.ByValue context, String option, String value
+    );
+
+    // TODO: Add mapping for nng_sockaddr and NngSockaddrByReference.
+    // int nng_ctx_set_addr(
+    //     nng_ctx.ByValue context, String option, nng_sockaddr value
+    // );
 
     void nng_ctx_send(nng_ctx.ByValue context, /* nng_aio* */ Pointer aio);
 

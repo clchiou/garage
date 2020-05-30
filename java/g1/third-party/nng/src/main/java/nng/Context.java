@@ -22,6 +22,14 @@ public class Context implements AutoCloseable {
         this.context = new nng_ctx.ByValue(context);
     }
 
+    public Object get(Options option) {
+        return option.get(checkNotNull(context));
+    }
+
+    public void set(Options option, Object value) {
+        option.set(checkNotNull(context), value);
+    }
+
     public void send(byte[] data) {
         send(data, data.length);
     }
