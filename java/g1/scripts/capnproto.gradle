@@ -1,0 +1,55 @@
+//
+// Plugin for compiling Cap'n Proto schema files.
+//
+
+def capnprotoSourceDir = "${projectDir}/src/main/capnproto"
+def capnprotoSources = []
+fileTree(dir: capnprotoSourceDir, include: '**/*.capnp').each {
+    capnprotoSources.add(it.path)
+}
+def capnprotoGeneratedSourceDir = "${ext.generatedSourcesDir}/capnproto/java/main"
+
+def capnprotoTestSourceDir = "${projectDir}/src/test/capnproto"
+def capnprotoTestSources = []
+fileTree(dir: capnprotoTestSourceDir, include: '**/*.capnp').each {
+    capnprotoTestSources.add(it.path)
+}
+def capnprotoTestGeneratedSourceDir = "${ext.generatedSourcesDir}/capnproto/java/test"
+
+if (!capnprotoSources.isEmpty()) {
+    sourceSets.main.java.srcDir new File(capnprotoGeneratedSourceDir)
+    task compileCapnproto(type: Exec) {
+        doFirst {
+            mkdir capnprotoGeneratedSourceDir
+        }
+        commandLine(
+            [
+                'capnp',
+                'compile',
+                "--import-path=${capnprotoSourceDir}",
+                "--src-prefix=${capnprotoSourceDir}",
+                "--output=java:${capnprotoGeneratedSourceDir}",
+            ] + capnprotoSources
+        )
+    }
+    compileJava.dependsOn compileCapnproto
+}
+
+if (!capnprotoTestSources.isEmpty()) {
+    sourceSets.test.java.srcDir new File(capnprotoTestGeneratedSourceDir)
+    task compileTestCapnproto(type: Exec) {
+        doFirst {
+            mkdir capnprotoTestGeneratedSourceDir
+        }
+        commandLine(
+            [
+                'capnp',
+                'compile',
+                "--import-path=${capnprotoTestSourceDir}",
+                "--src-prefix=${capnprotoTestSourceDir}",
+                "--output=java:${capnprotoTestGeneratedSourceDir}",
+            ] + capnprotoTestSources
+        )
+    }
+    compileTestJava.dependsOn compileTestCapnproto
+}

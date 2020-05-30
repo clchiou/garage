@@ -3,6 +3,7 @@ apply plugin: 'java'
 apply plugin: 'nu.studer.jooq'
 
 apply from: "${rootProject.projectDir}/scripts/base.gradle"
+apply from: "${rootProject.projectDir}/scripts/capnproto.gradle"
 apply from: "${rootProject.projectDir}/scripts/shadowJar.gradle"
 
 dependencies {
@@ -73,27 +74,3 @@ jooq {
 }
 
 generateExampleJooqSchemaSource.dependsOn generateExampleSchema
-
-//
-// Cap'n Proto build script.
-//
-
-def capnprotoSourceDir = "${projectDir}/src/main/capnproto"
-def capnprotoGeneratedSourceDir = "${ext.generatedSourcesDir}/capnproto/java/main"
-
-sourceSets.main.java.srcDir new File(capnprotoGeneratedSourceDir)
-
-task compileCapnproto(type: Exec) {
-    doFirst {
-        mkdir capnprotoGeneratedSourceDir
-    }
-    commandLine(
-        'capnp',
-        'compile',
-        "--output=java:${capnprotoGeneratedSourceDir}",
-        "--src-prefix=${capnprotoSourceDir}",
-        "${capnprotoSourceDir}/g1/example/example.capnp"
-    )
-}
-
-compileJava.dependsOn compileCapnproto

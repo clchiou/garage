@@ -1,6 +1,7 @@
 apply plugin: 'java-library'
 
 apply from: "${rootProject.projectDir}/scripts/base.gradle"
+apply from: "${rootProject.projectDir}/scripts/capnproto.gradle"
 
 dependencies {
     implementation "com.google.guava:guava:${project.ext.guavaVersion}"
@@ -21,27 +22,3 @@ dependencies {
 test {
     useJUnitPlatform()
 }
-
-//
-// Cap'n Proto build script.
-//
-
-def capnprotoTestSourceDir = "${projectDir}/src/test/capnproto"
-def capnprotoTestGeneratedSourceDir = "${ext.generatedSourcesDir}/capnproto/java/test"
-
-sourceSets.test.java.srcDir new File(capnprotoTestGeneratedSourceDir)
-
-task compileTestCapnproto(type: Exec) {
-    doFirst {
-        mkdir capnprotoTestGeneratedSourceDir
-    }
-    commandLine(
-        'capnp',
-        'compile',
-        "--output=java:${capnprotoTestGeneratedSourceDir}",
-        "--src-prefix=${capnprotoTestSourceDir}",
-        "${capnprotoTestSourceDir}/g1/messaging/calculator.capnp"
-    )
-}
-
-compileTestJava.dependsOn compileTestCapnproto
