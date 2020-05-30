@@ -3,7 +3,8 @@ package g1.messaging.pubsub;
 import com.google.common.util.concurrent.AbstractExecutionThreadService;
 import g1.messaging.NameGenerator;
 import g1.messaging.Wiredata;
-import nng.Socket;
+import nng.Context;
+import nng.Options;
 import org.capnproto.MessageReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,23 +23,20 @@ public class SubscriberContainer extends AbstractExecutionThreadService {
 
     private static final NameGenerator NAMES = new NameGenerator("subscriber");
 
-    // We use socket rather than context because somehow context recv
-    // does not work on sub0 sockets.  Also, we do not "own" the socket,
-    // and so we do not close it when shutting down.
     private final String name;
-    private final Socket socket;
+    private final Context context;
     private final Wiredata wiredata;
     private final Subscriber subscriber;
 
     @Inject
     public SubscriberContainer(
-        @Internal Socket socket,
+        @Internal Context context,
         @Internal Wiredata wiredata,
         Subscriber subscriber
     ) {
         super();
         this.name = NAMES.next();
-        this.socket = socket;
+        this.context = context;
         this.wiredata = wiredata;
         this.subscriber = subscriber;
     }
@@ -50,10 +48,12 @@ public class SubscriberContainer extends AbstractExecutionThreadService {
 
     @Override
     protected void run() throws Exception {
+        // For now we subscribe to empty topic only.
+        context.set(Options.NNG_OPT_SUB_SUBSCRIBE, new byte[0]);
         while (isRunning()) {
             byte[] messageRaw = null;
             try {
-                messageRaw = socket.recv();
+                messageRaw = context.recv();
             } catch (Exception e) {
                 if (isSocketClosed(e)) {
                     LOG.atInfo().log("recv: socket closed");
@@ -77,6 +77,19 @@ public class SubscriberContainer extends AbstractExecutionThreadService {
                     .setCause(e)
                     .log("internal error");
             }
+        }
+    }
+
+    @Override
+    protected void shutDown() throws Exception {
+        try {
+            context.close();
+        } catch (Exception e) {
+            if (isSocketClosed(e)) {
+                LOG.atInfo().log("context.close: socket closed");
+                return;
+            }
+            throw e;
         }
     }
 }

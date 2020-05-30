@@ -38,8 +38,8 @@ public class PubSubTest {
             try (Socket socket = Socket.open(Protocols.SUB0)) {
                 socket.set(Options.NNG_OPT_SUB_SUBSCRIBE, new byte[0]);
                 socket.dial(url);
-                // For some reason, context recv does not work on sub0
-                // sockets.
+                // Socket and context have their own, separated
+                // subscribed topics.
                 byte x = socket.recv()[0];
                 for (int i = 0; i < 3; i++) {
                     assertArrayEquals(socket.recv(), new byte[]{++x});

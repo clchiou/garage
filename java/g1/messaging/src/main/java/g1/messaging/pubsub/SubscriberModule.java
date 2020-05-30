@@ -11,11 +11,9 @@ import g1.messaging.Packed;
 import g1.messaging.SocketContainer;
 import g1.messaging.Unpacked;
 import g1.messaging.Wiredata;
-import nng.Options;
+import nng.Context;
 import nng.Protocols;
 import nng.Socket;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import javax.inject.Singleton;
 
@@ -27,9 +25,6 @@ import static g1.messaging.Utils.openSocket;
  */
 @Module
 public abstract class SubscriberModule {
-    private static final Logger LOG = LoggerFactory.getLogger(
-        SubscriberModule.class
-    );
 
     /**
      * URL that subscriber dials to.
@@ -48,25 +43,15 @@ public abstract class SubscriberModule {
     @Singleton
     public static Socket provideSocket() {
         checkNotNull(url);
-        Socket socket = openSocket(
+        return openSocket(
             Protocols.SUB0, ImmutableList.of(url), ImmutableList.of()
         );
-        try {
-            // TODO: Do we need to set NNG_OPT_RECVTIMEO?
-            // For now we subscribe to empty topic only.
-            socket.set(Options.NNG_OPT_SUB_SUBSCRIBE, new byte[0]);
-        } catch (Throwable e) {
-            try {
-                socket.close();
-            } catch (Exception exc) {
-                LOG.atError()
-                    .addArgument(e)
-                    .setCause(exc)
-                    .log("error in error: {}");
-            }
-            throw e;
-        }
-        return socket;
+    }
+
+    @Provides
+    @Internal
+    public static Context provideContext(@Internal Socket socket) {
+        return new Context(socket);
     }
 
     @Provides
