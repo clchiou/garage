@@ -4,6 +4,7 @@ import g1.base.ServerApp;
 import g1.example.Books.Book;
 import g1.example.Books.BookRequest;
 import g1.example.Books.BookResponse;
+import g1.messaging.pubsub.Subscriber;
 import g1.messaging.reqrep.Server;
 import org.capnproto.MessageBuilder;
 import org.capnproto.MessageReader;
@@ -15,7 +16,7 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 
 @Singleton
-public class BookServer implements Server {
+public class BookServer implements Server, Subscriber {
     private static final Logger LOG = LoggerFactory.getLogger(
         BookServer.class
     );
@@ -27,6 +28,21 @@ public class BookServer implements Server {
 
     public static void main(String[] args) {
         ServerApp.main(DaggerBookServerComponent.create(), args);
+    }
+
+    private static String messageToString(MessageReader message) {
+        BookRequest.Reader bookRequest = message.getRoot(BookRequest.factory);
+        BookRequest.Args.Reader args = bookRequest.getArgs();
+        switch (args.which()) {
+            case GET_BOOK:
+                return String.format(
+                    "get_book(%d)", args.getGetBook().getId()
+                );
+            case LIST_BOOKS:
+                return "list_books()";
+            default:
+                return "InvalidRequestError";
+        }
     }
 
     @Override
@@ -55,5 +71,10 @@ public class BookServer implements Server {
                 bookResponse.initError().initInternalError();
                 break;
         }
+    }
+
+    @Override
+    public void consume(MessageReader message) throws Exception {
+        LOG.atInfo().addArgument(messageToString(message)).log("consume: {}");
     }
 }
