@@ -48,6 +48,7 @@ public class Socket implements AutoCloseable {
     public void dial(String url) {
         try {
             check(NNG.nng_dial(checkNotNull(socket), url, null, 0));
+            return;
         } catch (Error e) {
             if (e.getErrno() != Error.NNG_ECONNREFUSED) {
                 throw e;
@@ -55,6 +56,7 @@ public class Socket implements AutoCloseable {
             LOG.atDebug()
                 .addArgument(url)
                 .log("blocking dial: connection refused: {}");
+            // Fall through to non-blocking nng_dial below.
         }
         check(
             NNG.nng_dial(checkNotNull(socket), url, null, NNG_FLAG_NONBLOCK)
