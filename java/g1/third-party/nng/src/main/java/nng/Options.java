@@ -19,63 +19,66 @@ public enum Options {
     // Generic options.
     //
 
-    NNG_OPT_SOCKNAME("socket-name", Units.STRING, true),
-    NNG_OPT_RAW("raw", Units.BOOL, false),
-    NNG_OPT_PROTO("protocol", Units.INT, false),
-    NNG_OPT_PROTONAME("protocol-name", Units.STRING, false),
-    NNG_OPT_PEER("peer", Units.INT, false),
-    NNG_OPT_PEERNAME("peer-name", Units.STRING, false),
-    NNG_OPT_RECVBUF("recv-buffer", Units.INT, true),
-    NNG_OPT_SENDBUF("send-buffer", Units.INT, true),
-    NNG_OPT_RECVFD("recv-fd", Units.INT, false),
-    NNG_OPT_SENDFD("send-fd", Units.INT, false),
-    NNG_OPT_RECVTIMEO("recv-timeout", Units.MILLISECOND, true),
-    NNG_OPT_SENDTIMEO("send-timeout", Units.MILLISECOND, true),
+    NNG_OPT_SOCKNAME("socket-name", Units.STRING, true, true),
+    NNG_OPT_RAW("raw", Units.BOOL, true, false),
+    NNG_OPT_PROTO("protocol", Units.INT, true, false),
+    NNG_OPT_PROTONAME("protocol-name", Units.STRING, true, false),
+    NNG_OPT_PEER("peer", Units.INT, true, false),
+    NNG_OPT_PEERNAME("peer-name", Units.STRING, true, false),
+    NNG_OPT_RECVBUF("recv-buffer", Units.INT, true, true),
+    NNG_OPT_SENDBUF("send-buffer", Units.INT, true, true),
+    NNG_OPT_RECVFD("recv-fd", Units.INT, true, false),
+    NNG_OPT_SENDFD("send-fd", Units.INT, true, false),
+    NNG_OPT_RECVTIMEO("recv-timeout", Units.MILLISECOND, true, true),
+    NNG_OPT_SENDTIMEO("send-timeout", Units.MILLISECOND, true, true),
     // TODO: Add mapping for nng_sockaddr.
-    // NNG_OPT_LOCADDR("local-address", Units.SOCKET_ADDRESS, false),
-    // NNG_OPT_REMADDR("remote-address", Units.SOCKET_ADDRESS, false),
-    NNG_OPT_URL("url", Units.STRING, false),
-    NNG_OPT_MAXTTL("ttl-max", Units.INT, true),
-    NNG_OPT_RECVMAXSZ("recv-size-max", Units.SIZE, true),
-    NNG_OPT_RECONNMINT("reconnect-time-min", Units.MILLISECOND, true),
-    NNG_OPT_RECONNMAXT("reconnect-time-max", Units.MILLISECOND, true),
+    // NNG_OPT_LOCADDR("local-address", Units.SOCKET_ADDRESS, true, false),
+    // NNG_OPT_REMADDR("remote-address", Units.SOCKET_ADDRESS, true, false),
+    NNG_OPT_URL("url", Units.STRING, true, false),
+    NNG_OPT_MAXTTL("ttl-max", Units.INT, true, true),
+    NNG_OPT_RECVMAXSZ("recv-size-max", Units.SIZE, true, true),
+    NNG_OPT_RECONNMINT("reconnect-time-min", Units.MILLISECOND, true, true),
+    NNG_OPT_RECONNMAXT("reconnect-time-max", Units.MILLISECOND, true, true),
 
     //
     // Transport options.
     //
 
     // TCP options.
-    NNG_OPT_TCP_NODELAY("tcp-nodelay", Units.BOOL, true),
-    NNG_OPT_TCP_KEEPALIVE("tcp-keepalive", Units.BOOL, true),
-    NNG_OPT_TCP_BOUND_PORT("tcp-bound-port", Units.INT, false),
+    NNG_OPT_TCP_NODELAY("tcp-nodelay", Units.BOOL, true, true),
+    NNG_OPT_TCP_KEEPALIVE("tcp-keepalive", Units.BOOL, true, true),
+    NNG_OPT_TCP_BOUND_PORT("tcp-bound-port", Units.INT, true, false),
 
     //
     // Protocol options.
     //
 
     // Protocol "pubsub0" options.
-    NNG_OPT_SUB_SUBSCRIBE("sub:subscribe", Units.STRING, true),
-    NNG_OPT_SUB_UNSUBSCRIBE("sub:unsubscribe", Units.STRING, true),
+    NNG_OPT_SUB_SUBSCRIBE("sub:subscribe", Units.BYTES, false, true),
+    NNG_OPT_SUB_UNSUBSCRIBE("sub:unsubscribe", Units.BYTES, false, true),
 
     // Protocol "reqrep0" options.
-    NNG_OPT_REQ_RESENDTIME("req:resend-time", Units.MILLISECOND, true),
+    NNG_OPT_REQ_RESENDTIME("req:resend-time", Units.MILLISECOND, true, true),
 
     // Protocol "survey0" options.
     NNG_OPT_SURVEYOR_SURVEYTIME(
-        "surveyor:survey-time", Units.MILLISECOND, true
+        "surveyor:survey-time", Units.MILLISECOND, true, true
     );
 
     private final String name;
     private final Units unit;
-    private final boolean readwrite;
+    private final boolean readable;
+    private final boolean writable;
 
-    Options(String name, Units unit, boolean readwrite) {
+    Options(String name, Units unit, boolean readable, boolean writable) {
         this.name = name;
         this.unit = unit;
-        this.readwrite = readwrite;
+        this.readable = readable;
+        this.writable = writable;
     }
 
     /* package private */ Object get(nng_socket.ByValue socket) {
+        checkState(readable);
         switch (unit) {
             case BOOL:
                 return get(
@@ -112,7 +115,7 @@ public enum Options {
     }
 
     /* package private */ void set(nng_socket.ByValue socket, Object value) {
-        checkState(readwrite);
+        checkState(writable);
         switch (unit) {
             case BOOL:
                 check(NNG.nng_socket_set_bool(socket, name, (Boolean) value));

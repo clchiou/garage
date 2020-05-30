@@ -29,6 +29,8 @@ public class OptionsTest {
                     try {
                         socket.get(option);
                         fail("expect Error thrown");
+                    } catch (IllegalStateException e) {
+                        // As expected.
                     } catch (Error e) {
                         assertEquals(e.getErrno(), Error.NNG_ENOTSUP);
                     }
