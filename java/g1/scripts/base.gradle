@@ -19,6 +19,7 @@ ext {
 
     capnprotoVersion = '0.1.5'
 
+    icu4jVersion = '67.1'
     // Lucene is not forward-compatible across major versions; so we
     // include the major version in the dependency string.
     lucene8Version = '8.5.1'
