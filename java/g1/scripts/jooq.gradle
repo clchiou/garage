@@ -1,0 +1,68 @@
+//
+// Plugin for generating SQLite schema files for jOOQ.
+//
+
+def jooqSourceDir = "${projectDir}/src/main/jooq"
+def jooqSources = []
+fileTree(dir: jooqSourceDir, include: '**/*.sql').each {
+    jooqSources.add(it.path)
+}
+
+def jooqGeneratedSchemaDir = "${buildDir}/tmp/generateSqliteSchema"
+def jooqGeneratedSchema = "${jooqGeneratedSchemaDir}/schema.db"
+
+def jooqGeneratedSourceDir = "${ext.generatedSourcesDir}/jooq/java/main"
+
+if (!jooqSources.isEmpty()) {
+    if (jooqSources.size() != 1) {
+        throw new GradleException(
+            "can process only one SQLite schema file for now: ${jooqSources}"
+        )
+    }
+
+    task generateSqliteSchema(type: Exec) {
+        doFirst {
+            mkdir jooqGeneratedSchemaDir
+            mkdir jooqGeneratedSourceDir
+        }
+        commandLine(
+            'sqlite3', jooqGeneratedSchema, ".read ${jooqSources.get(0)}"
+        )
+    }
+
+    def jooqGeneratedSourcePackageName = jooqSources
+        .get(0)
+        .substring(jooqSourceDir.length())
+        .replaceAll('^/+', '')
+        .replaceAll('/[^/]+\\.sql$', '')
+        .replace('/', '.')
+    // Always add a ".jooq" package suffix for now.
+    jooqGeneratedSourcePackageName += '.jooq'
+
+    jooq {
+        sqlite(sourceSets.main) {
+            jdbc {
+                driver = 'org.sqlite.JDBC'
+                url = "jdbc:sqlite:${jooqGeneratedSchema}"
+            }
+            generator {
+                database {
+                    name = 'org.jooq.meta.sqlite.SQLiteDatabase'
+                }
+                generate {
+                    relations = true
+                    deprecated = false
+                    records = true
+                    immutablePojos = true
+                    fluentSetters = true
+                }
+                target {
+                    packageName = jooqGeneratedSourcePackageName
+                    directory = jooqGeneratedSourceDir
+                }
+            }
+        }
+    }
+
+    generateSqliteJooqSchemaSource.dependsOn generateSqliteSchema
+}

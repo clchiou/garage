@@ -4,6 +4,7 @@ apply plugin: 'nu.studer.jooq'
 
 apply from: "${rootProject.projectDir}/scripts/base.gradle"
 apply from: "${rootProject.projectDir}/scripts/capnproto.gradle"
+apply from: "${rootProject.projectDir}/scripts/jooq.gradle"
 apply from: "${rootProject.projectDir}/scripts/shadowJar.gradle"
 
 dependencies {
@@ -28,49 +29,3 @@ dependencies {
     implementation project(':search')
     implementation project(':third-party:nng')
 }
-
-//
-// jOOQ build script.
-//
-
-def jooqGeneratedSchemaDir = "${buildDir}/tmp/generateExampleSchema"
-def jooqGeneratedSourceDir = "${ext.generatedSourcesDir}/jooq/java/main"
-
-task generateExampleSchema(type: Exec) {
-    doFirst {
-        mkdir jooqGeneratedSchemaDir
-        mkdir jooqGeneratedSourceDir
-    }
-    commandLine(
-        'sqlite3',
-        "${jooqGeneratedSchemaDir}/example.db",
-        ".read ${projectDir}/src/main/sql/example.sql"
-    )
-}
-
-jooq {
-    example(sourceSets.main) {
-        jdbc {
-            driver = 'org.sqlite.JDBC'
-            url = "jdbc:sqlite:${jooqGeneratedSchemaDir}/example.db"
-        }
-        generator {
-            database {
-                name = 'org.jooq.meta.sqlite.SQLiteDatabase'
-            }
-            generate {
-                relations = true
-                deprecated = false
-                records = true
-                immutablePojos = true
-                fluentSetters = true
-            }
-            target {
-                packageName = 'g1.example.jooq'
-                directory = jooqGeneratedSourceDir
-            }
-        }
-    }
-}
-
-generateExampleJooqSchemaSource.dependsOn generateExampleSchema
