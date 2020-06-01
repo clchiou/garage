@@ -13,6 +13,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
+import static com.google.common.base.Preconditions.checkNotNull;
+
 /**
  * Utilities of Lucene {@link IndexWriter}.
  */
@@ -25,7 +27,7 @@ public class IndexWriters {
      * Default index path.
      */
     @Configuration
-    public static String indexPath = "";
+    public static String indexPath = null;
 
     /**
      * Default RAM buffer size; Unit: MB.
@@ -57,18 +59,11 @@ public class IndexWriters {
         throw new AssertionError();
     }
 
-    private static Path getIndexPath() {
-        if (indexPath.equals("")) {
-            throw new AssertionError("no index path is configured");
-        }
-        return Paths.get(indexPath);
-    }
-
     /**
      * Detect mode and open an {@link IndexWriter}.
      */
     public static IndexWriter open(Analyzer analyzer) throws IOException {
-        return open(getIndexPath(), analyzer);
+        return open(Paths.get(checkNotNull(indexPath)), analyzer);
     }
 
     /**
