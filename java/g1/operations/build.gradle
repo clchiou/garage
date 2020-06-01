@@ -2,3 +2,7 @@ apply plugin: 'java-library'
 
 apply from: "${rootProject.projectDir}/scripts/base.gradle"
 apply from: "${rootProject.projectDir}/scripts/capnproto.gradle"
+
+dependencies {
+    api "org.capnproto:runtime:${project.ext.capnprotoVersion}"
+}

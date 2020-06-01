@@ -4,7 +4,8 @@ apply from: "${rootProject.projectDir}/scripts/base.gradle"
 
 dependencies {
     implementation "args4j:args4j:${project.ext.args4jVersion}"
-    implementation "com.google.guava:guava:${project.ext.guavaVersion}"
+    // Guava's Service interface is exposed in ServerComponent.
+    api "com.google.guava:guava:${project.ext.guavaVersion}"
     implementation "org.reflections:reflections:${project.ext.reflectionsVersion}"
     implementation "org.slf4j:slf4j-api:${project.ext.slf4jVersion}"
     implementation "org.yaml:snakeyaml:${project.ext.snakeyamlVersion}"

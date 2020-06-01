@@ -6,7 +6,8 @@ dependencies {
     implementation "com.google.guava:guava:${project.ext.guavaVersion}"
     implementation "org.slf4j:slf4j-api:${project.ext.slf4jVersion}"
 
-    implementation "org.apache.lucene:lucene-core:${project.ext.lucene8Version}"
+    // Lucene's IndexWriter is exposed in IndexWriters.
+    api "org.apache.lucene:lucene-core:${project.ext.lucene8Version}"
 
     implementation project(':base')
 }

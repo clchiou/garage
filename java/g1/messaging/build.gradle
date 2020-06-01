@@ -7,6 +7,10 @@ dependencies {
     implementation "com.google.guava:guava:${project.ext.guavaVersion}"
     implementation "org.slf4j:slf4j-api:${project.ext.slf4jVersion}"
 
+    // MessageBuilder and MessageReader are exposed in Server,
+    // Subscriber, and Wiredata interface.
+    api "org.capnproto:runtime:${project.ext.capnprotoVersion}"
+
     annotationProcessor "com.google.dagger:dagger-compiler:${project.ext.daggerVersion}"
     implementation "com.google.dagger:dagger:${project.ext.daggerVersion}"
 
@@ -14,7 +18,8 @@ dependencies {
     testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:${project.ext.junitVersion}"
 
     implementation project(':base')
-    implementation project(':third-party:nng')
+    // nng.Socket is exposed in ServerModule and SubscriberModule.
+    api project(':third-party:nng')
 }
 
 test {
