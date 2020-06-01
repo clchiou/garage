@@ -16,12 +16,6 @@ dependencies {
     annotationProcessor "com.google.dagger:dagger-compiler:${project.ext.daggerVersion}"
     implementation "com.google.dagger:dagger:${project.ext.daggerVersion}"
 
-    implementation "org.jooq:jooq:${project.ext.jooqVersion}"
-    implementation "org.xerial:sqlite-jdbc:${sqliteJdbcVersion}"
-    jooqRuntime "org.xerial:sqlite-jdbc:${sqliteJdbcVersion}"
-
-    implementation "org.capnproto:runtime:${project.ext.capnprotoVersion}"
-
     implementation "org.apache.lucene:lucene-core:${project.ext.lucene8Version}"
 
     implementation project(':base')

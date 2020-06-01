@@ -10,8 +10,6 @@ dependencies {
     annotationProcessor "com.google.dagger:dagger-compiler:${project.ext.daggerVersion}"
     implementation "com.google.dagger:dagger:${project.ext.daggerVersion}"
 
-    implementation "org.capnproto:runtime:${project.ext.capnprotoVersion}"
-
     testImplementation "org.junit.jupiter:junit-jupiter-api:${project.ext.junitVersion}"
     testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:${project.ext.junitVersion}"
 

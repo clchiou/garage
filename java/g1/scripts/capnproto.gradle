@@ -2,6 +2,10 @@
 // Plugin for compiling Cap'n Proto schema files.
 //
 
+dependencies {
+    implementation "org.capnproto:runtime:${project.ext.capnprotoVersion}"
+}
+
 def capnprotoSourceDir = "${projectDir}/src/main/capnproto"
 def capnprotoSources = []
 fileTree(dir: capnprotoSourceDir, include: '**/*.capnp').each {

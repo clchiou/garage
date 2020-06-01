@@ -4,7 +4,13 @@
 
 ext {
     generatedSourcesDir = "${project.buildDir}/generated/sources"
+}
 
+// Versions of dependencies; roughly sorted alphabetically.
+ext {
+    //
+    // Base dependencies.
+    //
     args4jVersion = '2.33'
     guavaVersion = '29.0-jre'
     reflectionsVersion = '0.9.12'
@@ -12,19 +18,22 @@ ext {
     slf4jVersion = '2.0.0-alpha1'
     snakeyamlVersion = '1.26'
 
+    capnprotoVersion = '0.1.5'
+
     daggerVersion = '2.27'
+
+    jnaVersion = '5.5.0'
 
     jooqVersion = '3.13.2'
     sqliteJdbcVersion = '3.31.1'
 
-    capnprotoVersion = '0.1.5'
-
+    //
+    // Lucene dependencies.
+    //
     icu4jVersion = '67.1'
     // Lucene is not forward-compatible across major versions; so we
     // include the major version in the dependency string.
     lucene8Version = '8.5.1'
-
-    jnaVersion = '5.5.0'
 
     junitVersion = '5.6.2'
 }
