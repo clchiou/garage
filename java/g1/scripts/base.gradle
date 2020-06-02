@@ -20,7 +20,7 @@ ext {
 
     capnprotoVersion = '0.1.5'
 
-    daggerVersion = '2.27'
+    daggerVersion = '2.28'
 
     jnaVersion = '5.5.0'
 
@@ -33,7 +33,7 @@ ext {
     icu4jVersion = '67.1'
     // Lucene is not forward-compatible across major versions; so we
     // include the major version in the dependency string.
-    lucene8Version = '8.5.1'
+    lucene8Version = '8.5.2'
 
     junitVersion = '5.6.2'
 }
