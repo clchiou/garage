@@ -4,7 +4,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.fail;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @Tag("fast")
 public class ErrorTest {
@@ -16,17 +16,14 @@ public class ErrorTest {
 
     @Test
     public void testCheckError() {
-        try {
+        Error e;
+        e = assertThrows(Error.class, () -> {
             Error.check(Error.NNG_EINTR);
-            fail("expect Error thrown");
-        } catch (Error e) {
-            assertEquals(e.getErrno(), Error.NNG_EINTR);
-        }
-        try {
+        });
+        assertEquals(e.getErrno(), Error.NNG_EINTR);
+        e = assertThrows(Error.class, () -> {
             Error.check(/* no such errno */ -1);
-            fail("expect Error thrown");
-        } catch (Error e) {
-            assertEquals(e.getErrno(), -1);
-        }
+        });
+        assertEquals(e.getErrno(), -1);
     }
 }
