@@ -42,8 +42,6 @@ if (!jooqSources.isEmpty()) {
         .replaceAll('^/+', '')
         .replaceAll('/[^/]+\\.sql$', '')
         .replace('/', '.')
-    // Always add a ".jooq" package suffix for now.
-    jooqGeneratedSourcePackageName += '.jooq'
 
     jooq {
         sqlite(sourceSets.main) {
