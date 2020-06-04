@@ -31,16 +31,16 @@ public class Data {
     }
 
     public static void assertSkippedFields() {
-        assertEquals(skippedFinal, 0);
-        assertEquals(skippedPackagePrivate, 0);
-        assertEquals(skippedProtected, 0);
-        assertEquals(skippedPrivate, 0);
+        assertEquals(0, skippedFinal);
+        assertEquals(0, skippedPackagePrivate);
+        assertEquals(0, skippedProtected);
+        assertEquals(0, skippedPrivate);
     }
 
     public static void assertInitialState() {
-        assertEquals(i, 0);
-        assertEquals(integer, 0);
-        assertEquals(s, "");
+        assertEquals(0, i);
+        assertEquals(0, integer);
+        assertEquals("", s);
         assertSkippedFields();
         Nested.assertInitialState();
     }
@@ -72,16 +72,16 @@ public class Data {
         }
 
         public static void assertSkippedFields() {
-            assertEquals(skippedFinal, 0);
-            assertEquals(skippedPackagePrivate, 0);
-            assertEquals(skippedProtected, 0);
-            assertEquals(skippedPrivate, 0);
+            assertEquals(0, skippedFinal);
+            assertEquals(0, skippedPackagePrivate);
+            assertEquals(0, skippedProtected);
+            assertEquals(0, skippedPrivate);
         }
 
         public static void assertInitialState() {
-            assertEquals(i, 0);
-            assertEquals(integer, 0);
-            assertEquals(s, "");
+            assertEquals(0, i);
+            assertEquals(0, integer);
+            assertEquals("", s);
             assertSkippedFields();
         }
     }

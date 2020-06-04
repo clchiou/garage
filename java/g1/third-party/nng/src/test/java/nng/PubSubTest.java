@@ -42,7 +42,7 @@ public class PubSubTest {
                 // subscribed topics.
                 byte x = socket.recv()[0];
                 for (int i = 0; i < 3; i++) {
-                    assertArrayEquals(socket.recv(), new byte[]{++x});
+                    assertArrayEquals(new byte[]{++x}, socket.recv());
                 }
             } catch (Exception e) {
                 // Make it an unchecked exception.

@@ -43,7 +43,7 @@ public class WiredataTest {
         Calculator.CalculatorRequest.Args.Reader args = request.getArgs();
         assertTrue(args.isDiv());
         Calculator.CalculatorRequest.Div.Reader div = args.getDiv();
-        assertEquals(div.getX(), 1);
-        assertEquals(div.getY(), 2);
+        assertEquals(1, div.getX());
+        assertEquals(2, div.getY());
     }
 }

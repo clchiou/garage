@@ -39,7 +39,7 @@ public class ReqRepTest {
                 try (Context context = new Context(socket)) {
                     for (byte[] expect : testdata) {
                         context.send(expect);
-                        assertArrayEquals(context.recv(), expect);
+                        assertArrayEquals(expect, context.recv());
                     }
                 }
             } catch (Exception e) {

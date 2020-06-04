@@ -35,7 +35,7 @@ public class OptionsTest {
                     Error e = assertThrows(Error.class, () -> {
                         socket.get(option);
                     });
-                    assertEquals(e.getErrno(), Error.NNG_ENOTSUP);
+                    assertEquals(Error.NNG_ENOTSUP, e.getErrno());
                 } else {
                     assertNotNull(socket.get(option));
                 }
@@ -53,7 +53,7 @@ public class OptionsTest {
             int timeout = (Integer) socket.get(Options.NNG_OPT_RECVTIMEO);
             int expect = timeout + 1000;
             socket.set(Options.NNG_OPT_RECVTIMEO, expect);
-            assertEquals(socket.get(Options.NNG_OPT_RECVTIMEO), expect);
+            assertEquals(expect, socket.get(Options.NNG_OPT_RECVTIMEO));
         }
     }
 }

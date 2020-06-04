@@ -20,10 +20,10 @@ public class ErrorTest {
         e = assertThrows(Error.class, () -> {
             Error.check(Error.NNG_EINTR);
         });
-        assertEquals(e.getErrno(), Error.NNG_EINTR);
+        assertEquals(Error.NNG_EINTR, e.getErrno());
         e = assertThrows(Error.class, () -> {
             Error.check(/* no such errno */ -1);
         });
-        assertEquals(e.getErrno(), -1);
+        assertEquals(-1, e.getErrno());
     }
 }

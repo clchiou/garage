@@ -91,12 +91,12 @@ public class ConfigurationLoaderTest {
             "  s: spam egg"
         );
         loader.load(ImmutableList.of(createTempPath(content)));
-        assertEquals(Data.i, 1);
-        assertEquals(Data.integer, 2);
-        assertEquals(Data.s, "hello world");
-        assertEquals(Data.Nested.i, 11);
-        assertEquals(Data.Nested.integer, 22);
-        assertEquals(Data.Nested.s, "spam egg");
+        assertEquals(1, Data.i);
+        assertEquals(2, Data.integer);
+        assertEquals("hello world", Data.s);
+        assertEquals(11, Data.Nested.i);
+        assertEquals(22, Data.Nested.integer);
+        assertEquals("spam egg", Data.Nested.s);
         Data.assertSkippedFields();
     }
 
@@ -108,6 +108,6 @@ public class ConfigurationLoaderTest {
                 createTempPath("g1.base.Data: {i: 2}")
             )
         );
-        assertEquals(Data.i, 2);
+        assertEquals(2, Data.i);
     }
 }
