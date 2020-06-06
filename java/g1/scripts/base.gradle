@@ -38,6 +38,7 @@ ext {
     junitVersion = '5.6.2'
     // Lucene test framework uses JUnit 4.
     junit4Version = '4.13'
+    mockitoVersion = '3.3.3'
 }
 
 // TODO: Java 8 is LTS.  The next LTS is Java 11, and the next next
