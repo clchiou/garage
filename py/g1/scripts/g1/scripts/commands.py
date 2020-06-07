@@ -212,7 +212,14 @@ def git_clone(repo_url, *, repo_path=None, treeish=None):
         if treeish:
             bases.run(['git', 'checkout', treeish])
         if (repo_path / '.gitmodules').exists():
-            bases.run(['git', 'submodule', 'update', '--init', '--recursive'])
+            bases.run([
+                'git',
+                'submodule',
+                'update',
+                '--init',
+                '--checkout',
+                '--recursive',
+            ])
 
 
 def _git_get_repo_name(repo_url):
