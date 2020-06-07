@@ -12,7 +12,7 @@ LOG = logging.getLogger(__name__)
 
 shipyard2.rules.bases.define_git_repo(
     'https://github.com/capnproto/capnproto.git',
-    'v0.7.0',
+    'v0.8.0',
 )
 
 shipyard2.rules.bases.define_distro_packages([

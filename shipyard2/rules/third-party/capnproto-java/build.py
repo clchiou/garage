@@ -17,9 +17,7 @@ LOG = logging.getLogger(__name__)
 
 shipyard2.rules.bases.define_git_repo(
     'https://github.com/capnproto/capnproto-java.git',
-    # v0.1.4 does not use C++14 when compile; let's use a recent version
-    # instead.
-    '4f514ad1a00e5d351b9840a0aa63cd3cc67e6180',
+    'v0.1.5',
 )
 
 shipyard2.rules.bases.define_distro_packages([
