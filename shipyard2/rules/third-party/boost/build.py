@@ -13,13 +13,9 @@ import shipyard2.rules.bases
 
 LOG = logging.getLogger(__name__)
 
-shipyard2.rules.bases.define_archive(
-    # pylint: disable=line-too-long
-    url=
-    'https://dl.bintray.com/boostorg/release/1.72.0/source/boost_1_72_0.tar.bz2',
-    checksum=
-    'sha512:59c9b274bc451cf91a9ba1dd2c7fdcaf5d60b1b3aa83f2c9fa143417cc660722',
-    # pylint: enable=line-too-long
+shipyard2.rules.bases.define_git_repo(
+    'https://github.com/boostorg/boost.git',
+    'boost-1.73.0',
 )
 
 (foreman.define_parameter.list_typed('libraries')\
@@ -54,18 +50,15 @@ def config(parameters):
 # NOTE: `build` should not depend on parameter-less `config` since it
 # does not know which libraries to build (yet).
 @foreman.rule
-@foreman.rule.depend('extract')
+@foreman.rule.depend('git-clone')
 @foreman.rule.depend('install')
 def build(parameters):
     config_data = json.loads(
         ASSERT.predicate(_get_config_path(parameters), Path.is_file)\
         .read_text()
     )
-    src_path = ASSERT.predicate(
-        parameters['//bases:drydock'] / foreman.get_relpath() /
-        parameters['archive'].output,
-        Path.is_dir,
-    )
+    src_path = parameters['//bases:drydock'] / foreman.get_relpath()
+    src_path /= src_path.name
     with scripts.using_cwd(src_path):
         _build(parameters, src_path, config_data)
         _install()
