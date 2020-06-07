@@ -55,12 +55,12 @@ class ContextOptions(options.OptionsBase):
     # Protocol "pubsub0" options.
 
     def subscribe(self, topic):
-        options.setopt_opaque(
+        options.setopt_bytes(
             self, _nng.Options.NNG_OPT_SUB_SUBSCRIBE[0], topic
         )
 
     def unsubscribe(self, topic):
-        options.setopt_opaque(
+        options.setopt_bytes(
             self, _nng.Options.NNG_OPT_SUB_UNSUBSCRIBE[0], topic
         )
 
@@ -74,6 +74,8 @@ class ContextOptions(options.OptionsBase):
 
 
 class SocketBase(CommonOptions, ContextOptions):
+
+    _name = 'socket'
 
     # Generic options.
 
@@ -100,9 +102,6 @@ class SocketBase(CommonOptions, ContextOptions):
     recv = classes.abstract_method
     sendmsg = classes.abstract_method
     recvmsg = classes.abstract_method
-
-    _getopt_prefix = 'nng_getopt'
-    _setopt_prefix = 'nng_setopt'
 
     def __init__(self, protocol, *, raw=False):
 
@@ -184,13 +183,12 @@ class SocketBase(CommonOptions, ContextOptions):
 
 class ContextBase(ContextOptions):
 
+    _name = 'ctx'
+
     send = classes.abstract_method
     recv = classes.abstract_method
     sendmsg = classes.abstract_method
     recvmsg = classes.abstract_method
-
-    _getopt_prefix = 'nng_ctx_getopt'
-    _setopt_prefix = 'nng_ctx_setopt'
 
     def __init__(self, socket):
 
@@ -333,15 +331,14 @@ class Endpoint(CommonOptions):
 
 class DialerBase(Endpoint):
 
+    _name = 'dialer'
+
     # Generic options.
 
     min_reconnect_time = options.make(_nng.Options.NNG_OPT_RECONNMINT)
     max_reconnect_time = options.make(_nng.Options.NNG_OPT_RECONNMAXT)
 
     # End of options.
-
-    _getopt_prefix = 'nng_dialer_getopt'
-    _setopt_prefix = 'nng_dialer_setopt'
 
     _endpoints = 'dialers'
     _get_id = _nng.F.nng_dialer_id
@@ -353,6 +350,8 @@ class DialerBase(Endpoint):
 
 class Listener(Endpoint):
 
+    _name = 'listener'
+
     # Generic options.
 
     min_reconnect_time = options.make(
@@ -363,9 +362,6 @@ class Listener(Endpoint):
     )
 
     # End of options.
-
-    _getopt_prefix = 'nng_listener_getopt'
-    _setopt_prefix = 'nng_listener_setopt'
 
     _endpoints = 'listeners'
     _get_id = _nng.F.nng_listener_id

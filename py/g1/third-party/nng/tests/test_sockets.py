@@ -122,8 +122,6 @@ class SocketTest(unittest.TestCase):
             # Ownership is transferred on success.
             self.assertIsNone(m1._msg_p)
 
-            # Now m2's header has some data.
-            self.assertEqual(len(m2.header), 4)
             self.assertEqual(m2.body.memory_view, b'dlrow olleh')
 
         with contextlib.ExitStack() as stack:

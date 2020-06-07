@@ -4,7 +4,7 @@ __all__ = [
     'OptionsBase',
     'make',
     'getopt_string',
-    'setopt_opaque',
+    'setopt_bytes',
     'setopt_string',
 ]
 
@@ -39,18 +39,22 @@ def make(option, *, mode=None):
     if mode is None:
         mode = default_mode
 
+    # TODO: Handle ptr type.
     if type_name in ('bool', 'int', 'size', 'uint64'):
         getter = get_simple
         setter = set_simple
     elif type_name == 'ms':
         getter = get_duration
         setter = set_duration
+    elif type_name == 'bytes':
+        getter = get_bytes
+        setter = set_bytes
     elif type_name == 'string':
         getter = get_string
         setter = set_string
-    elif type_name == 'sockaddr':
-        getter = get_sockaddr
-        setter = set_sockaddr
+    elif type_name == 'addr':
+        getter = get_addr
+        setter = set_addr
     else:
         ASSERT.unreachable('unsupported option type: {}', type_name)
 
@@ -70,14 +74,14 @@ def make(option, *, mode=None):
 
 
 def get_simple(self, *, name, type_name):
-    getopt = _nng.F['%s_%s' % (self._getopt_prefix, type_name)]
+    getopt = _nng.F['nng_%s_get_%s' % (self._name, type_name)]
     value = _nng.OPTION_TYPES[type_name][1]()
     errors.check(getopt(self._handle, name, ctypes.byref(value)))
     return value.value
 
 
 def set_simple(self, value, *, name, type_name):
-    setopt = _nng.F['%s_%s' % (self._setopt_prefix, type_name)]
+    setopt = _nng.F['nng_%s_set_%s' % (self._name, type_name)]
     errors.check(setopt(self._handle, name, value))
 
 
@@ -97,25 +101,45 @@ def set_duration(self, value, **kwargs):
     set_simple(self, value, **kwargs)
 
 
-def get_sockaddr(self, *, name, type_name):
-    ASSERT.equal(type_name, 'sockaddr')
-    getopt = _nng.F['%s_sockaddr' % self._getopt_prefix]
+def get_addr(self, *, name, type_name):
+    ASSERT.equal(type_name, 'addr')
+    getopt = _nng.F['nng_%s_get_addr' % self._name]
     value = _nng.nng_sockaddr()
     errors.check(getopt(self._handle, name, ctypes.byref(value)))
     return value
 
 
-def set_sockaddr(self, value, *, name, type_name):
-    ASSERT.equal(type_name, 'sockaddr')
-    setopt = _nng.F[self._setopt_prefix]
+def set_addr(self, value, *, name, type_name):
+    ASSERT.equal(type_name, 'addr')
+    setopt = _nng.F['nng_%s_set_addr' % self._name]
     errors.check(
         setopt(self._handle, name, ctypes.byref(value), ctypes.sizeof(value))
     )
 
 
+def get_bytes(self, *, name, type_name):
+    ASSERT.equal(type_name, 'bytes')
+    getopt = _nng.F['nng_%s_get' % self._name]
+    ptr = ctypes.c_void_p()
+    size = ctypes.c_size_t()
+    errors.check(
+        getopt(self._handle, name, ctypes.byref(ptr), ctypes.byref(size))
+    )
+    try:
+        return ctypes.string_at(ptr, size.value)
+    finally:
+        _nng.F.nng_free(ptr, size)
+
+
+def set_bytes(self, value, *, name, type_name):
+    ASSERT.equal(type_name, 'bytes')
+    setopt = _nng.F['nng_%s_set' % self._name]
+    errors.check(setopt(self._handle, name, value, len(value)))
+
+
 def get_string(self, *, name, type_name):
     ASSERT.equal(type_name, 'string')
-    getopt = _nng.F['%s_string' % self._getopt_prefix]
+    getopt = _nng.F['nng_%s_get_string' % self._name]
     value = ctypes.c_char_p()
     errors.check(getopt(self._handle, name, ctypes.byref(value)))
     try:
@@ -126,8 +150,12 @@ def get_string(self, *, name, type_name):
 
 def set_string(self, value, *, name, type_name):
     ASSERT.equal(type_name, 'string')
-    setopt = _nng.F['%s_string' % self._setopt_prefix]
+    setopt = _nng.F['nng_%s_set_string' % self._name]
     errors.check(setopt(self._handle, name, _nng.ensure_bytes(value)))
+
+
+def setopt_bytes(self, name, value):
+    return set_bytes(self, name=name, value=value, type_name='bytes')
 
 
 def getopt_string(self, name):
@@ -136,9 +164,3 @@ def getopt_string(self, name):
 
 def setopt_string(self, name, value):
     return set_string(self, name=name, value=value, type_name='string')
-
-
-def setopt_opaque(self, name, value):
-    ASSERT.isinstance(value, bytes)
-    setopt = _nng.F[self._setopt_prefix]
-    errors.check(setopt(self._handle, name, value, len(value)))

@@ -55,7 +55,6 @@ from ctypes import (
 )
 
 from g1.bases import collections
-from g1.bases.assertions import ASSERT
 from g1.bases.ctypes import load_func
 
 LIBNNG = cdll.LoadLibrary('libnng.so')
@@ -234,8 +233,6 @@ class nng_errno_enum(enum.IntEnum):
     NNG_ETRANERR = 0x20000000
 
 
-# This is a list of common option types, which does not include
-# "sockaddr", etc.
 OPTION_TYPES = {
     # name -> (getter_argtype, setter_argtype).
     'bool': (c_bool_p, c_bool),
@@ -245,6 +242,7 @@ OPTION_TYPES = {
     'uint64': (c_uint64_p, c_uint64),
     'string': (c_char_p_p, c_char_p),
     'ptr': (c_void_p_p, c_void_p),
+    'addr': (nng_sockaddr_p, nng_sockaddr),
 }
 
 
@@ -267,8 +265,8 @@ class Options(tuple, enum.Enum):
     NNG_OPT_SENDFD = (b'send-fd', 'int', 'ro')
     NNG_OPT_RECVTIMEO = (b'recv-timeout', 'ms', 'rw')
     NNG_OPT_SENDTIMEO = (b'send-timeout', 'ms', 'rw')
-    NNG_OPT_LOCADDR = (b'local-address', 'sockaddr', 'ro')
-    NNG_OPT_REMADDR = (b'remote-address', 'sockaddr', 'ro')
+    NNG_OPT_LOCADDR = (b'local-address', 'addr', 'ro')
+    NNG_OPT_REMADDR = (b'remote-address', 'addr', 'ro')
     NNG_OPT_URL = (b'url', 'string', 'ro')
     NNG_OPT_MAXTTL = (b'ttl-max', 'int', 'rw')
     NNG_OPT_RECVMAXSZ = (b'recv-size-max', 'size', 'rw')
@@ -326,23 +324,14 @@ class Options(tuple, enum.Enum):
     #
 
     # Protocol "pubsub0" options.
-    NNG_OPT_SUB_SUBSCRIBE = (b'sub:subscribe', 'string', 'rw')
-    NNG_OPT_SUB_UNSUBSCRIBE = (b'sub:unsubscribe', 'string', 'rw')
+    NNG_OPT_SUB_SUBSCRIBE = (b'sub:subscribe', 'bytes', 'wo')
+    NNG_OPT_SUB_UNSUBSCRIBE = (b'sub:unsubscribe', 'bytes', 'wo')
 
     # Protocol "reqrep0" options.
     NNG_OPT_REQ_RESENDTIME = (b'req:resend-time', 'ms', 'rw')
 
     # Protocol "survey0" options.
     NNG_OPT_SURVEYOR_SURVEYTIME = (b'surveyor:survey-time', 'ms', 'rw')
-
-
-# Polyfill this function.  API document says nng implements this, but it
-# actually does not.  (Maybe a bug?)
-ASSERT.false(hasattr(LIBNNG, 'nng_ctx_setopt_string'))
-
-
-def nng_ctx_setopt_string(handle, name, value):
-    return F.nng_ctx_setopt(handle, name, value, len(value))
 
 
 F = collections.Namespace(
@@ -358,11 +347,19 @@ F = collections.Namespace(
             # Socket functions.
             ('nng_socket_id', c_int, (nng_socket, )),
             ('nng_close', c_int, (nng_socket, )),
-            ('nng_getopt', c_int, (nng_socket, c_char_p, c_void_p, c_size_t)),
-            ('nng_setopt', c_int, (nng_socket, c_char_p, c_void_p, c_size_t)),
-            *(('nng_getopt_%s' % n, c_int, (nng_socket, c_char_p, t))
+            (
+                'nng_socket_get',
+                c_int,
+                (nng_socket, c_char_p, c_void_p_p, c_size_t_p),
+            ),
+            (
+                'nng_socket_set',
+                c_int,
+                (nng_socket, c_char_p, c_void_p, c_size_t),
+            ),
+            *(('nng_socket_get_%s' % n, c_int, (nng_socket, c_char_p, t))
               for n, (t, _) in OPTION_TYPES.items()),
-            *(('nng_setopt_%s' % n, c_int, (nng_socket, c_char_p, t))
+            *(('nng_socket_set_%s' % n, c_int, (nng_socket, c_char_p, t))
               for n, (_, t) in OPTION_TYPES.items()),
             ('nng_send', c_int, (nng_socket, c_void_p, c_size_t, c_int)),
             ('nng_recv', c_int, (nng_socket, c_void_p, c_size_t_p, c_int)),
@@ -375,14 +372,20 @@ F = collections.Namespace(
             ('nng_ctx_open', c_int, (nng_ctx_p, nng_socket)),
             ('nng_ctx_id', c_int, (nng_ctx, )),
             ('nng_ctx_close', c_int, (nng_ctx, )),
-            ('nng_ctx_getopt', c_int, (nng_ctx, c_char_p, c_void_p, c_size_t)),
-            ('nng_ctx_setopt', c_int, (nng_ctx, c_char_p, c_void_p, c_size_t)),
-            *(('nng_ctx_getopt_%s' % n, c_int, (nng_ctx, c_char_p, t))
-              for n, (t, _) in OPTION_TYPES.items()
-              if n in ('bool', 'int', 'ms', 'size')),
-            *(('nng_ctx_setopt_%s' % n, c_int, (nng_ctx, c_char_p, t))
-              for n, (_, t) in OPTION_TYPES.items()
-              if n in ('bool', 'int', 'ms', 'size')),
+            (
+                'nng_ctx_get',
+                c_int,
+                (nng_ctx, c_char_p, c_void_p_p, c_size_t_p),
+            ),
+            (
+                'nng_ctx_set',
+                c_int,
+                (nng_ctx, c_char_p, c_void_p, c_size_t),
+            ),
+            *(('nng_ctx_get_%s' % n, c_int, (nng_ctx, c_char_p, t))
+              for n, (t, _) in OPTION_TYPES.items()),
+            *(('nng_ctx_set_%s' % n, c_int, (nng_ctx, c_char_p, t))
+              for n, (_, t) in OPTION_TYPES.items()),
             ('nng_ctx_send', None, (nng_ctx, nng_aio_p)),
             ('nng_ctx_recv', None, (nng_ctx, nng_aio_p)),
 
@@ -399,24 +402,19 @@ F = collections.Namespace(
             ('nng_dialer_id', c_int, (nng_dialer, )),
             ('nng_dialer_close', c_int, (nng_dialer, )),
             (
-                'nng_dialer_getopt',
+                'nng_dialer_get',
                 c_int,
-                (nng_dialer, c_char_p, c_void_p, c_size_t),
+                (nng_dialer, c_char_p, c_void_p_p, c_size_t_p),
             ),
             (
-                'nng_dialer_setopt',
+                'nng_dialer_set',
                 c_int,
                 (nng_dialer, c_char_p, c_void_p, c_size_t),
             ),
-            *(('nng_dialer_getopt_%s' % n, c_int, (nng_dialer, c_char_p, t))
+            *(('nng_dialer_get_%s' % n, c_int, (nng_dialer, c_char_p, t))
               for n, (t, _) in OPTION_TYPES.items()),
-            *(('nng_dialer_setopt_%s' % n, c_int, (nng_dialer, c_char_p, t))
+            *(('nng_dialer_set_%s' % n, c_int, (nng_dialer, c_char_p, t))
               for n, (_, t) in OPTION_TYPES.items()),
-            (
-                'nng_dialer_getopt_sockaddr',
-                c_int,
-                (nng_dialer, c_char_p, nng_sockaddr_p),
-            ),
 
             # Listener functions.
             (
@@ -433,30 +431,25 @@ F = collections.Namespace(
             ('nng_listener_id', c_int, (nng_listener, )),
             ('nng_listener_close', c_int, (nng_listener, )),
             (
-                'nng_listener_getopt',
+                'nng_listener_get',
                 c_int,
-                (nng_listener, c_char_p, c_void_p, c_size_t),
+                (nng_listener, c_char_p, c_void_p_p, c_size_t_p),
             ),
             (
-                'nng_listener_setopt',
+                'nng_listener_set',
                 c_int,
                 (nng_listener, c_char_p, c_void_p, c_size_t),
             ),
             *((
-                'nng_listener_getopt_%s' % n,
+                'nng_listener_get_%s' % n,
                 c_int,
                 (nng_listener, c_char_p, t),
             ) for n, (t, _) in OPTION_TYPES.items()),
             *((
-                'nng_listener_setopt_%s' % n,
+                'nng_listener_set_%s' % n,
                 c_int,
                 (nng_listener, c_char_p, t),
             ) for n, (_, t) in OPTION_TYPES.items()),
-            (
-                'nng_listener_getopt_sockaddr',
-                c_int,
-                (nng_listener, c_char_p, nng_sockaddr_p),
-            ),
 
             # Message functions.
             ('nng_msg_alloc', c_int, (nng_msg_p_p, c_size_t)),
@@ -484,7 +477,6 @@ F = collections.Namespace(
             ('nng_aio_get_msg', nng_msg_p, (nng_aio_p, )),
         )
     ),
-    nng_ctx_setopt_string=nng_ctx_setopt_string,
 )
 
 
