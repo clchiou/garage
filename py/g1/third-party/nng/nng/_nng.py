@@ -65,7 +65,6 @@ PROTOCOLS = (
     'bus0',
     # pair
     'pair0',
-    'pair1',
     # pipeline
     'pull0',
     'push0',
@@ -325,9 +324,6 @@ class Options(tuple, enum.Enum):
     #
     # Protocol options.
     #
-
-    # Protocol "pair1" options.
-    NNG_OPT_PAIR1_POLY = (b'pair1:polyamorous', 'bool', 'rw')
 
     # Protocol "pubsub0" options.
     NNG_OPT_SUB_SUBSCRIBE = (b'sub:subscribe', 'string', 'rw')

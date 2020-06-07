@@ -21,7 +21,6 @@ class EnumTest(unittest.TestCase, tests.CFixture if tests else object):
 
     HEADERS = (
         'nng/nng.h',
-        'nng/protocol/pair1/pair.h',
         'nng/protocol/pubsub0/sub.h',
         'nng/protocol/reqrep0/req.h',
         'nng/protocol/survey0/survey.h',

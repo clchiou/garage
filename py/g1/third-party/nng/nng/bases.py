@@ -92,10 +92,6 @@ class SocketBase(CommonOptions, ContextOptions):
     tcp_nodelay = options.make(_nng.Options.NNG_OPT_TCP_NODELAY)
     tcp_keepalive = options.make(_nng.Options.NNG_OPT_TCP_KEEPALIVE)
 
-    # Protocol "pair1" options.
-
-    polyamorous = options.make(_nng.Options.NNG_OPT_PAIR1_POLY)
-
     # End of options.
 
     _dialer_type = classes.abstract_method

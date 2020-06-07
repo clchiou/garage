@@ -38,7 +38,6 @@ class OptionsTest(unittest.TestCase):
     def test_socket_options(self):
 
         protocol_options = {
-            'polyamorous': nng.Protocols.PAIR1,
             'resend_time': nng.Protocols.REQ0,
             'survey_time': nng.Protocols.SURVEYOR0,
         }
