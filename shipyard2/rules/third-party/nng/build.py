@@ -29,6 +29,7 @@ shipyard2.rules.bases.define_distro_packages([
 @foreman.rule.depend('install')
 def build(parameters):
     src_path = parameters['//bases:drydock'] / foreman.get_relpath()
+    src_path /= src_path.name
     build_dir_path = src_path / 'build'
     if build_dir_path.exists():
         LOG.info('skip: build nng')

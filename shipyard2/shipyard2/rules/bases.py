@@ -173,6 +173,11 @@ def define_git_repo(
 ):
     """Define a git repo.
 
+    Given a rule "//rule/path/foo", this checks out the repo and its
+    sub modules into "drydock/rule/path/foo/foo".  Note the extra "foo"
+    of the repo path - since the repo is checked into a sub directory,
+    you may use the parent directory as a scratch pad.
+
     This defines:
     * Rule: [name_prefix/]git-clone.
     """
@@ -184,6 +189,7 @@ def define_git_repo(
     @foreman.rule.depend('//bases:git-repo/install')
     def git_clone(parameters):
         repo_path = parameters['//bases:drydock'] / foreman.get_relpath()
+        repo_path /= repo_path.name
         git_dir_path = repo_path / '.git'
         if git_dir_path.is_dir():
             LOG.info('skip: git clone: %s', repo_url)

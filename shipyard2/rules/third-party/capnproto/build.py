@@ -30,6 +30,7 @@ shipyard2.rules.bases.define_distro_packages([
 @foreman.rule.depend('install')
 def build(parameters):
     src_path = parameters['//bases:drydock'] / foreman.get_relpath()
+    src_path /= src_path.name
     if (src_path / 'c++/.libs/libcapnp.so').exists():
         LOG.info('skip: build capnproto')
         return
