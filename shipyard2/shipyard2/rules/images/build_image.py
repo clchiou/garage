@@ -13,6 +13,7 @@ import foreman
 
 from g1 import scripts
 from g1.bases.assertions import ASSERT
+from g1.containers import models as ctr_models
 from g1.containers import scripts as ctr_scripts
 
 import shipyard2
@@ -98,14 +99,16 @@ _INITIALIZE_BUILDER = (
     'adduser --disabled-password --gecos "" plumber',
     'echo "plumber ALL=(ALL:ALL) NOPASSWD: ALL" > /etc/sudoers.d/99-plumber',
     'chmod 440 /etc/sudoers.d/99-plumber',
-    # TODO: Get distro (bionic) from `ctr images build-base`.
     'apt-get --yes install software-properties-common',
     # Clear the default repositories from `ctr images build-base` as
     # they conflict with mime.
     'echo -n > /etc/apt/sources.list',
-    'add-apt-repository --yes "deb http://us.archive.ubuntu.com/ubuntu/ bionic main restricted universe"',
-    'add-apt-repository --yes "deb http://us.archive.ubuntu.com/ubuntu/ bionic-updates main restricted universe"',
-    'add-apt-repository --yes "deb http://security.ubuntu.com/ubuntu/ bionic-security main restricted universe"',
+    'add-apt-repository --yes "deb http://us.archive.ubuntu.com/ubuntu/ %s main restricted universe"'
+    % ctr_models.BASE_IMAGE_RELEASE_CODE_NAME,
+    'add-apt-repository --yes "deb http://us.archive.ubuntu.com/ubuntu/ %s-updates main restricted universe"'
+    % ctr_models.BASE_IMAGE_RELEASE_CODE_NAME,
+    'add-apt-repository --yes "deb http://security.ubuntu.com/ubuntu/ %s-security main restricted universe"'
+    % ctr_models.BASE_IMAGE_RELEASE_CODE_NAME,
     'apt-get --yes update',
     'apt-get --yes full-upgrade',
     # foreman needs at least python3; let's use 3.8 to be safe.

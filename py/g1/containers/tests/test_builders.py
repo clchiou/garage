@@ -16,7 +16,7 @@ class BuildersTest(fixtures.TestCaseBase):
         (self.test_repo_path / 'etc/default').mkdir(parents=True)
         etc_path = self.test_repo_path / 'etc/systemd/system'
         etc_path.mkdir(parents=True)
-        lib_path = self.test_repo_path / 'lib/systemd/system'
+        lib_path = self.test_repo_path / 'usr/lib/systemd/system'
         lib_path.mkdir(parents=True)
         sbin_path = self.test_repo_path / 'usr/sbin'
         sbin_path.mkdir(parents=True)

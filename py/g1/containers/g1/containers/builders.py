@@ -36,6 +36,7 @@ from g1.bases.assertions import ASSERT
 
 from . import bases
 from . import images
+from . import models
 
 LOG = logging.getLogger(__name__)
 
@@ -94,7 +95,7 @@ def cmd_prepare_base_rootfs(image_rootfs_path):
         # Install sudo for changing service user/group.
         # Install tzdata for /etc/localtime.
         '--include=dbus,sudo,systemd,tzdata',
-        'bionic',
+        models.BASE_IMAGE_RELEASE_CODE_NAME,
         image_rootfs_path,
         'http://us.archive.ubuntu.com/ubuntu/',
     ])
@@ -115,6 +116,13 @@ def cmd_prepare_base_rootfs(image_rootfs_path):
 @argparses.argument('path', type=Path, help='provide rootfs directory path')
 @argparses.end
 def cmd_setup_base_rootfs(image_rootfs_path, prune_stash_path):
+    """Set up base rootfs.
+
+    Changes from 18.04 to 20.04.
+    * /lib is now a symlink to /usr/lib.
+    * system.slice has been removed:
+      https://github.com/systemd/systemd/commit/d8e5a9338278d6602a0c552f01f298771a384798
+    """
     ASSERT.predicate(image_rootfs_path, Path.is_dir)
     oses.assert_root_privilege()
     # Remove unneeded files.
@@ -162,7 +170,6 @@ def cmd_setup_base_rootfs(image_rootfs_path, prune_stash_path):
     base_units = set(_BASE_UNITS)
     for unit_dir_path in (
         image_rootfs_path / 'etc/systemd/system',
-        image_rootfs_path / 'lib/systemd/system',
         image_rootfs_path / 'usr/lib/systemd/system',
     ):
         if not unit_dir_path.exists():
@@ -180,7 +187,7 @@ def cmd_setup_base_rootfs(image_rootfs_path, prune_stash_path):
     # Create unit files.
     for unit_dir_path, unit_files in (
         (image_rootfs_path / 'etc/systemd/system', _ETC_UNIT_FILES),
-        (image_rootfs_path / 'lib/systemd/system', _LIB_UNIT_FILES),
+        (image_rootfs_path / 'usr/lib/systemd/system', _LIB_UNIT_FILES),
     ):
         for unit_file in unit_files:
             ASSERT.predicate(unit_dir_path, Path.is_dir)
@@ -360,7 +367,6 @@ _BASE_UNITS = frozenset((
     # Slices.
     'machine.slice',
     'slices.target',
-    'system.slice',
     'user.slice',
     # tmpfiles.
     'systemd-tmpfiles-setup-dev.service',

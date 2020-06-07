@@ -1,4 +1,5 @@
 __all__ = [
+    'BASE_IMAGE_RELEASE_CODE_NAME',
     # Pod.
     'PodConfig',
     'generate_machine_name',
@@ -24,6 +25,8 @@ import uuid
 from pathlib import Path
 
 from g1.bases.assertions import ASSERT
+
+BASE_IMAGE_RELEASE_CODE_NAME = 'focal'
 
 _SERVICE_TYPES = frozenset((
     'simple',
