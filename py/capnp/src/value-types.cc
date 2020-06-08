@@ -411,6 +411,16 @@ void defineDynamicList(void) {
 // capnp::DynamicStruct
 //
 
+bool dynamicStructReaderHas(const capnp::DynamicStruct::Reader& reader,
+                            capnp::StructSchema::Field field) {
+  return reader.has(field);
+}
+
+bool dynamicStructBuilderHas(capnp::DynamicStruct::Builder& builder,
+                             capnp::StructSchema::Field field) {
+  return builder.has(field);
+}
+
 void defineDynamicStruct(void) {
   using capnp::DynamicStruct;
   boost::python::scope _ =
@@ -421,7 +431,7 @@ void defineDynamicStruct(void) {
       .def("totalSize", &Reader::totalSize)
       .def("getSchema", &Reader::getSchema)
       .DEF_MF_CONST(get, capnp::DynamicValue::Reader, Reader, capnp::StructSchema::Field)
-      .DEF_MF_CONST(has, bool, Reader, capnp::StructSchema::Field)
+      .def("has", dynamicStructReaderHas)
       .def("which", &Reader::which);
 
   // This is defined in defineStructSchema
@@ -432,7 +442,7 @@ void defineDynamicStruct(void) {
       .def("totalSize", &Builder::totalSize)
       .def("getSchema", &Builder::getSchema)
       .DEF_MF(get, capnp::DynamicValue::Builder, Builder, capnp::StructSchema::Field)
-      .DEF_MF(has, bool, Builder, capnp::StructSchema::Field)
+      .def("has", dynamicStructBuilderHas)
       .def("which", &Builder::which)
       .DEF_MF(set, void, Builder, capnp::StructSchema::Field, const capnp::DynamicValue::Reader&)
       .DEF_MF(init, capnp::DynamicValue::Builder, Builder, capnp::StructSchema::Field)

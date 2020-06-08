@@ -1,8 +1,10 @@
+import sys
 from setuptools import setup
 from setuptools.extension import Extension
 
 import buildtools
 
+BOOST_LIB = 'boost_python{0.major}{0.minor}'.format(sys.version_info)
 
 # You might also need to set PKG_CONFIG_PATH=/path/to/lib/pkgconfig if
 # your capnp is installed in a non-default location
@@ -26,8 +28,8 @@ setup(
             ],
             include_dirs = CAPNP.include_dirs,
             library_dirs = CAPNP.library_dirs,
-            libraries = ['boost_python37'] + CAPNP.libraries,
-            extra_compile_args = ['-std=c++11'] + CAPNP.extra_compile_args,
+            libraries = [BOOST_LIB] + CAPNP.libraries,
+            extra_compile_args = ['-std=c++14'] + CAPNP.extra_compile_args,
         ),
     ],
 )

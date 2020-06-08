@@ -23,7 +23,7 @@ class SchemasTest(Fixture):
             self.assertEqual(1, len(loader.files))
 
             self.assertEqual(
-                [str(self.TESTDATA_PATH / 'test-1.capnp')],
+                ['tests/testdata/test-1.capnp'],
                 [file_node.name for file_node in loader.files.values()],
             )
 
