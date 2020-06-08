@@ -6,7 +6,7 @@ from g1.bases import labels
 from g1.messaging.parts.clients import CLIENT_LABEL_NAMES
 from g1.messaging.parts.clients import make_client_params
 
-from .. import clients
+from .. import clients  # pylint: disable=relative-beyond-top-level
 
 
 def define_client(module_path=None, **kwargs):

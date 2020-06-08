@@ -83,8 +83,7 @@ class ConnectionManager:
         if tx_id != self._tx_id:
             if tx_id in self._timeout_tx_ids:
                 raise interfaces.TransactionTimeoutError
-            else:
-                raise interfaces.TransactionNotFoundError
+            raise interfaces.TransactionNotFoundError
         yield self._conn
 
     @contextlib.asynccontextmanager

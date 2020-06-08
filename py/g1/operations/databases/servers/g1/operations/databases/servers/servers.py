@@ -68,6 +68,12 @@ async def _sleep(amount, result):
 
 class DatabaseServer(interfaces.DatabaseInterface):
 
+    # DatabaseInterface declares methods as non-async, but we define
+    # async methods here; so we have to disable this pylint check for
+    # now.
+    #
+    # pylint: disable=invalid-overridden-method
+
     def __init__(self, engine, publisher):
         self._engine = engine
         self._manager = connections.ConnectionManager(self._engine.connect())
@@ -186,8 +192,9 @@ class DatabaseServer(interfaces.DatabaseInterface):
                 [
                     interfaces.DatabaseEvent(
                         previous=prior,
-                        current=interfaces.
-                        KeyValue(revision=revision, key=key, value=value),
+                        current=interfaces.KeyValue(
+                            revision=revision, key=key, value=value
+                        ),
                     ),
                 ],
             )

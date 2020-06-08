@@ -120,9 +120,8 @@ async def join_agents(agent_queue, start_exiting):
             else:
                 message = 'agent err out: %r'
             raise SupervisorError(message % agent) from exc
-        else:
-            if start_exiting():
-                LOG.info('graceful exit: agent exit: %r', agent)
+        if start_exiting():
+            LOG.info('graceful exit: agent exit: %r', agent)
 
 
 async def request_graceful_exit(graceful_exit, start_exiting):

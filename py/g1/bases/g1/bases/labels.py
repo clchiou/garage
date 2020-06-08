@@ -124,7 +124,7 @@ def load_global(label, *, invalidate_caches=False):
 
     global importlib
     if importlib is None:
-        # pylint: disable=redefined-outer-name
+        # pylint: disable=import-outside-toplevel, redefined-outer-name
         import importlib
 
     if not isinstance(label, Label):

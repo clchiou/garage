@@ -35,7 +35,9 @@ class TestCaseBase(unittest.TestCase):
         super().tearDown()
 
     def set_mock_response(self, status_code):
-        self.mock_response = unittest.mock.Mock(spec_set=requests.Response())
+        self.mock_response = unittest.mock.Mock(
+            spec_set=dir(requests.Response())
+        )
         self.mock_response.status_code = status_code
         if 400 <= status_code < 600:
             self.mock_response.raise_for_status.side_effect = \

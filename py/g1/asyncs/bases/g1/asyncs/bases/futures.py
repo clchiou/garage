@@ -31,8 +31,8 @@ class Future:
 
     __repr__ = classes.make_repr(
         '{state} {self._result!r} {self._exception!r}',
-        state=
-        lambda self: 'completed' if self.is_completed() else 'uncompleted',
+        state=lambda self: 'completed'
+        if self.is_completed() else 'uncompleted',
     )
 
     def is_completed(self):
@@ -50,8 +50,7 @@ class Future:
         ASSERT.true(self.is_completed())
         if self._exception:
             raise self._exception
-        else:
-            return self._result
+        return self._result
 
     def get_exception_nonblocking(self):
         ASSERT.true(self.is_completed())

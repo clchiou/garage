@@ -100,8 +100,7 @@ class Task:
         self._joined = True
         if self._exception:
             raise self._exception
-        else:
-            return self._result
+        return self._result
 
     def get_exception_nonblocking(self):
         ASSERT.true(self.is_completed())

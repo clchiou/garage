@@ -29,7 +29,7 @@ class SuperviseAgentsTest(unittest.TestCase):
         self._assert_logs.__exit__(None, None, None)
         super().tearDown()
 
-    def assert_(self, closed, queue_size, graceful_exit, log_patterns):
+    def assert_state(self, closed, queue_size, graceful_exit, log_patterns):
         self.assertEqual(self.agent_queue.is_closed(), closed)
         self.assertEqual(len(self.agent_queue), queue_size)
         self.assertEqual(self.graceful_exit.is_set(), graceful_exit)
@@ -50,7 +50,7 @@ class SuperviseAgentsTest(unittest.TestCase):
     def test_graceful_exit_by_user(self):
         self.graceful_exit.set()
         self.run_supervisor()
-        self.assert_(True, 0, True, [r'graceful exit: requested by user'])
+        self.assert_state(True, 0, True, [r'graceful exit: requested by user'])
         self.assertIsNone(self.main_task.get_result_nonblocking())
         self.assertFalse(tasks.get_all_tasks())
 
@@ -58,23 +58,23 @@ class SuperviseAgentsTest(unittest.TestCase):
     def test_signal(self):
         self.signal_queue.put_nonblocking(1)
         self.run_supervisor()
-        self.assert_(True, 0, True, [r'graceful exit: receive signal: 1'])
+        self.assert_state(True, 0, True, [r'graceful exit: receive signal: 1'])
         self.assertIsNone(self.main_task.get_result_nonblocking())
         self.assertFalse(tasks.get_all_tasks())
 
     @kernels.with_kernel
     def test_repeated_signals(self):
         sleep_task = self.agent_queue.spawn(timers.sleep(99))
-        self.assert_(False, 1, False, [])
+        self.assert_state(False, 1, False, [])
 
         self.signal_queue.put_nonblocking(1)
         with self.assertRaises(kernels.KernelTimeout):
             self.run_supervisor()
-        self.assert_(True, 1, True, [r'graceful exit: receive signal: 1'])
+        self.assert_state(True, 1, True, [r'graceful exit: receive signal: 1'])
 
         self.signal_queue.put_nonblocking(2)
         kernels.run(timeout=1)
-        self.assert_(True, 0, True, [r'graceful exit: receive signal: 1'])
+        self.assert_state(True, 0, True, [r'graceful exit: receive signal: 1'])
 
         with self.assertRaisesRegex(
             agents.SupervisorError,
@@ -88,18 +88,20 @@ class SuperviseAgentsTest(unittest.TestCase):
     @kernels.with_kernel
     def test_agent_exit(self):
         noop_task = self.agent_queue.spawn(noop)
-        self.assert_(False, 1, False, [])
+        self.assert_state(False, 1, False, [])
         self.run_supervisor()
-        self.assert_(True, 0, True, [r'no op', r'graceful exit: agent exit: '])
+        self.assert_state(
+            True, 0, True, [r'no op', r'graceful exit: agent exit: ']
+        )
         self.assertIsNone(noop_task.get_result_nonblocking())
         self.assertFalse(tasks.get_all_tasks())
 
     @kernels.with_kernel
     def test_agent_error(self):
         raises_task = self.agent_queue.spawn(raises(ValueError('some error')))
-        self.assert_(False, 1, False, [])
+        self.assert_state(False, 1, False, [])
         self.run_supervisor()
-        self.assert_(True, 0, False, [])
+        self.assert_state(True, 0, False, [])
         with self.assertRaisesRegex(
             agents.SupervisorError,
             r'agent err out: ',
@@ -115,12 +117,12 @@ class SuperviseAgentsTest(unittest.TestCase):
     def test_grace_period_exceeded(self):
         self.graceful_exit.set()
         sleep_task = self.agent_queue.spawn(timers.sleep(99))
-        self.assert_(False, 1, True, [])
+        self.assert_state(False, 1, True, [])
         self.main_task = tasks.spawn(
             agents.supervise_agents(self.agent_queue, self.graceful_exit, 0)
         )
         kernels.run(timeout=0.01)
-        self.assert_(True, 0, True, [r'graceful exit: requested by user'])
+        self.assert_state(True, 0, True, [r'graceful exit: requested by user'])
         with self.assertRaisesRegex(
             agents.SupervisorError,
             r'grace period exceeded',

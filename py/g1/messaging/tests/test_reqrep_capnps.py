@@ -129,8 +129,9 @@ class CapnpReqrepTest(unittest.TestCase):
         )
         self.assert_obj(
             response_type(
-                error=response_type.
-                Error(some_other_error=SomeOtherError(0, ''))
+                error=response_type.Error(
+                    some_other_error=SomeOtherError(0, '')
+                )
             )
         )
 

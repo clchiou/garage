@@ -100,8 +100,8 @@ class Multiset:
 
     __repr__ = classes.make_repr(
         '{{{items}}}',
-        items=lambda self:
-        ', '.join('%r: %d' % pair for pair in self._elements.items()),
+        items=lambda self: ', '.
+        join('%r: %d' % pair for pair in self._elements.items()),
     )
 
     def __contains__(self, value):
@@ -287,8 +287,8 @@ class Namespace:
 
     __repr__ = classes.make_repr(
         '{{{entries}}}',
-        entries=lambda self:
-        ', '.join('%s=%r' % pair for pair in self._entries.items()),
+        entries=lambda self: ', '.
+        join('%s=%r' % pair for pair in self._entries.items()),
     )
 
     def __iter__(self):

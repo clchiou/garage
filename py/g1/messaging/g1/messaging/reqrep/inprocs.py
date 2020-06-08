@@ -63,5 +63,4 @@ class InprocServer:
                 or type(exc) in self._declared_error_types  # pylint: disable=unidiomatic-typecheck
             ):
                 raise
-            else:
-                raise self._internal_server_error_type from exc
+            raise self._internal_server_error_type from exc

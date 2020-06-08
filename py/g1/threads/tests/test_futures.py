@@ -252,7 +252,7 @@ class CompletionQueueTest(unittest.TestCase):
                 fs = [futures.Future() for _ in range(3)]
                 for f in fs:
                     f.set_result(42)
-                actual = {f for f in futures.as_completed(fs, timeout)}
+                actual = set(futures.as_completed(fs, timeout))
                 self.assertEqual(actual, set(fs))
 
     def test_as_completed_func_empty(self):

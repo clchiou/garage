@@ -87,5 +87,4 @@ class Method:
             return self._on_timeout_return
         if response.error is not None:
             raise utils.select(response.error)[1]
-        else:
-            return getattr(response.result, self._name)
+        return getattr(response.result, self._name)

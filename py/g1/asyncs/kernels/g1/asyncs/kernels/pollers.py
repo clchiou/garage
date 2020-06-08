@@ -32,6 +32,7 @@ class Epoll:
 
     __repr__ = classes.make_repr(
         '{state} events={self._events}',
+        # pylint: disable=using-constant-test
         state=lambda self: 'closed' if self._epoll.closed else 'open',
     )
 

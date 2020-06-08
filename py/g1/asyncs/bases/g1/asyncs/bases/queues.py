@@ -122,11 +122,10 @@ class QueueBase:
     def put_nonblocking(self, item):
         if self.__closed:
             raise Closed
-        elif self.is_full():
+        if self.is_full():
             raise Full
-        else:
-            self.__getter_gate.unblock()
-            self.__put(self.__queue, item)
+        self.__getter_gate.unblock()
+        self.__put(self.__queue, item)
 
 
 #

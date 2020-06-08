@@ -133,7 +133,10 @@ class DatabasesTest(unittest.TestCase):
 
     def make_kv_testdata(self):
         d = lambda i, r, k, v: {
-            'key_id': i, 'revision': r, 'key': k, 'value': v
+            'key_id': i,
+            'revision': r,
+            'key': k,
+            'value': v,
         }
         self.engine.execute(
             self.tables.keyspace.insert(),
@@ -185,7 +188,10 @@ class DatabasesTest(unittest.TestCase):
 
     def make_lease_testdata(self):
         d = lambda i, r, k, v: {
-            'key_id': i, 'revision': r, 'key': k, 'value': v
+            'key_id': i,
+            'revision': r,
+            'key': k,
+            'value': v,
         }
         self.engine.execute(
             self.tables.keyspace.insert(),

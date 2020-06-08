@@ -24,6 +24,7 @@ __all__ = [
 
 import argparse
 import builtins
+import copy
 import datetime
 import enum
 import re
@@ -72,8 +73,6 @@ def _copy_items(items):
         return []
     if type(items) is list:  # pylint: disable=unidiomatic-typecheck
         return items[:]
-    # Import ``copy`` lazily.
-    import copy
     return copy.copy(items)
 
 

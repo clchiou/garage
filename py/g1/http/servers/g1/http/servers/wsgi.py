@@ -207,7 +207,7 @@ class HttpSession:
         except ng.Nghttp2Error as exc:
             if (
                 exc.error_code == \
-                ng.nghttp2_error_code.NGHTTP2_ERR_BAD_CLIENT_MAGIC
+                ng.nghttp2_error.NGHTTP2_ERR_BAD_CLIENT_MAGIC
             ):
                 LOG.warning('serve: %r: bad client magic', self, exc_info=exc)
             else:

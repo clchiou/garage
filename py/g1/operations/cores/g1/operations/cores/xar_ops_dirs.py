@@ -44,6 +44,8 @@ class XarBundleDir(repos.AbstractBundleDir):
 class XarOpsDir(repos.AbstractOpsDir):
 
     metadata_type = models.XarMetadata
+    # XXX: This annotation works around pylint no-member false errors.
+    metadata: object
 
     @property
     def zipapp_target_path(self):

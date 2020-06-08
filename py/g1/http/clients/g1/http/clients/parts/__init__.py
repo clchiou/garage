@@ -2,7 +2,7 @@ from g1.apps import parameters
 from g1.apps import utils
 from g1.bases import labels
 
-from ... import clients
+from ... import clients  # pylint: disable=relative-beyond-top-level
 from . import bases
 
 SESSION_LABEL_NAMES = (

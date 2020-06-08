@@ -26,7 +26,8 @@ class Fixture:
 
 
 def _check_file_lock(path, mode):
-    result = subprocess.run(['flock', '--nonblock', mode, str(path), 'true'])
+    cmd = ['flock', '--nonblock', mode, str(path), 'true']
+    result = subprocess.run(cmd, check=False)
     if result.returncode == 0:
         return True
     elif result.returncode == 1:

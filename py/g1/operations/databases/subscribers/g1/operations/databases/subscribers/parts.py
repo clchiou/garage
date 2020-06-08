@@ -6,7 +6,7 @@ from g1.bases import labels
 # For now these are just aliases.
 from g1.messaging.parts.subscribers import make_subscriber_params
 
-from .. import subscribers
+from .. import subscribers  # pylint: disable=relative-beyond-top-level
 
 SUBSCRIBER_LABEL_NAMES = (
     # Output.

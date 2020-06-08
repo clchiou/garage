@@ -3,7 +3,7 @@ from g1.apps import parameters
 from g1.apps import utils
 from g1.bases import labels
 
-from .. import servers
+from .. import servers  # pylint: disable=relative-beyond-top-level
 from . import nghttp2
 
 SERVER_LABEL_NAMES = (

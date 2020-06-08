@@ -695,8 +695,8 @@ class PodsTest(
 
         def list_image_ids():
             return sorted(
-                p.name for p in pods._get_deps_path(self.sample_pod_dir_path).
-                iterdir()
+                p.name for p in \
+                pods._get_deps_path(self.sample_pod_dir_path).iterdir()
             )
 
         image_id_1 = self.make_image_id(1)

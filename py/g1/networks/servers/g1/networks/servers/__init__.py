@@ -36,8 +36,7 @@ class SocketServer:
                 if exc.errno == errno.EBADF:
                     LOG.info('server socket close: %r', self._socket)
                     break
-                else:
-                    raise
+                raise
             LOG.debug('serve client: %r', addr)
             queue.spawn(self._handler(sock, addr))
 

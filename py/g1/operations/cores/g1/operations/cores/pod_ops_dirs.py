@@ -56,6 +56,8 @@ class PodBundleDir(repos.AbstractBundleDir):
 class PodOpsDir(repos.AbstractOpsDir):
 
     metadata_type = models.PodMetadata
+    # XXX: This annotation works around pylint no-member false errors.
+    metadata: object
 
     @staticmethod
     def _get_pod_ids(metadata):

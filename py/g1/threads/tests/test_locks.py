@@ -11,40 +11,40 @@ class ReadWriteLockTest(unittest.TestCase):
         super().setUp()
         self.rwlock = locks.ReadWriteLock()
 
-    def assert_(self, num_readers, num_writers):
+    def assert_state(self, num_readers, num_writers):
         self.assertEqual(self.rwlock._num_readers, num_readers)
         self.assertEqual(self.rwlock._num_writers, num_writers)
 
     def test_read_lock(self):
-        self.assert_(0, 0)
+        self.assert_state(0, 0)
 
         self.assertTrue(self.rwlock.reader_acquire(timeout=0.01))
-        self.assert_(1, 0)
+        self.assert_state(1, 0)
 
         self.assertTrue(self.rwlock.reader_acquire(timeout=0.01))
-        self.assert_(2, 0)
+        self.assert_state(2, 0)
 
         self.assertFalse(self.rwlock.writer_acquire(timeout=0.01))
-        self.assert_(2, 0)
+        self.assert_state(2, 0)
 
         self.rwlock.reader_release()
         self.rwlock.reader_release()
-        self.assert_(0, 0)
+        self.assert_state(0, 0)
 
     def test_write_lock(self):
-        self.assert_(0, 0)
+        self.assert_state(0, 0)
 
         self.assertTrue(self.rwlock.writer_acquire(timeout=0.01))
-        self.assert_(0, 1)
+        self.assert_state(0, 1)
 
         self.assertFalse(self.rwlock.reader_acquire(timeout=0.01))
-        self.assert_(0, 1)
+        self.assert_state(0, 1)
 
         self.assertFalse(self.rwlock.writer_acquire(timeout=0.01))
-        self.assert_(0, 1)
+        self.assert_state(0, 1)
 
         self.rwlock.writer_release()
-        self.assert_(0, 0)
+        self.assert_state(0, 0)
 
     def start_reader_thread(self, event):
         thread = threading.Thread(

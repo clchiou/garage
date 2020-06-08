@@ -4,7 +4,7 @@ from g1.apps import bases
 from g1.apps import parameters
 from g1.bases import labels
 
-from .. import scripts
+from .. import scripts  # pylint: disable=relative-beyond-top-level
 
 LABELS = labels.make_labels(
     'g1.scripts',

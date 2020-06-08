@@ -206,9 +206,8 @@ class FutureAdapter(AdapterBase):
         callback = lambda: kernel.unblock(self.__future)
         await traps.block(
             self.__future,
-            lambda: self.__future.add_callback(
-                lambda _: kernel.post_callback(callback)
-            ),
+            lambda: self.__future.
+            add_callback(lambda _: kernel.post_callback(callback)),
         )
         ASSERT.true(self.__future.is_completed())
 

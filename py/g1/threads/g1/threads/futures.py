@@ -71,8 +71,7 @@ class Future:
             self._wait_for_completion(timeout)
             if self._exception:
                 raise self._exception  # pylint: disable=raising-bad-type
-            else:
-                return self._result
+            return self._result
 
     def get_exception(self, timeout=None):
         with self._condition:

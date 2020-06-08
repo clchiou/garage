@@ -17,7 +17,7 @@ from g1.asyncs.bases import queues
 from g1.asyncs.bases import tasks
 from g1.bases import labels
 
-from .. import agents
+from .. import agents  # pylint: disable=relative-beyond-top-level
 
 LABELS = labels.make_labels(
     agents.__name__,
