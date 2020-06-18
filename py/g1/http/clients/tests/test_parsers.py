@@ -23,6 +23,7 @@ class ContextualParserTest(unittest.TestCase):
                 <h1>A</h1>
                 <h2>B</h2>
                 <h2>C</h2>
+                <h4><span>&lt;X&gt;</span></h4>
             </div>
             '''
         )
@@ -102,6 +103,10 @@ class ContextualParserTest(unittest.TestCase):
         self.assertEqual([e.text for e in elements], ['B', 'C'])
         with self.assertRaisesRegex(TestError, r'expect some'):
             self.cp.xpath_some(self.test_doc, '//h3')
+
+    def test_get_text_recursively(self):
+        root = self.cp.xpath_unique(self.test_doc, '/div')
+        self.assertEqual(self.cp.get_text_recursively(root), 'A B C <X>')
 
 
 if __name__ == '__main__':

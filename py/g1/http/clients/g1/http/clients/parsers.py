@@ -4,6 +4,7 @@ __all__ = [
     'ContextualParser',
 ]
 
+import html
 import urllib.parse
 from pathlib import PurePosixPath
 
@@ -111,3 +112,13 @@ class ContextualParser:
 
     def get_text(self, element):
         return self.assert_.not_none(element.text)
+
+    def get_text_recursively(self, root):
+        """Unescape and join text of all elements, including root."""
+        texts = []
+        for element in self.assert_.not_none(root).iter():
+            text = html.unescape(element.text or '').strip()
+            if not text:
+                continue
+            texts.append(text)
+        return ' '.join(self.assert_.not_empty(texts))
