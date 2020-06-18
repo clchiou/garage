@@ -94,6 +94,10 @@ _DETACH_STMT = sqlalchemy.text('DETACH DATABASE :db_name')
 
 @contextlib.contextmanager
 def attaching(conn, db_name, db_path):
+    """Context for attaching to a database.
+
+    NOTE: Attached databases are not shared across connections.
+    """
     conn.execute(
         _ATTACH_STMT.bindparams(db_name=db_name, db_path=str(db_path))
     )
