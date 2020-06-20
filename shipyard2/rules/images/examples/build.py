@@ -5,6 +5,13 @@ from g1 import scripts
 import shipyard2.rules.images
 
 shipyard2.rules.images.define_image(
+    name='empty',
+    rules=[
+        '//bases:build',
+    ],
+)
+
+shipyard2.rules.images.define_image(
     name='web-server',
     rules=[
         '//third-party/cpython:build',
