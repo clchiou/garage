@@ -55,6 +55,13 @@ class PodsTest(
                 read_only=True,
             ),
         ],
+        overlays=[
+            models.PodConfig.Overlay(
+                sources=[''],
+                target='/this/is/some/other/pod/path',
+                read_only=False,
+            ),
+        ],
     )
 
     sample_image_id = '0123456789abcdef' * 4
@@ -317,7 +324,9 @@ class PodsTest(
                 images=self.sample_config.images,
                 mounts=[
                     models.PodConfig.Mount(source='/p', target='/a'),
-                    models.PodConfig.Mount(source='/q', target='/a'),
+                ],
+                overlays=[
+                    models.PodConfig.Overlay(sources=['/q'], target='/a'),
                 ],
             )
         with self.assertRaisesRegex(AssertionError, r'expect only one'):
@@ -328,6 +337,14 @@ class PodsTest(
             models.PodConfig.Mount(source='foo', target='/bar')
         with self.assertRaisesRegex(AssertionError, r'expect.*is_absolute'):
             models.PodConfig.Mount(source='/foo', target='bar')
+        with self.assertRaisesRegex(AssertionError, r'expect non-empty'):
+            models.PodConfig.Overlay(sources=[], target='/bar')
+        with self.assertRaisesRegex(AssertionError, r'expect.*is_absolute'):
+            models.PodConfig.Overlay(sources=['foo'], target='/bar')
+        with self.assertRaisesRegex(AssertionError, r'expect.*is_absolute'):
+            models.PodConfig.Overlay(sources=['/foo'], target='bar')
+        with self.assertRaisesRegex(AssertionError, r'expect x == 1, not 0'):
+            models.PodConfig.Overlay(sources=['', '/foo'], target='/bar')
 
     def test_validate_id(self):
         self.assertEqual(
@@ -585,6 +602,28 @@ class PodsTest(
                 )
             ),
             '--bind=/a:/b',
+        )
+
+    def test_make_overlay_argument(self):
+        self.assertEqual(
+            pods._make_overlay_argument(
+                models.PodConfig.Overlay(
+                    sources=['/a', '/b'],
+                    target='/c',
+                    read_only=True,
+                )
+            ),
+            '--overlay-ro=/a:/b:/c',
+        )
+        self.assertEqual(
+            pods._make_overlay_argument(
+                models.PodConfig.Overlay(
+                    sources=['/a', ''],
+                    target='/b',
+                    read_only=False,
+                )
+            ),
+            '--overlay=/a::/b',
         )
 
     #

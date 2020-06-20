@@ -81,6 +81,7 @@ class PodConfig:
 
     @dataclasses.dataclass(frozen=True)
     class Mount:
+        """Configure a bind mount."""
 
         source: str
         target: str
@@ -92,19 +93,44 @@ class PodConfig:
                 ASSERT.predicate(Path(self.source), Path.is_absolute)
             ASSERT.predicate(Path(self.target), Path.is_absolute)
 
+    @dataclasses.dataclass(frozen=True)
+    class Overlay:
+        """Configure an overlay.
+
+        This is more advanced and flexible than ``Mount`` above.
+        """
+
+        sources: typing.List[str]
+        target: str
+        read_only: bool = True
+
+        def __post_init__(self):
+            ASSERT.not_empty(self.sources)
+            for i, source in enumerate(self.sources):
+                # Empty source path means host's /var/tmp.
+                if source:
+                    ASSERT.predicate(Path(source), Path.is_absolute)
+                else:
+                    ASSERT.equal(i, len(self.sources) - 1)
+            ASSERT.predicate(Path(self.target), Path.is_absolute)
+
     name: str
     version: str
     apps: typing.List[App]
     # Image are ordered from low to high.
     images: typing.List[Image]
     mounts: typing.List[Mount] = ()
+    overlays: typing.List[Overlay] = ()
 
     def __post_init__(self):
         validate_pod_name(self.name)
         validate_pod_version(self.version)
         ASSERT.not_empty(self.images)
         ASSERT.unique(app.name for app in self.apps)
-        ASSERT.unique(mount.target for mount in self.mounts)
+        ASSERT.unique(
+            [mount.target for mount in self.mounts] + \
+            [overlay.target for overlay in self.overlays]
+        )
 
 
 # Generic name and version pattern.

@@ -711,6 +711,7 @@ def _run_pod(pod_id, *, debug=False):
         '--boot',
         '--directory=%s' % rootfs_path,
         *(_make_bind_argument(mount) for mount in config.mounts),
+        *(_make_overlay_argument(overlay) for overlay in config.overlays),
         '--notify-ready=yes',
         '--link-journal=try-host',
         *([] if debug else ['--quiet']),
@@ -733,6 +734,16 @@ def _make_bind_argument(mount):
         '-ro' if mount.read_only else '',
         ASSERT.not_contains(mount.source, ':'),
         ASSERT.not_contains(mount.target, ':'),
+    )
+
+
+def _make_overlay_argument(overlay):
+    return '--overlay%s=%s:%s' % (
+        '-ro' if overlay.read_only else '',
+        ':'.join(
+            ASSERT.not_contains(source, ':') for source in overlay.sources
+        ),
+        ASSERT.not_contains(overlay.target, ':'),
     )
 
 

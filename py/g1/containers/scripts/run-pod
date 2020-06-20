@@ -58,6 +58,11 @@ def add_arguments(parser: bases.LABELS.parser) -> bases.LABELS.parse:
         action='append',
         help='add mount of the form "source:target[:ro]"',
     )
+    parser.add_argument(
+        '--overlay',
+        action='append',
+        help='add overlay of the form "source...:target[:ro]"',
+    )
 
 
 # NOTE: Use sudo rather than requiring root privilege to run this script
@@ -83,8 +88,9 @@ def init(args):
     LOG.info('use pod id: %s', pod_id)
     images = parse_image_args(ASSERT.not_empty(args.image or ()))
     mounts = parse_mount_args(args.mount or ())
+    overlays = parse_overlay_args(args.overlay or ())
     with tempfile.NamedTemporaryFile(suffix='.json') as config_tempfile:
-        write_config(images, mounts, config_tempfile.name)
+        write_config(images, mounts, overlays, config_tempfile.name)
         ctr_scripts.ctr_prepare_pod(pod_id, config_tempfile.name)
     return pod_id
 
@@ -121,7 +127,28 @@ def parse_mount_args(mount_args):
     return mounts
 
 
-def write_config(images, mounts, config_path):
+def parse_overlay_args(overlay_args):
+    overlays = []
+    for arg in overlay_args:
+        parts = arg.split(':')
+        ASSERT.greater_or_equal(len(parts), 2)
+        if parts[-1] == 'ro':
+            sources = parts[:-2]
+            target = parts[-2]
+            read_only = True
+        else:
+            sources = parts[:-1]
+            target = parts[-1]
+            read_only = False
+        overlays.append({
+            'sources': sources,
+            'target': target,
+            'read_only': read_only,
+        })
+    return overlays
+
+
+def write_config(images, mounts, overlays, config_path):
     LOG.info('write config to: %s', config_path)
     config = {
         'name': 'dummy',
@@ -129,6 +156,7 @@ def write_config(images, mounts, config_path):
         'apps': [],
         'images': images,
         'mounts': mounts,
+        'overlays': overlays,
     }
     with open(config_path, 'w') as config_file:
         json.dump(config, config_file)
