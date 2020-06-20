@@ -34,6 +34,10 @@ def build_image(
     rules,
     output,
 ):
+    # Although it is tempting to mount source repos under the drydock
+    # directory rather than /usr/src, this is not possible because the
+    # base image does not have /home/plumber/drydock directory yet, and
+    # so systemd-nspawn will reject mounting source repos under drydock.
     root_host_paths = parameters['//bases:roots']
     builder_config = _generate_builder_config(
         name=name,
@@ -48,11 +52,11 @@ def build_image(
             ASSERT.not_none(parameters['//images/bases:base/version']),
         ),
         mounts=_get_mounts(
-            root_host_paths,
             parameters['//releases:shipyard-data'],
             name,
             rules,
         ),
+        overlays=_get_overlays(root_host_paths),
     )
     with contextlib.ExitStack() as stack:
         tempdir_path = Path(
@@ -84,13 +88,14 @@ def build_image(
         ctr_scripts.ctr_import_image(output)
 
 
-def _generate_builder_config(name, version, apps, images, mounts):
+def _generate_builder_config(name, version, apps, images, mounts, overlays):
     return {
         'name': utils.get_builder_name(name),
         'version': version,
         'apps': apps,
         'images': images,
         'mounts': mounts,
+        'overlays': overlays,
     }
 
 
@@ -173,12 +178,8 @@ def _get_images(builder_images, base_version):
     ]
 
 
-def _get_mounts(root_host_paths, shipyard_data_path, name, rules):
-    mounts = [{
-        'source': str(root_host_path),
-        'target': str(_root_host_to_target(root_host_path)),
-        'read_only': True,
-    } for root_host_path in root_host_paths]
+def _get_mounts(shipyard_data_path, name, rules):
+    mounts = []
     if shipyard_data_path is not None:
         image_data_path = shipyard_data_path / 'image-data'
         if _should_mount_image_data(image_data_path, name, rules):
@@ -203,6 +204,14 @@ def _should_mount_image_data(image_data_path, name, rules):
         if (image_data_path / rule.path).is_dir():
             return True
     return False
+
+
+def _get_overlays(root_host_paths):
+    return [{
+        'sources': [str(root_host_path), ''],
+        'target': str(_root_host_to_target(root_host_path)),
+        'read_only': False,
+    } for root_host_path in root_host_paths]
 
 
 def _root_host_to_target(root_host_path):
