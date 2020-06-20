@@ -22,6 +22,11 @@ _DEFAULT_FILTERS = (
     ('exclude', '/usr/src'),
     # Include only relevant files under /etc.
     ('include', '/etc/'),
+    # We use distro java at the moment.
+    ('include', '/etc/alternatives/'),
+    ('include', '/etc/alternatives/java'),
+    ('include', '/etc/java*'),
+    ('include', '/etc/java*/**'),
     ('include', '/etc/group'),
     ('include', '/etc/group-'),
     ('include', '/etc/gshadow'),
@@ -44,6 +49,10 @@ _DEFAULT_FILTERS = (
     # image includes a base set of distro binaries).
     ('exclude', '/bin'),
     ('exclude', '/sbin'),
+    # We use distro java at the moment.
+    ('include', '/usr/bin/'),
+    ('include', '/usr/bin/java'),
+    ('exclude', '/usr/bin/**'),
     ('exclude', '/usr/bin'),
     ('exclude', '/usr/sbin'),
     # Exclude headers.
