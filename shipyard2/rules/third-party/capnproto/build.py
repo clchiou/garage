@@ -20,6 +20,7 @@ shipyard2.rules.bases.define_distro_packages([
     'automake',
     'g++',
     'libtool',
+    'make',
     'pkg-config',
 ])
 
