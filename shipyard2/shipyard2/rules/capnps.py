@@ -8,5 +8,6 @@ __all__ = [
 def make_global_options(ps):
     return [
         'compile_schemas',
-        *('--import-path=%s/codex' % path for path in ps['//bases:roots']),
+        '--import-path=%s' %
+        ':'.join(str(path / 'codex') for path in ps['//bases:roots']),
     ]
