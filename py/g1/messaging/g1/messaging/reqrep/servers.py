@@ -2,7 +2,6 @@ __all__ = [
     'Server',
 ]
 
-import contextlib
 import dataclasses
 import logging
 
@@ -46,7 +45,6 @@ class Server:
         self._declared_error_types = utils.get_declared_error_types(
             self._response_type
         )
-        self._stack = None
         # For convenience, create socket before ``__enter__``.
         self.socket = nng.asyncs.Socket(nng.Protocols.REP0)
         # Prepared errors.
@@ -79,16 +77,11 @@ class Server:
     __repr__ = classes.make_repr('{self.socket!r}')
 
     def __enter__(self):
-        ASSERT.none(self._stack)
-        with contextlib.ExitStack() as stack:
-            stack.enter_context(self.socket)
-            if hasattr(self._application, '__enter__'):
-                stack.enter_context(self._application)
-            self._stack = stack.pop_all()
+        self.socket.__enter__()
         return self
 
     def __exit__(self, *args):
-        return self._stack.__exit__(*args)
+        return self.socket.__exit__(*args)
 
     async def serve(self):
         """Serve requests sequentially.

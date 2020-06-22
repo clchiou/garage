@@ -80,15 +80,6 @@ class ServerTest(unittest.TestCase):
             {InternalServerError: 'internal_server_error'},
         )
 
-    def test_nested(self):
-        server = servers.Server(
-            TestApplication(), Request, Response, WIRE_DATA
-        )
-        with server:
-            with self.assertRaisesRegex(AssertionError, r'expect None, not'):
-                with server:
-                    pass
-
     @kernels.with_kernel
     def test_serve(self):
         server = servers.Server(

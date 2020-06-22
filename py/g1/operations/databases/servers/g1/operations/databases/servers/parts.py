@@ -2,6 +2,7 @@ import g1.asyncs.agents.parts
 import g1.databases.parts
 import g1.messaging.parts.publishers
 import g1.messaging.parts.servers
+from g1.apps import asyncs
 from g1.apps import parameters
 from g1.apps import utils
 from g1.asyncs.bases import queues
@@ -80,13 +81,14 @@ def make_server_params(**kwargs):
 
 
 def make_server(
+    exit_stack: asyncs.LABELS.exit_stack,
     create_engine,
     publisher,
     agent_queue: g1.asyncs.agents.parts.LABELS.agent_queue,
     shutdown_queue: g1.asyncs.agents.parts.LABELS.shutdown_queue,
 ):
-    server = servers.DatabaseServer(
-        engine=create_engine(), publisher=publisher
+    server = exit_stack.enter_context(
+        servers.DatabaseServer(engine=create_engine(), publisher=publisher)
     )
     agent_queue.spawn(server.serve)
     shutdown_queue.put_nonblocking(server.shutdown)

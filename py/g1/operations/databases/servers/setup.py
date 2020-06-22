@@ -21,7 +21,7 @@ setup(
             # 'g1.operations.databases.servers[parts]',
         ],
         'parts': [
-            'g1.apps',
+            'g1.apps[asyncs]',
             'g1.asyncs.agents[parts]',
             'g1.asyncs.bases',
             'g1.databases[parts]',

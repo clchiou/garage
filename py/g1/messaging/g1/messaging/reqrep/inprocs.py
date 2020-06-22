@@ -36,16 +36,6 @@ class InprocServer:
             }
         )
 
-    def __enter__(self):
-        if hasattr(self._application, '__enter__'):
-            self._application.__enter__()
-        return self
-
-    def __exit__(self, *args):
-        if hasattr(self._application, '__exit__'):
-            return self._application.__exit__(*args)
-        return None
-
     def _make_transceiver(self, func):
 
         @functools.wraps(func)
