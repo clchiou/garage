@@ -35,6 +35,7 @@ import foreman
 (foreman.define_rule('third-party').with_doc('build third-party codes')\
  .depend('//third-party/cpython:build').depend('//third-party/cpython:trim')
  .depend('//third-party/gradle:build')
+ .depend('//third-party/nodejs:build')
  .depend('//third-party/openjdk:build')
  # C++ libraries.
  .depend('config-boost').depend('//third-party/boost:build')
