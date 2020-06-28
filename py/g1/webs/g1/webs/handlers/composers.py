@@ -82,6 +82,14 @@ def get_path(request):
     return consts.UrlPath(get_path_str(request))
 
 
+async def _raise_404(request, response):
+    del response  # Unused.
+    raise wsgi_apps.HttpError(
+        consts.Statuses.NOT_FOUND,
+        'path does not match any pattern: %s' % request.path_str,
+    )
+
+
 class PathPatternRouter:
     """Route to one of the handlers bases on request path.
 
@@ -89,9 +97,10 @@ class PathPatternRouter:
     against them serially.
     """
 
-    def __init__(self, handlers):
+    def __init__(self, handlers, *, default_handler=_raise_404):
         ASSERT.not_empty(handlers)
         self._handlers = [(re.compile(p), h) for p, h in handlers]
+        self._default_handler = default_handler
 
     async def __call__(self, request, response):
         for regex, handler in self._handlers:
@@ -99,7 +108,4 @@ class PathPatternRouter:
             if match:
                 request.context.set(PATH_MATCH, match)
                 return await handler(request, response)
-        raise wsgi_apps.HttpError(
-            consts.Statuses.NOT_FOUND,
-            'path does not match any pattern: %s' % request.path_str,
-        )
+        return await self._default_handler(request, response)
