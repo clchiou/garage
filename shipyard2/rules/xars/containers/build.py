@@ -2,7 +2,8 @@ import shipyard2.rules.xars
 
 shipyard2.rules.xars.define_zipapp(
     name='ctr',
-    python_version='3.7',
+    # Ubuntu 20.04 LTS has Python 3.8.
+    python_version='3.8',
     packages=[
         'py/g1/apps',
         'py/g1/bases',
