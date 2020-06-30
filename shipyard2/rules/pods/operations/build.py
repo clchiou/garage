@@ -22,7 +22,7 @@ shipyard2.rules.pods.define_pod(
         ),
     ],
     images=[
-        '//py/g1/operations/databases:ops-db',
+        '//operations:ops-db',
     ],
     mounts=[
         shipyard2.rules.pods.Mount(
