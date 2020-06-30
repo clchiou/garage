@@ -50,4 +50,4 @@ application:
 Open question: Should we also merge base into the application image?
 For now maybe we should not; or else, we will need to tweak the default
 filter rules (defined in the merge command) to work with the base image
-contents.
+content.

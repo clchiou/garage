@@ -10,7 +10,7 @@ General design of the interface:
 * The ``install`` and ``uninstall`` method should return false if the
   call skips the install/uninstall step.
 
-* The ``uninstall`` method clears directory contents (you cannot simply
+* The ``uninstall`` method clears directory content (you cannot simply
   remove the directory as an ops dir might require custom steps to
   uninstall stuff).  The directory might be partially uninstalled, and
   uninstall method should handle such cases.  If the uninstall call

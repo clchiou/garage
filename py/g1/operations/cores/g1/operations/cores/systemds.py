@@ -24,9 +24,9 @@ from . import models
 LOG = logging.getLogger(__name__)
 
 
-def make_envs(config, pod_metadata, *envs_list):
+def make_envs(pod_id, pod_metadata, *envs_list):
     merged_envs = {
-        ('%s_id' % models.ENV_PREFIX): config.pod_id,
+        ('%s_id' % models.ENV_PREFIX): pod_id,
         ('%s_label' % models.ENV_PREFIX): pod_metadata.label,
         ('%s_version' % models.ENV_PREFIX): pod_metadata.version,
     }
@@ -37,10 +37,10 @@ def make_envs(config, pod_metadata, *envs_list):
     return merged_envs
 
 
-def install(config, pod_metadata, unit, *envs_list):
-    _make_unit_file(unit.contents, config.unit_path)
+def install(config, pod_metadata, group, unit, *envs_list):
+    _make_unit_file(unit.content, config.unit_path)
     _make_unit_config_file(
-        make_envs(config, pod_metadata, unit.envs, *envs_list),
+        make_envs(config.pod_id, pod_metadata, group.envs, *envs_list),
         config.unit_config_path,
     )
     return True
@@ -52,9 +52,9 @@ def uninstall(config):
     return True
 
 
-def _make_unit_file(contents, unit_path):
+def _make_unit_file(content, unit_path):
     LOG.info('create unit file: %s', unit_path)
-    unit_path.write_text(contents)
+    unit_path.write_text(content)
     unit_path.chmod(0o644)
     shutil.chown(unit_path, 'root', 'root')
 

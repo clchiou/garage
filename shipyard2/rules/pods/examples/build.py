@@ -25,10 +25,14 @@ shipyard2.rules.pods.define_pod(
         ),
     ],
     images=['//examples:web-server'],
-    systemd_units=[
-        shipyard2.rules.pods.SystemdUnit(
-            name='web-server.service',
-            contents=UNIT_CONTENTS,
+    systemd_unit_groups=[
+        shipyard2.rules.pods.SystemdUnitGroup(
+            units=[
+                shipyard2.rules.pods.SystemdUnitGroup.Unit(
+                    name='web-server.service',
+                    content=UNIT_CONTENTS,
+                ),
+            ],
         ),
     ],
 )

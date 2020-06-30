@@ -60,40 +60,36 @@ class PodOpsDir(repos.AbstractOpsDir):
     metadata: object
 
     @staticmethod
-    def _get_pod_ids(metadata):
-        return [config.pod_id for config in metadata.systemd_unit_configs]
+    def _get_pod_id_set(metadata):
+        return {config.pod_id for config in metadata.systemd_unit_configs}
 
     def check_invariants(self, active_ops_dirs):
         # We check uniqueness of UUIDs here, but to be honest, UUID is
         # quite unlikely to conflict.
         for ops_dir in active_ops_dirs:
             ASSERT.isdisjoint(
-                set(self._get_pod_ids(ops_dir.metadata)),
-                set(self._get_pod_ids(self.metadata)),
+                self._get_pod_id_set(ops_dir.metadata),
+                self._get_pod_id_set(self.metadata),
             )
 
     def install(self, bundle_dir, target_ops_dir_path):
         ASSERT.isinstance(bundle_dir, PodBundleDir)
         log_args = (bundle_dir.label, bundle_dir.version)
-        units = {
-            unit.name: unit
-            for unit in bundle_dir.deploy_instruction.systemd_units
-        }
+
         # Make metadata first so that uninstall may roll back properly.
         LOG.debug('pods install: metadata: %s %s', *log_args)
-        jsons.dump_dataobject(
-            self._make_metadata(bundle_dir.deploy_instruction),
-            self.metadata_path,
-        )
+        metadata, groups = self._make_metadata(bundle_dir.deploy_instruction)
+        jsons.dump_dataobject(metadata, self.metadata_path)
         bases.set_file_attrs(self.metadata_path)
+
         # Sanity check of the just-written metadata file.
         ASSERT.equal(self.label, bundle_dir.label)
         ASSERT.equal(self.version, bundle_dir.version)
+        ASSERT.equal(self.metadata, metadata)
         LOG.debug(
-            'pods install: pod ids: %s %s: %s',
-            *log_args,
-            ', '.join(self._get_pod_ids(self.metadata)),
+            'pods install: pod ids: %s %s: %s', *log_args, ', '.join(groups)
         )
+
         LOG.debug('pods install: volumes: %s %s', *log_args)
         bases.make_dir(self.volumes_dir_path)
         for volume, volume_path in bundle_dir.iter_volumes():
@@ -108,62 +104,75 @@ class PodOpsDir(repos.AbstractOpsDir):
                     '--same-permissions',
                 ),
             )
+
         LOG.debug('pods install: images: %s %s', *log_args)
         for _, image_path in bundle_dir.iter_images():
             ctr_scripts.ctr_import_image(image_path)
+
         LOG.debug('pods install: tokens: %s %s', *log_args)
         assignments = {}
         with tokens.make_tokens_database().writing() as active_tokens:
-            for config in self.metadata.systemd_unit_configs:
-                assignments[config.pod_id] = {}
+            for pod_id in groups:
+                assignments[pod_id] = {}
                 for name in bundle_dir.deploy_instruction.token_names:
-                    assignments[config.pod_id][name] = \
-                        active_tokens.assign(name, config.pod_id)
+                    assignments[pod_id][name] = \
+                        active_tokens.assign(name, pod_id)
+
         LOG.debug('pods install: prepare pods: %s %s', *log_args)
         bases.make_dir(self.refs_dir_path)
-        for config in self.metadata.systemd_unit_configs:
+        for pod_id, group in groups.items():
             pod_config = self._make_pod_config(
                 bundle_dir.deploy_instruction,
                 target_ops_dir_path,
                 systemds.make_envs(
-                    config,
+                    pod_id,
                     self.metadata,
-                    units[config.name].envs,
-                    assignments[config.pod_id],
+                    group.envs,
+                    assignments[pod_id],
                 ),
             )
             with tempfile.NamedTemporaryFile() as config_tempfile:
                 config_path = Path(config_tempfile.name)
                 jsons.dump_dataobject(pod_config, config_path)
-                ctr_scripts.ctr_prepare_pod(config.pod_id, config_path)
-            ctr_scripts.ctr_add_ref_to_pod(
-                config.pod_id, self.refs_dir_path / config.pod_id
-            )
+                ctr_scripts.ctr_prepare_pod(pod_id, config_path)
+            ctr_scripts.ctr_add_ref_to_pod(pod_id, self.refs_dir_path / pod_id)
+
         LOG.debug('pods install: systemd units: %s %s', *log_args)
+        units = {(pod_id, unit.name): unit
+                 for pod_id, group in groups.items() for unit in group.units}
         for config in self.metadata.systemd_unit_configs:
             systemds.install(
                 config,
                 self.metadata,
-                units[config.name],
+                groups[config.pod_id],
+                units[config.pod_id, config.name],
                 assignments[config.pod_id],
             )
+
         systemds.daemon_reload()
         return True
 
     @staticmethod
     def _make_metadata(deploy_instruction):
-        return models.PodMetadata(
+        groups = {}
+        systemd_unit_configs = []
+        for group in deploy_instruction.systemd_unit_groups:
+            pod_id = ctr_models.generate_pod_id()
+            groups[pod_id] = group
+            systemd_unit_configs.extend(
+                models.PodMetadata.SystemdUnitConfig(
+                    pod_id=pod_id,
+                    name=unit.name,
+                    auto_start=unit.auto_start,
+                ) for unit in group.units
+            )
+        metadata = models.PodMetadata(
             label=deploy_instruction.label,
             version=deploy_instruction.version,
             images=deploy_instruction.images,
-            systemd_unit_configs=[
-                models.PodMetadata.SystemdUnitConfig(
-                    pod_id=ctr_models.generate_pod_id(),
-                    name=unit.name,
-                    auto_start=unit.auto_start,
-                ) for unit in deploy_instruction.systemd_units
-            ],
+            systemd_unit_configs=systemd_unit_configs,
         )
+        return metadata, groups
 
     @staticmethod
     def _make_pod_config(deploy_instruction, target_ops_dir_path, envs):
@@ -227,8 +236,8 @@ class PodOpsDir(repos.AbstractOpsDir):
         systemds.daemon_reload()
         LOG.debug('pods uninstall: pods: %s %s', *log_args)
         g1.files.remove(self.refs_dir_path)
-        for config in self.metadata.systemd_unit_configs:
-            ctr_scripts.ctr_remove_pod(config.pod_id)
+        for pod_id in self._get_pod_id_set(self.metadata):
+            ctr_scripts.ctr_remove_pod(pod_id)
         LOG.debug('pods uninstall: tokens: %s %s', *log_args)
         with tokens.make_tokens_database().writing() as active_tokens:
             for config in self.metadata.systemd_unit_configs:

@@ -111,9 +111,17 @@ class ModelsTest(unittest.TestCase):
                     ],
                 ),
                 volumes=[],
-                systemd_units=[
-                    models.PodDeployInstruction.SystemdUnit('foo.service', ''),
-                    models.PodDeployInstruction.SystemdUnit('foo.service', ''),
+                systemd_unit_groups=[
+                    models.PodDeployInstruction.SystemdUnitGroup(
+                        units=[
+                            models.PodDeployInstruction.SystemdUnitGroup.Unit(
+                                'foo.service', ''
+                            ),
+                            models.PodDeployInstruction.SystemdUnitGroup.Unit(
+                                'foo.service', ''
+                            ),
+                        ],
+                    )
                 ],
             )
 
@@ -124,11 +132,9 @@ class ModelsTest(unittest.TestCase):
             'foo.socket',
         ):
             with self.subTest(name), self.assertRaises(AssertionError):
-                models.PodDeployInstruction.SystemdUnit(name, '')
+                models.PodDeployInstruction.SystemdUnitGroup.Unit(name, '')
         with self.assertRaises(AssertionError):
-            models.PodDeployInstruction.SystemdUnit(
-                'foo.service', '', envs={'pod_id': ''}
-            )
+            models.PodDeployInstruction.SystemdUnitGroup(envs={'pod_id': ''})
 
 
 if __name__ == '__main__':

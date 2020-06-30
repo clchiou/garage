@@ -32,5 +32,5 @@ shipyard2.rules.pods.define_pod(
         ),
     ],
     # TODO: Add systemd unit files.
-    systemd_units=[],
+    systemd_unit_groups=[],
 )

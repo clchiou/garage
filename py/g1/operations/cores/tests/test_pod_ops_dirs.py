@@ -15,23 +15,25 @@ from tests import fixtures
 
 class PodOpsDirTest(fixtures.TestCaseBase):
 
-    POD_ID_1 = '00000000-0000-0000-0000-000000000001'
-    POD_ID_2 = '00000000-0000-0000-0000-000000000002'
-    UNIT_1 = models.PodDeployInstruction.SystemdUnit(
+    POD_ID = '00000000-0000-0000-0000-000000000001'
+    UNIT_1 = models.PodDeployInstruction.SystemdUnitGroup.Unit(
         name='foo.service',
-        contents='',
+        content='',
     )
-    UNIT_2 = models.PodDeployInstruction.SystemdUnit(
+    UNIT_2 = models.PodDeployInstruction.SystemdUnitGroup.Unit(
         name='bar.service',
-        contents='',
+        content='',
         auto_start=False,
     )
+    GROUP = models.PodDeployInstruction.SystemdUnitGroup(
+        units=[UNIT_1, UNIT_2],
+    )
     CONFIG_1 = models.PodMetadata.SystemdUnitConfig(
-        pod_id=POD_ID_1,
+        pod_id=POD_ID,
         name='foo.service',
     )
     CONFIG_2 = models.PodMetadata.SystemdUnitConfig(
-        pod_id=POD_ID_2,
+        pod_id=POD_ID,
         name='bar.service',
         auto_start=False,
     )
@@ -68,9 +70,8 @@ class PodOpsDirTest(fixtures.TestCaseBase):
                 target='/some/where',
             ),
         ],
-        systemd_units=[
-            UNIT_1,
-            UNIT_2,
+        systemd_unit_groups=[
+            GROUP,
         ],
     )
 
@@ -100,7 +101,8 @@ class PodOpsDirTest(fixtures.TestCaseBase):
         mock = unittest.mock.patch(
             pod_ops_dirs.__name__ + '.ctr_models.generate_pod_id'
         ).start()
-        mock.side_effect = [self.POD_ID_1, self.POD_ID_2]
+        # It should only be called once.
+        mock.side_effect = [self.POD_ID]
         tokens.init()
 
     def tearDown(self):
@@ -135,6 +137,7 @@ class PodOpsDirTest(fixtures.TestCaseBase):
         bundle_dir = self.make_bundle_dir()
         ops_dir = self.make_ops_dir()
 
+        # Test install.
         self.assertTrue(ops_dir.install(bundle_dir, ops_dir.path))
         # Check ops dir structure.
         self.assertEqual(
@@ -164,31 +167,25 @@ class PodOpsDirTest(fixtures.TestCaseBase):
             self.test_bundle_dir_path / self.BUNDLE_IMAGE_RELPATH,
         )
         # Check pods.
-        self.ctr_scripts_mock.ctr_prepare_pod.assert_has_calls([
-            unittest.mock.call(self.POD_ID_1, unittest.mock.ANY),
-            unittest.mock.call(self.POD_ID_2, unittest.mock.ANY),
-        ])
-        self.ctr_scripts_mock.ctr_add_ref_to_pod.assert_has_calls([
-            unittest.mock.call(
-                self.POD_ID_1,
-                self.test_ops_dir_path / 'refs' / self.POD_ID_1,
-            ),
-            unittest.mock.call(
-                self.POD_ID_2,
-                self.test_ops_dir_path / 'refs' / self.POD_ID_2,
-            ),
-        ])
+        self.ctr_scripts_mock.ctr_prepare_pod.assert_called_once_with(
+            self.POD_ID, unittest.mock.ANY
+        )
+        self.ctr_scripts_mock.ctr_add_ref_to_pod.assert_called_once_with(
+            self.POD_ID,
+            self.test_ops_dir_path / 'refs' / self.POD_ID,
+        )
         # Check systemd units.
         self.systemds_mock.install.assert_has_calls([
             unittest.mock.call(
-                self.CONFIG_1, ops_dir.metadata, self.UNIT_1, {}
+                self.CONFIG_1, ops_dir.metadata, self.GROUP, self.UNIT_1, {}
             ),
             unittest.mock.call(
-                self.CONFIG_2, ops_dir.metadata, self.UNIT_2, {}
+                self.CONFIG_2, ops_dir.metadata, self.GROUP, self.UNIT_2, {}
             ),
         ])
         self.systemds_mock.daemon_reload.assert_called_once()
 
+        # Test uninstall.
         self.systemds_mock.daemon_reload.reset_mock()
         self.assertTrue(ops_dir.uninstall())
         self.systemds_mock.uninstall.assert_has_calls([
@@ -196,10 +193,9 @@ class PodOpsDirTest(fixtures.TestCaseBase):
             unittest.mock.call(self.CONFIG_2),
         ])
         self.systemds_mock.daemon_reload.assert_called_once()
-        self.ctr_scripts_mock.ctr_remove_pod.assert_has_calls([
-            unittest.mock.call(self.POD_ID_1),
-            unittest.mock.call(self.POD_ID_2),
-        ])
+        self.ctr_scripts_mock.ctr_remove_pod.assert_called_once_with(
+            self.POD_ID
+        )
         self.ctr_scripts_mock.ctr_remove_image.assert_called_once_with(
             self.DEPLOY_INSTRUCTION.images[0],
         )
@@ -209,11 +205,10 @@ class PodOpsDirTest(fixtures.TestCaseBase):
 
     def test_start_invalid_args(self):
         ops_dir = self.make_ops_dir()
-        unit = self.DEPLOY_INSTRUCTION.systemd_units[0]
         with self.assertRaisesRegex(AssertionError, r'expect not all'):
             ops_dir.start(unit_names=[], all_units=True)
         with self.assertRaisesRegex(AssertionError, r'expect not all'):
-            ops_dir.start(unit_names=[unit.name], all_units=True)
+            ops_dir.start(unit_names=[self.UNIT_1.name], all_units=True)
 
     def test_start_default(self):
         bundle_dir = self.make_bundle_dir()

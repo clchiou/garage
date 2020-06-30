@@ -106,6 +106,21 @@ def validate_token_name(name):
 
 @dataclasses.dataclass(frozen=True)
 class PodDeployInstruction:
+    """Pod deploy instruction.
+
+    The name of this class might be misleading as an instruction object
+    actually specifies how to create multiple pods, one per systemd unit
+    group (pod-to-unit is an 1-to-N relationship).
+
+    A systemd unit group contains arbitrary number of units (service
+    unit, timer unit, etc.), and a pod is created for this group, whose
+    config is derived from the template specified in the instruction
+    object.
+
+    Volumes are shared across all systemd unit groups.
+
+    Token values are generated for each systemd unit group.
+    """
 
     @dataclasses.dataclass(frozen=True)
     class Volume:
@@ -124,21 +139,31 @@ class PodDeployInstruction:
             return _get_label_name(_VOLUME_LABEL_PATTERN, self.label)
 
     @dataclasses.dataclass(frozen=True)
-    class SystemdUnit:
-        name: str
-        contents: str
+    class SystemdUnitGroup:
+
+        @dataclasses.dataclass(frozen=True)
+        class Unit:
+            name: str
+            content: str
+            auto_start: bool = True
+
+            def __post_init__(self):
+                _validate_systemd_unit_name(self.name)
+
+        units: typing.List[Unit] = ()
         envs: typing.Mapping[str, str] = \
             dataclasses.field(default_factory=dict)
-        auto_start: bool = True
 
         def __post_init__(self):
-            _validate_systemd_unit_name(self.name)
+            # The current implementation does not resolve any unit name
+            # conflicts.
+            ASSERT.unique(self.units, lambda unit: unit.name)
             ASSERT.not_any(key.startswith(ENV_PREFIX) for key in self.envs)
 
     label: str
     pod_config_template: ctr_models.PodConfig
     volumes: typing.List[Volume] = ()
-    systemd_units: typing.List[SystemdUnit] = ()
+    systemd_unit_groups: typing.List[SystemdUnitGroup] = ()
     token_names: typing.List[str] = ()
 
     def __post_init__(self):
@@ -154,9 +179,6 @@ class PodDeployInstruction:
         # not too restrictive in practice.)
         ASSERT.unique(self.images, lambda image: image.name)
         ASSERT.unique(self.volumes, lambda volume: volume.name)
-        # The current implementation does not resolve any unit name
-        # conflicts.
-        ASSERT.unique(self.systemd_units, lambda unit: unit.name)
         ASSERT.all(self.token_names, validate_token_name)
         ASSERT.unique(self.token_names)
 
@@ -176,6 +198,11 @@ _SYSTEMD_UNITS_DIR_PATH = Path('/etc/systemd/system')
 
 @dataclasses.dataclass(frozen=True)
 class PodMetadata:
+    """Pod metadata.
+
+    The name of this class might be misleading as a metadata object
+    actually specifies multiple pods.
+    """
 
     @dataclasses.dataclass(frozen=True)
     class SystemdUnitConfig:
@@ -189,8 +216,14 @@ class PodMetadata:
 
         @property
         def unit_name(self):
-            # This naming scheme should be sufficiently human-readable
-            # and unlikely to conflict.
+            """Generate systemd unit name.
+
+            We include pod id in the unit name not only because this
+            naming scheme is conflict-free, but also because systemd
+            requires that a timer unit has the same "root" as its
+            service unit, and currently we use pod id to distinguish
+            groups of systemd units, not pod label and version.
+            """
             return '%s_%s' % (
                 ctr_models.generate_machine_name(self.pod_id),
                 self.name,
@@ -208,7 +241,7 @@ class PodMetadata:
     label: str
     version: str
     images: typing.List[ctr_models.PodConfig.Image]
-    systemd_unit_configs: typing.List[SystemdUnitConfig] = ()
+    systemd_unit_configs: typing.List[SystemdUnitConfig]
 
     def __post_init__(self):
         validate_pod_label(self.label)
@@ -216,8 +249,11 @@ class PodMetadata:
         # Only allow specifying image for pods by name for now.
         ASSERT.all(self.images, lambda image: image.name and image.version)
         # The current implementation does not resolve any unit name
-        # conflicts.
-        ASSERT.unique(self.systemd_unit_configs, lambda config: config.name)
+        # conflicts (note that because we include pod id in the unit
+        # name, they could only conflict within the same group).
+        ASSERT.unique(
+            self.systemd_unit_configs, lambda config: config.unit_name
+        )
 
 
 @dataclasses.dataclass(frozen=True)
