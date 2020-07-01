@@ -31,6 +31,16 @@ shipyard2.rules.pods.define_pod(
             read_only=False,
         ),
     ],
-    # TODO: Add systemd unit files.
-    systemd_unit_groups=[],
+    systemd_unit_groups=[
+        shipyard2.rules.pods.SystemdUnitGroup(
+            units=[
+                shipyard2.rules.pods.SystemdUnitGroup.Unit(
+                    name='ops-db.service',
+                    content=shipyard2.rules.pods.make_pod_service_content(
+                        description='Operations Database Server',
+                    ),
+                ),
+            ],
+        ),
+    ],
 )

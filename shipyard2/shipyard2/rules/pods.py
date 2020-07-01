@@ -6,6 +6,9 @@ __all__ = [
     'SystemdUnitGroup',
     'Volume',
     'define_pod',
+    'make_pod_oneshot_content',
+    'make_pod_service_content',
+    'make_timer_content',
 ]
 
 import dataclasses
@@ -225,3 +228,56 @@ def _derive_volume_path(parameters, label, version):
         version /
         shipyard2.VOLUME_DIR_VOLUME_FILENAME
     )
+
+
+_POD_ONESHOT = '''\
+[Unit]
+Description={description}
+
+[Service]
+Slice=machine.slice
+Type=oneshot
+ExecStart=/usr/local/bin/ctr pods run-prepared ${{pod_id}}
+
+[Install]
+WantedBy=multi-user.target
+'''
+
+
+def make_pod_oneshot_content(*, description):
+    return _POD_ONESHOT.format(description=description)
+
+
+_POD_SERVICE = '''\
+[Unit]
+Description={description}
+
+[Service]
+Slice=machine.slice
+ExecStart=/usr/local/bin/ctr pods run-prepared ${{pod_id}}
+KillMode=mixed
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+'''
+
+
+def make_pod_service_content(*, description):
+    return _POD_SERVICE.format(description=description)
+
+
+_TIMER = '''\
+[Unit]
+Description={description}
+
+[Timer]
+{timer_section}
+
+[Install]
+WantedBy=multi-user.target
+'''
+
+
+def make_timer_content(*, description, timer_section):
+    return _TIMER.format(description=description, timer_section=timer_section)
