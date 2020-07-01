@@ -16,6 +16,8 @@ __all__ = [
     'validate_image_name',
     'validate_image_tag',
     'validate_image_version',
+    # Host system.
+    'pod_id_to_machine_id',
 ]
 
 import dataclasses
@@ -186,3 +188,7 @@ _ID_PATTERN = re.compile(r'[0-9a-f]{64}')
 
 def validate_image_id(image_id):
     return ASSERT.predicate(image_id, _ID_PATTERN.fullmatch)
+
+
+def pod_id_to_machine_id(pod_id):
+    return pod_id.replace('-', '')

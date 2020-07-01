@@ -163,6 +163,7 @@ def cmd_setup_base_rootfs(image_rootfs_path, prune_stash_path):
     for path, content in (
         (image_rootfs_path / 'etc/default/locale', _LOCALE),
         (image_rootfs_path / 'etc/resolv.conf', _RESOLV_CONF),
+        (image_rootfs_path / 'etc/systemd/journald.conf', _JOURNALD_CONF),
     ):
         LOG.info('replace: %s', path)
         path.write_text(content)
@@ -406,6 +407,11 @@ class _UnitFile:
 
 _LOCALE = 'LANG="en_US.UTF-8"\n'
 _RESOLV_CONF = 'nameserver 8.8.8.8\n'
+_JOURNALD_CONF = '''\
+[Journal]
+SystemMaxUse=64M
+RuntimeMaxUse=64M
+'''
 
 # Add these unit files to the base image.
 _ETC_UNIT_FILES = (

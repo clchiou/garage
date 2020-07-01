@@ -63,6 +63,7 @@ from g1.texts.columns import argparses as columns_argparses
 
 from . import bases
 from . import builders
+from . import journals
 from . import images
 from . import models
 
@@ -246,7 +247,10 @@ def cmd_prepare(pod_id, config_path):
     """Prepare a pod directory, or no-op if pod exists."""
     oses.assert_root_privilege()
     # Make sure that it is safe to create a pod with this ID.
-    ASSERT.not_equal(_pod_id_to_machine_id(pod_id), _read_host_machine_id())
+    ASSERT.not_equal(
+        models.pod_id_to_machine_id(pod_id),
+        _read_host_machine_id(),
+    )
     # Check before really preparing the pod.
     if g1.files.lexists(_get_pod_dir_path(pod_id)):
         LOG.info('skip duplicated pod: %s', pod_id)
@@ -369,6 +373,7 @@ def cmd_remove(pod_id):
     try:
         with locks.acquiring_exclusive(_get_graveyard_path()):
             grave_path = _move_pod_dir_to_graveyard(pod_dir_path)
+        journals.remove_journal_dir(pod_id)
         _remove_pod_dir(grave_path)
     finally:
         pod_dir_lock.release()
@@ -415,6 +420,7 @@ def _cleanup_active(expiration):
                     with locks.acquiring_exclusive(_get_graveyard_path()):
                         LOG.info('clean up pod: %s', pod_id)
                         _move_pod_dir_to_graveyard(pod_dir_path)
+                    journals.remove_journal_dir(pod_id)
             finally:
                 pod_dir_lock.release()
                 pod_dir_lock.close()
@@ -589,7 +595,10 @@ def _prepare_pod_dir(pod_dir_path, pod_id, config):
     config = _add_ref_image_ids(pod_dir_path, config)
     _mount_overlay(pod_dir_path, config)
     rootfs_path = _get_rootfs_path(pod_dir_path)
-    builders.generate_machine_id(rootfs_path, _pod_id_to_machine_id(pod_id))
+    builders.generate_machine_id(
+        rootfs_path,
+        models.pod_id_to_machine_id(pod_id),
+    )
     _generate_hostname(rootfs_path, pod_id)
     _generate_unit_files(rootfs_path, config)
 
@@ -896,10 +905,6 @@ def _umount(path):
 #
 # Host system.
 #
-
-
-def _pod_id_to_machine_id(pod_id):
-    return pod_id.replace('-', '')
 
 
 def _read_host_machine_id():

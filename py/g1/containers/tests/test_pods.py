@@ -77,6 +77,9 @@ class PodsTest(
         images.cmd_init()
         pods.cmd_init()
         self.sample_pod_dir_path = pods._get_pod_dir_path(self.sample_pod_id)
+        patcher = unittest.mock.patch.object(pods, 'journals')
+        self.mock_journals = patcher.start()
+        self.addCleanup(patcher.stop)
 
     @staticmethod
     def make_pod_id(id_int):
@@ -221,6 +224,7 @@ class PodsTest(
         self.assertEqual(self.list_pod_dir_paths(), [self.sample_pod_id])
         self.assertEqual(list(pods._get_graveyard_path().iterdir()), [])
         self.assertEqual(list(pods._get_tmp_path().iterdir()), [])
+        self.mock_journals.remove_journal_dir.assert_not_called()
 
         ref_path.unlink()
         with unittest.mock.patch(pods.__name__ + '.scripts'):
@@ -228,6 +232,9 @@ class PodsTest(
         self.assertEqual(self.list_pod_dir_paths(), [])
         self.assertEqual(list(pods._get_graveyard_path().iterdir()), [])
         self.assertEqual(list(pods._get_tmp_path().iterdir()), [])
+        self.mock_journals.remove_journal_dir.assert_called_once_with(
+            self.sample_pod_id
+        )
 
     @unittest.skipUnless(filelocks, 'g1.tests.filelocks unavailable')
     def test_cmd_cleanup(self):
@@ -247,17 +254,22 @@ class PodsTest(
         self.assertEqual(self.list_graveyard(), [])
         self.assertEqual(self.list_tmp(), [])
         ref_path.unlink()
+        self.mock_journals.remove_journal_dir.assert_called_once_with(pod_id_2)
 
+        self.mock_journals.remove_journal_dir.reset_mock()
         with self.using_exclusive(pods._get_pod_dir_path(pod_id_1)):
             pods.cmd_cleanup(future)
         self.assertEqual(self.list_active(), [pod_id_1])
         self.assertEqual(self.list_graveyard(), [])
         self.assertEqual(self.list_tmp(), [])
+        self.mock_journals.remove_journal_dir.assert_not_called()
 
+        self.mock_journals.remove_journal_dir.reset_mock()
         pods.cmd_cleanup(future)
         self.assertEqual(self.list_active(), [])
         self.assertEqual(self.list_graveyard(), [])
         self.assertEqual(self.list_tmp(), [])
+        self.mock_journals.remove_journal_dir.assert_called_once_with(pod_id_1)
 
     @unittest.skipUnless(filelocks, 'g1.tests.filelocks unavailable')
     def test_cleanup_active(self):
@@ -275,11 +287,14 @@ class PodsTest(
         self.assertEqual(self.list_active(), [pod_id_1])
         self.assertEqual(self.list_graveyard(), [pod_id_2])
         self.assertEqual(self.list_tmp(), [])
+        self.mock_journals.remove_journal_dir.assert_called_once_with(pod_id_2)
 
+        self.mock_journals.remove_journal_dir.reset_mock()
         pods._cleanup_active(future)
         self.assertEqual(self.list_active(), [])
         self.assertEqual(self.list_graveyard(), [pod_id_1, pod_id_2])
         self.assertEqual(self.list_tmp(), [])
+        self.mock_journals.remove_journal_dir.assert_called_once_with(pod_id_1)
 
     #
     # Locking strategy.
