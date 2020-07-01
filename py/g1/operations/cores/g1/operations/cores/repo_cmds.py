@@ -17,10 +17,17 @@ from . import xar_ops_dirs
     'init',
     **argparses.make_help_kwargs('initialize operations repository'),
 )
+@argparses.argument(
+    '--bootstrap',
+    action=argparses.StoreBoolAction,
+    default=False,
+    help='enable bootstrap mode (default: %(default_string)s)',
+)
 @argparses.end
-def cmd_init():
+def cmd_init(args):
     oses.assert_root_privilege()
-    scripts.assert_command_exist('ctr')
+    if not args.bootstrap:
+        scripts.assert_command_exist('ctr')
     scripts.assert_command_exist('systemctl')
     scripts.assert_command_exist('tar')
     bases.make_dir(bases.get_repo_path(), parents=True)
@@ -55,7 +62,7 @@ def cmd_cleanup():
 @argparses.end
 def main(args):
     if args.command == 'init':
-        return cmd_init()
+        return cmd_init(args)
     elif args.command == 'cleanup':
         return cmd_cleanup()
     else:
