@@ -238,9 +238,6 @@ Description={description}
 Slice=machine.slice
 Type=oneshot
 ExecStart=/usr/local/bin/ctr pods run-prepared ${{pod_id}}
-
-[Install]
-WantedBy=multi-user.target
 '''
 
 
