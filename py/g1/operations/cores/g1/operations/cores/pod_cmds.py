@@ -69,6 +69,7 @@ _POD_LIST_DEFAULT_COLUMNS = (
     'version',
     'id',
     'name',
+    'active',
 )
 _POD_LIST_STRINGIFIERS = {
     'auto-start': bool_to_str,

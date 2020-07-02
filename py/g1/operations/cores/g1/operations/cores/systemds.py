@@ -77,10 +77,18 @@ def _make_unit_config_file(envs, unit_config_path):
 
 def activate(config):
     LOG.info('activate unit: %s %s', config.pod_id, config.name)
-    systemctl(['enable', config.unit_name])
+    # "--now" implies "start".
+    systemctl(['--now', 'enable', config.unit_name])
     ASSERT.true(is_enabled(config))
-    systemctl(['start', config.unit_name])
     ASSERT.true(is_active(config))
+
+
+def deactivate(config):
+    LOG.info('deactivate unit: %s %s', config.pod_id, config.name)
+    # "--now" implies "stop".
+    systemctl(['--now', 'disable', config.unit_name])
+    ASSERT.false(is_enabled(config))
+    ASSERT.false(is_active(config))
 
 
 def is_enabled(config):
@@ -93,14 +101,6 @@ def is_active(config):
     with scripts.doing_check(False):
         proc = systemctl(['--quiet', 'is-active', config.unit_name])
         return proc.returncode == 0
-
-
-def deactivate(config):
-    LOG.info('deactivate unit: %s %s', config.pod_id, config.name)
-    systemctl(['stop', config.unit_name])
-    ASSERT.false(is_active(config))
-    systemctl(['disable', config.unit_name])
-    ASSERT.false(is_enabled(config))
 
 
 def daemon_reload():
