@@ -5,6 +5,7 @@ __all__ = [
     'StoreBoolAction',
     'StoreEnumAction',
     'make_help_kwargs',
+    'parse_name_value_pair',
     'parse_timedelta',
     # Decorator-based ArgumentParser builder.
     'make_argument_parser',
@@ -27,6 +28,7 @@ import builtins
 import copy
 import datetime
 import enum
+import json
 import re
 
 from .assertions import ASSERT
@@ -161,7 +163,41 @@ def make_help_kwargs(help_text):
     }
 
 
-TIMEDELTA_PATTERN = re.compile(
+def parse_name_value_pair(arg_str, *, parsers=()):
+    """Parse a "NAME=VALUE"-formatted pair.
+
+    Parsers are applied sequentially until the first success.
+
+    This is intended to be used when the set of NAME strings cannot be
+    easily specified in advance (thus parsers are applied sequentially
+    rather than keyed by the NAME string).
+    """
+    name, value_str = arg_str.split('=', maxsplit=1)
+    for parser in parsers:
+        try:
+            return name, parser(value_str)
+        except Exception:
+            pass
+    return name, _parse_value(value_str)
+
+
+_IDENTIFIER_PATTERN = re.compile(r'[a-zA-Z_]\w*')
+_NON_IDENTIFIERS = frozenset(('true', 'false'))
+
+
+def _parse_value(value_str):
+    """Default VALUE string parse function."""
+    # Make a special case for identifier-like strings.
+    if (
+        _IDENTIFIER_PATTERN.fullmatch(value_str)
+        and value_str not in _NON_IDENTIFIERS
+    ):
+        return value_str
+    else:
+        return json.loads(value_str)
+
+
+_TIMEDELTA_PATTERN = re.compile(
     r'(?:(?P<days>\d+)d)?'
     r'(?:(?P<hours>\d+)h)?'
     r'(?:(?P<minutes>\d+)m)?'
@@ -174,7 +210,7 @@ def parse_timedelta(timedelta_str):
         **ASSERT.not_empty({
             k: int(v)
             for k, v in ASSERT.not_none(
-                TIMEDELTA_PATTERN.fullmatch(timedelta_str)
+                _TIMEDELTA_PATTERN.fullmatch(timedelta_str)
             ).groupdict().items()
             if v is not None
         })

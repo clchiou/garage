@@ -170,6 +170,29 @@ class ArgparsesTest(unittest.TestCase):
         self.assertIs(args.default_and_required, TestEnum.SPAM_EGG)
         self.assertIs(args.positional, TestEnum.SPAM_EGG)
 
+    def test_parse_name_value_pair(self):
+        self.assertEqual(argparses.parse_name_value_pair('x=1'), ('x', 1))
+        self.assertEqual(
+            argparses.parse_name_value_pair(
+                'x=1',
+                parsers=(TestEnum.__getitem__, ),
+            ),
+            ('x', 1),
+        )
+        self.assertEqual(
+            argparses.parse_name_value_pair(
+                'x=FOO_BAR',
+                parsers=(TestEnum.__getitem__, ),
+            ),
+            ('x', TestEnum.FOO_BAR),
+        )
+
+    def test_parse_value(self):
+        self.assertEqual(argparses._parse_value('true'), True)
+        self.assertEqual(argparses._parse_value('false'), False)
+        self.assertEqual(argparses._parse_value('not_true'), 'not_true')
+        self.assertEqual(argparses._parse_value('{"x": 1}'), {'x': 1})
+
     def test_parse_timedelta(self):
         with self.assertRaisesRegex(AssertionError, r'expect non-empty'):
             argparses.parse_timedelta('')

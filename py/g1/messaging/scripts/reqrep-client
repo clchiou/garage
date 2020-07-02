@@ -16,6 +16,7 @@ from startup import startup
 
 from g1.apps import asyncs
 from g1.asyncs import kernels
+from g1.bases import argparses
 from g1.bases import labels
 from g1.bases.assertions import ASSERT
 from g1.messaging.reqrep import clients
@@ -111,33 +112,26 @@ def main(args: asyncs.LABELS.args):
     return rc
 
 
-IDENTIFIER_PATTERN = re.compile(r'[a-zA-Z_]\w*')
+def parse_args_list(args_list):
+    return dict(
+        argparses.parse_name_value_pair(
+            arg_str,
+            parsers=(_parse_byte_string, ),
+        ) for arg_str in args_list
+    )
+
 
 # For now we do not support escaping quotation "\"" inside the string.
-BINARY_STRING = re.compile(r'b"[^"]*"')
+_BYTE_STRING = re.compile(r'b"([^"]*)"')
 
 
-def parse_args_list(args_list):
-    kwargs = {}
-    for arg_str in args_list:
-        name, value = arg_str.split('=', maxsplit=1)
-        # Make a special case for identifier-kind of strings.
-        if IDENTIFIER_PATTERN.fullmatch(value):
-            pass
-        elif BINARY_STRING.fullmatch(value):
-            # Assume it can be encoded in UTF-8 for now.
-            value = (
-                base64.standard_b64encode(value[2:-1].encode('utf-8'))\
-                .decode('ascii')
-            )
-        elif value == 'true':
-            value = True
-        elif value == 'false':
-            value = False
-        else:
-            value = json.loads(value)
-        kwargs[name] = value
-    return kwargs
+def _parse_byte_string(value_str):
+    match = ASSERT.not_none(_BYTE_STRING.fullmatch(value_str))
+    # Assume it can be encoded in UTF-8 for now.
+    return (
+        base64.standard_b64encode(match.group(1).encode('utf-8'))\
+        .decode('ascii')
+    )
 
 
 if __name__ == '__main__':
