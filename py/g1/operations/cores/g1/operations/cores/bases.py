@@ -23,7 +23,7 @@ PARAMS = parameters.define(
         repository=parameters.Parameter(
             Path('/var/lib/g1/operations'),
             'path to the repository directory',
-            parse=Path,
+            convert=Path,
             validate=Path.is_absolute,
             format=str,
         ),
@@ -35,7 +35,7 @@ PARAMS = parameters.define(
         zipapp_directory=parameters.Parameter(
             Path('/usr/local/bin'),
             'path to install zipapp',
-            parse=Path,
+            convert=Path,
             validate=Path.is_absolute,
             format=str,
         ),

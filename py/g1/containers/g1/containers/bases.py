@@ -31,7 +31,7 @@ PARAMS = parameters.define(
         repository=parameters.Parameter(
             Path('/var/lib/g1/containers'),
             'path to the repository directory',
-            parse=Path,
+            convert=Path,
             validate=Path.is_absolute,
             format=str,
         ),
@@ -43,7 +43,7 @@ PARAMS = parameters.define(
         xar_runner_script_directory=parameters.Parameter(
             Path('/usr/local/bin'),
             'path to the xar runner script directory',
-            parse=Path,
+            convert=Path,
             validate=Path.is_absolute,
             format=str,
         ),

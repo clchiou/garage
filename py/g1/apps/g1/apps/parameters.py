@@ -132,14 +132,14 @@ class ParameterBase:
         *,
         type=None,  # pylint: disable=redefined-builtin
         doc=None,
-        parse=None,
+        convert=None,
         validate=None,
         format=None,  # pylint: disable=redefined-builtin
         unit=None,
     ):
         self.type = type
         self.doc = doc
-        self.parse = parse
+        self.convert = convert
         self.validate = validate
         self.format = format
         self.unit = unit
@@ -183,12 +183,12 @@ class Parameter(ParameterBase):
 
         * type is default to default value's type, and set() will check
           new parameter value's type.
-        * parse is used by the parameter value loader to parse the "raw"
-          value.  Note that raw value might not be string-typed.
+        * convert is used by the parameter value loader to convert the
+          "raw" value.  Note that raw value might not be string-typed.
         * validate is an optional validation function (in addition to
           the type check).
         # format is for producing help text.  It does NOT have to be
-          inverse of parse.
+          inverse of convert.
         """
         kwargs.setdefault('type', type(default))
         super().__init__(doc=doc, **kwargs)
@@ -362,8 +362,8 @@ def load_parameters(
             value = value_str
         else:
             value = json.loads(value_str)
-        if parameter.parse:
-            value = parameter.parse(value)
+        if parameter.convert:
+            value = parameter.convert(value)
         parameter.set(value)
 
     INITIALIZED = True
@@ -467,8 +467,8 @@ def load_config_forest(config_forest, root_namespaces):
                 load(entry, value)
             else:
                 ASSERT.isinstance(entry, ParameterBase)
-                if entry.parse:
-                    value = entry.parse(value)
+                if entry.convert:
+                    value = entry.convert(value)
                 entry.set(value)
 
     for module_path, config_tree in config_forest.items():
