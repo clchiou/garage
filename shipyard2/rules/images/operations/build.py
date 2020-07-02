@@ -24,3 +24,22 @@ def ops_db_setup(parameters):
     with scripts.using_sudo():
         scripts.mkdir(OPS_DB_PATH)
         scripts.chown('nobody', None, OPS_DB_PATH)
+
+
+shipyard2.rules.images.define_xar_image(
+    name='ops-db-client',
+    rules=[
+        '//py/g1/operations/databases/clients:ops-db-client/build',
+        'ops-db-client/setup',
+    ],
+)
+
+
+@foreman.rule('ops-db-client/setup')
+@foreman.rule.depend('//bases:build')
+def ops_db_client_setup(parameters):
+    del parameters  # Unused.
+    shipyard2.rules.images.generate_exec_wrapper(
+        'usr/local/bin/ops-db-client',
+        'usr/local/bin/run-ops-db-client',
+    )

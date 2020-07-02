@@ -15,3 +15,9 @@ shipyard2.rules.xars.define_zipapp(
         'py/startup',
     ],
 )
+
+shipyard2.rules.xars.define_xar(
+    name='ops-db-client',
+    exec_relpath='usr/local/bin/run-ops-db-client',
+    image='//operations:ops-db-client',
+)

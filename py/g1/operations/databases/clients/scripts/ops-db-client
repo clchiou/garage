@@ -1,0 +1,72 @@
+#!/usr/bin/env python3
+
+import argparse
+import pprint
+import re
+
+from startup import startup
+
+import g1.operations.databases.clients.parts
+from g1.apps import asyncs
+from g1.asyncs import kernels
+from g1.bases import argparses
+from g1.bases.assertions import ASSERT
+from g1.operations.databases.bases import interfaces
+
+LABELS = g1.operations.databases.clients.parts.define_client(
+    urls=['tcp://127.0.0.1:%d' % interfaces.DATABASE_PORT],
+)
+
+
+@startup
+def add_arguments(parser: asyncs.LABELS.parser) -> asyncs.LABELS.parse:
+    parser.add_argument(
+        'method',
+        metavar='METHOD',
+        choices=tuple(interfaces.DatabaseRequest.m),
+        help='set method to call (choices: %s)' %
+        ', '.join(interfaces.DatabaseRequest.m),
+    )
+    parser.add_argument(
+        'args',
+        metavar='NAME=VALUE',
+        nargs=argparse.REMAINDER,
+        help='set method argument',
+    )
+
+
+def main(args: asyncs.LABELS.args, client: LABELS.client):
+    """Operations database client."""
+    kwargs = dict(
+        argparses.parse_name_value_pair(
+            arg_str,
+            parsers=(_parse_byte_string, ),
+        ) for arg_str in args.args
+    )
+    if 'sorts' in kwargs:
+        kwargs['sorts'] = _convert_sorts(kwargs['sorts'])
+    pprint.pprint(kernels.run(client.m[args.method](**kwargs)))
+    return 0
+
+
+# For now we do not support escaping quotation "\"" inside the string.
+_BYTE_STRING = re.compile(r'b"([^"]*)"')
+
+
+def _parse_byte_string(value_str):
+    match = ASSERT.not_none(_BYTE_STRING.fullmatch(value_str))
+    # Assume it can be encoded in UTF-8 for now.
+    return match.group(1).encode('utf-8')
+
+
+def _convert_sorts(raw_sorts):
+    return [
+        interfaces.Sort(
+            sort_by=interfaces.SortBys[raw_sort['sort_by']],
+            ascending=raw_sort['ascending'],
+        ) for raw_sort in raw_sorts
+    ]
+
+
+if __name__ == '__main__':
+    asyncs.run(main, prog='ops-db-client')
