@@ -11,6 +11,25 @@ shipyard2.rules.images.define_image(
     ],
 )
 
+shipyard2.rules.images.define_xar_image(
+    name='reqrep-client',
+    rules=[
+        '//py/g1/messaging:reqrep-client/build',
+        'reqrep-client/setup',
+    ],
+)
+
+
+@foreman.rule('reqrep-client/setup')
+@foreman.rule.depend('//bases:build')
+def reqrep_client_setup(parameters):
+    del parameters  # Unused.
+    shipyard2.rules.images.generate_exec_wrapper(
+        'usr/local/bin/reqrep-client',
+        'usr/local/bin/run-reqrep-client',
+    )
+
+
 shipyard2.rules.images.define_image(
     name='web-server',
     rules=[

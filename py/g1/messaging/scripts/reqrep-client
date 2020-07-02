@@ -141,4 +141,4 @@ def parse_args_list(args_list):
 
 
 if __name__ == '__main__':
-    asyncs.run(main)
+    asyncs.run(main, prog='reqrep-client')
