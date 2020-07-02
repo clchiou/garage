@@ -2,6 +2,7 @@
 
 __all__ = [
     'define_image',
+    'define_xar_image',
     'derive_image_path',
     'derive_rule',
     'generate_exec_wrapper',
@@ -39,6 +40,7 @@ def define_image(
     *,
     name,
     rules,
+    default_filters=merge_image.DEFAULT_FILTERS,
     filters=(),
 ):
     """Define an application image.
@@ -123,12 +125,33 @@ def define_image(
             name=name,
             version=version,
             builder_images=parameters[parameter_builder_images],
+            default_filters=default_filters,
             filters=filters,
             output=output,
         )
         utils.chown(output)
 
     return ImageRules(build=build, merge=merge)
+
+
+def define_xar_image(
+    *,
+    name,
+    rules,
+    default_filters=merge_image.DEFAULT_XAR_FILTERS,
+    filters=(),
+):
+    """Define a XAR image.
+
+    This is basically the same as define_image but with a different list
+    of default filters.
+    """
+    return define_image(
+        name=name,
+        rules=rules,
+        default_filters=default_filters,
+        filters=filters,
+    )
 
 
 def derive_rule(label):
@@ -176,6 +199,8 @@ for lib_dir in "${{LIB_DIRS[@]}}"; do
   LD_LIBRARY_PATH="${{LD_LIBRARY_PATH:-}}${{LD_LIBRARY_PATH:+:}}${{lib_dir}}"
 done
 export LD_LIBRARY_PATH
+
+export PATH="${{ROOT}}/usr/local/bin${{PATH:+:}}${{PATH:-}}"
 
 exec "${{ROOT}}/{exec_relpath}" "${{@}}"
 '''

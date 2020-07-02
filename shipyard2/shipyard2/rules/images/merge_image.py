@@ -1,4 +1,6 @@
 __all__ = [
+    'DEFAULT_FILTERS',
+    'DEFAULT_XAR_FILTERS',
     'merge_image',
 ]
 
@@ -15,7 +17,7 @@ from . import utils
 
 LOG = logging.getLogger(__name__)
 
-_DEFAULT_FILTERS = (
+DEFAULT_FILTERS = (
     # Do not leak any source codes to the application image.
     # Keep drydock path in sync with //bases:build.
     ('exclude', '/home/plumber/drydock'),
@@ -77,6 +79,33 @@ _DEFAULT_FILTERS = (
     ('exclude', '/var'),
 )
 
+# For XAR images, we only include a few selected directories, and
+# exclude everything else.
+#
+# To support Python, we include our CPython under /usr/local in the XAR
+# image (like our pod image).  An alternative is to use venv to install
+# our codebase, but this seems to be too much effort; so we do not take
+# this approach for now.
+#
+# We do not include /usr/bin/java (symlink to /etc/alternatives) for
+# now.  If you want to use Java, you have to directly invoke it under
+# /usr/lib/jvm/...
+DEFAULT_XAR_FILTERS = (
+    ('include', '/usr/'),
+    ('include', '/usr/lib/'),
+    ('exclude', '/usr/lib/**/*perl*'),
+    ('include', '/usr/lib/jvm/'),
+    ('include', '/usr/lib/jvm/**'),
+    ('include', '/usr/lib/x86_64-linux-gnu/'),
+    ('include', '/usr/lib/x86_64-linux-gnu/**'),
+    ('include', '/usr/local/'),
+    ('include', '/usr/local/bin/'),
+    ('include', '/usr/local/bin/*'),
+    ('include', '/usr/local/lib/'),
+    ('include', '/usr/local/lib/**'),
+    ('exclude', '**'),
+)
+
 
 @scripts.using_sudo()
 def merge_image(
@@ -84,6 +113,7 @@ def merge_image(
     name,
     version,
     builder_images,
+    default_filters,
     filters,
     output,
 ):
@@ -99,7 +129,7 @@ def merge_image(
             )
         )
     )
-    filter_rules = _get_filter_rules(filters)
+    filter_rules = _get_filter_rules(default_filters, filters)
     with contextlib.ExitStack() as stack:
         tempdir_path = stack.enter_context(
             tempfile.TemporaryDirectory(dir=output.parent)
@@ -117,10 +147,13 @@ def merge_image(
         ctr_scripts.ctr_build_image(name, version, output_rootfs_path, output)
 
 
-def _get_filter_rules(filters):
+def _get_filter_rules(default_filters, filters):
     return [
         # Log which files are included/excluded due to filter rules.
         '--debug=FILTER2',
-        *('--%s=%s' % pair for pair in _DEFAULT_FILTERS),
+        # Add filters before default_filters so that the former may
+        # override the latter.  I have a feeling that this "override"
+        # thing could be brittle, but let's leave this here for now.
         *('--%s=%s' % pair for pair in filters),
+        *('--%s=%s' % pair for pair in default_filters),
     ]

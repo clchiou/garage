@@ -2,7 +2,7 @@ import foreman
 
 import shipyard2.rules.images
 
-shipyard2.rules.images.define_image(
+shipyard2.rules.images.define_xar_image(
     name='nngcat',
     rules=[
         '//third-party/nng:build',
