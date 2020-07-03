@@ -7,6 +7,7 @@ from g1.bases import argparses
 from g1.bases import oses
 from g1.bases.assertions import ASSERT
 
+from . import alerts
 from . import bases
 from . import pod_ops_dirs
 from . import tokens
@@ -31,6 +32,7 @@ def cmd_init(args):
     scripts.assert_command_exist('systemctl')
     scripts.assert_command_exist('tar')
     bases.make_dir(bases.get_repo_path(), parents=True)
+    alerts.init()
     pod_ops_dirs.init()
     xar_ops_dirs.init()
     tokens.init()

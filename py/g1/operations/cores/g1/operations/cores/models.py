@@ -1,4 +1,8 @@
 __all__ = [
+    'REPO_ALERTS_DIR_NAME',
+    'REPO_PODS_DIR_NAME',
+    'REPO_TOKENS_DIR_NAME',
+    'REPO_XARS_DIR_NAME',
     'PodDeployInstruction',
     'PodMetadata',
     'XarDeployInstruction',
@@ -14,9 +18,10 @@ from g1.bases.assertions import ASSERT
 from g1.containers import models as ctr_models
 
 # Operations repository structure.
+REPO_ALERTS_DIR_NAME = 'alerts'
 REPO_PODS_DIR_NAME = 'pods'
-REPO_XARS_DIR_NAME = 'xars'
 REPO_TOKENS_DIR_NAME = 'tokens'
+REPO_XARS_DIR_NAME = 'xars'
 
 # Operations directory structure.
 OPS_DIR_METADATA_FILENAME = 'metadata'
