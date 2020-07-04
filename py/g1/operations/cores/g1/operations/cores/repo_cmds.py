@@ -27,15 +27,23 @@ from . import xar_ops_dirs
 @argparses.end
 def cmd_init(args):
     oses.assert_root_privilege()
+
+    # Check pod and XAR dependencies.
     if not args.bootstrap:
         scripts.assert_command_exist('ctr')
     scripts.assert_command_exist('systemctl')
     scripts.assert_command_exist('tar')
+
+    # Check alert dependencies.
+    scripts.assert_command_exist('journalctl')
+    scripts.assert_command_exist('tail')
+
     bases.make_dir(bases.get_repo_path(), parents=True)
     alerts.init()
     pod_ops_dirs.init()
     xar_ops_dirs.init()
     tokens.init()
+
     return 0
 
 

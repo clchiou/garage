@@ -3,12 +3,14 @@ __all__ = [
 ]
 
 import os
+import sys
 from pathlib import Path
 
 from g1.bases import argparses
 from g1.bases import datetimes
 from g1.bases import oses
 from g1.bases.assertions import ASSERT
+from g1.containers import models as ctr_models
 
 from . import alerts
 
@@ -76,11 +78,55 @@ def cmd_send(args):
 
 
 @argparses.begin_parser(
+    'watch-syslog',
+    **argparses.make_help_kwargs('watch syslog'),
+)
+@argparses.end
+def cmd_watch_syslog(args):
+    del args  # Unused.
+    # TODO: Check adm group rather than root.
+    oses.assert_root_privilege()
+    alerts.watch_syslog(alerts.load())
+    return 0
+
+
+@argparses.begin_parser(
+    'watch-journal',
+    **argparses.make_help_kwargs('watch systemd journal'),
+)
+@argparses.argument(
+    'pod_id',
+    type=ctr_models.validate_pod_id,
+    help='provide pod id to watch for',
+)
+@argparses.end
+def cmd_watch_journal(args):
+    # TODO: Check adm or systemd-journal group rather than root.
+    oses.assert_root_privilege()
+    alerts.watch_journal(alerts.load(), args.pod_id)
+    return 0
+
+
+@argparses.begin_parser(
+    'collectd',
+    **argparses.make_help_kwargs('handle a collectd notification'),
+)
+@argparses.end
+def cmd_collectd(args):
+    del args  # Unused.
+    alerts.load().send(alerts.parse_collectd_notification(sys.stdin))
+    return 0
+
+
+@argparses.begin_parser(
     'alerts', **argparses.make_help_kwargs('manage alerts')
 )
 @argparses.begin_subparsers_for_subcmds(dest='command')
 @argparses.include(cmd_set_config)
 @argparses.include(cmd_send)
+@argparses.include(cmd_watch_syslog)
+@argparses.include(cmd_watch_journal)
+@argparses.include(cmd_collectd)
 @argparses.end
 @argparses.end
 def main(args):
@@ -88,5 +134,11 @@ def main(args):
         return cmd_set_config(args)
     elif args.command == 'send':
         return cmd_send(args)
+    elif args.command == 'watch-syslog':
+        return cmd_watch_syslog(args)
+    elif args.command == 'watch-journal':
+        return cmd_watch_journal(args)
+    elif args.command == 'collectd':
+        return cmd_collectd(args)
     else:
         return ASSERT.unreachable('unknown command: {}', args.command)
