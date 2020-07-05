@@ -114,10 +114,11 @@ class PodOpsDir(repos.AbstractOpsDir):
         assignments = {}
         with tokens.make_tokens_database().writing() as active_tokens:
             for pod_id in groups:
-                assignments[pod_id] = {}
-                for name in bundle_dir.deploy_instruction.token_names:
-                    assignments[pod_id][name] = \
-                        active_tokens.assign(name, pod_id)
+                assignments[pod_id] = {
+                    alias: active_tokens.assign(token_name, pod_id)
+                    for alias, token_name in
+                    bundle_dir.deploy_instruction.token_names.items()
+                }
 
         envs = ops_envs.load()
 

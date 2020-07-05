@@ -50,7 +50,7 @@ def define_pod(
     mounts: typing.List[Mount] = (),
     volumes: typing.List[Volume] = (),
     systemd_unit_groups: typing.List[SystemdUnitGroup] = (),
-    token_names: typing.List[str] = (),
+    token_names: typing.Mapping[str, str] = None,
 ):
     """Define a pod.
 
@@ -166,7 +166,7 @@ def _generate_deploy_instruction(
             ),
             volumes=volumes,
             systemd_unit_groups=systemd_unit_groups,
-            token_names=token_names,
+            token_names=token_names or {},
         ),
         pod_dir_path / shipyard2.POD_DIR_DEPLOY_INSTRUCTION_FILENAME,
     )

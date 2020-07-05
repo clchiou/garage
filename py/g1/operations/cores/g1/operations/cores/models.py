@@ -175,7 +175,10 @@ class PodDeployInstruction:
     pod_config_template: ctr_models.PodConfig
     volumes: typing.List[Volume] = ()
     systemd_unit_groups: typing.List[SystemdUnitGroup] = ()
-    token_names: typing.List[str] = ()
+    # Map from local alias to token name.  We use a mapping to support
+    # the N:1 relationship of token-to-pod.
+    token_names: typing.Mapping[str, str] = \
+        dataclasses.field(default_factory=dict)
 
     def __post_init__(self):
         validate_pod_label(self.label)
@@ -190,8 +193,9 @@ class PodDeployInstruction:
         # not too restrictive in practice.)
         ASSERT.unique(self.images, lambda image: image.name)
         ASSERT.unique(self.volumes, lambda volume: volume.name)
-        ASSERT.all(self.token_names, validate_token_name)
-        ASSERT.unique(self.token_names)
+        # We use the same format on local alias as on token name.
+        ASSERT.all(self.token_names.keys(), validate_token_name)
+        ASSERT.all(self.token_names.values(), validate_token_name)
 
     # For now, version is just an alias of pod_config_template.version.
     @property

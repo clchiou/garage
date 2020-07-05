@@ -74,6 +74,10 @@ class PodOpsDirTest(fixtures.TestCaseBase):
         systemd_unit_groups=[
             GROUP,
         ],
+        token_names={
+            'port_1': 'ops_free_port',
+            'port_2': 'ops_free_port',
+        },
     )
 
     BUNDLE_IMAGE_RELPATH = (
@@ -105,7 +109,13 @@ class PodOpsDirTest(fixtures.TestCaseBase):
         # It should only be called once.
         mock.side_effect = [self.POD_ID]
         envs.init()
+        envs.save({'ops_database_url': 'tcp://127.0.0.1:2390'})
         tokens.init()
+        with tokens.make_tokens_database().writing() as active_tokens:
+            active_tokens.add_definition(
+                'ops_free_port',
+                tokens.Tokens.Definition(kind='values', args=['8001', '8002']),
+            )
 
     def tearDown(self):
         unittest.mock.patch.stopall()
@@ -183,16 +193,26 @@ class PodOpsDirTest(fixtures.TestCaseBase):
                 ops_dir.metadata,
                 self.GROUP,
                 self.UNIT_1,
-                {},
-                {},
+                {
+                    'ops_database_url': 'tcp://127.0.0.1:2390',
+                },
+                {
+                    'port_1': '8001',
+                    'port_2': '8002',
+                },
             ),
             unittest.mock.call(
                 self.CONFIG_2,
                 ops_dir.metadata,
                 self.GROUP,
                 self.UNIT_2,
-                {},
-                {},
+                {
+                    'ops_database_url': 'tcp://127.0.0.1:2390',
+                },
+                {
+                    'port_1': '8001',
+                    'port_2': '8002',
+                },
             ),
         ])
         self.systemds_mock.daemon_reload.assert_called_once()
