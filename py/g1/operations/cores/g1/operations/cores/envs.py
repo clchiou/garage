@@ -21,12 +21,9 @@ from . import models
 
 LOG = logging.getLogger(__name__)
 
-_ENVS_FILENAME = 'envs'
-
 
 def init():
     envs_path = _get_envs_path()
-    bases.make_dir(envs_path.parent)
     if envs_path.exists():
         LOG.info('skip: envs init: %s', envs_path)
         return
@@ -44,4 +41,4 @@ def save(envs):
 
 
 def _get_envs_path():
-    return bases.get_repo_path() / models.REPO_ENVS_DIR_NAME / _ENVS_FILENAME
+    return bases.get_repo_path() / models.REPO_ENVS_FILENAME

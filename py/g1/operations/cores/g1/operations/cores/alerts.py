@@ -38,8 +38,6 @@ from . import models
 
 LOG = logging.getLogger(__name__)
 
-_CONFIG_FILENAME = 'alerts'
-
 
 @dataclasses.dataclass(frozen=True)
 class Message:
@@ -228,7 +226,6 @@ class Config:
 
 def init():
     alerts_path = _get_alerts_path()
-    bases.make_dir(alerts_path.parent)
     if alerts_path.exists():
         LOG.info('skip: alerts init: %s', alerts_path)
         return
@@ -246,11 +243,7 @@ def save(config):
 
 
 def _get_alerts_path():
-    return (
-        bases.get_repo_path() / \
-        models.REPO_ALERTS_DIR_NAME /
-        _CONFIG_FILENAME
-    )
+    return bases.get_repo_path() / models.REPO_ALERTS_FILENAME
 
 
 #

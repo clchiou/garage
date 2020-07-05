@@ -230,12 +230,8 @@ class TokensDatabase:
             tokens.cleanup(active_pod_ids)
 
 
-_DATABASE_FILENAME = 'tokens'
-
-
 def init():
     tokens_path = _get_tokens_path()
-    bases.make_dir(tokens_path.parent)
     TokensDatabase.init(tokens_path)
 
 
@@ -244,8 +240,4 @@ def make_tokens_database():
 
 
 def _get_tokens_path():
-    return (
-        bases.get_repo_path() / \
-        models.REPO_TOKENS_DIR_NAME /
-        _DATABASE_FILENAME
-    )
+    return bases.get_repo_path() / models.REPO_TOKENS_FILENAME
