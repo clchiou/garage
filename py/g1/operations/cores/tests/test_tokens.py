@@ -114,16 +114,6 @@ class TokensTest(unittest.TestCase):
             tokens.Tokens(
                 definitions=self.DEFINITIONS,
                 assignments={
-                    'y':
-                    self.make_assignments(
-                        self.POD_ID_1, 'p', self.POD_ID_1, 'q'
-                    ),
-                },
-            )
-        with self.assertRaises(AssertionError):
-            tokens.Tokens(
-                definitions=self.DEFINITIONS,
-                assignments={
                     'x':
                     self.make_assignments(
                         self.POD_ID_1, '1', self.POD_ID_2, '1'

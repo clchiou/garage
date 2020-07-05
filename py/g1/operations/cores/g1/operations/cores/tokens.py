@@ -1,10 +1,8 @@
 """Manage tokens.
 
 A token has a name and a value.  Tokens are grouped by their name, and
-can be assigned to pods.  For now we make the following restrictions:
-
-* Only one token from a group can be assigned to the same pod.
-* Only str-typed token values.
+can be assigned to pods.  A pod can acquire multiple tokens from the
+same group; that is, token-to-pod is a many-to-one relationship.
 """
 
 __all__ = [
@@ -35,7 +33,12 @@ class Tokens:
 
     @dataclasses.dataclass(frozen=True)
     class Definition:
-        """Definition of tokens."""
+        """Definition of tokens.
+
+        Two kinds of definitions are supported:
+        * Enumeration token values.
+        * Range of token values.
+        """
         kind: str
         args: typing.List[typing.Union[int, str]]
 
@@ -50,6 +53,11 @@ class Tokens:
                 ASSERT.all(self.args, lambda arg: isinstance(arg, str))
 
         def validate_assigned_values(self, assigned_values):
+            """Validate assigned values.
+
+            * No duplicated assignments.
+            * Assigned values are a subset of defined values.
+            """
             ASSERT.all(assigned_values, lambda value: isinstance(value, str))
             if self.kind == 'range':
                 ASSERT.unique(assigned_values)
@@ -71,9 +79,11 @@ class Tokens:
                 if assigned_value_set:
                     value = max(assigned_value_set) + 1
                     if value < self.args[1]:
+                        # NOTE: We allow only str-typed token values.
                         return str(value)
                 for value in range(*self.args):
                     if value not in assigned_value_set:
+                        # NOTE: We allow only str-typed token values.
                         return str(value)
             else:
                 ASSERT.equal(self.kind, 'values')
@@ -94,7 +104,9 @@ class Tokens:
         def __post_init__(self):
             ctr_models.validate_pod_id(self.pod_id)
 
+    # Map from token name to definition.
     definitions: typing.MutableMapping[str, Definition]
+    # Map from token name to list of assignments.
     assignments: typing.MutableMapping[str, typing.List[Assignment]]
 
     def __post_init__(self):
@@ -104,8 +116,6 @@ class Tokens:
         ASSERT.all(self.definitions, models.validate_token_name)
         for name, assignments in self.assignments.items():
             models.validate_token_name(name)
-            # A pod can only have at most one token from one group.
-            ASSERT.unique(assignments, lambda a: a.pod_id)
             ASSERT.getitem(self.definitions, name).validate_assigned_values([
                 a.value for a in assignments
             ])
@@ -139,7 +149,8 @@ class Tokens:
         self.assignments.pop(name, None)
 
     def iter_pod_ids(self, name):
-        for assignment in ASSERT.getitem(self.assignments, name):
+        """Iterate id of pods that have acquired this token group."""
+        for assignment in self.assignments.get(name, ()):
             yield assignment.pod_id
 
     def assign(self, name, pod_id, value=None):
@@ -148,8 +159,6 @@ class Tokens:
         ctr_models.validate_pod_id(pod_id)
         definition = self.definitions[name]
         assignments = self.assignments.setdefault(name, [])
-        # A pod can only have at most one token from one group.
-        ASSERT.not_any(assignments, lambda a: a.pod_id == pod_id)
         assigned_values = [a.value for a in assignments]
         if value is None:
             value = definition.next_available(assigned_values)
@@ -166,6 +175,7 @@ class Tokens:
         self._remove('unassign', pod_id.__eq__)
 
     def cleanup(self, active_pod_ids):
+        """Unassign tokens from removed pods."""
         self._remove('cleanup', lambda pod_id: pod_id not in active_pod_ids)
 
     def _remove(self, cmd, predicate):
