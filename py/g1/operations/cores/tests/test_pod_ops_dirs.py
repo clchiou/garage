@@ -5,6 +5,7 @@ from pathlib import Path
 
 import g1.files
 from g1.containers import models as ctr_models
+from g1.operations.cores import envs
 from g1.operations.cores import models
 from g1.operations.cores import pod_ops_dirs
 from g1.operations.cores import tokens
@@ -103,6 +104,7 @@ class PodOpsDirTest(fixtures.TestCaseBase):
         ).start()
         # It should only be called once.
         mock.side_effect = [self.POD_ID]
+        envs.init()
         tokens.init()
 
     def tearDown(self):
@@ -177,10 +179,20 @@ class PodOpsDirTest(fixtures.TestCaseBase):
         # Check systemd units.
         self.systemds_mock.install.assert_has_calls([
             unittest.mock.call(
-                self.CONFIG_1, ops_dir.metadata, self.GROUP, self.UNIT_1, {}
+                self.CONFIG_1,
+                ops_dir.metadata,
+                self.GROUP,
+                self.UNIT_1,
+                {},
+                {},
             ),
             unittest.mock.call(
-                self.CONFIG_2, ops_dir.metadata, self.GROUP, self.UNIT_2, {}
+                self.CONFIG_2,
+                ops_dir.metadata,
+                self.GROUP,
+                self.UNIT_2,
+                {},
+                {},
             ),
         ])
         self.systemds_mock.daemon_reload.assert_called_once()

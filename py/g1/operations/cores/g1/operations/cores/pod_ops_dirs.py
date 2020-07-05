@@ -16,6 +16,7 @@ from g1.containers import scripts as ctr_scripts
 from g1.texts import jsons
 
 from . import bases
+from . import envs as ops_envs
 from . import models
 from . import repos
 from . import systemds
@@ -118,6 +119,8 @@ class PodOpsDir(repos.AbstractOpsDir):
                     assignments[pod_id][name] = \
                         active_tokens.assign(name, pod_id)
 
+        envs = ops_envs.load()
+
         LOG.debug('pods install: prepare pods: %s %s', *log_args)
         bases.make_dir(self.refs_dir_path)
         for pod_id, group in groups.items():
@@ -128,6 +131,7 @@ class PodOpsDir(repos.AbstractOpsDir):
                     pod_id,
                     self.metadata,
                     group.envs,
+                    envs,
                     assignments[pod_id],
                 ),
             )
@@ -146,6 +150,7 @@ class PodOpsDir(repos.AbstractOpsDir):
                 self.metadata,
                 groups[config.pod_id],
                 units[config.pod_id, config.name],
+                envs,
                 assignments[config.pod_id],
             )
 

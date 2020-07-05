@@ -1,5 +1,6 @@
 __all__ = [
     'REPO_ALERTS_DIR_NAME',
+    'REPO_ENVS_DIR_NAME',
     'REPO_PODS_DIR_NAME',
     'REPO_TOKENS_DIR_NAME',
     'REPO_XARS_DIR_NAME',
@@ -19,6 +20,7 @@ from g1.containers import models as ctr_models
 
 # Operations repository structure.
 REPO_ALERTS_DIR_NAME = 'alerts'
+REPO_ENVS_DIR_NAME = 'envs'
 REPO_PODS_DIR_NAME = 'pods'
 REPO_TOKENS_DIR_NAME = 'tokens'
 REPO_XARS_DIR_NAME = 'xars'
@@ -107,6 +109,10 @@ _TOKEN_NAME_PATTERN = re.compile(r'[a-z0-9]+(?:_[a-z0-9]+)*')
 
 def validate_token_name(name):
     return ASSERT.predicate(name, _TOKEN_NAME_PATTERN.fullmatch)
+
+
+# For now validate_env_name is just an alias.
+validate_env_name = validate_token_name
 
 
 @dataclasses.dataclass(frozen=True)

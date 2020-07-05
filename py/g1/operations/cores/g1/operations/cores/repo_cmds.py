@@ -9,6 +9,7 @@ from g1.bases.assertions import ASSERT
 
 from . import alerts
 from . import bases
+from . import envs
 from . import pod_ops_dirs
 from . import tokens
 from . import xar_ops_dirs
@@ -40,6 +41,7 @@ def cmd_init(args):
 
     bases.make_dir(bases.get_repo_path(), parents=True)
     alerts.init()
+    envs.init()
     pod_ops_dirs.init()
     xar_ops_dirs.init()
     tokens.init()
