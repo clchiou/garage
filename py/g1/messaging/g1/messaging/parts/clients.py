@@ -37,14 +37,20 @@ def setup_client(module_labels, module_params):
     )
 
 
-def make_client_params(urls=None, send_timeout=2, recv_timeout=4):
+def make_client_params(
+    *,
+    urls=None,
+    validate_urls=bool,  # Merely check non-empty for now.
+    send_timeout=2,
+    recv_timeout=4,
+):
     return parameters.Namespace(
         'configure messaging client',
         urls=parameters.make_parameter(
             urls,
             collections.abc.Iterable,
             'urls that client connects to',
-            validate=bool,  # Merely check non-empty for now.
+            validate=validate_urls,
         ),
         send_timeout=parameters.Parameter(
             send_timeout,
