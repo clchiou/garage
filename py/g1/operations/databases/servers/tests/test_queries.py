@@ -298,6 +298,24 @@ class QueriesTest(unittest.TestCase):
             ''',
         )
 
+    def test_scan_key_ids(self):
+        self.assert_query_regex(
+            queries.scan_key_ids(
+                self.tables,
+                key_ids=[1],
+            ),
+            r'''
+            SELECT
+                keyspace.revision,
+                keyspace.key,
+                keyspace.value
+            FROM
+                keyspace
+            WHERE
+                keyspace.key_id IN \(:key_id_1\)
+            ''',
+        )
+
     def test_set(self):
         qs = queries.set_(self.tables, revision=0, key=1, value=b'')
         self.assert_query_regex(
@@ -424,39 +442,41 @@ class QueriesTest(unittest.TestCase):
         self.assert_query_regex(
             queries.lease_scan_expired(self.tables, current_time=1),
             r'''
-            SELECT DISTINCT
-                keyspace.revision,
-                keyspace.key,
-                keyspace.value,
-                keyspace.key_id
+            SELECT
+                leases.lease
             FROM
-                \(SELECT
-                    leases.lease AS lease
-                FROM
-                    leases
-                WHERE
-                    leases.expiration < :expiration_1\)
-                AS
-                    _expired
-            JOIN
-                leases_key_ids
-            ON
-                _expired.lease = leases_key_ids.lease
-            JOIN
-                keyspace
-            ON
-                leases_key_ids.key_id = keyspace.key_id
-            ''',
-        )
-
-    def test_lease_delete_expired(self):
-        self.assert_query_regex(
-            queries.lease_delete_expired(self.tables, current_time=1),
-            r'''
-            DELETE FROM
                 leases
             WHERE
                 leases.expiration < :expiration_1
+            ''',
+        )
+
+    def test_lease_get_key_ids(self):
+        self.assert_query_regex(
+            queries.lease_get_key_ids(self.tables, leases=[1]),
+            r'''
+            SELECT DISTINCT
+                leases_key_ids.key_id
+            FROM
+                leases_key_ids
+            WHERE
+                leases_key_ids.lease IN \(:lease_1\)
+            ''',
+        )
+
+    def test_lease_scan_leases(self):
+        self.assert_query_regex(
+            queries.lease_scan_leases(self.tables, key_ids=[1]),
+            r'''
+            SELECT
+                leases_key_ids.key_id,
+                leases_key_ids.lease
+            FROM
+                leases_key_ids
+            WHERE
+                leases_key_ids.key_id IN \(:key_id_1\)
+            ORDER BY
+                leases_key_ids.key_id ASC
             ''',
         )
 
@@ -468,6 +488,27 @@ class QueriesTest(unittest.TestCase):
                 leases_key_ids
             WHERE
                 leases_key_ids.key_id IN \(:key_id_1\)
+            ''',
+        )
+
+    def test_lease_delete_leases(self):
+        qs = queries.lease_delete_leases(self.tables, leases=[1])
+        self.assert_query_regex(
+            qs[0],
+            r'''
+            DELETE FROM
+                leases
+            WHERE
+                leases.lease IN \(:lease_1\)
+            ''',
+        )
+        self.assert_query_regex(
+            qs[1],
+            r'''
+            DELETE FROM
+                leases_key_ids
+            WHERE
+                leases_key_ids.lease IN \(:lease_1\)
             ''',
         )
 

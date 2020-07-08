@@ -197,23 +197,58 @@ def lease_dissociate(conn, tables, *, lease, key):
 
 
 def lease_expire(conn, tables, *, tx_revision=None, **kwargs):
-    prior = []
-    key_ids = []
+    expired = _lease_scan_expired(conn, tables, **kwargs)
+    if not expired:
+        return []
+    key_ids = _lease_get_key_ids(conn, tables, leases=expired)
+    if key_ids:
+        # Exclude key ids that are associated with non-expiring leases.
+        for key_id, leases in _lease_scan_leases(
+            conn,
+            tables,
+            key_ids=key_ids,
+        ):
+            if not leases.issubset(expired):
+                key_ids.remove(key_id)
+    revision = _handle_tx_revision(conn, tables, tx_revision)
+    for query in queries.lease_delete_leases(tables, leases=expired):
+        _execute(conn, query)
+    if key_ids:
+        with _executing(
+            conn,
+            queries.scan_key_ids(tables, key_ids=key_ids),
+        ) as result:
+            prior = [_make_pair(row) for row in result]
+        _execute(conn, queries.delete_key_ids(tables, key_ids=key_ids))
+        _record_deletions(conn, tables, revision, (pair.key for pair in prior))
+    else:
+        prior = []
+    return prior
+
+
+def _lease_scan_expired(conn, tables, *, current_time):
     with _executing(
         conn,
-        queries.lease_scan_expired(tables, **kwargs),
+        queries.lease_scan_expired(tables, current_time=current_time),
     ) as result:
-        for row in result:
-            prior.append(_make_pair(row))
-            key_ids.append(row[-1])
-    if not key_ids:
-        return []
-    revision = _handle_tx_revision(conn, tables, tx_revision)
-    _execute(conn, queries.delete_key_ids(tables, key_ids=key_ids))
-    _record_deletions(conn, tables, revision, (pair.key for pair in prior))
-    _execute(conn, queries.lease_delete_expired(tables, **kwargs))
-    _execute(conn, queries.lease_delete_key_ids(tables, key_ids=key_ids))
-    return prior
+        return set(row[0] for row in result)
+
+
+def _lease_get_key_ids(conn, tables, *, leases):
+    with _executing(
+        conn,
+        queries.lease_get_key_ids(tables, leases=leases),
+    ) as result:
+        return set(row[0] for row in result)
+
+
+def _lease_scan_leases(conn, tables, *, key_ids):
+    with _executing(
+        conn,
+        queries.lease_scan_leases(tables, key_ids=key_ids),
+    ) as result:
+        return [(key_id, set(row[1] for row in group)) for key_id, group in
+                itertools.groupby(result, key=lambda row: row[0])]
 
 
 def lease_revoke(conn, tables, **kwargs):

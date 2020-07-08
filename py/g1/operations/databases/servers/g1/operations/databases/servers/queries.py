@@ -9,19 +9,22 @@ __all__ = [
     'get_revision',
     'increment_revision',
     'scan',
+    'scan_key_ids',
     'scan_keys',
     'scan_pairs_and_ids',
     'set_',
     # Leases.
     'lease_associate',
     'lease_count',
-    'lease_delete_expired',
     'lease_delete_key_ids',
+    'lease_delete_leases',
     'lease_dissociate',
+    'lease_get_key_ids',
     'lease_grant',
     'lease_revoke',
     'lease_scan',
     'lease_scan_expired',
+    'lease_scan_leases',
     # Maintenance.
     'compact',
 ]
@@ -165,6 +168,19 @@ def _make_keyspace_table(tables, revision):
     return query, table
 
 
+def scan_key_ids(tables, *, key_ids):
+    ASSERT.not_empty(key_ids)
+    table = tables.keyspace
+    return (
+        select([
+            table.c.revision,
+            table.c.key,
+            table.c.value,
+        ])\
+        .where(table.c.key_id.in_(key_ids))
+    )
+
+
 def set_(tables, *, revision, key, value):
     ASSERT.greater_or_equal(revision, 0)
     ASSERT.true(key)
@@ -254,39 +270,29 @@ def lease_dissociate(tables, *, lease, key_id):
 
 def lease_scan_expired(tables, *, current_time):
     ASSERT.greater_or_equal(current_time, 0)
-    query = (
+    return (
         select([tables.leases.c.lease])\
         .where(tables.leases.c.expiration < current_time)
-        .alias('_expired')
     )
-    joined = join(
-        query,
-        tables.leases_key_ids,
-        query.c.lease == tables.leases_key_ids.c.lease,
-    )
-    joined = join(
-        joined,
-        tables.keyspace,
-        tables.leases_key_ids.c.key_id == tables.keyspace.c.key_id,
-    )
-    return select(
-        [
-            tables.keyspace.c.revision,
-            tables.keyspace.c.key,
-            tables.keyspace.c.value,
-            tables.keyspace.c.key_id,
-            # Put key_id at last so that the column order is compatible
-            # with _make_pair.
-        ],
-        distinct=True,
-    ).select_from(joined)
 
 
-def lease_delete_expired(tables, *, current_time):
-    ASSERT.greater_or_equal(current_time, 0)
+def lease_get_key_ids(tables, *, leases):
+    ASSERT.not_empty(leases)
+    table = tables.leases_key_ids
     return (
-        tables.leases.delete()\
-        .where(tables.leases.c.expiration < current_time)
+        select([table.c.key_id], distinct=True)\
+        .where(table.c.lease.in_(leases))
+    )
+
+
+def lease_scan_leases(tables, *, key_ids):
+    ASSERT.not_empty(key_ids)
+    table = tables.leases_key_ids
+    return (
+        select([table.c.key_id, table.c.lease])\
+        .where(table.c.key_id.in_(key_ids))
+        # Order by key_id for itertools.groupby.
+        .order_by(table.c.key_id.asc())
     )
 
 
@@ -294,6 +300,14 @@ def lease_delete_key_ids(tables, *, key_ids):
     ASSERT.not_empty(key_ids)
     table = tables.leases_key_ids
     return table.delete().where(table.c.key_id.in_(key_ids))
+
+
+def lease_delete_leases(tables, *, leases):
+    ASSERT.not_empty(leases)
+    return [
+        table.delete().where(table.c.lease.in_(leases))
+        for table in (tables.leases, tables.leases_key_ids)
+    ]
 
 
 def lease_revoke(tables, *, lease):

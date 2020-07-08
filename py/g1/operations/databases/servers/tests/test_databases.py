@@ -663,21 +663,16 @@ class DatabasesTest(unittest.TestCase):
         def assert_after_expire():
             self.assert_revisions(
                 [kv(i, b'k%d' % i, b'x') for i in range(1, 11)] +
-                [kv(11, b'k%d' % i, None) for i in range(1, 6 + 1)],
-                [
-                    kv(7, b'k7', b'x'),
-                    kv(8, b'k8', b'x'),
-                    kv(9, b'k9', b'x'),
-                    kv(10, b'k10', b'x'),
-                ],
+                [kv(11, b'k%d' % i, None) for i in [3, 4, 6]],
+                [kv(i, b'k%d' % i, b'x') for i in [1, 2, 5, 7, 8, 9, 10]],
                 11,
             )
             self.assert_leases(
                 [
-                    lease_(1004, 10004, (b'k9', )),
-                    lease_(1005, 10005, (b'k8', )),
+                    lease_(1004, 10004, (b'k1', b'k5', b'k9')),
+                    lease_(1005, 10005, (b'k2', b'k5', b'k8')),
                 ],
-                4,  # 2 + 2 non-existent key_id.
+                8,  # 6 + 2 non-existent key_id.
             )
 
         self.make_lease_testdata()
@@ -688,6 +683,7 @@ class DatabasesTest(unittest.TestCase):
         )
         assert_before_expire()
 
+        # Expire lease 1001, 1002, and 1003.
         self.assertEqual(
             sorted(
                 databases.lease_expire(
@@ -695,7 +691,7 @@ class DatabasesTest(unittest.TestCase):
                 ),
                 key=lambda kv: kv.revision,
             ),
-            [kv(i, b'k%d' % i, b'x') for i in range(1, 6 + 1)],
+            [kv(i, b'k%d' % i, b'x') for i in [3, 4, 6]],
         )
         assert_after_expire()
         self.assertEqual(
@@ -705,6 +701,42 @@ class DatabasesTest(unittest.TestCase):
             [],
         )
         assert_after_expire()
+
+    def test_lease_scan_expired(self):
+        self.make_lease_testdata()
+        self.assertEqual(
+            databases._lease_scan_expired(
+                self.engine, self.tables, current_time=10003
+            ),
+            {1001, 1002},
+        )
+
+    def test_lease_get_key_ids(self):
+        self.make_lease_testdata()
+        self.assertEqual(
+            databases._lease_get_key_ids(
+                self.engine, self.tables, leases={1001, 1002}
+            ),
+            {1, 2, 3, 4, 5, 6},
+        )
+        self.assertEqual(
+            databases._lease_get_key_ids(
+                self.engine, self.tables, leases={1003}
+            ),
+            set(),
+        )
+
+    def test_lease_scan_leases(self):
+        self.make_lease_testdata()
+        self.assertEqual(
+            databases._lease_scan_leases(
+                self.engine, self.tables, key_ids={1, 2, 999}
+            ),
+            [
+                (1, {1001, 1004}),
+                (2, {1001, 1005}),
+            ],
+        )
 
     def test_compact(self):
         self.make_kv_testdata()
