@@ -28,6 +28,7 @@ __all__ = [
     'TransactionNotFoundError',
     'TransactionTimeoutError',
     # Misc.
+    'generate_lease_id',
     'generate_transaction_id',
     'next_key',
 ]
@@ -519,6 +520,10 @@ class DatabaseEvent:
 
     def is_deletion(self):
         return self.current is None
+
+
+def generate_lease_id():
+    return random.randrange(1, 1 << 64)
 
 
 def generate_transaction_id():
