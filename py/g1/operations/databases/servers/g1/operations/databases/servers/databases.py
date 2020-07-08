@@ -9,7 +9,7 @@ __all__ = [
     'increment_revision',
     'scan',
     'scan_keys',
-    'set',
+    'set_',
     # Leases.
     'lease_count',
     'lease_expire',
@@ -95,13 +95,13 @@ def scan(conn, tables, **kwargs):
         return list(map(_make_pair, result))
 
 
-def set(conn, tables, *, key, value, tx_revision=None):  # pylint: disable=redefined-builtin
+def set_(conn, tables, *, key, value, tx_revision=None):
     ASSERT.true(key)
     prior = get(conn, tables, revision=0, key=key)
     if prior is not None and prior.value == value:
-        return prior  # `set` is idempotent.
+        return prior  # `set_` is idempotent.
     revision = _handle_tx_revision(conn, tables, tx_revision)
-    for query in queries.set(tables, revision=revision, key=key, value=value):
+    for query in queries.set_(tables, revision=revision, key=key, value=value):
         _execute(conn, query)
     return prior
 

@@ -299,7 +299,7 @@ class QueriesTest(unittest.TestCase):
         )
 
     def test_set(self):
-        qs = queries.set(self.tables, revision=0, key=1, value=b'')
+        qs = queries.set_(self.tables, revision=0, key=1, value=b'')
         self.assert_query_regex(
             qs[0],
             r'''

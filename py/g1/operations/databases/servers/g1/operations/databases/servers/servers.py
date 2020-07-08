@@ -175,7 +175,7 @@ class DatabaseServer(interfaces.DatabaseInterface):
     count = _make_reader(databases.count)
     scan_keys = _make_reader(databases.scan_keys)
     scan = _make_reader(databases.scan)
-    _set = _make_writer(databases.set, need_tx_revision=True)
+    _set = _make_writer(databases.set_, need_tx_revision=True)
     _delete = _make_writer(databases.delete, need_tx_revision=True)
 
     async def set(self, *, key, value, transaction=0):

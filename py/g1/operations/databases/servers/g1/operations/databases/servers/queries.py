@@ -11,7 +11,7 @@ __all__ = [
     'scan',
     'scan_keys',
     'scan_pairs_and_ids',
-    'set',
+    'set_',
     # Leases.
     'lease_associate',
     'lease_count',
@@ -165,7 +165,7 @@ def _make_keyspace_table(tables, revision):
     return query, table
 
 
-def set(tables, *, revision, key, value):  # pylint: disable=redefined-builtin
+def set_(tables, *, revision, key, value):
     ASSERT.greater_or_equal(revision, 0)
     ASSERT.true(key)
     ivs = {'revision': revision + 1, 'key': key, 'value': value}

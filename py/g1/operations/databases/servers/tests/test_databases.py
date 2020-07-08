@@ -397,7 +397,7 @@ class DatabasesTest(unittest.TestCase):
     def test_set_and_delete(self):
 
         def set_(k, v):
-            return databases.set(self.engine, self.tables, key=k, value=v)
+            return databases.set_(self.engine, self.tables, key=k, value=v)
 
         def delete(ks, ke):
             return databases.delete(
@@ -414,7 +414,7 @@ class DatabasesTest(unittest.TestCase):
         revisions.append(kv(1, b'k1', b'v1'))
         self.assert_revisions(revisions)
 
-        # `set` is idempotent.
+        # `set_` is idempotent.
         self.assertEqual(set_(b'k1', b'v1'), kv(1, b'k1', b'v1'))
         self.assert_revisions(revisions)
 
