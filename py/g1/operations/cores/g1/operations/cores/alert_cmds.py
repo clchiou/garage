@@ -2,6 +2,9 @@ __all__ = [
     'main',
 ]
 
+import contextlib
+import logging
+import logging.handlers
 import os
 import sys
 from pathlib import Path
@@ -114,8 +117,28 @@ def cmd_watch_journal(args):
 @argparses.end
 def cmd_collectd(args):
     del args  # Unused.
-    alerts.load().send(alerts.parse_collectd_notification(sys.stdin))
+    # Although collectd documentation claims that stdout is directed to
+    # /dev/null, it is a lie.  stdout/stderr are directed to pipes that
+    # collected ignores.  As a result, process writing to stdout/stderr
+    # will fail due to broken pipe error.
+    _config_logging()
+    with open(os.devnull, 'w') as devnull, \
+        contextlib.redirect_stdout(devnull), \
+        contextlib.redirect_stderr(devnull):
+        alerts.load().send(alerts.parse_collectd_notification(sys.stdin))
     return 0
+
+
+def _config_logging():
+    """Remove stream handler to stdout/stderr, and add syslog handler."""
+    root = logging.getLogger()
+    for handler in tuple(root.handlers):
+        if (
+            isinstance(handler, logging.StreamHandler)
+            and handler.stream in (sys.stdout, sys.stderr)
+        ):
+            root.removeHandler(handler)
+    root.addHandler(logging.handlers.SysLogHandler(address='/dev/log'))
 
 
 @argparses.begin_parser(
