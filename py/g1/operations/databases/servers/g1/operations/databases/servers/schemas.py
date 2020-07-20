@@ -62,7 +62,7 @@ def make_tables(metadata):
         leases_key_ids=Table(
             'leases_key_ids',
             metadata,
-            Column('lease', Revision, primary_key=True),
+            Column('lease', Lease, primary_key=True),
             Column('key_id', Integer, primary_key=True),
         ),
     )
