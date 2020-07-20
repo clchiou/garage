@@ -523,11 +523,15 @@ class DatabaseEvent:
 
 
 def generate_lease_id():
-    return random.randrange(1, 1 << 64)
+    # Sadly Python stdlib's sqlite3 module, which SQLAlchemy is based
+    # on, does not support unsigned 64-bit integer.
+    return random.randrange(1, 1 << 63)
 
 
 def generate_transaction_id():
-    return random.randrange(1, 1 << 64)
+    # Sadly Python stdlib's sqlite3 module, which SQLAlchemy is based
+    # on, does not support unsigned 64-bit integer.
+    return random.randrange(1, 1 << 63)
 
 
 def next_key(key):
