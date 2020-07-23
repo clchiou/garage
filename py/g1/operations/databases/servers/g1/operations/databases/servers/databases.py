@@ -15,6 +15,7 @@ __all__ = [
     'lease_expire',
     'lease_get',
     'lease_scan',
+    'lease_scan_expirations',
     'lease_grant',
     'lease_associate',
     'lease_dissociate',
@@ -160,6 +161,11 @@ def lease_scan(conn, tables, **kwargs):
                 )
             )
         return leases
+
+
+def lease_scan_expirations(conn, tables):
+    with _executing(conn, queries.lease_scan_expirations(tables)) as result:
+        return [row[0] for row in result]
 
 
 def lease_grant(conn, tables, **kwargs):

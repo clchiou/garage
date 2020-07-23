@@ -23,6 +23,7 @@ __all__ = [
     'lease_grant',
     'lease_revoke',
     'lease_scan',
+    'lease_scan_expirations',
     'lease_scan_expired',
     'lease_scan_leases',
     # Maintenance.
@@ -240,6 +241,10 @@ def lease_scan(tables, *, lease_start=0, lease_end=0, limit=0):
         # Order by key so that key order is deterministic.
         .order_by(tables.keyspace.c.key.asc())
     )
+
+
+def lease_scan_expirations(tables):
+    return select([tables.leases.c.expiration])
 
 
 def lease_grant(tables, *, lease, expiration):

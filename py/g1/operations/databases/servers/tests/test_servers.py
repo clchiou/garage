@@ -171,7 +171,7 @@ class ServersTest(unittest.TestCase):
         kernels.run(self.server.begin(transaction=1))
         self.assertEqual(self.server._manager.tx_id, 1)
         self.mock_monotonic.return_value = 10
-        server_task = tasks.spawn(self.server.serve)
+        server_task = tasks.spawn(self.server._run_timer_tasks)
         with self.assertRaises(kernels.KernelTimeout):
             kernels.run(timeout=0.02)
         self.assertEqual(self.server._manager.tx_id, 0)
@@ -196,7 +196,7 @@ class ServersTest(unittest.TestCase):
             interfaces.Lease(lease=1, expiration=0.01, keys=(b'k1', )),
         )
 
-        server_task = tasks.spawn(self.server.serve)
+        server_task = tasks.spawn(self.server._run_timer_tasks)
         self.mock_time.return_value = 10
         with self.assertRaises(kernels.KernelTimeout):
             kernels.run(timeout=0.02)

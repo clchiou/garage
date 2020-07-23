@@ -90,6 +90,20 @@ class DatabaseServer(interfaces.DatabaseInterface):
         self._pending_events = collections.deque()
 
     async def serve(self):
+        await self._check_lease_expiration()
+        await self._run_timer_tasks()
+
+    async def _check_lease_expiration(self):
+        ASSERT.equal(self._manager.tx_id, 0)
+        async with self._manager.reading() as conn:
+            expirations = databases.lease_scan_expirations(conn, self._tables)
+        now = time.time()
+        for expiration in expirations:
+            self._timer_queue.spawn(
+                _sleep(expiration - now, self._lease_expire)
+            )
+
+    async def _run_timer_tasks(self):
         async for timer_task in self._timer_queue:
             timer_callback = timer_task.get_result_nonblocking()
             await timer_callback()
