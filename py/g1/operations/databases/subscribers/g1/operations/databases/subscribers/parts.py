@@ -18,7 +18,10 @@ SUBSCRIBER_LABEL_NAMES = (
 
 def define_subscriber(module_path=None, **kwargs):
     module_path = module_path or subscribers.__name__
-    module_labels = labels.make_labels(module_path, *SUBSCRIBER_LABEL_NAMES)
+    module_labels = labels.make_nested_labels(
+        module_path,
+        SUBSCRIBER_LABEL_NAMES,
+    )
     setup_subscriber(
         module_labels,
         parameters.define(module_path, make_subscriber_params(**kwargs)),
