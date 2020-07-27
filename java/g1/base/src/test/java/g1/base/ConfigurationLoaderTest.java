@@ -37,43 +37,47 @@ public class ConfigurationLoaderTest {
 
     @Test
     public void testEmpty() throws IOException {
-        loader.load(ImmutableList.of(createTempPath("")));
+        loader.loadFromFiles(ImmutableList.of(createTempPath("")));
         Data.assertInitialState();
     }
 
     @Test
     public void testNonMap() throws IOException {
-        loader.load(ImmutableList.of(createTempPath("[]")));
+        loader.loadFromFiles(ImmutableList.of(createTempPath("[]")));
         Data.assertInitialState();
     }
 
     @Test
     public void testNonStringKey() throws IOException {
-        loader.load(ImmutableList.of(createTempPath("1: {i: 1}")));
+        loader.loadFromFiles(ImmutableList.of(createTempPath("1: {i: 1}")));
         Data.assertInitialState();
     }
 
     @Test
     public void testNonMapValue() throws IOException {
-        loader.load(ImmutableList.of(createTempPath("g1.base.Data: 1")));
+        loader.loadFromFiles(
+            ImmutableList.of(createTempPath("g1.base.Data: 1")));
         Data.assertInitialState();
     }
 
     @Test
     public void testWrongValueType() throws IOException {
-        loader.load(ImmutableList.of(createTempPath("g1.base.Data: {s: 1}")));
+        loader.loadFromFiles(
+            ImmutableList.of(createTempPath("g1.base.Data: {s: 1}")));
         Data.assertInitialState();
     }
 
     @Test
     public void testUnknownClass() throws IOException {
-        loader.load(ImmutableList.of(createTempPath("no.such.Class: {i: 1}")));
+        loader.loadFromFiles(
+            ImmutableList.of(createTempPath("no.such.Class: {i: 1}")));
         Data.assertInitialState();
     }
 
     @Test
     public void testUnknownField() throws IOException {
-        loader.load(ImmutableList.of(createTempPath("g1.base.Data: {x: 1}")));
+        loader.loadFromFiles(
+            ImmutableList.of(createTempPath("g1.base.Data: {x: 1}")));
         Data.assertInitialState();
     }
 
@@ -90,7 +94,7 @@ public class ConfigurationLoaderTest {
             "  integer: 22",
             "  s: spam egg"
         );
-        loader.load(ImmutableList.of(createTempPath(content)));
+        loader.loadFromFiles(ImmutableList.of(createTempPath(content)));
         assertEquals(1, Data.i);
         assertEquals(2, Data.integer);
         assertEquals("hello world", Data.s);
@@ -102,7 +106,7 @@ public class ConfigurationLoaderTest {
 
     @Test
     public void testOverwrite() throws IOException {
-        loader.load(
+        loader.loadFromFiles(
             ImmutableList.of(
                 createTempPath("g1.base.Data: {i: 1}"),
                 createTempPath("g1.base.Data: {i: 2}")

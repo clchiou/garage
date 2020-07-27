@@ -102,8 +102,7 @@ public class ServerApp extends ConfiguredApp {
 
     @Override
     public void run() throws Exception {
-        new ConfigurationLoader(new ArrayList<>(component.namespaces()))
-            .load(configPaths);
+        loadConfigs(new ArrayList<>(component.namespaces()));
         ServiceManager manager = makeServiceManager(component.services());
         manager.startAsync();
         manager.awaitStopped();

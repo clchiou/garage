@@ -3,7 +3,6 @@ package g1.example;
 import com.google.common.collect.ImmutableList;
 import g1.base.Application;
 import g1.base.Configuration;
-import g1.base.ConfigurationLoader;
 import g1.base.ConfiguredApp;
 import org.jooq.DSLContext;
 import org.jooq.Record;
@@ -33,7 +32,7 @@ public class DumpDatabase extends ConfiguredApp {
 
     @Override
     public void run() throws Exception {
-        new ConfigurationLoader(ImmutableList.of("g1")).load(configPaths);
+        loadConfigs(ImmutableList.of("g1"));
         try (
             Connection connection = DriverManager.getConnection(databaseUrl)
         ) {

@@ -3,7 +3,6 @@ package g1.example;
 import com.google.common.collect.ImmutableList;
 import g1.base.Application;
 import g1.base.Configuration;
-import g1.base.ConfigurationLoader;
 import g1.base.ConfiguredApp;
 import g1.search.IndexWriters;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
@@ -40,7 +39,7 @@ public class IndexDatabase extends ConfiguredApp {
 
     @Override
     public void run() throws Exception {
-        new ConfigurationLoader(ImmutableList.of("g1")).load(configPaths);
+        loadConfigs(ImmutableList.of("g1"));
         IndexWriter writer = IndexWriters.open(new StandardAnalyzer());
         try (
             Connection connection = DriverManager.getConnection(databaseUrl)

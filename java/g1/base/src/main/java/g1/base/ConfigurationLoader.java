@@ -1,5 +1,6 @@
 package g1.base;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableTable;
 import com.google.common.collect.Table;
 import org.reflections.Reflections;
@@ -84,7 +85,7 @@ public class ConfigurationLoader {
         fields = fieldsBuilder.build();
     }
 
-    public void load(List<Path> configPaths) {
+    public void loadFromFiles(List<Path> configPaths) {
         Yaml yaml = new Yaml();
         for (Path configPath : configPaths) {
             loadOne(yaml, configPath);
@@ -119,6 +120,30 @@ public class ConfigurationLoader {
                     .addArgument(entry.getKey())
                     .log("skip invalid entry in {}: key={}");
             }
+        }
+    }
+
+    public void loadFromArgs(List<String> configs) {
+        Yaml yaml = new Yaml();
+        for (String config : configs) {
+            int i = config.indexOf(':');
+            if (i < 0) {
+                LOG.atWarn()
+                    .addArgument(config)
+                    .log("skip invalid command-line entry: {}");
+                continue;
+            }
+            int j = config.indexOf('=', i);
+            if (j < 0) {
+                LOG.atWarn()
+                    .addArgument(config)
+                    .log("skip invalid command-line entry: {}");
+                continue;
+            }
+            String className = config.substring(0, i);
+            String name = config.substring(i + 1, j);
+            String value = config.substring(j + 1);
+            loadEntry(className, ImmutableMap.of(name, yaml.load(value)));
         }
     }
 

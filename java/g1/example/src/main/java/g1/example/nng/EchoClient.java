@@ -3,7 +3,6 @@ package g1.example.nng;
 import com.google.common.collect.ImmutableList;
 import g1.base.Application;
 import g1.base.Configuration;
-import g1.base.ConfigurationLoader;
 import g1.base.ConfiguredApp;
 import nng.Context;
 import nng.Options;
@@ -32,7 +31,7 @@ public class EchoClient extends ConfiguredApp {
 
     @Override
     public void run() throws Exception {
-        new ConfigurationLoader(ImmutableList.of("g1")).load(configPaths);
+        loadConfigs(ImmutableList.of("g1"));
         LOG.atInfo().addArgument(url).log("connect: {}", url);
         try (Socket socket = Socket.open(Protocols.REQ0)) {
             LOG.atInfo()
