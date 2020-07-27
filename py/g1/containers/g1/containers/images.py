@@ -341,16 +341,24 @@ def cmd_remove_tag(tag):
     'remove',
     **argparses.make_help_kwargs('remove an image from the repository'),
 )
+@argparses.argument(
+    '--skip-active',
+    action=argparses.StoreBoolAction,
+    default=False,
+    help='skip removing active image (default: %(default_string)s)',
+)
 @select_image_arguments
 @argparses.end
-def cmd_remove(*, image_id=None, name=None, version=None, tag=None):
+def cmd_remove(
+    *, image_id=None, name=None, version=None, tag=None, skip_active=False
+):
     """Remove an image, or no-op if image does not exist."""
     oses.assert_root_privilege()
     with locks.acquiring_exclusive(_get_tags_path()), \
         locks.acquiring_exclusive(get_trees_path()):
         image_dir_path = _find_image_dir_path(image_id, name, version, tag)
         if image_dir_path:
-            ASSERT.true(_maybe_remove_image_dir(image_dir_path))
+            ASSERT.true(_maybe_remove_image_dir(image_dir_path) or skip_active)
         else:
             LOG.debug(
                 'image does not exist: image_id=%s, nv=%s:%s, tag=%s',
@@ -660,7 +668,7 @@ def _maybe_remove_image_dir(image_dir_path):
             shutil.rmtree(image_dir_path)
         return True
     else:
-        LOG.debug('not remove active image directory: %s', image_dir_path)
+        LOG.warning('not remove active image directory: %s', image_dir_path)
         return False
 
 

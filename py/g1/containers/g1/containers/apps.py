@@ -71,7 +71,10 @@ def cmd_images(args):
     elif args.command == 'remove-tag':
         images.cmd_remove_tag(args.tag)
     elif args.command == 'remove':
-        images.cmd_remove(**images.make_select_image_kwargs(args))
+        images.cmd_remove(
+            **images.make_select_image_kwargs(args),
+            skip_active=args.skip_active,
+        )
     elif args.command == 'cleanup':
         images.cmd_cleanup(**bases.make_grace_period_kwargs(args))
     else:

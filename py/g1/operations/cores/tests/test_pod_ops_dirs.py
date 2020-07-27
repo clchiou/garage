@@ -230,6 +230,7 @@ class PodOpsDirTest(fixtures.TestCaseBase):
         )
         self.ctr_scripts_mock.ctr_remove_image.assert_called_once_with(
             self.DEPLOY_INSTRUCTION.images[0],
+            skip_active=True,
         )
         self.assertTrue(g1.files.is_empty_dir(self.test_ops_dir_path))
 

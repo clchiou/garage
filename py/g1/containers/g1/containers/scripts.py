@@ -80,8 +80,13 @@ def ctr_import_image(image_path):
     return ctr(['images', 'import', image_path])
 
 
-def ctr_remove_image(image):
-    return ctr(['images', 'remove', *_image_to_args(image)])
+def ctr_remove_image(image, *, skip_active=False):
+    return ctr([
+        'images',
+        'remove',
+        *('--skip-active', 'true' if skip_active else 'false'),
+        *_image_to_args(image),
+    ])
 
 
 def ctr_get_image_rootfs_path(image):

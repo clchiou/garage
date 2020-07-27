@@ -250,7 +250,7 @@ class PodOpsDir(repos.AbstractOpsDir):
                 active_tokens.unassign_all(config.pod_id)
         LOG.debug('pods uninstall: images: %s %s', *log_args)
         for image in self.metadata.images:
-            ctr_scripts.ctr_remove_image(image)
+            ctr_scripts.ctr_remove_image(image, skip_active=True)
         LOG.debug('pods uninstall: volumes: %s %s', *log_args)
         g1.files.remove(self.volumes_dir_path)
         LOG.debug('pods uninstall: metadata: %s %s', *log_args)
