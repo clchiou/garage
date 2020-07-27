@@ -18,6 +18,17 @@ LOG = logging.getLogger(__name__)
     **argparses.make_help_kwargs('clean up build artifacts'),
 )
 @argparses.argument(
+    '--also-builder',
+    action=argparses.StoreBoolAction,
+    default=False,
+    help=(
+        'also clean up builder images - '
+        'you mostly should set this to false because builder images '
+        'are not referenced by pods and thus will all be removed in a '
+        'cleanup (default: %(default_string)s)'
+    ),
+)
+@argparses.argument(
     'keep',
     type=int,
     help='keep these latest versions (0 to remove all)',
@@ -37,14 +48,15 @@ def cmd_cleanup(args):
         _get_current_xar_versions(args.release_repo),
         repos.XarDir.group_dirs(args.release_repo),
     )
-    LOG.info('clean up builder images')
-    # Builder images are not referenced by pods and thus do not have
-    # current versions.
-    _cleanup(
-        args.keep,
-        {},
-        repos.BuilderImageDir.group_dirs(args.release_repo),
-    )
+    if args.also_builder:
+        LOG.info('clean up builder images')
+        _cleanup(
+            args.keep,
+            # Builder images are not referenced by pods and thus do not
+            # have current versions.
+            {},
+            repos.BuilderImageDir.group_dirs(args.release_repo),
+        )
     LOG.info('clean up images')
     _cleanup(
         args.keep,
