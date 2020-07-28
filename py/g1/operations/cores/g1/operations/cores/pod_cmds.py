@@ -61,6 +61,7 @@ _POD_LIST_COLUMNS = frozenset((
     'name',
     'unit',
     'auto-start',
+    'auto-stop',
     'enabled',
     'active',
 ))
@@ -73,6 +74,7 @@ _POD_LIST_DEFAULT_COLUMNS = (
 )
 _POD_LIST_STRINGIFIERS = {
     'auto-start': bool_to_str,
+    'auto-stop': bool_to_str,
     'enabled': bool_to_str,
     'active': bool_to_str,
 }
@@ -100,6 +102,7 @@ def cmd_list(args):
                     'name': config.name,
                     'unit': config.unit_name,
                     'auto-start': config.auto_start,
+                    'auto-stop': config.auto_stop,
                     'enabled': systemds.is_enabled(config),
                     'active': systemds.is_active(config),
                 })
@@ -157,11 +160,7 @@ def _start(ops_dirs, label, version, args):
 
 
 @argparses.begin_parser('stop', **argparses.make_help_kwargs('stop pod'))
-@argparses.argument(
-    '--unit',
-    action='append',
-    help='add systemd unit name to be stopped (default to all)',
-)
+@select_unit_arguments
 @select_pod_arguments
 @argparses.end
 def cmd_stop(args):
@@ -171,7 +170,10 @@ def cmd_stop(args):
         pod_ops_dirs.make_ops_dirs(),
         args.label,
         args.version,
-        lambda ops_dir: ops_dir.stop(unit_names=args.unit),
+        lambda ops_dir: ops_dir.stop(
+            unit_names=args.unit,
+            all_units=args.unit_all,
+        ),
     )
 
 

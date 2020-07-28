@@ -157,6 +157,7 @@ class PodDeployInstruction:
             name: str
             content: str
             auto_start: bool = True
+            auto_stop: bool = True
 
             def __post_init__(self):
                 _validate_systemd_unit_name(self.name)
@@ -224,6 +225,7 @@ class PodMetadata:
         pod_id: str
         name: str
         auto_start: bool = True
+        auto_stop: bool = True
 
         def __post_init__(self):
             ctr_models.validate_pod_id(self.pod_id)

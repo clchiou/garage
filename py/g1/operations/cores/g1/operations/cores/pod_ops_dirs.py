@@ -170,6 +170,7 @@ class PodOpsDir(repos.AbstractOpsDir):
                     pod_id=pod_id,
                     name=unit.name,
                     auto_start=unit.auto_start,
+                    auto_stop=unit.auto_stop,
                 ) for unit in group.units
             )
         metadata = models.PodMetadata(
@@ -219,12 +220,15 @@ class PodOpsDir(repos.AbstractOpsDir):
         for config in self._filter_pod_ids_and_units(predicate):
             systemds.activate(config)
 
-    def stop(self, *, unit_names=None):
+    def stop(self, *, unit_names=None, all_units=False):
         LOG.info('pods stop: %s %s', self.label, self.version)
-        for config in self._filter_pod_ids_and_units(
-            None if unit_names is None else \
-            (lambda config: config.name in unit_names)
-        ):
+        if unit_names is not None:
+            predicate = lambda config: config.name in unit_names
+        elif all_units:
+            predicate = None
+        else:
+            predicate = lambda config: config.auto_stop
+        for config in self._filter_pod_ids_and_units(predicate):
             systemds.deactivate(config)
 
     def _filter_pod_ids_and_units(self, predicate):
