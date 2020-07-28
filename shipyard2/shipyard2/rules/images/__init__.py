@@ -18,6 +18,7 @@ import foreman
 from g1 import scripts
 from g1.bases.assertions import ASSERT
 from g1.containers import models
+from g1.containers import scripts as ctr_scripts
 
 import shipyard2
 import shipyard2.rules
@@ -48,6 +49,7 @@ def define_image(
     This defines:
     * Parameter: name/builder-id.
     * Parameter: name/builder-images.
+    * Parameter: name/keep-builder.
     * Parameter: name/version.
     * Rule: name/build.
     * Rule: name/merge.
@@ -59,6 +61,7 @@ def define_image(
     name_prefix = shipyard2.rules.canonicalize_name_prefix(name)
     parameter_builder_id = name_prefix + 'builder-id'
     parameter_builder_images = name_prefix + 'builder-images'
+    parameter_keep_builder = name_prefix + 'keep-builder'
     parameter_version = name_prefix + 'version'
     rule_build = name_prefix + 'build'
     rule_merge = name_prefix + 'merge'
@@ -74,6 +77,10 @@ def define_image(
      .with_type(list)
      .with_parse(utils.parse_images_parameter)
      .with_default([]))
+
+    (foreman.define_parameter.bool_typed(parameter_keep_builder)\
+     .with_doc('whether to keep the output builder image')
+     .with_default(False))
 
     (foreman.define_parameter(parameter_version)\
      .with_doc('image version'))
@@ -130,6 +137,16 @@ def define_image(
             output=output,
         )
         utils.chown(output)
+        if not parameters[parameter_keep_builder]:
+            LOG.info('remove output builder image: %s %s', name, version)
+            with scripts.using_sudo():
+                ctr_scripts.ctr_remove_image(
+                    models.PodConfig.Image(
+                        name=utils.get_builder_name(name),
+                        version=version,
+                    )
+                )
+            scripts.rm(utils.get_builder_image_path(parameters, name))
 
     return ImageRules(build=build, merge=merge)
 
