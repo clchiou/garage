@@ -6,6 +6,7 @@ __all__ = [
     'SystemdUnitGroup',
     'Volume',
     'define_pod',
+    'make_pod_journal_watcher_content',
     'make_pod_oneshot_content',
     'make_pod_service_content',
     'make_timer_content',
@@ -238,6 +239,8 @@ Description={description}
 Slice=machine.slice
 Type=oneshot
 ExecStart=/usr/local/bin/ctr pods run-prepared ${{pod_id}}
+ExecStartPre=/usr/local/bin/ops alerts send --level info "${{pod_label}} ${{pod_version}}" "start"
+ExecStopPost=/usr/local/bin/ops alerts send --systemd-service-result ${{SERVICE_RESULT}} "${{pod_label}} ${{pod_version}}" "${{EXIT_CODE}} status=${{EXIT_STATUS}}"
 '''
 
 
@@ -245,6 +248,9 @@ def make_pod_oneshot_content(*, description):
     return _POD_ONESHOT.format(description=description)
 
 
+# We set StartLimitIntervalSec and StartLimitBurst to prevent the unit
+# being trapped in repeated crashes.  To manually restart the unit after
+# this rate counter was exceeded, run `systemctl reset-failed`.
 _POD_SERVICE = '''\
 [Unit]
 Description={description}
@@ -254,6 +260,10 @@ Slice=machine.slice
 ExecStart=/usr/local/bin/ctr pods run-prepared ${{pod_id}}
 KillMode=mixed
 Restart=always
+StartLimitIntervalSec=30s
+StartLimitBurst=4
+ExecStartPre=/usr/local/bin/ops alerts send --level info "${{pod_label}} ${{pod_version}}" "start"
+ExecStopPost=/usr/local/bin/ops alerts send --systemd-service-result ${{SERVICE_RESULT}} "${{pod_label}} ${{pod_version}}" "${{EXIT_CODE}} status=${{EXIT_STATUS}}"
 
 [Install]
 WantedBy=multi-user.target
@@ -262,6 +272,26 @@ WantedBy=multi-user.target
 
 def make_pod_service_content(*, description):
     return _POD_SERVICE.format(description=description)
+
+
+_POD_JOURNAL_WATCHER = '''\
+[Unit]
+Description={description}
+
+[Service]
+ExecStart=/usr/local/bin/ops alerts watch-journal ${{pod_id}}
+KillMode=mixed
+Restart=always
+StartLimitIntervalSec=30s
+StartLimitBurst=4
+
+[Install]
+WantedBy=multi-user.target
+'''
+
+
+def make_pod_journal_watcher_content(*, description):
+    return _POD_JOURNAL_WATCHER.format(description=description)
 
 
 _TIMER = '''\
