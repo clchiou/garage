@@ -19,5 +19,11 @@ shipyard2.rules.pythons.define_package(
                 '//py/g1/texts:build',
             ],
         ),
+        (
+            'scripts',
+            [
+                '//py/g1/scripts:build',
+            ],
+        ),
     ],
 )

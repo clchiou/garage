@@ -19,6 +19,7 @@ __all__ = [
 ]
 
 import csv
+import io
 import logging
 
 from g1 import scripts
@@ -104,7 +105,7 @@ def ctr_get_image_rootfs_path(image):
             *('--format', 'csv'),
             *('--columns', 'id,name,version,tags,rootfs'),
         ])
-        for row in csv.reader(proc.stdout.decode('utf-8').split('\n')):
+        for row in csv.reader(io.StringIO(proc.stdout.decode('utf-8'))):
             if match(row):
                 return row[4]
     return ASSERT.unreachable('cannot find image: {}', image)

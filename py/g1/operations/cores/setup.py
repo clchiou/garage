@@ -31,6 +31,9 @@ setup(
             'g1.scripts[parts]',
             'g1.texts',
         ],
+        'scripts': [
+            'g1.scripts',
+        ],
     },
     zip_safe=False,
 )
