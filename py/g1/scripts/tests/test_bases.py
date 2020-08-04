@@ -37,6 +37,9 @@ class BasesTest(unittest.TestCase):
         self.do_test_using(bases.using_input, bases._INPUT, b'1', b'2')
         self.do_test_using(bases.using_input, bases._INPUT, b'1', None)
 
+    def test_using_prefix(self):
+        self.do_test_using(bases.using_prefix, bases._PREFIX, [], ['X'])
+
     def test_using_stdin(self):
         self.do_test_using(
             bases.using_stdin, bases._STDIN, subprocess.PIPE, None
@@ -114,12 +117,21 @@ class BasesTest(unittest.TestCase):
     @staticmethod
     @unittest.mock.patch(bases.__name__ + '.subprocess')
     def test_run_with_non_defaults(subprocess_mock):
-        with bases.doing_check(False):
-            with bases.using_sudo(), bases.preserving_sudo_envs(['X', 'Y']):
-                with bases.using_cwd(Path('foo')):
-                    bases.run(['echo'])
+        with bases.doing_check(False), \
+                bases.using_prefix(['ssh', 'localhost']), \
+                bases.using_sudo(), \
+                bases.preserving_sudo_envs(['X', 'Y']), \
+                bases.using_cwd(Path('foo')):
+            bases.run(['echo'])
         subprocess_mock.run.assert_called_once_with(
-            ['sudo', '--non-interactive', '--preserve-env=X,Y', 'echo'],
+            [
+                'ssh',
+                'localhost',
+                'sudo',
+                '--non-interactive',
+                '--preserve-env=X,Y',
+                'echo',
+            ],
             capture_output=False,
             check=False,
             cwd=Path('foo'),

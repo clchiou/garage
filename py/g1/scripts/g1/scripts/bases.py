@@ -21,6 +21,7 @@ __all__ = [
     'using_cwd',
     'using_input',
     'using_relative_cwd',
+    'using_prefix',
     'using_stderr',
     'using_stdin',
     'using_stdout',
@@ -46,6 +47,7 @@ _CHECK = 'check'
 _CWD = 'cwd'
 _DRY_RUN = 'dry_run'
 _INPUT = 'input'
+_PREFIX = 'prefix'
 _STDIN = 'stdin'
 _STDOUT = 'stdout'
 _STDERR = 'stderr'
@@ -57,6 +59,7 @@ _DEFAULTS = {
     _CWD: None,
     _DRY_RUN: False,
     _INPUT: None,
+    _PREFIX: (),
     _STDIN: None,
     _STDOUT: None,
     _STDERR: None,
@@ -145,6 +148,10 @@ def using_stderr(stderr):
     return _using(_STDERR, stderr)
 
 
+def using_prefix(prefix):
+    return _using(_PREFIX, prefix)
+
+
 def using_sudo(sudo=True):
     return _using(_SUDO, sudo)
 
@@ -183,6 +190,9 @@ def _prepare_args(args):
         else:
             preserve_envs_arg = ()
         args[:0] = ['sudo', '--non-interactive', *preserve_envs_arg]
+    prefix = _get(_PREFIX)
+    if prefix:
+        args[:0] = prefix
     return args
 
 
