@@ -82,10 +82,13 @@ DEFAULT_FILTERS = (
 # For XAR images, we only include a few selected directories, and
 # exclude everything else.
 #
-# To support Python, we include our CPython under /usr/local in the XAR
+# To support Python, we include our code under /usr/local in the XAR
 # image (like our pod image).  An alternative is to use venv to install
 # our codebase, but this seems to be too much effort; so we do not take
 # this approach for now.
+#
+# We explicitly remove CPython binaries from /usr/local/bin so that the
+# `env` command will not (and should not) resolve to them.
 #
 # We do not include /usr/bin/java (symlink to /etc/alternatives) for
 # now.  If you want to use Java, you have to directly invoke it under
@@ -100,6 +103,7 @@ DEFAULT_XAR_FILTERS = (
     ('include', '/usr/lib/x86_64-linux-gnu/**'),
     ('include', '/usr/local/'),
     ('include', '/usr/local/bin/'),
+    ('exclude', '/usr/local/bin/python*'),
     ('include', '/usr/local/bin/*'),
     ('include', '/usr/local/lib/'),
     ('include', '/usr/local/lib/**'),
