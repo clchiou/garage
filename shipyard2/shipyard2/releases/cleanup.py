@@ -5,6 +5,8 @@ __all__ = [
 import collections
 import logging
 
+import foreman
+
 from g1.bases import argparses
 from g1.bases.assertions import ASSERT
 
@@ -16,6 +18,17 @@ LOG = logging.getLogger(__name__)
 @argparses.begin_parser(
     'cleanup',
     **argparses.make_help_kwargs('clean up build artifacts'),
+)
+@argparses.argument(
+    '--also-base',
+    action=argparses.StoreBoolAction,
+    default=False,
+    help=(
+        'also clean up the base image - '
+        'you mostly should set this to false because you usually need '
+        'the base image even when no pod refers to it temporarily '
+        '(default: %(default_string)s)'
+    ),
 )
 @argparses.argument(
     '--also-builder',
@@ -58,10 +71,13 @@ def cmd_cleanup(args):
             repos.BuilderImageDir.group_dirs(args.release_repo),
         )
     LOG.info('clean up images')
+    groups = repos.ImageDir.group_dirs(args.release_repo)
+    if not args.also_base:
+        groups.pop(foreman.Label.parse('//bases:base'), None)
     _cleanup(
         args.keep,
         _get_current_image_versions(args.release_repo),
-        repos.ImageDir.group_dirs(args.release_repo),
+        groups,
     )
     LOG.info('clean up volumes')
     _cleanup(
