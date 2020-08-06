@@ -92,9 +92,14 @@ def deactivate(config):
 
 
 def is_enabled(config):
-    with scripts.doing_check(False):
-        proc = systemctl(['--quiet', 'is-enabled', config.unit_name])
-        return proc.returncode == 0
+    with scripts.doing_check(False), scripts.doing_capture_output():
+        proc = systemctl(['is-enabled', config.unit_name])
+        # Some units cannot be enabled (say, their unit file does not
+        # contain a "[Install]" section), but `is-enabled` still returns
+        # 0 on them.  Unfortunately we cannot know which units are them
+        # since we do not parse unit file content.  So as a workaround,
+        # we check the `is-enabled` output against some known values.
+        return proc.returncode == 0 and proc.stdout.strip() != b'static'
 
 
 def is_active(config):
