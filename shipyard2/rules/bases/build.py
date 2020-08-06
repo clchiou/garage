@@ -45,6 +45,11 @@ shipyard2.rules.bases.define_distro_packages(
 def build(parameters):
     ASSERT.is_(parameters['inside-builder-pod'], True)
     ASSERT.all(parameters['roots'], _is_root_dir)
+    with scripts.using_sudo():
+        # We should run `apt-get update` even when we are not upgrading
+        # the full system because some packages may be removed from the
+        # distro repo while our local package index still has it.
+        scripts.apt_get_update()
     scripts.mkdir(parameters['drydock'])
 
 
