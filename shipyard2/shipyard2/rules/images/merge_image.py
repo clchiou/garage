@@ -43,7 +43,8 @@ DEFAULT_FILTERS = (
     ('include', '/etc/passwd-'),
     ('include', '/etc/shadow'),
     ('include', '/etc/shadow-'),
-    ('include', '/etc/ssl'),
+    ('include', '/etc/ssl/'),
+    ('include', '/etc/ssl/**'),
     ('include', '/etc/subgid'),
     ('include', '/etc/subgid-'),
     ('include', '/etc/subuid'),
@@ -75,8 +76,8 @@ DEFAULT_FILTERS = (
     ('exclude', '/usr/lib/python*'),
     ('exclude', '/usr/lib/**/*perl*'),
     # Exclude these to save more space.
-    ('exclude', '/usr/share'),  # Do we need (portion of) this?
-    ('exclude', '/var'),
+    ('exclude', '/usr/share/**'),
+    ('exclude', '/var/**'),
 )
 
 # For XAR images, we only include a few selected directories, and
