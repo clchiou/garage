@@ -103,6 +103,25 @@ class BuildersTest(fixtures.TestCaseBase):
             'ExecStopPost=/usr/sbin/pod-exit "%n"\n',
         )
 
+        builders.generate_unit_file(
+            self.test_repo_path,
+            'some-other-pod',
+            '0.0.1',
+            models.PodConfig.App(
+                name='hello-world-2',
+                service_section='ExecStart=/bin/echo hello world',
+            ),
+        )
+        self.assertEqual(
+            (etc_path / 'hello-world-2.service').read_text(),
+            '[Unit]\n'
+            'Conflicts=shutdown.target\n'
+            'Before=pod.target shutdown.target\n'
+            '\n'
+            '[Service]\n'
+            'ExecStart=/bin/echo hello world\n',
+        )
+
     def test_quote_arg(self):
         self.assertEqual(
             builders._quote_arg('\'hello$world%spam egg"'),

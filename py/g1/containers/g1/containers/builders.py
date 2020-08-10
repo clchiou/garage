@@ -259,35 +259,37 @@ def generate_machine_id(root_path, machine_id):
 def generate_unit_file(root_path, pod_name, pod_version, app):
     LOG.info('create unit file: %s', app.name)
     pod_etc_path = ASSERT.predicate(_get_pod_etc_path(root_path), Path.is_dir)
-    if app.user != 'root' or app.group != 'root':
-        # Use ``sudo`` rather than "User=" and "Group=", or else
-        # "ExecStart" command will not be able to connect to journal
-        # socket, and pod-exit at "ExecStopPost" does not have the
-        # permission to stop the pod.
-        exec_start = [
-            '/usr/bin/sudo',
-            '--user=%s' % app.user,
-            '--group=%s' % app.group,
-        ]
-        exec_start.extend(app.exec)
-    else:
-        exec_start = app.exec
     ASSERT.not_predicate(
         _get_pod_unit_path(pod_etc_path, app),
         g1.files.lexists,
-    ).write_text(
-        '''\
-[Unit]
-Conflicts=shutdown.target
-Before=pod.target shutdown.target
+    ).write_text(_generate_unit_file_content(pod_name, pod_version, app))
+    ASSERT.not_predicate(
+        _get_pod_wants_path(pod_etc_path, app),
+        g1.files.lexists,
+    ).symlink_to(Path('..') / _get_pod_unit_filename(app))
 
-[Service]
+
+def _generate_unit_file_content(pod_name, pod_version, app):
+    if app.service_section is None:
+        if app.user != 'root' or app.group != 'root':
+            # Use ``sudo`` rather than "User=" and "Group=", or else
+            # "ExecStart" command will not be able to connect to journal
+            # socket, and pod-exit at "ExecStopPost" does not have the
+            # permission to stop the pod.
+            exec_start = [
+                '/usr/bin/sudo',
+                '--user=%s' % app.user,
+                '--group=%s' % app.group,
+            ]
+            exec_start.extend(app.exec)
+        else:
+            exec_start = app.exec
+        service_section = '''\
 {service_type}\
 Restart=no
 SyslogIdentifier={pod_name}/{app.name}@{pod_version}
 ExecStart={exec}
-ExecStopPost=/usr/sbin/pod-exit "%n"
-'''.format(
+ExecStopPost=/usr/sbin/pod-exit "%n"'''.format(
             app=app,
             exec=' '.join(map(_quote_arg, exec_start)),
             pod_name=pod_name,
@@ -296,11 +298,16 @@ ExecStopPost=/usr/sbin/pod-exit "%n"
                 'Type=%s\n' % app.type if app.type is not None else ''
             ),
         )
-    )
-    ASSERT.not_predicate(
-        _get_pod_wants_path(pod_etc_path, app),
-        g1.files.lexists,
-    ).symlink_to(Path('..') / _get_pod_unit_filename(app))
+    else:
+        service_section = app.service_section
+    return '''\
+[Unit]
+Conflicts=shutdown.target
+Before=pod.target shutdown.target
+
+[Service]
+{service_section}
+'''.format(service_section=service_section)
 
 
 _ESCAPE_PATTERN = re.compile(r'[\'"$%]')

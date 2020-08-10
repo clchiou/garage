@@ -50,17 +50,25 @@ class PodConfig:
         """Descriptor of systemd unit file of container app."""
 
         name: str
-        exec: typing.List[str]
+        exec: typing.List[str] = ()
         type: typing.Optional[str] = None
         user: str = 'nobody'
         group: str = 'nogroup'
+
+        # Advanced usage for overriding the entire service section
+        # generation.
+        service_section: typing.Optional[str] = None
 
         # TODO: Support ".timer" and ".socket" unit file.
 
         def __post_init__(self):
             validate_app_name(self.name)
-            ASSERT.not_empty(self.exec)
-            ASSERT.in_(self.type, _SERVICE_TYPES)
+            if self.service_section is None:
+                ASSERT.not_empty(self.exec)
+                ASSERT.in_(self.type, _SERVICE_TYPES)
+            else:
+                ASSERT.empty(self.exec)
+                ASSERT.none(self.type)
 
     @dataclasses.dataclass(frozen=True)
     class Image:
