@@ -10,6 +10,7 @@ __all__ = [
     'deactivate',
     'is_active',
     'is_enabled',
+    'restart',
 ]
 
 import logging
@@ -89,6 +90,12 @@ def deactivate(config):
     systemctl(['--now', 'disable', config.unit_name])
     ASSERT.false(is_enabled(config))
     ASSERT.false(is_active(config))
+
+
+def restart(config):
+    LOG.info('restart unit: %s %s', config.pod_id, config.name)
+    systemctl(['restart', config.unit_name])
+    ASSERT.true(is_active(config))
 
 
 def is_enabled(config):

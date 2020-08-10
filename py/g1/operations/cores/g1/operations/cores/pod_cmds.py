@@ -159,6 +159,24 @@ def _start(ops_dirs, label, version, args):
     )
 
 
+@argparses.begin_parser('restart', **argparses.make_help_kwargs('restart pod'))
+@select_unit_arguments
+@select_pod_arguments
+@argparses.end
+def cmd_restart(args):
+    oses.assert_root_privilege()
+    return _ops_dir_apply(
+        'restart',
+        pod_ops_dirs.make_ops_dirs(),
+        args.label,
+        args.version,
+        lambda ops_dir: ops_dir.restart(
+            unit_names=args.unit,
+            all_units=args.unit_all,
+        ),
+    )
+
+
 @argparses.begin_parser('stop', **argparses.make_help_kwargs('stop pod'))
 @select_unit_arguments
 @select_pod_arguments
@@ -200,6 +218,7 @@ def cmd_uninstall(args):
 @argparses.include(cmd_list)
 @argparses.include(cmd_install)
 @argparses.include(cmd_start)
+@argparses.include(cmd_restart)
 @argparses.include(cmd_stop)
 @argparses.include(cmd_uninstall)
 @argparses.end
@@ -211,6 +230,8 @@ def main(args):
         return cmd_install(args)
     elif args.command == 'start':
         return cmd_start(args)
+    elif args.command == 'restart':
+        return cmd_restart(args)
     elif args.command == 'stop':
         return cmd_stop(args)
     elif args.command == 'uninstall':

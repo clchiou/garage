@@ -209,6 +209,7 @@ class PodOpsDir(repos.AbstractOpsDir):
         )
 
     def start(self, *, unit_names=None, all_units=False):
+        """Enable and start the requested units."""
         ASSERT.not_all((unit_names is not None, all_units))
         LOG.info('pods start: %s %s', self.label, self.version)
         if unit_names is not None:
@@ -220,7 +221,37 @@ class PodOpsDir(repos.AbstractOpsDir):
         for config in self._filter_pod_ids_and_units(predicate):
             systemds.activate(config)
 
+    def restart(self, *, unit_names=None, all_units=False):
+        """Restart the requested units.
+
+        NOTE: `restart` is not equivalent to `stop` followed by `start`
+        for two reasons:
+
+        * `start` and `stop` enables and disables the requested units,
+          but `restart` does not.
+        * The default behavior (when both `unit_names` and `all_units`
+          are not set) of `restart` only restarts units of which both
+          `auto_start` and `auto_stop` are true, which is usually what
+          you want.  But the default behavior of `stop` followed by
+          `start` stops or starts only units of which `auto_start` or
+          `auto_stop` is true.  So units of which `auto_start` is false
+          will be stopped but not restarted, and units of which
+          `auto_stop` is false will not be stopped and thus not
+          restarted; this is generally not what you want.
+        """
+        ASSERT.not_all((unit_names is not None, all_units))
+        LOG.info('pods restart: %s %s', self.label, self.version)
+        if unit_names is not None:
+            predicate = lambda config: config.name in unit_names
+        elif all_units:
+            predicate = None
+        else:
+            predicate = lambda config: config.auto_start and config.auto_stop
+        for config in self._filter_pod_ids_and_units(predicate):
+            systemds.restart(config)
+
     def stop(self, *, unit_names=None, all_units=False):
+        """Disable and stop the requested units."""
         LOG.info('pods stop: %s %s', self.label, self.version)
         if unit_names is not None:
             predicate = lambda config: config.name in unit_names

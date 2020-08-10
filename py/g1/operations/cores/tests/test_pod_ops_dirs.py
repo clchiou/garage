@@ -270,6 +270,15 @@ class PodOpsDirTest(fixtures.TestCaseBase):
         self.systemds_mock.activate.assert_called_once_with(self.CONFIG_2)
         self.systemds_mock.deactivate.assert_not_called()
 
+    def test_restart(self):
+        bundle_dir = self.make_bundle_dir()
+        ops_dir = self.make_ops_dir()
+        ops_dir.install(bundle_dir, ops_dir.path)
+        ops_dir.restart()
+        self.systemds_mock.activate.assert_not_called()
+        self.systemds_mock.deactivate.assert_not_called()
+        self.systemds_mock.restart.assert_called_once_with(self.CONFIG_1)
+
     def test_stop(self):
         bundle_dir = self.make_bundle_dir()
         ops_dir = self.make_ops_dir()

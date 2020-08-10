@@ -8,6 +8,7 @@ __all__ = [
     'ops_list_pods',
     'ops_list_pod_units',
     'ops_start_pod',
+    'ops_restart_pod',
     'ops_stop_pod',
     # Env commands.
     'ops_list_envs',
@@ -74,6 +75,10 @@ def ops_start_pod(label, version, *, units=(), unit_all=False):
     return _ops_start_or_stop_pod('start', label, version, units, unit_all)
 
 
+def ops_restart_pod(label, version, *, units=(), unit_all=False):
+    return _ops_start_or_stop_pod('restart', label, version, units, unit_all)
+
+
 def ops_stop_pod(label, version, *, units=(), unit_all=False):
     return _ops_start_or_stop_pod('stop', label, version, units, unit_all)
 
@@ -87,7 +92,7 @@ def _ops_start_or_stop_pod(cmd, label, version, units, unit_all):
         'pods',
         cmd,
         *units_args,
-        *('--unit-all', 'true' if unit_all else 'false'),
+        *(('--unit-all', 'true') if unit_all else ()),
         label,
         version,
     ])
