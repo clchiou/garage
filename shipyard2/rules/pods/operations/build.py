@@ -39,6 +39,14 @@ shipyard2.rules.pods.define_pod(
                         description='Operations Database Server',
                     ),
                 ),
+                shipyard2.rules.pods.SystemdUnitGroup.Unit(
+                    name='watcher.service',
+                    content=shipyard2.rules.pods\
+                    .make_pod_journal_watcher_content(
+                        description='Operations Database Server Watcher',
+                    ),
+                    auto_stop=False,
+                ),
             ],
         ),
     ],
