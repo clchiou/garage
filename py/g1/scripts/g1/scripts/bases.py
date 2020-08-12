@@ -13,6 +13,8 @@ __all__ = [
     'run',
     # Context manipulations.
     'doing_capture_output',
+    'doing_capture_stderr',
+    'doing_capture_stdout',
     'doing_check',
     'doing_dry_run',
     'get_cwd',
@@ -96,6 +98,14 @@ def _using(name, new_value):
 
 def doing_capture_output(capture_output=True):
     return _using(_CAPTURE_OUTPUT, capture_output)
+
+
+def doing_capture_stdout(capture_stdout=True):
+    return using_stdout(subprocess.PIPE if capture_stdout else None)
+
+
+def doing_capture_stderr(capture_stderr=True):
+    return using_stderr(subprocess.PIPE if capture_stderr else None)
 
 
 def doing_check(check=True):

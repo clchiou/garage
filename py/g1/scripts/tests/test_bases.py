@@ -18,6 +18,22 @@ class BasesTest(unittest.TestCase):
             bases.doing_capture_output, bases._CAPTURE_OUTPUT, True, False
         )
 
+    def test_doing_capture_stdout(self):
+        self.assertEqual(bases._CONTEXT, {})
+        with bases.doing_capture_stdout():
+            self.assertEqual(bases._CONTEXT, {bases._STDOUT: subprocess.PIPE})
+            with bases.doing_capture_stdout(False):
+                self.assertEqual(bases._CONTEXT, {bases._STDOUT: None})
+        self.assertEqual(bases._CONTEXT, {})
+
+    def test_doing_capture_stderr(self):
+        self.assertEqual(bases._CONTEXT, {})
+        with bases.doing_capture_stderr():
+            self.assertEqual(bases._CONTEXT, {bases._STDERR: subprocess.PIPE})
+            with bases.doing_capture_stderr(False):
+                self.assertEqual(bases._CONTEXT, {bases._STDERR: None})
+        self.assertEqual(bases._CONTEXT, {})
+
     def test_doing_check(self):
         self.do_test_using(bases.doing_check, bases._CHECK, True, False)
 

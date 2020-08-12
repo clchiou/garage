@@ -892,7 +892,7 @@ def _umount(path):
     ASSERT.not_predicate(path, Path.is_symlink)
     LOG.info('umount: %s', path)
     try:
-        with scripts.doing_capture_output():
+        with scripts.doing_capture_stderr():
             scripts.run(['umount', path])
     except subprocess.CalledProcessError as exc:
         if _UMOUNT_ERROR_WHITELIST.search(exc.stderr, re.MULTILINE):

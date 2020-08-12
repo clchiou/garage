@@ -99,7 +99,7 @@ def restart(config):
 
 
 def is_enabled(config):
-    with scripts.doing_check(False), scripts.doing_capture_output():
+    with scripts.doing_check(False), scripts.doing_capture_stdout():
         proc = systemctl(['is-enabled', config.unit_name])
         # Some units cannot be enabled (say, their unit file does not
         # contain a "[Install]" section), but `is-enabled` still returns

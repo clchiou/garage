@@ -56,7 +56,7 @@ def generate_release_metadata(parameters, metadata_path):
 
 
 def _git_get_source(source):
-    with scripts.using_cwd(source), scripts.doing_capture_output():
+    with scripts.using_cwd(source), scripts.doing_capture_stdout():
         return ReleaseMetadata.Source(
             url=_git_get_url(source),
             revision=_git_get_revision(),

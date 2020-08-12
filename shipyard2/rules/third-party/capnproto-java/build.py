@@ -49,7 +49,7 @@ def build(parameters):
 
 
 def _get_var_path(name):
-    with scripts.doing_capture_output():
+    with scripts.doing_capture_stdout():
         proc = scripts.run([
             'pkg-config',
             '--variable=%s' % name,

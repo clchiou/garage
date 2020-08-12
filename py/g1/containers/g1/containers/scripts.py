@@ -98,7 +98,7 @@ def ctr_get_image_rootfs_path(image):
     else:
         ASSERT.not_none(image.tag)
         match = lambda row: image.tag in row[3].split(' ')
-    with scripts.doing_capture_output():
+    with scripts.doing_capture_stdout():
         proc = ctr([
             'images',
             'list',

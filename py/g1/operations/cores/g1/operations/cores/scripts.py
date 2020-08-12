@@ -45,7 +45,7 @@ def ops_send_alert(level, title, description):
 
 
 def ops_list_pods():
-    with scripts.doing_capture_output():
+    with scripts.doing_capture_stdout():
         proc = ops([
             'pods',
             'list',
@@ -60,7 +60,7 @@ def ops_list_pods():
 
 
 def ops_list_pod_units(columns=('label', 'version', 'id', 'name')):
-    with scripts.doing_capture_output():
+    with scripts.doing_capture_stdout():
         proc = ops([
             'pods',
             'list',
@@ -99,7 +99,7 @@ def _ops_start_or_stop_pod(cmd, label, version, units, unit_all):
 
 
 def ops_list_envs():
-    with scripts.doing_capture_output():
+    with scripts.doing_capture_stdout():
         proc = ops([
             'envs',
             'list',
