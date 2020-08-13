@@ -201,6 +201,8 @@ class HttpSession:
             self._cancel_settings_timer = None
             error_code = ng.nghttp2_error_code.NGHTTP2_SETTINGS_TIMEOUT
 
+        except ConnectionResetError:
+            LOG.debug('serve: %r: connection reset by client', self)
         except OSError as exc:
             LOG.warning('serve: %r: sock.recv error', self, exc_info=exc)
 
@@ -260,6 +262,8 @@ class HttpSession:
                 )
                 await send_all(buffers)
 
+        except BrokenPipeError:
+            LOG.debug('serve: %r: connection closed by client', self)
         except OSError as exc:
             LOG.warning('serve: %r: sock.send error', self, exc_info=exc)
 
