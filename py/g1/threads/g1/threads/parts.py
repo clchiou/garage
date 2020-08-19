@@ -55,7 +55,7 @@ def make_executor_params(
         default_priority=(
             parameters.ConstParameter(None) if default_priority is None else \
             parameters.Parameter(
-                default_priority, parse=parse_priority, format=str
+                default_priority, convert=parse_priority, format=str
             )
         ),
     )
