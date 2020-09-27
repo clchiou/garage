@@ -109,6 +109,25 @@ class SessionTest(TestCaseBase):
             )
         self.mock_session.get.assert_called_once_with(self.URL)
 
+    @kernels.with_kernel
+    def test_sticky_key(self):
+        session = clients.Session(executor=self.executor)
+        self.set_mock_response(200)
+        for _ in range(3):
+            self.assertIs(
+                kernels.run(session.send(self.REQUEST, sticky_key='y')),
+                self.mock_response,
+            )
+        self.mock_session.get.assert_called_once_with(self.URL)
+
+    @kernels.with_kernel
+    def test_cache_key_and_sticky_key(self):
+        session = clients.Session(executor=self.executor)
+        with self.assertRaisesRegex(AssertionError, r'expect at most one:'):
+            kernels.run(
+                session.send(self.REQUEST, cache_key='x', sticky_key='y')
+            )
+
 
 class PrioritySessionTest(TestCaseBase):
 

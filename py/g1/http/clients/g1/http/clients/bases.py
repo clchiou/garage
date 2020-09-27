@@ -32,6 +32,7 @@ class Sender:
     def __init__(self, send, *, cache_size=8, rate_limit=None, retry=None):
         self._send = send
         self._cache = g1_collections.LruCache(cache_size)
+        self._unbounded_cache = {}
         self._rate_limit = rate_limit or policies.unlimited
         self._retry = retry or policies.no_retry
 
@@ -41,28 +42,25 @@ class Sender:
         If argument ``cache_key`` is not ``None``, session will check
         its cache before sending the request.  For now, we don't support
         setting ``cache_key`` in ``request``.
+
+        ``sticky_key`` is similar to ``cache_key`` except that it refers
+        to an unbounded cache (thus the name "sticky").
         """
         cache_key = kwargs.pop('cache_key', None)
-        if cache_key is not None:
-            task = self._cache.get(cache_key)
-            if task is None:
-                task = self._cache[cache_key] = tasks.spawn(
-                    self(request, **kwargs)
-                )
-                cache_result = 'miss'
-            else:
-                cache_result = 'hit'
-            LOG.debug(
-                'send: cache %s: cache_key=%r, %r, kwargs=%r',
-                cache_result,
-                cache_key,
-                request,
-                kwargs,
+        sticky_key = kwargs.pop('sticky_key', None)
+        if cache_key is not None and sticky_key is not None:
+            raise AssertionError(
+                'expect at most one: cache_key=%r, sticky_key%r' %
+                (cache_key, sticky_key)
             )
-            # Here is a risk that, if all task waiting for this task get
-            # cancelled before this task completes, this task might not
-            # be joined, but this risk is probably too small.
-            return await task.get_result()
+        if cache_key is not None:
+            return await self._try_cache(
+                self._cache, cache_key, request, kwargs
+            )
+        if sticky_key is not None:
+            return await self._try_cache(
+                self._unbounded_cache, sticky_key, request, kwargs
+            )
 
         for retry_count in itertools.count():
             await self._rate_limit()
@@ -89,6 +87,22 @@ class Sender:
                 )
                 await timers.sleep(backoff)
         ASSERT.unreachable('retry loop should not break')
+
+    async def _try_cache(self, cache, key, request, kwargs):
+        task = cache.get(key)
+        if task is None:
+            task = cache[key] = tasks.spawn(self(request, **kwargs))
+            result = 'miss'
+        else:
+            result = 'hit'
+        LOG.debug(
+            'send: cache %s: key=%r, %r, kwargs=%r', \
+            result, key, request, kwargs,
+        )
+        # Here is a risk that, if all task waiting for this task get
+        # cancelled before this task completes, this task might not
+        # be joined, but this risk is probably too small.
+        return await task.get_result()
 
 
 class BaseSession:
