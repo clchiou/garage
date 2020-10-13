@@ -304,7 +304,7 @@ def watch_syslog(config):
         '/var/log/syslog',
     ]) as pipe:
         while True:
-            line = pipe.readline()
+            line = pipe.readline().decode('utf-8', errors='ignore')
             try:
                 message = _parse_syslog_entry(rules, line.strip(), host)
             except Exception as exc:
