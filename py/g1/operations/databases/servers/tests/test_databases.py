@@ -105,6 +105,12 @@ class DatabasesTest(unittest.TestCase):
                 revision,
             )
 
+    def assert_revision(self, revision):
+        self.assertEqual(
+            databases.get_revision(self.engine, self.tables),
+            revision,
+        )
+
     def assert_leases(self, leases, num_leases_key_ids):
         self.assertEqual(
             databases.lease_scan(
@@ -547,32 +553,41 @@ class DatabasesTest(unittest.TestCase):
         def lease_revoke(l):
             return databases.lease_revoke(self.engine, self.tables, lease=l)
 
+        self.assert_revision(0)
+
         l = lease_get(1001)
         self.assertIsNone(l)
+        self.assert_revision(0)
 
         self.assertEqual(lease_grant(1001, 10001), l)
         l = lease_get(1001)
         self.assertEqual(l, lease_(1001, 10001, ()))
+        self.assert_revision(0)
 
         # `lease_grant` is idempotent.
         self.assertEqual(lease_grant(1001, 10011), l)
         l = lease_get(1001)
         self.assertEqual(l, lease_(1001, 10011, ()))
+        self.assert_revision(0)
 
         self.assertEqual(lease_grant(1001, 999), l)
         l = lease_get(1001)
         self.assertEqual(l, lease_(1001, 999, ()))
+        self.assert_revision(0)
 
         self.assertEqual(lease_revoke(1001), l)
         l = lease_get(1001)
         self.assertIsNone(l)
+        self.assert_revision(0)
 
         # `lease_revoke` is idempotent.
         self.assertIsNone(lease_revoke(1001))
+        self.assert_revision(0)
 
         self.assertEqual(lease_grant(1001, 50), l)
         l = lease_get(1001)
         self.assertEqual(l, lease_(1001, 50, ()))
+        self.assert_revision(0)
 
     def test_lease_associate_and_dissociate(self):
 
@@ -590,6 +605,7 @@ class DatabasesTest(unittest.TestCase):
             )
 
         self.make_lease_testdata()
+        self.assert_revision(10)
 
         with self.assertRaises(interfaces.LeaseNotFoundError):
             lease_associate(9999, b'k1')
@@ -602,13 +618,16 @@ class DatabasesTest(unittest.TestCase):
 
         l = lease_get(1003)
         self.assertEqual(l, lease_(1003, 10003, ()))
+        self.assert_revision(10)
 
         self.assertEqual(lease_associate(1003, b'k1'), l)
         l = lease_get(1003)
         self.assertEqual(l, lease_(1003, 10003, (b'k1', )))
+        self.assert_revision(10)
 
         # `lease_associate` is idempotent.
         self.assertEqual(lease_associate(1003, b'k1'), l)
+        self.assert_revision(10)
 
         self.assert_leases(
             [
@@ -620,15 +639,19 @@ class DatabasesTest(unittest.TestCase):
             ],
             18,  # 1 + 15 + 2 non-existent key_id.
         )
+        self.assert_revision(10)
 
         self.assertEqual(lease_dissociate(1003, b'k1'), l)
         l = lease_get(1003)
         self.assertEqual(l, lease_(1003, 10003, ()))
+        self.assert_revision(10)
 
         # `lease_dissociate` is idempotent.
         self.assertEqual(lease_dissociate(1003, b'k1'), l)
+        self.assert_revision(10)
 
         self.assertEqual(lease_dissociate(1003, b'k5'), l)
+        self.assert_revision(10)
 
         self.assert_leases(
             [
@@ -640,6 +663,7 @@ class DatabasesTest(unittest.TestCase):
             ],
             17,  # 15 + 2 non-existent key_id.
         )
+        self.assert_revision(10)
 
     def test_lease_expire(self):
 
@@ -701,6 +725,24 @@ class DatabasesTest(unittest.TestCase):
             [],
         )
         assert_after_expire()
+
+    def test_lease_expire_none(self):
+        ivs = {'revision': 1, 'key': b'k', 'value': b'v'}
+        self.engine.execute(self.tables.keyspace.insert(), [ivs])
+        self.engine.execute(self.tables.revisions.insert(), [ivs])
+        databases.increment_revision(self.engine, self.tables, revision=0)
+        ivs = {'lease': 1, 'expiration': 100}
+        self.engine.execute(self.tables.leases.insert(), [ivs])
+
+        self.assert_revisions([kv(1, b'k', b'v')], [kv(1, b'k', b'v')], 1)
+        self.assert_leases([lease_(1, 100, ())], 0)
+
+        self.assertEqual(
+            databases.lease_expire(self.engine, self.tables, current_time=101),
+            [],
+        )
+        self.assert_revisions([kv(1, b'k', b'v')], [kv(1, b'k', b'v')], 1)
+        self.assert_leases([], 0)
 
     def test_lease_scan_expired(self):
         self.make_lease_testdata()

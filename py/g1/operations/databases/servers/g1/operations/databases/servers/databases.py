@@ -216,7 +216,6 @@ def lease_expire(conn, tables, *, tx_revision=None, **kwargs):
         ):
             if not leases.issubset(expired):
                 key_ids.remove(key_id)
-    revision = _handle_tx_revision(conn, tables, tx_revision)
     for query in queries.lease_delete_leases(tables, leases=expired):
         _execute(conn, query)
     if key_ids:
@@ -225,6 +224,7 @@ def lease_expire(conn, tables, *, tx_revision=None, **kwargs):
             queries.scan_key_ids(tables, key_ids=key_ids),
         ) as result:
             prior = [_make_pair(row) for row in result]
+        revision = _handle_tx_revision(conn, tables, tx_revision)
         _execute(conn, queries.delete_key_ids(tables, key_ids=key_ids))
         _record_deletions(conn, tables, revision, (pair.key for pair in prior))
     else:
