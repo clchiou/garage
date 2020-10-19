@@ -248,12 +248,18 @@ def make_pod_oneshot_content(*, description):
     return _POD_ONESHOT.format(description=description)
 
 
+# The pod is after time-sync.target because our pods generally will
+# behave incorrectly if the clock is far off.
+#
 # We set StartLimitIntervalSec and StartLimitBurst to prevent the unit
 # being trapped in repeated crashes.  To manually restart the unit after
 # this rate counter was exceeded, run `systemctl reset-failed`.
 _POD_SERVICE = '''\
 [Unit]
 Description={description}
+PartOf=machines.target
+Before=machines.target
+After=time-sync.target
 
 [Service]
 Slice=machine.slice
@@ -266,7 +272,7 @@ ExecStartPre=/usr/local/bin/ops alerts send --level info "${{pod_label}} ${{pod_
 ExecStopPost=/usr/local/bin/ops alerts send --systemd-service-result ${{SERVICE_RESULT}} "${{pod_label}} ${{pod_version}}" "${{EXIT_CODE}} status=${{EXIT_STATUS}}"
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=machines.target
 '''
 
 
@@ -274,9 +280,12 @@ def make_pod_service_content(*, description):
     return _POD_SERVICE.format(description=description)
 
 
+# The journal watcher is after machines.target so that pods are started
+# before the watchers.
 _POD_JOURNAL_WATCHER = '''\
 [Unit]
 Description={description}
+After=machines.target network.target systemd-resolved.service
 
 [Service]
 ExecStart=/usr/local/bin/ops alerts watch-journal ${{pod_id}}
