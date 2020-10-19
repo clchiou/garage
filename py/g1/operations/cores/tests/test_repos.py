@@ -55,6 +55,9 @@ class NullOpsDir(repos.AbstractOpsDir):
     def stop(self):
         pass
 
+    def stop_all(self):
+        pass
+
     def uninstall(self):  # pylint: disable=no-self-use
         return True
 

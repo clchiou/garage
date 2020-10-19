@@ -262,6 +262,9 @@ class PodOpsDir(repos.AbstractOpsDir):
         for config in self._filter_pod_ids_and_units(predicate):
             systemds.deactivate(config)
 
+    def stop_all(self):
+        self.stop(all_units=True)
+
     def _filter_pod_ids_and_units(self, predicate):
         return filter(predicate, self.metadata.systemd_unit_configs)
 

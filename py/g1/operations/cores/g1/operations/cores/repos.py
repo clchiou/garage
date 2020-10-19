@@ -93,6 +93,7 @@ class AbstractOpsDir:
     install = classes.abstract_method
     start = classes.abstract_method
     stop = classes.abstract_method
+    stop_all = classes.abstract_method
     uninstall = classes.abstract_method
 
     def __init__(self, path):
@@ -299,7 +300,7 @@ class OpsDirs:
             ops_dir_lock = locks.acquire_exclusive(ops_dir_path)
         try:
             LOG.info('%s uninstall: %s %s', *log_args)
-            self.ops_dir_type(ops_dir_path).stop()
+            self.ops_dir_type(ops_dir_path).stop_all()
             self._remove_ops_dir(self._move_to_graveyard(ops_dir_path))
         finally:
             ops_dir_lock.release()

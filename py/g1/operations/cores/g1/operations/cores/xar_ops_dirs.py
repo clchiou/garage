@@ -101,6 +101,9 @@ class XarOpsDir(repos.AbstractOpsDir):
     def stop(self):
         pass  # Nothing here.
 
+    def stop_all(self):
+        pass  # Nothing here.
+
     def uninstall(self):
         if not self.metadata_path.exists():
             LOG.info('skip: xars uninstall: metadata was removed')
