@@ -45,21 +45,33 @@ class Sender:
 
         ``sticky_key`` is similar to ``cache_key`` except that it refers
         to an unbounded cache (thus the name "sticky").
+
+        If argument ``cache_revalidate`` is evaludated to true, session
+        will revalidate the cache entry.
         """
         cache_key = kwargs.pop('cache_key', None)
         sticky_key = kwargs.pop('sticky_key', None)
+        cache_revalidate = kwargs.pop('cache_revalidate', None)
         if cache_key is not None and sticky_key is not None:
             raise AssertionError(
-                'expect at most one: cache_key=%r, sticky_key%r' %
+                'expect at most one: cache_key=%r, sticky_key=%r' %
                 (cache_key, sticky_key)
             )
         if cache_key is not None:
             return await self._try_cache(
-                self._cache, cache_key, request, kwargs
+                self._cache,
+                cache_key,
+                cache_revalidate,
+                request,
+                kwargs,
             )
         if sticky_key is not None:
             return await self._try_cache(
-                self._unbounded_cache, sticky_key, request, kwargs
+                self._unbounded_cache,
+                sticky_key,
+                cache_revalidate,
+                request,
+                kwargs,
             )
 
         for retry_count in itertools.count():
@@ -88,11 +100,14 @@ class Sender:
                 await timers.sleep(backoff)
         ASSERT.unreachable('retry loop should not break')
 
-    async def _try_cache(self, cache, key, request, kwargs):
+    async def _try_cache(self, cache, key, revalidate, request, kwargs):
         task = cache.get(key)
         if task is None:
             task = cache[key] = tasks.spawn(self(request, **kwargs))
             result = 'miss'
+        elif revalidate:
+            task = cache[key] = tasks.spawn(self(request, **kwargs))
+            result = 'revalidate'
         else:
             result = 'hit'
         LOG.debug(

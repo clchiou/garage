@@ -128,6 +128,28 @@ class SessionTest(TestCaseBase):
                 session.send(self.REQUEST, cache_key='x', sticky_key='y')
             )
 
+    @kernels.with_kernel
+    def test_cache_revalidate(self):
+        session = clients.Session(executor=self.executor)
+        self.set_mock_response(200)
+        for _ in range(3):
+            self.assertIs(
+                kernels.run(
+                    session.send(
+                        self.REQUEST, cache_key='x', cache_revalidate=True
+                    )
+                ),
+                self.mock_response,
+            )
+        self.mock_session.get.assert_has_calls([
+            unittest.mock.call(self.URL),
+            unittest.mock.call().raise_for_status(),
+            unittest.mock.call(self.URL),
+            unittest.mock.call().raise_for_status(),
+            unittest.mock.call(self.URL),
+            unittest.mock.call().raise_for_status(),
+        ])
+
 
 class PrioritySessionTest(TestCaseBase):
 
