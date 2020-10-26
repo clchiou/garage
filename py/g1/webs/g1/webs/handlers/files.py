@@ -1,6 +1,8 @@
 __all__ = [
+    'BufferHandler',
     'DirHandler',
     'FileHandler',
+    'make_buffer_handler',
     'make_dir_handler',
     'make_file_handler',
     # Context.
@@ -35,6 +37,16 @@ def make_file_handler(local_file_path, headers=()):
         composers.MethodRouter({
             consts.METHOD_HEAD: file_handler.head,
             consts.METHOD_GET: file_handler.get,
+        }),
+    ])
+
+
+def make_buffer_handler(filename, content, headers=()):
+    buffer_handler = BufferHandler(filename, content, headers=headers)
+    return composers.Chain([
+        composers.MethodRouter({
+            consts.METHOD_HEAD: buffer_handler.head,
+            consts.METHOD_GET: buffer_handler.get,
         }),
     ])
 
@@ -136,16 +148,15 @@ class DirHandler:
     __call__ = get
 
 
-class FileHandler:
-    """Serve a (small) file."""
+class BufferHandler:
+    """Serve a buffer as a file."""
 
-    def __init__(self, local_file_path, headers=()):
+    def __init__(self, filename, content, headers=()):
         if not mimetypes.inited:
             mimetypes.init()
-        self._content = local_file_path.read_bytes()
+        self._content = content
         self._headers = {
-            consts.HEADER_CONTENT_TYPE:
-            guess_content_type(local_file_path.name),
+            consts.HEADER_CONTENT_TYPE: guess_content_type(filename),
             consts.HEADER_CONTENT_LENGTH: str(len(self._content)),
             consts.HEADER_ETAG: etags.compute_etag(self._content),
         }
@@ -161,3 +172,14 @@ class FileHandler:
         await response.write(self._content)
 
     __call__ = get
+
+
+class FileHandler(BufferHandler):
+    """Serve a (small) file."""
+
+    def __init__(self, local_file_path, headers=()):
+        super().__init__(
+            local_file_path.name,
+            local_file_path.read_bytes(),
+            headers=headers,
+        )
