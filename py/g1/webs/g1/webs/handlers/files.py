@@ -29,8 +29,8 @@ def make_dir_handler(local_dir_path):
     ])
 
 
-def make_file_handler(local_file_path):
-    file_handler = FileHandler(local_file_path)
+def make_file_handler(local_file_path, headers=()):
+    file_handler = FileHandler(local_file_path, headers=headers)
     return composers.Chain([
         composers.MethodRouter({
             consts.METHOD_HEAD: file_handler.head,
