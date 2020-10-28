@@ -108,6 +108,20 @@ class ContextualParserTest(unittest.TestCase):
         root = self.cp.xpath_unique(self.test_doc, '/div')
         self.assertEqual(self.cp.get_text_recursively(root), 'A B C <X>')
 
+    def test_get_text_recursively_maybe(self):
+        test_doc = etree.fromstring(
+            '''
+            <div>
+                <h1>    </h1>
+                <h2>    </h2>
+                <h2>    </h2>
+                <h4>    <span>    </span>    </h4>
+            </div>
+            '''
+        )
+        root = self.cp.xpath_unique(test_doc, '/div')
+        self.assertEqual(self.cp.get_text_recursively_maybe(root), '')
+
 
 if __name__ == '__main__':
     unittest.main()

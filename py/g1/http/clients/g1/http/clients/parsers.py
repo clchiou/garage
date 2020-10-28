@@ -113,12 +113,20 @@ class ContextualParser:
     def get_text(self, element):
         return self.assert_.not_none(element.text)
 
-    def get_text_recursively(self, root):
-        """Unescape and join text of all elements, including root."""
+    def __get_text_recursively(self, root):
         texts = []
         for element in self.assert_.not_none(root).iter():
             text = html.unescape(element.text or '').strip()
             if not text:
                 continue
             texts.append(text)
-        return ' '.join(self.assert_.not_empty(texts))
+        return texts
+
+    def get_text_recursively(self, root):
+        """Unescape and join text of all elements, including root."""
+        return ' '.join(
+            self.assert_.not_empty(self.__get_text_recursively(root))
+        )
+
+    def get_text_recursively_maybe(self, root):
+        return ' '.join(self.__get_text_recursively(root))
