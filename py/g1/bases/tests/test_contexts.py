@@ -22,11 +22,11 @@ class ContextTest(unittest.TestCase):
     def test_context(self):
         self.assert_context(contexts.Context({'y': 0}), {'y': 0})
 
-        cxt = contexts.Context()
-        child_1 = cxt.make({'x': 1})
-        child_2 = cxt.make({'x': 2})
+        ctx = contexts.Context()
+        child_1 = ctx.make({'x': 1})
+        child_2 = ctx.make({'x': 2})
         grandchild = child_1.make({'x': 3}, allow_overwrite=True)
-        self.assert_context(cxt, {})
+        self.assert_context(ctx, {})
         self.assert_context(child_1, {'x': 1})
         self.assert_context(child_2, {'x': 2})
         self.assert_context(grandchild, {'x': 3})

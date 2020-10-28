@@ -104,9 +104,9 @@ def _set_context(context):
 
 
 @contextlib.contextmanager
-def _enter_context(cxt, retval=None):
+def _enter_context(ctx, retval=None):
     stack = _get_stack()
-    stack.append(stack[-1].new_child(cxt))
+    stack.append(stack[-1].new_child(ctx))
     try:
         yield retval
     finally:

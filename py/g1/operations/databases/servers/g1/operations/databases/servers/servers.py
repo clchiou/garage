@@ -33,10 +33,10 @@ def _make_reader(database_func):
     @functools.wraps(database_func)
     async def wrapper(self, *, transaction=0, **kwargs):
         if transaction == 0:
-            conn_cxt = self._manager.reading()
+            conn_ctx = self._manager.reading()
         else:
-            conn_cxt = self._manager.writing(transaction)
-        async with conn_cxt as conn:
+            conn_ctx = self._manager.writing(transaction)
+        async with conn_ctx as conn:
             return database_func(conn, self._tables, **kwargs)
 
     return wrapper
@@ -47,15 +47,15 @@ def _make_writer(database_func, need_tx_revision=False):
     @functools.wraps(database_func)
     async def wrapper(self, *, transaction=0, **kwargs):
         if transaction == 0:
-            conn_cxt = self._manager.transacting()
+            conn_ctx = self._manager.transacting()
             if need_tx_revision:
                 kwargs['tx_revision'] = None
         else:
-            conn_cxt = self._manager.writing(transaction)
+            conn_ctx = self._manager.writing(transaction)
             if need_tx_revision:
                 kwargs['tx_revision'] = self._tx_revision
             self._update_tx_expiration()
-        async with conn_cxt as conn:
+        async with conn_ctx as conn:
             return database_func(conn, self._tables, **kwargs)
 
     return wrapper

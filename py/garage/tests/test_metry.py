@@ -84,9 +84,9 @@ class MetryTest(unittest.TestCase):
         root.add_reporter(report)
         tree.initialize()
 
-        with timer.time() as cxt:
-            cxt.stop()
-            cxt.stop()
+        with timer.time() as ctx:
+            ctx.stop()
+            ctx.stop()
         self.assertListEqual(
             [
                 ('x', 't0', (Any(float), None, Any(float))),
