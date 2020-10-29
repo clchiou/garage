@@ -43,6 +43,7 @@ def make_client_params(
     validate_urls=bool,  # Merely check non-empty for now.
     send_timeout=2,
     recv_timeout=4,
+    resend_time=None,
 ):
     return parameters.Namespace(
         'configure messaging client',
@@ -62,6 +63,11 @@ def make_client_params(
             type=(type(None), int, float),
             unit='seconds',
         ),
+        resend_time=parameters.Parameter(
+            resend_time,
+            type=(type(None), int, float),
+            unit='seconds',
+        ),
     )
 
 
@@ -78,6 +84,10 @@ def configure_client(
     if params.recv_timeout.get() is not None:
         client.socket.recv_timeout = parts_utils.to_milliseconds_int(
             params.recv_timeout.get()
+        )
+    if params.resend_time.get() is not None:
+        client.socket.resend_time = parts_utils.to_milliseconds_int(
+            params.resend_time.get()
         )
     for url in params.urls.get():
         client.socket.dial(url)
