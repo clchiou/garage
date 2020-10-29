@@ -51,7 +51,15 @@ def define_root_project():
             return
         LOG.info('generate gradle wrapper')
         with scripts.using_cwd(src_path):
-            scripts.run(['gradle', 'wrapper'])
+            scripts.run([
+                'gradle',
+                # TODO: For some unknown reason, gradle resolves the
+                # relative path to /home/plumber/garage rather than
+                # /usr/src/garage (maybe due to our use of overlayfs?).
+                # So let us hard code the path here for now.
+                '-PgarageProjectRelativePath=/usr/src/garage/java/g1',
+                'wrapper',
+            ])
 
     return RootProjectRules(setup=setup)
 
