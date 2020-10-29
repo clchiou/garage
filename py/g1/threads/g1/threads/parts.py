@@ -5,6 +5,7 @@ from g1.bases import labels
 from g1.bases.assertions import ASSERT
 
 from . import executors
+from . import queues
 
 EXECUTOR_LABEL_NAMES = (
     # Output.
@@ -39,6 +40,7 @@ def setup_executor(module_labels, module_params):
 def make_executor_params(
     *,
     max_executors=0,
+    capacity=0,
     name_prefix='',
     daemon=None,
     default_priority=None,
@@ -50,6 +52,7 @@ def make_executor_params(
     return parameters.Namespace(
         'make executor',
         max_executors=parameters.Parameter(max_executors, type=int),
+        capacity=parameters.Parameter(capacity, type=int),
         name_prefix=parameters.Parameter(name_prefix, type=str),
         daemon=parameters.Parameter(daemon, type=(bool, type(None))),
         default_priority=(
@@ -65,6 +68,10 @@ def make_executor(
     exit_stack: bases.LABELS.exit_stack,
     params,
 ):
+    if params.capacity.get() > 0:
+        queue = queues.Queue(capacity=params.capacity.get())
+    else:
+        queue = None
     if params.default_priority.get() is None:
         executor_type = executors.Executor
         kwargs = {}
@@ -74,6 +81,7 @@ def make_executor(
     return exit_stack.enter_context(
         executor_type(
             max_executors=params.max_executors.get(),
+            queue=queue,
             name_prefix=params.name_prefix.get(),
             daemon=params.daemon.get(),
             **kwargs,
