@@ -32,22 +32,25 @@ public class IndexWriters {
     /**
      * Default RAM buffer size; Unit: MB.
      * <p>
-     * This is larger than Lucene's default (16 MB), which should yield
-     * higher batch indexing throughput.
+     * Although theoretically setting it to a larger value might yield
+     * higher batch indexing throughput, our measurements show that the
+     * default throughput is already very impressive.  Also, a larger
+     * value might cause JVM to OOM.  So it might not be worthwhile to
+     * increase this value.
      */
     @Configuration
-    public static double ramBufferSize = 256.0d;
+    public static double ramBufferSize =
+        IndexWriterConfig.DEFAULT_RAM_BUFFER_SIZE_MB;
 
     /**
      * Flush after the number of buffered doc exceeds the limit.
      * <p>
-     * We disable this feature by default.  Together with the
-     * ramBufferSize above, the indexer only flushes when the buffer
-     * size exceeds the limit, which should yield higher batch indexing
-     * throughput.
+     * We use Lucene's default for the same reason stated in
+     * {@code ramBufferSize} above.
      */
     @Configuration
-    public static int maxBufferedDocs = IndexWriterConfig.DISABLE_AUTO_FLUSH;
+    public static int maxBufferedDocs =
+        IndexWriterConfig.DEFAULT_MAX_BUFFERED_DOCS;
 
     /**
      * Whether to force merge in {@link #close(IndexWriter)}.
