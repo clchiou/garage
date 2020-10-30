@@ -13,6 +13,7 @@ __all__ = [
 ]
 
 import dataclasses
+import itertools
 import logging
 import typing
 from pathlib import Path
@@ -238,14 +239,27 @@ Description={description}
 [Service]
 Slice=machine.slice
 Type=oneshot
-ExecStart=/usr/local/bin/ctr pods run-prepared ${{pod_id}}
 ExecStartPre=/usr/local/bin/ops alerts send --level info "${{pod_label}} ${{pod_version}}" "start"
+{exec_starts}\
 ExecStopPost=/usr/local/bin/ops alerts send --systemd-service-result ${{SERVICE_RESULT}} "${{pod_label}} ${{pod_version}}" "${{EXIT_CODE}} status=${{EXIT_STATUS}}"
 '''
 
 
-def make_pod_oneshot_content(*, description):
-    return _POD_ONESHOT.format(description=description)
+def make_pod_oneshot_content(
+    *,
+    description,
+    default_exec_starts=('/usr/local/bin/ctr pods run-prepared ${pod_id}', ),
+    extra_exec_starts=(),
+):
+    return _POD_ONESHOT.format(
+        description=description,
+        exec_starts=''.join(
+            'ExecStart=%s\n' % exec_start for exec_start in itertools.chain(
+                default_exec_starts,
+                extra_exec_starts,
+            )
+        ),
+    )
 
 
 # The pod is after time-sync.target because our pods generally will
