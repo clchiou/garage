@@ -98,7 +98,7 @@ def main(args: asyncs.LABELS.args):
             )
         )
         if response.error is None:
-            output = pprint.pformat(utils.select(response.result)[1])
+            output = pprint.pformat(getattr(response.result, args.method))
             rc = 0
         else:
             output = pprint.pformat(utils.select(response.error)[1])
