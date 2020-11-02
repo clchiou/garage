@@ -372,6 +372,10 @@ def _wait_for_journal_dir(journal_dir_path):
 
 def _parse_journal_entry(rules, entry, host, pod_id):
     raw_message = entry['MESSAGE']
+    if isinstance(raw_message, list):
+        # It seems that, when there are non ASCII printable characters,
+        # MESSAGE will be an array of byte values.
+        raw_message = bytes(raw_message).decode('utf-8', errors='ignore')
     rule, match = _search_rules(rules, raw_message)
     if rule is None:
         return None

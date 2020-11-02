@@ -109,37 +109,42 @@ class JournalTest(unittest.TestCase):
                 '01234567-89ab-cdef-0123-456789abcdef',
             )
         )
-        self.assertEqual(
-            alerts._parse_journal_entry(
-                [
-                    alerts.Config.Rule(
-                        pattern=re.compile(
-                            r'(?P<level>INFO) '
-                            r'this (?P<raw_message>.* something)'
-                        ),
-                        template=alerts.Config.Rule.Template(
-                            level='{level}',
-                            title='{title}',
-                            description='{raw_message}',
-                        ),
-                    )
-                ],
-                {
-                    'SYSLOG_IDENTIFIER': 'spam',
-                    'MESSAGE': 'INFO this has something',
-                    '_SOURCE_REALTIME_TIMESTAMP': '1001200200',
-                },
-                'foobar',
-                '01234567-89ab-cdef-0123-456789abcdef',
-            ),
-            alerts.Message(
-                host='foobar',
-                level=alerts.Message.Levels.INFO,
-                title='spam',
-                description='has something',
-                timestamp=datetimes.utcfromtimestamp(1001.2002),
-            ),
-        )
+        for message in (
+            'INFO this has something',
+            list(b'INFO this has something'),
+        ):
+            with self.subTest(message):
+                self.assertEqual(
+                    alerts._parse_journal_entry(
+                        [
+                            alerts.Config.Rule(
+                                pattern=re.compile(
+                                    r'(?P<level>INFO) '
+                                    r'this (?P<raw_message>.* something)'
+                                ),
+                                template=alerts.Config.Rule.Template(
+                                    level='{level}',
+                                    title='{title}',
+                                    description='{raw_message}',
+                                ),
+                            )
+                        ],
+                        {
+                            'SYSLOG_IDENTIFIER': 'spam',
+                            'MESSAGE': message,
+                            '_SOURCE_REALTIME_TIMESTAMP': '1001200200',
+                        },
+                        'foobar',
+                        '01234567-89ab-cdef-0123-456789abcdef',
+                    ),
+                    alerts.Message(
+                        host='foobar',
+                        level=alerts.Message.Levels.INFO,
+                        title='spam',
+                        description='has something',
+                        timestamp=datetimes.utcfromtimestamp(1001.2002),
+                    ),
+                )
 
 
 class CollectdTest(unittest.TestCase):
