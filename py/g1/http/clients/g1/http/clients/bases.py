@@ -92,10 +92,10 @@ class Sender:
                 else:
                     status_code = None
                 LOG.warning(
-                    'http error: status_code=%s, %r',
+                    'http error: status_code=%s, request=%r, exc=%r',
                     status_code,
                     request,
-                    exc_info=exc if not status_code else None,
+                    exc,
                 )
                 await timers.sleep(backoff)
         ASSERT.unreachable('retry loop should not break')
