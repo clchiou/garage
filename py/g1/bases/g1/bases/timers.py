@@ -10,9 +10,11 @@ Examples:
 __all__ = [
     'Stopwatch',
     'make',
+    'measuring_duration',
     'timeout_to_key',
 ]
 
+import contextlib
 import time
 
 from .assertions import ASSERT
@@ -51,6 +53,16 @@ class Stopwatch:
         else:
             duration_ns = ASSERT.not_none(self._duration)
         return times.convert(times.Units.NANOSECONDS, unit, duration_ns)
+
+
+@contextlib.contextmanager
+def measuring_duration(clock=time.perf_counter_ns):
+    stopwatch = Stopwatch(clock=clock)
+    stopwatch.start()
+    try:
+        yield stopwatch.get_duration
+    finally:
+        stopwatch.stop()
 
 
 def make(timeout):
