@@ -95,45 +95,43 @@ class RecordsSchema:
     def assert_keyless(self):
         ASSERT.false(self.is_keyed(), message='expect keyless schema')
 
-    def _maybe_add_where_clause(self, select_stmt, make_where_clause):
-        if make_where_clause is not None:
-            select_stmt = select_stmt.where(
-                make_where_clause(self.table.columns)
-            )
-        return select_stmt
+    def _maybe_make_query(self, query, make_query):
+        if make_query is not None:
+            query = make_query(query, self.table.columns)
+        return query
 
     def _by_keys(self, keys):
         ASSERT.equal(len(keys), len(self.key_columns))
         return and_(*(c == k for c, k in zip(self.key_columns, keys)))
 
-    def query_count(self, make_where_clause=None):
-        return self._maybe_add_where_clause(
+    def query_count(self, make_query=None):
+        return self._maybe_make_query(
             select([func.count()]).select_from(self.table),
-            make_where_clause,
+            make_query,
         )
 
     def query_contains_keys(self, keys):
         return select([literal(True)]).where(self._by_keys(keys)).limit(1)
 
-    def query_keys(self, make_where_clause=None):
-        return self._maybe_add_where_clause(
+    def query_keys(self, make_query=None):
+        return self._maybe_make_query(
             select(self.key_columns),
-            make_where_clause,
+            make_query,
         )
 
-    def query_values(self, make_where_clause=None):
-        return self._maybe_add_where_clause(
+    def query_values(self, make_query=None):
+        return self._maybe_make_query(
             select(self.value_columns),
-            make_where_clause,
+            make_query,
         )
 
     def query_values_by_keys(self, keys):
         return select(self.value_columns).where(self._by_keys(keys))
 
-    def query_items(self, make_where_clause=None):
-        return self._maybe_add_where_clause(
+    def query_items(self, make_query=None):
+        return self._maybe_make_query(
             select(self.table.columns),
-            make_where_clause,
+            make_query,
         )
 
     def make_upsert_statement(self):
@@ -142,10 +140,10 @@ class RecordsSchema:
     def make_insert_statement(self):
         return self.table.insert()  # pylint: disable=no-value-for-parameter
 
-    def make_delete_statement(self, make_where_clause=None):
-        return self._maybe_add_where_clause(
+    def make_delete_statement(self, make_query=None):
+        return self._maybe_make_query(
             self.table.delete(),  # pylint: disable=no-value-for-parameter
-            make_where_clause,
+            make_query,
         )
 
     def make_record(self, keys, values):
@@ -213,9 +211,9 @@ class Records(collections.abc.Collection):
             [self._schema.make_record(keys, values)],
         )
 
-    def count(self, make_where_clause=None):
+    def count(self, make_query=None):
         # This works in both keyed and keyless schema.
-        stmt = self._schema.query_count(make_where_clause)
+        stmt = self._schema.query_count(make_query)
         return ASSERT.not_none(_get_scalar(self._engine, stmt))
 
     def keys(self):
@@ -236,19 +234,19 @@ class Records(collections.abc.Collection):
         else:
             return tuple(row)
 
-    def search_keys(self, make_where_clause=None):
+    def search_keys(self, make_query=None):
         self._schema.assert_keyed()
-        stmt = self._schema.query_keys(make_where_clause)
+        stmt = self._schema.query_keys(make_query)
         return _iter_rows(self._engine, stmt)
 
-    def search_values(self, make_where_clause=None):
+    def search_values(self, make_query=None):
         # This works in both keyed and keyless schema.
-        stmt = self._schema.query_values(make_where_clause)
+        stmt = self._schema.query_values(make_query)
         return _iter_rows(self._engine, stmt)
 
-    def search_items(self, make_where_clause=None):
+    def search_items(self, make_query=None):
         self._schema.assert_keyed()
-        stmt = self._schema.query_items(make_where_clause)
+        stmt = self._schema.query_items(make_query)
         with utils.executing(self._engine, stmt) as result:
             for row in result:
                 yield (
@@ -282,10 +280,10 @@ class Records(collections.abc.Collection):
             [self._schema.make_record((), record) for record in records],
         )
 
-    def delete(self, make_where_clause=None):
+    def delete(self, make_query=None):
         # This works in both keyed and keyless schema.
         with self._engine.connect() as conn:
-            conn.execute(self._schema.make_delete_statement(make_where_clause))
+            conn.execute(self._schema.make_delete_statement(make_query))
 
 
 def _execute(engine, statement, arg):

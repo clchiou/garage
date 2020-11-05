@@ -118,7 +118,7 @@ class RecordsSchemaTest(unittest.TestCase):
                     r'SELECT count\(\*\) AS \w+ FROM test',
                 )
                 self.assert_query_regex(
-                    schema.query_count(lambda cs: cs.value1 == 1),
+                    schema.query_count(lambda q, c: q.where(c.value1 == 1)),
                     r'SELECT count\(\*\) AS \w+ FROM test '
                     r'WHERE test.value1 = :\w+',
                 )
@@ -141,7 +141,7 @@ class RecordsSchemaTest(unittest.TestCase):
             r'SELECT test.key1, test.key2 FROM test',
         )
         self.assert_query_regex(
-            schema.query_keys(lambda cs: cs.key1 == 1),
+            schema.query_keys(lambda q, c: q.where(c.key1 == 1)),
             r'SELECT test.key1, test.key2 FROM test '
             r'WHERE test.key1 = :\w+',
         )
@@ -154,7 +154,7 @@ class RecordsSchemaTest(unittest.TestCase):
                     r'SELECT test.value1, test.value2 FROM test',
                 )
                 self.assert_query_regex(
-                    schema.query_values(lambda cs: cs.value1 == 1),
+                    schema.query_values(lambda q, c: q.where(c.value1 == 1)),
                     r'SELECT test.value1, test.value2 FROM test '
                     r'WHERE test.value1 = :\w+',
                 )
@@ -176,7 +176,9 @@ class RecordsSchemaTest(unittest.TestCase):
             r'SELECT test.key1, test.key2, test.value1, test.value2 FROM test',
         )
         self.assert_query_regex(
-            schema.query_items(lambda cs: and_(cs.key1 == 1, cs.value1 == 2)),
+            schema.query_items(
+                lambda q, c: q.where(and_(c.key1 == 1, c.value1 == 2))
+            ),
             r'SELECT test.key1, test.key2, test.value1, test.value2 FROM test '
             r'WHERE test.key1 = :\w+ AND test.value1 = :\w+',
         )
@@ -205,7 +207,8 @@ class RecordsSchemaTest(unittest.TestCase):
                     r'DELETE FROM test',
                 )
                 self.assert_query_regex(
-                    schema.make_delete_statement(lambda cs: cs.value1 == 1),
+                    schema.
+                    make_delete_statement(lambda q, c: q.where(c.value1 == 1)),
                     r'DELETE FROM test '
                     r'WHERE test.value1 = :\w+',
                 )
@@ -315,18 +318,34 @@ class RecordsTest(unittest.TestCase):
             },
         )
         self.assertEqual(rs.count(), 3)
-        self.assertEqual(rs.count(lambda cs: cs.key1 <= 3), 2)
+        self.assertEqual(rs.count(lambda q, c: q.where(c.key1 <= 3)), 2)
         self.assertEqual(
-            sorted(rs.search_keys(lambda cs: cs.key1 <= 3)),
+            sorted(rs.search_keys(lambda q, c: q.where(c.key1 <= 3))),
             [(1, 2), (3, 4)],
         )
         self.assertEqual(
-            sorted(rs.search_values(lambda cs: cs.key1 <= 3)),
+            sorted(rs.search_keys(lambda q, c: q.where(c.key1 <= 3).limit(1))),
+            [(1, 2)],
+        )
+        self.assertEqual(
+            sorted(rs.search_values(lambda q, c: q.where(c.key1 <= 3))),
             [('p', 'q'), ('x', 'y')],
         )
         self.assertEqual(
-            sorted(rs.search_items(lambda cs: cs.key1 <= 3)),
+            sorted(
+                rs.search_values(lambda q, c: q.where(c.key1 <= 3).limit(1))
+            ),
+            [('x', 'y')],
+        )
+        self.assertEqual(
+            sorted(rs.search_items(lambda q, c: q.where(c.key1 <= 3))),
             [((1, 2), ('x', 'y')), ((3, 4), ('p', 'q'))],
+        )
+        self.assertEqual(
+            sorted(
+                rs.search_items(lambda q, c: q.where(c.key1 <= 3).limit(1))
+            ),
+            [((1, 2), ('x', 'y'))],
         )
 
         rs[1, 2] = ('u', 'v')
@@ -338,7 +357,7 @@ class RecordsTest(unittest.TestCase):
                 (5, 6): ('a', 'b'),
             },
         )
-        rs.delete(lambda cs: cs.key1 < 4)
+        rs.delete(lambda q, c: q.where(c.key1 < 4))
         self.assert_keyed(rs, {(5, 6): ('a', 'b')})
 
         for func, args in (
@@ -366,20 +385,24 @@ class RecordsTest(unittest.TestCase):
         rs.append(('hello', 'world'))
         self.assert_keyless(rs, [('hello', 'world')])
         self.assertEqual(rs.count(), 1)
-        self.assertEqual(rs.count(lambda cs: cs.value1 == 'spam'), 0)
+        self.assertEqual(rs.count(lambda q, c: q.where(c.value1 == 'spam')), 0)
         self.assertEqual(
-            sorted(rs.search_values(lambda cs: cs.value1 == 'spam')),
+            sorted(rs.search_values(lambda q, c: q.where(c.value1 == 'spam'))),
             [],
         )
 
         rs.extend([('spam', 'egg')])
         self.assert_keyless(rs, [('hello', 'world'), ('spam', 'egg')])
-        self.assertEqual(rs.count(lambda cs: cs.value1 == 'spam'), 1)
+        self.assertEqual(rs.count(lambda q, c: q.where(c.value1 == 'spam')), 1)
         self.assertEqual(
-            sorted(rs.search_values(lambda cs: cs.value1 == 'spam')),
+            sorted(rs.search_values(lambda q, c: q.where(c.value1 == 'spam'))),
             [('spam', 'egg')],
         )
-        rs.delete(lambda cs: cs.value1 == 'spam')
+        self.assertEqual(
+            sorted(rs.search_values(lambda q, c: q.limit(1))),
+            [('hello', 'world')],
+        )
+        rs.delete(lambda q, c: q.where(c.value1 == 'spam'))
         self.assert_keyless(rs, [('hello', 'world')])
 
         for method, args in (
