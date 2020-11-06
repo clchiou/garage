@@ -1,6 +1,8 @@
 import unittest
 
 import contextlib
+import os
+import subprocess
 import tempfile
 from pathlib import Path
 
@@ -104,6 +106,27 @@ class AttachingTest(unittest.TestCase):
 
                 with sqlite.attaching(conn, 'test_db', tmpdb_path):
                     self.assertEqual(conn.execute(stmt).scalar(), 42)
+
+
+class SqliteTest(unittest.TestCase):
+
+    def test_get_db_path(self):
+        self.assertIsNone(sqlite.get_db_path('sqlite://'))
+        self.assertIsNone(sqlite.get_db_path('sqlite:///'))
+        self.assertIsNone(sqlite.get_db_path('sqlite:///:memory:'))
+        self.assertEqual(sqlite.get_db_path('sqlite:///x'), Path('x'))
+        self.assertEqual(sqlite.get_db_path('sqlite:////x'), Path('/x'))
+        with self.assertRaises(AssertionError):
+            sqlite.get_db_path('sqlite://:memory:')
+        with self.assertRaises(AssertionError):
+            sqlite.get_db_path('sqlite://x')
+
+    def test_setting_sqlite_tmpdir(self):
+        original = os.environ.get('SQLITE_TMPDIR')
+        with sqlite.setting_sqlite_tmpdir(Path('x/y/z')):
+            proc = subprocess.run(['env'], capture_output=True, check=True)
+        self.assertIn(b'SQLITE_TMPDIR=x/y/z\n', proc.stdout)
+        self.assertEqual(os.environ.get('SQLITE_TMPDIR'), original)
 
 
 if __name__ == '__main__':

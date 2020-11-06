@@ -1,19 +1,23 @@
 __all__ = [
     'create_engine',
     'attaching',
+    'get_db_path',
+    'setting_sqlite_tmpdir',
     'upsert',
 ]
 
 import contextlib
 import functools
 import logging
+import os
 import re
+from pathlib import Path
 
 import sqlalchemy
 
 from g1.bases.assertions import ASSERT
 
-DB_URL_PATTERN = re.compile(r'sqlite(\+pysqlcipher)?://')
+DB_URL_PATTERN = re.compile(r'sqlite(?:\+pysqlcipher)?://(?:/(.*))?')
 
 
 def create_engine(
@@ -23,7 +27,11 @@ def create_engine(
     trace=False,
     pragmas=(),
 ):
-    ASSERT(DB_URL_PATTERN.match(db_url), 'expect sqlite URL, not {!r}', db_url)
+    ASSERT(
+        DB_URL_PATTERN.fullmatch(db_url),
+        'expect sqlite URL, not {!r}',
+        db_url,
+    )
 
     engine = sqlalchemy.create_engine(
         db_url,
@@ -87,6 +95,27 @@ def do_begin(dbapi_conn):
 #
 # SQLite-specific helpers.
 #
+
+
+def get_db_path(db_url):
+    path_str = ASSERT.not_none(DB_URL_PATTERN.fullmatch(db_url)).group(1)
+    if not path_str or path_str == ':memory:':
+        return None
+    return Path(path_str)
+
+
+@contextlib.contextmanager
+def setting_sqlite_tmpdir(tempdir_path):
+    original = os.environ.get('SQLITE_TMPDIR')
+    try:
+        os.environ['SQLITE_TMPDIR'] = str(tempdir_path)
+        yield
+    finally:
+        if original is None:
+            os.environ.pop('SQLITE_TMPDIR')
+        else:
+            os.environ['SQLITE_TMPDIR'] = original
+
 
 _ATTACH_STMT = sqlalchemy.text('ATTACH DATABASE :db_path AS :db_name')
 _DETACH_STMT = sqlalchemy.text('DETACH DATABASE :db_name')
