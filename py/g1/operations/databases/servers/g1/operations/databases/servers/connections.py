@@ -18,8 +18,8 @@ ASSERT_REQUEST = assertions.Assertions(
     lambda *_: interfaces.InvalidRequestError()
 )
 
-_WAIT_FOR_READER = 2  # Unit: seconds.
-_WAIT_FOR_WRITER = 2  # Unit: seconds.
+_WAIT_FOR_READER = 4  # Unit: seconds.
+_WAIT_FOR_WRITER = 4  # Unit: seconds.
 
 _NUM_REMEMBERED = 8
 

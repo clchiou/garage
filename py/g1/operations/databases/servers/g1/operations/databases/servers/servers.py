@@ -25,7 +25,7 @@ from . import schemas
 
 LOG = logging.getLogger(__name__)
 
-_TRANSACTION_TIMEOUT = 2  # Unit: seconds.
+_TRANSACTION_TIMEOUT = 16  # Unit: seconds.
 
 
 def _make_reader(database_func):
