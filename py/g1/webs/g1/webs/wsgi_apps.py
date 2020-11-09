@@ -310,10 +310,11 @@ class Application:
         log_args += (exc.status.value, exc.status.phrase)
         if 300 <= exc.status < 400:
             LOG.debug(
-                '%s %s%s%s -> %d %s %s: %s', *log_args, exc.location, exc
+                '%s %s%s%s -> %d %s %s ; reason: %s', \
+                *log_args, exc.location, exc
             )
         else:
-            LOG.warning('%s %s%s%s -> %d %s', *log_args, exc_info=exc)
+            LOG.warning('%s %s%s%s -> %d %s ; reason: %s', *log_args, exc)
         response.status = exc.status
         response.headers.update(exc.headers)
         if exc.content:
