@@ -106,8 +106,33 @@ def get_db_path(db_url):
     return Path(path_str)
 
 
-def set_sqlite_tmpdir(tempdir_path):
-    os.environ['SQLITE_TMPDIR'] = str(tempdir_path)
+def set_sqlite_tmpdir(tmpdir_path):
+    #
+    # NOTE: Do NOT overwrite SQLITE_TMPDIR environ entry because:
+    #
+    # * Prior to Python 3.9, posix.putenv, which is implemented by
+    #   putenv, can only keeps references to the latest values; old
+    #   values are garbage collected.  (Since 3.9 [1], posix.putenv is
+    #   changed to be implemented by setenv, and no longer has such
+    #   problem.)
+    #
+    # * SQLite keeps a static reference to the SQLITE_TMPDIR value [2].
+    #   Thus you must ensure that SQLITE_TMPDIR, once set and referenced
+    #   by SQLite, is never overwritten (not even by a same value) so
+    #   that the old value is not garbage collected; otherwise, SQLite
+    #   will access a freed memory region.
+    #
+    # pylint: disable=line-too-long
+    # [1] https://github.com/python/cpython/commit/b8d1262e8afe7b907b4a394a191739571092acdb
+    # [2] https://github.com/sqlite/sqlite/blob/78043e891ab2fba7dbec1493a9d3e10ab2476745/src/os_unix.c#L5755
+    # pylint: enable=line-too-long
+    #
+    tmpdir_path = str(tmpdir_path)
+    sqlite_tmpdir = os.environ.get('SQLITE_TMPDIR')
+    if sqlite_tmpdir is None:
+        os.environ['SQLITE_TMPDIR'] = tmpdir_path
+    else:
+        ASSERT.equal(sqlite_tmpdir, tmpdir_path)
     LOG.info('SQLITE_TMPDIR = %r', os.environ['SQLITE_TMPDIR'])
 
 

@@ -124,12 +124,22 @@ class SqliteTest(unittest.TestCase):
     def test_set_sqlite_tmpdir(self):
         original = os.environ.get('SQLITE_TMPDIR')
         try:
+            # We can't test set_sqlite_tmpdir when SQLITE_TMPDIR is set.
+            if original is not None:
+                os.environ.pop('SQLITE_TMPDIR')
+
             sqlite.set_sqlite_tmpdir(Path('x/y/z'))
             proc = subprocess.run(['env'], capture_output=True, check=True)
+            self.assertIn(b'SQLITE_TMPDIR=x/y/z\n', proc.stdout)
+
+            with self.assertRaisesRegex(
+                AssertionError,
+                r'expect x == \'a/b/c\', not \'x/y/z\'',
+            ):
+                sqlite.set_sqlite_tmpdir(Path('a/b/c'))
         finally:
             if original is not None:
                 os.environ['SQLITE_TMPDIR'] = original
-        self.assertIn(b'SQLITE_TMPDIR=x/y/z\n', proc.stdout)
 
 
 if __name__ == '__main__':
