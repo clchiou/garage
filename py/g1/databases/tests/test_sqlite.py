@@ -121,12 +121,15 @@ class SqliteTest(unittest.TestCase):
         with self.assertRaises(AssertionError):
             sqlite.get_db_path('sqlite://x')
 
-    def test_setting_sqlite_tmpdir(self):
+    def test_set_sqlite_tmpdir(self):
         original = os.environ.get('SQLITE_TMPDIR')
-        with sqlite.setting_sqlite_tmpdir(Path('x/y/z')):
+        try:
+            sqlite.set_sqlite_tmpdir(Path('x/y/z'))
             proc = subprocess.run(['env'], capture_output=True, check=True)
+        finally:
+            if original is not None:
+                os.environ['SQLITE_TMPDIR'] = original
         self.assertIn(b'SQLITE_TMPDIR=x/y/z\n', proc.stdout)
-        self.assertEqual(os.environ.get('SQLITE_TMPDIR'), original)
 
 
 if __name__ == '__main__':
