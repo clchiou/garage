@@ -54,8 +54,9 @@ class RecordsSchemaTest(unittest.TestCase):
         self.assertEqual(schema.key_column_names, ('key1', 'key2'))
         self.assertEqual(schema.value_column_names, ('data', ))
         engine = sqlite.create_engine('sqlite://', trace=True)
+        conn = engine.connect()
         with self.assertLogs(sqlite.__name__, level='DEBUG') as cm:
-            rs = records.Records(engine, schema)
+            rs = records.Records(conn, schema)
             # Repeated creations are okay.
             for _ in range(3):
                 rs.create_all()
@@ -80,14 +81,16 @@ class RecordsSchemaTest(unittest.TestCase):
         schema.assert_keyed()
         with self.assertRaisesRegex(AssertionError, r'expect keyless schema'):
             schema.assert_keyless()
+        conn.close()
 
     def test_keyless_schema(self):
         schema = records.RecordsSchema('test')
         self.assertEqual(schema.key_column_names, ())
         self.assertEqual(schema.value_column_names, ('data', ))
         engine = sqlite.create_engine('sqlite://', trace=True)
+        conn = engine.connect()
         with self.assertLogs(sqlite.__name__, level='DEBUG') as cm:
-            rs = records.Records(engine, schema)
+            rs = records.Records(conn, schema)
             # Repeated creations are okay.
             for _ in range(3):
                 rs.create_all()
@@ -105,6 +108,7 @@ class RecordsSchemaTest(unittest.TestCase):
         with self.assertRaisesRegex(AssertionError, r'expect keyed schema'):
             schema.assert_keyed()
         schema.assert_keyless()
+        conn.close()
 
     def test_conflicting_key_name(self):
         with self.assertRaisesRegex(AssertionError, r'isdisjoint'):
@@ -235,10 +239,15 @@ class RecordsTest(unittest.TestCase):
     def setUp(self):
         super().setUp()
         self.engine = sqlite.create_engine('sqlite://')
+        self.conn = self.engine.connect()
+
+    def tearDown(self):
+        self.conn.close()
+        super().tearDown()
 
     def make_keyed_records(self):
         rs = records.Records(
-            self.engine,
+            self.conn,
             RecordsSchemaTest.make_keyed_schema(),
         )
         rs.create_all()
@@ -246,7 +255,7 @@ class RecordsTest(unittest.TestCase):
 
     def make_keyless_records(self):
         rs = records.Records(
-            self.engine,
+            self.conn,
             RecordsSchemaTest.make_keyless_schema(),
         )
         rs.create_all()

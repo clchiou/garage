@@ -164,18 +164,17 @@ class Records(collections.abc.Collection):
     evaluated to false when ``records`` is empty.  Don't be surprised!
     """
 
-    def __init__(self, engine, schema):
-        self._engine = engine
+    def __init__(self, conn, schema):
+        self._conn = conn
         self._schema = schema
 
     def create_all(self):
-        self._schema.metadata.create_all(self._engine)
+        self._schema.metadata.create_all(self._conn)
 
     def create_indices(self):
-        with self._engine.connect() as conn:
-            for index in self._schema.make_indices():
-                stmt = utils.add_if_not_exists_clause(index, self._engine)
-                conn.execute(stmt)
+        for index in self._schema.make_indices():
+            stmt = utils.add_if_not_exists_clause(index, self._conn)
+            self._conn.execute(stmt)
 
     def __len__(self):
         # This works in both keyed and keyless schema.
@@ -192,7 +191,7 @@ class Records(collections.abc.Collection):
         # Sadly this only works in keyed schema for now.
         self._schema.assert_keyed()
         stmt = self._schema.query_contains_keys(keys)
-        return _get_scalar(self._engine, stmt) is not None
+        return self._conn.execute(stmt).scalar() is not None
 
     def __getitem__(self, keys):
         # Sadly this only works in keyed schema for now.
@@ -205,8 +204,7 @@ class Records(collections.abc.Collection):
     def __setitem__(self, keys, values):
         # Sadly this only works in keyed schema for now.
         self._schema.assert_keyed()
-        _execute(
-            self._engine,
+        self._conn.execute(
             self._schema.make_upsert_statement(),
             [self._schema.make_record(keys, values)],
         )
@@ -214,7 +212,7 @@ class Records(collections.abc.Collection):
     def count(self, make_query=None):
         # This works in both keyed and keyless schema.
         stmt = self._schema.query_count(make_query)
-        return ASSERT.not_none(_get_scalar(self._engine, stmt))
+        return ASSERT.not_none(self._conn.execute(stmt).scalar())
 
     def keys(self):
         yield from self.search_keys()
@@ -228,7 +226,7 @@ class Records(collections.abc.Collection):
     def get(self, keys, default=None):
         self._schema.assert_keyed()
         stmt = self._schema.query_values_by_keys(keys)
-        row = utils.one_or_none(self._engine, stmt)
+        row = utils.one_or_none(self._conn, stmt)
         if row is None:
             return default
         else:
@@ -237,17 +235,17 @@ class Records(collections.abc.Collection):
     def search_keys(self, make_query=None):
         self._schema.assert_keyed()
         stmt = self._schema.query_keys(make_query)
-        return _iter_rows(self._engine, stmt)
+        return _iter_rows(self._conn, stmt)
 
     def search_values(self, make_query=None):
         # This works in both keyed and keyless schema.
         stmt = self._schema.query_values(make_query)
-        return _iter_rows(self._engine, stmt)
+        return _iter_rows(self._conn, stmt)
 
     def search_items(self, make_query=None):
         self._schema.assert_keyed()
         stmt = self._schema.query_items(make_query)
-        with utils.executing(self._engine, stmt) as result:
+        with utils.executing(self._conn, stmt) as result:
             for row in result:
                 yield (
                     tuple(row[c] for c in self._schema.key_columns),
@@ -258,45 +256,31 @@ class Records(collections.abc.Collection):
         self._schema.assert_keyed()
         if hasattr(pairs, 'items'):
             pairs = pairs.items()
-        _execute(
-            self._engine,
+        self._conn.execute(
             self._schema.make_upsert_statement(),
             [self._schema.make_record(*pair) for pair in pairs],
         )
 
     def append(self, record):
         self._schema.assert_keyless()
-        _execute(
-            self._engine,
+        self._conn.execute(
             self._schema.make_insert_statement(),
             [self._schema.make_record((), record)],
         )
 
     def extend(self, records):
         self._schema.assert_keyless()
-        _execute(
-            self._engine,
+        self._conn.execute(
             self._schema.make_insert_statement(),
             [self._schema.make_record((), record) for record in records],
         )
 
     def delete(self, make_query=None):
         # This works in both keyed and keyless schema.
-        with self._engine.connect() as conn:
-            conn.execute(self._schema.make_delete_statement(make_query))
+        self._conn.execute(self._schema.make_delete_statement(make_query))
 
 
-def _execute(engine, statement, arg):
-    with engine.connect() as conn:
-        conn.execute(statement, arg).close()
-
-
-def _get_scalar(engine, select_stmt):
-    with utils.executing(engine, select_stmt) as result:
-        return result.scalar()
-
-
-def _iter_rows(engine, select_stmt):
-    with utils.executing(engine, select_stmt) as result:
+def _iter_rows(conn, select_stmt):
+    with utils.executing(conn, select_stmt) as result:
         for row in result:
             yield tuple(row)
