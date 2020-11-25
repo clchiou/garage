@@ -1,3 +1,4 @@
+import g1.asyncs.agents.parts
 import g1.messaging.parts.subscribers
 from g1.apps import parameters
 from g1.apps import utils
@@ -49,5 +50,7 @@ def setup_subscriber(module_labels, module_params):
     )
 
 
-def make_queue():
-    return queues.Queue(capacity=32)
+def make_queue(shutdown_queue: g1.asyncs.agents.parts.LABELS.shutdown_queue):
+    queue = queues.Queue(capacity=32)
+    shutdown_queue.put_nonblocking(queue.close)
+    return queue

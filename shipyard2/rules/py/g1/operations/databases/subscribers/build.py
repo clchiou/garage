@@ -10,6 +10,7 @@ shipyard2.rules.pythons.define_package(
             'parts',
             [
                 '//py/g1/apps:build',
+                '//py/g1/asyncs/agents:build/parts',
                 '//py/g1/asyncs/bases:build',
                 '//py/g1/bases:build',
                 '//py/g1/messaging:build/parts/pubsub',

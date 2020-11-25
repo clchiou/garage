@@ -12,6 +12,7 @@ setup(
     extras_require={
         'parts': [
             'g1.apps',
+            'g1.asyncs.agents[parts]',
             'g1.asyncs.bases',
             'g1.bases',
             'g1.messaging[parts.pubsub]',
