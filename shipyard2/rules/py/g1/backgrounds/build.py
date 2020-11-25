@@ -4,6 +4,17 @@ shipyard2.rules.pythons.define_package(
     deps=[],
     extras=[
         (
+            'consoles',
+            [
+                '//py/g1/apps:build/asyncs',
+                '//py/g1/asyncs/agents:build/parts',
+                '//py/g1/asyncs/bases:build',
+                '//py/g1/bases:build',
+                '//py/g1/networks/servers:build',
+                '//py/g1/threads:build',
+            ],
+        ),
+        (
             'executors',
             [
                 '//py/g1/threads:build/parts',
