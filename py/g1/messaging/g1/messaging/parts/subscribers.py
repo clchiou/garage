@@ -1,3 +1,5 @@
+import collections.abc
+
 import g1.asyncs.agents.parts
 from g1.apps import asyncs
 from g1.apps import parameters
@@ -36,11 +38,19 @@ def setup_subscriber(module_labels, module_params):
     )
 
 
-def make_subscriber_params(url=None, recv_timeout=None):
+def make_subscriber_params(
+    *,
+    urls=None,
+    validate_urls=bool,  # Merely check non-empty for now.
+    recv_timeout=None,
+):
     return parameters.Namespace(
         'configure subscriber',
-        url=parameters.make_parameter(
-            url, str, 'url that subscriber dials to'
+        urls=parameters.make_parameter(
+            urls,
+            collections.abc.Iterable,
+            'urls that subscriber dials to',
+            validate=validate_urls,
         ),
         recv_timeout=parameters.Parameter(
             recv_timeout,
@@ -62,6 +72,7 @@ def make_agent(
         subscriber.socket.recv_timeout = parts_utils.to_milliseconds_int(
             params.recv_timeout.get()
         )
-    subscriber.socket.dial(params.url.get())
+    for url in params.urls.get():
+        subscriber.socket.dial(url)
     agent_queue.spawn(subscriber.serve)
     shutdown_queue.put_nonblocking(subscriber.shutdown)
