@@ -45,14 +45,14 @@ class _BaseWireData(wiredata.WireData):
 
     def to_lower(self, message):
         ASSERT.predicate(message, wiredata.is_message)
-        builder = capnp.MessageBuilder()
-        self._get_converter(type(message)).to_message(message, builder)
-        return self._to_bytes(builder)
+        with capnp.MessageBuilder() as builder:
+            self._get_converter(type(message)).to_message(message, builder)
+            return self._to_bytes(builder)
 
     def to_upper(self, message_type, wire_message):
         ASSERT.predicate(message_type, wiredata.is_message_type)
-        reader = self._from_bytes(wire_message)
-        return self._get_converter(message_type).from_message(reader)
+        with self._from_bytes(wire_message) as reader:
+            return self._get_converter(message_type).from_message(reader)
 
 
 class CapnpWireData(_BaseWireData):

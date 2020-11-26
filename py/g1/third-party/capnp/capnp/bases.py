@@ -44,6 +44,12 @@ class BaseResource(Base):
         raw._reset()
         lifecycles.add_to((type(self), 'raw'), -1)
 
+    def __del__(self):
+        # In case user forgets to clean it up.
+        if self._raw is not None:
+            self._raw._reset()
+            lifecycles.add_to((type(self), 'raw'), -1)
+
 
 get_raw = operator.attrgetter('_raw')
 
