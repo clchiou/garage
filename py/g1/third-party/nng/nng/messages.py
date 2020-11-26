@@ -7,6 +7,7 @@ __all__ = [
 import ctypes
 
 from g1.bases import classes
+from g1.bases import lifecycles
 from g1.bases.assertions import ASSERT
 from g1.bases.ctypes import (
     PyBUF_WRITE,
@@ -32,6 +33,8 @@ class Message:
             if data:
                 ctypes.memmove(_nng.F.nng_msg_body(msg_p), data, len(data))
 
+            lifecycles.add_to((type(self), 'msg_p'), 1)
+
         else:
             # We are taking ownership of ``msg_p`` and should not take
             # any initial data.
@@ -40,6 +43,8 @@ class Message:
         self._msg_p = msg_p
         self.header = Header(self._get)
         self.body = Body(self._get)
+
+        lifecycles.monitor_object_aliveness(self)
 
     __repr__ = classes.make_repr('{self._msg_p}')
 
@@ -59,6 +64,7 @@ class Message:
         # You have to check whether ``__init__`` raises.
         if self._msg_p is not None:
             _nng.F.nng_msg_free(self._msg_p)
+            lifecycles.add_to((type(self), 'msg_p'), -1)
 
 
 class Chunk:

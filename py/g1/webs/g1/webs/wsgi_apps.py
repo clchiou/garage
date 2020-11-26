@@ -16,6 +16,7 @@ from g1.asyncs.bases import servers
 from g1.asyncs.bases import streams
 from g1.asyncs.bases import tasks
 from g1.bases import contexts
+from g1.bases import lifecycles
 from g1.bases.assertions import ASSERT
 
 from . import consts
@@ -69,6 +70,12 @@ class Request:
     # to isolate context changes made by the non-handler code.
     #
     context: contexts.Context
+
+    def __post_init__(self):
+        lifecycles.monitor_object_aliveness(self)
+        lifecycles.monitor_object_aliveness(
+            self.context, key=(type(self), 'context')
+        )
 
     def get_header(self, name, default=None):
         environ_name = 'HTTP_' + name.replace('-', '_').upper()
@@ -169,6 +176,11 @@ class _Response:
         self._status = consts.Statuses.OK
         self.headers = self.Headers(self._committed)
         self._content = streams.BytesStream()
+
+        lifecycles.monitor_object_aliveness(self)
+        lifecycles.monitor_object_aliveness(
+            self._content, key=(type(self), 'content')
+        )
 
     def is_committed(self):
         return self._committed.is_set()

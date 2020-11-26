@@ -25,6 +25,7 @@ from g1.asyncs.bases import streams
 from g1.asyncs.bases import tasks
 from g1.asyncs.bases import timers
 from g1.bases import classes
+from g1.bases import lifecycles
 from g1.bases.assertions import ASSERT
 from g1.bases.ctypes import (
     c_blob,
@@ -94,6 +95,8 @@ MAX_HEADER_LIST_SIZE = 16384
 
 SETTINGS_TIMEOUT = 5  # Unit: seconds.
 
+_nghttp2_session_p = ctypes.POINTER(ng.nghttp2_session)
+
 
 class HttpSession:
     """HTTP/2 session.
@@ -120,12 +123,15 @@ class HttpSession:
 
         # Own ``py_object`` object to prevent it from being freed.
         self._user_data = ctypes.py_object(self)
-        self._session = ctypes.POINTER(ng.nghttp2_session)()
+        self._session = _nghttp2_session_p()
         ng.F.nghttp2_session_server_new(
             ctypes.byref(self._session),
             CALLBACKS,
             ctypes.byref(self._user_data),
         )
+
+        lifecycles.monitor_object_aliveness(self)
+        lifecycles.monitor_object_aliveness(self._session)
 
     __repr__ = classes.make_repr(
         '{self._address} session={session} streams={streams}',
@@ -551,6 +557,14 @@ class HttpStream:
         self._response_headers_sent = False
         self._response_body = streams.BytesStream()
         self._response_body_deferred = False
+
+        lifecycles.monitor_object_aliveness(self)
+        lifecycles.monitor_object_aliveness(
+            self._request_body, key=(type(self), 'request_body')
+        )
+        lifecycles.monitor_object_aliveness(
+            self._response_body, key=(type(self), 'response_body')
+        )
 
     __repr__ = classes.make_repr(
         'session={self._session!r} stream={self._stream_id}'
