@@ -11,7 +11,7 @@ shipyard2.rules.pythons.define_package(
             [
                 '//py/g1/apps:build',
                 '//py/g1/asyncs/agents:build/parts',
-                '//py/g1/http/servers:build/parts',
+                '//py/g1/http/http1_servers:build/parts',
             ],
         ),
     ],
