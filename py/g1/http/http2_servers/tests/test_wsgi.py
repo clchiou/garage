@@ -3,8 +3,8 @@ import unittest.mock
 
 import ctypes
 
-from g1.http.servers import nghttp2 as ng
-from g1.http.servers import wsgi
+from g1.http.http2_servers import nghttp2 as ng
+from g1.http.http2_servers import wsgi
 
 
 class HttpSessionCallbacksTest(unittest.TestCase):

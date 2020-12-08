@@ -1,9 +1,9 @@
 from setuptools import setup
 
 setup(
-    name='g1.http.servers',
+    name='g1.http.http2_servers',
     packages=[
-        'g1.http.servers',
+        'g1.http.http2_servers',
     ],
     install_requires=[
         'g1.asyncs.bases',

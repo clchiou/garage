@@ -7,7 +7,7 @@ try:
 except ImportError:
     tests = None
 
-from g1.http.servers import nghttp2
+from g1.http.http2_servers import nghttp2
 
 
 @unittest.skipUnless(tests, 'g1.tests unavailable')
