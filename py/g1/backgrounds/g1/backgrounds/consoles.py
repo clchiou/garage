@@ -11,7 +11,6 @@ import contextlib
 import io
 import itertools
 import logging
-import re
 import socket
 import tempfile
 import threading
@@ -68,9 +67,6 @@ class SocketConsoleHandler:
         LOG.info('console session end')
 
 
-_LINE_SEP_PATTERN = re.compile(br'\r?\n')
-
-
 class SocketConsole(_code.InteractiveConsole):
     """Console over a socket."""
 
@@ -78,37 +74,50 @@ class SocketConsole(_code.InteractiveConsole):
         super().__init__(*args)
         self.__sock = sock
         self.__buffer = []
-        self.__parts = []
+        self.__lines = []
 
     def raw_input(self, prompt=''):
         self.write(prompt)
-        while not self.__buffer:
-            data = self.__sock.recv(512)
-            if not data:
-                self.__decode_parts()
-                self.__buffer.append(None)
-                break
-            while data:
-                match = _LINE_SEP_PATTERN.search(data)
-                if match:
-                    self.__parts.append(data[:match.start()])
-                    self.__decode_parts()
-                    data = data[match.end():]
-                else:
-                    self.__parts.append(data)
-                    break
-        line = self.__buffer.pop(0)
-        if line is None:
-            raise EOFError
+        line = self._read_line()
         # Log every line of console input since console can be a
         # security vulnerability.
         LOG.info('console input: %r', line)
         return line
 
-    def __decode_parts(self):
-        if self.__parts:
-            self.__buffer.append(b''.join(self.__parts).decode('utf-8'))
-            self.__parts.clear()
+    def _read_line(self):
+        while not self.__lines:
+            data = self.__sock.recv(512)
+            if not data:
+                if self.__buffer:
+                    self.__decode_buffer()
+                self.__lines.append(None)
+                break
+            while data:
+                i = data.find(b'\n')
+                if i < 0:
+                    self.__buffer.append(data)
+                    break
+                if i == len(data) - 1:
+                    self.__buffer.append(data)
+                    self.__decode_buffer()
+                    break
+                i += 1
+                self.__buffer.append(data[:i])
+                self.__decode_buffer()
+                data = data[i:]
+        if self.__lines[0] is None:
+            raise EOFError
+        return self.__lines.pop(0)
+
+    def __decode_buffer(self):
+        ASSERT.not_empty(self.__buffer)
+        data = b''.join(self.__buffer)
+        self.__buffer.clear()
+        if data.endswith(b'\r\n'):
+            data = data[:-2]
+        elif data.endswith(b'\n'):
+            data = data[:-1]
+        self.__lines.append(data.decode('utf-8'))
 
     def write(self, data):
         try:
