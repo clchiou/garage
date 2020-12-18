@@ -10,6 +10,7 @@ All timestamp helpers of this module will set timezone to UTC.
 """
 
 __all__ = [
+    'UNIX_EPOCH',
     'fromisoformat',
     'make_timestamp',
     'timestamp_date',
@@ -71,3 +72,6 @@ def utcnow():
     without this, ``timestamp()`` will return incorrect number.
     """
     return datetime.datetime.now(datetime.timezone.utc)
+
+
+UNIX_EPOCH = utcfromtimestamp(0)

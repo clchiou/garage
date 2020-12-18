@@ -7,6 +7,14 @@ from g1.bases import datetimes
 
 class DatetimesTest(unittest.TestCase):
 
+    def test_unix_epoch(self):
+        self.assertEqual(
+            datetimes.UNIX_EPOCH,
+            datetime.datetime(
+                1970, 1, 1, 0, 0, 0, 0, tzinfo=datetime.timezone.utc
+            ),
+        )
+
     def test_fromisoformat(self):
         self.assertEqual(
             datetimes.fromisoformat('2000-01-02T03:04:05'),
