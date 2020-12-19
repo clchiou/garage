@@ -1,7 +1,9 @@
 __all__ = [
     'add_if_not_exists_clause',
+    'exactly_one',
     'executing',
     'one_or_none',
+    'scalar',
 ]
 
 import contextlib
@@ -47,3 +49,11 @@ def one_or_none(connectable, statement):
         row = result.fetchone()
         ASSERT.none(result.fetchone())
         return row
+
+
+def exactly_one(connectable, statement):
+    return ASSERT.not_none(one_or_none(connectable, statement))
+
+
+def scalar(connectable, statement):
+    return exactly_one(connectable, statement)[0]
