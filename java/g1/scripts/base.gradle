@@ -35,6 +35,8 @@ ext {
     // include the major version in the dependency string.
     lucene8Version = '8.5.2'
 
+    zstdJniVersion = '1.4.8-1'
+
     junitVersion = '5.6.2'
     // Lucene test framework uses JUnit 4.
     junit4Version = '4.13'
