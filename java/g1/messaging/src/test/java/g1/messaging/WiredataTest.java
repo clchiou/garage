@@ -36,7 +36,9 @@ public class WiredataTest {
     }
 
     private void testWiredata(Wiredata wiredata) throws IOException {
-        MessageReader reader = wiredata.upper(wiredata.lower(TEST_BUILDER));
+        MessageReader reader = wiredata.toUpper(
+            wiredata.toLower(TEST_BUILDER)
+        );
         Calculator.CalculatorRequest.Reader request = reader.getRoot(
             Calculator.CalculatorRequest.factory
         );

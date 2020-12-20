@@ -16,14 +16,14 @@ public class Unpacked implements Wiredata {
     public static final Wiredata WIREDATA = new Unpacked();
 
     @Override
-    public MessageReader upper(
+    public MessageReader toUpper(
         byte[] buffer, int offset, int length
     ) throws IOException {
         return Serialize.read(ByteBuffer.wrap(buffer, offset, length));
     }
 
     @Override
-    public byte[] lower(MessageBuilder builder) throws IOException {
+    public byte[] toLower(MessageBuilder builder) throws IOException {
         int size = (int) Serialize.computeSerializedSizeInWords(builder);
         ByteArrayOutputStream stream = new ByteArrayOutputStream(
             // Reserve extra 16 bytes; just to be safe.

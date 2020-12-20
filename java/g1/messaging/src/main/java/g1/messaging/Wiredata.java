@@ -17,13 +17,13 @@ public interface Wiredata {
      */
     int BYTES_PER_WORD = 8;
 
-    MessageReader upper(
+    MessageReader toUpper(
         byte[] buffer, int offset, int length
     ) throws IOException;
 
-    default MessageReader upper(byte[] buffer) throws IOException {
-        return upper(buffer, 0, buffer.length);
+    default MessageReader toUpper(byte[] buffer) throws IOException {
+        return toUpper(buffer, 0, buffer.length);
     }
 
-    byte[] lower(MessageBuilder builder) throws IOException;
+    byte[] toLower(MessageBuilder builder) throws IOException;
 }

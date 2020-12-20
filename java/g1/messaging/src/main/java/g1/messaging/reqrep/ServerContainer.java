@@ -62,7 +62,7 @@ public class ServerContainer extends AbstractExecutionThreadService {
             }
             MessageReader request = null;
             try {
-                request = wiredata.upper(requestRaw);
+                request = wiredata.toUpper(requestRaw);
             } catch (Exception e) {
                 LOG.atWarn().setCause(e).log("invalid request");
                 continue;
@@ -71,7 +71,7 @@ public class ServerContainer extends AbstractExecutionThreadService {
             try {
                 MessageBuilder response = new MessageBuilder();
                 server.serve(request, response);
-                responseRaw = wiredata.lower(response);
+                responseRaw = wiredata.toLower(response);
             } catch (Exception e) {
                 LOG.atError()
                     .addArgument(request)

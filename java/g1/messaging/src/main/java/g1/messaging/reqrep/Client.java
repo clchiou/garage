@@ -70,8 +70,8 @@ public class Client implements AutoCloseable {
 
     public MessageReader transceive(MessageBuilder request) throws Exception {
         try (Context context = new Context(socket)) {
-            context.send(wiredata.lower(request));
-            return wiredata.upper(context.recv());
+            context.send(wiredata.toLower(request));
+            return wiredata.toUpper(context.recv());
         } catch (Error e) {
             if (e.getErrno() == Error.NNG_ETIMEDOUT) {
                 throw new Timeout();

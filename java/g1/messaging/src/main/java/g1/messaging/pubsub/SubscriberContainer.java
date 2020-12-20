@@ -64,7 +64,7 @@ public class SubscriberContainer extends AbstractExecutionThreadService {
             }
             MessageReader message = null;
             try {
-                message = wiredata.upper(messageRaw);
+                message = wiredata.toUpper(messageRaw);
             } catch (Exception e) {
                 LOG.atWarn().setCause(e).log("invalid message");
                 continue;

@@ -16,7 +16,7 @@ public class Packed implements Wiredata {
     public static final Wiredata WIREDATA = new Packed();
 
     @Override
-    public MessageReader upper(
+    public MessageReader toUpper(
         byte[] buffer, int offset, int length
     ) throws IOException {
         return SerializePacked.readFromUnbuffered(
@@ -27,7 +27,7 @@ public class Packed implements Wiredata {
     }
 
     @Override
-    public byte[] lower(MessageBuilder builder) throws IOException {
+    public byte[] toLower(MessageBuilder builder) throws IOException {
         ByteArrayOutputStream stream = new ByteArrayOutputStream();
         SerializePacked.writeToUnbuffered(
             Channels.newChannel(stream), builder
