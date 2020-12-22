@@ -55,6 +55,7 @@ class Message:
     def copy(self):
         msg_p = _nng.nng_msg_p()
         errors.check(_nng.F.nng_msg_dup(ctypes.byref(msg_p), self._get()))
+        lifecycles.add_to((type(self), 'msg_p'), 1)
         return type(self)(msg_p=msg_p)
 
     def _get(self):

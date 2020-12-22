@@ -1,5 +1,9 @@
 import unittest
 
+import gc
+
+from g1.bases import lifecycles
+
 try:
     from g1.devtools import tests
 except ImportError:
@@ -53,6 +57,31 @@ class MessageTest(unittest.TestCase):
         m2 = m1.copy()
         self.assert_chunk(m2.header, b'')
         self.assert_chunk(m2.body, b'hello world')
+
+    def test_del(self):
+
+        def get_num_alive():
+            return lifecycles.take_snapshot()[(messages.Message, 'msg_p')]
+
+        gc.collect()
+        n = get_num_alive()
+        self.assertGreaterEqual(n, 0)
+
+        m1 = messages.Message(b'hello')
+        self.assertEqual(get_num_alive(), n + 1)
+
+        m2 = messages.Message(b'world')
+        self.assertEqual(get_num_alive(), n + 2)
+
+        m3 = m1.copy()
+        self.assertEqual(get_num_alive(), n + 3)
+
+        m4 = messages.Message(msg_p=m1.disown())
+        self.assertEqual(get_num_alive(), n + 3)
+
+        del m1, m2, m3, m4
+        gc.collect()
+        self.assertEqual(get_num_alive(), n)
 
 
 if __name__ == '__main__':
