@@ -33,8 +33,6 @@ class Message:
             if data:
                 ctypes.memmove(_nng.F.nng_msg_body(msg_p), data, len(data))
 
-            lifecycles.add_to((type(self), 'msg_p'), 1)
-
         else:
             # We are taking ownership of ``msg_p`` and should not take
             # any initial data.
@@ -45,17 +43,27 @@ class Message:
         self.body = Body(self._get)
 
         lifecycles.monitor_object_aliveness(self)
+        # Our goal is to track all message allocation (by nng_msg_alloc,
+        # nng_recv_aio, etc.).  We could add a `add_to` call to all call
+        # sites, but it is quite easy to be forgotten, and somewhat
+        # breaks the encapsulation of Message.  So instead we call
+        # `add_to` here.  The downside of this is that now whenever you
+        # construct a Message object without allocating a new new msg_p,
+        # e.g., when using disown, you must also decrement the counter.
+        lifecycles.add_to((type(self), 'msg_p'), 1)
 
     __repr__ = classes.make_repr('{self._msg_p}')
 
     def disown(self):
         msg_p, self._msg_p = self._msg_p, None
+        # We have to decrement the counter in disown because we
+        # automatically increment it in __init__.
+        lifecycles.add_to((type(self), 'msg_p'), -1)
         return msg_p
 
     def copy(self):
         msg_p = _nng.nng_msg_p()
         errors.check(_nng.F.nng_msg_dup(ctypes.byref(msg_p), self._get()))
-        lifecycles.add_to((type(self), 'msg_p'), 1)
         return type(self)(msg_p=msg_p)
 
     def _get(self):

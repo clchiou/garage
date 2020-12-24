@@ -1,18 +1,39 @@
 import unittest
 
 import contextlib
+import gc
 import uuid
 
 from g1.asyncs import kernels
 from g1.asyncs.bases import tasks
+from g1.bases import lifecycles
 
 import nng
 from nng import asyncs
+from nng import messages
+
+
+def get_num_alive():
+    return lifecycles.take_snapshot()[(messages.Message, 'msg_p')]
+
+
+def checking_alive_msg_p(test_method):
+
+    def wrapper(self):
+        gc.collect()
+        n = get_num_alive()
+        self.assertGreaterEqual(n, 0)
+        test_method(self)
+        gc.collect()
+        self.assertEqual(get_num_alive(), n)
+
+    return wrapper
 
 
 class SocketTest(unittest.TestCase):
 
     @kernels.with_kernel
+    @checking_alive_msg_p
     def test_reqrep(self):
 
         def do_test(s0, s1):
@@ -48,6 +69,7 @@ class SocketTest(unittest.TestCase):
                 do_test(c0, c1)
 
     @kernels.with_kernel
+    @checking_alive_msg_p
     def test_reqrep_incorrect_sequence(self):
 
         def do_test(s0, s1):
@@ -74,6 +96,7 @@ class SocketTest(unittest.TestCase):
                 do_test(c0, c1)
 
     @kernels.with_kernel
+    @checking_alive_msg_p
     def test_dialer_start(self):
         with contextlib.ExitStack() as stack:
             url = 'inproc://%s' % uuid.uuid4()
@@ -97,6 +120,7 @@ class SocketTest(unittest.TestCase):
                 d.start()
 
     @kernels.with_kernel
+    @checking_alive_msg_p
     def test_message(self):
 
         def do_test(s0, s1):
@@ -129,6 +153,7 @@ class SocketTest(unittest.TestCase):
                 do_test(c0, c1)
 
     @kernels.with_kernel
+    @checking_alive_msg_p
     def test_message_error(self):
 
         def do_test(s0):

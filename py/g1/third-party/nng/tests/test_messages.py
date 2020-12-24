@@ -1,5 +1,6 @@
 import unittest
 
+import ctypes
 import gc
 
 from g1.bases import lifecycles
@@ -9,6 +10,8 @@ try:
 except ImportError:
     tests = None
 
+from nng import _nng
+from nng import errors
 from nng import messages
 
 
@@ -79,7 +82,12 @@ class MessageTest(unittest.TestCase):
         m4 = messages.Message(msg_p=m1.disown())
         self.assertEqual(get_num_alive(), n + 3)
 
-        del m1, m2, m3, m4
+        msg_p = _nng.nng_msg_p()
+        errors.check(_nng.F.nng_msg_alloc(ctypes.byref(msg_p), 16))
+        m5 = messages.Message(msg_p=msg_p)
+        self.assertEqual(get_num_alive(), n + 4)
+
+        del m1, m2, m3, m4, m5
         gc.collect()
         self.assertEqual(get_num_alive(), n)
 
