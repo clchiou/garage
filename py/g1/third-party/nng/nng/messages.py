@@ -54,6 +54,12 @@ class Message:
 
     __repr__ = classes.make_repr('{self._msg_p}')
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        self._reset()
+
     def disown(self):
         msg_p, self._msg_p = self._msg_p, None
         # We have to decrement the counter in disown because we
@@ -69,11 +75,16 @@ class Message:
     def _get(self):
         return ASSERT.not_none(self._msg_p)
 
-    def __del__(self):
+    def _reset(self):
         # You have to check whether ``__init__`` raises.
         if self._msg_p is not None:
             _nng.F.nng_msg_free(self._msg_p)
+            self._msg_p = None
             lifecycles.add_to((type(self), 'msg_p'), -1)
+
+    def __del__(self):
+        # In case you forget to use Message within a context.
+        self._reset()
 
 
 class Chunk:

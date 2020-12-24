@@ -90,11 +90,12 @@ class Socket(bases.SocketBase):
 class Context(bases.ContextBase):
 
     def send(self, data, *, blocking=True):
-        ASSERT.isinstance(data, bytes)
-        return self.sendmsg(messages.Message(data), blocking=blocking)
+        with messages.Message(ASSERT.isinstance(data, bytes)) as message:
+            return self.sendmsg(message, blocking=blocking)
 
     def recv(self, *, blocking=True):
-        return self.recvmsg(blocking=blocking).body.copy()
+        with self.recvmsg(blocking=blocking) as message:
+            return message.body.copy()
 
     def sendmsg(self, message, *, blocking=True):
         return Sender(message).run(self._handle, blocking)

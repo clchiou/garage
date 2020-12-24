@@ -35,11 +35,12 @@ class Socket(bases.SocketBase):
         )
 
     async def send(self, data):
-        ASSERT.isinstance(data, bytes)
-        return await self.sendmsg(messages.Message(data))
+        with messages.Message(ASSERT.isinstance(data, bytes)) as message:
+            return await self.sendmsg(message)
 
     async def recv(self):
-        return (await self.recvmsg()).body.copy()
+        with await self.recvmsg() as message:
+            return message.body.copy()
 
     async def sendmsg(self, message):
         return await AioSender(message).run(self._handle)
@@ -51,11 +52,12 @@ class Socket(bases.SocketBase):
 class Context(bases.ContextBase):
 
     async def send(self, data):
-        ASSERT.isinstance(data, bytes)
-        return await self.sendmsg(messages.Message(data))
+        with messages.Message(ASSERT.isinstance(data, bytes)) as message:
+            return await self.sendmsg(message)
 
     async def recv(self):
-        return (await self.recvmsg()).body.copy()
+        with await self.recvmsg() as message:
+            return message.body.copy()
 
     async def sendmsg(self, message):
         return await ContextSender(message).run(self._handle)
