@@ -8,6 +8,7 @@ import sys
 from g1.bases import argparses
 from g1.bases import oses
 from g1.bases.assertions import ASSERT
+from g1.containers import models as ctr_models
 from g1.texts import columns
 from g1.texts.columns import argparses as columns_argparses
 
@@ -186,6 +187,58 @@ def cmd_undefine(args):
     return 0
 
 
+# There is no "unassign" command at the moment because it seems
+# error-prone to un-assign a token from an active pod.
+@argparses.begin_parser(
+    'assign', **argparses.make_help_kwargs('assign a token to a pod')
+)
+@argparses.argument(
+    'token_name',
+    type=models.validate_token_name,
+    help='provide name of token',
+)
+@argparses.argument(
+    'pod_id',
+    type=ctr_models.validate_pod_id,
+    help='provide pod id',
+)
+@argparses.argument(
+    'name',
+    help='provide assignment name',
+)
+@argparses.argument(
+    '--value',
+    help='select token value (default: the next available one)',
+)
+@argparses.end
+def cmd_assign(args):
+    oses.assert_root_privilege()
+
+    with pod_ops_dirs.make_ops_dirs().listing_ops_dirs() as active_ops_dirs:
+        found = False
+        for ops_dir in active_ops_dirs:
+            for config in ops_dir.metadata.systemd_unit_configs:
+                if args.pod_id == config.pod_id:
+                    found = True
+                    break
+            if found:
+                break
+    if not found:
+        LOG.error('tokens assign: pod not found: %s', args.pod_id)
+        return 1
+
+    with tokens.make_tokens_database().writing() as active_tokens:
+        if not active_tokens.has_definition(args.token_name):
+            LOG.error('tokens assign: token not found: %s', args.token_name)
+            return 1
+        LOG.info('tokens assign: %s -> %s', args.token_name, args.pod_id)
+        active_tokens.assign(
+            args.token_name, args.pod_id, args.name, args.value
+        )
+
+    return 0
+
+
 @argparses.begin_parser(
     'tokens', **argparses.make_help_kwargs('manage tokens')
 )
@@ -194,6 +247,7 @@ def cmd_undefine(args):
 @argparses.include(cmd_list_assignments)
 @argparses.include(cmd_define)
 @argparses.include(cmd_undefine)
+@argparses.include(cmd_assign)
 @argparses.end
 @argparses.end
 def main(args):
@@ -205,5 +259,7 @@ def main(args):
         return cmd_define(args)
     elif args.command == 'undefine':
         return cmd_undefine(args)
+    elif args.command == 'assign':
+        return cmd_assign(args)
     else:
         return ASSERT.unreachable('unknown command: {}', args.command)
