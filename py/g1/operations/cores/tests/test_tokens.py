@@ -81,8 +81,11 @@ class TokensTest(unittest.TestCase):
     @staticmethod
     def make_assignments(*args):
         return [
-            tokens.Tokens.Assignment(pod_id=args[i], value=args[i + 1])
-            for i in range(0, len(args), 2)
+            tokens.Tokens.Assignment(
+                pod_id=args[i],
+                name='foo',
+                value=args[i + 1],
+            ) for i in range(0, len(args), 2)
         ]
 
     def test_dump_and_load(self):
@@ -136,10 +139,10 @@ class TokensTest(unittest.TestCase):
         self.assertEqual(t.assignments, {})
 
         with self.assertRaises(AssertionError):
-            t.assign('no_such_token', self.POD_ID_1)
+            t.assign('no_such_token', self.POD_ID_1, 'x1')
         self.assertEqual(t.assignments, {})
 
-        self.assertEqual(t.assign('x', self.POD_ID_1), '0')
+        self.assertEqual(t.assign('x', self.POD_ID_1, 'foo'), '0')
         t.check_invariants()
         self.assertEqual(
             t.assignments, {
@@ -148,7 +151,7 @@ class TokensTest(unittest.TestCase):
         )
 
         with self.assertRaises(AssertionError):
-            t.assign('x', self.POD_ID_2)
+            t.assign('x', self.POD_ID_2, 'foo')
         self.assertEqual(
             t.assignments, {
                 'x': self.make_assignments(self.POD_ID_1, '0'),
@@ -214,14 +217,16 @@ class TokensDatabaseTest(unittest.TestCase):
             pod_id = '00000000-0000-0000-0000-000000000001'
             with db.writing() as t:
                 t.add_definition('x', d)
-                t.assign('x', pod_id)
+                t.assign('x', pod_id, 'x1')
             self.assertEqual(
                 db.get(),
                 tokens.Tokens(
                     definitions={'x': d},
                     assignments={
                         'x': [
-                            tokens.Tokens.Assignment(pod_id=pod_id, value='c'),
+                            tokens.Tokens.Assignment(
+                                pod_id=pod_id, name='x1', value='c'
+                            ),
                         ],
                     },
                 ),
@@ -241,7 +246,7 @@ class TokensDatabaseTest(unittest.TestCase):
             try:
                 with db.writing() as t:
                     t.add_definition('x', d)
-                    t.assign('x', pod_id)
+                    t.assign('x', pod_id, 'x1')
                     raise RuntimeError
             except RuntimeError:
                 pass

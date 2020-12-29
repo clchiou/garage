@@ -97,8 +97,13 @@ class Tokens:
 
     @dataclasses.dataclass(frozen=True)
     class Assignment:
-        """Assignment of a token to a pod."""
+        """Assignment of a token to a pod.
+
+        NOTE: For now we do not guarantee uniqueness among assignment
+        names, even within assignments of the same pod.
+        """
         pod_id: str
+        name: str
         value: str
 
         def __post_init__(self):
@@ -114,11 +119,10 @@ class Tokens:
 
     def check_invariants(self):
         ASSERT.all(self.definitions, models.validate_token_name)
-        for name, assignments in self.assignments.items():
-            models.validate_token_name(name)
-            ASSERT.getitem(self.definitions, name).validate_assigned_values([
-                a.value for a in assignments
-            ])
+        for token_name, assignments in self.assignments.items():
+            models.validate_token_name(token_name)
+            ASSERT.getitem(self.definitions, token_name)\
+            .validate_assigned_values([a.value for a in assignments])
 
     @classmethod
     def load(cls, path):
@@ -127,46 +131,47 @@ class Tokens:
     def dump(self, path):
         jsons.dump_dataobject(self, path)
 
-    def has_definition(self, name):
-        return name in self.definitions
+    def has_definition(self, token_name):
+        return token_name in self.definitions
 
-    def add_definition(self, name, definition):
-        models.validate_token_name(name)
+    def add_definition(self, token_name, definition):
+        models.validate_token_name(token_name)
         ASSERT.isinstance(definition, self.Definition)
-        ASSERT.setitem(self.definitions, name, definition)
+        ASSERT.setitem(self.definitions, token_name, definition)
 
-    def update_definition(self, name, definition):
-        models.validate_token_name(name)
+    def update_definition(self, token_name, definition):
+        models.validate_token_name(token_name)
         ASSERT.isinstance(definition, self.Definition)
         # Validate the new definition before updating.
         definition.validate_assigned_values([
-            a.value for a in self.assignments[name]
+            a.value for a in self.assignments[token_name]
         ])
-        self.definitions[name] = definition
+        self.definitions[token_name] = definition
 
-    def remove_definition(self, name):
-        ASSERT.contains(self.definitions, name).pop(name)
-        self.assignments.pop(name, None)
+    def remove_definition(self, token_name):
+        ASSERT.contains(self.definitions, token_name).pop(token_name)
+        self.assignments.pop(token_name, None)
 
-    def iter_pod_ids(self, name):
+    def iter_pod_ids(self, token_name):
         """Iterate id of pods that have acquired this token group."""
-        for assignment in self.assignments.get(name, ()):
+        for assignment in self.assignments.get(token_name, ()):
             yield assignment.pod_id
 
-    def assign(self, name, pod_id, value=None):
+    def assign(self, token_name, pod_id, name, value=None):
         """Assign a token to a pod."""
-        ASSERT.predicate(name, self.has_definition)
+        ASSERT.predicate(token_name, self.has_definition)
         ctr_models.validate_pod_id(pod_id)
-        definition = self.definitions[name]
-        assignments = self.assignments.setdefault(name, [])
+        definition = self.definitions[token_name]
+        assignments = self.assignments.setdefault(token_name, [])
         assigned_values = [a.value for a in assignments]
         if value is None:
             value = definition.next_available(assigned_values)
         else:
             assigned_values.append(value)
             definition.validate_assigned_values(assigned_values)
-        assignments.append(self.Assignment(pod_id=pod_id, value=value))
-        LOG.info('tokens assign: %s %s %s', pod_id, name, value)
+        assignment = self.Assignment(pod_id=pod_id, name=name, value=value)
+        assignments.append(assignment)
+        LOG.info('tokens assign: %s %r', token_name, assignment)
         return value
 
     def unassign_all(self, pod_id):
@@ -180,23 +185,23 @@ class Tokens:
 
     def _remove(self, cmd, predicate):
         # Make a copy of dict keys because we are modifying it.
-        for name in tuple(self.assignments):
+        for token_name in tuple(self.assignments):
             to_keep = []
-            for assignment in self.assignments[name]:
+            for assignment in self.assignments[token_name]:
                 if predicate(assignment.pod_id):
                     LOG.info(
                         'tokens %s: %s %s %s',
                         cmd,
                         assignment.pod_id,
-                        name,
+                        token_name,
                         assignment.value,
                     )
                 else:
                     to_keep.append(assignment)
             if not to_keep:
-                self.assignments.pop(name)
+                self.assignments.pop(token_name)
             else:
-                self.assignments[name] = to_keep
+                self.assignments[token_name] = to_keep
 
 
 class TokensDatabase:
