@@ -7,6 +7,7 @@ same group; that is, token-to-pod is a many-to-one relationship.
 
 __all__ = [
     'init',
+    'load_active_pod_ids',
     'make_tokens_database',
 ]
 
@@ -235,12 +236,7 @@ class TokensDatabase:
             tokens.dump(self.path)
 
     def cleanup(self, pod_ops_dirs):
-        with pod_ops_dirs.listing_ops_dirs() as active_ops_dirs:
-            active_pod_ids = frozenset(
-                config.pod_id
-                for ops_dir in active_ops_dirs
-                for config in ops_dir.metadata.systemd_unit_configs
-            )
+        active_pod_ids = load_active_pod_ids(pod_ops_dirs)
         with self.writing() as tokens:
             tokens.cleanup(active_pod_ids)
 
@@ -256,3 +252,15 @@ def make_tokens_database():
 
 def _get_tokens_path():
     return bases.get_repo_path() / models.REPO_TOKENS_FILENAME
+
+
+def load_active_pod_ids(pod_ops_dirs):
+    """Return active pod ids as a set, including the host id."""
+    with pod_ops_dirs.listing_ops_dirs() as active_ops_dirs:
+        active_pod_ids = set(
+            config.pod_id
+            for ops_dir in active_ops_dirs
+            for config in ops_dir.metadata.systemd_unit_configs
+        )
+    active_pod_ids.add(ctr_models.read_host_pod_id())
+    return active_pod_ids

@@ -169,12 +169,7 @@ def cmd_define(args):
 @argparses.end
 def cmd_undefine(args):
     oses.assert_root_privilege()
-    with pod_ops_dirs.make_ops_dirs().listing_ops_dirs() as active_ops_dirs:
-        active_pod_ids = frozenset(
-            config.pod_id
-            for ops_dir in active_ops_dirs
-            for config in ops_dir.metadata.systemd_unit_configs
-        )
+    active_pod_ids = tokens.load_active_pod_ids(pod_ops_dirs.make_ops_dirs())
     with tokens.make_tokens_database().writing() as active_tokens:
         if not active_tokens.has_definition(args.token_name):
             LOG.info('skip: tokens undefine: %s', args.token_name)
@@ -213,29 +208,15 @@ def cmd_undefine(args):
 @argparses.end
 def cmd_assign(args):
     oses.assert_root_privilege()
-
-    with pod_ops_dirs.make_ops_dirs().listing_ops_dirs() as active_ops_dirs:
-        found = False
-        for ops_dir in active_ops_dirs:
-            for config in ops_dir.metadata.systemd_unit_configs:
-                if args.pod_id == config.pod_id:
-                    found = True
-                    break
-            if found:
-                break
-    if not found:
-        LOG.error('tokens assign: pod not found: %s', args.pod_id)
-        return 1
-
+    ASSERT.in_(
+        args.pod_id,
+        tokens.load_active_pod_ids(pod_ops_dirs.make_ops_dirs()),
+    )
     with tokens.make_tokens_database().writing() as active_tokens:
-        if not active_tokens.has_definition(args.token_name):
-            LOG.error('tokens assign: token not found: %s', args.token_name)
-            return 1
-        LOG.info('tokens assign: %s -> %s', args.token_name, args.pod_id)
+        ASSERT.predicate(args.token_name, active_tokens.has_definition)
         active_tokens.assign(
             args.token_name, args.pod_id, args.name, args.value
         )
-
     return 0
 
 
