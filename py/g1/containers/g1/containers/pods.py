@@ -249,7 +249,7 @@ def cmd_prepare(pod_id, config_path):
     # Make sure that it is safe to create a pod with this ID.
     ASSERT.not_equal(
         models.pod_id_to_machine_id(pod_id),
-        _read_host_machine_id(),
+        models.read_host_machine_id(),
     )
     # Check before really preparing the pod.
     if g1.files.lexists(_get_pod_dir_path(pod_id)):
@@ -905,10 +905,6 @@ def _umount(path):
 #
 # Host system.
 #
-
-
-def _read_host_machine_id():
-    return Path('/etc/machine-id').read_text().strip()
 
 
 def _is_running_from_system_service():

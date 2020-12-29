@@ -376,6 +376,17 @@ class PodsTest(
                 ):
                     models.validate_pod_id(test_data)
 
+    def test_id_converter(self):
+        self.assertEqual(
+            models.
+            pod_id_to_machine_id('01234567-89ab-cdef-0123-456789abcdef'),
+            '0123456789abcdef0123456789abcdef',
+        )
+        self.assertEqual(
+            models.machine_id_to_pod_id('0123456789abcdef0123456789abcdef'),
+            '01234567-89ab-cdef-0123-456789abcdef',
+        )
+
     def test_generate_id(self):
         id1 = models.generate_pod_id()
         id2 = models.generate_pod_id()

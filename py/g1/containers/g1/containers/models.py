@@ -17,7 +17,10 @@ __all__ = [
     'validate_image_tag',
     'validate_image_version',
     # Host system.
+    'machine_id_to_pod_id',
     'pod_id_to_machine_id',
+    'read_host_machine_id',
+    'read_host_pod_id',
 ]
 
 import dataclasses
@@ -191,12 +194,31 @@ def validate_xar_name(name):
 
 
 # SHA-256.
-_ID_PATTERN = re.compile(r'[0-9a-f]{64}')
+_IMAGE_ID_PATTERN = re.compile(r'[0-9a-f]{64}')
 
 
 def validate_image_id(image_id):
-    return ASSERT.predicate(image_id, _ID_PATTERN.fullmatch)
+    return ASSERT.predicate(image_id, _IMAGE_ID_PATTERN.fullmatch)
+
+
+def machine_id_to_pod_id(machine_id):
+    ASSERT.equal(len(machine_id), 32)
+    return '%s-%s-%s-%s-%s' % (
+        machine_id[0:8],
+        machine_id[8:12],
+        machine_id[12:16],
+        machine_id[16:20],
+        machine_id[20:32],
+    )
 
 
 def pod_id_to_machine_id(pod_id):
     return pod_id.replace('-', '')
+
+
+def read_host_machine_id():
+    return Path('/etc/machine-id').read_text().strip()
+
+
+def read_host_pod_id():
+    return machine_id_to_pod_id(read_host_machine_id())
