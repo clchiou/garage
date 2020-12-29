@@ -18,12 +18,12 @@ from . import tokens
 LOG = logging.getLogger(__name__)
 
 _DEFINITION_LIST_COLUMNS = frozenset((
-    'name',
+    'token-name',
     'range',
     'values',
 ))
 _DEFINITION_LIST_DEFAULT_COLUMNS = (
-    'name',
+    'token-name',
     'range',
     'values',
 )
@@ -48,33 +48,35 @@ def cmd_list_definitions(args):
         stringifiers=_DEFINITION_LIST_STRINGIFIERS,
     )
     tokens_database = tokens.make_tokens_database()
-    for name, definition in tokens_database.get().definitions.items():
+    for token_name, definition in tokens_database.get().definitions.items():
         if definition.kind == 'range':
             columnar.append({
-                'name': name,
+                'token-name': token_name,
                 'range': definition.args,
                 'values': (),
             })
         else:
             ASSERT.equal(definition.kind, 'values')
             columnar.append({
-                'name': name,
+                'token-name': token_name,
                 'range': (),
                 'values': definition.args,
             })
-    columnar.sort(lambda row: row['name'])
+    columnar.sort(lambda row: row['token-name'])
     columnar.output(sys.stdout)
     return 0
 
 
 _ASSIGNMENT_LIST_COLUMNS = frozenset((
-    'name',
+    'token-name',
     'pod-id',
+    'name',
     'value',
 ))
 _ASSIGNMENT_LIST_DEFAULT_COLUMNS = (
-    'name',
+    'token-name',
     'pod-id',
+    'name',
     'value',
 )
 _ASSIGNMENT_LIST_STRINGIFIERS = {}
@@ -95,14 +97,18 @@ def cmd_list_assignments(args):
         stringifiers=_ASSIGNMENT_LIST_STRINGIFIERS,
     )
     tokens_database = tokens.make_tokens_database()
-    for name, assignments in tokens_database.get().assignments.items():
+    for token_name, assignments in tokens_database.get().assignments.items():
         for assignment in assignments:
             columnar.append({
-                'name': name,
+                'token-name': token_name,
                 'pod-id': assignment.pod_id,
+                'name': assignment.name,
                 'value': assignment.value,
             })
-    columnar.sort(lambda row: (row['name'], row['value']))
+    columnar.sort(
+        lambda row:
+        (row['token-name'], row['pod-id'], row['name'], row['value'])
+    )
     columnar.output(sys.stdout)
     return 0
 
@@ -124,7 +130,7 @@ def cmd_list_assignments(args):
 )
 @argparses.end
 @argparses.argument(
-    'name',
+    'token_name',
     type=models.validate_token_name,
     help='provide name of token',
 )
@@ -143,10 +149,10 @@ def cmd_define(args):
         )
     tokens_database = tokens.make_tokens_database()
     with tokens_database.writing() as active_tokens:
-        if active_tokens.has_definition(args.name):
-            active_tokens.update_definition(args.name, definition)
+        if active_tokens.has_definition(args.token_name):
+            active_tokens.update_definition(args.token_name, definition)
         else:
-            active_tokens.add_definition(args.name, definition)
+            active_tokens.add_definition(args.token_name, definition)
     return 0
 
 
@@ -154,7 +160,7 @@ def cmd_define(args):
     'undefine', **argparses.make_help_kwargs('undefine a token')
 )
 @argparses.argument(
-    'name',
+    'token_name',
     type=models.validate_token_name,
     help='provide name of token',
 )
@@ -169,14 +175,14 @@ def cmd_undefine(args):
         )
     tokens_database = tokens.make_tokens_database()
     with tokens_database.writing() as active_tokens:
-        if not active_tokens.has_definition(args.name):
-            LOG.info('skip: tokens undefine: %s', args.name)
+        if not active_tokens.has_definition(args.token_name):
+            LOG.info('skip: tokens undefine: %s', args.token_name)
             return 0
-        LOG.info('tokens undefine: %s', args.name)
+        LOG.info('tokens undefine: %s', args.token_name)
         ASSERT.isdisjoint(
-            active_pod_ids, active_tokens.iter_pod_ids(args.name)
+            active_pod_ids, active_tokens.iter_pod_ids(args.token_name)
         )
-        active_tokens.remove_definition(args.name)
+        active_tokens.remove_definition(args.token_name)
     return 0
 
 
