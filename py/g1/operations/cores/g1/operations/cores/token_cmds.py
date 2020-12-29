@@ -48,8 +48,9 @@ def cmd_list_definitions(args):
         **columns_argparses.make_columnar_kwargs(args),
         stringifiers=_DEFINITION_LIST_STRINGIFIERS,
     )
-    tokens_database = tokens.make_tokens_database()
-    for token_name, definition in tokens_database.get().definitions.items():
+    for token_name, definition in (
+        tokens.make_tokens_database().get().definitions.items()
+    ):
         if definition.kind == 'range':
             columnar.append({
                 'token-name': token_name,
@@ -97,8 +98,9 @@ def cmd_list_assignments(args):
         **columns_argparses.make_columnar_kwargs(args),
         stringifiers=_ASSIGNMENT_LIST_STRINGIFIERS,
     )
-    tokens_database = tokens.make_tokens_database()
-    for token_name, assignments in tokens_database.get().assignments.items():
+    for token_name, assignments in (
+        tokens.make_tokens_database().get().assignments.items()
+    ):
         for assignment in assignments:
             columnar.append({
                 'token-name': token_name,
@@ -148,8 +150,7 @@ def cmd_define(args):
             kind='values',
             args=ASSERT.not_none(args.value),
         )
-    tokens_database = tokens.make_tokens_database()
-    with tokens_database.writing() as active_tokens:
+    with tokens.make_tokens_database().writing() as active_tokens:
         if active_tokens.has_definition(args.token_name):
             active_tokens.update_definition(args.token_name, definition)
         else:
@@ -174,8 +175,7 @@ def cmd_undefine(args):
             for ops_dir in active_ops_dirs
             for config in ops_dir.metadata.systemd_unit_configs
         )
-    tokens_database = tokens.make_tokens_database()
-    with tokens_database.writing() as active_tokens:
+    with tokens.make_tokens_database().writing() as active_tokens:
         if not active_tokens.has_definition(args.token_name):
             LOG.info('skip: tokens undefine: %s', args.token_name)
             return 0
