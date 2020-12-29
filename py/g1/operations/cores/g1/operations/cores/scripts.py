@@ -12,6 +12,8 @@ __all__ = [
     'ops_stop_pod',
     # Env commands.
     'ops_list_envs',
+    # Token commands.
+    'ops_list_assignments',
 ]
 
 import csv
@@ -111,3 +113,15 @@ def ops_list_envs():
             row[0]: row[1]
             for row in csv.reader(io.StringIO(proc.stdout.decode('utf-8')))
         }
+
+
+def ops_list_assignments():
+    with scripts.doing_capture_stdout():
+        proc = ops([
+            'tokens',
+            'list-assignments',
+            *('--format', 'csv'),
+            *('--header', 'true'),
+            *('--columns', 'token-name,pod-id,name,value'),
+        ])
+        return list(csv.DictReader(io.StringIO(proc.stdout.decode('utf-8'))))
