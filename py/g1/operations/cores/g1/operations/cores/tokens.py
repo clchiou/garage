@@ -175,21 +175,36 @@ class Tokens:
         LOG.info('tokens assign: %s %r', token_name, assignment)
         return value
 
+    def unassign(self, token_name, pod_id, name):
+        """Unassign a token from a pod.
+
+        NOTE: For now we do not guarantee uniqueness among assignment
+        names, and this method will unassign **all** matched assignment
+        names.
+        """
+        ASSERT.predicate(token_name, self.has_definition)
+        ctr_models.validate_pod_id(pod_id)
+        self._remove(
+            'unassign',
+            lambda t, a:
+            (t == token_name and a.pod_id == pod_id and a.name == name),
+        )
+
     def unassign_all(self, pod_id):
         """Unassign tokens from a pod."""
         ctr_models.validate_pod_id(pod_id)
-        self._remove('unassign', pod_id.__eq__)
+        self._remove('unassign_all', lambda _, a: a.pod_id == pod_id)
 
     def cleanup(self, active_pod_ids):
         """Unassign tokens from removed pods."""
-        self._remove('cleanup', lambda pod_id: pod_id not in active_pod_ids)
+        self._remove('cleanup', lambda _, a: a.pod_id not in active_pod_ids)
 
     def _remove(self, cmd, predicate):
         # Make a copy of dict keys because we are modifying it.
         for token_name in tuple(self.assignments):
             to_keep = []
             for assignment in self.assignments[token_name]:
-                if predicate(assignment.pod_id):
+                if predicate(token_name, assignment):
                     LOG.info(
                         'tokens %s: %s %s %s',
                         cmd,

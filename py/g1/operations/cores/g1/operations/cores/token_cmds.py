@@ -182,8 +182,6 @@ def cmd_undefine(args):
     return 0
 
 
-# There is no "unassign" command at the moment because it seems
-# error-prone to un-assign a token from an active pod.
 @argparses.begin_parser(
     'assign', **argparses.make_help_kwargs('assign a token to a pod')
 )
@@ -221,6 +219,37 @@ def cmd_assign(args):
 
 
 @argparses.begin_parser(
+    'unassign', **argparses.make_help_kwargs('unassign a token from a pod')
+)
+@argparses.argument(
+    'token_name',
+    type=models.validate_token_name,
+    help='provide name of token',
+)
+@argparses.argument(
+    'pod_id',
+    type=ctr_models.validate_pod_id,
+    help='provide pod id',
+)
+@argparses.argument(
+    'name',
+    help='provide assignment name',
+)
+@argparses.end
+def cmd_unassign(args):
+    oses.assert_root_privilege()
+    # You can only unassign a token from a removed pod (in this case, we
+    # treat the host as removed).
+    active_pod_ids = tokens.load_active_pod_ids(pod_ops_dirs.make_ops_dirs())
+    active_pod_ids.remove(ctr_models.read_host_pod_id())
+    ASSERT.not_in(args.pod_id, active_pod_ids)
+    with tokens.make_tokens_database().writing() as active_tokens:
+        ASSERT.predicate(args.token_name, active_tokens.has_definition)
+        active_tokens.unassign(args.token_name, args.pod_id, args.name)
+    return 0
+
+
+@argparses.begin_parser(
     'tokens', **argparses.make_help_kwargs('manage tokens')
 )
 @argparses.begin_subparsers_for_subcmds(dest='command')
@@ -229,6 +258,7 @@ def cmd_assign(args):
 @argparses.include(cmd_define)
 @argparses.include(cmd_undefine)
 @argparses.include(cmd_assign)
+@argparses.include(cmd_unassign)
 @argparses.end
 @argparses.end
 def main(args):
@@ -242,5 +272,7 @@ def main(args):
         return cmd_undefine(args)
     elif args.command == 'assign':
         return cmd_assign(args)
+    elif args.command == 'unassign':
+        return cmd_unassign(args)
     else:
         return ASSERT.unreachable('unknown command: {}', args.command)

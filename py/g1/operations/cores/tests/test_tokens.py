@@ -158,6 +158,21 @@ class TokensTest(unittest.TestCase):
             }
         )
 
+    def test_unassign(self):
+        t = tokens.Tokens(
+            definitions=self.DEFINITIONS,
+            assignments={
+                'x': self.make_assignments(self.POD_ID_1, '0'),
+                'y': self.make_assignments(self.POD_ID_1, 'p'),
+            },
+        )
+        t.unassign('x', self.POD_ID_1, 'foo')
+        t.check_invariants()
+        self.assertEqual(
+            t.assignments,
+            {'y': self.make_assignments(self.POD_ID_1, 'p')},
+        )
+
     def test_unassign_all(self):
         t = tokens.Tokens(
             definitions=self.DEFINITIONS,
