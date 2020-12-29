@@ -41,7 +41,7 @@ class TestCaseBase(unittest.TestCase):
         self.mock_response.status_code = status_code
         if 400 <= status_code < 600:
             self.mock_response.raise_for_status.side_effect = \
-                requests.RequestException
+                requests.RequestException(response=self.mock_response)
         self.mock_session.get.return_value = self.mock_response
 
 
@@ -86,7 +86,7 @@ class SessionTest(TestCaseBase):
             executor=self.executor,
             retry=policies.ExponentialBackoff(2, 0.001),
         )
-        self.set_mock_response(404)
+        self.set_mock_response(500)
         with self.assertRaises(requests.RequestException):
             kernels.run(session.send(self.REQUEST))
         self.mock_session.get.assert_has_calls([
@@ -97,6 +97,17 @@ class SessionTest(TestCaseBase):
             unittest.mock.call(self.URL),
             unittest.mock.call().raise_for_status(),
         ])
+
+    @kernels.with_kernel
+    def test_http_error_no_retry_4xx(self):
+        session = clients.Session(
+            executor=self.executor,
+            retry=policies.ExponentialBackoff(2, 0.001),
+        )
+        self.set_mock_response(404)
+        with self.assertRaises(requests.RequestException):
+            kernels.run(session.send(self.REQUEST))
+        self.mock_session.get.assert_called_once_with(self.URL)
 
     @kernels.with_kernel
     def test_cache_key(self):

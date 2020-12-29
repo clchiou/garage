@@ -89,6 +89,11 @@ class Sender:
                     raise
                 if getattr(exc, 'response', None):
                     status_code = exc.response.status_code
+                    # It does not seem to make sense to retry on 4xx
+                    # errors since our request was explicitly rejected
+                    # by the server.
+                    if 400 <= status_code < 500:
+                        raise
                 else:
                     status_code = None
                 LOG.warning(
