@@ -222,6 +222,9 @@ class Request:
     def headers(self):
         return self._kwargs.setdefault('headers', {})
 
+    def copy(self):
+        return Request(self.method, self.url, **self._kwargs)
+
 
 #
 # Monkey-patch ``requests.Response``.
