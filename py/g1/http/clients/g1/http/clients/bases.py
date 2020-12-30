@@ -87,7 +87,11 @@ class Sender:
                 backoff = self._retry(retry_count)
                 if backoff is None:
                     raise
-                if getattr(exc, 'response', None):
+                # NOTE: requests.Response defines __bool__ that returns
+                # to true when status code is less than 400.  This is
+                # certainly surprising sometimes.  Anyway, you have to
+                # explicitly check `is None` here.
+                if getattr(exc, 'response', None) is not None:
                     status_code = exc.response.status_code
                     # It does not seem to make sense to retry on 4xx
                     # errors since our request was explicitly rejected
