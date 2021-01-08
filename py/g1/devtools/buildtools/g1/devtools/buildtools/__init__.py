@@ -1,10 +1,15 @@
 __all__ = [
     'make_bdist_zipapp',
+    'make_copy_files',
     'read_package_config',
     'register_subcommands',
 ]
 
 import collections
+import distutils.core
+import distutils.errors
+import distutils.file_util
+import os.path
 import shlex
 import subprocess
 
@@ -17,6 +22,54 @@ def register_subcommands(command, *subcommands):
     command.sub_commands[0:0] = [(subcommand.__name__, None)
                                  for subcommand in subcommands]
     return subcommands
+
+
+def make_copy_files(*, filenames, src_dir=None, dst_dir=None):
+
+    class copy_files(distutils.core.Command):
+
+        FILENAMES = filenames
+        SRC_DIR = src_dir
+        DST_DIR = dst_dir
+
+        description = "copy files from one directory to another"
+
+        user_options = [
+            *(() if SRC_DIR else
+              (('src-dir=', None, "directory to copy files from"), )),
+            *(() if DST_DIR else
+              (('dst-dir=', None, "directory to copy files to"), )),
+        ]
+
+        def initialize_options(self):
+            self.src_dir = self.SRC_DIR
+            self.dst_dir = self.DST_DIR
+
+        def finalize_options(self):
+            if self.src_dir is None:
+                raise distutils.errors.DistutilsOptionError(
+                    '--src-dir is required'
+                )
+            if self.dst_dir is None:
+                raise distutils.errors.DistutilsOptionError(
+                    '--dst-dir is required'
+                )
+            for filename in self.FILENAMES:
+                src_path = os.path.join(self.src_dir, filename)
+                if not os.path.exists(src_path):
+                    raise distutils.errors.DistutilsOptionError(
+                        'source file does not exist: %s' % src_path
+                    )
+
+        def run(self):
+            for filename in self.FILENAMES:
+                distutils.file_util.copy_file(
+                    os.path.join(self.src_dir, filename),
+                    os.path.join(self.dst_dir, filename),
+                    preserve_mode=False,
+                )
+
+    return copy_files
 
 
 PackageConfig = collections.namedtuple(
