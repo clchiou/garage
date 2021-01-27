@@ -45,6 +45,7 @@ import foreman
  .depend('//third-party/depot_tools:build')
  .depend('//third-party/nghttp2:build')
  .depend('//third-party/nng:build')
+ .depend('//third-party/v8:build')
  # Third-party Python packages.
  .depend('//third-party/lxml:build')
  .depend('//third-party/mako:build')
