@@ -296,7 +296,9 @@ class HttpSession:
     async def _flush(self):
         response = self._response_buffer.getvalue()
         self._response_buffer = io.BytesIO()
-        await self._sock.send(response)
+        num_sent = 0
+        while num_sent < len(response):
+            num_sent += await self._sock.send(response[num_sent:])
 
 
 class _RequestBuffer:
