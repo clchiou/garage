@@ -185,11 +185,16 @@ def setup_console(module_labels, module_params):
 
 def make_console_params(
     *,
+    enable=False,
     socket_dir_path=None,
     socket_file_prefix='console-',
 ):
     return parameters.Namespace(
         'configure console server',
+        enable=parameters.make_parameter(
+            enable,
+            bool,
+        ),
         socket_dir_path=parameters.make_parameter(
             socket_dir_path,
             Path,
@@ -210,6 +215,8 @@ def make_console(
     shutdown_queue: g1.asyncs.agents.parts.LABELS.shutdown_queue,
     params,
 ):
+    if not params.enable.get():
+        return
     # Use mktemp because when binding to a unix domain socket, it is an
     # error when file exists.
     socket_path = tempfile.mktemp(
