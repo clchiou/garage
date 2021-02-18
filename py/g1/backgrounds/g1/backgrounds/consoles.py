@@ -121,7 +121,10 @@ class SocketConsole(_code.InteractiveConsole):
 
     def write(self, data):
         try:
-            self.__sock.send(data.encode('utf-8'))
+            data = data.encode('utf-8')
+            num_sent = 0
+            while num_sent < len(data):
+                num_sent += self.__sock.send(data[num_sent:])
         except BrokenPipeError:
             pass
 
