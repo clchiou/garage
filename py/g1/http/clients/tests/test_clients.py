@@ -42,6 +42,7 @@ class TestCaseBase(unittest.TestCase):
         if 400 <= status_code < 600:
             self.mock_response.raise_for_status.side_effect = \
                 requests.RequestException(response=self.mock_response)
+        self.mock_response.history = []
         self.mock_session.get.return_value = self.mock_response
 
 
@@ -55,10 +56,9 @@ class SessionTest(TestCaseBase):
     def test_success(self):
         session = clients.Session(executor=self.executor)
         self.set_mock_response(200)
-        self.assertIs(
-            kernels.run(session.send(self.REQUEST)),
-            self.mock_response,
-        )
+        response = kernels.run(session.send(self.REQUEST))
+        self.assertIsNot(response, self.mock_response)
+        self.assertIsInstance(response, bases.Response)
         self.mock_session.get.assert_called_once_with(self.URL)
 
     @kernels.with_kernel
@@ -91,11 +91,11 @@ class SessionTest(TestCaseBase):
             kernels.run(session.send(self.REQUEST))
         self.mock_session.get.assert_has_calls([
             unittest.mock.call(self.URL),
-            unittest.mock.call().raise_for_status(),
+            unittest.mock.call().close(),
             unittest.mock.call(self.URL),
-            unittest.mock.call().raise_for_status(),
+            unittest.mock.call().close(),
             unittest.mock.call(self.URL),
-            unittest.mock.call().raise_for_status(),
+            unittest.mock.call().close(),
         ])
 
     @kernels.with_kernel
@@ -113,10 +113,11 @@ class SessionTest(TestCaseBase):
     def test_cache_key(self):
         session = clients.Session(executor=self.executor)
         self.set_mock_response(200)
+        response = kernels.run(session.send(self.REQUEST, cache_key='x'))
         for _ in range(3):
             self.assertIs(
                 kernels.run(session.send(self.REQUEST, cache_key='x')),
-                self.mock_response,
+                response,
             )
         self.mock_session.get.assert_called_once_with(self.URL)
 
@@ -124,10 +125,11 @@ class SessionTest(TestCaseBase):
     def test_sticky_key(self):
         session = clients.Session(executor=self.executor)
         self.set_mock_response(200)
+        response = kernels.run(session.send(self.REQUEST, sticky_key='y'))
         for _ in range(3):
             self.assertIs(
                 kernels.run(session.send(self.REQUEST, sticky_key='y')),
-                self.mock_response,
+                response,
             )
         self.mock_session.get.assert_called_once_with(self.URL)
 
@@ -144,21 +146,18 @@ class SessionTest(TestCaseBase):
         session = clients.Session(executor=self.executor)
         self.set_mock_response(200)
         for _ in range(3):
-            self.assertIs(
-                kernels.run(
-                    session.send(
-                        self.REQUEST, cache_key='x', cache_revalidate=True
-                    )
-                ),
-                self.mock_response,
+            kernels.run(
+                session.send(
+                    self.REQUEST, cache_key='x', cache_revalidate=True
+                )
             )
         self.mock_session.get.assert_has_calls([
             unittest.mock.call(self.URL),
-            unittest.mock.call().raise_for_status(),
+            unittest.mock.call().close(),
             unittest.mock.call(self.URL),
-            unittest.mock.call().raise_for_status(),
+            unittest.mock.call().close(),
             unittest.mock.call(self.URL),
-            unittest.mock.call().raise_for_status(),
+            unittest.mock.call().close(),
         ])
 
 
@@ -175,10 +174,9 @@ class PrioritySessionTest(TestCaseBase):
         # TODO: How to test that requests are executed in order?
         session = clients.Session(executor=self.executor)
         self.set_mock_response(200)
-        self.assertIs(
-            kernels.run(session.send(self.REQUEST, priority=1)),
-            self.mock_response,
-        )
+        response = kernels.run(session.send(self.REQUEST, priority=1))
+        self.assertIsNot(response, self.mock_response)
+        self.assertIsInstance(response, bases.Response)
         self.mock_session.get.assert_called_once_with(self.URL)
 
 

@@ -1,11 +1,13 @@
 __all__ = [
     'BaseSession',
     'Request',
+    'Response',
     'Sender',
 ]
 
 import functools
 import itertools
+import json
 import logging
 
 import lxml.etree
@@ -175,23 +177,16 @@ class BaseSession:
         priority = kwargs.pop('priority', None)
         if priority is None:
             future = self._executor.submit(
-                self._send_blocking, request, kwargs
+                self.send_blocking, request, **kwargs
             )
         else:
             LOG.debug(
                 'send: priority=%r, %r, kwargs=%r', priority, request, kwargs
             )
             future = self._executor.submit_with_priority(
-                priority, self._send_blocking, request, kwargs
+                priority, self.send_blocking, request, **kwargs
             )
         return await adapters.FutureAdapter(future).get_result()
-
-    def _send_blocking(self, request, kwargs):
-        response = self.send_blocking(request, **kwargs)
-        # Force consuming contents in an executor thread (since you
-        # should not do this in an asynchronous task).
-        response.content  # pylint: disable=pointless-statement
-        return response
 
     def send_blocking(self, request, **kwargs):
         """Send a request in a blocking manner.
@@ -199,15 +194,29 @@ class BaseSession:
         This does not implement rate limit nor retry.
         """
         LOG.debug('send: %r, kwargs=%r', request, kwargs)
+
         # ``requests.Session.get`` and friends do a little more than
         # ``requests.Session.request``; so let's use the former.
         method = getattr(self._session, request.method.lower())
+
         # ``kwargs`` may overwrite ``request._kwargs``.
         final_kwargs = request._kwargs.copy()
         final_kwargs.update(kwargs)
-        response = method(request.url, **final_kwargs)
+
+        source = method(request.url, **final_kwargs)
+        try:
+            response = Response(source)
+        finally:
+            _close_response_recursively(source)
+
         response.raise_for_status()
         return response
+
+
+def _close_response_recursively(response):
+    response.close()
+    for r in response.history:
+        _close_response_recursively(r)
 
 
 class Request:
@@ -230,48 +239,112 @@ class Request:
         return Request(self.method, self.url, **self._kwargs)
 
 
-#
-# Monkey-patch ``requests.Response``.
-#
+class Response:
+    """HTTP response.
+
+    This class provides an interface that is  mostly compatible with
+    ``requests`` Response class.
+
+    We do this because it is suspected that when a ``requests`` Response
+    object is not explicitly closed (as doc says it should not have to),
+    it could somehow cause Python interpreter not returning heap space
+    to the kernel.  Although we are unable to reproduce this issue, we
+    think it might be worthwhile to try this "fix" anyway.
+    """
+
+    def __init__(self, source):
+        """Make a "copy" from a ``requests`` Response object.
+
+        Note that this consumes the content of the ``source`` object,
+        which forces ``source`` to read the whole response body from the
+        server (and so we do not need to do this in the Sender class).
+        """
+        # Force reading.
+        self.content = source.content
+
+        self.status_code = source.status_code
+        self.headers = source.headers
+        self.url = source.url
+        self.history = list(map(Response, source.history))
+        self.encoding = source.encoding
+        self.reason = source.reason
+        self.cookies = source.cookies
+        self.elapsed = source.elapsed
+        # We do not copy source.request for now.
+
+    __repr__ = classes.make_repr(
+        'status_code={self.status_code} url={self.url}',
+    )
+
+    def raise_for_status(self):
+        if not 400 <= self.status_code < 600:
+            return
+        if isinstance(self.reason, bytes):
+            # Try utf-8 first because some servers choose to localize
+            # their reason strings.  If the string is not utf-8, fall
+            # back to iso-8859-1.
+            try:
+                reason = self.reason.decode('utf-8')
+            except UnicodeDecodeError:
+                reason = self.reason.decode('iso-8859-1')
+        else:
+            reason = self.reason
+        raise requests.HTTPError(
+            '%s %s error: %s %s' % (
+                self.status_code,
+                'client' if 400 <= self.status_code < 500 else 'server',
+                reason,
+                self.url,
+            ),
+            response=self,
+        )
+
+    @classes.memorizing_property
+    def text(self):
+        # NOTE: Unlike ``requests``, we do NOT fall back to
+        # auto-detected encoding.
+        return self.content.decode(ASSERT.not_none(self.encoding))
+
+    def json(self, **kwargs):
+        """Parse response as a JSON document."""
+        return json.loads(self.content, **kwargs)
+
+    #
+    # Interface that ``requests.Response`` does not provide.
+    #
+
+    def html(self, encoding=None, errors=None):
+        """Parse response as an HTML document.
+
+        Caller may pass ``encoding`` and ``errors`` to instructing us
+        how to decode response content.  This is useful because lxml's
+        default is to **silently** skip the rest of the document when
+        there is any encoding error in the middle.
+
+        lxml's strict-but-silent policy is counterproductive because web
+        is full of malformed documents, and it should either be lenient
+        about the error, or raise it to the caller, not a mix of both as
+        it is right now.
+        """
+        if encoding and errors:
+            string = self.content.decode(encoding=encoding, errors=errors)
+            parser = _get_html_parser(None)
+        else:
+            ASSERT.none(errors)
+            string = self.content
+            parser = _get_html_parser(
+                encoding or ASSERT.not_none(self.encoding)
+            )
+        return lxml.etree.fromstring(string, parser)
+
+    def xml(self):
+        """Parse response as an XML document."""
+        return lxml.etree.fromstring(self.content, _XML_PARSER)
 
 
 @functools.lru_cache(maxsize=8)
-def get_html_parser(encoding):
+def _get_html_parser(encoding):
     return lxml.etree.HTMLParser(encoding=encoding)
 
 
-def html(self, encoding=None, errors=None):
-    #
-    # The caller intends to handle character encoding error in a way
-    # that is different from lxml's (lxml refuses to parse the rest of
-    # the document if there is any encoding error in the middle, but it
-    # does not report the error either).
-    #
-    # lxml's strict-but-silent policy is counterproductive because web
-    # is full of malformed documents, and it should either be lenient
-    # about the error, or raise it to the caller, not a mix of both as
-    # it is right now.
-    #
-    if encoding and errors:
-        # So, let's decode the byte string ourselves and do not rely
-        # on lxml on that.
-        contents = self.content.decode(encoding=encoding, errors=errors)
-        parser = get_html_parser(None)
-        return lxml.etree.fromstring(contents, parser)
-    ASSERT.none(errors)
-    parser = get_html_parser(encoding or self.encoding)
-    return lxml.etree.fromstring(self.content, parser)
-
-
-XML_PARSER = lxml.etree.XMLParser()
-
-
-def xml(self):
-    return lxml.etree.fromstring(self.content, XML_PARSER)
-
-
-# Just to make sure we do not accidentally override them.
-ASSERT.false(hasattr(requests.Response, 'html'))
-ASSERT.false(hasattr(requests.Response, 'xml'))
-requests.Response.html = html
-requests.Response.xml = xml
+_XML_PARSER = lxml.etree.XMLParser()
