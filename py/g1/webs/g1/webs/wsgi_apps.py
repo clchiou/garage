@@ -325,8 +325,10 @@ class Application:
                 '%s %s%s%s -> %d %s %s ; reason: %s', \
                 *log_args, exc.location, exc
             )
+        elif 400 <= exc.status < 500:
+            LOG.info('%s %s%s%s -> %d %s ; reason: %s', *log_args, exc)
         else:
-            LOG.warning('%s %s%s%s -> %d %s ; reason: %s', *log_args, exc)
+            LOG.warning('%s %s%s%s -> %d %s', *log_args, exc_info=exc)
         response.status = exc.status
         response.headers.update(exc.headers)
         if exc.content:
