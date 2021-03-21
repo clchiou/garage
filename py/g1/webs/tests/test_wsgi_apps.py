@@ -230,6 +230,20 @@ class ApplicationTest(unittest.TestCase):
         )
 
     @kernels.with_kernel
+    def test_abort(self):
+
+        async def handler(request, response):
+            del request, response
+            raise BaseException
+
+        kernels.run(self.run_handler(handler), timeout=0.01)
+        # This is called before the crash.
+        self.start_application_mock.assert_called_once_with(
+            '503 Service Unavailable',
+            [('Retry-After', '60')],
+        )
+
+    @kernels.with_kernel
     def test_linger_on(self):
 
         quit_handler = locks.Event()

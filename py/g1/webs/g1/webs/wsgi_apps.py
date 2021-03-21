@@ -291,8 +291,12 @@ class Application:
     async def _run_handler(self, request, response):
         try:
             await self._handler(request, Response(response))
-        except BaseException as exc:
+        except Exception as exc:
             self._on_handler_error(request, response, exc)
+        except BaseException:
+            # Most like a task cancellation, not really an error.
+            self._on_handler_abort(response)
+            raise
         finally:
             response.close()
 
@@ -333,6 +337,16 @@ class Application:
         response.headers.update(exc.headers)
         if exc.content:
             response.write_nonblocking(exc.content)
+
+    @staticmethod
+    def _on_handler_abort(response):
+        if response.is_committed():
+            # We cannot change the status since it was committed; there
+            # is nothing we can do to notify the client.
+            return
+        response.reset()
+        response.status = consts.Statuses.SERVICE_UNAVAILABLE
+        response.headers[consts.HEADER_RETRY_AFTER] = '60'
 
     @staticmethod
     async def _iter_content(response):
