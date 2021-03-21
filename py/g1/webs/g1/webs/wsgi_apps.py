@@ -331,6 +331,8 @@ class Application:
             )
         elif 400 <= exc.status < 500:
             LOG.info('%s %s%s%s -> %d %s ; reason: %s', *log_args, exc)
+        elif exc.status == 503:
+            LOG.warning('%s %s%s%s -> %d %s ; reason: %s', *log_args, exc)
         else:
             LOG.warning('%s %s%s%s -> %d %s', *log_args, exc_info=exc)
         response.status = exc.status
