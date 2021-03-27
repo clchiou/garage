@@ -8,19 +8,17 @@ from g1.asyncs.bases import streams
 from g1.http.http1_servers import wsgi
 
 
-class HttpSessionTest(unittest.TestCase):
+class RequestParserTest(unittest.TestCase):
 
     def setUp(self):
         super().setUp()
-        self.mock_sock = unittest.mock.Mock(spec_set=['send', 'recv'])
-        self.mock_sock.send = unittest.mock.AsyncMock()
+        self.mock_sock = unittest.mock.Mock(spec_set=['recv'])
         self.mock_sock.recv = unittest.mock.AsyncMock()
-        self.mock_app = unittest.mock.Mock()
-        self.session = wsgi.HttpSession(self.mock_sock, self.mock_app, {})
+        self.request_parser = wsgi._RequestParser(self.mock_sock)
 
-    def parse_request(self):
+    def next_request(self):
         environ = {}
-        more = kernels.run(self.session._parse_request(environ))
+        more = kernels.run(self.request_parser.next_request(environ))
         return (
             more,
             environ,
@@ -29,14 +27,14 @@ class HttpSessionTest(unittest.TestCase):
 
     def parse_request_line(self, line):
         environ = {}
-        self.session._parse_request_line(line, environ)
+        self.request_parser._parse_request_line(line, environ)
         return environ
 
     def parse_request_header(self, line):
-        return self.session._parse_request_header(line)
+        return self.request_parser._parse_request_header(line)
 
     @kernels.with_kernel
-    def test_parse_request_one_byte_per_chunk(self):
+    def test_next_request_one_byte_per_chunk(self):
         data = (
             b'GET /foo/bar?x=y HTTP/1.1\r\n'
             b'Host: localhost\r\n'
@@ -51,7 +49,7 @@ class HttpSessionTest(unittest.TestCase):
             [data[i:i + 1] for i in range(len(data))] + [b'']
         )
         self.assertEqual(
-            self.parse_request(),
+            self.next_request(),
             (
                 True,
                 {
@@ -67,9 +65,9 @@ class HttpSessionTest(unittest.TestCase):
         )
 
     @kernels.with_kernel
-    def test_parse_request_eof(self):
+    def test_next_request_eof(self):
         self.mock_sock.recv.return_value = b''
-        self.assertEqual(self.parse_request(), (False, {}, None))
+        self.assertEqual(self.next_request(), (False, {}, None))
 
     def test_parse_request_line(self):
         self.assertEqual(
@@ -89,12 +87,12 @@ class HttpSessionTest(unittest.TestCase):
             },
         )
         with self.assertRaisesRegex(
-            wsgi._HttpError,
+            wsgi._RequestParserError,
             r'invalid request line: ',
         ):
             self.parse_request_line('POST HTTP/1.1\r\n')
         with self.assertRaisesRegex(
-            wsgi._HttpError,
+            wsgi._RequestParserError,
             r'invalid request line: ',
         ):
             self.parse_request_line('POST /path HTTP/1.1')
@@ -117,12 +115,12 @@ class HttpSessionTest(unittest.TestCase):
             (None, None),
         )
         with self.assertRaisesRegex(
-            wsgi._HttpError,
+            wsgi._RequestParserError,
             r'invalid request header: ',
         ):
             self.parse_request_header('foo\r\n')
         with self.assertRaisesRegex(
-            wsgi._HttpError,
+            wsgi._RequestParserError,
             r'invalid request header: ',
         ):
             self.parse_request_header('foo: bar')
@@ -229,7 +227,7 @@ class RequestBufferTest(unittest.TestCase):
         self.mock_sock.recv.side_effect = [data, b'']
         self.assert_buffer([], False)
         with self.assertRaisesRegex(
-            wsgi._HttpError,
+            wsgi._RequestParserError,
             r'request line length exceeds 15',
         ):
             self.readline_decoded(15)

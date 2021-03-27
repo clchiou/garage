@@ -18,17 +18,7 @@ from g1.bases.assertions import ASSERT
 LOG = logging.getLogger(__name__)
 
 
-# Should we expose this class?
-class _HttpError(Exception):
-
-    def __init__(self, status, message):
-        super().__init__(message)
-        self.status = status
-
-
 class HttpSession:
-
-    _MAX_NUM_HEADERS = 128
 
     # TODO: Make these configurable.
     _KEEP_ALIVE_IDLE_TIMEOUT = 8
@@ -36,14 +26,6 @@ class HttpSession:
     # this number if the WSGI application explicitly set Keep-Alive in
     # response headers.
     _MAX_NUM_REQUESTS_PER_SESSION = 1024
-
-    _REQUEST_LINE_PATTERN = re.compile(
-        r'\s*([^\s]+)\s+([^\s]+)\s+([^\s]+)\s*\r?\n',
-        re.IGNORECASE,
-    )
-
-    _HEADER_PATTERN = re.compile(r'\s*([^\s]+)\s*:\s*(.*[^\s])\s*\r?\n')
-    _HEADER_NAME_PATTERN = re.compile(r'[a-zA-Z0-9_-]+')
 
     _ENCODED_REASONS = {
         status: status.phrase.encode('iso-8859-1')
@@ -54,7 +36,7 @@ class HttpSession:
         self._sock = sock
         self._application = application
         self._base_environ = base_environ
-        self._request_buffer = _RequestBuffer(self._sock)
+        self._request_parser = _RequestParser(self._sock)
         self._response_buffer = io.BytesIO()
         self._send_keep_alive = True
 
@@ -89,9 +71,9 @@ class HttpSession:
 
         try:
             with timers.timeout_after(self._KEEP_ALIVE_IDLE_TIMEOUT):
-                if not await self._parse_request(environ):
+                if not await self._request_parser.next_request(environ):
                     return False
-        except _HttpError as exc:
+        except _RequestParserError as exc:
             LOG.debug('invalid request: %s %s', exc.status, exc)
             self._send_error(exc.status)
             return False
@@ -139,89 +121,6 @@ class HttpSession:
         finally:
             if hasattr(application, 'close'):
                 await application.close()
-
-    async def _parse_request(self, environ):
-        line = await self._request_buffer.readline_decoded()
-        if not line:
-            return False
-        self._parse_request_line(line, environ)
-
-        headers = collections.defaultdict(list)
-        while True:
-            line = await self._request_buffer.readline_decoded()
-            if line in ('', '\n', '\r\n'):
-                break
-            if len(headers) == self._MAX_NUM_HEADERS:
-                raise _HttpError(
-                    http.HTTPStatus.REQUEST_HEADER_FIELDS_TOO_LARGE,
-                    'number of request headers exceeds %d' %
-                    self._MAX_NUM_HEADERS,
-                )
-            name, value = self._parse_request_header(line)
-            if name is not None:
-                headers[name].append(value)
-        for name, values in headers.items():
-            environ[name] = ','.join(values)
-
-        content_length = environ.get('CONTENT_LENGTH')
-        if content_length is not None:
-            try:
-                content_length = int(content_length, base=10)
-            except ValueError:
-                raise _HttpError(
-                    http.HTTPStatus.BAD_REQUEST,
-                    'invalid request Content-Length: %r' % content_length,
-                ) from None
-
-        request_body = streams.BytesStream()
-        if content_length is not None:
-            # TODO: Set the limit to 64K for now, but we should rewrite
-            # this to NOT load the entire request body into the memory.
-            if content_length > 65536:
-                raise _HttpError(
-                    http.HTTPStatus.BAD_REQUEST,
-                    'Content-Length exceeds limit: %d' % content_length,
-                )
-            await self._request_buffer.read_into(request_body, content_length)
-        request_body.close()
-        environ['wsgi.input'] = request_body
-
-        return True
-
-    def _parse_request_line(self, line, environ):
-        match = self._REQUEST_LINE_PATTERN.fullmatch(line)
-        if not match:
-            raise _HttpError(
-                http.HTTPStatus.BAD_REQUEST,
-                'invalid request line: %r' % line,
-            )
-        method, path, http_version = match.groups()
-        if http_version.upper() != 'HTTP/1.1':
-            LOG.debug('request is not HTTP/1.1 but %s', http_version)
-        environ['REQUEST_METHOD'] = method.upper()
-        i = path.find('?')
-        if i < 0:
-            environ['PATH_INFO'] = path
-            environ['QUERY_STRING'] = ''
-        else:
-            environ['PATH_INFO'] = path[:i]
-            environ['QUERY_STRING'] = path[i + 1:]
-
-    def _parse_request_header(self, line):
-        match = self._HEADER_PATTERN.fullmatch(line)
-        if not match:
-            raise _HttpError(
-                http.HTTPStatus.BAD_REQUEST,
-                'invalid request header: %r' % line,
-            )
-        name, value = match.groups()
-        if not self._HEADER_NAME_PATTERN.fullmatch(name):
-            LOG.debug('ignore malformed request header: %r', line)
-            return None, None
-        name = name.upper().replace('-', '_')
-        if name not in ('CONTENT_TYPE', 'CONTENT_LENGTH'):
-            name = 'HTTP_' + name
-        return name, value
 
     def _send_response(self, response, environ):
         self._write_status(response.status)
@@ -301,6 +200,118 @@ class HttpSession:
             num_sent += await self._sock.send(response[num_sent:])
 
 
+class _RequestParserError(Exception):
+    """Raised by _RequestParser."""
+
+    def __init__(self, status, message):
+        super().__init__(message)
+        self.status = status
+
+
+class _RequestParser:
+
+    def __init__(self, sock):
+        self._request_buffer = _RequestBuffer(sock)
+
+    _MAX_NUM_HEADERS = 128
+
+    async def next_request(self, environ):
+        """Parse request and update the given ``environ`` **in-place**.
+
+        It returns false if no request from the client socket.
+        """
+
+        line = await self._request_buffer.readline_decoded()
+        if not line:
+            return False
+        self._parse_request_line(line, environ)
+
+        headers = collections.defaultdict(list)
+        while True:
+            line = await self._request_buffer.readline_decoded()
+            if line in ('', '\n', '\r\n'):
+                break
+            if len(headers) == self._MAX_NUM_HEADERS:
+                raise _RequestParserError(
+                    http.HTTPStatus.REQUEST_HEADER_FIELDS_TOO_LARGE,
+                    'number of request headers exceeds %d' %
+                    self._MAX_NUM_HEADERS,
+                )
+            name, value = self._parse_request_header(line)
+            if name is not None:
+                headers[name].append(value)
+        for name, values in headers.items():
+            environ[name] = ','.join(values)
+
+        content_length = environ.get('CONTENT_LENGTH')
+        if content_length is not None:
+            try:
+                content_length = int(content_length, base=10)
+            except ValueError:
+                raise _RequestParserError(
+                    http.HTTPStatus.BAD_REQUEST,
+                    'invalid request Content-Length: %r' % content_length,
+                ) from None
+
+        request_body = streams.BytesStream()
+        if content_length is not None:
+            # TODO: Set the limit to 64K for now, but we should rewrite
+            # this to NOT load the entire request body into the memory.
+            if content_length > 65536:
+                raise _RequestParserError(
+                    http.HTTPStatus.BAD_REQUEST,
+                    'Content-Length exceeds limit: %d' % content_length,
+                )
+            await self._request_buffer.read_into(request_body, content_length)
+        request_body.close()
+        environ['wsgi.input'] = request_body
+
+        return True
+
+    _REQUEST_LINE_PATTERN = re.compile(
+        r'\s*([^\s]+)\s+([^\s]+)\s+([^\s]+)\s*\r?\n',
+        re.IGNORECASE,
+    )
+
+    def _parse_request_line(self, line, environ):
+        match = self._REQUEST_LINE_PATTERN.fullmatch(line)
+        if not match:
+            raise _RequestParserError(
+                http.HTTPStatus.BAD_REQUEST,
+                'invalid request line: %r' % line,
+            )
+        method, path, http_version = match.groups()
+        if http_version.upper() != 'HTTP/1.1':
+            LOG.debug('request is not HTTP/1.1 but %s', http_version)
+        environ['REQUEST_METHOD'] = method.upper()
+        i = path.find('?')
+        if i < 0:
+            environ['PATH_INFO'] = path
+            environ['QUERY_STRING'] = ''
+        else:
+            environ['PATH_INFO'] = path[:i]
+            environ['QUERY_STRING'] = path[i + 1:]
+
+    _HEADER_PATTERN = re.compile(r'\s*([^\s]+)\s*:\s*(.*[^\s])\s*\r?\n')
+    _HEADER_NAME_PATTERN = re.compile(r'[a-zA-Z0-9_-]+')
+
+    def _parse_request_header(self, line):
+        match = self._HEADER_PATTERN.fullmatch(line)
+        if not match:
+            raise _RequestParserError(
+                http.HTTPStatus.BAD_REQUEST,
+                'invalid request header: %r' % line,
+            )
+        name, value = match.groups()
+        if not self._HEADER_NAME_PATTERN.fullmatch(name):
+            LOG.debug('ignore malformed request header: %r', line)
+            return None, None
+        name = name.upper().replace('-', '_')
+        if name not in ('CONTENT_TYPE', 'CONTENT_LENGTH'):
+            name = 'HTTP_' + name
+        return name, value
+
+
 class _RequestBuffer:
 
     def __init__(self, sock):
@@ -314,7 +325,7 @@ class _RequestBuffer:
         try:
             return line.decode('iso-8859-1')
         except UnicodeDecodeError:
-            raise _HttpError(
+            raise _RequestParserError(
                 http.HTTPStatus.BAD_REQUEST,
                 'incorrectly encoded request line: %r' % line,
             )
@@ -341,7 +352,7 @@ class _RequestBuffer:
                 ASSERT.in_(len(self._buffer), (0, 1))
                 return line
         if self._size > limit:
-            raise _HttpError(
+            raise _RequestParserError(
                 http.HTTPStatus.REQUEST_URI_TOO_LONG,
                 'request line length exceeds %d' % limit,
             )
