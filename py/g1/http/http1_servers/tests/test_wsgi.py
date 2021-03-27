@@ -280,50 +280,50 @@ class RequestBufferTest(unittest.TestCase):
         self.assertEqual(len(self.mock_sock.recv.mock_calls), 2)
 
 
-class ResponseTest(unittest.TestCase):
+class ApplicationContextTest(unittest.TestCase):
 
-    def test_response(self):
-        response = wsgi._Response()
-        self.assertIsNone(response.status)
-        self.assertEqual(response.headers, [])
-        self.assertEqual(response.get_body(), b'')
+    def test_app_ctx(self):
+        app_ctx = wsgi._ApplicationContext()
+        self.assertIsNone(app_ctx.status)
+        self.assertEqual(app_ctx.headers, [])
+        self.assertEqual(app_ctx.get_body(), b'')
 
         self.assertEqual(
-            response.start_response(
+            app_ctx.start_response(
                 '200 OK',
                 [('Content-Type', 'text/plain')],
             ),
-            response.write,
+            app_ctx.write,
         )
-        self.assertIs(response.status, http.HTTPStatus.OK)
-        self.assertEqual(response.headers, [(b'Content-Type', b'text/plain')])
-        self.assertEqual(response.get_body(), b'')
+        self.assertIs(app_ctx.status, http.HTTPStatus.OK)
+        self.assertEqual(app_ctx.headers, [(b'Content-Type', b'text/plain')])
+        self.assertEqual(app_ctx.get_body(), b'')
 
-        response.write(b'hello world')
-        self.assertEqual(response.get_body(), b'hello world')
+        app_ctx.write(b'hello world')
+        self.assertEqual(app_ctx.get_body(), b'hello world')
 
         self.assertEqual(
-            response.start_response(
+            app_ctx.start_response(
                 '302 Found',
                 [('XYZ', 'ABC')],
             ),
-            response.write,
+            app_ctx.write,
         )
-        self.assertIs(response.status, http.HTTPStatus.FOUND)
-        self.assertEqual(response.headers, [(b'XYZ', b'ABC')])
-        self.assertEqual(response.get_body(), b'hello world')
+        self.assertIs(app_ctx.status, http.HTTPStatus.FOUND)
+        self.assertEqual(app_ctx.headers, [(b'XYZ', b'ABC')])
+        self.assertEqual(app_ctx.get_body(), b'hello world')
 
         self.assertEqual(
-            response.start_response(
+            app_ctx.start_response(
                 '404 Not Found',
                 [('Foo-Bar', 'spam egg')],
                 exc_info=True,
             ),
-            response.write,
+            app_ctx.write,
         )
-        self.assertIs(response.status, http.HTTPStatus.NOT_FOUND)
-        self.assertEqual(response.headers, [(b'Foo-Bar', b'spam egg')])
-        self.assertEqual(response.get_body(), b'')
+        self.assertIs(app_ctx.status, http.HTTPStatus.NOT_FOUND)
+        self.assertEqual(app_ctx.headers, [(b'Foo-Bar', b'spam egg')])
+        self.assertEqual(app_ctx.get_body(), b'')
 
 
 if __name__ == '__main__':

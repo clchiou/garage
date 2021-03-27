@@ -95,40 +95,40 @@ class HttpSession:
             self._end_headers()
             return self._send_keep_alive
 
-        response = _Response()
+        app_ctx = _ApplicationContext()
         try:
-            await self._run_application(environ, response)
+            await self._run_application(environ, app_ctx)
         except Exception:
             LOG.exception('wsgi application error: %r', exc)
             self._send_error(http.HTTPStatus.INTERNAL_SERVER_ERROR)
             return False
-        if response.status is None:
+        if app_ctx.status is None:
             LOG.error('wsgi application did not set status code')
             self._send_error(http.HTTPStatus.INTERNAL_SERVER_ERROR)
             return False
 
-        return self._send_response(response, environ)
+        return self._send_response(app_ctx, environ)
 
-    async def _run_application(self, environ, response):
-        application = await self._application(environ, response.start_response)
+    async def _run_application(self, environ, app_ctx):
+        application = await self._application(environ, app_ctx.start_response)
         try:
             if hasattr(application, '__aiter__'):
                 async for data in application:
-                    response.write(data)
+                    app_ctx.write(data)
             else:
                 for data in application:
-                    response.write(data)
+                    app_ctx.write(data)
         finally:
             if hasattr(application, 'close'):
                 await application.close()
 
-    def _send_response(self, response, environ):
-        self._write_status(response.status)
+    def _send_response(self, app_ctx, environ):
+        self._write_status(app_ctx.status)
 
         has_connection = False
         keep_alive_sent = False
         content_length = None
-        for key, value in response.headers:
+        for key, value in app_ctx.headers:
             if key.lower() == b'connection':
                 has_connection = True
                 keep_alive_sent = b'keep-alive' in value.lower()
@@ -146,7 +146,7 @@ class HttpSession:
         # Response body is omitted for cases described in:
         # * RFC7230: 3.3. 1xx, 204 No Content, 304 Not Modified.
         # * RFC7231: 6.3.6. 205 Reset Content.
-        omit_body = 100 <= response.status < 200 or response.status in (
+        omit_body = 100 <= app_ctx.status < 200 or app_ctx.status in (
             http.HTTPStatus.NO_CONTENT,
             http.HTTPStatus.RESET_CONTENT,
             http.HTTPStatus.NOT_MODIFIED,
@@ -154,7 +154,7 @@ class HttpSession:
         if omit_body:
             body = None
         else:
-            body = response.get_body()
+            body = app_ctx.get_body()
             size = b'%d' % len(body)
             if content_length is None:
                 self._write_header(b'Content-Length', size)
@@ -410,7 +410,7 @@ class _RequestBuffer:
             stream.write_nonblocking(data)
 
 
-class _Response:
+class _ApplicationContext:
 
     def __init__(self):
         self.status = None
