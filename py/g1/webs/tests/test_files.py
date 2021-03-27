@@ -1,4 +1,5 @@
 import unittest
+import unittest.mock
 
 from pathlib import Path
 
@@ -63,15 +64,19 @@ class HandlerTest(unittest.TestCase):
         self.assertEqual(self.request.context.asdict(), context)
 
     def assert_response(self, status, headers, content):
+
+        async def read():
+            pieces = []
+            while True:
+                data = await self.response.read()
+                if not data:
+                    break
+                pieces.append(data)
+            return b''.join(pieces)
+
         self.assertIs(self.response.status, status)
         self.assertEqual(self.response.headers, headers)
-        contents = []
-        while True:
-            data = self.response._content.read_nonblocking()
-            if not data:
-                break
-            contents.append(data)
-        self.assertEqual(b''.join(contents), content)
+        self.assertEqual(kernels.run(read(), timeout=0.01), content)
 
     def set_request(self, method, path_str):
         self.request = wsgi_apps.Request(
@@ -83,11 +88,12 @@ class HandlerTest(unittest.TestCase):
         )
 
     def run_handler(self):
-        self.response = wsgi_apps._Response(None)
+        self.response = wsgi_apps._Response(unittest.mock.Mock())
         kernels.run(
             self.handler(self.request, wsgi_apps.Response(self.response)),
             timeout=0.01,
         )
+        self.response.close()
 
     @kernels.with_kernel
     def test_all(self):

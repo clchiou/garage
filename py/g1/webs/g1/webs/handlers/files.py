@@ -143,6 +143,7 @@ class DirHandler:
 
     async def get(self, request, response):
         content = self._prepare(request, response)
+        response.commit()
         await response.write(content)
 
     __call__ = get
@@ -169,6 +170,7 @@ class BufferHandler:
 
     async def get(self, request, response):
         await self.head(request, response)
+        response.commit()
         await response.write(self._content)
 
     __call__ = get

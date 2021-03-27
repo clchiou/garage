@@ -27,17 +27,6 @@ class ResponseTest(unittest.TestCase):
         self.start_application_mock = unittest.mock.Mock()
         self.response = wsgi_apps._Response(self.start_application_mock)
 
-    def assert_headers(self, headers):
-        self.assertEqual(self.response.headers, headers)
-        self.assertEqual(sorted(self.response.headers), sorted(headers))
-        self.assertEqual(bool(self.response.headers), bool(headers))
-        self.assertEqual(len(self.response.headers), len(headers))
-        for key in headers:
-            with self.subTest(key):
-                self.assertIn(key, self.response.headers)
-                self.assertEqual(self.response.headers[key], headers[key])
-        self.assertNotIn('no-such-key', self.response.headers)
-
     def test_status(self):
         self.assertIs(self.response.status, consts.Statuses.OK)
 
@@ -47,65 +36,116 @@ class ResponseTest(unittest.TestCase):
         self.response.commit()
         self.assertIs(self.response.status, consts.Statuses.BAD_REQUEST)
 
-        with self.assertRaisesRegex(AssertionError, r'expect false-value'):
+        with self.assertRaisesRegex(AssertionError, r'expect true-value'):
+            self.response.status = 404
+        self.assertIs(self.response.status, consts.Statuses.BAD_REQUEST)
+
+        self.response.close()
+        self.assertIs(self.response.status, consts.Statuses.BAD_REQUEST)
+
+        with self.assertRaisesRegex(AssertionError, r'expect true-value'):
             self.response.status = 404
         self.assertIs(self.response.status, consts.Statuses.BAD_REQUEST)
 
     def test_headers(self):
-        self.assert_headers({})
+
+        def assert_headers(headers):
+            self.assertEqual(self.response.headers, headers)
+            # Test methods of _Response.Headers class.
+            self.assertEqual(sorted(self.response.headers), sorted(headers))
+            self.assertEqual(bool(self.response.headers), bool(headers))
+            self.assertEqual(len(self.response.headers), len(headers))
+            for key in headers:
+                with self.subTest(key):
+                    self.assertIn(key, self.response.headers)
+                    self.assertEqual(self.response.headers[key], headers[key])
+            self.assertNotIn('no-such-key', self.response.headers)
+
+        assert_headers({})
 
         self.response.headers['p'] = 'q'
         self.response.headers['r'] = 's'
-        self.assert_headers({'p': 'q', 'r': 's'})
+        assert_headers({'p': 'q', 'r': 's'})
 
         del self.response.headers['r']
-        self.assert_headers({'p': 'q'})
+        assert_headers({'p': 'q'})
 
         self.response.commit()
-        self.assert_headers({'p': 'q'})
+        assert_headers({'p': 'q'})
 
-        with self.assertRaisesRegex(AssertionError, r'expect false-value'):
+        with self.assertRaisesRegex(AssertionError, r'expect true-value'):
             self.response.headers['x'] = 'y'
-        with self.assertRaisesRegex(AssertionError, r'expect false-value'):
+        with self.assertRaisesRegex(AssertionError, r'expect true-value'):
             del self.response.headers['x']
-        self.assert_headers({'p': 'q'})
+        assert_headers({'p': 'q'})
 
+        self.response.close()
+        assert_headers({'p': 'q'})
+
+        with self.assertRaisesRegex(AssertionError, r'expect true-value'):
+            self.response.headers['x'] = 'y'
+        with self.assertRaisesRegex(AssertionError, r'expect true-value'):
+            del self.response.headers['x']
+        assert_headers({'p': 'q'})
+
+    @kernels.with_kernel
     def test_reset(self):
         self.response.status = 400
         self.response.headers['p'] = 'q'
-        self.response.write_nonblocking(b'hello world')
+        kernels.run(self.response.write(b'hello world'))
         self.response.reset()
         self.assertIs(self.response.status, consts.Statuses.OK)
-        self.assert_headers({})
-        self.assertIsNone(self.response._content.read_nonblocking())
+        self.assertEqual(self.response.headers, {})
+        self.assertIsNone(self.response._precommit.read_nonblocking())
 
         self.response.commit()
-        with self.assertRaisesRegex(AssertionError, r'expect false-value'):
+        with self.assertRaisesRegex(AssertionError, r'expect true-value'):
+            self.response.reset()
+
+        self.response.close()
+        with self.assertRaisesRegex(AssertionError, r'expect true-value'):
             self.response.reset()
 
     @kernels.with_kernel
-    def test_commit(self):
-        self.assertFalse(self.response.is_committed())
+    def test_state_transition(self):
+
+        def is_committed():
+            return (
+                self.response._precommit is None
+                and not self.response._body.is_closed()
+            )
+
+        def is_closed():
+            return self.response._body.is_closed()
+
+        self.assertTrue(self.response.is_uncommitted())
+        self.assertFalse(is_committed())
+        self.assertFalse(is_closed())
+
         self.start_application_mock.assert_not_called()
-        wait_task = tasks.spawn(self.response.wait_committed)
+
+        # Write to pre-commit buffer.
+        kernels.run(self.response.write(b'hello world'))
+
+        read_task = tasks.spawn(self.response.read)
         with self.assertRaises(kernels.KernelTimeout):
             kernels.run(timeout=0.01)
+        self.assertFalse(read_task.is_completed())
 
-        with self.assertRaisesRegex(AssertionError, r'expect true-value'):
-            kernels.run(self.response.read, timeout=0.01)
-        with self.assertRaisesRegex(AssertionError, r'expect true-value'):
+        with self.assertRaisesRegex(AssertionError, r'expect false-value'):
             self.response.set_error_after_commit(None)
 
         self.response.commit()
-        self.assertTrue(self.response.is_committed())
-        self.start_application_mock.assert_called_once_with('200 OK', [])
-        kernels.run(timeout=0.01)
-        self.assertTrue(wait_task.is_completed())
-        self.assertIsNone(wait_task.get_result_nonblocking())
 
-        self.response.write_nonblocking(b'hello world')
+        self.assertFalse(self.response.is_uncommitted())
+        self.assertTrue(is_committed())
+        self.assertFalse(is_closed())
+        self.start_application_mock.assert_called_once_with('200 OK', [])
+
+        kernels.run(timeout=0.01)
+        self.assertTrue(read_task.is_completed())
         self.assertEqual(
-            kernels.run(self.response.read, timeout=0.01),
+            read_task.get_result_nonblocking(),
             b'hello world',
         )
 
@@ -113,6 +153,20 @@ class ResponseTest(unittest.TestCase):
         self.start_application_mock.reset_mock()
         self.response.commit()
         self.start_application_mock.assert_not_called()
+
+        kernels.run(self.response.write(b'foo bar'))
+        self.assertEqual(
+            kernels.run(self.response.read, timeout=0.01),
+            b'foo bar',
+        )
+
+        self.response.close()
+        self.assertFalse(self.response.is_uncommitted())
+        self.assertFalse(is_committed())
+        self.assertTrue(is_closed())
+
+        with self.assertRaisesRegex(ValueError, r'response is closed'):
+            kernels.run(self.response.write(b'spam egg'))
 
 
 class ApplicationTest(unittest.TestCase):

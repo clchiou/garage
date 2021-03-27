@@ -11,7 +11,7 @@ import logging
 import typing
 import urllib.parse
 
-from g1.asyncs.bases import locks
+from g1.asyncs.bases import queues
 from g1.asyncs.bases import servers
 from g1.asyncs.bases import streams
 from g1.asyncs.bases import tasks
@@ -128,25 +128,40 @@ class Response:
     def headers(self):
         return self._private.headers
 
-    async def write(self, data):
-        return await self._private.write(data)
-
-    def write_nonblocking(self, data):
-        return self._private.write_nonblocking(data)
-
     def commit(self):
         return self._private.commit()
+
+    async def write(self, data):
+        return await self._private.write(data)
 
     def close(self):
         return self._private.close()
 
 
 class _Response:
+    """Response object.
+
+    A response is in one of three states:
+
+    * UNCOMMITTED:
+        A response starts in this state, and transitions to COMMITTED if
+        `commit` is called, and to CLOSED if `close` is called.  Users
+        may set status code and headers and write to the response body
+        when response is in this state.
+
+    * COMMITTED:
+        A response transitions to CLOSED if `close` is called.  In this
+        state, users may only write to the response body, may read
+        response data.
+
+    * CLOSED:
+        A response is read-only in this state.
+    """
 
     class Headers(collections.abc.MutableMapping):
 
-        def __init__(self, committed):
-            self._committed = committed
+        def __init__(self, is_uncommitted):
+            self._is_uncommitted = is_uncommitted
             self._headers = {}
 
         def __len__(self):
@@ -159,31 +174,52 @@ class _Response:
             return self._headers[header]
 
         def __setitem__(self, header, value):
-            ASSERT.false(self._committed.is_set())
+            ASSERT.true(self._is_uncommitted())
             ASSERT.isinstance(header, str)
             ASSERT.isinstance(value, str)
             self._headers[header] = value
 
         def __delitem__(self, header):
-            ASSERT.false(self._committed.is_set())
+            ASSERT.true(self._is_uncommitted())
             del self._headers[header]
 
+    @classmethod
+    def _make_precommit(cls):
+        precommit = streams.BytesStream()
+        lifecycles.monitor_object_aliveness(precommit, key=(cls, 'precommit'))
+        return precommit
+
     def __init__(self, start_response):
-        self._committed = locks.Event()
-        self._closed = False
-        self._error_after_commit = None
         self._start_response = start_response
+        self._error_after_commit = None
+
         self._status = consts.Statuses.OK
-        self.headers = self.Headers(self._committed)
-        self._content = streams.BytesStream()
+        self.headers = self.Headers(self.is_uncommitted)
+
+        self._precommit = self._make_precommit()
+        # Set capacity to 1 to prevent excessive buffering.
+        self._body = queues.Queue(capacity=1)
 
         lifecycles.monitor_object_aliveness(self)
-        lifecycles.monitor_object_aliveness(
-            self._content, key=(type(self), 'content')
-        )
 
-    def is_committed(self):
-        return self._committed.is_set()
+    def is_uncommitted(self):
+        return self._precommit is not None and not self._body.is_closed()
+
+    def reset(self):
+        """Reset response status, headers, and content."""
+        ASSERT.true(self.is_uncommitted())
+
+        self._status = consts.Statuses.OK
+
+        # Do NOT call `self.headers.clear`, but replace it with a new
+        # headers object instead because application code might still
+        # keep a reference to the old headers object, and clearing it
+        # could cause confusing results.
+        self.headers = self.Headers(self.is_uncommitted)
+
+        # It is safe to replace `_precommit` on uncommitted response.
+        self._precommit.close()
+        self._precommit = self._make_precommit()
 
     def commit(self):
         """Commit the response.
@@ -191,52 +227,38 @@ class _Response:
         Once the response is committed, you cannot change its status or
         headers, but the response is not done yet, and you may continue
         writing its content until it is closed.
-
-        Calling commit and close separately is an advanced technique.
-        However I do not know which use case need such technique yet.
         """
-        if self.is_committed():
+        if not self.is_uncommitted():
             return
+
         self._start_response(
             '%d %s' % (self._status.value, self._status.phrase),
             list(self.headers.items()),
         )
-        self._committed.set()
 
-    async def wait_committed(self):
-        await self._committed.wait()
+        # Non-closed BytesStream returns None when it is empty.
+        data = self._precommit.read_nonblocking()
+        if data is not None:
+            self._body.put_nonblocking(data)
+
+        self._precommit.close()
+        self._precommit = None
 
     def set_error_after_commit(self, exc):
         """Set exception raised after commit but before close.
 
         A handler should never fail after it commits the response, but
-        if it does fail anyway, you should record such mortal sin with
-        this method.
+        if it does fail anyway, it should be recorded with this method.
+
+        This also closes the response and drops all remaining body data.
         """
-        ASSERT.true(self.is_committed() and not self._closed)
+        ASSERT.false(self.is_uncommitted())
         self._error_after_commit = exc
-        # We cannot replace ``_content`` here because the response was
-        # committed, but this does not matter since we are dealing with
-        # error-after-commit.
-        self._content.close()
+        self._body.close(graceful=False)
 
     def raise_for_error_after_commit(self):
         if self._error_after_commit:
             raise self._error_after_commit
-
-    def reset(self):
-        """Reset response status, headers, and content."""
-        ASSERT.false(self.is_committed())
-        self._status = consts.Statuses.OK
-        # Don't do `self.headers.clear`, but replace it with a new
-        # headers object instead because application code might still
-        # keep a reference to the old headers object, and clearing it
-        # would cause confusing results.
-        self.headers = self.Headers(self._committed)
-        # It's safe to replace ``_content`` because the response is not
-        # committed yet, and ``read`` can only be called after commit.
-        self._content.close()
-        self._content = streams.BytesStream()
 
     @property
     def status(self):
@@ -244,27 +266,30 @@ class _Response:
 
     @status.setter
     def status(self, status):
-        ASSERT.false(self.is_committed())
+        ASSERT.true(self.is_uncommitted())
         self._status = _cast_status(status)
 
     async def read(self):
-        ASSERT.true(self.is_committed())
-        return await self._content.read()
+        try:
+            return await self._body.get()
+        except queues.Closed:
+            return b''
 
     async def write(self, data):
-        return await self._content.write(data)
-
-    def write_nonblocking(self, data):
-        return self._content.write_nonblocking(data)
+        if not data:
+            return 0
+        if self.is_uncommitted():
+            return self._precommit.write_nonblocking(data)
+        try:
+            await self._body.put(data)
+        except queues.Closed:
+            # Re-raise ValueError like other file-like classes.
+            raise ValueError('response is closed') from None
+        return len(data)
 
     def close(self):
-        """Close response content buffer.
-
-        This marks the true end of the response.
-        """
         self.commit()
-        self._content.close()
-        self._closed = True
+        self._body.close()
 
 
 class Application:
@@ -292,7 +317,7 @@ class Application:
         try:
             await self._handler(request, Response(response))
         except Exception as exc:
-            self._on_handler_error(request, response, exc)
+            await self._on_handler_error(request, response, exc)
         except BaseException:
             # Most like a task cancellation, not really an error.
             self._on_handler_abort(response)
@@ -301,17 +326,20 @@ class Application:
             response.close()
 
     @staticmethod
-    def _on_handler_error(request, response, exc):
-        if response.is_committed():
+    async def _on_handler_error(request, response, exc):
+        if not response.is_uncommitted():
             response.set_error_after_commit(exc)
             return
+
         response.reset()
+
         log_args = (
             request.method,
             request.path,
             '?' if request.query_str else '',
             request.query_str,
         )
+
         if not isinstance(exc, HttpError):
             LOG.error(
                 '%s %s%s%s context=%r: '
@@ -323,6 +351,7 @@ class Application:
             # TODO: What headers should we set in this case?
             response.status = consts.Statuses.INTERNAL_SERVER_ERROR
             return
+
         log_args += (exc.status.value, exc.status.phrase)
         if 300 <= exc.status < 400:
             LOG.debug(
@@ -335,16 +364,17 @@ class Application:
             LOG.warning('%s %s%s%s -> %d %s ; reason: %s', *log_args, exc)
         else:
             LOG.warning('%s %s%s%s -> %d %s', *log_args, exc_info=exc)
+
         response.status = exc.status
         response.headers.update(exc.headers)
         if exc.content:
-            response.write_nonblocking(exc.content)
+            await response.write(exc.content)
 
     @staticmethod
     def _on_handler_abort(response):
-        if response.is_committed():
-            # We cannot change the status since it was committed; there
-            # is nothing we can do to notify the client.
+        if not response.is_uncommitted():
+            # We cannot change the status since response is committed or
+            # closed; there is nothing we can do to notify the client.
             return
         response.reset()
         response.status = consts.Statuses.SERVICE_UNAVAILABLE
@@ -352,7 +382,6 @@ class Application:
 
     @staticmethod
     async def _iter_content(response):
-        await response.wait_committed()
         while True:
             data = await response.read()
             if not data:

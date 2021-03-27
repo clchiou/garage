@@ -19,7 +19,8 @@ async def handler(request, response):
     del request  # Unused.
     response.status = 200
     response.headers['Content-Type'] = 'text/plain'
-    response.write_nonblocking(b'Hello, world!')
+    response.commit()
+    await response.write(b'Hello, world!')
 
 
 startup.set(LABELS.handler, handler)
