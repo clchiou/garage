@@ -326,5 +326,72 @@ class ApplicationContextTest(unittest.TestCase):
         self.assertEqual(app_ctx.get_body(), b'')
 
 
+class ResponseSenderTest(unittest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+        self.mock_sock = unittest.mock.Mock(spec_set=['send'])
+        self.mock_sock.send = unittest.mock.AsyncMock()
+        self.response_sender = wsgi._ResponseSender(self.mock_sock)
+
+    def assert_buffer(self, expect):
+        self.assertEqual(
+            self.response_sender._response_buffer.getvalue(),
+            expect,
+        )
+
+    def test_send_100_continue_true(self):
+        self.assertTrue(self.response_sender.send_100_continue(True))
+        self.assert_buffer(
+            b'HTTP/1.1 100 Continue\r\n'
+            b'Connection: keep-alive\r\n'
+            b'\r\n'
+        )
+
+    def test_send_100_continue_false(self):
+        self.assertFalse(self.response_sender.send_100_continue(False))
+        self.assert_buffer(
+            b'HTTP/1.1 100 Continue\r\n'
+            b'Connection: close\r\n'
+            b'\r\n'
+        )
+
+    def test_send_error(self):
+        self.assertFalse(
+            self.response_sender.send_error(http.HTTPStatus.NOT_FOUND)
+        )
+        self.assert_buffer(
+            b'HTTP/1.1 404 Not Found\r\n'
+            b'Connection: close\r\n'
+            b'\r\n'
+        )
+
+    def test_write_status(self):
+        self.response_sender._write_status(http.HTTPStatus.NOT_FOUND)
+        self.assert_buffer(b'HTTP/1.1 404 Not Found\r\n')
+
+    def test_write_keep_alive_header(self):
+        self.response_sender._write_keep_alive_header()
+        self.assert_buffer(b'Connection: keep-alive\r\n')
+
+    def test_write_not_keep_alive_header(self):
+        self.response_sender._write_not_keep_alive_header()
+        self.assert_buffer(b'Connection: close\r\n')
+
+    def test_end_headers(self):
+        self.response_sender._end_headers()
+        self.assert_buffer(b'\r\n')
+
+    @kernels.with_kernel
+    def test_flush_one_by_one(self):
+        data = b'hello world'
+        self.response_sender._response_buffer.write(data)
+        self.mock_sock.send.return_value = 1
+        kernels.run(self.response_sender.flush())
+        self.mock_sock.send.assert_has_calls([
+            unittest.mock.call(data[n:]) for n in range(len(data))
+        ])
+
+
 if __name__ == '__main__':
     unittest.main()

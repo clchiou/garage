@@ -27,18 +27,13 @@ class HttpSession:
     # response headers.
     _MAX_NUM_REQUESTS_PER_SESSION = 1024
 
-    _ENCODED_REASONS = {
-        status: status.phrase.encode('iso-8859-1')
-        for status in http.HTTPStatus
-    }
-
     def __init__(self, sock, application, base_environ):
         self._sock = sock
         self._application = application
         self._base_environ = base_environ
         self._request_parser = _RequestParser(self._sock)
-        self._response_buffer = io.BytesIO()
-        self._send_keep_alive = True
+        self._response_sender = _ResponseSender(self._sock)
+        self._should_send_keep_alive = True
 
     async def __call__(self):
         self._sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
@@ -47,12 +42,12 @@ class HttpSession:
                 num_requests = 0
                 while True:
                     keep_alive_sent = await self._handle_one()
-                    await self._flush()
+                    await self._response_sender.flush()
                     if not keep_alive_sent:
                         break
                     num_requests += 1
                     if num_requests >= self._MAX_NUM_REQUESTS_PER_SESSION - 1:
-                        self._send_keep_alive = False
+                        self._should_send_keep_alive = False
             except socket.timeout as exc:
                 LOG.debug('request timeout: %r', exc)
             except ConnectionResetError:
@@ -75,8 +70,7 @@ class HttpSession:
                     return False
         except _RequestParserError as exc:
             LOG.debug('invalid request: %s %s', exc.status, exc)
-            self._send_error(exc.status)
-            return False
+            return self._response_sender.send_error(exc.status)
         except timers.Timeout:
             LOG.debug('keep-alive idle timeout')
             return False
@@ -84,30 +78,30 @@ class HttpSession:
         # Check if client disables Keep-Alive explicitly.
         connection = environ.get('HTTP_CONNECTION')
         if connection is not None and 'keep-alive' not in connection.lower():
-            self._send_keep_alive = False
+            self._should_send_keep_alive = False
 
         if environ.get('HTTP_EXPECT', '').lower() == '100-continue':
-            self._write_status(http.HTTPStatus.CONTINUE)
-            if self._send_keep_alive:
-                self._write_keep_alive_header()
-            else:
-                self._write_not_keep_alive_header()
-            self._end_headers()
-            return self._send_keep_alive
+            return self._response_sender.send_100_continue(
+                self._should_send_keep_alive
+            )
 
         app_ctx = _ApplicationContext()
         try:
             await self._run_application(environ, app_ctx)
         except Exception:
             LOG.exception('wsgi application error: %r', exc)
-            self._send_error(http.HTTPStatus.INTERNAL_SERVER_ERROR)
-            return False
+            return self._response_sender.send_error(
+                http.HTTPStatus.INTERNAL_SERVER_ERROR
+            )
         if app_ctx.status is None:
             LOG.error('wsgi application did not set status code')
-            self._send_error(http.HTTPStatus.INTERNAL_SERVER_ERROR)
-            return False
+            return self._response_sender.send_error(
+                http.HTTPStatus.INTERNAL_SERVER_ERROR
+            )
 
-        return self._send_response(app_ctx, environ)
+        return self._response_sender.send_response(
+            app_ctx, environ, self._should_send_keep_alive
+        )
 
     async def _run_application(self, environ, app_ctx):
         application = await self._application(environ, app_ctx.start_response)
@@ -121,83 +115,6 @@ class HttpSession:
         finally:
             if hasattr(application, 'close'):
                 await application.close()
-
-    def _send_response(self, app_ctx, environ):
-        self._write_status(app_ctx.status)
-
-        has_connection = False
-        keep_alive_sent = False
-        content_length = None
-        for key, value in app_ctx.headers:
-            if key.lower() == b'connection':
-                has_connection = True
-                keep_alive_sent = b'keep-alive' in value.lower()
-            if key.lower() == b'content-length':
-                content_length = value
-            self._write_header(key, value)
-
-        if not has_connection:
-            if self._send_keep_alive:
-                self._write_keep_alive_header()
-                keep_alive_sent = True
-            else:
-                self._write_not_keep_alive_header()
-
-        # Response body is omitted for cases described in:
-        # * RFC7230: 3.3. 1xx, 204 No Content, 304 Not Modified.
-        # * RFC7231: 6.3.6. 205 Reset Content.
-        omit_body = 100 <= app_ctx.status < 200 or app_ctx.status in (
-            http.HTTPStatus.NO_CONTENT,
-            http.HTTPStatus.RESET_CONTENT,
-            http.HTTPStatus.NOT_MODIFIED,
-        )
-        if omit_body:
-            body = None
-        else:
-            body = app_ctx.get_body()
-            size = b'%d' % len(body)
-            if content_length is None:
-                self._write_header(b'Content-Length', size)
-            elif content_length != size:
-                LOG.warning(
-                    'expect Content-Length %r, not %r', size, content_length
-                )
-
-        self._end_headers()
-
-        if not omit_body and environ.get('REQUEST_METHOD') != 'HEAD':
-            self._response_buffer.write(body)
-
-        return keep_alive_sent
-
-    def _send_error(self, status):
-        self._write_status(status)
-        self._write_not_keep_alive_header()
-        self._end_headers()
-
-    def _write_status(self, status):
-        self._response_buffer.write(
-            b'HTTP/1.1 %d %s\r\n' % (status, self._ENCODED_REASONS[status])
-        )
-
-    def _write_keep_alive_header(self):
-        self._write_header(b'Connection', b'keep-alive')
-
-    def _write_not_keep_alive_header(self):
-        self._write_header(b'Connection', b'close')
-
-    def _write_header(self, key, value):
-        self._response_buffer.write(b'%s: %s\r\n' % (key, value))
-
-    def _end_headers(self):
-        self._response_buffer.write(b'\r\n')
-
-    async def _flush(self):
-        response = self._response_buffer.getvalue()
-        self._response_buffer = io.BytesIO()
-        num_sent = 0
-        while num_sent < len(response):
-            num_sent += await self._sock.send(response[num_sent:])
 
 
 class _RequestParserError(Exception):
@@ -441,3 +358,114 @@ class _ApplicationContext:
 
     def get_body(self):
         return self._body_buffer.getvalue()
+
+
+class _ResponseSender:
+
+    def __init__(self, sock):
+        self._sock = sock
+        self._response_buffer = io.BytesIO()
+
+    def send_response(self, app_ctx, environ, should_send_keep_alive):
+        """Send response to the client.
+
+        It returns true if a "Keep-Alive" is sent to the client.
+        """
+        self._write_status(app_ctx.status)
+
+        has_connection = False
+        keep_alive_sent = False
+        content_length = None
+        for key, value in app_ctx.headers:
+            if key.lower() == b'connection':
+                has_connection = True
+                keep_alive_sent = b'keep-alive' in value.lower()
+            if key.lower() == b'content-length':
+                content_length = value
+            self._write_header(key, value)
+
+        if not has_connection:
+            if should_send_keep_alive:
+                self._write_keep_alive_header()
+                keep_alive_sent = True
+            else:
+                self._write_not_keep_alive_header()
+
+        # Response body is omitted for cases described in:
+        # * RFC7230: 3.3. 1xx, 204 No Content, 304 Not Modified.
+        # * RFC7231: 6.3.6. 205 Reset Content.
+        omit_body = 100 <= app_ctx.status < 200 or app_ctx.status in (
+            http.HTTPStatus.NO_CONTENT,
+            http.HTTPStatus.RESET_CONTENT,
+            http.HTTPStatus.NOT_MODIFIED,
+        )
+        if omit_body:
+            body = None
+        else:
+            body = app_ctx.get_body()
+            size = b'%d' % len(body)
+            if content_length is None:
+                self._write_header(b'Content-Length', size)
+            elif content_length != size:
+                LOG.warning(
+                    'expect Content-Length %r, not %r', size, content_length
+                )
+
+        self._end_headers()
+
+        if not omit_body and environ.get('REQUEST_METHOD') != 'HEAD':
+            self._response_buffer.write(body)
+
+        return keep_alive_sent
+
+    def send_100_continue(self, should_send_keep_alive):
+        """Send a "100 Continue" to the client.
+
+        It returns true if a "Keep-Alive" is sent to the client.
+        """
+        self._write_status(http.HTTPStatus.CONTINUE)
+        if should_send_keep_alive:
+            self._write_keep_alive_header()
+        else:
+            self._write_not_keep_alive_header()
+        self._end_headers()
+        return should_send_keep_alive
+
+    def send_error(self, status):
+        """Send a HTTP error status to the client.
+
+        It returns false because a "Keep-Alive" is not sent to the client.
+        """
+        self._write_status(status)
+        self._write_not_keep_alive_header()
+        self._end_headers()
+        return False
+
+    _ENCODED_REASONS = {
+        status: status.phrase.encode('iso-8859-1')
+        for status in http.HTTPStatus
+    }
+
+    def _write_status(self, status):
+        self._response_buffer.write(
+            b'HTTP/1.1 %d %s\r\n' % (status, self._ENCODED_REASONS[status])
+        )
+
+    def _write_keep_alive_header(self):
+        self._write_header(b'Connection', b'keep-alive')
+
+    def _write_not_keep_alive_header(self):
+        self._write_header(b'Connection', b'close')
+
+    def _write_header(self, key, value):
+        self._response_buffer.write(b'%s: %s\r\n' % (key, value))
+
+    def _end_headers(self):
+        self._response_buffer.write(b'\r\n')
+
+    async def flush(self):
+        response = self._response_buffer.getvalue()
+        self._response_buffer = io.BytesIO()
+        num_sent = 0
+        while num_sent < len(response):
+            num_sent += await self._sock.send(response[num_sent:])
