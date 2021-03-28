@@ -42,6 +42,9 @@ class CacheInterface:
     def get(self, key, default=None):
         raise NotImplementedError
 
+    def get_file(self, key, default=None):
+        raise NotImplementedError
+
     def set(self, key, value):
         raise NotImplementedError
 
@@ -67,6 +70,11 @@ class NullCache(CacheInterface):
         return 0
 
     def get(self, key, default=None):
+        del key  # Unused.
+        self._num_misses += 1
+        return default
+
+    def get_file(self, key, default=None):
         del key  # Unused.
         self._num_misses += 1
         return default
@@ -224,14 +232,30 @@ class Cache(CacheInterface):
 
     def get(self, key, default=None):
         with self._lock:
-            return self._get_require_lock_by_caller(key, default)
+            return self._get_require_lock_by_caller(
+                key, default, Path.read_bytes
+            )
 
-    def _get_require_lock_by_caller(self, key, default):
+    def get_file(self, key, default=None):
+        """Get cache entry as a pair of file object and it size.
+
+        The caller has to close the file object.  Note that even if this
+        cache entry is removed or evicted, the file will only removed by
+        the file system when the file is closed.
+        """
+        with self._lock:
+            return self._get_require_lock_by_caller(
+                key,
+                default,
+                lambda path: (path.open('rb'), path.stat().st_size),
+            )
+
+    def _get_require_lock_by_caller(self, key, default, getter):
         path = self._get_path(key)
         if not path.exists():
             self._num_misses += 1
             return default
-        value = path.read_bytes()
+        value = getter(path)
         self._log_access(path)
         self._num_hits += 1
         return value

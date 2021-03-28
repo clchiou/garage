@@ -185,6 +185,25 @@ class CacheTest(unittest.TestCase):
         self.assertFalse(dir_path.exists())
         self.assertEqual(cache._access_log, {})
 
+    def test_get_file(self):
+        cache = caches.Cache(self.test_dir_path, 10)
+        cache.set(b'some key', b'some value')
+
+        f, size = cache.get_file(b'some key')
+        with f:
+            self.assertTrue(Path(f.name).exists())
+            self.assertEqual(f.read(), b'some value')
+        self.assertEqual(size, 10)
+
+        f, size = cache.get_file(b'some key')
+        with f:
+            cache.pop(b'some key')
+            self.assertFalse(Path(f.name).exists())
+            self.assertEqual(f.read(), b'some value')
+        self.assertEqual(size, 10)
+
+        self.assertIsNone(cache.get_file(b'some key'))
+
     def test_set(self):
         cache = caches.Cache(self.test_dir_path, 10)
         self.assert_access_log(cache, [])
