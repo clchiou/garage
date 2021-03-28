@@ -4,10 +4,13 @@ __all__ = [
 ]
 
 import collections
+import contextlib
 import dataclasses
 import hashlib
+import io
 import logging
 import random
+import tempfile
 import threading
 from pathlib import Path
 
@@ -48,6 +51,9 @@ class CacheInterface:
     def set(self, key, value):
         raise NotImplementedError
 
+    def setting_file(self, key):
+        raise NotImplementedError
+
     def pop(self, key, default=_SENTINEL):
         raise NotImplementedError
 
@@ -81,6 +87,10 @@ class NullCache(CacheInterface):
 
     def set(self, key, value):
         pass
+
+    @contextlib.contextmanager
+    def setting_file(self, key):
+        yield io.BytesIO()
 
     def pop(self, key, default=CacheInterface._SENTINEL):
         if default is self._SENTINEL:
@@ -262,14 +272,32 @@ class Cache(CacheInterface):
 
     def set(self, key, value):
         with self._lock:
-            return self._set_require_lock_by_caller(key, value)
+            return self._set_require_lock_by_caller(
+                key, lambda path: path.write_bytes(value)
+            )
 
-    def _set_require_lock_by_caller(self, key, value):
+    @contextlib.contextmanager
+    def setting_file(self, key):
+        """Set a cache entry via a file-like object."""
+        # We use mktemp (which is unsafe in general) because we want to
+        # rename it on success, but NamedTemporaryFile's file closer
+        # raises FileNotFoundError.  I think in our use case here,
+        # mktemp is safe enough.
+        value_tmp_path = Path(tempfile.mktemp())
+        try:
+            with value_tmp_path.open('wb') as value_file:
+                yield value_file
+            with self._lock:
+                self._set_require_lock_by_caller(key, value_tmp_path.rename)
+        finally:
+            value_tmp_path.unlink(missing_ok=True)
+
+    def _set_require_lock_by_caller(self, key, setter):
         path = self._get_path(key)
         if not path.exists():
             path.parent.mkdir(exist_ok=True)
             self._eviction_countdown -= 1
-        path.write_bytes(value)
+        setter(path)
         self._log_access(path)
         if self._should_evict():
             if self._executor:

@@ -232,6 +232,15 @@ class CacheTest(unittest.TestCase):
         self.assertEqual(cache._eviction_countdown, 10)
         self.assertEqual(len(list(self.test_dir_path.iterdir())), 0)
 
+    def test_setting_file(self):
+        cache = caches.Cache(self.test_dir_path, 10)
+
+        with cache.setting_file(b'some key') as value_file:
+            self.assertFalse(cache._lock.locked())
+            value_file.write(b'some value')
+
+        self.assertEqual(cache.get(b'some key'), b'some value')
+
     def test_pop(self):
         cache = caches.Cache(self.test_dir_path, 10)
         with self.assertRaises(KeyError):
