@@ -10,6 +10,7 @@ import hashlib
 import io
 import logging
 import random
+import shutil
 import tempfile
 import threading
 from pathlib import Path
@@ -288,7 +289,14 @@ class Cache(CacheInterface):
             with value_tmp_path.open('wb') as value_file:
                 yield value_file
             with self._lock:
-                self._set_require_lock_by_caller(key, value_tmp_path.rename)
+                # Use shutil.move because /tmp might be in another file
+                # system than the cache directory.  (shutil.move detects
+                # this and uses os.rename when they are in the same file
+                # system.)
+                self._set_require_lock_by_caller(
+                    key,
+                    lambda path: shutil.move(value_tmp_path, path),
+                )
         finally:
             value_tmp_path.unlink(missing_ok=True)
 
