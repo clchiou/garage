@@ -41,6 +41,13 @@ class HttpSession:
     _KEEP_ALIVE = (b'Connection', b'keep-alive')
     _NOT_KEEP_ALIVE = (b'Connection', b'close')
 
+    _EXIT_EXC_TYPES = (
+        _SessionExit,
+        socket.timeout,
+        ConnectionResetError,
+        BrokenPipeError,
+    )
+
     def __init__(self, sock, application, base_environ):
         self._sock = sock
         self._application = application
@@ -56,14 +63,8 @@ class HttpSession:
                         await self._get_request(),
                         num_requests < self._MAX_NUM_REQUESTS_PER_SESSION,
                     )
-            except _SessionExit:
-                LOG.debug('_SessionExit is raised')
-            except socket.timeout as exc:
-                LOG.debug('request timeout: %r', exc)
-            except ConnectionResetError:
-                LOG.debug('connection reset by client')
-            except BrokenPipeError:
-                LOG.debug('connection closed by client')
+            except self._EXIT_EXC_TYPES as exc:
+                LOG.debug('exit session due to: %r', exc)
 
     async def _get_request(self):
         try:
@@ -109,7 +110,7 @@ class HttpSession:
             async for task in tasks.as_completed([send_task, run_task]):
                 try:
                     task.get_result_nonblocking()
-                except _SessionExit:
+                except self._EXIT_EXC_TYPES:
                     raise
                 except Exception:
                     if self._response_queue.has_begun():
