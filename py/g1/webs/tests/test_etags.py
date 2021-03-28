@@ -1,6 +1,7 @@
 import unittest
 
 import contextlib
+import io
 
 from g1.bases import contexts
 from g1.webs import consts
@@ -35,10 +36,16 @@ class EtagsTest(unittest.TestCase):
         return response
 
     def test_compute_etag(self):
-        self.assertEqual(
-            etags.compute_etag(b''),
-            '"d41d8cd98f00b204e9800998ecf8427e"',
-        )
+        for content, etag in [
+            (b'', '"d41d8cd98f00b204e9800998ecf8427e"'),
+            (b'hello world', '"5eb63bbbe01eeed093cb22bb8f5acdc3"'),
+        ]:
+            with self.subTest((content, etag)):
+                self.assertEqual(etags.compute_etag(content), etag)
+                self.assertEqual(
+                    etags.compute_etag_from_file(io.BytesIO(content)),
+                    etag,
+                )
 
     def test_maybe_raise_304(self):
         request = self.make_request('"0", "1", "2"')

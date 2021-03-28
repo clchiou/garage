@@ -1,5 +1,6 @@
 __all__ = [
     'compute_etag',
+    'compute_etag_from_file',
     'maybe_raise_304',
 ]
 
@@ -12,10 +13,22 @@ from .. import wsgi_apps
 
 LOG = logging.getLogger(__name__)
 
+_CHUNK_SIZE = 65536  # 64 KB
+
 
 def compute_etag(content):
     hasher = hashlib.md5()
     hasher.update(content)
+    return '"%s"' % hasher.hexdigest()
+
+
+def compute_etag_from_file(content_file):
+    hasher = hashlib.md5()
+    while True:
+        chunk = content_file.read(_CHUNK_SIZE)
+        if not chunk:
+            break
+        hasher.update(chunk)
     return '"%s"' % hasher.hexdigest()
 
 
