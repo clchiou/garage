@@ -171,9 +171,6 @@ class BaseSession:
         with priority (this requires ``PriorityExecutor``).  For now, we
         do not support setting ``priority`` in ``request``.
         """
-        # For now ``stream`` and asynchronous does not mix well.
-        ASSERT.false(request._kwargs.get('stream'))
-        ASSERT.false(kwargs.get('stream'))
         priority = kwargs.pop('priority', None)
         if priority is None:
             future = self._executor.submit(
@@ -191,6 +188,11 @@ class BaseSession:
     def send_blocking(self, request, **kwargs):
         """Send a request in a blocking manner.
 
+        If ``stream`` is set to true, we will return the original
+        response object, and will NOT copy-then-close it to our response
+        class.  In this case, the caller is responsible for closing the
+        response object.
+
         This does not implement rate limit nor retry.
         """
         LOG.debug('send: %r, kwargs=%r', request, kwargs)
@@ -204,12 +206,25 @@ class BaseSession:
         final_kwargs.update(kwargs)
 
         source = method(request.url, **final_kwargs)
-        try:
-            response = Response(source)
-        finally:
-            _close_response_recursively(source)
+        stream = final_kwargs.get('stream')
+        if stream:
+            response = source
+        else:
+            try:
+                response = Response(source)
+            finally:
+                _close_response_recursively(source)
 
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        finally:
+            # On error, close the original response for the caller since
+            # the caller usually forgets to do this.
+            if stream:
+                # Consume the content because we are going to close it.
+                response.content  # pylint: disable=pointless-statement
+                response.close()
+
         return response
 
 
