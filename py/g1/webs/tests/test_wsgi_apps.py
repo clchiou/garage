@@ -24,8 +24,8 @@ class ResponseTest(unittest.TestCase):
 
     def setUp(self):
         super().setUp()
-        self.start_application_mock = unittest.mock.Mock()
-        self.response = wsgi_apps._Response(self.start_application_mock)
+        self.start_response_mock = unittest.mock.Mock()
+        self.response = wsgi_apps._Response(self.start_response_mock)
 
     def test_status(self):
         self.assertIs(self.response.status, consts.Statuses.OK)
@@ -122,7 +122,7 @@ class ResponseTest(unittest.TestCase):
         self.assertFalse(is_committed())
         self.assertFalse(is_closed())
 
-        self.start_application_mock.assert_not_called()
+        self.start_response_mock.assert_not_called()
 
         # Write to pre-commit buffer.
         kernels.run(self.response.write(b'hello world'))
@@ -133,14 +133,14 @@ class ResponseTest(unittest.TestCase):
         self.assertFalse(read_task.is_completed())
 
         with self.assertRaisesRegex(AssertionError, r'expect false-value'):
-            self.response.set_error_after_commit(None)
+            self.response.err_after_commit(None)
 
         self.response.commit()
 
         self.assertFalse(self.response.is_uncommitted())
         self.assertTrue(is_committed())
         self.assertFalse(is_closed())
-        self.start_application_mock.assert_called_once_with('200 OK', [])
+        self.start_response_mock.assert_called_once_with('200 OK', [])
 
         kernels.run(timeout=0.01)
         self.assertTrue(read_task.is_completed())
@@ -150,9 +150,9 @@ class ResponseTest(unittest.TestCase):
         )
 
         # Repeated calls to commit has no effect.
-        self.start_application_mock.reset_mock()
+        self.start_response_mock.reset_mock()
         self.response.commit()
-        self.start_application_mock.assert_not_called()
+        self.start_response_mock.assert_not_called()
 
         kernels.run(self.response.write(b'foo bar'))
         self.assertEqual(
@@ -168,6 +168,27 @@ class ResponseTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, r'response is closed'):
             kernels.run(self.response.write(b'spam egg'))
 
+    def test_err_after_commit(self):
+        exc = ValueError()
+
+        self.start_response_mock.assert_not_called()
+        self.assertFalse(self.response._body.is_closed())
+
+        self.response.commit()
+        self.assertFalse(self.response._body.is_closed())
+        self.start_response_mock.assert_called_once_with('200 OK', [])
+
+        self.response.err_after_commit(exc)
+        self.assertTrue(self.response._body.is_closed())
+        self.start_response_mock.assert_has_calls([
+            unittest.mock.call('200 OK', []),
+            unittest.mock.call(
+                '500 Internal Server Error',
+                [],
+                (exc.__class__, exc, exc.__traceback__),
+            ),
+        ])
+
 
 class ApplicationTest(unittest.TestCase):
 
@@ -179,14 +200,14 @@ class ApplicationTest(unittest.TestCase):
 
     def setUp(self):
         super().setUp()
-        self.start_application_mock = unittest.mock.Mock()
+        self.start_response_mock = unittest.mock.Mock()
 
     async def run_handler(self, handler):
         app = wsgi_apps.Application(handler)
         content = []
         try:
             async for data in await app(
-                self.ENVIRON, self.start_application_mock
+                self.ENVIRON, self.start_response_mock
             ):
                 content.append(data)
         finally:
@@ -209,7 +230,7 @@ class ApplicationTest(unittest.TestCase):
             kernels.run(self.run_handler(handler), timeout=0.01),
             b'hello world',
         )
-        self.start_application_mock.assert_called_once_with(
+        self.start_response_mock.assert_called_once_with(
             '200 OK',
             [('Content-Type', 'text/plain')],
         )
@@ -224,7 +245,7 @@ class ApplicationTest(unittest.TestCase):
             raise wsgi_apps.HttpError.redirect(300, 'nothing', 'some-url')
 
         self.assertIsNone(kernels.run(self.run_handler(handler), timeout=0.01))
-        self.start_application_mock.assert_called_once_with(
+        self.start_response_mock.assert_called_once_with(
             '300 Multiple Choices',
             [('Location', 'some-url')],
         )
@@ -242,7 +263,7 @@ class ApplicationTest(unittest.TestCase):
             kernels.run(self.run_handler(handler), timeout=0.01),
             b'some error',
         )
-        self.start_application_mock.assert_called_once_with(
+        self.start_response_mock.assert_called_once_with(
             '400 Bad Request',
             [],
         )
@@ -257,7 +278,7 @@ class ApplicationTest(unittest.TestCase):
             raise Exception
 
         self.assertIsNone(kernels.run(self.run_handler(handler), timeout=0.01))
-        self.start_application_mock.assert_called_once_with(
+        self.start_response_mock.assert_called_once_with(
             '500 Internal Server Error',
             [],
         )
@@ -268,20 +289,24 @@ class ApplicationTest(unittest.TestCase):
         class Error(Exception):
             pass
 
+        exc = Error()
+
         async def handler(request, response):
             del request
             response.headers['Content-Type'] = 'text/plain'
             response.commit()
             await response.write(b'hello world')
-            raise Error
+            raise exc
 
-        with self.assertRaises(Error):
-            kernels.run(self.run_handler(handler), timeout=0.01)
-        # This is called before the crash.
-        self.start_application_mock.assert_called_once_with(
-            '200 OK',
-            [('Content-Type', 'text/plain')],
-        )
+        self.assertIsNone(kernels.run(self.run_handler(handler), timeout=0.01))
+        self.start_response_mock.assert_has_calls([
+            unittest.mock.call('200 OK', [('Content-Type', 'text/plain')]),
+            unittest.mock.call(
+                '500 Internal Server Error',
+                [],
+                (exc.__class__, exc, exc.__traceback__),
+            ),
+        ])
 
     @kernels.with_kernel
     def test_abort(self):
@@ -292,7 +317,7 @@ class ApplicationTest(unittest.TestCase):
 
         kernels.run(self.run_handler(handler), timeout=0.01)
         # This is called before the crash.
-        self.start_application_mock.assert_called_once_with(
+        self.start_response_mock.assert_called_once_with(
             '503 Service Unavailable',
             [('Retry-After', '60')],
         )
@@ -321,13 +346,13 @@ class ApplicationTest(unittest.TestCase):
                 return b''.join(content)
 
         app = wsgi_apps.Application(handler)
-        app_task = tasks.spawn(app(self.ENVIRON, self.start_application_mock))
+        app_task = tasks.spawn(app(self.ENVIRON, self.start_response_mock))
         with self.assertRaises(kernels.KernelTimeout):
             kernels.run(timeout=0.01)
         self.assertTrue(app_task.is_completed())
         self.assertFalse(handler_completed.is_set())
 
-        self.start_application_mock.assert_called_once_with(
+        self.start_response_mock.assert_called_once_with(
             '200 OK',
             [('Content-Type', 'text/plain')],
         )

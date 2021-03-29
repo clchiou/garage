@@ -191,7 +191,6 @@ class _Response:
 
     def __init__(self, start_response):
         self._start_response = start_response
-        self._error_after_commit = None
 
         self._status = consts.Statuses.OK
         self.headers = self.Headers(self.is_uncommitted)
@@ -232,7 +231,7 @@ class _Response:
             return
 
         self._start_response(
-            '%d %s' % (self._status.value, self._status.phrase),
+            self._format_status(self._status),
             list(self.headers.items()),
         )
 
@@ -244,21 +243,25 @@ class _Response:
         self._precommit.close()
         self._precommit = None
 
-    def set_error_after_commit(self, exc):
-        """Set exception raised after commit but before close.
+    def err_after_commit(self, exc):
+        """Record exception raised after commit.
 
-        A handler should never fail after it commits the response, but
-        if it does fail anyway, it should be recorded with this method.
-
-        This also closes the response and drops all remaining body data.
+        This first closes the response, dropping remaining body data,
+        and then calls start_response with HTTP 5xx and exc_info.  If
+        the WSGI server has not yet started sending response, it resets
+        the response to HTTP 500; otherwise it re-raises the exception.
         """
         ASSERT.false(self.is_uncommitted())
-        self._error_after_commit = exc
         self._body.close(graceful=False)
+        self._start_response(
+            self._format_status(consts.Statuses.INTERNAL_SERVER_ERROR),
+            [],
+            (exc.__class__, exc, exc.__traceback__),
+        )
 
-    def raise_for_error_after_commit(self):
-        if self._error_after_commit:
-            raise self._error_after_commit
+    @staticmethod
+    def _format_status(status):
+        return '{status.value} {status.phrase}'.format(status=status)
 
     @property
     def status(self):
@@ -328,7 +331,7 @@ class Application:
     @staticmethod
     async def _on_handler_error(request, response, exc):
         if not response.is_uncommitted():
-            response.set_error_after_commit(exc)
+            response.err_after_commit(exc)
             return
 
         response.reset()
@@ -387,10 +390,6 @@ class Application:
             if not data:
                 break
             yield data
-        # Handler crashed after the response is committed.  The only
-        # option left is to raise here to notify the http session to
-        # reset the stream.
-        response.raise_for_error_after_commit()
 
 
 def _cast_status(status):
