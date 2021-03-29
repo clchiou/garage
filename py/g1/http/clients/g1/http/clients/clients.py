@@ -13,8 +13,19 @@ class Session:
     executor).
     """
 
-    def __init__(self, *, executor=None, **kwargs):
-        self._base_session = bases.BaseSession(executor)
+    def __init__(
+        self,
+        *,
+        executor=None,
+        num_pools=0,
+        num_connections_per_pool=0,
+        **kwargs,
+    ):
+        self._base_session = bases.BaseSession(
+            executor=executor,
+            num_pools=num_pools,
+            num_connections_per_pool=num_connections_per_pool,
+        )
         self._sender = bases.Sender(self._base_session.send, **kwargs)
 
     @property

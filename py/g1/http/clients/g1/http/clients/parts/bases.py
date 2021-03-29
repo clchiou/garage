@@ -1,5 +1,6 @@
 __all__ = [
     'DEFAULT_USER_AGENT',
+    'make_connection_pool_params_dict',
     'make_params_dict',
     'make_rate_limit',
     'make_retry',
@@ -44,6 +45,24 @@ def make_params_dict(
             type=(int, float),
             validate=(0).__lt__,
             unit='seconds',
+        ),
+    )
+
+
+def make_connection_pool_params_dict(
+    num_pools=0,
+    num_connections_per_pool=0,
+):
+    return dict(
+        num_pools=parameters.Parameter(
+            num_pools,
+            type=int,
+            validate=(0).__le__,
+        ),
+        num_connections_per_pool=parameters.Parameter(
+            num_connections_per_pool,
+            type=int,
+            validate=(0).__le__,
         ),
     )
 

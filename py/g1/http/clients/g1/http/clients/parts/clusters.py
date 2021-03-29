@@ -46,10 +46,18 @@ def setup_stub(module_labels, module_params):
     )
 
 
-def make_session_params(user_agent=bases.DEFAULT_USER_AGENT):
+def make_session_params(
+    user_agent=bases.DEFAULT_USER_AGENT,
+    num_pools=0,
+    num_connections_per_pool=0,
+):
     return parameters.Namespace(
         'make HTTP cluster session',
         user_agent=parameters.Parameter(user_agent, type=str),
+        **bases.make_connection_pool_params_dict(
+            num_pools=num_pools,
+            num_connections_per_pool=num_connections_per_pool,
+        ),
     )
 
 
@@ -61,7 +69,12 @@ def make_stub_params(**kwargs):
 
 
 def make_session(params, stubs, executor):
-    session = clusters.ClusterSession(stubs, executor)
+    session = clusters.ClusterSession(
+        stubs,
+        executor=executor,
+        num_pools=params.num_pools.get(),
+        num_connections_per_pool=params.num_connections_per_pool.get(),
+    )
     user_agent = params.user_agent.get()
     if user_agent:
         session.headers['User-Agent'] = user_agent

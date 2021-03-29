@@ -12,6 +12,7 @@ import logging
 
 import lxml.etree
 import requests
+import requests.adapters
 import requests.cookies
 import urllib3.exceptions
 
@@ -139,7 +140,13 @@ class BaseSession:
     for higher level session types.
     """
 
-    def __init__(self, executor=None):
+    def __init__(
+        self,
+        *,
+        executor=None,
+        num_pools=0,
+        num_connections_per_pool=0,
+    ):
         # If you do not provide an executor, I will just make one for
         # myself, but to save you the effort to shut down the executor,
         # I will also make it daemonic.  This is mostly fine since if
@@ -148,7 +155,25 @@ class BaseSession:
         # you may always provide an executor to me, and properly shut it
         # down on process exit).
         self._executor = executor or executors.Executor(daemon=True)
+
         self._session = requests.Session()
+        adapter_kwargs = {}
+        if num_pools > 0:
+            adapter_kwargs['pool_connections'] = num_pools
+        if num_connections_per_pool > 0:
+            adapter_kwargs['pool_maxsize'] = num_pools
+        if adapter_kwargs:
+            LOG.info(
+                'config session: num_pools=%d num_connections_per_pool=%d',
+                num_pools,
+                num_connections_per_pool,
+            )
+            self._session.mount(
+                'https://', requests.adapters.HTTPAdapter(**adapter_kwargs)
+            )
+            self._session.mount(
+                'http://', requests.adapters.HTTPAdapter(**adapter_kwargs)
+            )
 
     @property
     def headers(self):

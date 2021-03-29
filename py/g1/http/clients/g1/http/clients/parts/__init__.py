@@ -41,11 +41,20 @@ def setup_session(module_labels, module_params):
     )
 
 
-def make_session_params(user_agent=bases.DEFAULT_USER_AGENT, **kwargs):
+def make_session_params(
+    user_agent=bases.DEFAULT_USER_AGENT,
+    num_pools=0,
+    num_connections_per_pool=0,
+    **kwargs,
+):
     return parameters.Namespace(
         'make HTTP client session',
         user_agent=parameters.Parameter(user_agent, type=str),
         **bases.make_params_dict(**kwargs),
+        **bases.make_connection_pool_params_dict(
+            num_pools=num_pools,
+            num_connections_per_pool=num_connections_per_pool,
+        ),
     )
 
 
@@ -55,6 +64,8 @@ def make_session(params, executor):
         cache_size=params.cache_size.get(),
         rate_limit=bases.make_rate_limit(params),
         retry=bases.make_retry(params),
+        num_pools=params.num_pools.get(),
+        num_connections_per_pool=params.num_connections_per_pool.get(),
     )
     user_agent = params.user_agent.get()
     if user_agent:

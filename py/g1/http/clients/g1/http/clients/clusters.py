@@ -39,9 +39,19 @@ class ClusterSession:
     This multiplexes request queues of cluster stubs.
     """
 
-    def __init__(self, cluster_stubs, executor=None):
+    def __init__(
+        self,
+        cluster_stubs,
+        executor=None,
+        num_pools=0,
+        num_connections_per_pool=0,
+    ):
         ASSERT.not_empty(cluster_stubs)
-        self._base_session = bases.BaseSession(executor)
+        self._base_session = bases.BaseSession(
+            executor=executor,
+            num_pools=num_pools,
+            num_connections_per_pool=num_connections_per_pool,
+        )
         self._cluster_stubs = cluster_stubs
         for cluster_stub in self._cluster_stubs:
             ASSERT.none(cluster_stub._base_session)
