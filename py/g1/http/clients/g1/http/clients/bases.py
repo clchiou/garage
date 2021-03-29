@@ -217,13 +217,14 @@ class BaseSession:
 
         try:
             response.raise_for_status()
-        finally:
+        except Exception:
             # On error, close the original response for the caller since
             # the caller usually forgets to do this.
             if stream:
                 # Consume the content because we are going to close it.
                 response.content  # pylint: disable=pointless-statement
                 response.close()
+            raise
 
         return response
 
