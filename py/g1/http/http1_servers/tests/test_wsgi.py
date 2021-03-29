@@ -732,7 +732,15 @@ class ApplicationContextTest(unittest.TestCase):
 
         with self.assertRaisesRegex(TypeError, r'foo bar'):
             self.context.start_response(
-                '200 OK', [('a', 'b')], (TypeError, 'foo bar', None)
+                '200 OK',
+                [('a', 'b')],
+                (TypeError, TypeError('foo bar'), None),
+            )
+        with self.assertRaisesRegex(ValueError, r''):
+            self.context.start_response(
+                '200 OK',
+                [('a', 'b')],
+                (ValueError, None, None),
             )
 
         self.assert_context(True, http.HTTPStatus.NOT_FOUND, [(b'p', b'q')])

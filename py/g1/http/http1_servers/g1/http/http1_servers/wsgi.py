@@ -490,7 +490,12 @@ class _ApplicationContext:
         if exc_info:
             try:
                 if self._is_committed:
-                    raise exc_info[0](exc_info[1]).with_traceback(exc_info[2])
+                    exc = exc_info[1]
+                    if exc is None:
+                        exc = exc_info[0]()
+                    if exc.__traceback__ is not exc_info[2]:
+                        exc.with_traceback(exc_info[2])
+                    raise exc
             finally:
                 exc_info = None  # Avoid dangling cyclic ref.
         else:
