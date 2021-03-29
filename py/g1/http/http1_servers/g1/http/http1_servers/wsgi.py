@@ -140,10 +140,36 @@ class HttpSession:
             else:
                 for chunk in body:
                     await context.put_body_chunk(chunk)
+            #
+            # Only call `end_body_chunks` on success.  We do this to fix
+            # this corner case:
+            #
+            # * Let us assume that:
+            #   1. self._application has not yet called start_response.
+            #   2. self._application further spawns a handler task that
+            #      will eventually call start_response.
+            #
+            # * When `body` iterator errs out, or _run_application task
+            #   gets cancelled, if end_body_chunks is called (which
+            #   should not), then _send_response task is unblocked and
+            #   calls context.commit.
+            #
+            # * Eventually, the handler task calls start_response.
+            #   Because context.commit has been called, start_response
+            #   errs out, causing the handler task to err out.
+            #
+            # This corner case produces very confusing handler task
+            # errors, sometimes **lots** of them when the process is
+            # shutting down and tasks are getting cancelled.
+            #
+            # NOTE: This will NOT cause _send_response task being
+            # blocked on get_body_chunk forever because _handle_request
+            # cancels _send_response when _run_application errs out.
+            #
+            context.end_body_chunks()
         finally:
             if hasattr(body, 'close'):
                 await body.close()
-            context.close()
 
     async def _send_response(self, context, environ, keep_alive):
         # Start sending status and headers after we receive the first
@@ -515,7 +541,7 @@ class _ApplicationContext:
         await self.put_body_chunk(data)
         return len(data)
 
-    def close(self):
+    def end_body_chunks(self):
         self._chunks.close()
 
 

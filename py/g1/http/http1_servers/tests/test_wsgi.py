@@ -217,7 +217,7 @@ class HttpSessionTest(unittest.TestCase):
             context._chunks = queues.Queue()  # Unset capacity for test.
             for chunk in body_chunks:
                 context._chunks.put_nonblocking(chunk)
-            context._chunks.close()
+            context.end_body_chunks()
             return context
 
         session = wsgi.HttpSession(self.mock_sock, None, {})
@@ -793,7 +793,7 @@ class ApplicationContextTest(unittest.TestCase):
         self.assertTrue(put_task.is_completed())
         self.assertFalse(get_task.is_completed())
 
-        self.context.close()
+        self.context.end_body_chunks()
         kernels.run(timeout=0.01)
         self.assertEqual(chunks, [b'a', b'b', b'c'])
         self.assertTrue(put_task.is_completed())
