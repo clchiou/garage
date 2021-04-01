@@ -21,6 +21,17 @@ shipyard2.rules.pythons.define_package(
             ],
         ),
         (
+            'monitors',
+            [
+                '//py/g1/apps:build',
+                '//py/g1/asyncs/bases:build',
+                '//py/g1/asyncs/kernels:build',
+                '//py/g1/bases:build',
+                # Self-reference.
+                '//py/g1/backgrounds:build/tasks',
+            ],
+        ),
+        (
             'tasks',
             [
                 '//py/g1/asyncs/agents:build/parts',

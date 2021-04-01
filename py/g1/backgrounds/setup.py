@@ -18,6 +18,14 @@ setup(
         'executors': [
             'g1.threads[parts]',
         ],
+        'monitors': [
+            'g1.apps',
+            'g1.asyncs.bases',
+            'g1.asyncs.kernels',
+            'g1.bases',
+            # Sadly setup.py cannot depend itself.
+            # 'g1.backgrounds[tasks]',
+        ],
         'tasks': [
             'g1.asyncs.agents[parts]',
             'g1.asyncs.bases',
