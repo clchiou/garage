@@ -3,6 +3,7 @@ __all__ = [
     'HttpError',
     'Request',
     'Response',
+    'ResponseClosed',
 ]
 
 import collections.abc
@@ -108,6 +109,14 @@ class Request:
     @property
     def content(self):
         return self.environ['wsgi.input']
+
+
+class ResponseClosed(ValueError):
+    """When writing to a closed response object.
+
+    This inherits from ValueError as file-like objects raises ValueError
+    when writing to a closed file.
+    """
 
 
 # A proxy object to expose only public interface.
@@ -279,6 +288,8 @@ class _Response:
             return b''
 
     async def write(self, data):
+        if self._body.is_closed():
+            raise ResponseClosed('response is closed')
         if not data:
             return 0
         if self.is_uncommitted():
@@ -287,7 +298,7 @@ class _Response:
             await self._body.put(data)
         except queues.Closed:
             # Re-raise ValueError like other file-like classes.
-            raise ValueError('response is closed') from None
+            raise ResponseClosed('response is closed') from None
         return len(data)
 
     def close(self):
@@ -319,6 +330,8 @@ class Application:
     async def _run_handler(self, request, response):
         try:
             await self._handler(request, Response(response))
+        except ResponseClosed:
+            pass
         except Exception as exc:
             await self._on_handler_error(request, response, exc)
         except BaseException:
@@ -385,11 +398,19 @@ class Application:
 
     @staticmethod
     async def _iter_content(response):
-        while True:
-            data = await response.read()
-            if not data:
-                break
-            yield data
+        try:
+            while True:
+                data = await response.read()
+                if not data:
+                    break
+                yield data
+        finally:
+            # There are two code paths that may reach here.  One is when
+            # handler returns, and _run_handler closes the response.
+            # The other is when this async generator is cancelled.  In
+            # the latter case, you must call `response.close` to notify
+            # handler.
+            response.close()
 
 
 def _cast_status(status):
