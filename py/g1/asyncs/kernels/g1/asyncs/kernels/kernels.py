@@ -131,7 +131,6 @@ class Kernel:
 
         for task in self.get_all_tasks():
             if not task.is_completed():
-                LOG.warning('close: abort task: %r', task)
                 task.abort()
 
         self._poller.close()

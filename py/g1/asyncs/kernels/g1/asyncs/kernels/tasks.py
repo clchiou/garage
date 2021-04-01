@@ -143,12 +143,24 @@ class Task:
         """
         if self._completed:
             return
-        LOG.debug('abort task: %r', self)
+        LOG.warning('abort task: %r', self)
+        # ``close`` returns None on success, and raises RuntimeError
+        # when the coroutine cannot be aborted.
         ASSERT.none(self._tick(self._coroutine.close))
-        if not self._completed:
+        if self._completed:
+            if (
+                isinstance(self._exception, RuntimeError)
+                and str(self._exception) == 'coroutine ignored GeneratorExit'
+            ):
+                LOG.warning('task cannot be aborted: %r', self)
+                self._completed = False
+                self._exception = None
+            else:
+                self._call_callbacks()
+        else:
             self._completed = True
             self._exception = errors.Cancelled('task abort')
-        self._call_callbacks()
+            self._call_callbacks()
 
     def _tick(self, func, *args):
         try:

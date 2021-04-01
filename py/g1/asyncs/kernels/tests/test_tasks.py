@@ -106,6 +106,105 @@ class TaskTest(unittest.TestCase):
         with self.assertRaises(errors.Cancelled):
             task.get_result_nonblocking()
 
+    def test_abort(self):
+
+        raised = False
+        called = []
+
+        async def f():
+            nonlocal raised
+            try:
+                while True:
+                    await traps.join(object())
+            except GeneratorExit:
+                raised = True
+                raise
+
+        task = tasks.Task(None, f())
+        task.add_callback(lambda _: called.append(True))
+        task.tick(None, None)
+        self.assertFalse(task.is_completed())
+        self.assertFalse(raised)
+        self.assertEqual(called, [])
+
+        task.abort()
+
+        self.assertTrue(task.is_completed())
+        self.assertIsInstance(
+            task.get_exception_nonblocking(), errors.Cancelled
+        )
+        self.assertTrue(raised)
+        self.assertEqual(called, [True])
+
+    def test_abort_reraise(self):
+
+        raised = False
+        called = []
+
+        async def f():
+            nonlocal raised
+            try:
+                while True:
+                    await traps.join(object())
+            except GeneratorExit:
+                raised = True
+                raise ValueError
+
+        task = tasks.Task(None, f())
+        task.add_callback(lambda _: called.append(True))
+        task.tick(None, None)
+        self.assertFalse(task.is_completed())
+        self.assertFalse(raised)
+        self.assertEqual(called, [])
+
+        task.abort()
+
+        self.assertTrue(task.is_completed())
+        self.assertIsInstance(task.get_exception_nonblocking(), ValueError)
+        self.assertTrue(raised)
+        self.assertEqual(called, [True])
+
+    def test_abort_blocked(self):
+
+        done = False
+        exited = False
+        called = []
+
+        async def f():
+            nonlocal exited
+            try:
+                while not done:
+                    try:
+                        await traps.join(object())
+                    except GeneratorExit:
+                        pass
+            finally:
+                exited = True
+
+        task = tasks.Task(None, f())
+        task.add_callback(lambda _: called.append(True))
+        task.tick(None, None)
+        self.assertFalse(task.is_completed())
+        self.assertFalse(exited)
+        self.assertEqual(called, [])
+
+        with self.assertLogs(tasks.__name__, level='WARNING') as cm:
+            task.abort()
+
+        self.assertIn('task cannot be aborted', '\n'.join(cm.output))
+        self.assertFalse(task.is_completed())
+        self.assertFalse(exited)
+        self.assertEqual(called, [])
+
+        done = True
+        task.abort()
+        self.assertTrue(task.is_completed())
+        self.assertIsInstance(
+            task.get_exception_nonblocking(), errors.Cancelled
+        )
+        self.assertTrue(exited)
+        self.assertEqual(called, [True])
+
 
 @unittest.skipIf(futures is None, 'g1.threads.futures unavailable')
 class CompletionQeueuTest(unittest.TestCase):
