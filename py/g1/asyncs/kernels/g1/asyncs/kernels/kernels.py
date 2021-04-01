@@ -3,12 +3,15 @@ __all__ = [
 ]
 
 import collections
+import contextlib
 import functools
 import inspect
 import logging
 import os
+import sys
 import threading
 import time
+import weakref
 
 from g1.bases import classes
 from g1.bases import timers
@@ -41,6 +44,8 @@ KernelStats = collections.namedtuple(
         # Disrupter stats.
         'num_to_raise',
         'num_timeout',
+        # Async generators.
+        'num_async_generators',
     ],
 )
 
@@ -66,6 +71,8 @@ class Kernel:
         self._sleep_blocker = blockers.TimeoutBlocker()
         self._generic_blocker = blockers.DictBlocker()
         self._forever_blocker = blockers.ForeverBlocker()
+
+        self._async_generators = weakref.WeakSet()
 
         # Track tasks that are going to raise at the next trap point
         # due to ``cancel``, ``timeout_after``, etc.  I call them
@@ -101,6 +108,7 @@ class Kernel:
             ),
             num_to_raise=len(self._to_raise),
             num_timeout=len(self._timeout_after_blocker),
+            num_async_generators=len(self._async_generators),
         )
 
     __repr__ = classes.make_repr(
@@ -112,10 +120,20 @@ class Kernel:
         self._assert_owner()
         if self._closed:
             return
+
+        if self._async_generators:
+            LOG.warning(
+                'close: num non-finalized async generators: %d',
+                len(self._async_generators),
+            )
+            for async_generator in self._async_generators:
+                self._close_async_generator(async_generator)
+
         for task in self.get_all_tasks():
             if not task.is_completed():
                 LOG.warning('close: abort task: %r', task)
                 task.abort()
+
         self._poller.close()
         self._nudger.close()
         self._closed = True
@@ -166,13 +184,17 @@ class Kernel:
         ASSERT.false(self._closed)
         self._assert_owner()
         ASSERT.none(self._current_task)  # Disallow recursive calls.
+
         main_task = self.spawn(awaitable) if awaitable else None
         run_timer = timers.make(timeout)
+
         while self._num_tasks > 0:
+
             # Do sanity check every ``_sanity_check_frequency`` ticks.
             if self._num_ticks % self._sanity_check_frequency == 0:
                 self._sanity_check()
             self._num_ticks += 1
+
             # Fire callbacks posted by other threads.
             with self._callbacks_lock:
                 callbacks, self._callbacks = \
@@ -180,14 +202,17 @@ class Kernel:
             for callback in callbacks:
                 callback()
             del callbacks
+
             # Run all ready tasks.
-            while self._ready_tasks:
-                completed_task = self._run_one_ready_task()
-                if completed_task and completed_task is main_task:
-                    # Return the result eagerly.  If you want to run all
-                    # remaining tasks through completion, just call
-                    # ``run`` again with no arguments.
-                    return completed_task.get_result_nonblocking()
+            with self._managing_async_generators():
+                while self._ready_tasks:
+                    completed_task = self._run_one_ready_task()
+                    if completed_task and completed_task is main_task:
+                        # Return the result eagerly.  If you want to run
+                        # all remaining tasks through completion, just
+                        # call ``run`` again with no arguments.
+                        return completed_task.get_result_nonblocking()
+
             if self._num_tasks > 0:
                 # Poll I/O.
                 now = time.monotonic()
@@ -209,6 +234,7 @@ class Kernel:
                 now = time.monotonic()
                 self._trap_return(self._sleep_blocker, now, None)
                 self._timeout_after_on_completion(now)
+
             # Break if ``run`` times out.
             if run_timer.is_expired():
                 raise errors.KernelTimeout
@@ -218,7 +244,7 @@ class Kernel:
         task, trap_result, trap_exception = self._ready_tasks.popleft()
 
         override = self._to_raise.pop(task, None)
-        if override:
+        if override is not None:
             trap_result = None
             trap_exception = override
 
@@ -249,6 +275,41 @@ class Kernel:
                 self._ready_tasks.append(TaskReady(task, None, exc))
 
         return None
+
+    #
+    # Async generator management.
+    #
+
+    @contextlib.contextmanager
+    def _managing_async_generators(self):
+        original_hooks = sys.get_asyncgen_hooks()
+        sys.set_asyncgen_hooks(
+            firstiter=self._async_generator_firstiter_hook,
+            finalizer=self._async_generator_finalizer_hook,
+        )
+        try:
+            yield
+        finally:
+            sys.set_asyncgen_hooks(*original_hooks)
+
+    def _async_generator_firstiter_hook(self, async_generator):
+        self._async_generators.add(async_generator)
+
+    def _async_generator_finalizer_hook(self, async_generator):
+        self._async_generators.discard(async_generator)
+        self._close_async_generator(async_generator)
+
+    @staticmethod
+    def _close_async_generator(async_generator):
+        closer = async_generator.aclose()
+        try:
+            closer.send(None)
+        except RuntimeError as exc:
+            LOG.warning('%s: %r', exc, async_generator)
+        except StopIteration:
+            pass
+        finally:
+            closer.close()
 
     #
     # Blocking traps.

@@ -69,7 +69,7 @@ class KernelTest(unittest.TestCase):
                 with self.assertRaisesRegex(AssertionError, r'expect false'):
                     method(*args)
         # These methods can be called even after kernel is closed.
-        self.assertEqual(self.k.get_stats(), (0, ) * 9)
+        self.assertEqual(self.k.get_stats(), (0, ) * 10)
         self.assertEqual(self.k.get_current_task(), None)
         self.assertEqual(self.k.get_all_tasks(), [])
 
@@ -92,6 +92,99 @@ class KernelTest(unittest.TestCase):
 
         with self.assertRaisesRegex(AssertionError, r'expect.*Kernel'):
             self.k.timeout_after(test_task, 0)
+
+    def test_async_generator(self):
+
+        gen_exit = False
+
+        async def gen():
+            nonlocal gen_exit
+            try:
+                yield 1
+                yield 2
+            finally:
+                gen_exit = True
+
+        async def run():
+            async for _ in gen():
+                break
+
+        self.k.run(run(), timeout=0.01)
+        self.assert_stats(
+            num_ticks=1,
+            num_tasks=0,
+            num_ready=0,
+            num_async_generators=0,
+        )
+        self.assertTrue(gen_exit)
+
+    def test_async_generator_in_close(self):
+
+        gen_obj = None  # Keep a strong reference to generator.
+        gen_exit = False
+
+        async def gen():
+            nonlocal gen_exit
+            try:
+                yield 1
+                yield 2
+            finally:
+                gen_exit = True
+
+        async def run():
+            nonlocal gen_obj
+            gen_obj = gen()
+            async for _ in gen_obj:
+                break
+
+        self.k.run(run(), timeout=0.01)
+        self.assert_stats(
+            num_ticks=1,
+            num_tasks=0,
+            num_ready=0,
+            num_async_generators=1,
+        )
+        self.assertFalse(gen_exit)
+
+        self.k.close()
+        self.assert_stats(
+            num_ticks=1,
+            num_tasks=0,
+            num_ready=0,
+            num_async_generators=1,
+        )
+        self.assertTrue(gen_exit)
+
+    def test_close_async_generator_blocked(self):
+
+        gen_exit = False
+
+        async def gen():
+            nonlocal gen_exit
+            try:
+                while True:
+                    try:
+                        yield
+                    except BaseException:
+                        pass
+            finally:
+                gen_exit = True
+
+        async def run():
+            async for _ in gen():
+                break
+
+        with self.assertLogs(kernels.__name__, level='WARNING') as cm:
+            self.k.run(run(), timeout=0.01)
+
+        self.assertIn('async generator ignored GeneratorExit', cm.output[0])
+        self.assert_stats(
+            num_ticks=1,
+            num_tasks=0,
+            num_ready=0,
+            num_async_generators=0,
+        )
+        self.assertFalse(gen_exit)
 
     def test_get_current_task(self):
 
