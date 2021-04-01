@@ -309,18 +309,36 @@ class ApplicationTest(unittest.TestCase):
         ])
 
     @kernels.with_kernel
-    def test_abort(self):
+    def test_cancel(self):
 
-        async def handler(request, response):
+        exc = BaseException()
+
+        async def handler_uncommitted(request, response):
             del request, response
-            raise BaseException
+            raise exc
 
-        kernels.run(self.run_handler(handler), timeout=0.01)
-        # This is called before the crash.
+        async def handler_committed(request, response):
+            del request
+            response.commit()
+            raise exc
+
+        kernels.run(self.run_handler(handler_uncommitted), timeout=0.01)
         self.start_response_mock.assert_called_once_with(
             '503 Service Unavailable',
             [('Retry-After', '60')],
         )
+
+        self.start_response_mock.reset_mock()
+
+        kernels.run(self.run_handler(handler_committed), timeout=0.01)
+        self.start_response_mock.assert_has_calls([
+            unittest.mock.call('200 OK', []),
+            unittest.mock.call(
+                '503 Service Unavailable',
+                [('Retry-After', '60')],
+                (exc.__class__, exc, unittest.mock.ANY),
+            ),
+        ])
 
     @kernels.with_kernel
     def test_linger_on(self):

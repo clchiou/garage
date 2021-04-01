@@ -252,6 +252,23 @@ class _Response:
         self._precommit.close()
         self._precommit = None
 
+    def cancel(self, exc):
+        status = consts.Statuses.SERVICE_UNAVAILABLE
+        headers = [(consts.HEADER_RETRY_AFTER, '60')]
+
+        if self.is_uncommitted():
+            self.reset()
+            self.status = status
+            self.headers.update(headers)
+            return
+
+        self._body.close(graceful=False)
+        self._start_response(
+            self._format_status(status),
+            headers,
+            (exc.__class__, exc, exc.__traceback__),
+        )
+
     def err_after_commit(self, exc):
         """Record exception raised after commit.
 
@@ -334,9 +351,9 @@ class Application:
             pass
         except Exception as exc:
             await self._on_handler_error(request, response, exc)
-        except BaseException:
-            # Most like a task cancellation, not really an error.
-            self._on_handler_abort(response)
+        except BaseException as exc:
+            # Most likely a task cancellation, not really an error.
+            response.cancel(exc)
             raise
         finally:
             response.close()
@@ -385,16 +402,6 @@ class Application:
         response.headers.update(exc.headers)
         if exc.content:
             await response.write(exc.content)
-
-    @staticmethod
-    def _on_handler_abort(response):
-        if not response.is_uncommitted():
-            # We cannot change the status since response is committed or
-            # closed; there is nothing we can do to notify the client.
-            return
-        response.reset()
-        response.status = consts.Statuses.SERVICE_UNAVAILABLE
-        response.headers[consts.HEADER_RETRY_AFTER] = '60'
 
     @staticmethod
     async def _iter_content(response):
