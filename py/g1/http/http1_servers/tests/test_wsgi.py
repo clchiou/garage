@@ -162,7 +162,7 @@ class HttpSessionTest(unittest.TestCase):
                 except StopIteration:
                     raise StopAsyncIteration from None
 
-            async def close(self):
+            def close(self):
                 self.closed = True
 
         mock_body = MockBody()

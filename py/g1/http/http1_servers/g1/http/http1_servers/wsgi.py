@@ -169,7 +169,7 @@ class HttpSession:
             context.end_body_chunks()
         finally:
             if hasattr(body, 'close'):
-                await body.close()
+                body.close()
 
     async def _send_response(self, context, environ, keep_alive):
         # Start sending status and headers after we receive the first
