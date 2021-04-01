@@ -52,7 +52,7 @@ KernelStats = collections.namedtuple(
 
 class Kernel:
 
-    def __init__(self, *, owner=None, sanity_check_frequency=10):
+    def __init__(self, *, owner=None, sanity_check_frequency=100):
 
         self._owner = owner or threading.get_ident()
 
