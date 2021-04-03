@@ -29,23 +29,27 @@ class CompletionQueueTest(unittest.TestCase):
     def test_queue(self):
 
         tq = tasks.CompletionQueue()
+        self.assertFalse(tq.is_full())
         self.assertFalse(tq.is_closed())
         self.assertFalse(tq)
         self.assertEqual(len(tq), 0)
 
         t1 = self.k.spawn(square(1))
         tq.put_nonblocking(t1)
+        self.assertFalse(tq.is_full())
         self.assertFalse(tq.is_closed())
         self.assertTrue(tq)
         self.assertEqual(len(tq), 1)
 
         t2 = self.k.spawn(square(1))
         tq.put_nonblocking(t2)
+        self.assertFalse(tq.is_full())
         self.assertFalse(tq.is_closed())
         self.assertTrue(tq)
         self.assertEqual(len(tq), 2)
 
         tq.close()
+        self.assertFalse(tq.is_full())
         self.assertTrue(tq.is_closed())
         self.assertTrue(tq)
         self.assertEqual(len(tq), 2)
@@ -56,11 +60,13 @@ class CompletionQueueTest(unittest.TestCase):
         ts = set()
 
         ts.add(self.k.run(tq.get, timeout=1))
+        self.assertFalse(tq.is_full())
         self.assertTrue(tq.is_closed())
         self.assertTrue(tq)
         self.assertEqual(len(tq), 1)
 
         ts.add(self.k.run(tq.get, timeout=1))
+        self.assertFalse(tq.is_full())
         self.assertTrue(tq.is_closed())
         self.assertFalse(tq)
         self.assertEqual(len(tq), 0)
@@ -72,20 +78,63 @@ class CompletionQueueTest(unittest.TestCase):
 
     def test_get_nonblocking(self):
         tq = tasks.CompletionQueue()
+
         with self.assertRaises(tasks.Empty):
             tq.get_nonblocking()
-        t1 = self.k.spawn(square(1))
-        t2 = self.k.spawn(square(2))
+
+        gettable_task = self.k.spawn(tq.gettable())
+        with self.assertRaises(errors.KernelTimeout):
+            self.k.run(timeout=0.01)
+        self.assertFalse(gettable_task.is_completed())
+
+        event = locks.Event()
+        t1 = self.k.spawn(event.wait)
+        t2 = self.k.spawn(event.wait)
         tq.put_nonblocking(t1)
         tq.put_nonblocking(t2)
         tq.close()
+        with self.assertRaises(errors.KernelTimeout):
+            self.k.run(timeout=0.01)
+
         with self.assertRaises(tasks.Empty):
             tq.get_nonblocking()
+
+        event.set()
         self.k.run(timeout=0.01)
-        self.assertIs(tq.get_nonblocking(), t1)
-        self.assertIs(tq.get_nonblocking(), t2)
+        self.assertTrue(gettable_task.is_completed())
+        self.assertCountEqual(
+            [tq.get_nonblocking(), tq.get_nonblocking()],
+            [t1, t2],
+        )
+
         with self.assertRaises(tasks.Closed):
             tq.get_nonblocking()
+        self.k.run(tq.gettable())
+
+    def test_put_and_capacity(self):
+        tq = tasks.CompletionQueue(capacity=1)
+        self.assertFalse(tq.is_full())
+        event = locks.Event()
+        t1 = self.k.spawn(event.wait)
+        t2 = self.k.spawn(square(2))
+        tq.put_nonblocking(t1)
+        self.assertTrue(tq.is_full())
+
+        with self.assertRaises(tasks.Full):
+            tq.put_nonblocking(t2)
+        puttable_task = self.k.spawn(tq.puttable())
+        with self.assertRaises(errors.KernelTimeout):
+            self.k.run(timeout=0.01)
+        self.assertFalse(puttable_task.is_completed())
+
+        self.assertTrue(tq.is_full())
+        event.set()
+        self.k.run(timeout=0.01)
+        self.assertFalse(tq.is_full())
+        self.assertTrue(puttable_task.is_completed())
+
+        tq.close()
+        self.k.run(tq.puttable())
 
     def test_close_repeatedly(self):
         tq = tasks.CompletionQueue()

@@ -5,6 +5,7 @@ __all__ = [
     'Closed',
     'CompletionQueue',
     'Empty',
+    'Full',
     'as_completed',
     'get_all_tasks',
     'get_current_task',
@@ -35,6 +36,10 @@ class Empty(Exception):
     pass
 
 
+class Full(Exception):
+    pass
+
+
 class CompletionQueue:
     """Provide queue-like interface on waiting for task completion.
 
@@ -42,7 +47,8 @@ class CompletionQueue:
     implementation, and thus may be more efficient.
     """
 
-    def __init__(self, *, always_cancel=False, log_error=True):
+    def __init__(self, capacity=0, *, always_cancel=False, log_error=True):
+        self.capacity = capacity
         self._always_cancel = always_cancel
         self._log_error = log_error
         self._gate = locks.Gate()
@@ -51,7 +57,8 @@ class CompletionQueue:
         self._closed = False
 
     __repr__ = classes.make_repr(
-        '{state} uncompleted={uncompleted} completed={completed}',
+        '{state} capacity={self.capacity} '
+        'uncompleted={uncompleted} completed={completed}',
         state=lambda self: 'closed' if self._closed else 'open',
         uncompleted=lambda self: len(self._uncompleted),
         completed=lambda self: len(self._completed),
@@ -74,6 +81,10 @@ class CompletionQueue:
             await task.join()
             if self._log_error:
                 _log_task_error(task)
+
+    def is_full(self):
+        """True if number of uncompleted tasks no less than capacity."""
+        return 0 < self.capacity <= len(self._uncompleted)
 
     def is_closed(self):
         return self._closed
@@ -105,13 +116,13 @@ class CompletionQueue:
         self._gate.unblock()
         return tasks
 
-    async def get(self):
-        while True:
-            try:
-                return self.get_nonblocking()
-            except Empty:
-                pass
+    async def gettable(self):
+        while not self._completed and (self._uncompleted or not self._closed):
             await self._gate.wait()
+
+    async def get(self):
+        await self.gettable()
+        return self.get_nonblocking()
 
     def get_nonblocking(self):
         if self._completed:
@@ -121,9 +132,19 @@ class CompletionQueue:
         else:
             raise Closed
 
+    async def puttable(self):
+        while not self._closed and self.is_full():
+            await self._gate.wait()
+
+    async def put(self, task):
+        await self.puttable()
+        return self.put_nonblocking(task)
+
     def put_nonblocking(self, task):
         if self._closed:
             raise Closed
+        if self.is_full():
+            raise Full
         self._uncompleted.add(task)
         task.add_callback(self._on_completion)
 
@@ -135,6 +156,8 @@ class CompletionQueue:
         """
         if self._closed:
             raise Closed
+        if self.is_full():
+            raise Full
         task = spawn(awaitable)
         try:
             self.put_nonblocking(task)
