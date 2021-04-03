@@ -1,93 +1,126 @@
-"""Pollers.
-
-At the moment this module does not intend to abstract away details and
-quirks of underlying polling mechanisms, as doing so could result in
-either leaky abstraction or complicated interface.  Instead, this module
-exposes the platform-specific polling mechanism to higher level.
-Obviously this is not portable, but for now this disadvantage should be
-acceptable.
-"""
-
 __all__ = [
+    'Poller',
+    'Polls',
+    # Poller implementations.
+    #
+    # TODO: Only epoll is supported as cross-platform is not priority.
     'Epoll',
 ]
 
+import enum
+import errno
 import math
 import select
+import threading
+from typing import Sequence, Tuple, Union
 
-from g1.bases import classes
 from g1.bases.assertions import ASSERT
 
 
-class Epoll:
+class Polls(enum.Enum):
+    """Type of polls.
 
-    READ = select.EPOLLIN
-    WRITE = select.EPOLLOUT
-    EDGE_TRIGGER = select.EPOLLET
+    A task may either read or write a file, but never both at the same
+    time (at least I can't think of a use case of that).
+    """
+    READ = enum.auto()
+    WRITE = enum.auto()
 
-    def __init__(self):
-        self._epoll = select.epoll()
-        self._events = {}
-        self._closed_fds = []
 
-    __repr__ = classes.make_repr(
-        '{state} events={self._events}',
-        # pylint: disable=using-constant-test
-        state=lambda self: 'closed' if self._epoll.closed else 'open',
-    )
-
-    def __enter__(self):
-        ASSERT.false(self._epoll.closed)
-        return self
-
-    def __exit__(self, *_):
-        ASSERT.false(self._epoll.closed)
-        self.close()
+class Poller:
 
     def close(self):
-        ASSERT.false(self._epoll.closed)
-        self._epoll.close()
-        self._events.clear()
+        """Close the poller."""
+        raise NotImplementedError
 
-    def register(self, fd, events):
-        ASSERT.false(self._epoll.closed)
-        if fd in self._events:
-            previous_events = self._events[fd]
-            self._events[fd] |= events
-            if previous_events != self._events[fd]:
-                self._epoll.modify(fd, self._events[fd])
-        else:
-            self._events[fd] = events
-            self._epoll.register(fd, self._events[fd])
+    def notify_open(self, fd: int):
+        """Add the given file descriptor to the poller."""
+        raise NotImplementedError
 
-    def close_fd(self, fd):
-        """Inform the poller that a file descriptor is closed.
+    def notify_close(self, fd: int):
+        """Remove the given file descriptor from the poller.
 
-        Sadly ``epoll`` silently removes a closed file descriptor
-        internally without informing the poller, and thus we need a way
-        to inform the poller about this.
+        NOTE: This might be called in another thread.
         """
+        raise NotImplementedError
+
+    def poll(
+        self,
+        timeout: Union[float, None],
+    ) -> Tuple[Sequence[int], Sequence[int]]:
+        """Poll and return readable and writeable file descriptors.
+
+        NOTE: This could return extra file descriptors, like write-end
+        of pipes as readable file descriptors.
+        """
+        raise NotImplementedError
+
+
+class Epoll(Poller):
+
+    _EVENT_MASK = (
+        select.EPOLLIN | select.EPOLLOUT | select.EPOLLET | select.EPOLLRDHUP
+    )
+
+    # Add EPOLLHUP, EPOLLRDHUP, EPOLLERR to the mask.  This should
+    # unblock all tasks whenever a file is readable or writeable, at the
+    # cost of (rare?) spurious wakeup or "extra" file descriptors.
+    _EVENT_IN = (
+        select.EPOLLIN | select.EPOLLHUP | select.EPOLLRDHUP | select.EPOLLERR
+    )
+    _EVENT_OUT = (
+        select.EPOLLOUT | select.EPOLLHUP | select.EPOLLRDHUP | select.EPOLLERR
+    )
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._epoll = select.epoll()
+        self._closed_fds = set()
+
+    def close(self):
+        self._epoll.close()
+
+    def notify_open(self, fd):
         ASSERT.false(self._epoll.closed)
-        if fd not in self._events:
-            return
-        self._epoll.unregister(fd)
-        event = self._events.pop(fd)
-        self._closed_fds.append((fd, event | select.EPOLLHUP))
+        try:
+            self._epoll.register(fd, self._EVENT_MASK)
+        except FileExistsError:
+            pass
+
+    def notify_close(self, fd):
+        ASSERT.false(self._epoll.closed)
+        with self._lock:
+            self._closed_fds.add(fd)
+        try:
+            self._epoll.unregister(fd)
+        except OSError as exc:
+            if exc.errno != errno.EBADF:
+                raise
 
     def poll(self, timeout):
         ASSERT.false(self._epoll.closed)
-        if self._closed_fds:
-            closed_fds, self._closed_fds = self._closed_fds, []
-            return closed_fds
-        ASSERT.not_empty(self._events)
+
+        with self._lock:
+            if self._closed_fds:
+                closed_fds, self._closed_fds = self._closed_fds, set()
+                return closed_fds, closed_fds
+
         if timeout is None:
-            timeout = -1
+            pass
         elif timeout <= 0:
             timeout = 0
         else:
             # epoll_wait() has a resolution of 1 millisecond.
             timeout = math.ceil(timeout * 1e3) * 1e-3
-        try:
-            return self._epoll.poll(timeout=timeout)
-        except InterruptedError:
-            return []
+
+        can_read = []
+        can_write = []
+        # Since Python 3.5, poll retries with a re-computed timeout
+        # rather than raising InterruptedError (see PEP 475).
+        for fd, events in self._epoll.poll(timeout=timeout):
+            if events & self._EVENT_IN:
+                can_read.append(fd)
+            if events & self._EVENT_OUT:
+                can_write.append(fd)
+
+        return can_read, can_write

@@ -147,6 +147,9 @@ class Kernel:
         """Assert that the calling thread is the owner."""
         ASSERT.equal(threading.get_ident(), self._owner)
 
+    def _is_owner(self):
+        return threading.get_ident() == self._owner
+
     def _sanity_check(self):
         expect_num_tasks = self._num_tasks
         actual_num_tasks = sum(
@@ -221,17 +224,18 @@ class Kernel:
                     self._timeout_after_blocker.get_min_timeout(now),
                     key=timers.timeout_to_key,
                 )
-                for fd, events in self._poller.poll(poll_timeout):
+                can_read, can_write = self._poller.poll(poll_timeout)
+                for fd in can_read:
                     if self._nudger.is_nudged(fd):
                         self._nudger.ack()
                     else:
-                        if events & self._poller.READ:
-                            self._trap_return(self._read_blocker, fd, events)
-                        if events & self._poller.WRITE:
-                            self._trap_return(self._write_blocker, fd, events)
+                        self._trap_return(self._read_blocker, fd)
+                for fd in can_write:
+                    self._trap_return(self._write_blocker, fd)
+
                 # Handle any task timeout.
                 now = time.monotonic()
-                self._trap_return(self._sleep_blocker, now, None)
+                self._trap_return(self._sleep_blocker, now)
                 self._timeout_after_on_completion(now)
 
             # Break if ``run`` times out.
@@ -255,7 +259,7 @@ class Kernel:
 
         if trap is None:
             ASSERT.true(task.is_completed())
-            self._trap_return(self._task_completion_blocker, task, None)
+            self._trap_return(self._task_completion_blocker, task)
             # Clear disrupter.
             self._to_raise.pop(task, None)
             self._timeout_after_blocker.cancel(task)
@@ -331,15 +335,10 @@ class Kernel:
 
     def _poll(self, task, trap):
         ASSERT.is_(trap.kind, traps.Traps.POLL)
-        # A task may either read or write a file, but never both at the
-        # same time (at least I can't think of a use case of that).
-        ASSERT.in_(trap.events, (self._poller.READ, self._poller.WRITE))
-        # Use edge-trigger on all file descriptors (except nudger).
-        self._poller.register(trap.fd, trap.events | self._poller.EDGE_TRIGGER)
-        if trap.events == self._poller.READ:
+        if trap.events is pollers.Polls.READ:
             self._read_blocker.block(trap.fd, task)
         else:
-            # trap.events == self._poller.WRITE
+            ASSERT.is_(trap.events, pollers.Polls.WRITE)
             self._write_blocker.block(trap.fd, task)
 
     def _sleep(self, task, trap):
@@ -392,16 +391,16 @@ class Kernel:
         self._num_tasks += 1
         return task
 
-    def close_fd(self, fd):
+    def notify_open(self, fd):
         ASSERT.false(self._closed)
         self._assert_owner()
-        self._poller.close_fd(fd)
+        self._poller.notify_open(fd)
 
     def unblock(self, source):
         """Unblock tasks blocked by ``source``."""
         ASSERT.false(self._closed)
         self._assert_owner()
-        self._trap_return(self._generic_blocker, source, None)
+        self._trap_return(self._generic_blocker, source)
 
     def cancel(self, task):
         """Cancel the task.
@@ -439,6 +438,12 @@ class Kernel:
             self._callbacks.append(callback)
         self._nudger.nudge()
 
+    def notify_close(self, fd):
+        ASSERT.false(self._closed)
+        self._poller.notify_close(fd)
+        if not self._is_owner():
+            self._nudger.nudge()
+
     #
     # Internal helpers.
     #
@@ -469,9 +474,9 @@ class Kernel:
             self._ready_tasks.append(TaskReady(task, None, None))
             return
 
-    def _trap_return(self, blocker, source, retval):
+    def _trap_return(self, blocker, source):
         for task in blocker.unblock(source):
-            self._ready_tasks.append(TaskReady(task, retval, None))
+            self._ready_tasks.append(TaskReady(task, None, None))
 
 
 class Nudger:
@@ -483,7 +488,9 @@ class Nudger:
         os.set_blocking(self._w, False)
 
     def register_to(self, poller):
-        poller.register(self._r, poller.READ)
+        poller.notify_open(self._r)
+        # NOTE: We skip `notify_close` on in `close` below since Nudger
+        # is closed when the Kernel is closing.
 
     def nudge(self):
         try:

@@ -8,6 +8,7 @@ import logging
 import os
 import socket
 import ssl
+import weakref
 
 from g1.asyncs.kernels import contexts
 from g1.asyncs.kernels import traps
@@ -44,6 +45,12 @@ class FileAdapter(AdapterBase):
         super().__init__(file, self.PROXIED_FIELDS)
         self.__file = file
         os.set_blocking(self.__file.fileno(), False)
+        kernel = contexts.get_kernel()
+        kernel.notify_open(self.__file.fileno())
+
+        # Keep a weak reference to kernel because we could call
+        # `notify_close` in another thread.
+        self.__kernel = weakref.ref(kernel)
 
     def __enter__(self):
         return self
@@ -79,10 +86,9 @@ class FileAdapter(AdapterBase):
     def close(self):
         if self.__file.closed:
             return
-        try:
-            contexts.get_kernel().close_fd(self.__file.fileno())
-        except LookupError:
-            pass
+        kernel = self.__kernel()
+        if kernel is not None:
+            kernel.notify_close(self.__file.fileno())
         try:
             self.__file.close()
         except (BlockingIOError, InterruptedError) as exc:
@@ -110,6 +116,12 @@ class SocketAdapter(AdapterBase):
         super().__init__(sock, self.PROXIED_FIELDS)
         self.__sock = sock
         self.__sock.setblocking(False)
+        kernel = contexts.get_kernel()
+        kernel.notify_open(self.__sock.fileno())
+
+        # Keep a weak reference to kernel because we could call
+        # `notify_close` in another thread.
+        self.__kernel = weakref.ref(kernel)
 
     def __enter__(self):
         return self
@@ -172,10 +184,9 @@ class SocketAdapter(AdapterBase):
     def close(self):
         fd = self.__sock.fileno()
         if fd >= 0:
-            try:
-                contexts.get_kernel().close_fd(fd)
-            except LookupError:
-                pass
+            kernel = self.__kernel()
+            if kernel is not None:
+                kernel.notify_close(fd)
         # I assume that ``socket.close`` does not flush out data, and
         # thus never raises ``BlockingIOError``, etc.
         self.__sock.close()

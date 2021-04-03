@@ -14,9 +14,11 @@ class SignalSourceTest(unittest.TestCase):
     def tearDown(self):
         unittest.mock.patch.stopall()
 
+    @kernels.with_kernel
     def test_singleton(self):
         self.assertIs(signals.SignalSource(), signals.SignalSource())
 
+    @kernels.with_kernel
     def test_disallow_nested_use(self):
         source = signals.SignalSource()
 
@@ -41,6 +43,7 @@ class SignalSourceTest(unittest.TestCase):
         self.signal_mock.signal.assert_not_called()
         self.signal_mock.siginterrupt.assert_not_called()
 
+    @kernels.with_kernel
     def test_disallow_repeated_enable(self):
         with signals.SignalSource() as source:
             source.enable(0)

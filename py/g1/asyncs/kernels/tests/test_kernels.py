@@ -1,7 +1,7 @@
 import unittest
 
+import contextlib
 import os
-import select
 
 from g1.asyncs.kernels import errors
 from g1.asyncs.kernels import kernels
@@ -12,17 +12,26 @@ from g1.asyncs.kernels import traps
 class KernelTest(unittest.TestCase):
 
     def setUp(self):
+        super().setUp()
+        self.exit_stack = contextlib.ExitStack()
+
         self.k = kernels.Kernel(sanity_check_frequency=1)
+        self.exit_stack.callback(self.k.close)
+
         r, w = os.pipe()
         os.set_blocking(r, False)
         os.set_blocking(w, False)
         self.r = os.fdopen(r, 'rb')
         self.w = os.fdopen(w, 'wb')
+        self.exit_stack.callback(self.r.close)
+        self.exit_stack.callback(self.w.close)
+
+        self.k.notify_open(r)
+        self.k.notify_open(w)
 
     def tearDown(self):
-        self.k.close()
-        self.r.close()
-        self.w.close()
+        self.exit_stack.close()
+        super().tearDown()
 
     def test_disallow_resursive(self):
 
@@ -59,7 +68,8 @@ class KernelTest(unittest.TestCase):
         for method, args in (
             (self.k.run, ()),
             (self.k.spawn, (None, )),
-            (self.k.close_fd, (None, )),
+            (self.k.notify_open, (None, )),
+            (self.k.notify_close, (None, )),
             (self.k.unblock, (None, )),
             (self.k.cancel, (None, )),
             (self.k.timeout_after, (None, None)),
@@ -382,10 +392,6 @@ class KernelTest(unittest.TestCase):
             task.get_result_nonblocking()
 
     def test_cancel(self):
-
-        n = self.k._nudger._r
-        self.assertEqual(set(self.k._poller._events), set([n]))
-
         self.assert_stats()
 
         task = self.k.spawn(traps.poll_read(self.r.fileno()))
@@ -393,10 +399,6 @@ class KernelTest(unittest.TestCase):
 
         with self.assertRaises(errors.KernelTimeout):
             self.k.run(timeout=0)
-        self.assertEqual(
-            set(self.k._poller._events),
-            set([n, self.r.fileno()]),
-        )
         self.assert_stats(num_ticks=1, num_tasks=1, num_poll=1)
 
         self.k.cancel(task)
@@ -406,11 +408,6 @@ class KernelTest(unittest.TestCase):
 
         self.k.run()
         self.assert_stats(num_ticks=2, num_tasks=0)
-
-        self.assertEqual(
-            set(self.k._poller._events),
-            set([n, self.r.fileno()]),
-        )
 
         with self.assertRaises(errors.Cancelled):
             task.get_result_nonblocking()
@@ -435,86 +432,35 @@ class KernelTest(unittest.TestCase):
         self.assert_stats(num_ticks=3, num_tasks=0, num_poll=0)
 
     def test_poll_read_and_write(self):
-
-        r_events = pollers.Epoll.READ | pollers.Epoll.EDGE_TRIGGER
-        rw_events = r_events | pollers.Epoll.WRITE
-
-        n = self.k._nudger._r
-        r = self.r.fileno()
-
-        self.assertEqual(self.k._poller._events, {n: pollers.Epoll.READ})
-
-        t1 = self.k.spawn(traps.poll_read(r))
+        t1 = self.k.spawn(traps.poll_read(self.r.fileno()))
         with self.assertRaises(errors.KernelTimeout):
             self.k.run(timeout=0)
         self.assert_stats(num_ticks=1, num_tasks=1, num_poll=1)
-        self.assertEqual(
-            self.k._poller._events,
-            {
-                n: pollers.Epoll.READ,
-                r: r_events,
-            },
-        )
 
-        t2 = self.k.spawn(traps.poll_write(r))
+        t2 = self.k.spawn(traps.poll_write(self.r.fileno()))
         with self.assertRaises(errors.KernelTimeout):
             self.k.run(timeout=0)
         self.assert_stats(num_ticks=2, num_tasks=2, num_poll=2)
-        self.assertEqual(
-            self.k._poller._events,
-            {
-                n: pollers.Epoll.READ,
-                r: rw_events,
-            },
-        )
 
-        t3 = self.k.spawn(traps.poll_read(r))
+        t3 = self.k.spawn(traps.poll_read(self.r.fileno()))
         with self.assertRaises(errors.KernelTimeout):
             self.k.run(timeout=0)
         self.assert_stats(num_ticks=3, num_tasks=3, num_poll=3)
-        self.assertEqual(
-            self.k._poller._events,
-            {
-                n: pollers.Epoll.READ,
-                r: rw_events,
-            },
-        )
 
         self.k.cancel(t1)
         with self.assertRaises(errors.KernelTimeout):
             self.k.run(timeout=0)
         self.assert_stats(num_ticks=4, num_tasks=2, num_poll=2)
-        self.assertEqual(
-            self.k._poller._events,
-            {
-                n: pollers.Epoll.READ,
-                r: rw_events,
-            },
-        )
 
         self.k.cancel(t2)
         with self.assertRaises(errors.KernelTimeout):
             self.k.run(timeout=0)
         self.assert_stats(num_ticks=5, num_tasks=1, num_poll=1)
-        self.assertEqual(
-            self.k._poller._events,
-            {
-                n: pollers.Epoll.READ,
-                r: rw_events,
-            },
-        )
 
         self.k.cancel(t3)
         with self.assertRaises(errors.KernelTimeout):
             self.k.run(timeout=0)
         self.assert_stats(num_ticks=6, num_tasks=0, num_poll=0)
-        self.assertEqual(
-            self.k._poller._events,
-            {
-                n: pollers.Epoll.READ,
-                r: rw_events,
-            },
-        )
 
     def test_block(self):
 
@@ -601,6 +547,10 @@ class KernelTest(unittest.TestCase):
 
 class NudgerTest(unittest.TestCase):
 
+    def assert_poll(self, pair, expect_can_read, expect_can_write):
+        self.assertCountEqual(pair[0], expect_can_read)
+        self.assertCountEqual(pair[1], expect_can_write)
+
     def test_nudge(self):
         nudger = kernels.Nudger()
 
@@ -623,13 +573,13 @@ class NudgerTest(unittest.TestCase):
         nudger = kernels.Nudger()
         nudger.register_to(poller)
 
-        self.assertEqual(poller.poll(0), [])
+        self.assert_poll(poller.poll(0), [], [])
 
         nudger.nudge()
-        self.assertEqual(poller.poll(0), [(nudger._r, select.EPOLLIN)])
+        self.assert_poll(poller.poll(0), [nudger._r], [])
 
         nudger.ack()
-        self.assertEqual(poller.poll(0), [])
+        self.assert_poll(poller.poll(0), [], [])
 
         poller.close()
         nudger.close()

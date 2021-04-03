@@ -50,12 +50,12 @@ def join(task):
 
 @types.coroutine
 def poll_read(fd):
-    yield PollTrap(Traps.POLL, fd, pollers.Epoll.READ)
+    yield PollTrap(Traps.POLL, fd, pollers.Polls.READ)
 
 
 @types.coroutine
 def poll_write(fd):
-    yield PollTrap(Traps.POLL, fd, pollers.Epoll.WRITE)
+    yield PollTrap(Traps.POLL, fd, pollers.Polls.WRITE)
 
 
 @types.coroutine
