@@ -36,12 +36,14 @@ def define_server(module_path=None, **kwargs):
 
 
 def setup_server(module_labels, module_params):
+    utils.depend_parameter_for(module_labels.params, module_params)
     # Server.
     utils.define_maker(
-        servers.SocketServer,
+        make_socket_server,
         {
             'socket': module_labels.socket,
             'handler': module_labels.handler,
+            'params': module_labels.params,
             'return': module_labels.server,
         },
     )
@@ -52,7 +54,6 @@ def setup_server(module_labels, module_params):
         },
     )
     # Server socket.
-    utils.depend_parameter_for(module_labels.params, module_params)
     utils.define_maker(
         make_server_socket,
         {
@@ -88,6 +89,7 @@ def make_server_params(
     reuse_address=False,
     reuse_port=False,
     protocols=(),
+    num_connections=128,
 ):
     return parameters.Namespace(
         'make server socket',
@@ -102,6 +104,13 @@ def make_server_params(
         protocols=parameters.Parameter(
             protocols, type=collections.abc.Iterable
         ),
+        # Server.
+        num_connections=parameters.Parameter(
+            num_connections,
+            'max number of concurrent connections',
+            type=int,
+            validate=(0).__le__,
+        ),
     )
 
 
@@ -112,6 +121,10 @@ def make_agent(
 ):
     agent_queue.spawn(server.serve)
     shutdown_queue.put_nonblocking(server.shutdown)
+
+
+def make_socket_server(socket, handler, params):
+    return servers.SocketServer(socket, handler, params.num_connections.get())
 
 
 def make_server_socket(

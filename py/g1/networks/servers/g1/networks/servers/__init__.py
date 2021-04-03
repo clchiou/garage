@@ -14,14 +14,20 @@ LOG.addHandler(logging.NullHandler())
 
 class SocketServer:
 
-    def __init__(self, socket, handler):
+    def __init__(self, socket, handler, num_connections=0):
         self._socket = socket
         self._handler = handler
+        self._num_connections = num_connections
 
     async def serve(self):
         LOG.info('start server: %r', self._socket)
         with self._socket:
-            async with tasks.CompletionQueue() as queue:
+            if self._num_connections <= 0:
+                capacity = self._num_connections
+            else:
+                # +1 for the `_accept` task.
+                capacity = self._num_connections + 1
+            async with tasks.CompletionQueue(capacity) as queue:
                 await servers.supervise_server(
                     queue,
                     (queue.spawn(self._accept(queue)), ),
@@ -29,11 +35,8 @@ class SocketServer:
         LOG.info('stop server: %r', self._socket)
 
     async def _accept(self, queue):
-        # TODO: NOTE: Because we did not set a capacity limit for queue
-        # (CompletionQueue does not support this feature at the moment),
-        # this accept loop could possibly spawn an out-of-control number
-        # of handler tasks.
         while True:
+            await queue.puttable()
             try:
                 sock, addr = await self._socket.accept()
             except OSError as exc:
