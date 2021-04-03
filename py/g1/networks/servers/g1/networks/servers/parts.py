@@ -89,7 +89,7 @@ def make_server_params(
     reuse_address=False,
     reuse_port=False,
     protocols=(),
-    num_connections=128,
+    max_connections=128,
 ):
     return parameters.Namespace(
         'make server socket',
@@ -105,8 +105,8 @@ def make_server_params(
             protocols, type=collections.abc.Iterable
         ),
         # Server.
-        num_connections=parameters.Parameter(
-            num_connections,
+        max_connections=parameters.Parameter(
+            max_connections,
             'max number of concurrent connections',
             type=int,
             validate=(0).__le__,
@@ -124,7 +124,7 @@ def make_agent(
 
 
 def make_socket_server(socket, handler, params):
-    return servers.SocketServer(socket, handler, params.num_connections.get())
+    return servers.SocketServer(socket, handler, params.max_connections.get())
 
 
 def make_server_socket(

@@ -14,19 +14,19 @@ LOG.addHandler(logging.NullHandler())
 
 class SocketServer:
 
-    def __init__(self, socket, handler, num_connections=0):
+    def __init__(self, socket, handler, max_connections=0):
         self._socket = socket
         self._handler = handler
-        self._num_connections = num_connections
+        self._max_connections = max_connections
 
     async def serve(self):
         LOG.info('start server: %r', self._socket)
         with self._socket:
-            if self._num_connections <= 0:
-                capacity = self._num_connections
+            if self._max_connections <= 0:
+                capacity = self._max_connections
             else:
                 # +1 for the `_accept` task.
-                capacity = self._num_connections + 1
+                capacity = self._max_connections + 1
             async with tasks.CompletionQueue(capacity) as queue:
                 await servers.supervise_server(
                     queue,
