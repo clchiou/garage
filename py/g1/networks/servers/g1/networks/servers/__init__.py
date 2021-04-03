@@ -29,6 +29,10 @@ class SocketServer:
         LOG.info('stop server: %r', self._socket)
 
     async def _accept(self, queue):
+        # TODO: NOTE: Because we did not set a capacity limit for queue
+        # (CompletionQueue does not support this feature at the moment),
+        # this accept loop could possibly spawn an out-of-control number
+        # of handler tasks.
         while True:
             try:
                 sock, addr = await self._socket.accept()
