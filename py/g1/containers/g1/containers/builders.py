@@ -284,12 +284,16 @@ def _generate_unit_file_content(pod_name, pod_version, app):
             exec_start.extend(app.exec)
         else:
             exec_start = app.exec
+        # TODO: The default limit 1024 is too small for some server
+        # applications; we increase LimitNOFILE to 65536.  But consider
+        # make it configurable.
         service_section = '''\
 {service_type}\
 Restart=no
 SyslogIdentifier={pod_name}/{app.name}@{pod_version}
 ExecStart={exec}
-ExecStopPost=/usr/sbin/pod-exit "%n"'''.format(
+ExecStopPost=/usr/sbin/pod-exit "%n"
+LimitNOFILE=65536'''.format(
             app=app,
             exec=' '.join(map(_quote_arg, exec_start)),
             pod_name=pod_name,

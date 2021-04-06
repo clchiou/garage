@@ -100,7 +100,8 @@ class BuildersTest(fixtures.TestCaseBase):
             'Restart=no\n'
             'SyslogIdentifier=some-pod/hello-world@0.0.1\n'
             'ExecStart="/bin/echo" "\\"hello world\\""\n'
-            'ExecStopPost=/usr/sbin/pod-exit "%n"\n',
+            'ExecStopPost=/usr/sbin/pod-exit "%n"\n'
+            'LimitNOFILE=65536\n',
         )
 
         builders.generate_unit_file(

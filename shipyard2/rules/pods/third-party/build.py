@@ -32,7 +32,8 @@ ExecStopPost=/usr/sbin/pod-exit "%n"
 KillMode=mixed
 Restart=no
 SuccessExitStatus=143
-Type=notify'''.format(haproxy_path=HAPROXY_PATH)
+Type=notify
+LimitNOFILE=65536'''.format(haproxy_path=HAPROXY_PATH)
 
 shipyard2.rules.pods.define_pod(
     name='haproxy',
