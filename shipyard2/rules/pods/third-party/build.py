@@ -24,6 +24,7 @@ HAPROXY_SERVICE_SECTION = '''\
 Environment="CONFIG={haproxy_path}/haproxy.cfg"
 Environment="PIDFILE={haproxy_path}/haproxy.pid"
 Environment="EXTRAOPTS=-S {haproxy_path}/haproxy-master.sock"
+Environment="STATS_PORT={{stats_port}}"
 ExecStartPre=/usr/sbin/haproxy -f $CONFIG -c -q $EXTRAOPTS
 ExecStart=/usr/sbin/haproxy -Ws -f $CONFIG -p $PIDFILE $EXTRAOPTS
 ExecReload=/usr/sbin/haproxy -f $CONFIG -c -q $EXTRAOPTS
@@ -65,4 +66,7 @@ shipyard2.rules.pods.define_pod(
             ],
         ),
     ],
+    token_names={
+        'stats_port': 'ops_free_port',
+    },
 )
