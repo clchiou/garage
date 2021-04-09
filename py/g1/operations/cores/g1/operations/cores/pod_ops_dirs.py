@@ -199,7 +199,12 @@ class PodOpsDir(repos.AbstractOpsDir):
             deploy_instruction.pod_config_template,
             apps=[
                 dataclasses.replace(
-                    app, exec=[arg.format_map(envs) for arg in app.exec]
+                    app,
+                    exec=[arg.format_map(envs) for arg in app.exec],
+                    service_section=(
+                        app.service_section if app.service_section is None else
+                        app.service_section.format_map(envs)
+                    ),
                 ) for app in deploy_instruction.pod_config_template.apps
             ],
             mounts=[

@@ -53,7 +53,7 @@ class PodConfig:
         """Descriptor of systemd unit file of container app."""
 
         name: str
-        exec: typing.List[str] = ()
+        exec: typing.List[str] = dataclasses.field(default_factory=list)
         type: typing.Optional[str] = None
         user: str = 'nobody'
         group: str = 'nogroup'
