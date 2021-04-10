@@ -62,6 +62,7 @@ def make_session(params, executor):
     session = clients.Session(
         executor=executor,
         cache_size=params.cache_size.get(),
+        circuit_breakers=bases.make_circuit_breakers(params),
         rate_limit=bases.make_rate_limit(params),
         retry=bases.make_retry(params),
         num_pools=params.num_pools.get(),

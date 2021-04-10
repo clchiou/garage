@@ -16,6 +16,11 @@ DEFAULT_USER_AGENT = 'Mozilla/5.0'
 def make_params_dict(
     # Cache.
     cache_size=8,
+    # Circuit breaker.
+    failure_threshold=0,
+    failure_period=8,
+    failure_timeout=8,
+    success_threshold=2,
     # Rate limit.
     max_request_rate=0,
     max_requests=64,
@@ -27,6 +32,28 @@ def make_params_dict(
     return dict(
         cache_size=parameters.Parameter(
             cache_size,
+            type=int,
+            validate=(0).__lt__,
+        ),
+        failure_threshold=parameters.Parameter(
+            failure_threshold,
+            type=int,
+            validate=(0).__le__,
+        ),
+        failure_period=parameters.Parameter(
+            failure_period,
+            type=(int, float),
+            validate=(0).__lt__,
+            unit='seconds',
+        ),
+        failure_timeout=parameters.Parameter(
+            failure_timeout,
+            type=(int, float),
+            validate=(0).__lt__,
+            unit='seconds',
+        ),
+        success_threshold=parameters.Parameter(
+            success_threshold,
             type=int,
             validate=(0).__lt__,
         ),
@@ -69,6 +96,18 @@ def make_connection_pool_params_dict(
             type=int,
             validate=(0).__le__,
         ),
+    )
+
+
+def make_circuit_breakers(params):
+    failure_threshold = params.failure_threshold.get()
+    if failure_threshold <= 0:
+        return None
+    return policies.TristateBreakers(
+        failure_threshold=failure_threshold,
+        failure_period=params.failure_period.get(),
+        failure_timeout=params.failure_timeout.get(),
+        success_threshold=params.success_threshold.get(),
     )
 
 
