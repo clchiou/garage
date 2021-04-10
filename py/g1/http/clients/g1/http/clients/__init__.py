@@ -8,6 +8,7 @@ the ease of programmatic use cases.
 __all__ = [
     'Request',
     'Session',
+    'Unavailable',
 ]
 
 import logging
@@ -15,5 +16,6 @@ import logging
 # Re-export these.
 from .bases import Request
 from .clients import Session
+from .policies import Unavailable
 
 logging.getLogger(__name__).addHandler(logging.NullHandler())

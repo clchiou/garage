@@ -19,6 +19,7 @@ def make_params_dict(
     # Rate limit.
     max_request_rate=0,
     max_requests=64,
+    raise_unavailable=False,
     # Retry.
     max_retries=0,
     backoff_base=1,
@@ -38,6 +39,10 @@ def make_params_dict(
             max_requests,
             type=int,
             validate=(0).__lt__,
+        ),
+        raise_unavailable=parameters.Parameter(
+            raise_unavailable,
+            type=bool,
         ),
         max_retries=parameters.Parameter(max_retries, type=int),
         backoff_base=parameters.Parameter(
@@ -71,7 +76,11 @@ def make_rate_limit(params):
     max_request_rate = params.max_request_rate.get()
     if max_request_rate <= 0:
         return None
-    return policies.TokenBucket(max_request_rate, params.max_requests.get())
+    return policies.TokenBucket(
+        max_request_rate,
+        params.max_requests.get(),
+        params.raise_unavailable.get(),
+    )
 
 
 def make_retry(params):

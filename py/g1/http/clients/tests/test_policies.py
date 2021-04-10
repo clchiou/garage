@@ -24,7 +24,7 @@ class RateLimitTest(unittest.TestCase):
     @kernels.with_kernel
     def test_token_bucket(self):
         self.monotonic_mock.side_effect = [99]
-        tb = policies.TokenBucket(0.5, 2)
+        tb = policies.TokenBucket(0.5, 2, False)
         self.assertEqual(tb._num_tokens, 0)
         self.assertEqual(tb._last_added, 99)
 
@@ -38,20 +38,28 @@ class RateLimitTest(unittest.TestCase):
         self.assertEqual(tb._num_tokens, 1)
         self.assertEqual(tb._last_added, 105)
 
+    @kernels.with_kernel
+    def test_token_bucket_raise_when_empty(self):
+        self.monotonic_mock.return_value = 99
+        tb = policies.TokenBucket(1, 1, True)
+        with self.assertRaises(policies.Unavailable):
+            kernels.run(tb)
+        self.assertEqual(tb._num_tokens, 0)
+
     def test_invalid_args(self):
         with self.assertRaises(AssertionError):
-            policies.TokenBucket(0, 1)
+            policies.TokenBucket(0, 1, False)
         with self.assertRaises(AssertionError):
-            policies.TokenBucket(-1, 1)
+            policies.TokenBucket(-1, 1, False)
         with self.assertRaises(AssertionError):
-            policies.TokenBucket(1, 0)
+            policies.TokenBucket(1, 0, False)
         with self.assertRaises(AssertionError):
-            policies.TokenBucket(1, -1)
+            policies.TokenBucket(1, -1, False)
 
     def test_add_tokens(self):
         self.monotonic_mock.return_value = 99
 
-        tb = policies.TokenBucket(0.5, 2)
+        tb = policies.TokenBucket(0.5, 2, False)
         self.assertAlmostEqual(tb._token_rate, 0.5)
         self.assertAlmostEqual(tb._token_period, 2.0)
         self.assertEqual(tb._bucket_size, 2)

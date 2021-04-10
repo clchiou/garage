@@ -1,4 +1,5 @@
 __all__ = [
+    'Unavailable',
     # Rate limit.
     'unlimited',
     'TokenBucket',
@@ -13,13 +14,18 @@ from g1.asyncs.bases import timers
 from g1.bases.assertions import ASSERT
 
 
+class Unavailable(Exception):
+    """When rate limit is exceeded."""
+
+
 async def unlimited():
     pass
 
 
 class TokenBucket:
 
-    def __init__(self, token_rate, bucket_size):
+    def __init__(self, token_rate, bucket_size, raise_when_empty):
+        self._raise_when_empty = raise_when_empty
         self._token_rate = ASSERT.greater(token_rate, 0)
         self._token_period = 1 / self._token_rate
         self._bucket_size = ASSERT.greater(bucket_size, 0)
@@ -28,6 +34,8 @@ class TokenBucket:
 
     async def __call__(self):
         self._add_tokens()
+        if self._num_tokens < 1 and self._raise_when_empty:
+            raise Unavailable
         while self._num_tokens < 1:
             await timers.sleep(self._token_period)
             self._add_tokens()
@@ -42,7 +50,8 @@ class TokenBucket:
         self._last_added = now
 
 
-def no_retry(_):
+def no_retry(retry_count):  # pylint: disable=useless-return
+    del retry_count  # Unused.
     return None
 
 
