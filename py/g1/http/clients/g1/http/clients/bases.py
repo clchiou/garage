@@ -91,6 +91,11 @@ class Sender:
             urllib.parse.urlparse(request.url).netloc
         )
         for retry_count in itertools.count():
+            # Check rate limit before the breaker so that, when the
+            # breaker is in YELLOW state and `raise_when_empty` of rate
+            # limit is set, rate limit may raise before waiting in the
+            # breaker.
+            await self._rate_limit()
             async with breaker:
                 response = await self._loop_body(
                     request, kwargs, breaker, retry_count
@@ -119,7 +124,6 @@ class Sender:
         return await task.get_result()
 
     async def _loop_body(self, request, kwargs, breaker, retry_count):
-        await self._rate_limit()
         if retry_count:
             LOG.warning('retry %d times: %r', retry_count, request)
         try:
