@@ -131,7 +131,9 @@ class TristateBreaker(CircuitBreaker):
                 self._event_log.
                 count(time.monotonic() - self._failure_timeout) > 0
             ):
-                raise Unavailable('circuit breaker disconnected')
+                raise Unavailable(
+                    'circuit breaker disconnected: %s' % self._key
+                )
             self._change_state_yellow()
 
         ASSERT.is_(self._state, _States.YELLOW)
@@ -142,7 +144,9 @@ class TristateBreaker(CircuitBreaker):
             await self._yellow_gate.wait()
 
         if self._state is _States.RED:
-            raise Unavailable('circuit breaker became disconnected')
+            raise Unavailable(
+                'circuit breaker became disconnected: %s' % self._key
+            )
 
         self._num_concurrent_requests += 1
         return self

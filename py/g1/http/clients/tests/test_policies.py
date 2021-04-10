@@ -125,7 +125,7 @@ class TristateBreakerTest(unittest.TestCase):
 
         self.assertTrue(aenter_task.is_completed())
         with self.assertRaisesRegex(
-            policies.Unavailable, r'circuit breaker became disconnected'
+            policies.Unavailable, r'circuit breaker became disconnected: test'
         ):
             aenter_task.get_result_nonblocking()
 
@@ -142,7 +142,7 @@ class TristateBreakerTest(unittest.TestCase):
         self.assert_breaker(breaker, policies._States.RED, [99], 0)
 
         with self.assertRaisesRegex(
-            policies.Unavailable, r'circuit breaker disconnected'
+            policies.Unavailable, r'circuit breaker disconnected: test'
         ):
             kernels.run(breaker.__aenter__())
         self.assert_breaker(breaker, policies._States.RED, [99], 0)
