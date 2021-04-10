@@ -24,7 +24,7 @@ setup(
             'g1.asyncs.kernels',
             'g1.bases',
             # Sadly setup.py cannot depend itself.
-            # 'g1.backgrounds[tasks]',
+            # 'g1.backgrounds[executors,tasks]',
         ],
         'tasks': [
             'g1.asyncs.agents[parts]',

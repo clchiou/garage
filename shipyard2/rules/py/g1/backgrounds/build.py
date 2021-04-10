@@ -28,6 +28,7 @@ shipyard2.rules.pythons.define_package(
                 '//py/g1/asyncs/kernels:build',
                 '//py/g1/bases:build',
                 # Self-reference.
+                '//py/g1/backgrounds:build/executors',
                 '//py/g1/backgrounds:build/tasks',
             ],
         ),
