@@ -16,9 +16,13 @@ PARAMS = parameters.define(
     parameters.Namespace(
         'configure monitor',
         period=parameters.Parameter(
-            600,
+            10,
             type=(int, float),
             unit='seconds',
+        ),
+        num_tasks_threshold=parameters.Parameter(
+            100,
+            validate=(0).__le__,
         ),
     ),
 )
@@ -26,10 +30,12 @@ PARAMS = parameters.define(
 PARAMS_LABEL = labels.Label(__name__, 'params')
 
 
-async def monitor(period):
+async def monitor(period, num_tasks_threshold):
     while True:
-        LOG.info('kernel stats: %r', kernels.get_kernel().get_stats())
-        LOG.info('lifecycle snapshot: %r', lifecycles.take_snapshot())
+        stats = kernels.get_kernel().get_stats()
+        if stats.num_tasks >= num_tasks_threshold:
+            LOG.info('kernel stats: %r', stats)
+            LOG.info('lifecycle snapshot: %r', lifecycles.take_snapshot())
         await timers.sleep(period)
 
 
@@ -41,4 +47,4 @@ def define_monitor():
 def make_monitor(queue: tasks.LABELS.queue, params: PARAMS_LABEL):
     period = params.period.get()
     if period > 0:
-        queue.spawn(monitor(period))
+        queue.spawn(monitor(period, params.num_tasks_threshold.get()))
