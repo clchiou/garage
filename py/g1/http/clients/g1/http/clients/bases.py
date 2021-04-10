@@ -277,7 +277,7 @@ class BaseSession:
             try:
                 response = Response(source)
             finally:
-                _close_response_recursively(source)
+                source.close()
 
         try:
             response.raise_for_status()
@@ -291,12 +291,6 @@ class BaseSession:
             raise
 
         return response
-
-
-def _close_response_recursively(response):
-    response.close()
-    for r in response.history:
-        _close_response_recursively(r)
 
 
 class Request:
