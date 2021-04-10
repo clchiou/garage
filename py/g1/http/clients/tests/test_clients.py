@@ -52,6 +52,13 @@ class SessionTest(TestCaseBase):
     def setUpClass(cls):
         cls.executor = executors.Executor(max_executors=1)
 
+    def assert_breaker(self, breaker, state, log, num_concurrent_requests):
+        self.assertIs(breaker._state, state)
+        self.assertEqual(list(breaker._event_log._log), log)
+        self.assertEqual(
+            breaker._num_concurrent_requests, num_concurrent_requests
+        )
+
     @kernels.with_kernel
     def test_success(self):
         session = clients.Session(executor=self.executor)
@@ -71,6 +78,64 @@ class SessionTest(TestCaseBase):
         with self.assertRaisesRegex(Exception, r'some error'):
             kernels.run(session.send(self.REQUEST))
         self.mock_session.get.assert_called_once_with(self.URL)
+
+    @kernels.with_kernel
+    @unittest.mock.patch.object(policies, 'time')
+    def test_circuit_breaker(self, mock_time):
+        mock_monotonic = mock_time.monotonic
+        mock_monotonic.side_effect = [
+            99, 100, 101, 102, 103, 104, 105, 106, 107
+        ]
+        self.mock_session.get.side_effect = Exception('some error')
+        circuit_breakers = policies.TristateBreakers(
+            failure_threshold=2,
+            failure_period=1,
+            failure_timeout=1,
+            success_threshold=2,
+        )
+        breaker = circuit_breakers.get('localhost')
+        session = clients.Session(
+            executor=self.executor,
+            circuit_breakers=circuit_breakers,
+        )
+
+        self.assert_breaker(breaker, policies._States.GREEN, [], 0)
+
+        with self.assertRaisesRegex(Exception, r'some error'):
+            kernels.run(session.send(self.REQUEST))
+        self.assert_breaker(breaker, policies._States.GREEN, [99], 0)
+
+        with self.assertRaisesRegex(Exception, r'some error'):
+            kernels.run(session.send(self.REQUEST))
+        self.assert_breaker(breaker, policies._States.RED, [100], 0)
+
+        with self.assertRaisesRegex(
+            policies.Unavailable, r'circuit breaker disconnected'
+        ):
+            kernels.run(session.send(self.REQUEST))
+        self.assert_breaker(breaker, policies._States.RED, [100], 0)
+
+        with self.assertRaisesRegex(Exception, r'some error'):
+            kernels.run(session.send(self.REQUEST))
+        self.assert_breaker(breaker, policies._States.RED, [103], 0)
+
+        self.mock_session.get.side_effect = None
+        self.set_mock_response(404)
+
+        with self.assertRaisesRegex(
+            policies.Unavailable, r'circuit breaker disconnected'
+        ):
+            kernels.run(session.send(self.REQUEST))
+        self.assert_breaker(breaker, policies._States.RED, [103], 0)
+
+        with self.assertRaises(requests.RequestException):
+            kernels.run(session.send(self.REQUEST))
+        self.assert_breaker(breaker, policies._States.YELLOW, [106], 0)
+
+        self.set_mock_response(200)
+
+        kernels.run(session.send(self.REQUEST))
+        self.assert_breaker(breaker, policies._States.GREEN, [], 0)
 
     @kernels.with_kernel
     def test_http_error_no_retry(self):

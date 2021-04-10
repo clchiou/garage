@@ -9,6 +9,7 @@ import functools
 import itertools
 import json
 import logging
+import urllib.parse
 
 import lxml.etree
 import requests
@@ -32,10 +33,19 @@ LOG = logging.getLogger(__name__)
 class Sender:
     """Request sender with local cache, rate limit, and retry."""
 
-    def __init__(self, send, *, cache_size=8, rate_limit=None, retry=None):
+    def __init__(
+        self,
+        send,
+        *,
+        cache_size=8,
+        circuit_breakers=None,
+        rate_limit=None,
+        retry=None,
+    ):
         self._send = send
         self._cache = g1_collections.LruCache(cache_size)
         self._unbounded_cache = {}
+        self._circuit_breakers = circuit_breakers or policies.NO_BREAK
         self._rate_limit = rate_limit or policies.unlimited
         self._retry = retry or policies.no_retry
 
@@ -77,39 +87,16 @@ class Sender:
                 kwargs,
             )
 
+        breaker = self._circuit_breakers.get(
+            urllib.parse.urlparse(request.url).netloc
+        )
         for retry_count in itertools.count():
-            await self._rate_limit()
-            if retry_count:
-                LOG.warning('retry %d times: %r', retry_count, request)
-            try:
-                return await self._send(request, **kwargs)
-            except (
-                requests.RequestException,
-                urllib3.exceptions.HTTPError,
-            ) as exc:
-                backoff = self._retry(retry_count)
-                if backoff is None:
-                    raise
-                # NOTE: requests.Response defines __bool__ that returns
-                # to true when status code is less than 400.  This is
-                # certainly surprising sometimes.  Anyway, you have to
-                # explicitly check `is None` here.
-                if getattr(exc, 'response', None) is not None:
-                    status_code = exc.response.status_code
-                    # It does not seem to make sense to retry on 4xx
-                    # errors since our request was explicitly rejected
-                    # by the server.
-                    if 400 <= status_code < 500:
-                        raise
-                else:
-                    status_code = None
-                LOG.warning(
-                    'http error: status_code=%s, request=%r, exc=%r',
-                    status_code,
-                    request,
-                    exc,
+            async with breaker:
+                response = await self._loop_body(
+                    request, kwargs, breaker, retry_count
                 )
-                await timers.sleep(backoff)
+            if response is not None:
+                return response
         ASSERT.unreachable('retry loop should not break')
 
     async def _try_cache(self, cache, key, revalidate, request, kwargs):
@@ -130,6 +117,58 @@ class Sender:
         # cancelled before this task completes, this task might not
         # be joined, but this risk is probably too small.
         return await task.get_result()
+
+    async def _loop_body(self, request, kwargs, breaker, retry_count):
+        await self._rate_limit()
+        if retry_count:
+            LOG.warning('retry %d times: %r', retry_count, request)
+        try:
+            response = await self._send(request, **kwargs)
+
+        except (
+            requests.RequestException,
+            urllib3.exceptions.HTTPError,
+        ) as exc:
+            status_code = self._get_status_code(exc)
+            if status_code is not None and 400 <= status_code < 500:
+                # From the perspective of circuit breaker, a 4xx is
+                # considered a "success".
+                breaker.notify_success()
+                # It does not seem to make sense to retry on 4xx errors
+                # as our request was explicitly rejected by the server.
+                raise
+
+            breaker.notify_failure()
+
+            backoff = self._retry(retry_count)
+            if backoff is None:
+                raise
+            LOG.warning(
+                'http error: status_code=%s, request=%r, exc=%r',
+                status_code,
+                request,
+                exc,
+            )
+            await timers.sleep(backoff)
+            return None
+
+        except Exception:
+            breaker.notify_failure()
+            raise
+
+        else:
+            breaker.notify_success()
+            return response
+
+    @staticmethod
+    def _get_status_code(exc):
+        # requests.Response defines __bool__ that returns to true when
+        # status code is less than 400; so we have to explicitly check
+        # `is None` here, rather than `if not response:`.
+        response = getattr(exc, 'response', None)
+        if response is None:
+            return None
+        return response.status_code
 
 
 class BaseSession:
