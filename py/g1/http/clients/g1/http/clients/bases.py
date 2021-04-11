@@ -91,17 +91,25 @@ class Sender:
             urllib.parse.urlparse(request.url).netloc
         )
         for retry_count in itertools.count():
+
             # Check rate limit before the breaker so that, when the
             # breaker is in YELLOW state and `raise_when_empty` of rate
             # limit is set, rate limit may raise before waiting in the
             # breaker.
             await self._rate_limit()
+
             async with breaker:
-                response = await self._loop_body(
+                response, backoff = await self._loop_body(
                     request, kwargs, breaker, retry_count
                 )
             if response is not None:
                 return response
+
+            # Call `sleep` after _loop_body returns so that, when the
+            # breaker is in YELLOW state, it is not blocking other tasks
+            # for too long.
+            await timers.sleep(ASSERT.not_none(backoff))
+
         ASSERT.unreachable('retry loop should not break')
 
     async def _try_cache(self, cache, key, revalidate, request, kwargs):
@@ -153,8 +161,7 @@ class Sender:
                 request,
                 exc,
             )
-            await timers.sleep(backoff)
-            return None
+            return None, backoff
 
         except Exception:
             breaker.notify_failure()
@@ -162,7 +169,7 @@ class Sender:
 
         else:
             breaker.notify_success()
-            return response
+            return response, None
 
     @staticmethod
     def _get_status_code(exc):
