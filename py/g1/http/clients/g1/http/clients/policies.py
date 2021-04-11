@@ -16,7 +16,6 @@ import enum
 import logging
 import time
 
-from g1.asyncs.bases import locks
 from g1.asyncs.bases import timers
 from g1.bases import collections as g1_collections
 from g1.bases.assertions import ASSERT
@@ -90,10 +89,11 @@ class TristateBreaker(CircuitBreaker):
       failures consecutively in the last ``failure_period`` seconds, it
       changes the state to RED.
 
-    * YELLOW: When in this state, it only lets one request pass through
-      at a time.  When there are ``success_threshold`` successes
-      consecutively, it changes the state to GREEN.  When there is a
-      failure, it changes the state to RED.
+    * YELLOW: When in this state, it only lets one concurrent request
+      pass through, and errs out on all others.  When there are
+      ``success_threshold`` successes consecutively, it changes the
+      state to GREEN.  When there is a failure, it changes the state to
+      RED.
 
     * RED: When in this state, it lets no requests pass through.  After
       ``failure_timeout`` seconds, it changes the state to YELLOW.
@@ -118,7 +118,6 @@ class TristateBreaker(CircuitBreaker):
         # is YELLOW, it records successes; when state is RED, it records
         # when the state was changed to RED.
         self._event_log = _EventLog(max(failure_threshold, success_threshold))
-        self._yellow_gate = locks.Gate()
         self._num_concurrent_requests = 0
 
     async def __aenter__(self):
@@ -137,15 +136,9 @@ class TristateBreaker(CircuitBreaker):
             self._change_state_yellow()
 
         ASSERT.is_(self._state, _States.YELLOW)
-
-        while (
-            self._state is _States.YELLOW and self._num_concurrent_requests > 0
-        ):
-            await self._yellow_gate.wait()
-
-        if self._state is _States.RED:
+        if self._num_concurrent_requests > 0:
             raise Unavailable(
-                'circuit breaker became disconnected: %s' % self._key
+                'circuit breaker has not re-connected yet: %s' % self._key
             )
 
         self._num_concurrent_requests += 1
@@ -153,7 +146,6 @@ class TristateBreaker(CircuitBreaker):
 
     async def __aexit__(self, exc_type, exc, traceback):
         self._num_concurrent_requests -= 1
-        self._yellow_gate.unblock()
 
     def notify_success(self):
         if self._state is _States.GREEN:
@@ -185,20 +177,17 @@ class TristateBreaker(CircuitBreaker):
         LOG.info('TristateBreaker: change state to GREEN: %s', self._key)
         self._state = _States.GREEN
         self._event_log.clear()
-        self._yellow_gate.unblock()
 
     def _change_state_yellow(self):
         LOG.info('TristateBreaker: change state to YELLOW: %s', self._key)
         self._state = _States.YELLOW
         self._event_log.clear()
-        self._yellow_gate.unblock()
 
     def _change_state_red(self, now):
         LOG.info('TristateBreaker: change state to RED: %s', self._key)
         self._state = _States.RED
         self._event_log.clear()
         self._event_log.add(now)
-        self._yellow_gate.unblock()
 
 
 class TristateBreakers(CircuitBreakers):

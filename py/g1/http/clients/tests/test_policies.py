@@ -2,7 +2,6 @@ import unittest
 import unittest.mock
 
 from g1.asyncs import kernels
-from g1.asyncs.bases import tasks
 from g1.http.clients import policies
 
 
@@ -90,46 +89,13 @@ class TristateBreakerTest(unittest.TestCase):
         self.assertIs(kernels.run(breaker.__aenter__()), breaker)
         self.assert_breaker(breaker, policies._States.YELLOW, [], 1)
 
-        aenter_task = tasks.spawn(breaker.__aenter__())
-        with self.assertRaises(kernels.KernelTimeout):
-            kernels.run(timeout=0.01)
-        self.assertFalse(aenter_task.is_completed())
-
-        aexit_task = tasks.spawn(breaker.__aexit__(None, None, None))
-        kernels.run(timeout=0.01)
-
-        self.assertTrue(aexit_task.is_completed())
-        self.assertIsNone(aexit_task.get_result_nonblocking())
-
-        self.assertTrue(aenter_task.is_completed())
-        self.assertIs(aenter_task.get_result_nonblocking(), breaker)
-
-        self.assert_breaker(breaker, policies._States.YELLOW, [], 1)
-
-    @kernels.with_kernel
-    def test_context_yellow_change_state_red(self):
-        breaker = self.make(2, 1, 1, 2)
-        breaker._change_state_yellow()
-        self.assert_breaker(breaker, policies._States.YELLOW, [], 0)
-
-        self.assertIs(kernels.run(breaker.__aenter__()), breaker)
-        self.assert_breaker(breaker, policies._States.YELLOW, [], 1)
-
-        aenter_task = tasks.spawn(breaker.__aenter__())
-        with self.assertRaises(kernels.KernelTimeout):
-            kernels.run(timeout=0.01)
-        self.assertFalse(aenter_task.is_completed())
-
-        breaker._change_state_red(99)
-        kernels.run(breaker.__aexit__(None, None, None), timeout=0.01)
-
-        self.assertTrue(aenter_task.is_completed())
         with self.assertRaisesRegex(
-            policies.Unavailable, r'circuit breaker became disconnected: test'
+            policies.Unavailable,
+            r'circuit breaker has not re-connected yet: test',
         ):
-            aenter_task.get_result_nonblocking()
+            kernels.run(breaker.__aenter__(), timeout=0.01)
 
-        self.assert_breaker(breaker, policies._States.RED, [99], 0)
+        self.assert_breaker(breaker, policies._States.YELLOW, [], 1)
 
     @kernels.with_kernel
     @unittest.mock.patch.object(policies, 'time')

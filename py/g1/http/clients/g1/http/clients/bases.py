@@ -92,10 +92,10 @@ class Sender:
         )
         for retry_count in itertools.count():
 
-            # Check rate limit before the breaker so that, when the
-            # breaker is in YELLOW state and `raise_when_empty` of rate
-            # limit is set, rate limit may raise before waiting in the
-            # breaker.
+            # Check rate limit out of the breaker async-with context to
+            # avoid adding extra delay in the context so that, when the
+            # breaker is in YELLOW state, another request may "go" into
+            # the context as soon as the previous one completes.
             await self._rate_limit()
 
             async with breaker:
@@ -105,9 +105,8 @@ class Sender:
             if response is not None:
                 return response
 
-            # Call `sleep` after _loop_body returns so that, when the
-            # breaker is in YELLOW state, it is not blocking other tasks
-            # for too long.
+            # Call `sleep` out of the breaker async-with context for the
+            # same reason above.
             await timers.sleep(ASSERT.not_none(backoff))
 
         ASSERT.unreachable('retry loop should not break')
