@@ -13,7 +13,7 @@ from .. import wsgi_apps
 
 LOG = logging.getLogger(__name__)
 
-_CHUNK_SIZE = 65536  # 64 KB
+_CHUNK_SIZE = 8192
 
 
 def compute_etag(content):
