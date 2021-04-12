@@ -4,6 +4,7 @@ __all__ = [
     'SocketAdapter',
 ]
 
+import io
 import logging
 import os
 import socket
@@ -182,6 +183,53 @@ class SocketAdapter(AdapterBase):
                 return self.__sock.sendmsg(buffers, *args)
             except self.WRITE_BLOCKED:
                 await traps.poll_write(self.__sock.fileno())
+
+    async def sendfile(self, file, offset=0, count=None):
+        """Re-implementation of stdlib's socket.sendfile.
+
+        Unlike stdlib's sendfile, this raises TypeError if the file
+        argument does not look like a regular file object, rather than
+        falling back to send.
+
+        We re-implement stdlib's socket.sendfile because it does not
+        support non-blocking sockets.
+        """
+        self.__sock._check_sendfile_params(file, offset, count)
+        # Check whether `file` is a regular file.
+        try:
+            in_fd = file.fileno()
+        except (AttributeError, io.UnsupportedOperation):
+            raise TypeError('expect a regular file')
+        try:
+            file_size = os.fstat(in_fd).st_size
+        except OSError:
+            raise TypeError('expect a regular file')
+        if file_size == 0:
+            return 0
+        out_fd = self.__sock.fileno()
+        num_to_send = file_size if count is None else count
+        num_sent_total = 0
+        try:
+            while num_to_send > 0:
+                try:
+                    num_sent = os.sendfile(out_fd, in_fd, offset, num_to_send)
+                except self.WRITE_BLOCKED:
+                    await traps.poll_write(out_fd)
+                    continue
+                except OSError:
+                    if num_sent_total == 0:
+                        # Most likely `file` is not a regular file.
+                        raise TypeError('expect a regular file')
+                    raise
+                if num_sent == 0:
+                    break  # EOF of in_fd.
+                offset += num_sent
+                num_sent_total += num_sent
+                num_to_send -= num_sent
+            return num_sent_total
+        finally:
+            if num_sent_total > 0 and hasattr(file, 'seek'):
+                file.seek(offset)
 
     def close(self):
         fd = self.__sock.fileno()

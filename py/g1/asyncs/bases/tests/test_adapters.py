@@ -2,6 +2,7 @@ import unittest
 
 import os
 import socket
+import tempfile
 
 from g1.asyncs.bases import adapters
 from g1.asyncs.kernels import contexts
@@ -228,6 +229,20 @@ class SocketAdapterTest(unittest.TestCase):
             return num_sent
 
         self.do_test_socket(sendmsg)
+
+    def test_socket_sendfile(self):
+
+        async def sendfile(num_chunks, chunk_size):
+            with tempfile.NamedTemporaryFile() as tmp:
+                with open(tmp.name, 'wb') as tmp_file:
+                    for i in range(num_chunks):
+                        tmp_file.write((b'%x' % (i + 1)) * chunk_size)
+                with open(tmp.name, 'rb') as tmp_file:
+                    num_sent = await self.s0.sendfile(tmp_file)
+            self.s0.close()
+            return num_sent
+
+        self.do_test_socket(sendfile)
 
     def do_test_socket(self, send):
 
