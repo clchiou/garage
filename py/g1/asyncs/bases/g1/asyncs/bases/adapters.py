@@ -102,10 +102,12 @@ class FileAdapter(AdapterBase):
 class SocketAdapter(AdapterBase):
 
     PROXIED_FIELDS = frozenset([
-        'fileno',
         'bind',
-        'listen',
+        'fileno',
+        'getsockname',
         'getsockopt',
+        'listen',
+        'setblocking',
         'setsockopt',
     ])
 

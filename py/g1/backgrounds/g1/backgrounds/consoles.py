@@ -46,7 +46,7 @@ class SocketConsoleHandler:
         del address  # Unused.
         # Undo non-blocking set by SocketAdapter because we are using
         # this socket in a worker thread.
-        sock.target.setblocking(True)
+        sock.setblocking(True)
         future = futures.Future()
         thread = threading.Thread(
             target=futures.wrap_thread_target(self._run_console, future),

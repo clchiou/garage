@@ -21,7 +21,7 @@ VERSION = '%s/nghttp2=%s' % (
 class HttpServer:
 
     def __init__(self, server_socket, application):
-        address = server_socket.target.getsockname()
+        address = server_socket.getsockname()
         is_ssl = isinstance(server_socket.target, ssl.SSLSocket)
         self._environ = {
             'wsgi.version': (1, 0),
