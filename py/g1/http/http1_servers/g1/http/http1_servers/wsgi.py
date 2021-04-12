@@ -593,6 +593,7 @@ class _ResponseQueue:
         self._headers_sent.clear()
 
     async def _send_all(self, data):
+        data = memoryview(data)
         num_sent = 0
         while num_sent < len(data):
             num_sent += await self._sock.send(data[num_sent:])
