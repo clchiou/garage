@@ -1,14 +1,17 @@
 """Asynchronous WSGI Server/Gateway implementation."""
 
 __all__ = [
+    'FileWrapper',
     'HttpSession',
 ]
 
 import collections
+import enum
 import http
 import io
 import itertools
 import logging
+import os
 import re
 import socket
 
@@ -24,6 +27,22 @@ LOG = logging.getLogger(__name__)
 
 class _SessionExit(Exception):
     """Exit a HTTP session (not necessary due to errors)."""
+
+
+class FileWrapper:
+
+    def __init__(self, file, block_size=8192):
+        del block_size  # Unused.
+        self._file = file
+
+    def _transfer(self):
+        """Transfer ownership of the wrapped file."""
+        file, self._file = self._file, None
+        return file
+
+    def close(self):
+        if self._file is not None:
+            self._file.close()
 
 
 class HttpSession:
@@ -134,6 +153,15 @@ class HttpSession:
     async def _run_application(self, context, environ):
         body = await self._application(environ, context.start_response)
         try:
+            if isinstance(body, FileWrapper):
+                # TODO: Implement PEP 333's requirement of falling back
+                # to normal iterable handling loop below when body._file
+                # is not a regular file.
+                context.sendfile(body._transfer())
+                # To unblock _send_response task.
+                context.end_body_chunks()
+                return
+
             if hasattr(body, '__aiter__'):
                 async for chunk in body:
                     await context.put_body_chunk(chunk)
@@ -172,6 +200,13 @@ class HttpSession:
                 body.close()
 
     async def _send_response(self, context, environ, keep_alive):
+        try:
+            return await self._do_send_response(context, environ, keep_alive)
+        finally:
+            if context.file is not None:
+                context.file.close()
+
+    async def _do_send_response(self, context, environ, keep_alive):
         # Start sending status and headers after we receive the first
         # chunk so that user has a chance to call start_response again
         # to reset status and headers.
@@ -193,9 +228,12 @@ class HttpSession:
             )
 
         if content_length is None:
-            while chunks[-1]:
-                chunks.append(await context.get_body_chunk())
-            body_size = sum(map(len, chunks))
+            if context.file is None:
+                while chunks[-1]:
+                    chunks.append(await context.get_body_chunk())
+                body_size = sum(map(len, chunks))
+            else:
+                body_size = os.fstat(context.file.fileno()).st_size
             context.headers.append((
                 b'Content-Length',
                 b'%d' % body_size,
@@ -209,17 +247,26 @@ class HttpSession:
 
         await self._response_queue.begin(context.status, context.headers)
 
-        for chunk in chunks:
-            await self._response_queue.put_body_chunk(chunk)
-        chunks.clear()
-
-        while True:
-            chunk = await context.get_body_chunk()
-            if not chunk:
-                break
+        # TODO: When body chunks or context.file is actually larger than
+        # Content-Length provided by the caller, we will still send the
+        # extra data to the client, and then err out.  Maybe,
+        # alternatively, we should not send the extra data (but still
+        # err out)?
+        if context.file is None:
+            for chunk in chunks:
+                if not omit_body:
+                    await self._response_queue.put_body_chunk(chunk)
+            chunks.clear()
+            while True:
+                chunk = await context.get_body_chunk()
+                if not chunk:
+                    break
+                if not omit_body:
+                    await self._response_queue.put_body_chunk(chunk)
+                body_size += len(chunk)
+        else:
             if not omit_body:
-                await self._response_queue.put_body_chunk(chunk)
-            body_size += len(chunk)
+                body_size = await self._response_queue.sendfile(context.file)
 
         self._response_queue.end()
 
@@ -477,14 +524,23 @@ class _RequestBuffer:
             stream.write_nonblocking(data)
 
 
+@enum.unique
+class _SendMechanisms(enum.Enum):
+    UNDECIDED = enum.auto()
+    SEND = enum.auto()
+    SENDFILE = enum.auto()
+
+
 class _ApplicationContext:
 
     def __init__(self):
         self._is_committed = False
         self._status = None
         self._headers = []
+        self._send_mechanism = _SendMechanisms.UNDECIDED
         # Set capacity to 1 to prevent excessive buffering.
         self._chunks = queues.Queue(capacity=1)
+        self.file = None
 
     def start_response(self, status, response_headers, exc_info=None):
         if exc_info:
@@ -537,6 +593,8 @@ class _ApplicationContext:
             return b''
 
     async def put_body_chunk(self, chunk):
+        ASSERT.is_not(self._send_mechanism, _SendMechanisms.SENDFILE)
+        self._send_mechanism = _SendMechanisms.SEND
         if chunk:
             await self._chunks.put(chunk)
 
@@ -548,6 +606,13 @@ class _ApplicationContext:
 
     def end_body_chunks(self):
         self._chunks.close()
+
+    def sendfile(self, file):
+        # sendfile can be called only once.
+        ASSERT.is_(self._send_mechanism, _SendMechanisms.UNDECIDED)
+        ASSERT.not_none(file)
+        self._send_mechanism = _SendMechanisms.SENDFILE
+        self.file = file
 
 
 class _ResponseQueue:
@@ -561,6 +626,7 @@ class _ResponseQueue:
         self._sock = sock
         self._has_begun = False
         self._headers_sent = locks.Event()
+        self._send_mechanism = _SendMechanisms.UNDECIDED
 
     async def begin(self, status, headers):
         ASSERT.false(self._has_begun)
@@ -582,15 +648,27 @@ class _ResponseQueue:
 
     async def put_body_chunk(self, chunk):
         ASSERT.true(self._has_begun)
+        ASSERT.is_not(self._send_mechanism, _SendMechanisms.SENDFILE)
+        self._send_mechanism = _SendMechanisms.SEND
         await self._headers_sent.wait()
         if chunk:
             await self._send_all(chunk)
+
+    async def sendfile(self, file):
+        ASSERT.true(self._has_begun)
+        # sendfile can be called only once.
+        ASSERT.is_(self._send_mechanism, _SendMechanisms.UNDECIDED)
+        ASSERT.not_none(file)
+        self._send_mechanism = _SendMechanisms.SENDFILE
+        await self._headers_sent.wait()
+        return await self._sock.sendfile(file)
 
     def end(self):
         ASSERT.true(self._has_begun)
         ASSERT.true(self._headers_sent.is_set())
         self._has_begun = False
         self._headers_sent.clear()
+        self._send_mechanism = _SendMechanisms.UNDECIDED
 
     async def _send_all(self, data):
         data = memoryview(data)

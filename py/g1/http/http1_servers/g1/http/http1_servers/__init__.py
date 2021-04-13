@@ -25,6 +25,7 @@ class HttpServer:
             'wsgi.multithread': True,
             'wsgi.multiprocess': False,
             'wsgi.run_once': False,
+            'wsgi.file_wrapper': wsgi.FileWrapper,
             # Should we wrap sys.stderr in an async adapter?
             'wsgi.errors': sys.stderr,
             'SERVER_SOFTWARE': VERSION,

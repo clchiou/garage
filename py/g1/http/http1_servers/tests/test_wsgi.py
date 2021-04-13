@@ -1,3 +1,5 @@
+# pylint: disable=too-many-lines
+
 import unittest
 import unittest.mock
 
@@ -15,10 +17,13 @@ class HttpSessionTest(unittest.TestCase):
 
     def setUp(self):
         super().setUp()
-        self.mock_sock = unittest.mock.Mock(spec_set=['recv', 'send'])
+        self.mock_sock = unittest.mock.Mock(
+            spec_set=['recv', 'send', 'sendfile']
+        )
         self.mock_sock.recv = unittest.mock.AsyncMock()
         self.mock_sock.send = unittest.mock.AsyncMock()
         self.mock_sock.send.side_effect = self.mock_send
+        self.mock_sock.sendfile = unittest.mock.AsyncMock()
 
     def assert_send(self, *data_per_call):
         self.mock_sock.send.assert_has_calls([
@@ -208,7 +213,35 @@ class HttpSessionTest(unittest.TestCase):
         self.assertEqual(get_task.get_result_nonblocking(), [b'x', b'y'])
 
     @kernels.with_kernel
-    def test_send_response(self):
+    def test_run_application_sendfile(self):
+        mock_file = unittest.mock.Mock()
+
+        mock_app = unittest.mock.AsyncMock()
+        mock_app.return_value = wsgi.FileWrapper(mock_file)
+
+        session = wsgi.HttpSession(None, mock_app, {})
+        context = wsgi._ApplicationContext()
+
+        run_task = tasks.spawn(session._run_application(context, {}))
+        get_task = tasks.spawn(self.get_body_chunks(context))
+
+        kernels.run(timeout=0.01)
+
+        self.assertTrue(context._chunks.is_closed())
+
+        self.assertTrue(run_task.is_completed())
+        run_task.get_result_nonblocking()
+
+        self.assertTrue(get_task.is_completed())
+        self.assertEqual(get_task.get_result_nonblocking(), [])
+
+        self.assertIs(context.file, mock_file)
+        # `close` is not called because ownership is transferred to
+        # context.
+        mock_file.close.assert_not_called()
+
+    @kernels.with_kernel
+    def test_send_response_put_body_chunks(self):
 
         def make_context(status, headers, *body_chunks):
             context = wsgi._ApplicationContext()
@@ -362,6 +395,85 @@ class HttpSessionTest(unittest.TestCase):
                     session._response_queue._headers_sent.is_set()
                 )
                 self.assert_send(*expect_data_per_call)
+                self.mock_sock.sendfile.assert_not_called()
+
+    @kernels.with_kernel
+    @unittest.mock.patch.object(wsgi, 'os')
+    def test_send_response_sendfile(self, mock_os):
+
+        mock_file = unittest.mock.Mock()
+        mock_os.fstat.return_value.st_size = 99
+        self.mock_sock.sendfile.return_value = 99
+
+        def make_context(status, headers):
+            context = wsgi._ApplicationContext()
+            context._status = status
+            context._headers = headers
+            context.sendfile(mock_file)
+            context.end_body_chunks()
+            return context
+
+        session = wsgi.HttpSession(self.mock_sock, None, {})
+        for (
+            context,
+            expect_headers,
+            expect_not_session_exit,
+        ) in [
+            # header: none
+            (
+                make_context(http.HTTPStatus.OK, []),
+                b'HTTP/1.1 200 OK\r\n'
+                b'Connection: keep-alive\r\n'
+                b'Content-Length: 99\r\n\r\n',
+                True,
+            ),
+            # header: content-length
+            (
+                make_context(http.HTTPStatus.OK, [(b'cOnTeNt-LeNgTh', b'99')]),
+                b'HTTP/1.1 200 OK\r\n'
+                b'cOnTeNt-LeNgTh: 99\r\n'
+                b'Connection: keep-alive\r\n\r\n',
+                True,
+            ),
+            # header: wrong content-length
+            (
+                make_context(http.HTTPStatus.OK, [(b'cOnTeNt-LeNgTh', b'10')]),
+                b'HTTP/1.1 200 OK\r\n'
+                b'cOnTeNt-LeNgTh: 10\r\n'
+                b'Connection: keep-alive\r\n\r\n',
+                False,
+            ),
+        ]:
+            with self.subTest((
+                context,
+                expect_headers,
+                expect_not_session_exit,
+            )):
+                self.mock_sock.reset_mock()
+                mock_file.reset_mock()
+
+                send_task = tasks.spawn(
+                    session._send_response(context, {}, True)
+                )
+                kernels.run(timeout=0.01)
+
+                self.assertTrue(send_task.is_completed())
+                if expect_not_session_exit:
+                    send_task.get_result_nonblocking()
+                else:
+                    with self.assertRaises(wsgi._SessionExit):
+                        send_task.get_result_nonblocking()
+
+                self.assertTrue(context._is_committed)
+                self.assertFalse(session._response_queue._has_begun)
+                self.assertFalse(
+                    session._response_queue._headers_sent.is_set()
+                )
+                self.mock_sock.assert_has_calls([
+                    unittest.mock.call.send(expect_headers),
+                    unittest.mock.call.sendfile(mock_file),
+                ])
+                mock_file.close.assert_called_once()
 
     def test_should_omit_body(self):
         for status, environ, expect in [
@@ -810,14 +922,45 @@ class ApplicationContextTest(unittest.TestCase):
         put_task.get_result_nonblocking()
         get_task.get_result_nonblocking()
 
+        with self.assertRaisesRegex(
+            AssertionError,
+            r'expect .*UNDECIDED.*, not .*SEND:',
+        ):
+            self.context.sendfile('foo')
+
+    @kernels.with_kernel
+    def test_sendfile(self):
+        self.assertIsNone(self.context.file)
+
+        with self.assertRaisesRegex(AssertionError, r'expect non-None'):
+            self.context.sendfile(None)
+
+        self.context.sendfile('foo')
+        self.assertEqual(self.context.file, 'foo')
+
+        with self.assertRaisesRegex(
+            AssertionError,
+            r'expect .*UNDECIDED.*, not .*SENDFILE:',
+        ):
+            self.context.sendfile('bar')
+
+        with self.assertRaisesRegex(
+            AssertionError,
+            r'expect non-.*SENDFILE:.*',
+        ):
+            kernels.run(self.context.put_body_chunk(b'x'), timeout=0.01)
+
+        self.assertEqual(self.context.file, 'foo')
+
 
 class ResponseQueueTest(unittest.TestCase):
 
     def setUp(self):
         super().setUp()
-        self.mock_sock = unittest.mock.Mock(spec_set=['send'])
+        self.mock_sock = unittest.mock.Mock(spec_set=['send', 'sendfile'])
         self.mock_sock.send = unittest.mock.AsyncMock()
         self.mock_sock.send.return_value = 1
+        self.mock_sock.sendfile = unittest.mock.AsyncMock()
         self.response_queue = wsgi._ResponseQueue(self.mock_sock)
 
     def assert_begin(self, expect):
@@ -879,10 +1022,96 @@ class ResponseQueueTest(unittest.TestCase):
         )
         self.assert_begin(True)
 
+        with self.assertRaisesRegex(
+            AssertionError,
+            r'expect .*UNDECIDED.*, not .*SEND:',
+        ):
+            kernels.run(
+                self.response_queue.sendfile('spam'),
+                timeout=0.01,
+            )
+
         self.assert_send_all(b'HTTP/1.1 200 OK\r\n\r\n', b'bar')
 
     @kernels.with_kernel
-    def test_headers_sent_blocking(self):
+    def test_sendfile(self):
+        self.assert_begin(False)
+        with self.assertRaisesRegex(AssertionError, r'expect true'):
+            kernels.run(
+                self.response_queue.sendfile('foo'),
+                timeout=0.01,
+            )
+
+        self.assert_begin(False)
+        kernels.run(
+            self.response_queue.begin(http.HTTPStatus.OK, []),
+            timeout=0.01,
+        )
+        self.assert_begin(True)
+
+        with self.assertRaisesRegex(AssertionError, r'expect non-None'):
+            kernels.run(
+                self.response_queue.sendfile(None),
+                timeout=0.01,
+            )
+
+        kernels.run(
+            self.response_queue.sendfile('bar'),
+            timeout=0.01,
+        )
+        self.assert_begin(True)
+
+        with self.assertRaisesRegex(
+            AssertionError,
+            r'expect .*UNDECIDED.*, not .*SENDFILE:',
+        ):
+            kernels.run(
+                self.response_queue.sendfile('spam'),
+                timeout=0.01,
+            )
+
+        with self.assertRaisesRegex(
+            AssertionError,
+            r'expect non-.*SENDFILE:.*',
+        ):
+            kernels.run(
+                self.response_queue.put_body_chunk(b''),
+                timeout=0.01,
+            )
+
+        self.mock_sock.sendfile.assert_called_once_with('bar')
+
+        self.mock_sock.sendfile.reset_mock()
+        self.response_queue.end()
+
+        kernels.run(
+            self.response_queue.begin(http.HTTPStatus.OK, []),
+            timeout=0.01,
+        )
+        self.assert_begin(True)
+        kernels.run(
+            self.response_queue.sendfile('egg'),
+            timeout=0.01,
+        )
+        self.mock_sock.sendfile.assert_called_once_with('egg')
+
+    @kernels.with_kernel
+    def test_headers_sent_blocking_put_body_chunk(self):
+        self.do_test_headers_sent_blocking(
+            lambda: self.response_queue.put_body_chunk(b'xyz')
+        )
+        self.assert_send_all(b'HTTP/1.1 200 OK\r\n\r\n', b'xyz')
+        self.mock_sock.sendfile.assert_not_called()
+
+    @kernels.with_kernel
+    def test_headers_sent_blocking_sendfile(self):
+        self.do_test_headers_sent_blocking(
+            lambda: self.response_queue.sendfile('foo')
+        )
+        self.assert_send_all(b'HTTP/1.1 200 OK\r\n\r\n')
+        self.mock_sock.sendfile.assert_called_once_with('foo')
+
+    def do_test_headers_sent_blocking(self, make_coro):
 
         def assert_begin_but_not_sent():
             self.assertEqual(self.response_queue.has_begun(), True)
@@ -897,6 +1126,7 @@ class ResponseQueueTest(unittest.TestCase):
             return 1
 
         self.mock_sock.send.side_effect = mock_send
+        self.mock_sock.sendfile.side_effect = mock_send
 
         begin_task = tasks.spawn(
             self.response_queue.begin(http.HTTPStatus.OK, [])
@@ -906,23 +1136,21 @@ class ResponseQueueTest(unittest.TestCase):
         assert_begin_but_not_sent()
         self.assertFalse(begin_task.is_completed())
 
-        put_task = tasks.spawn(self.response_queue.put_body_chunk(b'xyz'))
+        send_task = tasks.spawn(make_coro())
         with self.assertRaises(kernels.KernelTimeout):
             kernels.run(timeout=0.01)
         assert_begin_but_not_sent()
         self.assertFalse(begin_task.is_completed())
-        self.assertFalse(put_task.is_completed())
+        self.assertFalse(send_task.is_completed())
 
         block_send.set()
 
         kernels.run(timeout=0.01)
         self.assert_begin(True)
         self.assertTrue(begin_task.is_completed())
-        self.assertTrue(put_task.is_completed())
+        self.assertTrue(send_task.is_completed())
         begin_task.get_result_nonblocking()
-        put_task.get_result_nonblocking()
-
-        self.assert_send_all(b'HTTP/1.1 200 OK\r\n\r\n', b'xyz')
+        send_task.get_result_nonblocking()
 
     @kernels.with_kernel
     def test_end(self):
