@@ -102,13 +102,26 @@ def guess_content_type(filename):
 LOCAL_PATH = labels.Label(__name__, 'local_path')
 
 
+def _make_headers(path, file):
+    return {
+        consts.HEADER_CONTENT_TYPE: guess_content_type(path.name),
+        consts.HEADER_CONTENT_LENGTH: str(path.stat().st_size),
+        consts.HEADER_ETAG: etags.compute_etag_from_file(file),
+    }
+
+
 class DirHandler:
-    """Serve files under the given directory."""
+    """Serve files under the given directory.
+
+    NOTE: It doe NOT re-calculate cached response headers even when file
+    content is changed after handler initialization.
+    """
 
     def __init__(self, local_dir_path):
         if not mimetypes.inited:
             mimetypes.init()
         self._local_dir_path = local_dir_path.resolve()
+        self._headers_cache = {}
 
     async def check(self, request, response):
         """Check whether request path is under the given directory.
@@ -125,26 +138,58 @@ class DirHandler:
         local_path = request.context.get(LOCAL_PATH)
         if local_path is None:
             local_path = get_local_path(request, self._local_dir_path)
-        content = local_path.read_bytes()
+        file = local_path.open('rb')
         response.status = consts.Statuses.OK
-        response.headers.update({
-            consts.HEADER_CONTENT_TYPE:
-            guess_content_type(local_path.name),
-            consts.HEADER_CONTENT_LENGTH:
-            str(len(content)),
-            consts.HEADER_ETAG:
-            etags.compute_etag(content),
-        })
-        etags.maybe_raise_304(request, response)
-        return content
+        response.headers.update(self._get_headers(local_path, file))
+        try:
+            etags.maybe_raise_304(request, response)
+        except Exception:
+            file.close()
+            raise
+        return file
+
+    def _get_headers(self, local_path, file):
+        headers = self._headers_cache.get(local_path)
+        if headers is None:
+            headers = self._headers_cache[local_path] = _make_headers(
+                local_path, file
+            )
+            file.seek(0)
+        return headers
 
     async def head(self, request, response):
-        self._prepare(request, response)
+        self._prepare(request, response).close()
 
     async def get(self, request, response):
-        content = self._prepare(request, response)
+        response.sendfile(self._prepare(request, response))
+
+    __call__ = get
+
+
+class FileHandler:
+    """Serve a local file.
+
+    NOTE: It does NOT re-calculate response headers even when file
+    content is changed after handler initialization.
+    """
+
+    def __init__(self, local_file_path, headers=()):
+        if not mimetypes.inited:
+            mimetypes.init()
+        self._path = local_file_path
+        with self._path.open('rb') as file:
+            self._headers = _make_headers(self._path, file)
+        self._headers.update(headers)
+
+    async def head(self, request, response):
+        response.status = consts.Statuses.OK
+        response.headers.update(self._headers)
+        etags.maybe_raise_304(request, response)
+
+    async def get(self, request, response):
+        await self.head(request, response)
         response.commit()
-        await response.write(content)
+        response.sendfile(self._path.open('rb'))
 
     __call__ = get
 
@@ -174,14 +219,3 @@ class BufferHandler:
         await response.write(self._content)
 
     __call__ = get
-
-
-class FileHandler(BufferHandler):
-    """Serve a (small) file."""
-
-    def __init__(self, local_file_path, headers=()):
-        super().__init__(
-            local_file_path.name,
-            local_file_path.read_bytes(),
-            headers=headers,
-        )

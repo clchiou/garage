@@ -63,7 +63,7 @@ class HandlerTest(unittest.TestCase):
     def assert_request(self, context):
         self.assertEqual(self.request.context.asdict(), context)
 
-    def assert_response(self, status, headers, content):
+    def assert_response(self, status, headers, path):
 
         async def read():
             pieces = []
@@ -76,24 +76,31 @@ class HandlerTest(unittest.TestCase):
 
         self.assertIs(self.response.status, status)
         self.assertEqual(self.response.headers, headers)
-        self.assertEqual(kernels.run(read(), timeout=0.01), content)
+        if path is None:
+            self.assertIsNone(self.response.file)
+            self.assertEqual(kernels.run(read(), timeout=0.01), b'')
+        else:
+            self.assertEqual(self.response.file.name, str(path))
 
     def set_request(self, method, path_str):
         self.request = wsgi_apps.Request(
             environ={
                 'REQUEST_METHOD': method,
                 'PATH_INFO': path_str,
+                'wsgi.file_wrapper': unittest.mock.Mock(),
             },
             context=contexts.Context(),
         )
 
     def run_handler(self):
-        self.response = wsgi_apps._Response(unittest.mock.Mock(), False)
+        self.response = wsgi_apps._Response(unittest.mock.Mock(), True)
         kernels.run(
             self.handler(self.request, wsgi_apps.Response(self.response)),
             timeout=0.01,
         )
         self.response.close()
+        if self.response.file is not None:
+            self.response.file.close()
 
     @kernels.with_kernel
     def test_all(self):
@@ -111,20 +118,18 @@ class HandlerTest(unittest.TestCase):
         self.assert_response(
             consts.Statuses.NO_CONTENT,
             {consts.HEADER_ALLOW: 'GET, HEAD, OPTIONS'},
-            b'',
+            None,
         )
 
         self.set_request(consts.METHOD_HEAD, 'tests/test_files.py')
         self.run_handler()
         self.assert_request({files.LOCAL_PATH: local_path})
-        self.assert_response(consts.Statuses.OK, response_headers, b'')
+        self.assert_response(consts.Statuses.OK, response_headers, None)
 
         self.set_request(consts.METHOD_GET, 'tests/test_files.py')
         self.run_handler()
         self.assert_request({files.LOCAL_PATH: local_path})
-        self.assert_response(
-            consts.Statuses.OK, response_headers, local_path.read_bytes()
-        )
+        self.assert_response(consts.Statuses.OK, response_headers, local_path)
         with self.assertRaisesRegex(AssertionError, r'expect.*not in'):
             self.run_handler()
 
@@ -177,15 +182,13 @@ class HandlerTest(unittest.TestCase):
         self.set_request(consts.METHOD_HEAD, 'tests/test_files.py')
         self.run_handler()
         self.assert_request({})
-        self.assert_response(consts.Statuses.OK, response_headers, b'')
+        self.assert_response(consts.Statuses.OK, response_headers, None)
 
         self.handler = handler.get
         self.set_request(consts.METHOD_GET, 'tests/test_files.py')
         self.run_handler()
         self.assert_request({})
-        self.assert_response(
-            consts.Statuses.OK, response_headers, local_path.read_bytes()
-        )
+        self.assert_response(consts.Statuses.OK, response_headers, local_path)
 
         self.set_request(consts.METHOD_GET, '..')
         with self.assertRaisesRegex(wsgi_apps.HttpError, r'out of scope: '):
@@ -209,15 +212,53 @@ class HandlerTest(unittest.TestCase):
         self.set_request(consts.METHOD_HEAD, 'tests/test_files.py')
         self.run_handler()
         self.assert_request({})
-        self.assert_response(consts.Statuses.OK, response_headers, b'')
+        self.assert_response(consts.Statuses.OK, response_headers, None)
 
         self.handler = handler.get
         self.set_request(consts.METHOD_GET, 'tests/test_files.py')
         self.run_handler()
         self.assert_request({})
-        self.assert_response(
-            consts.Statuses.OK, response_headers, local_path.read_bytes()
-        )
+        self.assert_response(consts.Statuses.OK, response_headers, local_path)
+
+    @kernels.with_kernel
+    def test_buffer_handler(self):
+
+        def assert_response(status, headers, content):
+
+            async def read():
+                pieces = []
+                while True:
+                    data = await self.response.read()
+                    if not data:
+                        break
+                    pieces.append(data)
+                return b''.join(pieces)
+
+            self.assertIs(self.response.status, status)
+            self.assertEqual(self.response.headers, headers)
+            self.assertIsNone(self.response.file)
+            self.assertEqual(kernels.run(read(), timeout=0.01), content)
+
+        local_path = self.DIR_PATH / 'tests/test_files.py'
+        content = local_path.read_bytes()
+        handler = files.BufferHandler(local_path.name, content)
+        response_headers = {
+            consts.HEADER_CONTENT_TYPE: 'text/x-python',
+            consts.HEADER_CONTENT_LENGTH: str(local_path.stat().st_size),
+            consts.HEADER_ETAG: etags.compute_etag(content),
+        }
+
+        self.handler = handler.head
+        self.set_request(consts.METHOD_HEAD, 'tests/test_files.py')
+        self.run_handler()
+        self.assert_request({})
+        assert_response(consts.Statuses.OK, response_headers, b'')
+
+        self.handler = handler.get
+        self.set_request(consts.METHOD_GET, 'tests/test_files.py')
+        self.run_handler()
+        self.assert_request({})
+        assert_response(consts.Statuses.OK, response_headers, content)
 
 
 if __name__ == '__main__':
