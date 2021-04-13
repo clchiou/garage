@@ -88,7 +88,7 @@ class HandlerTest(unittest.TestCase):
         )
 
     def run_handler(self):
-        self.response = wsgi_apps._Response(unittest.mock.Mock())
+        self.response = wsgi_apps._Response(unittest.mock.Mock(), False)
         kernels.run(
             self.handler(self.request, wsgi_apps.Response(self.response)),
             timeout=0.01,

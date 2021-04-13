@@ -50,7 +50,7 @@ class MethodRouterTest(TestCaseBase):
 
     def run_handler(self, method):
         self.set_request(REQUEST_METHOD=method)
-        self.response = wsgi_apps._Response(None)
+        self.response = wsgi_apps._Response(None, False)
         self.calls.clear()
         kernels.run(
             self.handler(self.request, wsgi_apps.Response(self.response)),
@@ -152,7 +152,7 @@ class PathPatternRouterTest(TestCaseBase):
 
     def run_handler(self, path):
         self.set_request(PATH_INFO=path)
-        self.response = wsgi_apps._Response(None)
+        self.response = wsgi_apps._Response(None, False)
         self.calls.clear()
         kernels.run(
             self.handler(self.request, wsgi_apps.Response(self.response)),

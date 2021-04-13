@@ -8,10 +8,12 @@ __all__ = [
 
 import collections.abc
 import dataclasses
+import enum
 import logging
 import typing
 import urllib.parse
 
+from g1.asyncs.bases import locks
 from g1.asyncs.bases import queues
 from g1.asyncs.bases import servers
 from g1.asyncs.bases import streams
@@ -143,8 +145,18 @@ class Response:
     async def write(self, data):
         return await self._private.write(data)
 
+    def sendfile(self, file):
+        return self._private.sendfile(file)
+
     def close(self):
         return self._private.close()
+
+
+@enum.unique
+class _SendMechanisms(enum.Enum):
+    UNDECIDED = enum.auto()
+    SEND = enum.auto()
+    SENDFILE = enum.auto()
 
 
 class _Response:
@@ -198,7 +210,7 @@ class _Response:
         lifecycles.monitor_object_aliveness(precommit, key=(cls, 'precommit'))
         return precommit
 
-    def __init__(self, start_response):
+    def __init__(self, start_response, is_sendfile_supported):
         self._start_response = start_response
 
         self._status = consts.Statuses.OK
@@ -207,8 +219,15 @@ class _Response:
         self._precommit = self._make_precommit()
         # Set capacity to 1 to prevent excessive buffering.
         self._body = queues.Queue(capacity=1)
+        self.file = None
+
+        self._send_mechanism = _SendMechanisms.UNDECIDED
+        self._send_mechanism_decided = locks.Event()
 
         lifecycles.monitor_object_aliveness(self)
+
+        if not is_sendfile_supported:
+            self._set_send_mechanism(_SendMechanisms.SEND)
 
     def is_uncommitted(self):
         return self._precommit is not None and not self._body.is_closed()
@@ -307,6 +326,8 @@ class _Response:
     async def write(self, data):
         if self._body.is_closed():
             raise ResponseClosed('response is closed')
+        ASSERT.is_not(self._send_mechanism, _SendMechanisms.SENDFILE)
+        self._set_send_mechanism(_SendMechanisms.SEND)
         if not data:
             return 0
         if self.is_uncommitted():
@@ -318,9 +339,29 @@ class _Response:
             raise ResponseClosed('response is closed') from None
         return len(data)
 
+    def sendfile(self, file):
+        if self._body.is_closed():
+            raise ResponseClosed('response is closed')
+        # sendfile can be called only once.
+        ASSERT.is_(self._send_mechanism, _SendMechanisms.UNDECIDED)
+        ASSERT.not_none(file)
+        self._set_send_mechanism(_SendMechanisms.SENDFILE)
+        self.file = file
+
     def close(self):
-        self.commit()
-        self._body.close()
+        try:
+            self.commit()
+        finally:
+            # Although unlikely, add `finally` in case commit errs out.
+            self._body.close()
+
+    def _set_send_mechanism(self, mechanism):
+        ASSERT.is_not(mechanism, _SendMechanisms.UNDECIDED)
+        self._send_mechanism = mechanism
+        self._send_mechanism_decided.set()
+
+    async def wait_send_mechanism_decided(self):
+        await self._send_mechanism_decided.wait()
 
 
 class Application:
@@ -337,12 +378,21 @@ class Application:
 
     async def __call__(self, environ, start_response):
         ASSERT.false(self._handler_queue.is_closed())
+
         request = Request(environ=environ, context=contexts.Context())
-        response = _Response(start_response)
+
+        file_wrapper = environ.get('wsgi.file_wrapper')
+        response = _Response(start_response, file_wrapper is not None)
+
         # Handler task may linger on after application completes.  You
         # could do tricks with this feature.
         self._handler_queue.spawn(self._run_handler(request, response))
-        return self._iter_content(response)
+
+        await response.wait_send_mechanism_decided()
+        if response.file is None:
+            return self._iter_content(response)
+        else:
+            return file_wrapper(response.file)
 
     async def _run_handler(self, request, response):
         try:

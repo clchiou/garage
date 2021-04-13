@@ -31,7 +31,7 @@ class EtagsTest(unittest.TestCase):
 
     @staticmethod
     def make_response(etag):
-        response = wsgi_apps.Response(wsgi_apps._Response(None))
+        response = wsgi_apps.Response(wsgi_apps._Response(None, False))
         response.headers[consts.HEADER_ETAG] = etag
         return response
 

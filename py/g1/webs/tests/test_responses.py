@@ -35,7 +35,7 @@ class DefaultsTest(unittest.TestCase):
         self.assertEqual(exc.content, content)
 
     def run_handler(self, headers):
-        self.response = wsgi_apps._Response(None)
+        self.response = wsgi_apps._Response(None, False)
         self.response.headers.update(headers)
         kernels.run(
             self.handler(None, wsgi_apps.Response(self.response)),

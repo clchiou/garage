@@ -25,7 +25,7 @@ class ResponseTest(unittest.TestCase):
     def setUp(self):
         super().setUp()
         self.start_response_mock = unittest.mock.Mock()
-        self.response = wsgi_apps._Response(self.start_response_mock)
+        self.response = wsgi_apps._Response(self.start_response_mock, False)
 
     def test_status(self):
         self.assertIs(self.response.status, consts.Statuses.OK)
@@ -118,6 +118,16 @@ class ResponseTest(unittest.TestCase):
         def is_closed():
             return self.response._body.is_closed()
 
+        self.assertTrue(self.response._send_mechanism_decided.is_set())
+        self.assertIsNone(self.response.file)
+
+        with self.assertRaisesRegex(
+            AssertionError,
+            r'expect .*UNDECIDED:.*, not .*SEND:',
+        ):
+            self.response.sendfile('foo')
+        self.assertIsNone(self.response.file)
+
         self.assertTrue(self.response.is_uncommitted())
         self.assertFalse(is_committed())
         self.assertFalse(is_closed())
@@ -188,6 +198,32 @@ class ResponseTest(unittest.TestCase):
                 (exc.__class__, exc, exc.__traceback__),
             ),
         ])
+
+    @kernels.with_kernel
+    def test_sendfile(self):
+        self.response = wsgi_apps._Response(self.start_response_mock, True)
+
+        self.assertFalse(self.response._send_mechanism_decided.is_set())
+        self.assertIsNone(self.response.file)
+
+        self.response.sendfile('foo')
+        self.assertTrue(self.response._send_mechanism_decided.is_set())
+        self.assertEqual(self.response.file, 'foo')
+
+        with self.assertRaisesRegex(
+            AssertionError,
+            r'expect .*UNDECIDED:.*, not .*SENDFILE:',
+        ):
+            self.response.sendfile('bar')
+
+        with self.assertRaisesRegex(
+            AssertionError,
+            r'expect non-.*SENDFILE:.*',
+        ):
+            kernels.run(self.response.write(b'x'), timeout=0.01)
+
+        self.assertTrue(self.response._send_mechanism_decided.is_set())
+        self.assertEqual(self.response.file, 'foo')
 
 
 class ApplicationTest(unittest.TestCase):
@@ -390,6 +426,36 @@ class ApplicationTest(unittest.TestCase):
 
         app.shutdown()
         kernels.run(app.serve(), timeout=0.01)
+
+    @kernels.with_kernel
+    def test_sendfile(self):
+
+        async def handler(request, response):
+            del request
+            response.headers['Content-Type'] = 'text/plain'
+            response.sendfile('foo')
+
+        mock_file_wrapper = unittest.mock.Mock()
+
+        body = kernels.run(
+            wsgi_apps.Application(handler)(
+                {
+                    'REQUEST_METHOD': 'GET',
+                    'PATH_INFO': '/',
+                    'QUERY_STRING': '',
+                    'wsgi.file_wrapper': mock_file_wrapper,
+                },
+                self.start_response_mock,
+            ),
+            timeout=0.01,
+        )
+
+        self.assertIs(body, mock_file_wrapper.return_value)
+        self.start_response_mock.assert_called_once_with(
+            '200 OK',
+            [('Content-Type', 'text/plain')],
+        )
+        mock_file_wrapper.assert_called_once_with('foo')
 
 
 if __name__ == '__main__':
