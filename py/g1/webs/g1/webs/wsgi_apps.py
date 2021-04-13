@@ -353,6 +353,7 @@ class _Response:
             self.commit()
         finally:
             # Although unlikely, add `finally` in case commit errs out.
+            self._send_mechanism_decided.set()
             self._body.close()
 
     def _set_send_mechanism(self, mechanism):
