@@ -483,14 +483,13 @@ async def recvfile(self, file):
     )
     ASSERT.false(httplib_response.closed)
 
+    sock = ASSERT.isinstance(httplib_response.fp.raw._sock, socket.socket)
     num_to_read = ASSERT.greater(ASSERT.not_none(httplib_response.length), 0)
-
-    ASSERT.isinstance(\
-        httplib_response.fp.raw._sock, socket.socket
-    ).setblocking(False)
 
     src = adapters.FileAdapter(httplib_response.fp)
     try:
+        sock.setblocking(False)
+
         buffer = bytearray(_CHUNK_SIZE)
         b = memoryview(buffer)
         while num_to_read > 0:
@@ -499,9 +498,20 @@ async def recvfile(self, file):
                 break
             file.write(b[:num_read])
             num_to_read -= num_read
+
+        # Sanity check.
         ASSERT.equal(num_to_read, 0)
+
     finally:
         src.disown()
+        sock.setblocking(True)
+
+    # Trick requests to release the connection back to the connection
+    # pool, rather than closing/discarding it.
+    self._content_consumed = True
+    # http.client.HTTPConnection tracks the last response; so you have
+    # to close it to make the connection object useable again.
+    httplib_response.close()
 
     _NUM_RECVFILE_SUPPORTED += 1
     _NUM_RECVFILE += 1
