@@ -34,11 +34,28 @@ class AdapterBase:
             return getattr(self.__target, name)
         raise AttributeError('disallow accessing field: %s' % name)
 
+    def disown(self):
+        target, self.__target = self.__target, None
+        return target
+
 
 class FileAdapter(AdapterBase):
+    """File-like adapter.
+
+    NOTE: When adapting a file-like object returned by SSL socket
+    makefile, be careful NOT to use read/readinto (even if you provide
+    the correct buffer size).  For reasons that I have not figured out
+    yet, the BufferedReader returned by makefile can cause SSL socket to
+    over-recv, causing the it to hang indefinitely.  For now, the
+    solution is to use readinto1.
+
+    NOTE: We do not adapt read1 because in non-blocking mode, read1
+    returns b'' both when EOF or when no data is available.
+    """
 
     PROXIED_FIELDS = frozenset([
         'closed',
+        'detach',
         'fileno',
     ])
 
@@ -59,12 +76,29 @@ class FileAdapter(AdapterBase):
     def __exit__(self, *_):
         self.close()
 
-    async def read(self, size=-1):
+    def disown(self):
+        super().disown()
+        file, self.__file = self.__file, None
+        return file
+
+    async def __call_read(self, func, args):
         while True:
-            data = self.__file.read(size)
-            if data is not None:
-                return data
+            try:
+                ret = func(*args)
+                if ret is not None:
+                    return ret
+            except ssl.SSLWantReadError:
+                pass
             await traps.poll_read(self.__file.fileno())
+
+    async def read(self, size=-1):
+        return await self.__call_read(self.__file.read, (size, ))
+
+    async def readinto(self, buffer):
+        return await self.__call_read(self.__file.readinto, (buffer, ))
+
+    async def readinto1(self, buffer):
+        return await self.__call_read(self.__file.readinto1, (buffer, ))
 
     async def write(self, data):
         while True:
@@ -85,6 +119,10 @@ class FileAdapter(AdapterBase):
                 await traps.poll_write(self.__file.fileno())
 
     def close(self):
+        if self.__file is None:
+            return  # Disowned.
+        if self.__file.raw is None:
+            return  # Detached.
         if self.__file.closed:
             return
         kernel = self.__kernel()
@@ -104,6 +142,7 @@ class SocketAdapter(AdapterBase):
 
     PROXIED_FIELDS = frozenset([
         'bind',
+        'detach',
         'fileno',
         'getsockname',
         'getsockopt',
@@ -131,6 +170,11 @@ class SocketAdapter(AdapterBase):
 
     def __exit__(self, *_):
         self.close()
+
+    def disown(self):
+        super().disown()
+        sock, self.__sock = self.__sock, None
+        return sock
 
     async def accept(self):
         while True:
@@ -167,6 +211,13 @@ class SocketAdapter(AdapterBase):
         while True:
             try:
                 return self.__sock.recv(buffersize, flags)
+            except self.READ_BLOCKED:
+                await traps.poll_read(self.__sock.fileno())
+
+    async def recv_into(self, buffer, nbytes=0, flags=0):
+        while True:
+            try:
+                return self.__sock.recv_into(buffer, nbytes, flags)
             except self.READ_BLOCKED:
                 await traps.poll_read(self.__sock.fileno())
 
@@ -232,6 +283,8 @@ class SocketAdapter(AdapterBase):
                 file.seek(offset)
 
     def close(self):
+        if self.__sock is None:
+            return  # Disowned.
         fd = self.__sock.fileno()
         if fd >= 0:
             kernel = self.__kernel()

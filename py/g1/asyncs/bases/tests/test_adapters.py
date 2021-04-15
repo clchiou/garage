@@ -25,10 +25,10 @@ class FileAdapterTest(unittest.TestCase):
         self.w = adapters.FileAdapter(os.fdopen(w, 'wb'))
 
     def tearDown(self):
+        self.r.close()
+        self.w.close()
         contexts.KERNEL.reset(self.token)
         self.k.close()
-        self.r.target.close()
-        self.w.target.close()
 
     def assert_stats(self, **expect):
         actual = self.k.get_stats()._asdict()
@@ -37,6 +37,36 @@ class FileAdapterTest(unittest.TestCase):
             if name not in expect:
                 expect[name] = 0
         self.assertEqual(actual, expect)
+
+    def test_detach(self):
+        self.r.detach().close()
+        self.w.detach().close()
+
+        with self.assertRaisesRegex(
+            ValueError, r'raw stream has been detached'
+        ):
+            self.r.closed  # pylint: disable=pointless-statement
+        with self.assertRaisesRegex(
+            ValueError, r'raw stream has been detached'
+        ):
+            self.w.closed  # pylint: disable=pointless-statement
+
+        # These should not raise.
+        self.r.close()
+        self.w.close()
+
+    def test_disown(self):
+        self.r.disown().close()
+        self.w.disown().close()
+
+        self.assertIsNone(self.r.target)
+        self.assertIsNone(self.r._FileAdapter__file)
+        self.assertIsNone(self.w.target)
+        self.assertIsNone(self.w._FileAdapter__file)
+
+        # These should not raise.
+        self.r.close()
+        self.w.close()
 
     def test_pipe(self):
 
@@ -188,91 +218,167 @@ class SocketAdapterTest(unittest.TestCase):
         self.s1 = adapters.SocketAdapter(s1)
 
     def tearDown(self):
+        self.s0.close()
+        self.s1.close()
         contexts.KERNEL.reset(self.token)
         self.k.close()
-        self.s0.target.close()
-        self.s1.target.close()
+
+    def test_detach(self):
+        os.close(self.s0.detach())
+        os.close(self.s1.detach())
+
+        self.assertLess(self.s0.fileno(), 0)
+        self.assertLess(self.s1.fileno(), 0)
+
+        # These should not raise.
+        self.s0.close()
+        self.s1.close()
+
+    def test_disown(self):
+        self.s0.disown().close()
+        self.s1.disown().close()
+
+        self.assertIsNone(self.s0.target)
+        self.assertIsNone(self.s0._SocketAdapter__sock)
+        self.assertIsNone(self.s1.target)
+        self.assertIsNone(self.s1._SocketAdapter__sock)
+
+        # These should not raise.
+        self.s0.close()
+        self.s1.close()
+
+    async def recv(self):
+        pieces = []
+        while True:
+            piece = await self.s1.recv(4096)
+            if not piece:
+                break
+            pieces.append(piece)
+        self.s1.close()
+        return b''.join(pieces)
+
+    async def recv_into(self):
+        pieces = []
+        buffer = bytearray(4096)
+        view = memoryview(buffer)
+        while True:
+            num_recv = await self.s1.recv_into(buffer)
+            if num_recv == 0:
+                break
+            self.assertGreater(num_recv, 0)
+            pieces.append(bytes(view[:num_recv]))
+        self.s1.close()
+        return b''.join(pieces)
+
+    async def call_read(self, read_func):
+        pieces = []
+        buffer = bytearray(4096)
+        view = memoryview(buffer)
+        fp = adapters.FileAdapter(self.s1.target.makefile('rb'))
+        try:
+            while True:
+                num_recv = await read_func(fp, buffer)
+                if num_recv == 0:
+                    break
+                self.assertGreater(num_recv, 0)
+                pieces.append(bytes(view[:num_recv]))
+            self.s1.close()
+            return b''.join(pieces)
+        finally:
+            fp.disown()
+
+    async def send(self, num_chunks, chunk_size):
+        num_sent = 0
+        for i in range(num_chunks):
+            chunk = (b'%x' % (i + 1)) * chunk_size
+            while chunk:
+                num_bytes = await self.s0.send(chunk)
+                self.assertGreater(num_bytes, 0)
+                chunk = chunk[num_bytes:]
+                num_sent += num_bytes
+        self.s0.close()
+        return num_sent
+
+    async def sendmsg(self, num_chunks, chunk_size):
+        chunks = [(b'%x' % (i + 1)) * chunk_size for i in range(num_chunks)]
+        num_sent = 0
+        while chunks:
+            num_bytes = await self.s0.sendmsg(chunks)
+            self.assertGreater(num_bytes, 0)
+            num_sent += num_bytes
+            while chunks:
+                if len(chunks[0]) <= num_bytes:
+                    num_bytes -= len(chunks.pop(0))
+                else:
+                    chunks[0] = chunks[0][num_bytes:]
+                    break
+        self.s0.close()
+        return num_sent
+
+    async def sendfile(self, num_chunks, chunk_size):
+        with tempfile.NamedTemporaryFile() as tmp:
+            with open(tmp.name, 'wb') as tmp_file:
+                for i in range(num_chunks):
+                    tmp_file.write((b'%x' % (i + 1)) * chunk_size)
+            with open(tmp.name, 'rb') as tmp_file:
+                num_sent = await self.s0.sendfile(tmp_file)
+        self.s0.close()
+        return num_sent
+
+    def test_socket_recv_into(self):
+        self.do_test_socket(self.send, self.recv_into)
+
+    def test_socket_read(self):
+
+        async def read_func(fp, buffer):
+            data = await fp.read(len(buffer))
+            if data:
+                buffer[:len(data)] = data
+            return len(data)
+
+        self.do_test_socket(self.send, lambda: self.call_read(read_func))
+
+    def test_socket_readinto(self):
+
+        async def read_func(fp, buffer):
+            return await fp.readinto(buffer)
+
+        self.do_test_socket(self.send, lambda: self.call_read(read_func))
+
+    def test_socket_readinto1(self):
+
+        async def read_func(fp, buffer):
+            return await fp.readinto1(buffer)
+
+        self.do_test_socket(self.send, lambda: self.call_read(read_func))
 
     def test_socket_send(self):
-
-        async def send(num_chunks, chunk_size):
-            num_sent = 0
-            for i in range(num_chunks):
-                chunk = (b'%x' % (i + 1)) * chunk_size
-                while chunk:
-                    num_bytes = await self.s0.send(chunk)
-                    self.assertGreater(num_bytes, 0)
-                    chunk = chunk[num_bytes:]
-                    num_sent += num_bytes
-            self.s0.close()
-            return num_sent
-
-        self.do_test_socket(send)
+        self.do_test_socket(self.send, self.recv)
 
     def test_socket_sendmsg(self):
-
-        async def sendmsg(num_chunks, chunk_size):
-            chunks = [(b'%x' % (i + 1)) * chunk_size
-                      for i in range(num_chunks)]
-            num_sent = 0
-            while chunks:
-                num_bytes = await self.s0.sendmsg(chunks)
-                self.assertGreater(num_bytes, 0)
-                num_sent += num_bytes
-                while chunks:
-                    if len(chunks[0]) <= num_bytes:
-                        num_bytes -= len(chunks.pop(0))
-                    else:
-                        chunks[0] = chunks[0][num_bytes:]
-                        break
-            self.s0.close()
-            return num_sent
-
-        self.do_test_socket(sendmsg)
+        self.do_test_socket(self.sendmsg, self.recv)
 
     def test_socket_sendfile(self):
+        self.do_test_socket(self.sendfile, self.recv)
 
-        async def sendfile(num_chunks, chunk_size):
-            with tempfile.NamedTemporaryFile() as tmp:
-                with open(tmp.name, 'wb') as tmp_file:
-                    for i in range(num_chunks):
-                        tmp_file.write((b'%x' % (i + 1)) * chunk_size)
-                with open(tmp.name, 'rb') as tmp_file:
-                    num_sent = await self.s0.sendfile(tmp_file)
-            self.s0.close()
-            return num_sent
-
-        self.do_test_socket(sendfile)
-
-    def do_test_socket(self, send):
-
+    def do_test_socket(self, send_corofunc, recv_corofunc):
         num_chunks = 10
         chunk_size = 65536
 
-        async def recv():
-            pieces = []
-            while True:
-                piece = await self.s1.recv(4096)
-                if not piece:
-                    break
-                pieces.append(piece)
-            self.s1.close()
-            return b''.join(pieces)
-
-        sender = self.k.spawn(send(num_chunks, chunk_size))
-        receiver = self.k.spawn(recv)
-        self.assertFalse(sender.is_completed())
-        self.assertFalse(receiver.is_completed())
+        send_task = self.k.spawn(send_corofunc(num_chunks, chunk_size))
+        recv_task = self.k.spawn(recv_corofunc())
+        self.assertFalse(send_task.is_completed())
+        self.assertFalse(recv_task.is_completed())
 
         self.k.run(timeout=1)
 
-        self.assertTrue(sender.is_completed())
-        self.assertTrue(receiver.is_completed())
+        self.assertTrue(send_task.is_completed())
+        self.assertTrue(recv_task.is_completed())
 
         expect_data = b''.join((b'%x' % (i + 1)) * chunk_size
                                for i in range(num_chunks))
-        self.assertEqual(receiver.get_result_nonblocking(), expect_data)
-        self.assertEqual(sender.get_result_nonblocking(), len(expect_data))
+        self.assertEqual(recv_task.get_result_nonblocking(), expect_data)
+        self.assertEqual(send_task.get_result_nonblocking(), len(expect_data))
 
     def test_close(self):
 
