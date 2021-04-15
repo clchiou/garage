@@ -267,6 +267,9 @@ class SocketAdapter(AdapterBase):
                 except self.WRITE_BLOCKED:
                     await traps.poll_write(out_fd)
                     continue
+                except BrokenPipeError:
+                    # Avoid BrokenPipeError caught by `except OSError`.
+                    raise
                 except OSError:
                     if num_sent_total == 0:
                         # Most likely `file` is not a regular file.
