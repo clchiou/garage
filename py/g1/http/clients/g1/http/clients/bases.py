@@ -24,6 +24,7 @@ from g1.asyncs.bases import tasks
 from g1.asyncs.bases import timers
 from g1.bases import classes
 from g1.bases import collections as g1_collections
+from g1.bases import loggings
 from g1.bases.assertions import ASSERT
 from g1.threads import executors
 
@@ -441,6 +442,9 @@ _XML_PARSER = lxml.etree.XMLParser()
 
 _CHUNK_SIZE = 8192
 
+_NUM_RECVFILE = 0
+_NUM_RECVFILE_SUPPORTED = 0
+
 
 async def recvfile(self, file):
     """Receive response body into a file.
@@ -458,6 +462,8 @@ async def recvfile(self, file):
 
     * For now, no Content-Encoding nor Transfer-Encoding are supported.
     """
+    global _NUM_RECVFILE, _NUM_RECVFILE_SUPPORTED
+
     # requests sets _content to False initially.
     ASSERT.is_(self._content, False)
     ASSERT.false(self._content_consumed)
@@ -465,6 +471,8 @@ async def recvfile(self, file):
     for header in ['Content-Encoding', 'Transfer-Encoding']:
         encoding = self.headers.get(header)
         if encoding:
+            _NUM_RECVFILE += 1
+            _log_recvfile_stats()
             raise ValueError('%s is not supported: %r' % (header, encoding))
 
     urllib3_response = ASSERT.not_none(self.raw)
@@ -494,6 +502,20 @@ async def recvfile(self, file):
         ASSERT.equal(num_to_read, 0)
     finally:
         src.disown()
+
+    _NUM_RECVFILE_SUPPORTED += 1
+    _NUM_RECVFILE += 1
+    _log_recvfile_stats()
+
+
+def _log_recvfile_stats():
+    loggings.ONCE_PER(
+        100,
+        LOG.info,
+        'supported recvfile: %d/%d',
+        _NUM_RECVFILE_SUPPORTED,
+        _NUM_RECVFILE,
+    )
 
 
 # Just to make sure we do not accidentally override them.
