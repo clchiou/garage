@@ -6,9 +6,11 @@ __all__ = [
 ]
 
 import functools
+import http.client
 import itertools
 import json
 import logging
+import socket
 import urllib.parse
 
 import lxml.etree
@@ -432,3 +434,68 @@ def _get_html_parser(encoding):
 
 
 _XML_PARSER = lxml.etree.XMLParser()
+
+#
+# Monkey-patch ``requests.Response``.
+#
+
+_CHUNK_SIZE = 8192
+
+
+async def recvfile(self, file):
+    """Receive response body into a file.
+
+    This is probably only useful for downloading big, non-encoded
+    response data, like images.  The caller must set ``stream`` to true
+    when make the request.
+
+    NOTE:
+
+    * DANGER! This breaks the multiple levels of encapsulation, from
+      requests.Response all the way down to http.client.HTTPResponse.
+      As a result, the response object is most likely unusable after a
+      recvfile call, and you should probably close it immediately.
+
+    * For now, no Content-Encoding nor Transfer-Encoding are supported.
+    """
+    # requests sets _content to False initially.
+    ASSERT.is_(self._content, False)
+    ASSERT.false(self._content_consumed)
+
+    for header in ['Content-Encoding', 'Transfer-Encoding']:
+        encoding = self.headers.get(header)
+        if encoding:
+            raise ValueError('%s is not supported: %r' % (header, encoding))
+
+    urllib3_response = ASSERT.not_none(self.raw)
+    ASSERT.false(urllib3_response.chunked)
+
+    httplib_response = ASSERT.isinstance(
+        urllib3_response._fp, http.client.HTTPResponse
+    )
+    ASSERT.false(httplib_response.closed)
+
+    num_to_read = ASSERT.greater(ASSERT.not_none(httplib_response.length), 0)
+
+    ASSERT.isinstance(\
+        httplib_response.fp.raw._sock, socket.socket
+    ).setblocking(False)
+
+    src = adapters.FileAdapter(httplib_response.fp)
+    try:
+        buffer = bytearray(_CHUNK_SIZE)
+        b = memoryview(buffer)
+        while num_to_read > 0:
+            num_read = await src.readinto1(b[:min(num_to_read, _CHUNK_SIZE)])
+            if num_read == 0:
+                break
+            file.write(b[:num_read])
+            num_to_read -= num_read
+        ASSERT.equal(num_to_read, 0)
+    finally:
+        src.disown()
+
+
+# Just to make sure we do not accidentally override them.
+ASSERT.false(hasattr(requests.Response, 'recvfile'))
+requests.Response.recvfile = recvfile

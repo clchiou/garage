@@ -1,6 +1,12 @@
 import unittest
 import unittest.mock
 
+import contextlib
+import http.server
+import tempfile
+import threading
+from pathlib import Path
+
 import requests
 
 from g1.asyncs import kernels
@@ -243,6 +249,58 @@ class PrioritySessionTest(TestCaseBase):
         self.assertIsNot(response, self.mock_response)
         self.assertIsInstance(response, bases.Response)
         self.mock_session.get.assert_called_once_with(self.URL)
+
+
+class RecvfileTest(unittest.TestCase):
+
+    class TestHandler(http.server.SimpleHTTPRequestHandler):
+
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs, directory=Path(__file__).parent)
+
+        def log_message(self, *_):
+            pass  # Suppress logging in test.
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.cls_exit_stack = contextlib.ExitStack()
+
+        cls.server = cls.cls_exit_stack.enter_context(
+            http.server.ThreadingHTTPServer(('127.0.0.1', 0), cls.TestHandler)
+        )
+
+        cls.server_thread = threading.Thread(target=cls.server.serve_forever)
+        cls.cls_exit_stack.callback(cls.server_thread.join)
+        cls.server_thread.start()
+
+        cls.cls_exit_stack.callback(cls.server.shutdown)
+
+        cls.server_port = cls.server.socket.getsockname()[1]
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.cls_exit_stack.close()
+        super().tearDownClass()
+
+    @kernels.with_kernel
+    def test_recvfile(self):
+        test_path = Path(__file__)
+        session = clients.Session()
+        request = bases.Request(
+            'GET',
+            'http://127.0.0.1:%d/%s' % (self.server_port, test_path.name),
+        )
+
+        with tempfile.TemporaryFile() as output:
+            with kernels.run(session.send(request, stream=True)) as response:
+                kernels.run(response.recvfile(output))
+            output.seek(0)
+            self.assertEqual(output.read(), test_path.read_bytes())
+
+        # Check that response is closed.
+        self.assertTrue(response.raw._fp.isclosed())
+        self.assertIsNone(response.raw._fp.fp)
 
 
 if __name__ == '__main__':
