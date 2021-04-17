@@ -24,6 +24,8 @@ from g1.asyncs.bases import tasks
 from g1.asyncs.bases import timers
 from g1.bases import classes
 from g1.bases import collections as g1_collections
+from g1.bases import loggings
+from g1.bases import pools
 from g1.bases.assertions import ASSERT
 from g1.threads import executors
 
@@ -440,6 +442,11 @@ _XML_PARSER = lxml.etree.XMLParser()
 #
 
 _CHUNK_SIZE = 8192
+_BUFFER_POOL = pools.TimeoutPool(
+    pool_size=128,
+    allocate=lambda: bytearray(_CHUNK_SIZE),
+    release=lambda _: None,
+)
 
 
 async def recvfile(self, file):
@@ -484,14 +491,16 @@ async def recvfile(self, file):
     try:
         sock.setblocking(False)
 
-        buffer = bytearray(_CHUNK_SIZE)
-        b = memoryview(buffer)
-        while num_to_read > 0:
-            num_read = await src.readinto1(b[:min(num_to_read, _CHUNK_SIZE)])
-            if num_read == 0:
-                break
-            file.write(b[:num_read])
-            num_to_read -= num_read
+        with _BUFFER_POOL.using() as buffer:
+            buffer = memoryview(buffer)
+            while num_to_read > 0:
+                num_read = await src.readinto1(
+                    buffer[:min(num_to_read, _CHUNK_SIZE)]
+                )
+                if num_read == 0:
+                    break
+                file.write(buffer[:num_read])
+                num_to_read -= num_read
 
         # Sanity check.
         ASSERT.equal(num_to_read, 0)
@@ -506,6 +515,10 @@ async def recvfile(self, file):
     # http.client.HTTPConnection tracks the last response; so you have
     # to close it to make the connection object useable again.
     httplib_response.close()
+
+    loggings.ONCE_PER(
+        1000, LOG.info, 'buffer pool stats: %r', _BUFFER_POOL.get_stats()
+    )
 
 
 # Just to make sure we do not accidentally override them.
