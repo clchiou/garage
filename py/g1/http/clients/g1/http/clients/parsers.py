@@ -41,6 +41,15 @@ class ContextualParser:
         self.response = response
         self.assert_ = assertions.Assertions(self.__make_exc)
 
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        del state['assert_']
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self.assert_ = assertions.Assertions(self.__make_exc)
+
     def __make_exc(self, message, *_):
         return self.ERROR_TYPE('%s, request=%r' % (message, self.request))
 
