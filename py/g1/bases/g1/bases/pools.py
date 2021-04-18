@@ -14,6 +14,7 @@ import inspect
 import itertools
 import logging
 import multiprocessing
+import os
 import pickle
 import threading
 import time
@@ -464,7 +465,7 @@ def _process_actor(name, input_queue, output_queue):
     # pylint: disable=too-many-statements
 
     threading.current_thread().name = name
-    LOG.info('start')
+    LOG.info('start: pid=%d', os.getpid())
 
     input_queue._writer.close()
     output_queue._reader.close()
@@ -562,4 +563,4 @@ def _process_actor(name, input_queue, output_queue):
         input_queue._reader.close()
         output_queue._writer.close()
 
-    LOG.info('exit')
+    LOG.info('exit: pid=%d', os.getpid())
