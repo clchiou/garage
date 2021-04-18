@@ -300,7 +300,7 @@ class ProcessActorPool:
         input_queue = self._context.SimpleQueue()
         output_queue = self._context.SimpleQueue()
 
-        name = 'pactor-%04d' % self._COUNTER()
+        name = 'pactor-%02d' % self._COUNTER()
         entry = self._Entry(
             process=self._context.Process(
                 name=name,
@@ -334,7 +334,8 @@ class ProcessActorPool:
                     )
 
             if entry.process.exitcode != 0:
-                LOG.error(
+                # Sadly SIGTERM also causes exitcode != 0.
+                LOG.warning(
                     'process actor err out: pid=%d exitcode=%d',
                     entry.process.pid,
                     entry.process.exitcode,
@@ -465,6 +466,12 @@ def _process_actor(name, input_queue, output_queue):
     # pylint: disable=too-many-statements
 
     threading.current_thread().name = name
+    logging.basicConfig(
+        level=logging.INFO,
+        format=(
+            '%(asctime)s %(threadName)s %(levelname)s %(name)s: %(message)s'
+        ),
+    )
     LOG.info('start: pid=%d', os.getpid())
 
     input_queue._writer.close()
@@ -488,7 +495,7 @@ def _process_actor(name, input_queue, output_queue):
 
             try:
                 call = input_queue.get()
-            except (EOFError, OSError) as exc:
+            except (EOFError, OSError, KeyboardInterrupt) as exc:
                 LOG.warning('process actor input queue closed early: %r', exc)
                 break
 

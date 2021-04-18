@@ -3,10 +3,16 @@ import unittest.mock
 
 import heapq
 import itertools
+import logging
 import multiprocessing
 import pickle
 
 from g1.bases import pools
+
+
+def setUpModule():
+    # Disable all log messages (for _process_actor).
+    logging.basicConfig(level=logging.CRITICAL + 1)
 
 
 class TimeoutPoolTest(unittest.TestCase):
