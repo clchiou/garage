@@ -32,6 +32,34 @@ class FuturesTest(unittest.TestCase):
         future.add_callback(another_callback)
         another_callback.assert_called_once_with(future)
 
+    def test_finalizer(self):
+        lst = []
+        f0 = futures.Future()
+        f0.set_result(1)
+        f0.set_finalizer(lst.append)
+        self.assertTrue(f0.is_completed())
+        del f0
+        self.assertEqual(lst, [1])
+
+        lst.clear()
+        f1 = futures.Future()
+        f1.set_result(2)
+        f1.get_result_nonblocking()
+        f1.set_finalizer(lst.append)
+        self.assertTrue(f1.is_completed())
+        del f1
+        self.assertEqual(lst, [])
+
+        f2 = futures.Future()
+        f2.set_result(3)
+        self.assertTrue(f2.is_completed())
+        with self.assertLogs(futures.__name__, level='WARNING') as cm:
+            del f2
+        self.assertIn(
+            'future is garbage-collected but result is never consumed:',
+            '\n'.join(cm.output),
+        )
+
     def test_cancel(self):
         future = futures.Future()
         future.cancel()

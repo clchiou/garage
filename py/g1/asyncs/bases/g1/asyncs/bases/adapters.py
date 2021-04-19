@@ -306,6 +306,7 @@ class FutureAdapter(AdapterBase):
         'catching_exception',
         'set_result',
         'set_exception',
+        'set_finalizer',
     ])
 
     def __init__(self, future):

@@ -28,6 +28,29 @@ class Future:
         self._result = None
         self._exception = None
         self._callbacks = []
+        self._consumed = False
+        self._finalizer = None
+
+    def __del__(self):
+        if not (
+            self._completed.is_set() and self._exception is None
+            and not self._consumed
+        ):
+            return
+        if self._finalizer is not None:
+            try:
+                self._finalizer(self._result)
+            except BaseException:
+                LOG.exception('finalizer error')
+            return
+        # Make a special case for None.
+        if self._result is None:
+            return
+        LOG.warning(
+            'future is garbage-collected but result is never consumed: %s',
+            # Call repr to format self here to avoid resurrecting self.
+            repr(self),
+        )
 
     __repr__ = classes.make_repr(
         '{state} {self._result!r} {self._exception!r}',
@@ -48,13 +71,23 @@ class Future:
 
     def get_result_nonblocking(self):
         ASSERT.true(self.is_completed())
+        self._consumed = True
         if self._exception:
             raise self._exception
         return self._result
 
     def get_exception_nonblocking(self):
         ASSERT.true(self.is_completed())
+        self._consumed = True
         return self._exception
+
+    def set_finalizer(self, finalizer):
+        """Set finalizer.
+
+        The finalizer is called when future's result is set but is never
+        consumed.  You may use finalizer to release the result object.
+        """
+        self._finalizer = finalizer
 
     def set_result(self, result):
         self._set_result_or_exception(result, None)
