@@ -144,6 +144,7 @@ def method_caller(obj, queue):
         with call.future.catching_exception(reraise=False):
             method = getattr(obj, ASSERT.isinstance(call.method, str))
             call.future.set_result(method(*call.args, **call.kwargs))
+        del call
     LOG.info('exit')
 
 
@@ -163,4 +164,5 @@ def function_caller(queue):
         with call.future.catching_exception(reraise=False):
             ASSERT.predicate(call.method, callable)
             call.future.set_result(call.method(*call.args, **call.kwargs))
+        del call
     LOG.info('exit')
