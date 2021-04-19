@@ -172,6 +172,7 @@ class ProcessActorPool:
         num_spawns: int
         num_concurrent_processes: int
         max_concurrent_processes: int
+        current_highest_uses: int
 
     _COUNTER = itertools.count(1).__next__
 
@@ -198,10 +199,19 @@ class ProcessActorPool:
         self._max_concurrent_processes = 0
 
     def get_stats(self):
+        if self._pool:
+            current_highest_uses = -self._pool[0].negative_num_uses
+        else:
+            current_highest_uses = 0
+        for entry in self._actor_ids_in_use.values():
+            num_uses = -entry.negative_num_uses
+            if num_uses > current_highest_uses:
+                current_highest_uses = num_uses
         return self.Stats(
             num_spawns=self._num_spawns,
             num_concurrent_processes=self._num_concurrent_processes,
             max_concurrent_processes=self._max_concurrent_processes,
+            current_highest_uses=current_highest_uses,
         )
 
     def __enter__(self):
@@ -236,7 +246,6 @@ class ProcessActorPool:
             # Return the most often used process so that is will be
             # released sooner (when max_uses_per_actor is set).
             entry = heapq.heappop(self._pool)
-            entry.negative_num_uses -= 1
             max_concurrent_processes = self._max_concurrent_processes
 
         actor = _ActorStub(
@@ -273,6 +282,7 @@ class ProcessActorPool:
             raise
 
         weakref.finalize(actor, self._return_id, actor_id)
+        entry.negative_num_uses -= 1
         self._max_concurrent_processes = max_concurrent_processes
         return actor
 
@@ -309,7 +319,7 @@ class ProcessActorPool:
             ),
             input_queue=input_queue,
             output_queue=output_queue,
-            negative_num_uses=-1,
+            negative_num_uses=0,
         )
         entry.process.start()
 

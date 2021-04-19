@@ -204,6 +204,19 @@ class ProcessActorPoolTest(unittest.TestCase):
         self.assertEqual(
             stats.max_concurrent_processes, expect_max_concurrent_processes
         )
+        self.assertEqual(
+            stats.current_highest_uses,
+            max(
+                map(
+                    lambda entry: -entry.negative_num_uses,
+                    itertools.chain(
+                        expect_pool,
+                        expect_actor_ids_in_use.values(),
+                    ),
+                ),
+                default=0,
+            ),
+        )
 
     def test_get_and_return(self):
         # pylint: disable=too-many-statements
