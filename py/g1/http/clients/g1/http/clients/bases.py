@@ -261,6 +261,7 @@ class BaseSession:
             future = self._executor.submit_with_priority(
                 priority, self.send_blocking, request, **kwargs
             )
+        future.set_finalizer(lambda response: response.close())
         return await adapters.FutureAdapter(future).get_result()
 
     def send_blocking(self, request, **kwargs):
@@ -298,10 +299,7 @@ class BaseSession:
         except Exception:
             # On error, close the original response for the caller since
             # the caller usually forgets to do this.
-            if stream:
-                # Consume the content because we are going to close it.
-                response.content  # pylint: disable=pointless-statement
-                response.close()
+            response.close()
             raise
 
         return response
@@ -330,14 +328,12 @@ class Request:
 class Response:
     """HTTP response.
 
-    This class provides an interface that is  mostly compatible with
+    This class provides an interface that is mostly compatible with
     ``requests`` Response class.
 
-    We do this because it is suspected that when a ``requests`` Response
-    object is not explicitly closed (as doc says it should not have to),
-    it could somehow cause Python interpreter not returning heap space
-    to the kernel.  Although we are unable to reproduce this issue, we
-    think it might be worthwhile to try this "fix" anyway.
+    We do this because if a ``requests`` Response object is not closed
+    (doc does not seem to suggest explicitly closing responses?), it
+    will not release the connection back to the connection pool.
     """
 
     def __init__(self, source):
@@ -363,6 +359,10 @@ class Response:
     __repr__ = classes.make_repr(
         'status_code={self.status_code} url={self.url}',
     )
+
+    def close(self):
+        # Nothing to do here; just for interface compatibility.
+        pass
 
     def raise_for_status(self):
         if not 400 <= self.status_code < 600:
