@@ -21,12 +21,10 @@ _BUFFER_POOL = pools.TimeoutPool(
 )
 
 
-async def recvfile(self, file):
+async def recvfile(response, file):
     """Receive response body into a file.
 
-    This is probably only useful for downloading big, non-encoded
-    response data, like images.  The caller must set ``stream`` to true
-    when make the request.
+    The caller must set ``stream`` to true when make the request.
 
     NOTE:
 
@@ -38,17 +36,18 @@ async def recvfile(self, file):
     * For now, no Content-Encoding nor Transfer-Encoding are supported.
     """
     # requests sets _content to False initially.
-    ASSERT.is_(self._content, False)
-    ASSERT.false(self._content_consumed)
+    ASSERT.is_(response._content, False)
+    ASSERT.false(response._content_consumed)
 
     for header in ['Content-Encoding', 'Transfer-Encoding']:
-        encoding = self.headers.get(header)
+        encoding = response.headers.get(header)
         if encoding:
             raise ValueError(
-                '%s is not supported: %r %s' % (header, encoding, self.url)
+                '%s is not supported: %r %s' %
+                (header, encoding, response.url)
             )
 
-    urllib3_response = ASSERT.not_none(self.raw)
+    urllib3_response = ASSERT.not_none(response.raw)
     ASSERT.false(urllib3_response.chunked)
 
     httplib_response = ASSERT.isinstance(
@@ -83,10 +82,14 @@ async def recvfile(self, file):
 
     # Trick requests to release the connection back to the connection
     # pool, rather than closing/discarding it.
-    self._content_consumed = True
+    response._content_consumed = True
     # http.client.HTTPConnection tracks the last response; so you have
     # to close it to make the connection object useable again.
     httplib_response.close()
+
+    # Close the response for the caller since response is not useable
+    # after recvfile.
+    response.close()
 
     loggings.ONCE_PER(
         1000, LOG.info, 'buffer pool stats: %r', _BUFFER_POOL.get_stats()
