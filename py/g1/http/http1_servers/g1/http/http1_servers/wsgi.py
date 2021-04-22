@@ -202,6 +202,9 @@ class HttpSession:
     async def _send_response(self, context, environ, keep_alive):
         try:
             return await self._do_send_response(context, environ, keep_alive)
+        except timers.Timeout:
+            LOG.debug('send/sendfile timeout')
+            raise _SessionExit from None
         finally:
             if context.file is not None:
                 context.file.close()
@@ -617,6 +620,13 @@ class _ApplicationContext:
 
 class _ResponseQueue:
 
+    # These timeouts are for preventing a client who refuses to receive
+    # data blocking send/sendfile forever.
+    #
+    # TODO: Make these configurable.
+    _SEND_TIMEOUT = 2
+    _SENDFILE_TIMEOUT = 8
+
     _ENCODED_REASONS = {
         status: status.phrase.encode('iso-8859-1')
         for status in http.HTTPStatus
@@ -661,7 +671,8 @@ class _ResponseQueue:
         ASSERT.not_none(file)
         self._send_mechanism = _SendMechanisms.SENDFILE
         await self._headers_sent.wait()
-        return await self._sock.sendfile(file)
+        with timers.timeout_after(self._SENDFILE_TIMEOUT):
+            return await self._sock.sendfile(file)
 
     def end(self):
         ASSERT.true(self._has_begun)
@@ -674,4 +685,5 @@ class _ResponseQueue:
         data = memoryview(data)
         num_sent = 0
         while num_sent < len(data):
-            num_sent += await self._sock.send(data[num_sent:])
+            with timers.timeout_after(self._SEND_TIMEOUT):
+                num_sent += await self._sock.send(data[num_sent:])
