@@ -36,6 +36,11 @@ class SocketServer:
 
     async def _accept(self, queue):
         while True:
+            if queue.is_full():
+                LOG.warning(
+                    'handler task queue is full; '
+                    'we cannot accept any new connections'
+                )
             await queue.puttable()
             try:
                 sock, addr = await self._socket.accept()
