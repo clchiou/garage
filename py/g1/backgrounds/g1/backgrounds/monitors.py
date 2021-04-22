@@ -21,7 +21,9 @@ PARAMS = parameters.define(
             unit='seconds',
         ),
         executor_queue_threshold=parameters.Parameter(
-            50,
+            # If you have enough executor threads, this queue should
+            # never accumulate backlog.
+            1,
             validate=(0).__le__,
         ),
         num_tasks_threshold=parameters.Parameter(
