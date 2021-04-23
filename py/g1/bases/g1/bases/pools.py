@@ -189,9 +189,9 @@ class ProcessActorPool:
         # Store processes, sorted by num_uses in descending order.
         self._pool = []
         self._pool_size = pool_size
-        # Store id(actor) -> entry.  We store id(actor) to avoid
-        # creating a strong reference to the actor.
-        self._actor_ids_in_use = {}
+        # Store id(stub) -> entry.  We store id(stub) to avoid creating
+        # a strong reference to the stub.
+        self._stub_ids_in_use = {}
         self._max_uses_per_actor = max_uses_per_actor
         self._context = context or multiprocessing.get_context()
         self._num_spawns = 0
@@ -203,7 +203,7 @@ class ProcessActorPool:
             current_highest_uses = -self._pool[0].negative_num_uses
         else:
             current_highest_uses = 0
-        for entry in self._actor_ids_in_use.values():
+        for entry in self._stub_ids_in_use.values():
             num_uses = -entry.negative_num_uses
             if num_uses > current_highest_uses:
                 current_highest_uses = num_uses
@@ -222,14 +222,14 @@ class ProcessActorPool:
 
     @contextlib.contextmanager
     def using(self, referent):
-        actor = self.get(referent)
+        stub = self.get(referent)
         try:
-            yield actor
+            yield stub
         finally:
-            self.return_(actor)
+            self.return_(stub)
 
     def get(self, referent):
-        """Get an actor from the pool or allocate new one when empty.
+        """Get a stub from the pool or allocate new one when empty.
 
         This does not block nor raise when the pool is empty (if we want
         to implement rate limit, we could do that?).
@@ -248,27 +248,30 @@ class ProcessActorPool:
             entry = heapq.heappop(self._pool)
             max_concurrent_processes = self._max_concurrent_processes
 
-        actor = _ActorStub(
-            referent, entry.process, entry.input_queue, entry.output_queue
+        stub = _Stub(
+            type(referent),
+            entry.process,
+            entry.input_queue,
+            entry.output_queue,
         )
-        actor_id = id(actor)
+        stub_id = id(stub)
 
         try:
-            # Although this actor_id can be the same as another already
-            # collected actor's id (since id is just object's address),
+            # Although this stub_id can be the same as another already
+            # collected stub's id (since id is just object's address),
             # it is very unlikely that this id conflict will happen when
-            # the entry is still in the self._actor_ids_in_use dict as
-            # it requires all these to happen:
+            # the entry is still in the self._stub_ids_in_use dict as it
+            # requires all these to happen:
             #
-            # * The old actor is collected.
-            # * The old actor's finalizer has not been called yet (is
+            # * The old stub is collected.
+            # * The old stub's finalizer has not been called yet (is
             #   this even possible?).
-            # * The new actor is allocated, at the same address.
+            # * The new stub is allocated, at the same address.
             #
             # But there is not harm to assert this will never happen.
-            ASSERT.setitem(self._actor_ids_in_use, actor_id, entry)
+            ASSERT.setitem(self._stub_ids_in_use, stub_id, entry)
 
-            _MethodStub(\
+            _BoundMethod(\
                 '__init__', entry.input_queue, entry.output_queue
             )(referent)
             self._cleanup()
@@ -277,29 +280,29 @@ class ProcessActorPool:
                 self._num_spawns -= 1
                 # self._num_concurrent_processes is decreased in
                 # self._release.
-            self._actor_ids_in_use.pop(actor_id)
+            self._stub_ids_in_use.pop(stub_id)
             self._release(entry)
             raise
 
-        weakref.finalize(actor, self._return_id, actor_id)
+        weakref.finalize(stub, self._return_id, stub_id)
         entry.negative_num_uses -= 1
         self._max_concurrent_processes = max_concurrent_processes
-        return actor
+        return stub
 
-    def return_(self, actor):
-        """Return the actor to the pool.
+    def return_(self, stub):
+        """Return the stub to the pool.
 
         The pool will release actors for actors that exceed the
         ``max_uses_per_actor``, or when the pool is full.
         """
-        return self._return_id(id(actor))
+        return self._return_id(id(stub))
 
-    def _return_id(self, actor_id):
-        entry = self._actor_ids_in_use.pop(actor_id, None)
+    def _return_id(self, stub_id):
+        entry = self._stub_ids_in_use.pop(stub_id, None)
         if entry is None:
             return
         try:
-            _MethodStub('__del__', entry.input_queue, entry.output_queue)()
+            _BoundMethod('__del__', entry.input_queue, entry.output_queue)()
         except Exception:
             self._release(entry)
             raise
@@ -401,11 +404,11 @@ class ProcessActorPool:
                     self._release(entry)
                 except Exception as exc:
                     LOG.error('close: unable to release process: %r', exc)
-            ASSERT.empty(self._actor_ids_in_use)
+            ASSERT.empty(self._stub_ids_in_use)
 
         else:
-            entries.extend(self._actor_ids_in_use.values())
-            self._actor_ids_in_use.clear()
+            entries.extend(self._stub_ids_in_use.values())
+            self._stub_ids_in_use.clear()
             self._num_concurrent_processes -= len(entries)
             for entry in entries:
                 entry.process.kill()
@@ -432,14 +435,20 @@ class _Call:
     kwargs: Dict[str, Any]
 
 
-class _ActorStub:
+class _Stub:
 
-    def __init__(self, referent, process, input_queue, output_queue):
-        self._referent_type = type(referent)
+    def __init__(self, referent_type, process, input_queue, output_queue):
+        self.m = _Methods(referent_type, process, input_queue, output_queue)
+
+
+class _Methods:
+
+    def __init__(self, referent_type, process, input_queue, output_queue):
+        self._referent_type = referent_type
         self._process = process
-        self._method_stubs = g1_collections.LoadingDict(
+        self._bound_methods = g1_collections.LoadingDict(
             functools.partial(
-                _MethodStub,
+                _BoundMethod,
                 input_queue=input_queue,
                 output_queue=output_queue,
             )
@@ -448,16 +457,16 @@ class _ActorStub:
     def __getattr__(self, name):
         ASSERT.none(self._process.exitcode)
         attr = getattr(self._referent_type, name, None)
-        stub = self._method_stubs[ASSERT.not_startswith(name, '_')]
+        bound_method = self._bound_methods[ASSERT.not_startswith(name, '_')]
         if attr is None or isinstance(attr, property):
             # Instance attribute or property.
-            return stub()
+            return bound_method()
         else:
             # Static/class/instance method.
-            return stub
+            return bound_method
 
 
-class _MethodStub:
+class _BoundMethod:
 
     def __init__(self, name, input_queue, output_queue):
         self._name = name

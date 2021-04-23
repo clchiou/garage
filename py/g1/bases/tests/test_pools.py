@@ -187,7 +187,7 @@ class ProcessActorPoolTest(unittest.TestCase):
     def assert_pool(
         self,
         expect_pool,
-        expect_actor_ids_in_use,
+        expect_stub_ids_in_use,
         expect_num_spawns,
         expect_num_concurrent_processes,
         expect_max_concurrent_processes,
@@ -195,7 +195,7 @@ class ProcessActorPoolTest(unittest.TestCase):
         expect_pool = list(expect_pool)
         heapq.heapify(expect_pool)
         self.assertEqual(self.pool._pool, expect_pool)
-        self.assertEqual(self.pool._actor_ids_in_use, expect_actor_ids_in_use)
+        self.assertEqual(self.pool._stub_ids_in_use, expect_stub_ids_in_use)
         stats = self.pool.get_stats()
         self.assertEqual(stats.num_spawns, expect_num_spawns)
         self.assertEqual(
@@ -211,7 +211,7 @@ class ProcessActorPoolTest(unittest.TestCase):
                     lambda entry: -entry.negative_num_uses,
                     itertools.chain(
                         expect_pool,
-                        expect_actor_ids_in_use.values(),
+                        expect_stub_ids_in_use.values(),
                     ),
                 ),
                 default=0,
@@ -257,7 +257,7 @@ class ProcessActorPoolTest(unittest.TestCase):
         mock_output_queue._reader.close.assert_not_called()
         mock_output_queue._writer.close.assert_not_called()
 
-        for _ in range(3):  # Returning a returned actor is no-op.
+        for _ in range(3):  # Returning a returned stub is no-op.
             self.pool.return_(a1)
         self.assert_pool([e1], {}, 1, 1, 1)
         mock_process.start.assert_called_once()
@@ -456,6 +456,12 @@ class ProcessActorPoolTest(unittest.TestCase):
         self.assertEqual(len(mock_output_queue._reader.close.mock_calls), 2)
         self.assertEqual(len(mock_output_queue._writer.close.mock_calls), 2)
 
+    def test_actual_pool(self):
+        with pools.ProcessActorPool(1) as pool:
+            with pool.using(Acc()) as stub:
+                self.assertEqual(stub.m.get(), 0)
+                self.assertEqual(stub.m.x, 0)
+
 
 class ProcessActorTest(unittest.TestCase):
 
@@ -470,11 +476,11 @@ class ProcessActorTest(unittest.TestCase):
 
         try:
             referent = Acc()
-            actor = pools._ActorStub(
-                referent, process, input_queue, output_queue
+            stub = pools._Stub(
+                type(referent), process, input_queue, output_queue
             )
             self.assertIsNone(
-                pools._MethodStub(\
+                pools._BoundMethod(\
                     '__init__', input_queue, output_queue
                 )(referent)
             )
@@ -482,49 +488,49 @@ class ProcessActorTest(unittest.TestCase):
             with self.assertRaisesRegex(
                 AssertionError, r'expect not x.startswith\(\'_\'\), not \'_f\''
             ):
-                actor._f()
+                stub.m._f()
             with self.assertRaisesRegex(
                 AssertionError, r'expect public method: _f'
             ):
-                pools._MethodStub('_f', input_queue, output_queue)(Acc())
+                pools._BoundMethod('_f', input_queue, output_queue)(Acc())
 
             with self.assertRaisesRegex(
                 AttributeError, r'\'Acc\' object has no attribute \'f\''
             ):
-                actor.f()
+                stub.m.f()
 
-            self.assertEqual(actor.get(), 0)
-            self.assertIsNone(actor.inc())
-            self.assertEqual(actor.get(), 1)
-            self.assertIsNone(actor.inc(3))
-            self.assertEqual(actor.get(), 4)
+            self.assertEqual(stub.m.get(), 0)
+            self.assertIsNone(stub.m.inc())
+            self.assertEqual(stub.m.get(), 1)
+            self.assertIsNone(stub.m.inc(3))
+            self.assertEqual(stub.m.get(), 4)
 
-            self.assertEqual(actor.x, 4)
-            self.assertEqual(actor.p, 'hello world')
-            self.assertEqual(actor.cf('foo'), 'foo')
-            self.assertEqual(actor.sf('bar'), 'bar')
-            self.assertEqual(actor.g(9), list(range(9)))
+            self.assertEqual(stub.m.x, 4)
+            self.assertEqual(stub.m.p, 'hello world')
+            self.assertEqual(stub.m.cf('foo'), 'foo')
+            self.assertEqual(stub.m.sf('bar'), 'bar')
+            self.assertEqual(stub.m.g(9), list(range(9)))
 
             with self.assertRaisesRegex(
                 TypeError, r'cannot pickle \'_io\.TextIOWrapper\' object'
             ):
-                actor.not_pickle_able('/dev/null')
+                stub.m.not_pickle_able('/dev/null')
 
             with self.assertRaisesRegex(
                 TypeError,
                 r'unsupported operand type\(s\) for \+=: '
                 r'\'int\' and \'NoneType\'',
             ):
-                actor.inc(None)
+                stub.m.inc(None)
 
             self.assertIsNone(
-                pools._MethodStub('__del__', input_queue, output_queue)()
+                pools._BoundMethod('__del__', input_queue, output_queue)()
             )
 
             with self.assertRaisesRegex(
                 AssertionError, r'expect self not None'
             ):
-                actor.f()
+                stub.m.f()
 
         finally:
             input_queue.put(None)
