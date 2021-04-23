@@ -317,8 +317,7 @@ class ProcessActorPool:
         entry = self._Entry(
             process=self._context.Process(
                 name=name,
-                target=_process_actor,
-                args=(name, input_queue, output_queue),
+                target=_ProcessActor(name, input_queue, output_queue),
             ),
             input_queue=input_queue,
             output_queue=output_queue,
@@ -481,112 +480,127 @@ class _BoundMethod:
         return result
 
 
-def _process_actor(name, input_queue, output_queue):
-    # pylint: disable=too-many-statements
+class _ProcessActor:
 
-    threading.current_thread().name = name
-    logging.basicConfig(
-        level=logging.INFO,
-        format=(
-            '%(asctime)s %(threadName)s %(levelname)s %(name)s: %(message)s'
-        ),
+    # TODO: Get this from g1.apps.loggers?
+    _LOG_FORMAT = (
+        '%(asctime)s %(threadName)s %(levelname)s %(name)s: %(message)s'
     )
-    LOG.info('start: pid=%d', os.getpid())
 
-    input_queue._writer.close()
-    output_queue._reader.close()
-    try:
-        self = None
-        cls = None
+    def __init__(self, name, input_queue, output_queue):
+        self._name = name
+        self._input_queue = input_queue
+        self._output_queue = output_queue
+        self._referent = None
 
-        while True:
-            # NOTE:
-            #
-            # * When handling exceptions, remember to strip off the
-            #   stack trace before sending it back (although I think
-            #   pickle does this for you?).
-            #
-            # * Because SimpleQueue.get is blocking, you have to very,
-            #   very careful not to block actor's caller indefinitely.
-            #   One particular example is pickle.dumps, which fails on
-            #   quite many cases, and this is why we call pickle.dumps
-            #   explicitly rather than deferring it to SimpleQueue.put.
+    def __call__(self):
+        self._process_init()
+        try:
+            while True:
+                try:
+                    call = self._input_queue.get()
+                except (EOFError, OSError, KeyboardInterrupt) as exc:
+                    LOG.warning('actor input queue closed early: %r', exc)
+                    break
+                if call is None:  # Normal exit.
+                    break
+                self._handle(call)
+                del call
+        except BaseException:
+            # Actor only exits due to either self._input_queue closed,
+            # or call is None.  We treat everything else as crash, even
+            # BaseException like SystemExit.
+            LOG.exception('actor crashed')
+            raise
+        finally:
+            self._process_cleanup()
 
-            try:
-                call = input_queue.get()
-            except (EOFError, OSError, KeyboardInterrupt) as exc:
-                LOG.warning('process actor input queue closed early: %r', exc)
-                break
+    def _process_init(self):
+        threading.current_thread().name = self._name
 
-            # Normal exit.
-            if call is None:
-                break
+        logging.basicConfig(level=logging.INFO, format=self._LOG_FORMAT)
+        LOG.info('start: pid=%d', os.getpid())
 
-            # Special method for adopting a new referent.
-            if call.method == '__init__':
-                self = call.args[0]
-                cls = type(self)
-                output_queue.put(pickle.dumps((None, None)))
-                continue
+        self._input_queue._writer.close()
+        self._output_queue._reader.close()
 
-            # Special method for dis-adopting the referent.
-            if call.method == '__del__':
-                self = None
-                cls = None
-                output_queue.put(pickle.dumps((None, None)))
-                continue
+    def _process_cleanup(self):
+        LOG.info('exit: pid=%d', os.getpid())
+        self._input_queue._reader.close()
+        self._output_queue._writer.close()
 
-            if call.method.startswith('_'):
-                output_queue.put(
-                    pickle.dumps((
-                        None,
-                        AssertionError(
-                            'expect public method: %s' % call.method
-                        ),
-                    ))
-                )
-                continue
+    # NOTE:
+    #
+    # * When handling exceptions, remember to strip off the stack trace
+    #   before sending it back (although I think pickle does this for
+    #   you?).
+    #
+    # * Because SimpleQueue.get is blocking, you have to very, very
+    #   careful not to block actor's caller indefinitely.  One
+    #   particular example is pickle.dumps, which fails on quite many
+    #   cases, and this is why we call pickle.dumps explicitly rather
+    #   than deferring it to SimpleQueue.put.
 
-            if self is None:
-                output_queue.put(
-                    pickle.dumps((
-                        None,
-                        AssertionError('expect self not None'),
-                    ))
-                )
-                continue
+    def _handle(self, call):
+        # First, check actor methods.
+        if call.method == '__init__':
+            self._handle_adopt(call)
+        elif call.method == '__del__':
+            self._handle_disadopt(call)
 
-            cls_method = getattr(cls, call.method, None)
-            try:
-                method = getattr(self, call.method)
-            except AttributeError as exc:
-                output_queue.put(
-                    pickle.dumps((None, exc.with_traceback(None)))
-                )
-                continue
+        # Then, check referent methods.
+        elif call.method.startswith('_'):
+            self._send_exc(
+                AssertionError('expect public method: %s' % call.method)
+            )
+        elif self._referent is None:
+            self._send_exc(AssertionError('expect referent not None'))
+        else:
+            self._handle_method(call)
 
-            try:
-                if cls_method is None or isinstance(cls_method, property):
-                    # Instance attribute or property.
-                    pair = (method, None)
-                elif isinstance(cls_method, types.MethodType):
-                    # Class method.
-                    pair = (cls_method(*call.args, **call.kwargs), None)
-                elif inspect.isgeneratorfunction(cls_method):
-                    # Replace generator with a list because generator is
-                    # not pickle-able.
-                    pair = (list(method(*call.args, **call.kwargs)), None)
-                else:
-                    # Static method or instance method.
-                    pair = (method(*call.args, **call.kwargs), None)
-                pair = pickle.dumps(pair)
-            except BaseException as exc:
-                pair = pickle.dumps((None, exc.with_traceback(None)))
-            output_queue.put(pair)
-            del pair
+    def _send_result(self, result):
+        self._output_queue.put(self._pickle_pair((result, None)))
 
-    finally:
-        input_queue._reader.close()
-        output_queue._writer.close()
+    def _send_exc(self, exc):
+        self._output_queue.put(
+            self._pickle_pair((None, exc.with_traceback(None)))
+        )
 
-    LOG.info('exit: pid=%d', os.getpid())
+    @staticmethod
+    def _pickle_pair(pair):
+        try:
+            return pickle.dumps(pair)
+        except Exception as exc:
+            LOG.error('pickle error: pair=%r exc=%r', pair, exc)
+            return pickle.dumps((None, exc.with_traceback(None)))
+
+    def _handle_adopt(self, call):
+        self._referent = call.args[0]
+        self._send_result(None)
+
+    def _handle_disadopt(self, call):
+        del call  # Unused.
+        self._referent = None
+        self._send_result(None)
+
+    def _handle_method(self, call):
+        try:
+            method = getattr(type(self._referent), call.method, None)
+            bound_method = getattr(self._referent, call.method)
+            if method is None or isinstance(method, property):
+                # Instance attribute or property.
+                result = bound_method
+            elif isinstance(method, types.MethodType):
+                # Class method.
+                result = method(*call.args, **call.kwargs)
+            elif inspect.isgeneratorfunction(bound_method):
+                # Replace a generator with a list because generator is
+                # not pickle-able.
+                result = list(bound_method(*call.args, **call.kwargs))
+            else:
+                # Static method or instance method.
+                result = bound_method(*call.args, **call.kwargs)
+        except BaseException as exc:
+            self._send_exc(exc)
+        else:
+            self._send_result(result)

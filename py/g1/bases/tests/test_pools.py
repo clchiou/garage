@@ -11,7 +11,7 @@ from g1.bases import pools
 
 
 def setUpModule():
-    # Disable all log messages (for _process_actor).
+    # Disable all log messages (for _ProcessActor).
     logging.basicConfig(level=logging.CRITICAL + 1)
 
 
@@ -469,11 +469,12 @@ class ProcessActorTest(unittest.TestCase):
         input_queue = multiprocessing.SimpleQueue()
         output_queue = multiprocessing.SimpleQueue()
         process = multiprocessing.Process(
-            target=pools._process_actor,
-            args=('thread-name', input_queue, output_queue),
+            target=pools._ProcessActor(
+                'thread-name', input_queue, output_queue
+            ),
         )
-        process.start()
 
+        process.start()
         try:
             referent = Acc()
             stub = pools._Stub(
@@ -528,7 +529,7 @@ class ProcessActorTest(unittest.TestCase):
             )
 
             with self.assertRaisesRegex(
-                AssertionError, r'expect self not None'
+                AssertionError, r'expect referent not None'
             ):
                 stub.m.f()
 
