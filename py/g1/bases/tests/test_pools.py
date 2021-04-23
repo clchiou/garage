@@ -5,6 +5,7 @@ import heapq
 import itertools
 import logging
 import multiprocessing
+import multiprocessing.connection
 import pickle
 
 from g1.bases import pools
@@ -218,19 +219,43 @@ class ProcessActorPoolTest(unittest.TestCase):
             ),
         )
 
-    def test_get_and_return(self):
-        # pylint: disable=too-many-statements
+    @staticmethod
+    def assert_process(mock_process, progress):
+        if progress < 1:
+            mock_process.start.assert_not_called()
+        else:
+            mock_process.start.assert_called_once_with()
+        if progress < 2:
+            mock_process.join.assert_not_called()
+        else:
+            mock_process.join.assert_called_once_with(timeout=1)
+        if progress < 3:
+            mock_process.close.assert_not_called()
+        else:
+            mock_process.close.assert_called_once_with()
 
+    def assert_conn(self, mock_conn, *calls):
+        mock_conn.send_bytes.assert_has_calls([
+            unittest.mock.call(pickle.dumps(call)) for call in calls
+        ])
+        self.assertEqual(
+            len(mock_conn.recv_bytes.mock_calls),
+            sum(1 for call in calls if call is not None),
+        )
+        if calls and calls[-1] is None:
+            mock_conn.close.assert_called_once_with()
+        else:
+            mock_conn.close.assert_not_called()
+
+    def test_get_and_return(self):
         mock_exitcode = unittest.mock.PropertyMock()
         mock_process = self.mock_context.Process.return_value
+        mock_process.pid = 1
         type(mock_process).exitcode = mock_exitcode
-        mock_input_queue = unittest.mock.Mock()
-        mock_output_queue = unittest.mock.Mock()
-        mock_output_queue.get.return_value = pickle.dumps((None, None))
-        self.mock_context.SimpleQueue.side_effect = [
-            mock_input_queue,
-            mock_output_queue,
-        ]
+        mock_conn = unittest.mock.Mock()
+        mock_conn.recv_bytes.return_value = pickle.dumps((None, None))
+        mock_actor_conn = unittest.mock.Mock()
+        self.mock_context.Pipe.return_value = (mock_conn, mock_actor_conn)
         referent = object()
 
         self.assert_pool([], {}, 0, 0, 0)
@@ -240,80 +265,63 @@ class ProcessActorPoolTest(unittest.TestCase):
         a1 = self.pool.get(referent)
         e1 = pools.ProcessActorPool._Entry(
             process=mock_process,
-            input_queue=mock_input_queue,
-            output_queue=mock_output_queue,
+            conn=mock_conn,
             negative_num_uses=-1,
         )
         self.assert_pool([], {id(a1): e1}, 1, 1, 1)
-        mock_process.start.assert_called_once()
-        mock_process.join.assert_not_called()
-        mock_process.close.assert_not_called()
-        mock_input_queue.put.assert_has_calls([
-            unittest.mock.call(pools._Call('__init__', (referent, ), {})),
-        ])
-        self.assertEqual(len(mock_output_queue.get.mock_calls), 1)
-        mock_input_queue._reader.close.assert_not_called()
-        mock_input_queue._writer.close.assert_not_called()
-        mock_output_queue._reader.close.assert_not_called()
-        mock_output_queue._writer.close.assert_not_called()
+        self.assert_process(mock_process, 1)
+        self.assert_conn(
+            mock_conn,
+            pools._Call('__init__', (None, ), {}),
+            pools._Call('__init__', (referent, ), {}),
+        )
+        mock_actor_conn.close.assert_called_once_with()
 
         for _ in range(3):  # Returning a returned stub is no-op.
             self.pool.return_(a1)
         self.assert_pool([e1], {}, 1, 1, 1)
-        mock_process.start.assert_called_once()
-        mock_process.join.assert_not_called()
-        mock_process.close.assert_not_called()
-        mock_input_queue.put.assert_has_calls([
-            unittest.mock.call(pools._Call('__init__', (referent, ), {})),
-            unittest.mock.call(pools._Call('__del__', (), {})),
-        ])
-        self.assertEqual(len(mock_output_queue.get.mock_calls), 2)
-        mock_input_queue._reader.close.assert_not_called()
-        mock_input_queue._writer.close.assert_not_called()
-        mock_output_queue._reader.close.assert_not_called()
-        mock_output_queue._writer.close.assert_not_called()
+        self.assert_process(mock_process, 1)
+        self.assert_conn(
+            mock_conn,
+            pools._Call('__init__', (None, ), {}),
+            pools._Call('__init__', (referent, ), {}),
+            pools._Call('__del__', (), {}),
+        )
 
         mock_exitcode.return_value = 0
 
         with self.pool.using(referent) as a2:
             e1.negative_num_uses = -2
             self.assert_pool([], {id(a2): e1}, 1, 1, 1)
-            mock_process.start.assert_called_once()
-            mock_process.join.assert_not_called()
-            mock_process.close.assert_not_called()
-            mock_input_queue.put.assert_has_calls([
-                unittest.mock.call(pools._Call('__init__', (referent, ), {})),
-                unittest.mock.call(pools._Call('__del__', (), {})),
-                unittest.mock.call(pools._Call('__init__', (referent, ), {})),
-            ])
-            self.assertEqual(len(mock_output_queue.get.mock_calls), 3)
-            mock_input_queue._reader.close.assert_not_called()
-            mock_input_queue._writer.close.assert_not_called()
-            mock_output_queue._reader.close.assert_not_called()
-            mock_output_queue._writer.close.assert_not_called()
+            self.assert_process(mock_process, 1)
+            self.assert_conn(
+                mock_conn,
+                pools._Call('__init__', (None, ), {}),
+                pools._Call('__init__', (referent, ), {}),
+                pools._Call('__del__', (), {}),
+                pools._Call('__init__', (referent, ), {}),
+            )
 
         self.assert_pool([], {}, 1, 0, 1)
-        mock_process.start.assert_called_once()
-        mock_process.join.assert_called_once_with(timeout=1)
-        mock_process.close.assert_called_once_with()
-        mock_input_queue.put.assert_has_calls([
-            unittest.mock.call(pools._Call('__init__', (referent, ), {})),
-            unittest.mock.call(pools._Call('__del__', (), {})),
-            unittest.mock.call(pools._Call('__init__', (referent, ), {})),
-            unittest.mock.call(pools._Call('__del__', (), {})),
-            unittest.mock.call(None),
-        ])
-        self.assertEqual(len(mock_output_queue.get.mock_calls), 4)
-        mock_input_queue._reader.close.assert_called_once_with()
-        mock_input_queue._writer.close.assert_called_once_with()
-        mock_output_queue._reader.close.assert_called_once_with()
-        mock_output_queue._writer.close.assert_called_once_with()
+        self.assert_process(mock_process, 3)
+        self.assert_conn(
+            mock_conn,
+            pools._Call('__init__', (None, ), {}),
+            pools._Call('__init__', (referent, ), {}),
+            pools._Call('__del__', (), {}),
+            pools._Call('__init__', (referent, ), {}),
+            pools._Call('__del__', (), {}),
+            None,
+        )
 
     def test_heap(self):
         mock_process = self.mock_context.Process.return_value
+        mock_process.pid = 1
         mock_process.exitcode = None
-        mock_queue = self.mock_context.SimpleQueue.return_value
-        mock_queue.get.return_value = pickle.dumps((None, None))
+        mock_conn = unittest.mock.Mock()
+        mock_actor_conn = unittest.mock.Mock()
+        self.mock_context.Pipe.return_value = (mock_conn, mock_actor_conn)
+        mock_conn.recv_bytes.return_value = pickle.dumps((None, None))
         referent = object()
 
         self.pool._max_uses_per_actor = None
@@ -322,14 +330,12 @@ class ProcessActorPoolTest(unittest.TestCase):
         a1 = self.pool.get(referent)
         e0 = pools.ProcessActorPool._Entry(
             process=mock_process,
-            input_queue=mock_queue,
-            output_queue=mock_queue,
+            conn=mock_conn,
             negative_num_uses=-1,
         )
         e1 = pools.ProcessActorPool._Entry(
             process=mock_process,
-            input_queue=mock_queue,
-            output_queue=mock_queue,
+            conn=mock_conn,
             negative_num_uses=-1,
         )
         self.pool.return_(a0)
@@ -344,9 +350,12 @@ class ProcessActorPoolTest(unittest.TestCase):
 
     def test_weakref(self):
         mock_process = self.mock_context.Process.return_value
+        mock_process.pid = 1
         mock_process.exitcode = None
-        mock_queue = self.mock_context.SimpleQueue.return_value
-        mock_queue.get.return_value = pickle.dumps((None, None))
+        mock_conn = unittest.mock.Mock()
+        mock_actor_conn = unittest.mock.Mock()
+        self.mock_context.Pipe.return_value = (mock_conn, mock_actor_conn)
+        mock_conn.recv_bytes.return_value = pickle.dumps((None, None))
         referent = object()
 
         self.pool._max_uses_per_actor = None
@@ -355,8 +364,7 @@ class ProcessActorPoolTest(unittest.TestCase):
         a0_id = id(a0)
         e0 = pools.ProcessActorPool._Entry(
             process=mock_process,
-            input_queue=mock_queue,
-            output_queue=mock_queue,
+            conn=mock_conn,
             negative_num_uses=-1,
         )
         self.assert_pool([], {a0_id: e0}, 1, 1, 1)
@@ -366,14 +374,12 @@ class ProcessActorPoolTest(unittest.TestCase):
 
     def test_actor_crash(self):
         mock_process = self.mock_context.Process.return_value
+        mock_process.pid = 1
         mock_process.exitcode = 1
-        mock_input_queue = unittest.mock.Mock()
-        mock_output_queue = unittest.mock.Mock()
-        mock_output_queue.get.return_value = pickle.dumps((None, None))
-        self.mock_context.SimpleQueue.side_effect = [
-            mock_input_queue,
-            mock_output_queue,
-        ]
+        mock_conn = unittest.mock.Mock()
+        mock_conn.recv_bytes.return_value = pickle.dumps((None, None))
+        mock_actor_conn = unittest.mock.Mock()
+        self.mock_context.Pipe.return_value = (mock_conn, mock_actor_conn)
         referent = object()
 
         self.assert_pool([], {}, 0, 0, 0)
@@ -381,51 +387,36 @@ class ProcessActorPoolTest(unittest.TestCase):
         with self.pool.using(referent) as a:
             e = pools.ProcessActorPool._Entry(
                 process=mock_process,
-                input_queue=mock_input_queue,
-                output_queue=mock_output_queue,
+                conn=mock_conn,
                 negative_num_uses=-1,
             )
             self.assert_pool([], {id(a): e}, 1, 1, 1)
-            mock_process.start.assert_called_once()
-            mock_process.join.assert_not_called()
-            mock_process.close.assert_not_called()
-            mock_input_queue.put.assert_has_calls([
-                unittest.mock.call(pools._Call('__init__', (referent, ), {})),
-            ])
-            self.assertEqual(len(mock_output_queue.get.mock_calls), 1)
-            mock_input_queue._reader.close.assert_not_called()
-            mock_input_queue._writer.close.assert_not_called()
-            mock_output_queue._reader.close.assert_not_called()
-            mock_output_queue._writer.close.assert_not_called()
+            self.assert_process(mock_process, 1)
+            self.assert_conn(
+                mock_conn,
+                pools._Call('__init__', (None, ), {}),
+                pools._Call('__init__', (referent, ), {}),
+            )
 
         self.assert_pool([], {}, 1, 0, 1)
-        mock_process.start.assert_called_once()
-        mock_process.join.assert_called_once_with(timeout=1)
-        mock_process.close.assert_called_once()
-        mock_input_queue.put.assert_has_calls([
-            unittest.mock.call(pools._Call('__init__', (referent, ), {})),
-            unittest.mock.call(pools._Call('__del__', (), {})),
-            unittest.mock.call(None),
-        ])
-        self.assertEqual(len(mock_output_queue.get.mock_calls), 2)
-        mock_input_queue._reader.close.assert_called_once_with()
-        mock_input_queue._writer.close.assert_called_once_with()
-        mock_output_queue._reader.close.assert_called_once_with()
-        mock_output_queue._writer.close.assert_called_once_with()
+        self.assert_process(mock_process, 3)
+        self.assert_conn(
+            mock_conn,
+            pools._Call('__init__', (None, ), {}),
+            pools._Call('__init__', (referent, ), {}),
+            pools._Call('__del__', (), {}),
+            None,
+        )
 
     def test_close_non_graceful(self):
         mock_exitcode = unittest.mock.PropertyMock()
         mock_process = self.mock_context.Process.return_value
+        mock_process.pid = 1
         type(mock_process).exitcode = mock_exitcode
-        mock_input_queue = unittest.mock.Mock()
-        mock_output_queue = unittest.mock.Mock()
-        mock_output_queue.get.return_value = pickle.dumps((None, None))
-        self.mock_context.SimpleQueue.side_effect = [
-            mock_input_queue,
-            mock_output_queue,
-            mock_input_queue,
-            mock_output_queue,
-        ]
+        mock_conn = unittest.mock.Mock()
+        mock_conn.recv_bytes.return_value = pickle.dumps((None, None))
+        mock_actor_conn = unittest.mock.Mock()
+        self.mock_context.Pipe.return_value = (mock_conn, mock_actor_conn)
         referent = object()
 
         mock_exitcode.return_value = None
@@ -435,8 +426,7 @@ class ProcessActorPoolTest(unittest.TestCase):
             pass
         e = pools.ProcessActorPool._Entry(
             process=mock_process,
-            input_queue=mock_input_queue,
-            output_queue=mock_output_queue,
+            conn=mock_conn,
             negative_num_uses=-1,
         )
         self.assert_pool([e], {id(a1): e}, 2, 2, 2)
@@ -451,10 +441,7 @@ class ProcessActorPoolTest(unittest.TestCase):
             unittest.mock.call(timeout=1),
         ])
         self.assertEqual(len(mock_process.close.mock_calls), 2)
-        self.assertEqual(len(mock_input_queue._reader.close.mock_calls), 2)
-        self.assertEqual(len(mock_input_queue._writer.close.mock_calls), 2)
-        self.assertEqual(len(mock_output_queue._reader.close.mock_calls), 2)
-        self.assertEqual(len(mock_output_queue._writer.close.mock_calls), 2)
+        self.assertEqual(len(mock_conn.close.mock_calls), 2)
 
     def test_actual_pool(self):
         with pools.ProcessActorPool(1) as pool:
@@ -466,25 +453,16 @@ class ProcessActorPoolTest(unittest.TestCase):
 class ProcessActorTest(unittest.TestCase):
 
     def test_process_actor(self):
-        input_queue = multiprocessing.SimpleQueue()
-        output_queue = multiprocessing.SimpleQueue()
+        conn, conn_actor = multiprocessing.connection.Pipe()
         process = multiprocessing.Process(
-            target=pools._ProcessActor(
-                'thread-name', input_queue, output_queue
-            ),
+            target=pools._ProcessActor('thread-name', conn_actor),
         )
-
         process.start()
         try:
+
             referent = Acc()
-            stub = pools._Stub(
-                type(referent), process, input_queue, output_queue
-            )
-            self.assertIsNone(
-                pools._BoundMethod(\
-                    '__init__', input_queue, output_queue
-                )(referent)
-            )
+            stub = pools._Stub(type(referent), process, conn)
+            self.assertIsNone(pools._BoundMethod('__init__', conn)(referent))
 
             with self.assertRaisesRegex(
                 AssertionError, r'expect not x.startswith\(\'_\'\), not \'_f\''
@@ -493,7 +471,7 @@ class ProcessActorTest(unittest.TestCase):
             with self.assertRaisesRegex(
                 AssertionError, r'expect public method: _f'
             ):
-                pools._BoundMethod('_f', input_queue, output_queue)(Acc())
+                pools._BoundMethod('_f', conn)(Acc())
 
             with self.assertRaisesRegex(
                 AttributeError, r'\'Acc\' object has no attribute \'f\''
@@ -524,9 +502,7 @@ class ProcessActorTest(unittest.TestCase):
             ):
                 stub.m.inc(None)
 
-            self.assertIsNone(
-                pools._BoundMethod('__del__', input_queue, output_queue)()
-            )
+            self.assertIsNone(pools._BoundMethod('__del__', conn)())
 
             with self.assertRaisesRegex(
                 AssertionError, r'expect referent not None'
@@ -534,7 +510,9 @@ class ProcessActorTest(unittest.TestCase):
                 stub.m.f()
 
         finally:
-            input_queue.put(None)
+            conn.send_bytes(pickle.dumps(None))
+            conn.close()
+            conn_actor.close()
             process.join(timeout=1)
 
         self.assertEqual(process.exitcode, 0)

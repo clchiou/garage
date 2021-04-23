@@ -14,8 +14,9 @@ import inspect
 import itertools
 import logging
 import multiprocessing
+import multiprocessing.connection
+import multiprocessing.reduction
 import os
-import pickle
 import threading
 import time
 import types
@@ -179,9 +180,7 @@ class ProcessActorPool:
     @dataclasses.dataclass(order=True)
     class _Entry:
         process: multiprocessing.Process = dataclasses.field(compare=False)
-        input_queue: multiprocessing.SimpleQueue = \
-            dataclasses.field(compare=False)
-        output_queue: multiprocessing.SimpleQueue = \
+        conn: multiprocessing.connection.Connection = \
             dataclasses.field(compare=False)
         negative_num_uses: int
 
@@ -248,15 +247,10 @@ class ProcessActorPool:
             entry = heapq.heappop(self._pool)
             max_concurrent_processes = self._max_concurrent_processes
 
-        stub = _Stub(
-            type(referent),
-            entry.process,
-            entry.input_queue,
-            entry.output_queue,
-        )
-        stub_id = id(stub)
-
         try:
+            stub = _Stub(type(referent), entry.process, entry.conn)
+            stub_id = id(stub)
+
             # Although this stub_id can be the same as another already
             # collected stub's id (since id is just object's address),
             # it is very unlikely that this id conflict will happen when
@@ -271,10 +265,9 @@ class ProcessActorPool:
             # But there is not harm to assert this will never happen.
             ASSERT.setitem(self._stub_ids_in_use, stub_id, entry)
 
-            _BoundMethod(\
-                '__init__', entry.input_queue, entry.output_queue
-            )(referent)
+            _BoundMethod('__init__', entry.conn)(referent)
             self._cleanup()
+
         except Exception:
             if to_spawn:
                 self._num_spawns -= 1
@@ -302,7 +295,7 @@ class ProcessActorPool:
         if entry is None:
             return
         try:
-            _BoundMethod('__del__', entry.input_queue, entry.output_queue)()
+            _BoundMethod('__del__', entry.conn)()
         except Exception:
             self._release(entry)
             raise
@@ -310,28 +303,33 @@ class ProcessActorPool:
         self._cleanup()
 
     def _spawn(self):
-        input_queue = self._context.SimpleQueue()
-        output_queue = self._context.SimpleQueue()
-
-        name = 'pactor-%02d' % self._COUNTER()
-        entry = self._Entry(
-            process=self._context.Process(
-                name=name,
-                target=_ProcessActor(name, input_queue, output_queue),
-            ),
-            input_queue=input_queue,
-            output_queue=output_queue,
-            negative_num_uses=0,
-        )
-        entry.process.start()
-
+        conn, conn_actor = self._context.Pipe()
+        try:
+            name = 'pactor-%02d' % self._COUNTER()
+            entry = self._Entry(
+                process=self._context.Process(
+                    name=name,
+                    target=_ProcessActor(name, conn_actor),
+                ),
+                conn=conn,
+                negative_num_uses=0,
+            )
+            entry.process.start()
+            # Block until process actor has received conn_actor; then we
+            # may close conn_actor.
+            _BoundMethod('__init__', conn)(None)
+        except Exception:
+            conn.close()
+            raise
+        finally:
+            conn_actor.close()
         return entry
 
     def _release(self, entry):
         self._num_concurrent_processes -= 1
 
         try:
-            entry.input_queue.put(None)
+            _conn_send(entry.conn, None)
             entry.process.join(timeout=1)
             if entry.process.exitcode is None:
                 LOG.warning(
@@ -357,10 +355,7 @@ class ProcessActorPool:
             entry.process.close()
 
         finally:
-            entry.input_queue._reader.close()
-            entry.input_queue._writer.close()
-            entry.output_queue._reader.close()
-            entry.output_queue._writer.close()
+            entry.conn.close()
 
     def _cleanup(self):
         while self._pool:
@@ -421,10 +416,7 @@ class ProcessActorPool:
                 else:
                     # Process can only be closed after exits.
                     entry.process.close()
-                entry.input_queue._reader.close()
-                entry.input_queue._writer.close()
-                entry.output_queue._reader.close()
-                entry.output_queue._writer.close()
+                entry.conn.close()
 
 
 @dataclasses.dataclass(frozen=True)
@@ -436,21 +428,17 @@ class _Call:
 
 class _Stub:
 
-    def __init__(self, referent_type, process, input_queue, output_queue):
-        self.m = _Methods(referent_type, process, input_queue, output_queue)
+    def __init__(self, referent_type, process, conn):
+        self.m = _Methods(referent_type, process, conn)
 
 
 class _Methods:
 
-    def __init__(self, referent_type, process, input_queue, output_queue):
+    def __init__(self, referent_type, process, conn):
         self._referent_type = referent_type
         self._process = process
         self._bound_methods = g1_collections.LoadingDict(
-            functools.partial(
-                _BoundMethod,
-                input_queue=input_queue,
-                output_queue=output_queue,
-            )
+            functools.partial(_BoundMethod, conn=conn)
         )
 
     def __getattr__(self, name):
@@ -467,14 +455,13 @@ class _Methods:
 
 class _BoundMethod:
 
-    def __init__(self, name, input_queue, output_queue):
+    def __init__(self, name, conn):
         self._name = name
-        self._input_queue = input_queue
-        self._output_queue = output_queue
+        self._conn = conn
 
     def __call__(self, *args, **kwargs):
-        self._input_queue.put(_Call(self._name, args, kwargs))
-        result, exc = pickle.loads(self._output_queue.get())
+        _conn_send(self._conn, _Call(self._name, args, kwargs))
+        result, exc = _conn_recv(self._conn)
         if exc is not None:
             raise exc
         return result
@@ -487,10 +474,9 @@ class _ProcessActor:
         '%(asctime)s %(threadName)s %(levelname)s %(name)s: %(message)s'
     )
 
-    def __init__(self, name, input_queue, output_queue):
+    def __init__(self, name, conn):
         self._name = name
-        self._input_queue = input_queue
-        self._output_queue = output_queue
+        self._conn = conn
         self._referent = None
 
     def __call__(self):
@@ -498,17 +484,17 @@ class _ProcessActor:
         try:
             while True:
                 try:
-                    call = self._input_queue.get()
+                    call = _conn_recv(self._conn)
                 except (EOFError, OSError, KeyboardInterrupt) as exc:
-                    LOG.warning('actor input queue closed early: %r', exc)
+                    LOG.warning('actor input closed early: %r', exc)
                     break
                 if call is None:  # Normal exit.
                     break
                 self._handle(call)
                 del call
         except BaseException:
-            # Actor only exits due to either self._input_queue closed,
-            # or call is None.  We treat everything else as crash, even
+            # Actor only exits due to either self._conn is closed, or
+            # call is None.  We treat everything else as crash, even
             # BaseException like SystemExit.
             LOG.exception('actor crashed')
             raise
@@ -517,17 +503,12 @@ class _ProcessActor:
 
     def _process_init(self):
         threading.current_thread().name = self._name
-
         logging.basicConfig(level=logging.INFO, format=self._LOG_FORMAT)
         LOG.info('start: pid=%d', os.getpid())
 
-        self._input_queue._writer.close()
-        self._output_queue._reader.close()
-
     def _process_cleanup(self):
         LOG.info('exit: pid=%d', os.getpid())
-        self._input_queue._reader.close()
-        self._output_queue._writer.close()
+        self._conn.close()
 
     # NOTE:
     #
@@ -535,11 +516,11 @@ class _ProcessActor:
     #   before sending it back (although I think pickle does this for
     #   you?).
     #
-    # * Because SimpleQueue.get is blocking, you have to very, very
-    #   careful not to block actor's caller indefinitely.  One
-    #   particular example is pickle.dumps, which fails on quite many
-    #   cases, and this is why we call pickle.dumps explicitly rather
-    #   than deferring it to SimpleQueue.put.
+    # * Because recv_bytes is blocking, you have to very, very careful
+    #   not to block actor's caller indefinitely, waiting for actor's
+    #   response.  One particular example is pickle.dumps, which fails
+    #   on many cases, and this is why we call ForkingPickler.dumps
+    #   explicitly.
 
     def _handle(self, call):
         # First, check actor methods.
@@ -559,20 +540,22 @@ class _ProcessActor:
             self._handle_method(call)
 
     def _send_result(self, result):
-        self._output_queue.put(self._pickle_pair((result, None)))
+        self._conn.send_bytes(self._pickle_pair((result, None)))
 
     def _send_exc(self, exc):
-        self._output_queue.put(
+        self._conn.send_bytes(
             self._pickle_pair((None, exc.with_traceback(None)))
         )
 
     @staticmethod
     def _pickle_pair(pair):
         try:
-            return pickle.dumps(pair)
+            return multiprocessing.reduction.ForkingPickler.dumps(pair)
         except Exception as exc:
             LOG.error('pickle error: pair=%r exc=%r', pair, exc)
-            return pickle.dumps((None, exc.with_traceback(None)))
+            return multiprocessing.reduction.ForkingPickler.dumps(
+                (None, exc.with_traceback(None))
+            )
 
     def _handle_adopt(self, call):
         self._referent = call.args[0]
@@ -604,3 +587,11 @@ class _ProcessActor:
             self._send_exc(exc)
         else:
             self._send_result(result)
+
+
+def _conn_send(conn, obj):
+    conn.send_bytes(multiprocessing.reduction.ForkingPickler.dumps(obj))
+
+
+def _conn_recv(conn):
+    return multiprocessing.reduction.ForkingPickler.loads(conn.recv_bytes())
