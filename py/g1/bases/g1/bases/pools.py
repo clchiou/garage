@@ -429,7 +429,15 @@ class _Call:
 class _Stub:
 
     def __init__(self, referent_type, process, conn):
+        self._submit = _BoundMethod('_submit', conn)
+        self._apply = _BoundMethod('_apply', conn)
         self.m = _Methods(referent_type, process, conn)
+
+    def submit(self, func, *args, **kwargs):
+        return self._submit(func, args, kwargs)
+
+    def apply(self, func, *args, **kwargs):
+        return self._apply(func, args, kwargs)
 
 
 class _Methods:
@@ -528,14 +536,18 @@ class _ProcessActor:
             self._handle_adopt(call)
         elif call.method == '_disadopt':
             self._handle_disadopt(call)
+        elif call.method == '_submit':
+            self._handle_submit(call)
 
         # Then, check referent methods.
+        elif self._referent is None:
+            self._send_exc(AssertionError('expect referent not None'))
+        elif call.method == '_apply':
+            self._handle_apply(call)
         elif call.method.startswith('_'):
             self._send_exc(
                 AssertionError('expect public method: %s' % call.method)
             )
-        elif self._referent is None:
-            self._send_exc(AssertionError('expect referent not None'))
         else:
             self._handle_method(call)
 
@@ -565,6 +577,24 @@ class _ProcessActor:
         del call  # Unused.
         self._referent = None
         self._send_result(None)
+
+    def _handle_submit(self, call):
+        try:
+            func, args, kwargs = call.args
+            result = func(*args, **kwargs)
+        except BaseException as exc:
+            self._send_exc(exc)
+        else:
+            self._send_result(result)
+
+    def _handle_apply(self, call):
+        try:
+            func, args, kwargs = call.args
+            result = func(self._referent, *args, **kwargs)
+        except BaseException as exc:
+            self._send_exc(exc)
+        else:
+            self._send_result(result)
 
     def _handle_method(self, call):
         try:

@@ -490,6 +490,9 @@ class ProcessActorTest(unittest.TestCase):
             self.assertEqual(stub.m.sf('bar'), 'bar')
             self.assertEqual(stub.m.g(9), list(range(9)))
 
+            self.assertEqual(stub.submit(func, Acc(), 2, z=3), 5)
+            self.assertEqual(stub.apply(func, 10, z=100), 114)
+
             with self.assertRaisesRegex(
                 TypeError, r'cannot pickle \'_io\.TextIOWrapper\' object'
             ):
@@ -550,6 +553,10 @@ class Acc:
     def not_pickle_able(path):
         with open(path) as f:
             return f
+
+
+def func(acc, y, z):
+    return acc.x + y + z
 
 
 if __name__ == '__main__':
