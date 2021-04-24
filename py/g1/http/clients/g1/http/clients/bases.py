@@ -343,7 +343,7 @@ class Response:
         which forces ``source`` to read the whole response body from the
         server (and so we do not need to do this in the Sender class).
         """
-        self.content = content
+        self._content = content
 
         self.status_code = source.status_code
         self.headers = source.headers
@@ -385,6 +385,10 @@ class Response:
             ),
             response=self,
         )
+
+    @property
+    def content(self):
+        return self._content
 
     @classes.memorizing_property
     def text(self):
