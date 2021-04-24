@@ -352,7 +352,10 @@ class Response:
         self.status_code = source.status_code
         self.headers = source.headers
         self.url = source.url
-        self.history = list(map(Response, source.history))
+        self.history = [
+            Response(r, None)  # TODO: Should we load r.content?
+            for r in source.history
+        ]
         self.encoding = source.encoding
         self.reason = source.reason
         self.cookies = source.cookies
