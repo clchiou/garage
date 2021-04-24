@@ -297,6 +297,10 @@ class BaseSession:
         try:
             response.raise_for_status()
         except Exception:
+            # Force consuming the content.  In case caller sets
+            # stream=True, this ensures that exc.response.content is not
+            # empty.
+            response.content  # pylint: disable=pointless-statement
             # On error, close the original response for the caller since
             # the caller usually forgets to do this.
             response.close()
