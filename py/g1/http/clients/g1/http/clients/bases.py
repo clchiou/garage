@@ -287,7 +287,10 @@ class BaseSession:
             response = source
         else:
             try:
-                response = Response(source)
+                response = Response(
+                    source,
+                    source.content,  # Force consuming the content.
+                )
             finally:
                 source.close()
 
@@ -333,15 +336,14 @@ class Response:
     will not release the connection back to the connection pool.
     """
 
-    def __init__(self, source):
+    def __init__(self, source, content):
         """Make a "copy" from a ``requests`` Response object.
 
         Note that this consumes the content of the ``source`` object,
         which forces ``source`` to read the whole response body from the
         server (and so we do not need to do this in the Sender class).
         """
-        # Force reading.
-        self.content = source.content
+        self.content = content
 
         self.status_code = source.status_code
         self.headers = source.headers
