@@ -405,7 +405,8 @@ class Response:
         return json.loads(self.content, **kwargs)
 
     #
-    # Interface that ``requests.Response`` does not provide.
+    # Interface that ``requests.Response`` does not provide (we will
+    # monkey-patch it below).
     #
 
     def html(self, encoding=None, errors=None):
@@ -454,3 +455,7 @@ _XML_PARSER = lxml.etree.XMLParser()
 # Just to make sure we do not accidentally override them.
 ASSERT.false(hasattr(requests.Response, 'recvfile'))
 requests.Response.recvfile = recvfiles.recvfile
+ASSERT.false(hasattr(requests.Response, 'html'))
+requests.Response.html = Response.html
+ASSERT.false(hasattr(requests.Response, 'xml'))
+requests.Response.xml = Response.xml
