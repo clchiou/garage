@@ -265,7 +265,7 @@ class ProcessActorPool:
             # But there is not harm to assert this will never happen.
             ASSERT.setitem(self._stub_ids_in_use, stub_id, entry)
 
-            _BoundMethod('__init__', entry.conn)(referent)
+            _BoundMethod('_adopt', entry.conn)(referent)
             self._cleanup()
 
         except Exception:
@@ -295,7 +295,7 @@ class ProcessActorPool:
         if entry is None:
             return
         try:
-            _BoundMethod('__del__', entry.conn)()
+            _BoundMethod('_disadopt', entry.conn)()
         except Exception:
             self._release(entry)
             raise
@@ -317,7 +317,7 @@ class ProcessActorPool:
             entry.process.start()
             # Block until process actor has received conn_actor; then we
             # may close conn_actor.
-            _BoundMethod('__init__', conn)(None)
+            _BoundMethod('_adopt', conn)(None)
         except Exception:
             conn.close()
             raise
@@ -524,9 +524,9 @@ class _ProcessActor:
 
     def _handle(self, call):
         # First, check actor methods.
-        if call.method == '__init__':
+        if call.method == '_adopt':
             self._handle_adopt(call)
-        elif call.method == '__del__':
+        elif call.method == '_disadopt':
             self._handle_disadopt(call)
 
         # Then, check referent methods.

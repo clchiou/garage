@@ -272,8 +272,8 @@ class ProcessActorPoolTest(unittest.TestCase):
         self.assert_process(mock_process, 1)
         self.assert_conn(
             mock_conn,
-            pools._Call('__init__', (None, ), {}),
-            pools._Call('__init__', (referent, ), {}),
+            pools._Call('_adopt', (None, ), {}),
+            pools._Call('_adopt', (referent, ), {}),
         )
         mock_actor_conn.close.assert_called_once_with()
 
@@ -283,9 +283,9 @@ class ProcessActorPoolTest(unittest.TestCase):
         self.assert_process(mock_process, 1)
         self.assert_conn(
             mock_conn,
-            pools._Call('__init__', (None, ), {}),
-            pools._Call('__init__', (referent, ), {}),
-            pools._Call('__del__', (), {}),
+            pools._Call('_adopt', (None, ), {}),
+            pools._Call('_adopt', (referent, ), {}),
+            pools._Call('_disadopt', (), {}),
         )
 
         mock_exitcode.return_value = 0
@@ -296,21 +296,21 @@ class ProcessActorPoolTest(unittest.TestCase):
             self.assert_process(mock_process, 1)
             self.assert_conn(
                 mock_conn,
-                pools._Call('__init__', (None, ), {}),
-                pools._Call('__init__', (referent, ), {}),
-                pools._Call('__del__', (), {}),
-                pools._Call('__init__', (referent, ), {}),
+                pools._Call('_adopt', (None, ), {}),
+                pools._Call('_adopt', (referent, ), {}),
+                pools._Call('_disadopt', (), {}),
+                pools._Call('_adopt', (referent, ), {}),
             )
 
         self.assert_pool([], {}, 1, 0, 1)
         self.assert_process(mock_process, 3)
         self.assert_conn(
             mock_conn,
-            pools._Call('__init__', (None, ), {}),
-            pools._Call('__init__', (referent, ), {}),
-            pools._Call('__del__', (), {}),
-            pools._Call('__init__', (referent, ), {}),
-            pools._Call('__del__', (), {}),
+            pools._Call('_adopt', (None, ), {}),
+            pools._Call('_adopt', (referent, ), {}),
+            pools._Call('_disadopt', (), {}),
+            pools._Call('_adopt', (referent, ), {}),
+            pools._Call('_disadopt', (), {}),
             None,
         )
 
@@ -394,17 +394,17 @@ class ProcessActorPoolTest(unittest.TestCase):
             self.assert_process(mock_process, 1)
             self.assert_conn(
                 mock_conn,
-                pools._Call('__init__', (None, ), {}),
-                pools._Call('__init__', (referent, ), {}),
+                pools._Call('_adopt', (None, ), {}),
+                pools._Call('_adopt', (referent, ), {}),
             )
 
         self.assert_pool([], {}, 1, 0, 1)
         self.assert_process(mock_process, 3)
         self.assert_conn(
             mock_conn,
-            pools._Call('__init__', (None, ), {}),
-            pools._Call('__init__', (referent, ), {}),
-            pools._Call('__del__', (), {}),
+            pools._Call('_adopt', (None, ), {}),
+            pools._Call('_adopt', (referent, ), {}),
+            pools._Call('_disadopt', (), {}),
             None,
         )
 
@@ -462,7 +462,7 @@ class ProcessActorTest(unittest.TestCase):
 
             referent = Acc()
             stub = pools._Stub(type(referent), process, conn)
-            self.assertIsNone(pools._BoundMethod('__init__', conn)(referent))
+            self.assertIsNone(pools._BoundMethod('_adopt', conn)(referent))
 
             with self.assertRaisesRegex(
                 AssertionError, r'expect not x.startswith\(\'_\'\), not \'_f\''
@@ -502,7 +502,7 @@ class ProcessActorTest(unittest.TestCase):
             ):
                 stub.m.inc(None)
 
-            self.assertIsNone(pools._BoundMethod('__del__', conn)())
+            self.assertIsNone(pools._BoundMethod('_disadopt', conn)())
 
             with self.assertRaisesRegex(
                 AssertionError, r'expect referent not None'
