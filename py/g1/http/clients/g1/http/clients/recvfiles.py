@@ -131,7 +131,6 @@ class DecoderChain:
             for d in self._decoders[i + 1:]:
                 pieces = d.decode(pieces)
             self._write(pieces)
-        self._file.flush()
 
     def _write(self, pieces):
         for data in pieces:

@@ -52,25 +52,21 @@ class RecvfilesTest(unittest.TestCase):
             unittest.mock.call.write(b'd1-flush'),
             unittest.mock.call.write(b'd2-decode'),
             unittest.mock.call.write(b'd2-flush'),
-            unittest.mock.call.flush(),
         ])
         d0.assert_has_calls([
             unittest.mock.call.decode([b'spam']),
             unittest.mock.call.decode([b'egg']),
-            unittest.mock.call.flush(),
         ])
         d1.assert_has_calls([
             unittest.mock.call.decode([b'spam', b'd0-decode']),
             unittest.mock.call.decode([b'egg', b'd0-decode']),
             unittest.mock.call.decode([b'd0-flush']),
-            unittest.mock.call.flush(),
         ])
         d2.assert_has_calls([
             unittest.mock.call.decode([b'spam', b'd0-decode', b'd1-decode']),
             unittest.mock.call.decode([b'egg', b'd0-decode', b'd1-decode']),
             unittest.mock.call.decode([b'd0-flush', b'd1-decode']),
             unittest.mock.call.decode([b'd1-flush']),
-            unittest.mock.call.flush(),
         ])
 
     def test_chunk_decoder(self):
