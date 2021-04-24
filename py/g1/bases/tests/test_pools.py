@@ -6,7 +6,9 @@ import itertools
 import logging
 import multiprocessing
 import multiprocessing.connection
+import os
 import pickle
+import tempfile
 
 from g1.bases import pools
 
@@ -505,6 +507,19 @@ class ProcessActorTest(unittest.TestCase):
             ):
                 stub.m.inc(None)
 
+            with tempfile.TemporaryFile() as f:
+                f.write(b'hello world')
+                f.flush()
+                f.seek(0)
+                remote_fds = stub.send_fds([f.fileno()])
+                self.assertEqual(len(remote_fds), 1)
+            self.assertEqual(
+                stub.submit(consume_fd, remote_fds[0]),
+                b'hello world',
+            )
+            # stub._conn is still usable after send_fds.
+            self.assertEqual(stub.m.get(), 4)
+
             self.assertIsNone(pools._BoundMethod('_disadopt', conn)())
 
             with self.assertRaisesRegex(
@@ -557,6 +572,11 @@ class Acc:
 
 def func(acc, y, z):
     return acc.x + y + z
+
+
+def consume_fd(fd):
+    with os.fdopen(fd, 'rb') as f:
+        return f.read()
 
 
 if __name__ == '__main__':

@@ -5,6 +5,7 @@ __all__ = [
     'TimeoutPool',
 ]
 
+import array
 import collections
 import contextlib
 import dataclasses
@@ -17,6 +18,7 @@ import multiprocessing
 import multiprocessing.connection
 import multiprocessing.reduction
 import os
+import socket
 import threading
 import time
 import types
@@ -426,12 +428,35 @@ class _Call:
     kwargs: Dict[str, Any]
 
 
+# It seems like you cannot call sendmsg with empty buffers.
+_SEND_FDS_DUMMY = b'0'
+
+
 class _Stub:
 
     def __init__(self, referent_type, process, conn):
+        self._conn = conn
         self._submit = _BoundMethod('_submit', conn)
         self._apply = _BoundMethod('_apply', conn)
         self.m = _Methods(referent_type, process, conn)
+
+    def send_fds(self, fds):
+        ASSERT.not_empty(fds)
+
+        _conn_send(self._conn, _Call('_send_fds', (len(fds), ), {}))
+
+        sock = socket.socket(fileno=self._conn.fileno())
+        try:
+            _send_fds(sock, [_SEND_FDS_DUMMY], fds)
+        finally:
+            sock.detach()
+
+        remote_fds, exc = _conn_recv(self._conn)
+        if exc is not None:
+            raise exc
+        ASSERT.equal(len(remote_fds), len(fds))
+
+        return remote_fds
 
     def submit(self, func, *args, **kwargs):
         return self._submit(func, args, kwargs)
@@ -536,6 +561,8 @@ class _ProcessActor:
             self._handle_adopt(call)
         elif call.method == '_disadopt':
             self._handle_disadopt(call)
+        elif call.method == '_send_fds':
+            self._handle_send_fds(call)
         elif call.method == '_submit':
             self._handle_submit(call)
 
@@ -577,6 +604,28 @@ class _ProcessActor:
         del call  # Unused.
         self._referent = None
         self._send_result(None)
+
+    def _handle_send_fds(self, call):
+        num_fds = call.args[0]
+
+        sock = socket.socket(fileno=self._conn.fileno())
+        try:
+            msg, fds, _, _ = _recv_fds(sock, len(_SEND_FDS_DUMMY), num_fds)
+        except Exception as exc:
+            self._send_exc(AssertionError('recv_fds error: %r' % exc))
+            return
+        finally:
+            sock.detach()
+
+        if msg != _SEND_FDS_DUMMY:
+            self._send_exc(
+                AssertionError(
+                    'expect dummy message %r, not %r' % (_SEND_FDS_DUMMY, msg)
+                )
+            )
+            return
+
+        self._send_result(fds)
 
     def _handle_submit(self, call):
         try:
@@ -625,3 +674,29 @@ def _conn_send(conn, obj):
 
 def _conn_recv(conn):
     return multiprocessing.reduction.ForkingPickler.loads(conn.recv_bytes())
+
+
+# TODO: Use stdlib's send_fds when upgrade to Python 3.9.
+def _send_fds(sock, buffers, fds, flags=0, address=None):
+    return sock.sendmsg(
+        buffers,
+        [(socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array('i', fds))],
+        flags,
+        address,
+    )
+
+
+# TODO: Use stdlib's recv_fds when upgrade to Python 3.9.
+def _recv_fds(sock, bufsize, maxfds, flags=0):
+    fds = array.array('i')
+    msg, ancdata, flags, addr = sock.recvmsg(
+        bufsize,
+        socket.CMSG_LEN(maxfds * fds.itemsize),
+        flags,
+    )
+    for cmsg_level, cmsg_type, cmsg_data in ancdata:
+        if cmsg_level == socket.SOL_SOCKET and cmsg_type == socket.SCM_RIGHTS:
+            fds.frombytes(
+                cmsg_data[:len(cmsg_data) - (len(cmsg_data) % fds.itemsize)]
+            )
+    return msg, list(fds), flags, addr
