@@ -340,7 +340,7 @@ class Response:
     will not release the connection back to the connection pool.
     """
 
-    def __init__(self, source, content):
+    def __init__(self, source, content, *, _copy_history=True):
         """Make a "copy" from a ``requests`` Response object.
 
         Note that this consumes the content of the ``source`` object,
@@ -352,10 +352,23 @@ class Response:
         self.status_code = source.status_code
         self.headers = source.headers
         self.url = source.url
-        self.history = [
-            Response(r, None)  # TODO: Should we load r.content?
-            for r in source.history
-        ]
+        if _copy_history:
+            self.history = [
+                Response(
+                    r,
+                    # TODO: Should we load r.content?
+                    None,
+                    # TODO: In some rare cases, history seems to have
+                    # loops.  We probably should try to detect loops,
+                    # but for now, let us only go into one level of the
+                    # history.
+                    _copy_history=False,
+                ) for r in source.history
+            ]
+        else:
+            # Make it non-iterable so that if user (accidentally)
+            # iterates this, it will err out.
+            self.history = None
         self.encoding = source.encoding
         self.reason = source.reason
         self.cookies = source.cookies

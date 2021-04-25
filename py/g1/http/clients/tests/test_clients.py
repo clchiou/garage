@@ -251,6 +251,17 @@ class PrioritySessionTest(TestCaseBase):
         self.mock_session.get.assert_called_once_with(self.URL)
 
 
+class ResponseTest(unittest.TestCase):
+
+    def test_history_copy(self):
+        mock_response = unittest.mock.Mock()
+        mock_response.history = [mock_response]
+        response = bases.Response(mock_response, None)
+        self.assertEqual(len(response.history), 1)
+        self.assertIsInstance(response.history[0], bases.Response)
+        self.assertIsNone(response.history[0].history)
+
+
 class RecvfileTest(unittest.TestCase):
 
     class TestHandler(http.server.SimpleHTTPRequestHandler):
