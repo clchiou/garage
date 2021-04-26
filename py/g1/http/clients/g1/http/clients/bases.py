@@ -379,6 +379,12 @@ class Response:
         'status_code={self.status_code} url={self.url}',
     )
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        self.close()
+
     def close(self):
         # Nothing to do here; just for interface compatibility.
         pass
