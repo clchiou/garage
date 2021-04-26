@@ -48,29 +48,23 @@ async def supervise_server(queue, server_tasks):
     async with queue:
         async for task in queue:
             exc = task.get_exception_nonblocking()
+
             if task in server_tasks:
                 if exc:
                     if isinstance(exc, tasks.Cancelled):
-                        # Log at DEBUG rather than INFO level for the
-                        # same reason below.
-                        LOG.debug('server task is cancelled: %r', task)
+                        LOG.info('server task is cancelled: %r', task)
                     else:
                         raise ServerError(
                             'server task error: %r' % task
                         ) from exc
                 else:
-                    # Log at DEBUG rather than INFO level because
-                    # supervise_server could actually be called in a
-                    # request handler (when the handler is sufficiently
-                    # complex), and we do not want to over-log at INFO
-                    # level.
-                    LOG.debug('server task exit: %r', task)
-                    break
-            else:
-                if exc:
-                    if isinstance(exc, tasks.Cancelled):
-                        LOG.debug('handler task is cancelled: %r', task)
-                    else:
-                        LOG.error('handler task error: %r', task, exc_info=exc)
+                    LOG.info('server task exit: %r', task)
+                break
+
+            if exc:
+                if isinstance(exc, tasks.Cancelled):
+                    LOG.debug('handler task is cancelled: %r', task)
                 else:
-                    LOG.debug('handler task exit: %r', task)
+                    LOG.error('handler task error: %r', task, exc_info=exc)
+            else:
+                LOG.debug('handler task exit: %r', task)
