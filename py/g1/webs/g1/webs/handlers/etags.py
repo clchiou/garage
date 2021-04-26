@@ -24,11 +24,12 @@ def compute_etag(content):
 
 def compute_etag_from_file(content_file):
     hasher = hashlib.md5()
+    buffer = memoryview(bytearray(_CHUNK_SIZE))
     while True:
-        chunk = content_file.read(_CHUNK_SIZE)
-        if not chunk:
+        num_read = content_file.readinto(buffer)
+        if num_read <= 0:
             break
-        hasher.update(chunk)
+        hasher.update(buffer[:num_read])
     return '"%s"' % hasher.hexdigest()
 
 
