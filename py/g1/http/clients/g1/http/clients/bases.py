@@ -16,6 +16,7 @@ import requests
 import requests.adapters
 import requests.cookies
 import urllib3.exceptions
+import urllib3.util.ssl_
 
 from g1.asyncs.bases import adapters
 from g1.asyncs.bases import tasks
@@ -190,6 +191,9 @@ class BaseSession:
     for higher level session types.
     """
 
+    _SSL_CONTEXT = urllib3.util.ssl_.create_urllib3_context()
+    _SSL_CONTEXT.load_default_certs()
+
     def __init__(
         self,
         *,
@@ -207,6 +211,7 @@ class BaseSession:
         self._executor = executor or executors.Executor(daemon=True)
 
         self._session = requests.Session()
+
         adapter_kwargs = {}
         if num_pools > 0:
             adapter_kwargs['pool_connections'] = num_pools
@@ -224,6 +229,11 @@ class BaseSession:
             self._session.mount(
                 'http://', requests.adapters.HTTPAdapter(**adapter_kwargs)
             )
+
+        # Make all connections share one SSL context to reduce memory
+        # footprint.
+        (self._session.get_adapter('https://').poolmanager\
+         .connection_pool_kw['ssl_context']) = self._SSL_CONTEXT
 
     @property
     def headers(self):

@@ -12,6 +12,8 @@ setup(
         'g1.threads',
         'lxml',
         'requests',
+        # Use urllib3 pulled in by requests.
+        # 'urllib3',
     ],
     extras_require={
         'parts': [
