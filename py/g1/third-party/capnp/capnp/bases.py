@@ -15,7 +15,6 @@ import operator
 
 from g1.bases import classes
 from g1.bases import functionals
-from g1.bases import lifecycles
 from g1.bases.assertions import ASSERT
 
 
@@ -26,15 +25,10 @@ class Base:
 
     def __init__(self, raw):
         self._raw = ASSERT.isinstance(raw, self._raw_type)
-        lifecycles.monitor_object_aliveness(self)
 
 
 class BaseResource(Base):
     """Wrap resource types."""
-
-    def __init__(self, raw):
-        super().__init__(raw)
-        lifecycles.add_to((type(self), 'raw'), 1)
 
     def __enter__(self):
         return self
@@ -42,13 +36,11 @@ class BaseResource(Base):
     def __exit__(self, *_):
         raw, self._raw = self._raw, None
         raw._reset()
-        lifecycles.add_to((type(self), 'raw'), -1)
 
     def __del__(self):
         # In case user forgets to clean it up.
         if self._raw is not None:
             self._raw._reset()
-            lifecycles.add_to((type(self), 'raw'), -1)
 
 
 get_raw = operator.attrgetter('_raw')

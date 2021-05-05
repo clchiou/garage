@@ -25,7 +25,6 @@ from g1.asyncs.bases import streams
 from g1.asyncs.bases import tasks
 from g1.asyncs.bases import timers
 from g1.bases import classes
-from g1.bases import lifecycles
 from g1.bases.assertions import ASSERT
 from g1.bases.ctypes import (
     c_blob,
@@ -129,9 +128,6 @@ class HttpSession:
             CALLBACKS,
             ctypes.byref(self._user_data),
         )
-
-        lifecycles.monitor_object_aliveness(self)
-        lifecycles.monitor_object_aliveness(self._session)
 
     __repr__ = classes.make_repr(
         '{self._address} session={session} streams={streams}',
@@ -557,14 +553,6 @@ class HttpStream:
         self._response_headers_sent = False
         self._response_body = streams.BytesStream()
         self._response_body_deferred = False
-
-        lifecycles.monitor_object_aliveness(self)
-        lifecycles.monitor_object_aliveness(
-            self._request_body, key=(type(self), 'request_body')
-        )
-        lifecycles.monitor_object_aliveness(
-            self._response_body, key=(type(self), 'response_body')
-        )
 
     __repr__ = classes.make_repr(
         'session={self._session!r} stream={self._stream_id}'

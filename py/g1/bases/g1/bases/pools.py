@@ -279,6 +279,8 @@ class ProcessActorPool:
             self._release(entry)
             raise
 
+        # TODO: self._return_id is non-reentrant, and thus is not safe
+        # in a finalize callback.  How do we fix this?
         weakref.finalize(stub, self._return_id, stub_id)
         entry.negative_num_uses -= 1
         self._max_concurrent_processes = max_concurrent_processes

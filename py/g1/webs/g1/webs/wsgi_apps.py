@@ -19,7 +19,6 @@ from g1.asyncs.bases import servers
 from g1.asyncs.bases import streams
 from g1.asyncs.bases import tasks
 from g1.bases import contexts
-from g1.bases import lifecycles
 from g1.bases.assertions import ASSERT
 
 from . import consts
@@ -73,12 +72,6 @@ class Request:
     # to isolate context changes made by the non-handler code.
     #
     context: contexts.Context
-
-    def __post_init__(self):
-        lifecycles.monitor_object_aliveness(self)
-        lifecycles.monitor_object_aliveness(
-            self.context, key=(type(self), 'context')
-        )
 
     def get_header(self, name, default=None):
         environ_name = 'HTTP_' + name.replace('-', '_').upper()
@@ -206,9 +199,7 @@ class _Response:
 
     @classmethod
     def _make_precommit(cls):
-        precommit = streams.BytesStream()
-        lifecycles.monitor_object_aliveness(precommit, key=(cls, 'precommit'))
-        return precommit
+        return streams.BytesStream()
 
     def __init__(self, start_response, is_sendfile_supported):
         self._start_response = start_response
@@ -223,8 +214,6 @@ class _Response:
 
         self._send_mechanism = _SendMechanisms.UNDECIDED
         self._send_mechanism_decided = locks.Event()
-
-        lifecycles.monitor_object_aliveness(self)
 
         if not is_sendfile_supported:
             self._set_send_mechanism(_SendMechanisms.SEND)

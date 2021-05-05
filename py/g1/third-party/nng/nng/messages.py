@@ -7,7 +7,6 @@ __all__ = [
 import ctypes
 
 from g1.bases import classes
-from g1.bases import lifecycles
 from g1.bases.assertions import ASSERT
 from g1.bases.ctypes import (
     PyBUF_WRITE,
@@ -42,16 +41,6 @@ class Message:
         self.header = Header(self._get)
         self.body = Body(self._get)
 
-        lifecycles.monitor_object_aliveness(self)
-        # Our goal is to track all message allocation (by nng_msg_alloc,
-        # nng_recv_aio, etc.).  We could add a `add_to` call to all call
-        # sites, but it is quite easy to be forgotten, and somewhat
-        # breaks the encapsulation of Message.  So instead we call
-        # `add_to` here.  The downside of this is that now whenever you
-        # construct a Message object without allocating a new new msg_p,
-        # e.g., when using disown, you must also decrement the counter.
-        lifecycles.add_to((type(self), 'msg_p'), 1)
-
     __repr__ = classes.make_repr('{self._msg_p}')
 
     def __enter__(self):
@@ -62,9 +51,6 @@ class Message:
 
     def disown(self):
         msg_p, self._msg_p = self._msg_p, None
-        # We have to decrement the counter in disown because we
-        # automatically increment it in __init__.
-        lifecycles.add_to((type(self), 'msg_p'), -1)
         return msg_p
 
     def copy(self):
@@ -80,7 +66,6 @@ class Message:
         if self._msg_p is not None:
             _nng.F.nng_msg_free(self._msg_p)
             self._msg_p = None
-            lifecycles.add_to((type(self), 'msg_p'), -1)
 
     def __del__(self):
         # In case you forget to use Message within a context.
