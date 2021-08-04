@@ -44,6 +44,7 @@ class RecordsSchema:
         *,
         metadata=None,
         index_column_names=(),  # This is actually a list of names.
+        constraints=(),
     ):
         ASSERT.isdisjoint(
             frozenset(name for name, _ in key_column_names_and_types),
@@ -73,6 +74,7 @@ class RecordsSchema:
             self.metadata,
             *self.key_columns,
             *self.value_columns,
+            *constraints,
         )
 
     def make_indices(self):
