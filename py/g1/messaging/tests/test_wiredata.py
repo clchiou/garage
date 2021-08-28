@@ -42,6 +42,8 @@ class TestType:
     e: TestError
     t: typing.Tuple[int, str]
     l: typing.List[typing.Union[int, str]]
+    s: typing.Set[str]
+    fs: typing.FrozenSet[str]
     u0: typing.Optional[SubType]
     u1: typing.Optional[SubType]
     int_sub_type: IntSubType
@@ -62,6 +64,8 @@ class JsonWireDataTest(unittest.TestCase):
         e=TestError(2, 'spam egg'),
         t=(1, 'some string'),
         l=[1, 2, 3, 'x', 'y', 'z'],
+        s={'x'},
+        fs=frozenset(('x', )),
         u0=SubType(y=1, s='x'),
         u1=None,
         int_sub_type=IntSubType(1),
@@ -115,6 +119,10 @@ class JsonWireDataTest(unittest.TestCase):
                 'str': 'z',
             },
         ],
+        # typing.Set[str]
+        's': ['x'],
+        # typing.FrozenSet[str]
+        'fs': ['x'],
         # typing.Optional[SubType]
         'u0': {
             'y': 1,
@@ -186,6 +194,10 @@ class JsonWireDataTest(unittest.TestCase):
             (typing.List[typing.List[int]], [[1], [2, 3]]),
             (typing.Tuple[int, str], (0, '')),
             (typing.Tuple[typing.Tuple[int]], ((0, ), )),
+            (typing.Set[str], set()),
+            (typing.Set[str], set(('x', ))),
+            (typing.FrozenSet[str], frozenset()),
+            (typing.FrozenSet[str], frozenset(('x', ))),
             (typing.Union[int, str], 0),
             (typing.Union[int, str], ''),
             (typing.Union[type(None), typing.Union[str, int]], 0),
@@ -200,6 +212,8 @@ class JsonWireDataTest(unittest.TestCase):
             (typing.Tuple[int, str], (0, )),
             (typing.Tuple[int, str], (0, 1)),
             (typing.Tuple[typing.Tuple[int]], (('', ), )),
+            (typing.Set[str], set((1, ))),
+            (typing.FrozenSet[str], frozenset((1, ))),
             (typing.Union[int, str], ()),
             (typing.Union[type(None), typing.Union[str, int]], ()),
         ):

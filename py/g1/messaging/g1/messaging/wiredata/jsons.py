@@ -40,7 +40,8 @@ class JsonWireData(wiredata.WireData):
     """JSON wire data converter.
 
     This supports ``datetime.datetime``, ``enum.Enum``, ``Exception``,
-    ``typing.Tuple``, ``typing.List``, and ``typing.Union``.
+    ``typing.Tuple``, ``typing.List``, ``typing.Set``,
+    ``typing.FrozenSet``, and ``typing.Union``.
 
     Caveats:
 
@@ -74,7 +75,7 @@ class JsonWireData(wiredata.WireData):
 
         if typings.is_recursive_type(value_type):
 
-            if value_type.__origin__ is list:
+            if value_type.__origin__ in (list, set, frozenset):
                 element_type = value_type.__args__[0]
                 return [
                     self._encode_value(element_type, element)
@@ -171,12 +172,12 @@ class JsonWireData(wiredata.WireData):
 
         if typings.is_recursive_type(value_type):
 
-            if value_type.__origin__ is list:
+            if value_type.__origin__ in (list, set, frozenset):
                 element_type = value_type.__args__[0]
-                return [
+                return value_type.__origin__(
                     self._decode_raw_value(element_type, raw_element)
                     for raw_element in raw_value
-                ]
+                )
 
             elif value_type.__origin__ is tuple:
                 ASSERT.equal(len(raw_value), len(value_type.__args__))
@@ -273,9 +274,9 @@ def _match_recursive_type(type_, value):
         # Base case of the recursive type.
         return isinstance(value, type_)
 
-    elif type_.__origin__ is list:
+    elif type_.__origin__ in (list, set, frozenset):
         return (
-            isinstance(value, list) and
+            isinstance(value, type_.__origin__) and
             all(_match_recursive_type(type_.__args__[0], v) for v in value)
         )
 
