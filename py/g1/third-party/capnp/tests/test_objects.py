@@ -87,11 +87,15 @@ class TestPointerStruct:
     class TestException2(TestException):
         pass
 
+    class TestException3(TestException):
+        args: typing.Tuple[str, int]
+
     group_field: GroupField
     tuple_field_1: typing.Tuple[int]
     tuple_field_2: typing.Tuple[int]
     exception_field_1: TestException
     exception_field_2: TestException2
+    exception_field_3: TestException3
     struct_field: EmptyStruct
 
 
@@ -346,6 +350,7 @@ class ObjectsTest(unittest.TestCase):
             tuple_field_2=None,
             exception_field_1=None,
             exception_field_2=None,
+            exception_field_3=None,
             struct_field=None,
         )
         message = capnp.MessageBuilder()
@@ -375,6 +380,7 @@ class ObjectsTest(unittest.TestCase):
                 tuple_field_1=(13, ),
                 tuple_field_2=(42, ),
                 exception_field_1=TestPointerStruct.TestException(),
+                exception_field_3=TestPointerStruct.TestException3('x', 42),
                 struct_field=TestPointerStruct.EmptyStruct(),
             ),
             dataclasses.replace(
@@ -384,6 +390,7 @@ class ObjectsTest(unittest.TestCase):
                 tuple_field_2=(42, ),
                 exception_field_1=TestPointerStruct.TestException(),
                 exception_field_2=TestPointerStruct.TestException2(0),
+                exception_field_3=TestPointerStruct.TestException3('x', 42),
                 struct_field=TestPointerStruct.EmptyStruct(),
             ),
             message,

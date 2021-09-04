@@ -244,7 +244,7 @@ class _TupleConverter:
 class _ExceptionConverter:
     """Converter between Exception and struct."""
 
-    # Only handle these simple types for now.
+    # Handle these simple types if the Exception type is not annotated.
     _SIMPLE_TYPE_MAP = {
         _capnp.schema.Type.Which.VOID: NoneType,
         _capnp.schema.Type.Which.BOOL: bool,
@@ -272,13 +272,23 @@ class _ExceptionConverter:
                 schema.name,
                 exc_type.__name__,
             )
-        self._converter = _TupleConverter(
-            schema,
-            [
+        args_annotation = (
+            exc_type.__dict__.get('__annotations__', {}).get('args')
+        )
+        if args_annotation is None:
+            element_types = [
                 TYPE_ASSERT.getitem(self._SIMPLE_TYPE_MAP, sf.type.which)
                 for sf in _fields_by_code_order(schema)
-            ],
-        )
+            ]
+        else:
+            TYPE_ASSERT(
+                typings.is_recursive_type(args_annotation)
+                and args_annotation.__origin__ is tuple,
+                'expect typing.Tuple, not {!r}',
+                args_annotation,
+            )
+            element_types = args_annotation.__args__
+        self._converter = _TupleConverter(schema, element_types)
         self._exc_type = exc_type
 
     def from_reader(self, reader):

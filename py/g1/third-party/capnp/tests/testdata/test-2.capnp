@@ -64,6 +64,11 @@ struct TestPointerStruct {
   struct TestException {
   }
 
+  struct TestException3 {
+    message @0 :Text;
+    intField @1 :Int32;
+  }
+
   struct TupleField1 {
     intField @0 :Int32;
   }
@@ -79,6 +84,7 @@ struct TestPointerStruct {
   exceptionField2 :group {
     exceptionIntField @4 :Int32;
   }
+  exceptionField3 @6 :TestException3;
   structField @5 :EmptyStruct;
 }
 
