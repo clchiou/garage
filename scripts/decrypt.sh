@@ -12,4 +12,10 @@ fi
 ensure_file "${1}"
 
 set -o xtrace
-gpg-zip --decrypt "${1}"
+gpgtar \
+  --decrypt \
+  --gpg-args '--openpgp --pinentry-mode loopback' \
+  --directory . \
+  "${1}"
+
+gpg-connect-agent reloadagent /bye

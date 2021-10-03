@@ -17,8 +17,11 @@ shift
 # Don't add `--encrypt`, which instructs gpg to use public key and is
 # not what you intend to do.
 set -o xtrace
-gpg-zip \
-  --gpg-args '--openpgp --cipher-algo AES256' \
+gpgtar \
+  --encrypt \
   --symmetric \
+  --gpg-args '--openpgp --pinentry-mode loopback --cipher-algo AES256' \
   --output "${OUTPUT}" \
   "${@}"
+
+gpg-connect-agent reloadagent /bye
