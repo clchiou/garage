@@ -11,43 +11,42 @@ ext {
     //
     // Base dependencies.
     //
-    args4jVersion = '2.33'
-    guavaVersion = '29.0-jre'
-    reflectionsVersion = '0.9.12'
+    args4jVersion = '2.33'  // args4j:args4j
+    guavaVersion = '31.0.1-jre'  // com.google.guava:guava
+    reflectionsVersion = '0.9.12'  // org.reflections:reflections
     // TODO: Upgrading to 2.0.0 when it is out of the alpha state.
-    slf4jVersion = '2.0.0-alpha1'
-    snakeyamlVersion = '1.26'
+    slf4jVersion = '2.0.0-alpha5'  // org.slf4j:slf4j-api and slf4j-simple
+    snakeyamlVersion = '1.29'  // org.yaml:snakeyaml
 
-    capnprotoVersion = '0.1.5'
+    capnprotoVersion = '0.1.11'  // org.capnproto:runtime
 
-    daggerVersion = '2.28'
+    daggerVersion = '2.39.1'  // com.google.dagger:dagger and dagger-compiler
 
-    jnaVersion = '5.5.0'
+    jnaVersion = '5.9.0'  // net.java.dev.jna:jna
 
-    jooqVersion = '3.13.2'
-    sqliteJdbcVersion = '3.31.1'
+    jooqVersion = '3.15.3'  // org.jooq:jooq
+    sqliteJdbcVersion = '3.36.0.3'  // org.xerial:sqlite-jdbc
 
     //
     // Lucene dependencies.
     //
-    icu4jVersion = '67.1'
+    icu4jVersion = '69.1'  // com.ibm.icu:icu4j
     // Lucene is not forward-compatible across major versions; so we
     // include the major version in the dependency string.
-    lucene8Version = '8.5.2'
+    lucene8Version = '8.10.0'  // org.apache.lucene:lucene-core, etc.
 
-    zstdJniVersion = '1.4.8-1'
+    zstdJniVersion = '1.5.0-4'  // com.github.luben:zstd-jni
 
-    junitVersion = '5.6.2'
+    junitVersion = '5.8.1'  // org.junit.jupiter:junit-jupiter-api, etc.
     // Lucene test framework uses JUnit 4.
-    junit4Version = '4.13'
-    mockitoVersion = '3.3.3'
+    junit4Version = '4.13.2'  // junit:junit
+    mockitoVersion = '3.12.4'  // org.mockito:mockito-core
 }
 
-// TODO: Java 8 is LTS.  The next LTS is Java 11, and the next next
-// LTS is Java 17 (to be released).  Consider upgrading to Java 17.
-sourceCompatibility = '1.8'
-targetCompatibility = '1.8'
+// Java 17 is LTS.  The next LTS is Java 21.
+sourceCompatibility = JavaVersion.VERSION_17
+targetCompatibility = JavaVersion.VERSION_17
 
 repositories {
-    jcenter()
+    mavenCentral()
 }

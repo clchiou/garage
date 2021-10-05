@@ -7,9 +7,10 @@ from g1 import scripts
 import shipyard2.rules.bases
 
 shipyard2.rules.bases.define_archive(
-    url='https://services.gradle.org/distributions/gradle-6.5-bin.zip',
-    checksum='md5:32994c65fe691784c9e4a04ce1a9cfb1',
-    output='gradle-6.5',
+    url='https://services.gradle.org/distributions/gradle-7.2-bin.zip',
+    checksum=
+    'sha256:f581709a9c35e9cb92e16f585d2c4bc99b2b1a5f85d2badbd3dc6bff59e1e6dd',
+    output='gradle-7.2',
 )
 
 

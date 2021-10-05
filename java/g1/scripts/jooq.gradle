@@ -5,7 +5,7 @@
 dependencies {
     implementation "org.jooq:jooq:${project.ext.jooqVersion}"
     implementation "org.xerial:sqlite-jdbc:${sqliteJdbcVersion}"
-    jooqRuntime "org.xerial:sqlite-jdbc:${sqliteJdbcVersion}"
+    jooqGenerator "org.xerial:sqlite-jdbc:${sqliteJdbcVersion}"
 }
 
 def jooqSourceDir = "${projectDir}/src/main/jooq"
@@ -44,29 +44,33 @@ if (!jooqSources.isEmpty()) {
         .replace('/', '.')
 
     jooq {
-        sqlite(sourceSets.main) {
-            jdbc {
-                driver = 'org.sqlite.JDBC'
-                url = "jdbc:sqlite:${jooqGeneratedSchema}"
-            }
-            generator {
-                database {
-                    name = 'org.jooq.meta.sqlite.SQLiteDatabase'
-                }
-                generate {
-                    relations = true
-                    deprecated = false
-                    records = true
-                    immutablePojos = true
-                    fluentSetters = true
-                }
-                target {
-                    packageName = jooqGeneratedSourcePackageName
-                    directory = jooqGeneratedSourceDir
+        configurations {
+            main {
+                generationTool {
+                    jdbc {
+                        driver = 'org.sqlite.JDBC'
+                        url = "jdbc:sqlite:${jooqGeneratedSchema}"
+                    }
+                    generator {
+                        database {
+                            name = 'org.jooq.meta.sqlite.SQLiteDatabase'
+                        }
+                        generate {
+                            relations = true
+                            deprecated = false
+                            records = true
+                            immutablePojos = true
+                            fluentSetters = true
+                        }
+                        target {
+                            packageName = jooqGeneratedSourcePackageName
+                            directory = jooqGeneratedSourceDir
+                        }
+                    }
                 }
             }
         }
     }
 
-    generateSqliteJooqSchemaSource.dependsOn generateSqliteSchema
+    generateJooq.dependsOn generateSqliteSchema
 }
