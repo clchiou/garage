@@ -126,7 +126,12 @@ def _get_apps(builder_images, root_host_paths, rules):
         LOG.info('no intermediate builder images; initialize builder')
         builder_script.extend(_INITIALIZE_BUILDER)
     if rules:
-        builder_script.append(
+        builder_script.extend([
+            # For reasons that I do not understand, apt-get sometimes
+            # cannot log its stdout/stderr to journal and will crash; so
+            # we redirect everything to a file to work around this.
+            'LOG_PATH="$(mktemp --tmpdir=/tmp build-XXXXXXXXXX.log)"',
+            'chown plumber:plumber "${LOG_PATH}"',
             ' '.join([
                 'sudo',
                 *('-u', 'plumber'),
@@ -137,8 +142,9 @@ def _get_apps(builder_images, root_host_paths, rules):
                 *_foreman_make_path_args(root_host_paths),
                 *('--parameter', '//bases:inside-builder-pod=true'),
                 *map(str, rules),
-            ])
-        )
+                '> "${LOG_PATH}" 2>&1',
+            ]),
+        ])
     ASSERT.not_empty(builder_script)
     return [
         {
