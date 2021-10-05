@@ -15,7 +15,8 @@ import foreman
  .depend('//py/g1/files:build')
  .depend('//py/g1/http/clients:build')
  .depend('//py/g1/http/http1_servers:build')
- .depend('//py/g1/http/http2_servers:build')
+ # TODO: Re-enable this after nghttp2 below is re-enabled.
+ #.depend('//py/g1/http/http2_servers:build')
  .depend('//py/g1/messaging:build')
  .depend('//py/g1/networks/servers:build')
  .depend('//py/g1/operations/cores:build')
@@ -44,7 +45,9 @@ import foreman
  .depend('//third-party/capnproto:build')
  .depend('//third-party/capnproto-java:build')
  .depend('//third-party/depot_tools:build')
- .depend('//third-party/nghttp2:build')
+ # TODO: It appears that ax_python_devel.m4 of nghttp2 cannot detect
+ # Python 3.10; so we disable this for now.
+ #.depend('//third-party/nghttp2:build')
  .depend('//third-party/nng:build')
  .depend('//third-party/v8:build')
  # Third-party Python packages.
