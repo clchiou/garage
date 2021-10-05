@@ -6,6 +6,6 @@ shipyard2.rules.bases.define_distro_packages([
     'libxslt1-dev',
 ])
 
-(shipyard2.rules.pythons.define_pypi_package('lxml', '4.5.1').build\
+(shipyard2.rules.pythons.define_pypi_package('lxml', '4.6.3').build\
  .depend('install')
  )

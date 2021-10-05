@@ -12,7 +12,7 @@ LOG = logging.getLogger(__name__)
 
 shipyard2.rules.bases.define_git_repo(
     'https://github.com/nanomsg/nng.git',
-    'v1.3.0',
+    'v1.5.2',
 )
 
 shipyard2.rules.bases.define_distro_packages([

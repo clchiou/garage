@@ -12,7 +12,7 @@ LOG = logging.getLogger(__name__)
 
 shipyard2.rules.bases.define_git_repo(
     'https://github.com/nghttp2/nghttp2.git',
-    'v1.41.0',
+    'v1.45.1',
 )
 
 shipyard2.rules.bases.define_distro_packages([

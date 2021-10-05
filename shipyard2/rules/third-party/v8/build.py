@@ -17,7 +17,7 @@ LOG = logging.getLogger(__name__)
 # are the branch-head.
 (foreman.define_parameter('branch-head')\
  .with_type(str)
- .with_default('8.8'))
+ .with_default('9.4'))
 
 # Do NOT use `./build/install-build-deps.sh` to install dependencies as
 # it installs dependencies for Chrome, not just for V8.

@@ -17,8 +17,8 @@ LOG = logging.getLogger(__name__)
 Version = namedtuple('Version', 'major minor micro')
 
 shipyard2.rules.bases.define_archive(
-    url='https://www.python.org/ftp/python/3.8.3/Python-3.8.3.tar.xz',
-    checksum='md5:3000cf50aaa413052aef82fd2122ca78',
+    url='https://www.python.org/ftp/python/3.10.0/Python-3.10.0.tar.xz',
+    checksum='md5:3e7035d272680f80e3ce4e8eb492d580',
 )
 
 (foreman.define_parameter.path_typed('prefix')\

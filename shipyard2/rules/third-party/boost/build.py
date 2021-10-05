@@ -15,7 +15,7 @@ LOG = logging.getLogger(__name__)
 
 shipyard2.rules.bases.define_git_repo(
     'https://github.com/boostorg/boost.git',
-    'boost-1.73.0',
+    'boost-1.77.0',
 )
 
 (foreman.define_parameter.list_typed('libraries')\

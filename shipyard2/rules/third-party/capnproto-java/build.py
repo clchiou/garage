@@ -17,7 +17,7 @@ LOG = logging.getLogger(__name__)
 
 shipyard2.rules.bases.define_git_repo(
     'https://github.com/capnproto/capnproto-java.git',
-    'v0.1.5',
+    'v0.1.11',
 )
 
 shipyard2.rules.bases.define_distro_packages([

@@ -7,8 +7,9 @@ from g1 import scripts
 import shipyard2.rules.bases
 
 shipyard2.rules.bases.define_archive(
-    url='https://nodejs.org/dist/v14.4.0/node-v14.4.0-linux-x64.tar.xz',
-    checksum='md5:d4edb4ad7f6670a0a680466d7de5e134',
+    url='https://nodejs.org/dist/v14.18.0/node-v14.18.0-linux-x64.tar.xz',
+    checksum=
+    'sha256:5c0bc18b19fd09ff80beb16772e69cb033ee4992a4ccd35bd884fd8f02e6d1ec',
 )
 
 
