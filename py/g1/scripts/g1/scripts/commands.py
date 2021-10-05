@@ -105,6 +105,7 @@ def validate_checksum(path, checksum):
 def _parse_checksum(checksum):
     for prefix, command in (
         ('md5:', 'md5sum'),
+        ('sha256:', 'sha256sum'),
         ('sha512:', 'sha512sum'),
     ):
         if checksum.startswith(prefix):

@@ -68,6 +68,7 @@ class CommandsTest(unittest.TestCase):
     def test_validate_checksum(self):
         self.subprocess_mock.run.return_value.returncode = 0
         commands.validate_checksum('foo', 'md5:123')
+        commands.validate_checksum('baz', 'sha256:789')
         commands.validate_checksum('bar', 'sha512:456')
         self.subprocess_mock.run.assert_has_calls([
             unittest.mock.call(
@@ -76,6 +77,13 @@ class CommandsTest(unittest.TestCase):
                 check=False,
                 cwd=None,
                 input=b'123 foo',
+            ),
+            unittest.mock.call(
+                ['sha256sum', '--check', '--status', '-'],
+                capture_output=False,
+                check=False,
+                cwd=None,
+                input=b'789 baz',
             ),
             unittest.mock.call(
                 ['sha512sum', '--check', '--status', '-'],
