@@ -28,4 +28,5 @@ def build(parameters):
     src_path = parameters['//bases:drydock'] / foreman.get_relpath()
     src_path /= src_path.name
     scripts.export_path('PATH', src_path)
-    scripts.run(['gclient'])  # This updates depot_tools.
+    with scripts.using_cwd(src_path):
+        scripts.run(['gclient'])  # This updates depot_tools.
