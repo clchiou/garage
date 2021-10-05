@@ -104,22 +104,18 @@ _INITIALIZE_BUILDER = (
     'adduser --disabled-password --gecos "" plumber',
     'echo "plumber ALL=(ALL:ALL) NOPASSWD: ALL" > /etc/sudoers.d/99-plumber',
     'chmod 440 /etc/sudoers.d/99-plumber',
-    'apt-get --yes install software-properties-common',
     # Clear the default repositories from `ctr images build-base` as
     # they conflict with mime.
     'echo -n > /etc/apt/sources.list',
-    'add-apt-repository --yes "deb http://us.archive.ubuntu.com/ubuntu/ %s main restricted universe"'
+    'echo "deb http://us.archive.ubuntu.com/ubuntu/ %s main restricted universe" >> /etc/apt/sources.list'
     % ctr_models.BASE_IMAGE_RELEASE_CODE_NAME,
-    'add-apt-repository --yes "deb http://us.archive.ubuntu.com/ubuntu/ %s-updates main restricted universe"'
+    'echo "deb http://us.archive.ubuntu.com/ubuntu/ %s-updates main restricted universe" >> /etc/apt/sources.list'
     % ctr_models.BASE_IMAGE_RELEASE_CODE_NAME,
-    'add-apt-repository --yes "deb http://security.ubuntu.com/ubuntu/ %s-security main restricted universe"'
+    'echo "deb http://security.ubuntu.com/ubuntu/ %s-security main restricted universe" >> /etc/apt/sources.list'
     % ctr_models.BASE_IMAGE_RELEASE_CODE_NAME,
     'apt-get --yes update',
     'apt-get --yes full-upgrade',
-    # foreman needs at least python3; let's use 3.8 to be safe.
-    'apt-get --yes install python3.8',
-    'update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 1',
-    'update-alternatives --set python3 /usr/bin/python3.8',
+    'apt-get --yes install python3-minimal',
     # pylint: enable=line-too-long
 )
 
