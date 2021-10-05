@@ -9,6 +9,8 @@ __all__ = [
 ]
 
 import getpass
+import grp
+import pwd
 
 import foreman
 
@@ -57,7 +59,11 @@ def parse_images_parameter(value):
 def chown(path):
     user = getpass.getuser()
     with scripts.using_sudo():
-        scripts.chown(user, user, path)
+        scripts.chown(
+            user,
+            grp.getgrgid(pwd.getpwnam(user).pw_gid).gr_name,
+            path,
+        )
 
 
 def rsync(src_path, dst_path, rsync_args=()):
