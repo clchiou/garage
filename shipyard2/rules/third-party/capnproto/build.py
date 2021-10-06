@@ -40,7 +40,7 @@ def build(parameters):
         scripts.run(['autoreconf', '-i'])
         scripts.run(['./configure'])
         # Skip `make check` for now.
-        scripts.run(['make'])
+        scripts.make()
         with scripts.using_sudo():
-            scripts.run(['make', 'install'])
+            scripts.make(['install'])
             scripts.run(['ldconfig'])

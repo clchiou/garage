@@ -174,7 +174,7 @@ def _build(parameters, src_path):
         LOG.info('skip: build cpython')
         return
     LOG.info('build cpython')
-    scripts.run(['make'])
+    scripts.make()
 
 
 def _install(parameters, src_path):
@@ -186,7 +186,7 @@ def _install(parameters, src_path):
     with scripts.using_sudo():
         # (Probably a bug?) When optimizations are enabled, this will
         # re-run `make run_profile_task`.
-        scripts.run(['make', 'install'])
+        scripts.make(['install'])
         if parameters['shared']:
             scripts.run(['ldconfig'])
 

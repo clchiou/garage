@@ -22,6 +22,7 @@ shipyard2.rules.bases.define_git_repo(
 
 shipyard2.rules.bases.define_distro_packages([
     'g++',
+    'make',
     'pkg-config',
 ])
 
@@ -40,7 +41,7 @@ def build(parameters):
     bin_path = _get_var_path('exec_prefix') / 'bin'
     header_path = _get_var_path('includedir') / 'capnp'
     with scripts.using_cwd(src_path):
-        scripts.run(['make'])
+        scripts.make()
         with scripts.using_sudo():
             scripts.cp('capnpc-java', bin_path)
             scripts.cp(
