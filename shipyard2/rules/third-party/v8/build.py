@@ -26,6 +26,8 @@ shipyard2.rules.bases.define_distro_packages([
     'libc6-dev',
     'libglib2.0-dev',
     'libicu-dev',
+    # Sadly, some v8 scripts still use unversioned `python`.
+    'python-is-python3',
 ])
 
 

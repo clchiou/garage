@@ -13,10 +13,8 @@ shipyard2.rules.bases.define_git_repo(
 
 shipyard2.rules.bases.define_distro_packages([
     'wget',
-    # TODO: Sadly depot_tools and some build scripts are still
-    # hard-coded to `python` at version 2.7.
-    'python2',
-    'python-is-python2',
+    # Sadly, some depot_tools scripts still use unversioned `python`.
+    'python-is-python3',
 ])
 
 
