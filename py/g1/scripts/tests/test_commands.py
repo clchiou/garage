@@ -155,6 +155,10 @@ class CommandsTest(unittest.TestCase):
         commands.apt_get_install(['p', 'q'])
         self.assert_runs(['apt-get', '--assume-yes', 'install', 'p', 'q'])
 
+    def test_apt_get_clean(self):
+        commands.apt_get_clean()
+        self.assert_runs(['apt-get', '--assume-yes', 'clean'])
+
     def test_wget(self):
         url = 'http://x/y/z'
         headers = ('A=B', )

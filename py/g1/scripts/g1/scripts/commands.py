@@ -17,6 +17,7 @@ __all__ = [
     # Build.
     'make',
     # Distro.
+    'apt_get_clean',
     'apt_get_full_upgrade',
     'apt_get_install',
     'apt_get_update',
@@ -185,6 +186,10 @@ def apt_get_full_upgrade(*, assume='yes'):
 
 def apt_get_install(packages, *, assume='yes'):
     _apt_get('install', assume, ASSERT.not_empty(packages))
+
+
+def apt_get_clean(*, assume='yes'):
+    _apt_get('clean', assume, ())
 
 
 def _apt_get(command, assume, extra_args):
