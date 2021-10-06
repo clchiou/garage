@@ -53,6 +53,14 @@ def build(parameters):
     scripts.mkdir(parameters['drydock'])
 
 
+@foreman.rule
+def cleanup(parameters):
+    ASSERT.is_(parameters['inside-builder-pod'], True)
+    ASSERT.all(parameters['roots'], _is_root_dir)
+    with scripts.using_sudo():
+        scripts.apt_get_clean()
+
+
 def _is_root_dir(path):
     return (path / '.git').is_dir()
 

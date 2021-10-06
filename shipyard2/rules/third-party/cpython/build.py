@@ -121,10 +121,7 @@ foreman.define_parameter.list_typed('unused-modules').with_default([
 @foreman.rule.depend('extract')
 @foreman.rule.depend('install')
 def build(parameters):
-    src_path = (
-        parameters['//bases:drydock'] / foreman.get_relpath() /
-        parameters['archive'].output
-    )
+    src_path = _get_src_path(parameters)
     with scripts.using_cwd(src_path):
         _configure(parameters, src_path)
         _build(parameters, src_path)
@@ -141,6 +138,21 @@ def trim(parameters):
         modules_dir_path = parameters['modules']
         for module in parameters['unused-modules']:
             scripts.rm(modules_dir_path / module, recursive=True)
+
+
+@foreman.rule
+def austerity(parameters):
+    with scripts.using_sudo():
+        for path in _get_src_path(parameters).iterdir():
+            if path.name not in ('Makefile', 'python'):
+                scripts.rm(path, recursive=True)
+
+
+def _get_src_path(parameters):
+    return (
+        parameters['//bases:drydock'] / foreman.get_relpath() /
+        parameters['archive'].output
+    )
 
 
 _VERSION_PATTERN = re.compile(r'/python/(\d+)\.(\d+)\.(\d+)/')

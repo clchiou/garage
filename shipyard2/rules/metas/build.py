@@ -69,3 +69,13 @@ import foreman
          parameters={'//third-party/boost:libraries': ['python']})
  .reverse_depend('//third-party/boost:build')
  )
+
+# NOTE: ``austerity`` removes most of the local repositories to free up
+# disk space.  After austerity you cannot build from them.  (So we only
+# add austerity to a few big ones.)
+(foreman.define_rule('austerity').with_doc('free up disk space drastically')\
+ .depend('//bases:cleanup')
+ .depend('//third-party/boost:austerity')
+ .depend('//third-party/cpython:austerity')
+ .depend('//third-party/v8:austerity')
+ )

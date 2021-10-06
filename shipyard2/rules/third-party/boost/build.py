@@ -57,15 +57,29 @@ def build(parameters):
         ASSERT.predicate(_get_config_path(parameters), Path.is_file)\
         .read_text()
     )
-    src_path = parameters['//bases:drydock'] / foreman.get_relpath()
-    src_path /= src_path.name
+    src_path = _get_src_path(parameters)
     with scripts.using_cwd(src_path):
         _build(parameters, src_path, config_data)
         _install()
 
 
+@foreman.rule
+def austerity(parameters):
+    src_path = _get_src_path(parameters)
+    with scripts.using_sudo():
+        for path in src_path.iterdir():
+            if path.name not in ('stage', ):
+                scripts.rm(path, recursive=True)
+    scripts.mkdir(src_path / '.git')
+
+
 def _get_config_path(ps):
     return ps['//bases:drydock'] / foreman.get_relpath() / 'config.json'
+
+
+def _get_src_path(parameters):
+    src_parent_path = parameters['//bases:drydock'] / foreman.get_relpath()
+    return src_parent_path / src_parent_path.name
 
 
 def _build(parameters, src_path, config_data):

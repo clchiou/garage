@@ -4,5 +4,6 @@ shipyard2.rules.images.define_image(
     name='third-party',
     rules=[
         '//metas:third-party',
+        '//metas:austerity',
     ],
 )

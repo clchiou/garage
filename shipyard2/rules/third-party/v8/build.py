@@ -36,12 +36,23 @@ shipyard2.rules.bases.define_distro_packages([
 @foreman.rule.depend('//third-party/depot_tools:build')
 @foreman.rule.depend('install')
 def build(parameters):
-    src_path = parameters['//bases:drydock'] / foreman.get_relpath()
-    src_path /= src_path.name
+    src_path = _get_src_path(parameters)
     ASSERT.equal(src_path.name, 'v8')
     _fetch(parameters, src_path)
-    _fixup(src_path)
     _build(src_path)
+
+
+@foreman.rule
+def austerity(parameters):
+    with scripts.using_sudo():
+        for path in _get_src_path(parameters).iterdir():
+            if path.name not in ('include', 'out.gn'):
+                scripts.rm(path, recursive=True)
+
+
+def _get_src_path(parameters):
+    src_parent_path = parameters['//bases:drydock'] / foreman.get_relpath()
+    return src_parent_path / src_parent_path.name
 
 
 def _fetch(parameters, src_path):
@@ -59,24 +70,13 @@ def _fetch(parameters, src_path):
         scripts.run(['gclient', 'sync'])
 
 
-def _fixup(src_path):
-    # Patch some scripts for Python 3.10.
-    with scripts.using_cwd(src_path):
-        scripts.run([
-            'sed',
-            '--in-place',
-            '--regexp-extended',
-            r's/(from\s+collections)\s+(import\s+Mapping)/\1.abc \2/',
-            'third_party/jinja2/tests.py',
-        ])
-
-
 def _build(src_path):
     if (src_path / 'out.gn/x64.release/obj/libv8_monolith.a').exists():
         LOG.info('skip: build v8')
         return
     LOG.info('build v8')
     with scripts.using_cwd(src_path):
+        _fixup()
         scripts.run([
             './tools/dev/v8gen.py',
             'gen',
@@ -86,3 +86,15 @@ def _build(src_path):
             'x64.release',
         ])
         scripts.run(['ninja', '-C', 'out.gn/x64.release', 'v8_monolith'])
+
+
+def _fixup():
+    # TODO: Patch some scripts for Python 3.10.  Remove this after
+    # upstream fixes it.
+    scripts.run([
+        'sed',
+        '--in-place',
+        '--regexp-extended',
+        r's/(from\s+collections)\s+(import\s+Mapping)/\1.abc \2/',
+        'third_party/jinja2/tests.py',
+    ])
