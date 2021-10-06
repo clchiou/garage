@@ -40,6 +40,7 @@ def build(parameters):
     src_path /= src_path.name
     ASSERT.equal(src_path.name, 'v8')
     _fetch(parameters, src_path)
+    _fixup(src_path)
     _build(src_path)
 
 
@@ -56,6 +57,18 @@ def _fetch(parameters, src_path):
         scripts.run(['git', 'checkout', branch])
         scripts.run(['git', 'pull', 'origin', branch])
         scripts.run(['gclient', 'sync'])
+
+
+def _fixup(src_path):
+    # Patch some scripts for Python 3.10.
+    with scripts.using_cwd(src_path):
+        scripts.run([
+            'sed',
+            '--in-place',
+            '--regexp-extended',
+            r's/(from\s+collections)\s+(import\s+Mapping)/\1.abc \2/',
+            'third_party/jinja2/tests.py',
+        ])
 
 
 def _build(src_path):
