@@ -51,15 +51,7 @@ def define_root_project():
             return
         LOG.info('generate gradle wrapper')
         with scripts.using_cwd(src_path):
-            scripts.run([
-                'gradle',
-                # TODO: For some unknown reason, gradle resolves the
-                # relative path to /home/plumber/garage rather than
-                # /usr/src/garage (maybe due to our use of overlayfs?).
-                # So let us hard code the path here for now.
-                '-PgarageProjectRelativePath=/usr/src/garage/java/g1',
-                'wrapper',
-            ])
+            scripts.run(['gradle', 'wrapper'])
 
     return RootProjectRules(setup=setup)
 
@@ -94,15 +86,7 @@ def define_application(root_project, *, name_prefix=''):
             return
         LOG.info('run task %s', task)
         with scripts.using_cwd(root_path):
-            scripts.run([
-                './gradlew',
-                # TODO: For some unknown reason, gradle resolves the
-                # relative path to /home/plumber/garage rather than
-                # /usr/src/garage (maybe due to our use of overlayfs?).
-                # So let us hard code the path here for now.
-                '-PgarageProjectRelativePath=/usr/src/garage/java/g1',
-                task,
-            ])
+            scripts.run(['./gradlew', task])
         with scripts.using_sudo():
             scripts.mkdir(target_dir_path)
             scripts.cp(output_path, target_dir_path)
