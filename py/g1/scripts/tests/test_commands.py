@@ -1,6 +1,7 @@
 import unittest
 import unittest.mock
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -129,6 +130,17 @@ class CommandsTest(unittest.TestCase):
         self.assert_runs(
             ['unzip', 'a/b/c.zip'],
             ['unzip', 'p/q/r.zip', '-d', 'f/g'],
+        )
+
+    def test_make(self):
+        jobs = '--jobs=%d' % (os.cpu_count() + 2)
+        commands.make()
+        commands.make(['all', 'clean'])
+        commands.make(['test'], num_jobs=99)
+        self.assert_runs(
+            ['make', jobs],
+            ['make', jobs, 'all', 'clean'],
+            ['make', '--jobs=99', 'test'],
         )
 
     def test_apt_get_update(self):

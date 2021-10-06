@@ -14,6 +14,8 @@ __all__ = [
     'extract',
     'tar_extract',
     'unzip',
+    # Build.
+    'make',
     # Distro.
     'apt_get_full_upgrade',
     'apt_get_install',
@@ -24,6 +26,7 @@ __all__ = [
     'git_clone',
 ]
 
+import os
 import os.path
 import subprocess
 from pathlib import Path
@@ -161,6 +164,14 @@ def unzip(archive_path, *, directory=None):
         'unzip',
         archive_path,
         *(('-d', directory) if directory else ()),
+    ])
+
+
+def make(targets=(), *, num_jobs=None):
+    bases.run([
+        'make',
+        '--jobs=%d' % (os.cpu_count() + 2 if num_jobs is None else num_jobs),
+        *targets,
     ])
 
 
