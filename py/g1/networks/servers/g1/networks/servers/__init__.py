@@ -20,7 +20,7 @@ class SocketServer:
         self._max_connections = max_connections
 
     async def serve(self):
-        LOG.info('start server: %r', self._socket)
+        LOG.debug('start server: %r', self._socket)
         with self._socket:
             if self._max_connections <= 0:
                 capacity = self._max_connections
@@ -32,7 +32,7 @@ class SocketServer:
                     queue,
                     (queue.spawn(self._accept(queue)), ),
                 )
-        LOG.info('stop server: %r', self._socket)
+        LOG.debug('stop server: %r', self._socket)
 
     async def _accept(self, queue):
         while True:

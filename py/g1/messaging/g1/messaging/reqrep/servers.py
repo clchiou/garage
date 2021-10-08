@@ -89,7 +89,7 @@ class Server:
         To serve requests concurrently, just spawn multiple tasks
         running this.
         """
-        LOG.info('start server: %r', self)
+        LOG.debug('start server: %r', self)
         try:
             with nng.asyncs.Context(ASSERT.not_none(self.socket)) as context:
                 while True:
@@ -98,7 +98,7 @@ class Server:
                         await context.send(response)
         except nng.Errors.ECLOSED:
             pass
-        LOG.info('stop server: %r', self)
+        LOG.debug('stop server: %r', self)
 
     def shutdown(self):
         self.socket.close()

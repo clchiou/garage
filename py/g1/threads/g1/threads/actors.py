@@ -135,7 +135,7 @@ def make_method_caller(obj):
 
 def method_caller(obj, queue):
     """Actor that interprets messages as method calls of an object."""
-    LOG.info('start')
+    LOG.debug('start')
     while True:
         try:
             call = ASSERT.isinstance(queue.get(), MethodCall)
@@ -145,7 +145,7 @@ def method_caller(obj, queue):
             method = getattr(obj, ASSERT.isinstance(call.method, str))
             call.future.set_result(method(*call.args, **call.kwargs))
         del call
-    LOG.info('exit')
+    LOG.debug('exit')
 
 
 #
@@ -155,7 +155,7 @@ def method_caller(obj, queue):
 
 def function_caller(queue):
     """Actor that interprets messages as function calls."""
-    LOG.info('start')
+    LOG.debug('start')
     while True:
         try:
             call = ASSERT.isinstance(queue.get(), MethodCall)
@@ -165,4 +165,4 @@ def function_caller(queue):
             ASSERT.predicate(call.method, callable)
             call.future.set_result(call.method(*call.args, **call.kwargs))
         del call
-    LOG.info('exit')
+    LOG.debug('exit')

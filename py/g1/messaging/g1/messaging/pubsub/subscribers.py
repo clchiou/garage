@@ -38,7 +38,7 @@ class Subscriber:
         return self.socket.__exit__(exc_type, *args)
 
     async def serve(self):
-        LOG.info('start subscriber: %r', self)
+        LOG.debug('start subscriber: %r', self)
         try:
             while True:
                 try:
@@ -65,7 +65,7 @@ class Subscriber:
         except (queues.Closed, nng.Errors.ECLOSED):
             pass
         self._queue.close()
-        LOG.info('stop subscriber: %r', self)
+        LOG.debug('stop subscriber: %r', self)
 
     def shutdown(self):
         self.socket.close()

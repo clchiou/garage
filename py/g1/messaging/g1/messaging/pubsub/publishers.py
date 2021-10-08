@@ -35,7 +35,7 @@ class Publisher:
         return self.socket.__exit__(*args)
 
     async def serve(self):
-        LOG.info('start publisher: %r', self)
+        LOG.debug('start publisher: %r', self)
         try:
             while True:
                 message = await self._queue.get()
@@ -53,7 +53,7 @@ class Publisher:
         except (queues.Closed, nng.Errors.ECLOSED):
             pass
         self._queue.close()
-        LOG.info('stop publisher: %r', self)
+        LOG.debug('stop publisher: %r', self)
 
     def shutdown(self):
         self._queue.close()
