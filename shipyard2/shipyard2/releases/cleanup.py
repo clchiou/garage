@@ -49,16 +49,17 @@ LOG = logging.getLogger(__name__)
 @argparses.end
 def cmd_cleanup(args):
     ASSERT.greater_or_equal(args.keep, 0)
+    envs_dir = repos.EnvsDir(args.release_repo)
     LOG.info('clean up pods')
     _cleanup(
         args.keep,
-        _get_current_pod_versions(args.release_repo),
+        envs_dir.get_current_pod_versions(),
         repos.PodDir.group_dirs(args.release_repo),
     )
     LOG.info('clean up xars')
     _cleanup(
         args.keep,
-        _get_current_xar_versions(args.release_repo),
+        envs_dir.get_current_xar_versions(),
         repos.XarDir.group_dirs(args.release_repo),
     )
     if args.also_builder:
@@ -98,27 +99,6 @@ def _cleanup(to_keep, current_versions, groups):
                 LOG.info('remove: %s %s', label, dir_object.version)
                 dir_object.remove()
                 to_remove -= 1
-
-
-def _get_current_pod_versions(repo_path):
-    return _get_current_versions_from_envs(
-        repo_path, repos.EnvsDir.iter_pod_dirs
-    )
-
-
-def _get_current_xar_versions(repo_path):
-    return _get_current_versions_from_envs(
-        repo_path, repos.EnvsDir.iter_xar_dirs
-    )
-
-
-def _get_current_versions_from_envs(repo_path, iter_dir_objects):
-    current_versions = collections.defaultdict(set)
-    envs_dir = repos.EnvsDir(repo_path)
-    for env in envs_dir.envs:
-        for dir_object in iter_dir_objects(envs_dir, env):
-            current_versions[dir_object.label].add(dir_object.version)
-    return dict(current_versions)
 
 
 def _get_current_image_versions(repo_path):

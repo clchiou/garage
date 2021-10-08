@@ -60,6 +60,19 @@ class EnvsDir:
     def _xar_top_path(self):
         return self.repo_path / shipyard2.RELEASE_XARS_DIR_NAME
 
+    def get_current_pod_versions(self):
+        return self._get_current_versions(self.iter_pod_dirs)
+
+    def get_current_xar_versions(self):
+        return self._get_current_versions(self.iter_xar_dirs)
+
+    def _get_current_versions(self, iter_dir_objects):
+        current_versions = collections.defaultdict(set)
+        for env in self.envs:
+            for dir_object in iter_dir_objects(env):
+                current_versions[dir_object.label].add(dir_object.version)
+        return dict(current_versions)
+
     def has_release(self, env, label):
         return (self.top_path / env / label.path / label.name).is_symlink()
 
