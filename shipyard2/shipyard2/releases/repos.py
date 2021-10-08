@@ -75,9 +75,6 @@ class EnvsDir:
                 current_versions[dir_object.label].add(dir_object.version)
         return dict(current_versions)
 
-    def has_release(self, env, label):
-        return (self.top_path / env / label.path / label.name).is_symlink()
-
     def iter_pod_dirs(self, env):
         yield from self._iter_dirs(PodDir, self._pod_top_path, env)
 

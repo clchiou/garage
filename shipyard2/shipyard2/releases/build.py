@@ -184,26 +184,32 @@ def cmd_unrelease(args):
 def cmd_remove(args):
     if args.type == 'pods':
         dir_object_type = repos.PodDir
+        current_versions = _get_envs_dir(args).get_current_pod_versions()
     elif args.type == 'xars':
         dir_object_type = repos.XarDir
+        current_versions = _get_envs_dir(args).get_current_xar_versions()
     elif args.type == 'builder-images':
         dir_object_type = repos.BuilderImageDir
+        # Builder images are not referenced by pods and thus do not have
+        # current versions.
+        current_versions = {}
     elif args.type == 'images':
         dir_object_type = repos.ImageDir
+        current_versions = repos.get_current_image_versions(args.release_repo)
     else:
         ASSERT.equal(args.type, 'volumes')
         dir_object_type = repos.VolumeDir
-    if args.type == 'pods' or args.type == 'xars':
-        envs_dir = _get_envs_dir(args)
-        for env in envs_dir.envs:
-            if envs_dir.has_release(env, args.label):
-                LOG.warning(
-                    'skip: remove: %s %s %s',
-                    args.type,
-                    args.label,
-                    args.version,
-                )
-                return 1
+        current_versions = repos.PodDir.get_current_volume_versions(
+            args.release_repo
+        )
+    if args.version in current_versions.get(args.label, ()):
+        LOG.warning(
+            'skip: remove: %s %s %s',
+            args.type,
+            args.label,
+            args.version,
+        )
+        return 1
     dir_object = dir_object_type.from_relpath(
         args.release_repo,
         args.label.path / args.label.name / args.version,
