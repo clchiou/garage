@@ -7,6 +7,8 @@ __all__ = [
     'PodDir',
     'VolumeDir',
     'XarDir',
+    'get_current_image_versions',
+    'merge_dict_of_sets',
 ]
 
 import collections
@@ -192,6 +194,22 @@ class PodDir(_Base):
     _TOP_DIR_NAME = shipyard2.RELEASE_PODS_DIR_NAME
     _FILENAME = shipyard2.POD_DIR_RELEASE_METADATA_FILENAME
 
+    @classmethod
+    def get_current_image_versions(cls, repo_path):
+        return cls._get_current_versions(repo_path, cls.iter_image_dirs)
+
+    @classmethod
+    def get_current_volume_versions(cls, repo_path):
+        return cls._get_current_versions(repo_path, cls.iter_volume_dirs)
+
+    @classmethod
+    def _get_current_versions(cls, repo_path, iter_dir_objects):
+        current_versions = collections.defaultdict(set)
+        for pod_dir in cls.iter_dirs(repo_path):
+            for dir_object in iter_dir_objects(pod_dir):
+                current_versions[dir_object.label].add(dir_object.version)
+        return dict(current_versions)
+
     def __init__(self, top_path, path):
         ASSERT.predicate(path, Path.is_dir)
         for name, predicate in (
@@ -233,6 +251,15 @@ class XarDir(_Base):
 
     _TOP_DIR_NAME = shipyard2.RELEASE_XARS_DIR_NAME
     _FILENAME = shipyard2.XAR_DIR_RELEASE_METADATA_FILENAME
+
+    @classmethod
+    def get_current_image_versions(cls, repo_path):
+        current_versions = collections.defaultdict(set)
+        for xar_dir in cls.iter_dirs(repo_path):
+            image_dir = xar_dir.get_image_dir()
+            if image_dir is not None:
+                current_versions[image_dir.label].add(image_dir.version)
+        return dict(current_versions)
 
     def __init__(self, top_path, path):
         ASSERT.predicate(path, Path.is_dir)
@@ -291,3 +318,18 @@ class VolumeDir(_Base):
 
 def _sort_by_path(iterator):
     return sorted(iterator, key=lambda obj: obj.path)
+
+
+def get_current_image_versions(repo_path):
+    return merge_dict_of_sets(
+        PodDir.get_current_image_versions(repo_path),
+        XarDir.get_current_image_versions(repo_path),
+    )
+
+
+def merge_dict_of_sets(*dicts_of_sets):
+    output = collections.defaultdict(set)
+    for dict_of_sets in dicts_of_sets:
+        for key, value_set in dict_of_sets.items():
+            output[key].update(value_set)
+    return dict(output)

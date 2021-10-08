@@ -119,6 +119,14 @@ class ReposTest(unittest.TestCase):
             repos.PodDir.group_dirs(self.repo_path),
             {self.FOO_BAR: [d1, d2]},
         )
+        self.assertEqual(
+            repos.PodDir.get_current_image_versions(self.repo_path),
+            {self.SPAM_EGG: {'0.0.1'}},
+        )
+        self.assertEqual(
+            repos.PodDir.get_current_volume_versions(self.repo_path),
+            {self.SOME_DATA: {'0.0.1'}},
+        )
         self.assertEqual(d1.label, self.FOO_BAR)
         self.assertEqual(d1.version, '0.0.1')
         self.assertEqual(
@@ -132,12 +140,26 @@ class ReposTest(unittest.TestCase):
         d1.remove()
         self.assertEqual(repos.PodDir.sort_dirs(self.repo_path), [d2])
 
+        d2.remove()
+        self.assertEqual(
+            repos.PodDir.get_current_image_versions(self.repo_path),
+            {},
+        )
+        self.assertEqual(
+            repos.PodDir.get_current_volume_versions(self.repo_path),
+            {},
+        )
+
     def test_xar_dir(self):
         d = self.get_xar_dir('foo/bar/0.0.3')
         self.assertEqual(repos.XarDir.sort_dirs(self.repo_path), [d])
         self.assertEqual(
             repos.XarDir.group_dirs(self.repo_path),
             {self.FOO_BAR: [d]},
+        )
+        self.assertEqual(
+            repos.XarDir.get_current_image_versions(self.repo_path),
+            {self.SPAM_EGG: {'0.0.1'}},
         )
         self.assertEqual(d.label, self.FOO_BAR)
         self.assertEqual(d.version, '0.0.3')
@@ -147,6 +169,16 @@ class ReposTest(unittest.TestCase):
         )
         d.remove()
         self.assertEqual(repos.XarDir.sort_dirs(self.repo_path), [])
+        self.assertEqual(
+            repos.XarDir.get_current_image_versions(self.repo_path),
+            {},
+        )
+
+    def test_get_current_image_versions(self):
+        self.assertEqual(
+            repos.get_current_image_versions(self.repo_path),
+            {self.SPAM_EGG: {'0.0.1'}},
+        )
 
     def test_builder_image_dir(self):
         d = self.get_builder_image_dir('spam/egg/0.0.2')
@@ -183,6 +215,25 @@ class ReposTest(unittest.TestCase):
         self.assertEqual(d.version, '0.0.1')
         d.remove()
         self.assertEqual(repos.VolumeDir.sort_dirs(self.repo_path), [])
+
+    def test_merge_dict_of_sets(self):
+        self.assertEqual(repos.merge_dict_of_sets(), {})
+        self.assertEqual(repos.merge_dict_of_sets({}), {})
+        self.assertEqual(
+            repos.merge_dict_of_sets({}, {'x': {1, 2}}),
+            {'x': {1, 2}},
+        )
+        self.assertEqual(
+            repos.merge_dict_of_sets({}, {'x': {1, 2}}, {'x': {2, 3}}),
+            {'x': {1, 2, 3}},
+        )
+        self.assertEqual(
+            repos.merge_dict_of_sets({}, {'x': {1, 2}}, {'y': {2, 3}}),
+            {
+                'x': {1, 2},
+                'y': {2, 3},
+            },
+        )
 
 
 if __name__ == '__main__':
