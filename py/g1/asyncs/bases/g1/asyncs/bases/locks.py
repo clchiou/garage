@@ -5,10 +5,12 @@ You should only use them among tasks spawned from the same kernel.
 """
 
 __all__ = [
+    'BoundedSemaphore',
     'Condition',
     'Event',
     'Gate',
     'Lock',
+    'Semaphore',
 ]
 
 from g1.asyncs.kernels import contexts
@@ -171,3 +173,45 @@ class Gate:
     async def wait(self):
         """Wait until ``unblock`` is called."""
         await traps.block(self)
+
+
+class Semaphore:
+
+    def __init__(self, value=1):
+        self._value = ASSERT.greater_or_equal(value, 0)
+        self._gate = Gate()
+
+    async def __aenter__(self):
+        # Unlike ``threading.Semaphore``, here we return the object.
+        await self.acquire()
+        return self
+
+    async def __aexit__(self, *_):
+        self.release()
+
+    async def acquire(self, blocking=True):
+        if blocking:
+            while self._value == 0:
+                await self._gate.wait()
+        return self.acquire_nonblocking()
+
+    def acquire_nonblocking(self):
+        if self._value == 0:
+            return False
+        self._value -= 1
+        return True
+
+    def release(self, n=1):
+        self._value += ASSERT.greater_or_equal(n, 1)
+        self._gate.unblock()
+
+
+class BoundedSemaphore(Semaphore):
+
+    def __init__(self, value=1):
+        super().__init__(value)
+        self.__upper_bound = value
+
+    def release(self, n=1):
+        ASSERT.less_or_equal(self._value + n, self.__upper_bound)
+        return super().release(n)

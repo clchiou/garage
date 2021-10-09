@@ -273,5 +273,95 @@ class GateWithoutKernelTest(unittest.TestCase):
         g.unblock()
 
 
+class SemaphoreTest(unittest.TestCase):
+
+    def setUp(self):
+        self.k = kernels.Kernel()
+        self.token = contexts.set_kernel(self.k)
+
+    def tearDown(self):
+        contexts.KERNEL.reset(self.token)
+        self.k.close()
+
+    def test_semaphore(self):
+        with self.assertRaisesRegex(
+            AssertionError,
+            r'expect x >= 0, not -1',
+        ):
+            locks.Semaphore(-1)
+
+        s = locks.Semaphore()
+        self.do_test_semaphore(s)
+        s.release()
+        self.assertEqual(s._value, 1)
+        s.release()
+        self.assertEqual(s._value, 2)
+
+    def test_bounded_semaphore(self):
+        with self.assertRaisesRegex(
+            AssertionError,
+            r'expect x >= 0, not -1',
+        ):
+            locks.BoundedSemaphore(-1)
+
+        s = locks.BoundedSemaphore()
+        self.do_test_semaphore(s)
+        s.release()
+        self.assertEqual(s._value, 1)
+        with self.assertRaisesRegex(
+            AssertionError,
+            r'expect x <= 1, not 2',
+        ):
+            s.release()
+
+    def do_test_semaphore(self, s):
+        self.assertEqual(s._value, 1)
+
+        t1 = self.k.spawn(s.acquire)
+        self.k.run(timeout=1)
+        self.assertEqual(self.k.get_stats().num_blocked, 0)
+        self.assertTrue(t1.is_completed())
+        self.assertTrue(t1.get_result_nonblocking())
+        self.assertEqual(len(self.k._generic_blocker), 0)
+        self.assertEqual(s._value, 0)
+
+        t2 = self.k.spawn(s.acquire)
+        t3 = self.k.spawn(s.acquire)
+        with self.assertRaises(errors.KernelTimeout):
+            self.k.run(timeout=0)
+        self.assertEqual(self.k.get_stats().num_blocked, 2)
+        self.assertFalse(t2.is_completed())
+        self.assertFalse(t3.is_completed())
+        self.assertEqual(len(self.k._generic_blocker), 2)
+        self.assertEqual(s._value, 0)
+
+        s.release()
+        with self.assertRaises(errors.KernelTimeout):
+            self.k.run(timeout=0)
+        self.assertEqual(self.k.get_stats().num_blocked, 1)
+        self.assertEqual(len(self.k._generic_blocker), 1)
+        self.assertEqual(s._value, 0)
+
+        s.release()
+        with self.assertRaises(errors.KernelTimeout):
+            self.k.run(timeout=0)
+        self.assertEqual(self.k.get_stats().num_blocked, 0)
+        self.assertTrue(t2.is_completed())
+        self.assertTrue(t2.get_result_nonblocking())
+        self.assertTrue(t3.is_completed())
+        self.assertTrue(t3.get_result_nonblocking())
+        self.assertEqual(len(self.k._generic_blocker), 0)
+        self.assertEqual(s._value, 0)
+
+    def test_nonblocking(self):
+        s = locks.Semaphore(2)
+        self.assertTrue(self.k.run(s.acquire(blocking=False), timeout=1))
+        self.assertTrue(self.k.run(s.acquire(blocking=False), timeout=1))
+        self.assertFalse(self.k.run(s.acquire(blocking=False), timeout=1))
+        self.assertEqual(self.k.get_stats().num_blocked, 0)
+        self.assertEqual(self.k.get_stats().num_tasks, 0)
+        self.assertEqual(len(self.k._generic_blocker), 0)
+
+
 if __name__ == '__main__':
     unittest.main()
