@@ -312,7 +312,7 @@ class QueriesTest(unittest.TestCase):
             FROM
                 keyspace
             WHERE
-                keyspace.key_id IN \(:key_id_1\)
+                keyspace.key_id IN \(\[POSTCOMPILE_key_id_1\]\)
             ''',
         )
 
@@ -346,7 +346,7 @@ class QueriesTest(unittest.TestCase):
             DELETE FROM
                 keyspace
             WHERE
-                keyspace.key_id IN \(:key_id_1\)
+                keyspace.key_id IN \(\[POSTCOMPILE_key_id_1\]\)
             ''',
         )
 
@@ -460,7 +460,7 @@ class QueriesTest(unittest.TestCase):
             FROM
                 leases_key_ids
             WHERE
-                leases_key_ids.lease IN \(:lease_1\)
+                leases_key_ids.lease IN \(\[POSTCOMPILE_lease_1\]\)
             ''',
         )
 
@@ -474,7 +474,7 @@ class QueriesTest(unittest.TestCase):
             FROM
                 leases_key_ids
             WHERE
-                leases_key_ids.key_id IN \(:key_id_1\)
+                leases_key_ids.key_id IN \(\[POSTCOMPILE_key_id_1\]\)
             ORDER BY
                 leases_key_ids.key_id ASC
             ''',
@@ -487,7 +487,7 @@ class QueriesTest(unittest.TestCase):
             DELETE FROM
                 leases_key_ids
             WHERE
-                leases_key_ids.key_id IN \(:key_id_1\)
+                leases_key_ids.key_id IN \(\[POSTCOMPILE_key_id_1\]\)
             ''',
         )
 
@@ -499,7 +499,7 @@ class QueriesTest(unittest.TestCase):
             DELETE FROM
                 leases
             WHERE
-                leases.lease IN \(:lease_1\)
+                leases.lease IN \(\[POSTCOMPILE_lease_1\]\)
             ''',
         )
         self.assert_query_regex(
@@ -508,7 +508,7 @@ class QueriesTest(unittest.TestCase):
             DELETE FROM
                 leases_key_ids
             WHERE
-                leases_key_ids.lease IN \(:lease_1\)
+                leases_key_ids.lease IN \(\[POSTCOMPILE_lease_1\]\)
             ''',
         )
 
