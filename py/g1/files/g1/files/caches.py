@@ -9,6 +9,7 @@ import dataclasses
 import hashlib
 import io
 import logging
+import os
 import random
 import shutil
 import tempfile
@@ -60,6 +61,9 @@ class CacheInterface:
     def setting_file(self, key):
         raise NotImplementedError
 
+    def setting_path(self, key):
+        raise NotImplementedError
+
     def pop(self, key, default=_SENTINEL):
         raise NotImplementedError
 
@@ -103,6 +107,10 @@ class NullCache(CacheInterface):
     @contextlib.contextmanager
     def setting_file(self, key):
         yield io.BytesIO()
+
+    @contextlib.contextmanager
+    def setting_path(self, key):
+        yield Path(os.devnull)
 
     def pop(self, key, default=CacheInterface._SENTINEL):
         if default is self._SENTINEL:
@@ -317,14 +325,19 @@ class Cache(CacheInterface):
     @contextlib.contextmanager
     def setting_file(self, key):
         """Set a cache entry via a file-like object."""
+        with self.setting_path(key) as p, p.open('wb') as f:
+            yield f
+
+    @contextlib.contextmanager
+    def setting_path(self, key):
+        """Set a cache entry via a temporary file path."""
         # We use mktemp (which is unsafe in general) because we want to
         # rename it on success, but NamedTemporaryFile's file closer
         # raises FileNotFoundError.  I think in our use case here,
         # mktemp is safe enough.
         value_tmp_path = Path(tempfile.mktemp())
         try:
-            with value_tmp_path.open('wb') as value_file:
-                yield value_file
+            yield value_tmp_path
             with self._lock:
                 # Use shutil.move because /tmp might be in another file
                 # system than the cache directory.  (shutil.move detects
