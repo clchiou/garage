@@ -3,6 +3,7 @@ import unittest
 import tempfile
 from pathlib import Path
 
+from g1.bases import collections as g1_collections
 from g1.files import caches
 
 
@@ -39,6 +40,12 @@ class CacheTest(unittest.TestCase):
         for recency, (key, _) in enumerate(access_log):
             self.assertEqual(get_recency(cache._get_path(key)), recency)
         self.assertEqual(get_recency(Path('no-such-key')), len(access_log))
+
+    def assert_active_paths(self, cache, active_paths):
+        self.assertEqual(
+            cache._active_paths,
+            g1_collections.Multiset(active_paths),
+        )
 
     def test_init(self):
         dir_path = self.test_dir_path / '00'
@@ -203,6 +210,30 @@ class CacheTest(unittest.TestCase):
         self.assertEqual(size, 10)
 
         self.assertIsNone(cache.get_file(b'some key'))
+
+    def test_getting_path(self):
+        cache = caches.Cache(self.test_dir_path, 10, post_eviction_size=0)
+        cache.set(b'some key', b'some value')
+        self.assert_active_paths(cache, [])
+
+        with cache.getting_path(b'some key') as p1:
+            self.assertIsNotNone(p1)
+            self.assert_active_paths(cache, [p1])
+            with cache.getting_path(b'some key') as p2:
+                self.assertIsNotNone(p2)
+                self.assertEqual(p1, p2)
+                self.assert_active_paths(cache, [p1, p2])
+                self.assertEqual(cache.evict(), 0)
+            self.assert_active_paths(cache, [p1])
+            self.assertEqual(cache.evict(), 0)
+
+        self.assert_active_paths(cache, [])
+        self.assertEqual(cache.evict(), 1)
+
+        with cache.getting_path(b'no such key') as path:
+            self.assertIsNone(path)
+            self.assert_active_paths(cache, [])
+        self.assert_active_paths(cache, [])
 
     def test_set(self):
         cache = caches.Cache(self.test_dir_path, 10)

@@ -16,6 +16,8 @@ import threading
 from pathlib import Path
 
 import g1.files
+from g1.bases import collections as g1_collections
+from g1.bases import functionals
 from g1.bases import timers
 from g1.bases.assertions import ASSERT
 
@@ -47,6 +49,9 @@ class CacheInterface:
         raise NotImplementedError
 
     def get_file(self, key, default=None):
+        raise NotImplementedError
+
+    def getting_path(self, key, default=None):
         raise NotImplementedError
 
     def set(self, key, value):
@@ -85,6 +90,12 @@ class NullCache(CacheInterface):
         del key  # Unused.
         self._num_misses += 1
         return default
+
+    @contextlib.contextmanager
+    def getting_path(self, key, default=None):
+        del key  # Unused.
+        self._num_misses += 1
+        yield default
 
     def set(self, key, value):
         pass
@@ -128,7 +139,9 @@ class Cache(CacheInterface):
         executor=None,  # Use this to evict in the background.
     ):
         self._lock = threading.Lock()
+
         self._cache_dir_path = ASSERT.predicate(cache_dir_path, Path.is_dir)
+
         self._capacity = ASSERT.greater(capacity, 0)
         self._post_eviction_size = (
             post_eviction_size if post_eviction_size is not None else
@@ -140,10 +153,17 @@ class Cache(CacheInterface):
             self._capacity,
             self._post_eviction_size,
         )
+
         self._executor = executor
+
         # By the way, if cache cold start is an issue, we could store
         # and load this table from a file.
         self._access_log = collections.OrderedDict()
+
+        # getting_path may "lease" paths to the user, and we should not
+        # evict these paths.
+        self._active_paths = g1_collections.Multiset()
+
         self._num_hits = 0
         self._num_misses = 0
 
@@ -231,6 +251,8 @@ class Cache(CacheInterface):
         paths = list(_iter_files(dir_path))
         paths.sort(key=get_recency)
         for path in paths[target_size:]:
+            if path in self._active_paths:
+                continue
             path.unlink()
             count = self._access_log.pop(path, 0)
             LOG.debug('evict: %d %s', count, path)
@@ -260,6 +282,21 @@ class Cache(CacheInterface):
                 default,
                 lambda path: (path.open('rb'), path.stat().st_size),
             )
+
+    @contextlib.contextmanager
+    def getting_path(self, key, default=None):
+        with self._lock:
+            path = self._get_require_lock_by_caller(
+                key, default, functionals.identity
+            )
+            if path is not default:
+                self._active_paths.add(path)
+        try:
+            yield path
+        finally:
+            with self._lock:
+                if path is not default:
+                    self._active_paths.remove(path)
 
     def _get_require_lock_by_caller(self, key, default, getter):
         path = self._get_path(key)
