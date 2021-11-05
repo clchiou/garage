@@ -271,6 +271,19 @@ class CacheTest(unittest.TestCase):
             value_file.write(b'some value')
 
         self.assertEqual(cache.get(b'some key'), b'some value')
+        self.assert_cache_dir({b'some key': b'some value'})
+
+    def test_setting_file_error(self):
+        cache = caches.Cache(self.test_dir_path, 10)
+        self.assert_cache_dir({})
+
+        with self.assertRaisesRegex(Exception, r'expected'):
+            with cache.setting_file(b'some other key'):
+                self.assert_cache_dir({})
+                raise Exception('expected')
+
+        self.assertIsNone(cache.get(b'some other key'))
+        self.assert_cache_dir({})
 
     def test_pop(self):
         cache = caches.Cache(self.test_dir_path, 10)
