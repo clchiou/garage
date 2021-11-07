@@ -58,6 +58,7 @@ import foreman
  .depend('//third-party/pyyaml:build')
  .depend('//third-party/requests:build')
  .depend('//third-party/sqlalchemy:build')
+ .depend('//third-party/wand:build')
  .depend('//third-party/zstandard:build')
  )
 
