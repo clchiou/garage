@@ -22,7 +22,10 @@ DEFAULT_FILTERS = (
     # Keep drydock path in sync with //bases:build.
     ('exclude', '/home/plumber/drydock'),
     ('exclude', '/home/plumber/.gradle'),
+    ('exclude', '/home/plumber/.gsutil'),
     ('exclude', '/home/plumber/.python_history'),
+    ('exclude', '/home/plumber/.vpython_cipd_cache'),
+    ('exclude', '/home/plumber/.vpython-root'),
     ('exclude', '/home/plumber/.wget-hsts'),
     ('exclude', '/root/.cache'),
     ('exclude', '/usr/src'),
