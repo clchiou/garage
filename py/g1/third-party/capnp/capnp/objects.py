@@ -633,7 +633,7 @@ def _datetime_setter_float(builder, name, datetime_object):
 
 
 def _enum_getter(enum_type, reader, name):
-    return enum_type(reader[name])
+    return _to_enum_member(enum_type, reader[name])
 
 
 def _int_subtype_getter(int_subtype, reader, name):
@@ -678,7 +678,7 @@ def _union_enum_getter(enum_type, reader, name):
     enum_value = reader[name]
     if enum_value is None:
         return None
-    return enum_type(enum_value)
+    return _to_enum_member(enum_type, enum_value)
 
 
 def _union_int_subtype_getter(int_subtype, reader, name):
@@ -711,3 +711,10 @@ def _fields_by_code_order(schema):
     return sorted(
         schema.fields.values(), key=lambda field: field.proto.code_order
     )
+
+
+def _to_enum_member(enum_type, enum_value):
+    try:
+        return enum_type(enum_value)
+    except ValueError:
+        return enum_value
