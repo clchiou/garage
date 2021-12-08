@@ -239,9 +239,7 @@ Description={description}
 [Service]
 Slice=machine.slice
 Type=oneshot
-ExecStartPre=/usr/local/bin/ops alerts send --level info "${{pod_label}} ${{pod_version}}" "start"
 {exec_starts}\
-ExecStopPost=/usr/local/bin/ops alerts send --systemd-service-result ${{SERVICE_RESULT}} "${{pod_label}} ${{pod_version}}" "${{EXIT_CODE}} status=${{EXIT_STATUS}}"
 '''
 
 
@@ -282,8 +280,6 @@ KillMode=mixed
 Restart=always
 StartLimitIntervalSec=30s
 StartLimitBurst=4
-ExecStartPre=/usr/local/bin/ops alerts send --level info "${{pod_label}} ${{pod_version}}" "start"
-ExecStopPost=/usr/local/bin/ops alerts send --systemd-service-result ${{SERVICE_RESULT}} "${{pod_label}} ${{pod_version}}" "${{EXIT_CODE}} status=${{EXIT_STATUS}}"
 
 [Install]
 WantedBy=machines.target
