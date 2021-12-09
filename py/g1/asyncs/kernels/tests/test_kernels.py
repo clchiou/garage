@@ -568,6 +568,10 @@ class NudgerTest(unittest.TestCase):
 
         nudger.close()
 
+        # ``nudge`` should swallow ``errno.EBADF``.
+        for _ in range(8):
+            nudger.nudge()
+
     def test_poller(self):
         poller = pollers.Epoll()
         nudger = kernels.Nudger()

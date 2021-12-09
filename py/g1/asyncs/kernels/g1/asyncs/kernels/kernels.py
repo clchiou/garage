@@ -4,6 +4,7 @@ __all__ = [
 
 import collections
 import contextlib
+import errno
 import functools
 import inspect
 import logging
@@ -497,6 +498,14 @@ class Nudger:
             os.write(self._w, b'\x00')
         except BlockingIOError:
             pass
+        except OSError as exc:
+            if exc.errno == errno.EBADF:
+                # The kernel has closed the nudger, but another thread
+                # still tries to nudge the kernel.  This usually happens
+                # during program exit
+                LOG.warning('nudger was closed')
+            else:
+                raise
 
     def is_nudged(self, fd):
         return self._r == fd
