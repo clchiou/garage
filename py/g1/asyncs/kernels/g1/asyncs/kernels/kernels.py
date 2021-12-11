@@ -434,13 +434,27 @@ class Kernel:
     #
 
     def post_callback(self, callback):
-        ASSERT.false(self._closed)
+        if self._closed:
+            # In a multi-threaded program, it is possible (or even
+            # common?) that, during program exit, the kernel was closed,
+            # but another thread is still running.  In such case, I
+            # think it is fine to just log a warning rather than raising
+            # an exception.
+            LOG.warning('kernel was closed: callback=%r', callback)
+            return
         with self._callbacks_lock:
             self._callbacks.append(callback)
         self._nudger.nudge()
 
     def notify_close(self, fd):
-        ASSERT.false(self._closed)
+        if self._closed:
+            # In a multi-threaded program, it is possible (or even
+            # common?) that, during program exit, the kernel was closed,
+            # but another thread is still running.  In such case, I
+            # think it is fine to just log a warning rather than raising
+            # an exception.
+            LOG.warning('kernel was closed: fd=%d', fd)
+            return
         self._poller.notify_close(fd)
         if not self._is_owner():
             self._nudger.nudge()

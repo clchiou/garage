@@ -69,11 +69,9 @@ class KernelTest(unittest.TestCase):
             (self.k.run, ()),
             (self.k.spawn, (None, )),
             (self.k.notify_open, (None, )),
-            (self.k.notify_close, (None, )),
             (self.k.unblock, (None, )),
             (self.k.cancel, (None, )),
             (self.k.timeout_after, (None, None)),
-            (self.k.post_callback, (None, )),
         ):
             with self.subTest(method):
                 with self.assertRaisesRegex(AssertionError, r'expect false'):
@@ -82,6 +80,9 @@ class KernelTest(unittest.TestCase):
         self.assertEqual(self.k.get_stats(), (0, ) * 10)
         self.assertEqual(self.k.get_current_task(), None)
         self.assertEqual(self.k.get_all_tasks(), [])
+        # These methods just log a warning.
+        self.assertIsNone(self.k.post_callback(None))
+        self.assertIsNone(self.k.notify_close(0))
 
     def test_disallow_across_kernel(self):
 
