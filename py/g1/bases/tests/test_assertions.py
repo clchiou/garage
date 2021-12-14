@@ -100,6 +100,17 @@ class AssertionsTest(unittest.TestCase):
         self.assert_.setitem(d, 0, 0)
         self.assertEqual(d, {0: 0})
 
+        for args in [
+            (),
+            ([], ),
+            ([], []),
+            ([], [], []),
+            ('a', 'b', 'c'),
+            ('ad', 'be', 'cf'),
+        ]:
+            with self.subTest(args):
+                self.assertEqual(list(ASSERT.zip(*args)), list(zip(*args)))
+
     def test_assertion_methods_fail(self):
         with self.subTest(check='__call__'):
             pattern = r'some message 1'
@@ -158,6 +169,8 @@ class AssertionsTest(unittest.TestCase):
             ('contains', ([0], 1), r'expect \[0\] containing 1'),
             ('not_contains', ([0], 0), r'expect \[0\] not containing 0'),
             ('not_contains', ([0], 0), r'expect \[0\] not containing 0'),
+            ('zip', ('x', ''), r'expect same length: 1, 0'),
+            ('zip', ('x', 'y', 'ab'), r'expect same length: 1, 1, 2'),
             (
                 'getitem',
                 (

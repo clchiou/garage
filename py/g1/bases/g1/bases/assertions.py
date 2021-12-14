@@ -229,6 +229,17 @@ class Assertions:
         message='expect {0!r} not containing {1!r}',
     )
 
+    def zip(self, *sequences):
+        """Check all sequences have the same length before zip them."""
+        if len(frozenset(map(len, sequences))) > 1:
+            raise self._make_exc(
+                'expect same length: {}'.format(
+                    ', '.join('%d' % len(s) for s in sequences)
+                ),
+                *sequences,
+            )
+        return zip(*sequences)
+
     def getitem(self, collection, key):
         """Shorthand for ``ASSERT.contains(collection, key)[key]``."""
         return self.contains(collection, key)[key]
