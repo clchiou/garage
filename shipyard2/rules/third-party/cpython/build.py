@@ -86,17 +86,49 @@ shipyard2.rules.bases.define_distro_packages([
     'libxml2',  # Do we really need this?
 ])
 
+_VERSION_PATTERN = re.compile(r'/python/(\d+)\.(\d+)\.(\d+)/')
+
+
+def _parse_version(ps):
+    ASSERT.false(ps['//bases:build-xar-image'])
+    return Version(
+        *map(
+            int,
+            ASSERT.not_none(_VERSION_PATTERN.search(ps['archive'].url))\
+            .groups(),
+        )
+    )
+
+
+def _get_python_path(ps):
+    return (
+        Path('/usr/bin/python3') if ps['//bases:build-xar-image'] else \
+        _add_version(ps, 'bin/python{}.{}')
+    )
+
+
+def _get_pip_path(ps):
+    return (
+        Path('/usr/bin/pip3') if ps['//bases:build-xar-image'] else \
+        _add_version(ps, 'bin/pip{}.{}')
+    )
+
+
+def _add_version(ps, path_template):
+    return ps['prefix'] / path_template.format(*ps['version'])
+
+
 (foreman.define_parameter.namedtuple_typed(Version, 'version')\
  .with_doc('cpython version')
- .with_derive(lambda ps: _parse_version(ps['archive'].url)))
+ .with_derive(_parse_version))
 
 (foreman.define_parameter.path_typed('python')\
  .with_doc('path to cpython interpreter')
- .with_derive(lambda ps: _add_version(ps, 'bin/python{}.{}')))
+ .with_derive(_get_python_path))
 
 (foreman.define_parameter.path_typed('pip')\
  .with_doc('path to pip')
- .with_derive(lambda ps: _add_version(ps, 'bin/pip{}.{}')))
+ .with_derive(_get_pip_path))
 
 (foreman.define_parameter.path_typed('modules')\
  .with_doc('path to site-packages directory')
@@ -115,12 +147,34 @@ foreman.define_parameter.list_typed('unused-modules').with_default([
     'unittest/test',
 ])
 
+# Use distro CPython and pip when building XAR images.
+shipyard2.rules.bases.define_distro_packages(
+    [
+        'python3-dev',
+        'python3-pip',
+    ],
+    name_prefix='xar',
+)
+
 
 @foreman.rule
 @foreman.rule.depend('//bases:build')
-@foreman.rule.depend('extract')
-@foreman.rule.depend('install')
+@foreman.rule.depend(
+    'extract',
+    when=lambda ps: not ps['//bases:build-xar-image'],
+)
+@foreman.rule.depend(
+    'install',
+    when=lambda ps: not ps['//bases:build-xar-image'],
+)
+@foreman.rule.depend(
+    'xar/install',
+    when=lambda ps: ps['//bases:build-xar-image'],
+)
 def build(parameters):
+    if parameters['//bases:build-xar-image']:
+        LOG.info('do nothing in xar builds')
+        return
     src_path = _get_src_path(parameters)
     with scripts.using_cwd(src_path):
         _configure(parameters, src_path)
@@ -133,6 +187,9 @@ def build(parameters):
 @foreman.rule.depend('//bases:build')
 @foreman.rule.depend('build')
 def trim(parameters):
+    if parameters['//bases:build-xar-image']:
+        LOG.info('do nothing in xar builds')
+        return
     LOG.info('remove unused python modules')
     with scripts.using_sudo():
         modules_dir_path = parameters['modules']
@@ -142,6 +199,9 @@ def trim(parameters):
 
 @foreman.rule
 def austerity(parameters):
+    if parameters['//bases:build-xar-image']:
+        LOG.info('do nothing in xar builds')
+        return
     with scripts.using_sudo():
         for path in _get_src_path(parameters).iterdir():
             if path.name not in ('Makefile', 'python'):
@@ -153,18 +213,6 @@ def _get_src_path(parameters):
         parameters['//bases:drydock'] / foreman.get_relpath() /
         parameters['archive'].output
     )
-
-
-_VERSION_PATTERN = re.compile(r'/python/(\d+)\.(\d+)\.(\d+)/')
-
-
-def _parse_version(archive_url):
-    match = ASSERT.not_none(_VERSION_PATTERN.search(archive_url))
-    return Version(*map(int, match.groups()))
-
-
-def _add_version(ps, path_template):
-    return ps['prefix'] / path_template.format(*ps['version'])
 
 
 def _configure(parameters, src_path):

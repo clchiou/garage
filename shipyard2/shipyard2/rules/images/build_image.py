@@ -43,6 +43,7 @@ def build_image(
         name=name,
         version=version,
         apps=_get_apps(
+            parameters,
             builder_images,
             root_host_paths,
             rules,
@@ -120,7 +121,7 @@ _INITIALIZE_BUILDER = (
 )
 
 
-def _get_apps(builder_images, root_host_paths, rules):
+def _get_apps(parameters, builder_images, root_host_paths, rules):
     builder_script = []
     if not builder_images:
         LOG.info('no intermediate builder images; initialize builder')
@@ -139,6 +140,7 @@ def _get_apps(builder_images, root_host_paths, rules):
                 *(('--debug', ) if shipyard2.is_debug() else ()),
                 *_foreman_make_path_args(root_host_paths),
                 *('--parameter', '//bases:inside-builder-pod=true'),
+                *_foreman_make_parameters(parameters),
                 *map(str, rules),
                 '> "$(mktemp --tmpdir=/tmp build-XXXXXXXXXX.log)" 2>&1',
             ])
@@ -162,6 +164,12 @@ def _foreman_make_path_args(root_host_paths):
         yield str(root_path / 'shipyard2' / 'rules')
     yield '--parameter'
     yield '//bases:roots=%s' % ','.join(map(str, root_paths))
+
+
+def _foreman_make_parameters(parameters):
+    if parameters['//bases:build-xar-image']:
+        yield '--parameter'
+        yield '//bases:build-xar-image=true'
 
 
 def _get_images(builder_images, base_version):

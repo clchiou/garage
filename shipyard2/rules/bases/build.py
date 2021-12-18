@@ -9,6 +9,14 @@ from g1.bases.assertions import ASSERT
 
 import shipyard2.rules.bases
 
+# TODO: The build configurations of XAR images and pod images are quite
+# different (e.g., XAR images use the distro Python package).  For now
+# we rely on this parameter to configure the build, but we should figure
+# out a more generic way to specify different build configurations.
+(foreman.define_parameter.bool_typed('build-xar-image')\
+ .with_doc('enable XAR image build configuration')
+ .with_default(False))
+
 (foreman.define_parameter.path_list_typed('roots')\
  .with_doc('paths to the root directory of repositories')
  .with_default([Path(__file__).parent.parent.parent.parent]))
