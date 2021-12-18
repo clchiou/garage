@@ -217,7 +217,7 @@ for lib_dir in "${{LIB_DIRS[@]}}"; do
 done
 export LD_LIBRARY_PATH
 
-for lib_dir in ${{ROOT}}/usr/local/lib/python3*/site-packages; do
+for lib_dir in ${{ROOT}}/usr/local/lib/python3*/{{dist-packages,site-packages}}; do
   PYTHONPATH="${{PYTHONPATH:-}}${{PYTHONPATH:+:}}${{lib_dir}}"
 done
 export PYTHONPATH
