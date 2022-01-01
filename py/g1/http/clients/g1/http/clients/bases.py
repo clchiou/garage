@@ -61,7 +61,7 @@ class Sender:
         ``sticky_key`` is similar to ``cache_key`` except that it refers
         to an unbounded cache (thus the name "sticky").
 
-        If argument ``cache_revalidate`` is evaludated to true, session
+        If argument ``cache_revalidate`` is evaluated to true, session
         will revalidate the cache entry.
         """
         cache_key = kwargs.pop('cache_key', None)
