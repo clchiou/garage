@@ -364,10 +364,23 @@ class Application:
         await servers.supervise_server(self._handler_queue, ())
 
     def shutdown(self):
-        self._handler_queue.close()
+        # Running handlers is quite expensive.  We should not waste time
+        # on time while server is shutting down.
+        #
+        # NOTE: There is not server task in the supervise_server call
+        # above, and so it is safe to cancel all tasks here.
+        for task in self._handler_queue.close(graceful=False):
+            task.cancel()
 
     async def __call__(self, environ, start_response):
-        ASSERT.false(self._handler_queue.is_closed())
+        # Running handlers is quite expensive.  We should not waste time
+        # on time while server is shutting down.
+        if self._handler_queue.is_closed():
+            start_response(
+                _Response._format_status(consts.Statuses.SERVICE_UNAVAILABLE),
+                [(consts.HEADER_RETRY_AFTER, '60')],
+            )
+            return []
 
         request = Request(environ=environ, context=contexts.Context())
 
