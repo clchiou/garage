@@ -68,3 +68,9 @@ Test results:
     * `pool.__exit__` blocks forever, even after `sleep` is completed.
   * SIGTERM, all processes.
     * `pool.__exit__` blocks forever, even after `sleep` is completed.
+
+* If a worker process is killed, it appears that the callbacks passed to
+  `apply_async` will not be called.  Since there is no (easy) way for
+  the main process to know that the worker was killed (and so should
+  stop waiting for the result), I guess you should **never** kill a
+  worker process without also killing the main process...?

@@ -62,7 +62,13 @@ def main(argv):
             if argv[1] == 'no_handler':
                 pool.apply(sleep, (60, ))
             else:
-                pool.apply_async(sleep, (60, ))
+                pool.apply_async(
+                    sleep,
+                    (60, ),
+                    {},
+                    lambda _: log('callback is called'),
+                    lambda exc: log('err_callback is called: exc=%s', exc),
+                )
                 log('pool.apply_async return')
                 quit_event.wait()
                 log('quit_event.wait return')
