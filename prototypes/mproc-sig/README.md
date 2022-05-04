@@ -74,3 +74,9 @@ Test results:
   the main process to know that the worker was killed (and so should
   stop waiting for the result), I guess you should **never** kill a
   worker process without also killing the main process...?
+
+* It appears that if a worker process is killed before the main process,
+  Pool.terminate blocks indefinitely.  So to stop a Python script, you
+  likely should not `pkill` all processes (because the signal might not
+  be delivered to the main process first), and should only kill the main
+  process, and let Pool.terminate stop child processes.

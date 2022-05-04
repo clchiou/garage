@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
+import logging
 import multiprocessing
+import multiprocessing.util
 import os
 import signal
 import sys
@@ -14,7 +16,11 @@ _PID = os.getpid()
 def log(message, *args):
     # Print to stderr to avoid buffering.
     print(
-        '%8.2f pid=%d' % (time.monotonic() - _BEGIN, _PID),
+        '%8.2f pid=%d %s' % (
+            time.monotonic() - _BEGIN,
+            _PID,
+            multiprocessing.current_process().name,
+        ),
         message % args,
         file=sys.stderr,
     )
@@ -34,6 +40,8 @@ def main(argv):
         )
         return 1
     assert argv[1] in ('no_handler', 'vanilla', 'monkey_patch')
+
+    multiprocessing.util.log_to_stderr(logging.DEBUG)
 
     quit_event = threading.Event()
 
@@ -69,6 +77,8 @@ def main(argv):
                     lambda _: log('callback is called'),
                     lambda exc: log('err_callback is called: exc=%s', exc),
                 )
+                for p in ctx.active_children():
+                    log('child process: pid=%d %s', p.pid, p.name)
                 log('pool.apply_async return')
                 quit_event.wait()
                 log('quit_event.wait return')
