@@ -293,9 +293,14 @@ Restart=no
 SyslogIdentifier={pod_name}/{app.name}@{pod_version}
 ExecStart={exec}
 ExecStopPost=/usr/sbin/pod-exit "%n"
+{kill_mode}\
 LimitNOFILE=65536'''.format(
             app=app,
             exec=' '.join(map(_quote_arg, exec_start)),
+            kill_mode=(
+                '' if app.kill_mode is None else \
+                'KillMode=%s\n' % app.kill_mode
+            ),
             pod_name=pod_name,
             pod_version=pod_version,
             service_type=(

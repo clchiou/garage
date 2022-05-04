@@ -44,6 +44,13 @@ _SERVICE_TYPES = frozenset((
     None,
 ))
 
+# We do not support "process" and "none" for now.
+_KILL_MODES = frozenset((
+    'control-group',
+    'mixed',
+    None,
+))
+
 
 @dataclasses.dataclass(frozen=True)
 class PodConfig:
@@ -57,6 +64,7 @@ class PodConfig:
         type: typing.Optional[str] = None
         user: str = 'nobody'
         group: str = 'nogroup'
+        kill_mode: typing.Optional[str] = None
 
         # Advanced usage for overriding the entire service section
         # generation.
@@ -69,9 +77,11 @@ class PodConfig:
             if self.service_section is None:
                 ASSERT.not_empty(self.exec)
                 ASSERT.in_(self.type, _SERVICE_TYPES)
+                ASSERT.in_(self.kill_mode, _KILL_MODES)
             else:
                 ASSERT.empty(self.exec)
                 ASSERT.none(self.type)
+                ASSERT.none(self.kill_mode)
 
     @dataclasses.dataclass(frozen=True)
     class Image:

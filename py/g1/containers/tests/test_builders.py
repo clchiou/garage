@@ -106,6 +106,33 @@ class BuildersTest(fixtures.TestCaseBase):
 
         builders.generate_unit_file(
             self.test_repo_path,
+            'some-pod',
+            '0.0.1',
+            models.PodConfig.App(
+                name='hello-world-1',
+                exec=['/bin/echo', '"hello world"'],
+                user='root',
+                group='root',
+                kill_mode='mixed',
+            ),
+        )
+        self.assertEqual(
+            (etc_path / 'hello-world-1.service').read_text(),
+            '[Unit]\n'
+            'Conflicts=shutdown.target\n'
+            'Before=pod.target shutdown.target\n'
+            '\n'
+            '[Service]\n'
+            'Restart=no\n'
+            'SyslogIdentifier=some-pod/hello-world-1@0.0.1\n'
+            'ExecStart="/bin/echo" "\\"hello world\\""\n'
+            'ExecStopPost=/usr/sbin/pod-exit "%n"\n'
+            'KillMode=mixed\n'
+            'LimitNOFILE=65536\n',
+        )
+
+        builders.generate_unit_file(
+            self.test_repo_path,
             'some-other-pod',
             '0.0.1',
             models.PodConfig.App(
