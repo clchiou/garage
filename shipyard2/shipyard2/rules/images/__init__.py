@@ -5,6 +5,7 @@ __all__ = [
     'define_xar_image',
     'derive_image_path',
     'derive_rule',
+    'fix_exec_shebang',
     'generate_exec_wrapper',
     'get_image_version',
 ]
@@ -246,3 +247,20 @@ def generate_exec_wrapper(exec_relpath, wrapper_relpath):
     with scripts.using_sudo():
         scripts.write_bytes(wrapper_script.encode('utf-8'), wrapper_path)
         scripts.run(['chmod', '0755', wrapper_path])
+
+
+def fix_exec_shebang(exec_path):
+    """Fix script shebang emitted by console_scripts.
+
+    console_scripts emits shebang to a fixed CPython path, which might
+    not be the right CPython on target machines; so we will replace it
+    with ``#!/usr/bin/env python3``.
+    """
+    script_lines = ASSERT.predicate(
+        Path(exec_path).read_text(encoding='utf-8').split('\n'),
+        lambda lines: lines[0].startswith('#!/usr/bin/python3'),
+    )
+    script_lines[0] = '#!/usr/bin/env python3'
+    with scripts.using_input('\n'.join(script_lines).encode('utf-8')):
+        with scripts.using_sudo():
+            scripts.run(['tee', exec_path])
