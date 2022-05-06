@@ -1,5 +1,0 @@
-*.o
-*.d
-http2d/http2d
-rot13/rot13-copy
-rot13/rot13-nocopy
