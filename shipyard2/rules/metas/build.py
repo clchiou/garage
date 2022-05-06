@@ -14,7 +14,7 @@ import foreman
  .depend('//python/g1/devtools/buildtools:build')
  .depend('//python/g1/files:build')
  .depend('//python/g1/http/clients:build')
- .depend('//python/g1/http/http1_servers:build')
+ .depend('//python/g1/http/servers:build')
  .depend('//python/g1/messaging:build')
  .depend('//python/g1/networks/servers:build')
  .depend('//python/g1/operations/cores:build')

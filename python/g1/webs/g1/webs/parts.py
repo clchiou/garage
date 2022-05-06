@@ -1,10 +1,10 @@
 import g1.asyncs.agents.parts
-import g1.http.http1_servers.parts
+import g1.http.servers.parts
 from g1.apps import parameters
 from g1.apps import utils
 from g1.bases import labels
 # For now this is just an alias.
-from g1.http.http1_servers.parts import make_server_params
+from g1.http.servers.parts import make_server_params
 
 from . import wsgi_apps
 
@@ -12,7 +12,7 @@ SERVER_LABEL_NAMES = (
     # Input.
     'handler',
     # Private.
-    ('server', g1.http.http1_servers.parts.SERVER_LABEL_NAMES),
+    ('server', g1.http.servers.parts.SERVER_LABEL_NAMES),
 )
 
 
@@ -27,7 +27,7 @@ def define_server(module_path=None, **kwargs):
 
 
 def setup_server(module_labels, module_params):
-    g1.http.http1_servers.parts.setup_server(
+    g1.http.servers.parts.setup_server(
         module_labels.server, module_params
     )
     utils.define_maker(

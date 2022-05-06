@@ -14,7 +14,7 @@ setup(
         'parts': [
             'g1.apps',
             'g1.asyncs.agents[parts]',
-            'g1.http.http1_servers[parts]',
+            'g1.http.servers[parts]',
         ],
     },
     zip_safe=False,

@@ -10,7 +10,7 @@ from g1.asyncs.bases import locks
 from g1.asyncs.bases import queues
 from g1.asyncs.bases import streams
 from g1.asyncs.bases import tasks
-from g1.http.http1_servers import wsgi
+from g1.http.servers import wsgi
 
 
 class HttpSessionTest(unittest.TestCase):

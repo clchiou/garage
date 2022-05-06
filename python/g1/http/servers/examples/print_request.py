@@ -5,11 +5,11 @@ import json
 from startup import startup
 
 import g1.asyncs.agents.parts
-import g1.http.http1_servers.parts
+import g1.http.servers.parts
 from g1.apps import asyncs
 from g1.asyncs import kernels
 
-LABELS = g1.http.http1_servers.parts.define_server(
+LABELS = g1.http.servers.parts.define_server(
     host='127.0.0.1',
     port=8000,
     reuse_address=True,
