@@ -1,5 +1,7 @@
 ### Create a new machine
 
+(TODO: `ops-mob` is deprecated; we should implement its replacement.)
+
 * Prepare for creating new machine on your VPS provider; let's call this
   new machine `staging-001`.
 

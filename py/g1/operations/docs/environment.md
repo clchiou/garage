@@ -35,12 +35,11 @@ assume the paths under an environment directory.
   * `openvpn/clients`: (generated) client credentials
   * `openvpn/servers`: (generated) server credentials
 * `scripts/env.sh`: set up the environment
-* `shipyard/...`: data for shipyard builders
-  * `shipyard/image-data/...`
-  * `shipyard/volume-data/...`
-* `pods/...`: deployment bundles of pods
+* `releases/...`: deployment bundles of pods
 
 ### User data configuration file
+
+(TODO: `ops-mob` is deprecated; we should implement its replacement.)
 
 The `envs gen-user-data` command reads a configuration file to generate
 a user data file.  The configuration file format is like this:
@@ -56,6 +55,8 @@ a user data file.  The configuration file format is like this:
 
 ### Create a new environment
 
+(TODO: `ops-mob` is deprecated; we should implement its replacement.)
+
 This example generates a staging-like environment.
 
 * Generate basic skeleton and keys of an environment:
@@ -70,10 +71,9 @@ This example generates a staging-like environment.
   * Easy RSA CA directory.
   * `env.sh`.
 
-* Create symlink to pod release channel (this is for deploying pods with
-  Ansible playbook):
+* Create symlink to pods for deploying with Ansible playbook:
   ```
-  ln -s /path/to/ops/releases/channels/staging pods
+  ln -s /path/to/ops/releases/envs/staging releases
   ```
 
 * Configure OpenVPN server:
