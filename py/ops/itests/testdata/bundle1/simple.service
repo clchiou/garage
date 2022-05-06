@@ -1,5 +1,0 @@
-[Unit]
-Description=simple
-
-[Service]
-ExecStart=/bin/sleep 1d

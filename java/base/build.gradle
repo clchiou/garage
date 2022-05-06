@@ -1,4 +1,0 @@
-dependencies {
-
-    compile "org.yaml:snakeyaml:${rootProject.ext.snakeyamlVersion}"
-}
