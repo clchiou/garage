@@ -1,3 +1,3 @@
 [submodule "startup"]
-	path = py/startup
+	path = python/startup
 	url = https://github.com/clchiou/startup.git
