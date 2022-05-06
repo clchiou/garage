@@ -14,7 +14,7 @@ shipyard2.rules.images.define_image(
 shipyard2.rules.images.define_xar_image(
     name='reqrep-client',
     rules=[
-        '//py/g1/messaging:reqrep-client/build',
+        '//python/g1/messaging:reqrep-client/build',
         'reqrep-client/setup',
     ],
 )

@@ -1,4 +1,4 @@
-"""Helpers for writing rules that depends on //py/g1/third-party/capnp."""
+"""Helpers for writing rules that depends on //python/g1/third-party/capnp."""
 
 __all__ = [
     'make_global_options',

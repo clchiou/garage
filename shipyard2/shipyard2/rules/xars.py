@@ -186,13 +186,7 @@ def _package_zipapp(parameters, python_exec, packages, zipapp_path):
     ASSERT.predicate(zipapp_path, Path.is_absolute)
     scripts.export_path(
         'PYTHONPATH',
-        pythons.find_package(parameters, 'py/g1/devtools/buildtools'),
-    )
-    # TODO: Remove this once startup is migrated to
-    # g1.devtools.buildtools.
-    scripts.export_path(
-        'PYTHONPATH',
-        pythons.find_package(parameters, 'py/buildtools'),
+        pythons.find_package(parameters, 'python/g1/devtools/buildtools'),
     )
     for package in packages:
         with scripts.using_cwd(pythons.find_package(parameters, package)):

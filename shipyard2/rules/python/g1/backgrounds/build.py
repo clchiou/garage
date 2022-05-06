@@ -1,0 +1,45 @@
+import shipyard2.rules.pythons
+
+shipyard2.rules.pythons.define_package(
+    deps=[],
+    extras=[
+        (
+            'consoles',
+            [
+                '//python/g1/apps:build/asyncs',
+                '//python/g1/asyncs/agents:build/parts',
+                '//python/g1/asyncs/bases:build',
+                '//python/g1/bases:build',
+                '//python/g1/networks/servers:build',
+                '//python/g1/threads:build',
+            ],
+        ),
+        (
+            'executors',
+            [
+                '//python/g1/threads:build/parts',
+            ],
+        ),
+        (
+            'monitors',
+            [
+                '//python/g1/apps:build',
+                '//python/g1/asyncs/bases:build',
+                '//python/g1/asyncs/kernels:build',
+                '//python/g1/bases:build',
+                # Self-reference.
+                '//python/g1/backgrounds:build/executors',
+                '//python/g1/backgrounds:build/tasks',
+            ],
+        ),
+        (
+            'tasks',
+            [
+                '//python/g1/asyncs/agents:build/parts',
+                '//python/g1/asyncs/bases:build',
+                '//python/g1/bases:build',
+                '//python/startup:build',
+            ],
+        ),
+    ],
+)

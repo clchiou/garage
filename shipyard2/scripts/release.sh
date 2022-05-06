@@ -4,7 +4,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 
 readonly DEPS=(
   "$(realpath "${HERE}/..")"  # shipyard2.
-  "${ROOT}/py/foreman"
+  "${ROOT}/python/foreman"
 )
 for dep in "${DEPS[@]}"; do
   PYTHONPATH="${PYTHONPATH:-}${PYTHONPATH:+:}${dep}"

@@ -11,7 +11,7 @@ OPS_DB_PATH = Path('/srv/operations/database/v1')
 shipyard2.rules.images.define_image(
     name='database',
     rules=[
-        '//py/g1/operations/databases/servers:build/apps',
+        '//python/g1/operations/databases/servers:build/apps',
         'database/setup',
     ],
 )
@@ -28,7 +28,7 @@ def database_setup(parameters):
 shipyard2.rules.images.define_xar_image(
     name='ops-db-client',
     rules=[
-        '//py/g1/operations/databases/clients:ops-db-client/build',
+        '//python/g1/operations/databases/clients:ops-db-client/build',
         'ops-db-client/setup',
     ],
 )
