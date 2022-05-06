@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Encrypt files and directories with gpg-zip.
+# Encrypt files and directories with gpgtar (gpg-zip is deprecated).
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Decrypt an archive with gpg-zip.
+# Decrypt an archive with gpgtar (gpg-zip is deprecated).
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 
