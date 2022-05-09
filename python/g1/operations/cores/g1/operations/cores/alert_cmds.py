@@ -122,10 +122,10 @@ def cmd_collectd(args):
     # collected ignores.  As a result, process writing to stdout/stderr
     # will fail due to broken pipe error.
     _config_logging()
-    with open(os.devnull, 'w') as devnull, \
+    with open(os.devnull, 'w', encoding='utf-8') as devnull, \
         contextlib.redirect_stdout(devnull), \
         contextlib.redirect_stderr(devnull):
-        alerts.load().send(alerts.parse_collectd_notification(sys.stdin))
+        alerts.process_collectd_notification(alerts.load(), sys.stdin)
     return 0
 
 

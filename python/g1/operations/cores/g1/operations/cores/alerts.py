@@ -7,7 +7,7 @@ __all__ = [
     'load',
     'save',
     # Message sources.
-    'parse_collectd_notification',
+    'process_collectd_notification',
     'watch_journal',
     'watch_syslog',
 ]
@@ -85,6 +85,14 @@ class Config:
             title: str
             description: str
 
+            def evaluate(self, kwargs):
+                return {
+                    'level':
+                    Message.Levels[self.level.format(**kwargs).upper()],
+                    'title': self.title.format(**kwargs),
+                    'description': self.description.format(**kwargs),
+                }
+
         pattern: str
         template: typing.Optional[Template] = None
 
@@ -123,7 +131,8 @@ class Config:
         def send(self, message):
             try:
                 # urlopen checks the HTTP status code for us.
-                urllib.request.urlopen(self._make_request(message))
+                # pylint: disable=consider-using-with
+                urllib.request.urlopen(self._make_request(message)).close()
             except urllib.error.HTTPError as exc:
                 LOG.warning('cannot send to slack: %r', exc)
 
@@ -185,6 +194,22 @@ class Config:
                 pattern=r'ERROR|FATAL',
                 template=Config.Rule.Template(
                     level='ERROR',
+                    title='{title}',
+                    description='{raw_message}',
+                ),
+            ),
+        ],
+    )
+
+    # In addition to "title" and "raw_message", "host", "level", and
+    # "timestamp" are also provided as defaults when generating the
+    # message.
+    collectd_rules: typing.List[Rule] = dataclasses.field(
+        default_factory=lambda: [
+            Config.Rule(
+                pattern=r'',  # Match anything.
+                template=Config.Rule.Template(
+                    level='{level}',
                     title='{title}',
                     description='{raw_message}',
                 ),
@@ -323,11 +348,9 @@ def _parse_syslog_entry(rules, raw_message, host):
     kwargs.setdefault('raw_message', raw_message)
     return Message(
         host=host,
-        level=Message.Levels[rule.template.level.format(**kwargs).upper()],
-        title=rule.template.title.format(**kwargs),
-        description=rule.template.description.format(**kwargs),
         # TODO: Parse timestamp of log entry.
         timestamp=datetimes.utcnow(),
+        **rule.template.evaluate(kwargs),
     )
 
 
@@ -390,10 +413,8 @@ def _parse_journal_entry(rules, entry, host, pod_id):
     kwargs.setdefault('raw_message', raw_message)
     return Message(
         host=host,
-        level=Message.Levels[rule.template.level.format(**kwargs).upper()],
-        title=rule.template.title.format(**kwargs),
-        description=rule.template.description.format(**kwargs),
         timestamp=_journal_get_timestamp(entry),
+        **rule.template.evaluate(kwargs),
     )
 
 
@@ -413,10 +434,19 @@ def _journal_get_timestamp(entry):
     )
 
 
+def process_collectd_notification(config, input_file):
+    message = _parse_collectd_notification(
+        _compile_rules(config.collectd_rules),
+        input_file,
+    )
+    if message is not None:
+        config.send(message)
+
+
 _COLLECTD_SEVERITY_TABLE = {
-    'OKAY': Message.Levels.GOOD,
-    'WARNING': Message.Levels.WARNING,
-    'FAILURE': Message.Levels.ERROR,
+    'OKAY': Message.Levels.GOOD.name,
+    'WARNING': Message.Levels.WARNING.name,
+    'FAILURE': Message.Levels.ERROR.name,
 }
 
 _COLLECTD_KNOWN_HEADERS = frozenset((
@@ -432,10 +462,10 @@ _COLLECTD_KNOWN_HEADERS = frozenset((
 ))
 
 
-def parse_collectd_notification(input_file):
-    message = {
+def _parse_collectd_notification(rules, input_file):
+    kwargs = {
         'host': os.uname().nodename,
-        'level': Message.Levels.INFO,
+        'level': Message.Levels.INFO.name,
         'timestamp': datetimes.utcnow(),
     }
     headers = {}
@@ -443,15 +473,21 @@ def parse_collectd_notification(input_file):
         header = input_file.readline().strip()
         if not header:
             break
-        _parse_collectd_header(header, message, headers)
+        _parse_collectd_header(header, kwargs, headers)
+    kwargs['title'] = _make_title_from_collectd_headers(headers)
+    kwargs['raw_message'] = input_file.read()
+    rule, match = _search_rules(rules, kwargs['raw_message'])
+    if rule is None:
+        return None
+    kwargs.update(match.groupdict())
     return Message(
-        title=_make_title_from_collectd_headers(headers),
-        description=input_file.read(),
-        **message,
+        host=kwargs['host'],
+        timestamp=kwargs['timestamp'],
+        **rule.template.evaluate(kwargs),
     )
 
 
-def _parse_collectd_header(header, message, headers):
+def _parse_collectd_header(header, kwargs, headers):
     i = header.find(':')
     if i == -1:
         LOG.warning('ill-formatted collectd notification header: %s', header)
@@ -459,15 +495,15 @@ def _parse_collectd_header(header, message, headers):
     name = header[:i].strip()
     value = header[i + 1:].strip()
     if name == 'Host':
-        message['host'] = value
+        kwargs['host'] = value
     elif name == 'Time':
-        message['timestamp'] = datetimes.utcfromtimestamp(float(value))
+        kwargs['timestamp'] = datetimes.utcfromtimestamp(float(value))
     elif name == 'Severity':
         level = _COLLECTD_SEVERITY_TABLE.get(value.upper())
         if level is None:
             LOG.warning('unknown collectd severity: %s', header)
         else:
-            message['level'] = level
+            kwargs['level'] = level
     elif name in _COLLECTD_KNOWN_HEADERS:
         headers[name] = value
     else:

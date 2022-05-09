@@ -151,7 +151,17 @@ class CollectdTest(unittest.TestCase):
 
     def test_parse_collectd_notification(self):
         self.assertEqual(
-            alerts.parse_collectd_notification(
+            alerts._parse_collectd_notification(\
+                [
+                    alerts.Config.Rule(
+                        pattern=re.compile(r''),
+                        template=alerts.Config.Rule.Template(
+                            level='{level}',
+                            title='{title}',
+                            description='{raw_message}',
+                        ),
+                    )
+                ],
                 io.StringIO(
                     '''\
 Severity: OKAY

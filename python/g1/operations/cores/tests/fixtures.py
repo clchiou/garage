@@ -11,7 +11,7 @@ class TestCaseBase(unittest.TestCase):
 
     def setUp(self):
         super().setUp()
-        self._test_dir_tempdir = tempfile.TemporaryDirectory()
+        self._test_dir_tempdir = tempfile.TemporaryDirectory()  # pylint: disable=consider-using-with
         test_dir_path = Path(self._test_dir_tempdir.name)
         self.test_repo_path = test_dir_path / 'repo'
         bases.PARAMS.repository.unsafe_set(self.test_repo_path)
