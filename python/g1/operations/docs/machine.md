@@ -33,7 +33,7 @@
 * Add the new machine's IP address to `~/.ssh/config`:
   ```
   Host staging-001
-      HostName ${IP_ADDRESS}
+      Hostname ${IP_ADDRESS}
       User plumber
       IdentityFile /path/to/ops/envs/staging/keys/current/id_ecdsa
   ```
