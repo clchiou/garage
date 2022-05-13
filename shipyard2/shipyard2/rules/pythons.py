@@ -143,14 +143,33 @@ def define_pypi_package(
     version,
     *,
     name_prefix='',
+    extras=(),
 ):
     """Define a PyPI-hosted package.
 
     This defines:
     * Rule: [name_prefix/]build.
+    * Rule: [name_prefix/]build/<extra> for each extra.
+
+    NOTE: Unlike first-party packages, the extras argument here is just
+    a list of extra names, rather than pairs of extra name and extra's
+    dependencies.
     """
-    name_prefix = rules.canonicalize_name_prefix(name_prefix)
-    rule_build = name_prefix + 'build'
+    rule_build = rules.canonicalize_name_prefix(name_prefix) + 'build'
+    return PackageRules(
+        build=_pypi_make_build_rule(rule_build, package, version),
+        build_extras={
+            extra: _pypi_make_build_rule(
+                '%s/%s' % (rule_build, extra),
+                '%s[%s]' % (package, extra),
+                version,
+            )
+            for extra in extras
+        },
+    )
+
+
+def _pypi_make_build_rule(rule_build, package, version):
 
     @foreman.rule(rule_build)
     @foreman.rule.depend('//bases:build')
@@ -164,4 +183,4 @@ def define_pypi_package(
                 '%s==%s' % (package, version),
             ])
 
-    return PackageRules(build=build, build_extras={})
+    return build
