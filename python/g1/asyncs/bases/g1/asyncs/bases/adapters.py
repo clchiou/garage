@@ -249,12 +249,12 @@ class SocketAdapter(AdapterBase):
         # Check whether `file` is a regular file.
         try:
             in_fd = file.fileno()
-        except (AttributeError, io.UnsupportedOperation):
-            raise TypeError('expect a regular file')
+        except (AttributeError, io.UnsupportedOperation) as exc:
+            raise TypeError('expect a regular file') from exc
         try:
             file_size = os.fstat(in_fd).st_size
-        except OSError:
-            raise TypeError('expect a regular file')
+        except OSError as exc:
+            raise TypeError('expect a regular file') from exc
         if file_size == 0:
             return 0
         out_fd = self.__sock.fileno()
@@ -267,13 +267,13 @@ class SocketAdapter(AdapterBase):
                 except self.WRITE_BLOCKED:
                     await traps.poll_write(out_fd)
                     continue
-                except BrokenPipeError:
-                    # Avoid BrokenPipeError caught by `except OSError`.
+                except (BrokenPipeError, ConnectionResetError):
+                    # Avoid these errors caught by `except OSError`.
                     raise
-                except OSError:
+                except OSError as exc:
                     if num_sent_total == 0:
                         # Most likely `file` is not a regular file.
-                        raise TypeError('expect a regular file')
+                        raise TypeError('expect a regular file') from exc
                     raise
                 if num_sent == 0:
                     break  # EOF of in_fd.
