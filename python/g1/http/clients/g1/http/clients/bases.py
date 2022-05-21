@@ -63,6 +63,9 @@ class Sender:
 
         If argument ``cache_revalidate`` is evaluated to true, session
         will revalidate the cache entry.
+
+        If argument ``circuit_breaker_key`` is not ``None``, it will
+        override the default key (request URL domain name).
         """
         cache_key = kwargs.pop('cache_key', None)
         sticky_key = kwargs.pop('sticky_key', None)
@@ -89,9 +92,11 @@ class Sender:
                 kwargs,
             )
 
-        breaker = self._circuit_breakers.get(
-            urllib.parse.urlparse(request.url).netloc
-        )
+        circuit_breaker_key = kwargs.pop('circuit_breaker_key', None)
+        if circuit_breaker_key is None:
+            circuit_breaker_key = urllib.parse.urlparse(request.url).netloc
+
+        breaker = self._circuit_breakers.get(circuit_breaker_key)
         for retry_count in itertools.count():
 
             # Check rate limit out of the breaker async-with context to
