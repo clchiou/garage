@@ -21,6 +21,7 @@ async def application(environ, start_response):
     response = environ.copy()
     response.pop('wsgi.input')
     response.pop('wsgi.errors')
+    response.pop('wsgi.file_wrapper')
     response = {
         'environ': response,
         'request_body_size': len(await environ['wsgi.input'].read()),
