@@ -544,9 +544,10 @@ class RequestQueueTest(unittest.TestCase):
         data = (
             b'GET /foo/bar?x=y HTTP/1.1\r\n'
             b'Host: localhost\r\n'
-            b'Foo-Bar  :  X  \r\n'
+            b'Foo-Bar:  X  \r\n'
+            b'Foo-Bar:  \r\n'
             b'Content-Length: 11\r\n'
-            b'Foo-Bar  :  Y  \r\n'
+            b'Foo-Bar:  Y  \r\n'
             b'\r\n'
             b'hello world'
             b'some more data after the request'
@@ -563,7 +564,7 @@ class RequestQueueTest(unittest.TestCase):
                     'PATH_INFO': '/foo/bar',
                     'QUERY_STRING': 'x=y',
                     'HTTP_HOST': 'localhost',
-                    'HTTP_FOO_BAR': 'X,Y',
+                    'HTTP_FOO_BAR': 'X,,Y',
                     'CONTENT_LENGTH': '11',
                 },
                 b'hello world',
@@ -597,51 +598,77 @@ class RequestQueueTest(unittest.TestCase):
             },
         )
         self.assertEqual(
-            self.parse_request_line('  gEt  XyZ  HtTp/999  \n'),
+            self.parse_request_line('GET XyZ HTTP/1.0\r\n'),
             {
                 'REQUEST_METHOD': 'GET',
                 'PATH_INFO': 'XyZ',
                 'QUERY_STRING': '',
             },
         )
-        with self.assertRaisesRegex(
-            wsgi._RequestError,
-            r'invalid request line: ',
-        ):
-            self.parse_request_line('POST HTTP/1.1\r\n')
-        with self.assertRaisesRegex(
-            wsgi._RequestError,
-            r'invalid request line: ',
-        ):
-            self.parse_request_line('POST /path HTTP/1.1')
+
+        for invalid_request_line in [
+            # Expect CR LF.
+            'POST /path HTTP/1.1\r',
+            'POST /path HTTP/1.1\n',
+            'POST /path HTTP/1.1',
+            # Expect single space.
+            'POST    /path    HTTP/1.1\r\n',
+            # Expect correct HTTP-version (case sensitive).
+            'POST /path HtTp/1.1\r\n',
+            'POST /path HtTp/x.y\r\n',
+            'POST /path HtTp/12.34\r\n',
+            # Expect request-target.
+            'POST HTTP/1.1\r\n',
+        ]:
+            with self.subTest(invalid_request_line):
+                with self.assertRaisesRegex(
+                    wsgi._RequestError,
+                    r'invalid request line: ',
+                ):
+                    self.parse_request_line(invalid_request_line)
 
     def test_parse_request_header(self):
         self.assertEqual(
             self.parse_request_header('Content-Length: 101\r\n'),
             ('CONTENT_LENGTH', '101'),
         )
+
         self.assertEqual(
-            self.parse_request_header('  Content-Type  :  text/plain  \n'),
-            ('CONTENT_TYPE', 'text/plain'),
+            self.parse_request_header('Foo-Bar:\r\n'),
+            ('HTTP_FOO_BAR', ''),
         )
         self.assertEqual(
-            self.parse_request_header('  FoO-bAr  :  a b c d  \n'),
-            ('HTTP_FOO_BAR', 'a b c d'),
+            self.parse_request_header('FoO-BaR: \t \t  \t   \t\r\n'),
+            ('HTTP_FOO_BAR', ''),
         )
         self.assertEqual(
-            self.parse_request_header(':path: /x/y/z\r\n'),
-            (None, None),
+            self.parse_request_header(
+                '!#$%&\'*+-.^_`|~:   : azAZ09 !#$%&\'*+-.^_`|~   \r\n'
+            ),
+            # WSGI replaces '-' with '_'.
+            ('HTTP_!#$%&\'*+_.^_`|~', ': azAZ09 !#$%&\'*+-.^_`|~'),
         )
-        with self.assertRaisesRegex(
-            wsgi._RequestError,
-            r'invalid request header: ',
-        ):
-            self.parse_request_header('foo\r\n')
-        with self.assertRaisesRegex(
-            wsgi._RequestError,
-            r'invalid request header: ',
-        ):
-            self.parse_request_header('foo: bar')
+
+        for invalid_header in [
+            # Expect CR LF.
+            'Content-Type: text/plain\r',
+            'Content-Type: text/plain\n',
+            'Content-Type: text/plain',
+            # Expect no space in header name.
+            ' Content-Type: text/plain\r\n',
+            '\tContent-Type: text/plain\r\n',
+            'Content-Type : text/plain\r\n',
+            'Content-Type\t: text/plain\r\n',
+            # Expect non-empty header name.
+            ': text/plain\r\n',
+            'text/plain\r\n',
+        ]:
+            with self.subTest(invalid_header):
+                with self.assertRaisesRegex(
+                    wsgi._RequestError,
+                    r'invalid request header: ',
+                ):
+                    self.parse_request_header(invalid_header)
 
 
 class RequestBufferTest(unittest.TestCase):

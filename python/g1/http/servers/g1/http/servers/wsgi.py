@@ -90,7 +90,7 @@ class HttpSession:
             with timers.timeout_after(self._KEEP_ALIVE_IDLE_TIMEOUT):
                 environ = await self._request_queue.get()
         except _RequestError as exc:
-            LOG.debug('invalid request: %s %s', exc.status, exc)
+            LOG.warning('invalid request: %s %s', exc.status, exc)
             await self._put_short_response(exc.status, False)
             raise _SessionExit from None
         except timers.Timeout:
@@ -346,7 +346,7 @@ class _RequestQueue:
         headers = collections.defaultdict(list)
         while True:
             line = await self._request_buffer.readline_decoded()
-            if line in ('', '\n', '\r\n'):
+            if line in ('', '\r\n'):
                 break
             if len(headers) == self._MAX_NUM_HEADERS:
                 raise _RequestError(
@@ -355,8 +355,7 @@ class _RequestQueue:
                     self._MAX_NUM_HEADERS,
                 )
             name, value = self._parse_request_header(line)
-            if name is not None:
-                headers[name].append(value)
+            headers[name].append(value)
         for name, values in headers.items():
             environ[name] = ','.join(values)
 
@@ -385,9 +384,14 @@ class _RequestQueue:
 
         return environ
 
+    # RFC 7230 token.
+    _TOKEN = r'[a-zA-Z0-9!#$%&\'*+\-.^_`|~]+'
+
+    # RFC 7230 request-target is quite complex; for now we just use
+    # `[^\s]+` to match it.
     _REQUEST_LINE_PATTERN = re.compile(
-        r'\s*([^\s]+)\s+([^\s]+)\s+([^\s]+)\s*\r?\n',
-        re.IGNORECASE,
+        r'(%s) ([^\s]+) (HTTP/\d\.\d)\r\n' % _TOKEN,
+        re.ASCII,
     )
 
     def _parse_request_line(self, line, environ):
@@ -398,7 +402,7 @@ class _RequestQueue:
                 'invalid request line: %r' % line,
             )
         method, path, http_version = match.groups()
-        if http_version.upper() != 'HTTP/1.1':
+        if http_version != 'HTTP/1.1':
             LOG.debug('request is not HTTP/1.1 but %s', http_version)
         environ['REQUEST_METHOD'] = method.upper()
         i = path.find('?')
@@ -409,8 +413,13 @@ class _RequestQueue:
             environ['PATH_INFO'] = path[:i]
             environ['QUERY_STRING'] = path[i + 1:]
 
-    _HEADER_PATTERN = re.compile(r'\s*([^\s]+)\s*:\s*(.*[^\s])\s*\r?\n')
-    _HEADER_NAME_PATTERN = re.compile(r'[a-zA-Z0-9_-]+')
+    # NOTE: RFC 7230 specifies obsolete line folding (to represent
+    # multi-line header value) for historic reason, which we do not
+    # implement.
+    _HEADER_PATTERN = re.compile(
+        r'(%s):[ \t]*(.*?)[ \t]*\r\n' % _TOKEN,
+        re.ASCII,
+    )
 
     def _parse_request_header(self, line):
         match = self._HEADER_PATTERN.fullmatch(line)
@@ -420,9 +429,6 @@ class _RequestQueue:
                 'invalid request header: %r' % line,
             )
         name, value = match.groups()
-        if not self._HEADER_NAME_PATTERN.fullmatch(name):
-            LOG.debug('ignore malformed request header: %r', line)
-            return None, None
         name = name.upper().replace('-', '_')
         if name not in ('CONTENT_TYPE', 'CONTENT_LENGTH'):
             name = 'HTTP_' + name
@@ -445,7 +451,7 @@ class _RequestBuffer:
             raise _RequestError(
                 http.HTTPStatus.BAD_REQUEST,
                 'incorrectly encoded request line: %r' % line,
-            )
+            ) from None
 
     async def _readline(self, limit=65536):
         """Read one line from the socket.
