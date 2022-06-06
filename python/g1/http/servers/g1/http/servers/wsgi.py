@@ -323,6 +323,10 @@ class _RequestError(Exception):
         self.status = status
 
 
+class _TooLong(Exception):
+    pass
+
+
 class _RequestQueue:
 
     def __init__(self, sock, base_environ):
@@ -333,7 +337,13 @@ class _RequestQueue:
 
     async def get(self):
         """Return the next request or None at the end."""
-        line = await self._request_buffer.readline_decoded()
+        try:
+            line = await self._request_buffer.readline_decoded()
+        except _TooLong as exc:
+            raise _RequestError(
+                http.HTTPStatus.REQUEST_URI_TOO_LONG,
+                str(exc),
+            ) from None
         if not line:
             return None
 
@@ -344,11 +354,18 @@ class _RequestQueue:
         self._parse_request_line(line, environ)
 
         headers = collections.defaultdict(list)
+        num_headers = 0
         while True:
-            line = await self._request_buffer.readline_decoded()
+            try:
+                line = await self._request_buffer.readline_decoded()
+            except _TooLong as exc:
+                raise _RequestError(
+                    http.HTTPStatus.REQUEST_HEADER_FIELDS_TOO_LARGE,
+                    str(exc),
+                ) from None
             if line in ('', '\r\n'):
                 break
-            if len(headers) == self._MAX_NUM_HEADERS:
+            if num_headers >= self._MAX_NUM_HEADERS:
                 raise _RequestError(
                     http.HTTPStatus.REQUEST_HEADER_FIELDS_TOO_LARGE,
                     'number of request headers exceeds %d' %
@@ -356,6 +373,7 @@ class _RequestQueue:
                 )
             name, value = self._parse_request_header(line)
             headers[name].append(value)
+            num_headers += 1
         for name, values in headers.items():
             environ[name] = ','.join(values)
 
@@ -375,7 +393,7 @@ class _RequestQueue:
             # this to NOT load the entire request body into the memory.
             if content_length > 65536:
                 raise _RequestError(
-                    http.HTTPStatus.BAD_REQUEST,
+                    http.HTTPStatus.REQUEST_ENTITY_TOO_LARGE,
                     'Content-Length exceeds limit: %d' % content_length,
                 )
             await self._request_buffer.read_into(request_body, content_length)
@@ -475,10 +493,7 @@ class _RequestBuffer:
                 ASSERT.in_(len(self._buffer), (0, 1))
                 return line
         if self._size > limit:
-            raise _RequestError(
-                http.HTTPStatus.REQUEST_URI_TOO_LONG,
-                'request line length exceeds %d' % limit,
-            )
+            raise _TooLong('request line length exceeds %d' % limit)
         if self._buffer:
             remaining = b''.join(self._buffer)
             self._buffer.clear()

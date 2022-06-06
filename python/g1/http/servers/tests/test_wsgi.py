@@ -3,6 +3,7 @@
 import unittest
 import unittest.mock
 
+import contextlib
 import http
 
 from g1.asyncs import kernels
@@ -525,6 +526,12 @@ class RequestQueueTest(unittest.TestCase):
         self.mock_sock.recv = unittest.mock.AsyncMock()
         self.request_queue = wsgi._RequestQueue(self.mock_sock, {})
 
+    @contextlib.contextmanager
+    def assert_http_error(self, status, pattern):
+        with self.assertRaisesRegex(wsgi._RequestError, pattern) as cm:
+            yield
+        self.assertIs(cm.exception.status, status)
+
     def get_request(self):
         environ = kernels.run(self.request_queue.get())
         if environ is None:
@@ -571,8 +578,8 @@ class RequestQueueTest(unittest.TestCase):
             ),
         )
 
-        with self.assertRaisesRegex(
-            wsgi._RequestError,
+        with self.assert_http_error(
+            http.HTTPStatus.BAD_REQUEST,
             r'invalid request line: \'some more data after the request\'',
         ):
             self.get_request()
@@ -587,6 +594,52 @@ class RequestQueueTest(unittest.TestCase):
         self.assertEqual(self.get_request(), (None, None))
         self.assertEqual(self.get_request(), (None, None))
         self.assertEqual(self.get_request(), (None, None))
+
+    @kernels.with_kernel
+    def test_get_request_414_request_uri_too_long(self):
+        self.mock_sock.recv.return_value = bytes(65536 + 1)
+        with self.assert_http_error(
+            http.HTTPStatus.REQUEST_URI_TOO_LONG,
+            r'request line length exceeds 65536',
+        ):
+            self.get_request()
+
+    @kernels.with_kernel
+    def test_get_request_431_request_header_fields_too_large_too_long(self):
+        self.mock_sock.recv.return_value = (
+            b'GET / HTTP/1.1\r\n' + bytes(65536 + 1)
+        )
+        with self.assert_http_error(
+            http.HTTPStatus.REQUEST_HEADER_FIELDS_TOO_LARGE,
+            r'request line length exceeds 65536',
+        ):
+            self.get_request()
+
+    @kernels.with_kernel
+    def test_get_request_431_request_header_fields_too_large_too_many(self):
+        lines = [b'GET / HTTP/1.1\r\n']
+        for _ in range(128 + 1):
+            lines.append(b'X: Y\r\n')
+        lines.append(b'\r\n')
+        self.mock_sock.recv.return_value = b''.join(lines)
+        with self.assert_http_error(
+            http.HTTPStatus.REQUEST_HEADER_FIELDS_TOO_LARGE,
+            r'number of request headers exceeds 128',
+        ):
+            self.get_request()
+
+    @kernels.with_kernel
+    def test_get_request_413_request_entity_too_large(self):
+        self.mock_sock.recv.return_value = (
+            b'GET / HTTP/1.1\r\n'
+            b'Content-Length: 65537\r\n'
+            b'\r\n'
+        )
+        with self.assert_http_error(
+            http.HTTPStatus.REQUEST_ENTITY_TOO_LARGE,
+            r'Content-Length exceeds limit: 65537',
+        ):
+            self.get_request()
 
     def test_parse_request_line(self):
         self.assertEqual(
@@ -621,8 +674,8 @@ class RequestQueueTest(unittest.TestCase):
             'POST HTTP/1.1\r\n',
         ]:
             with self.subTest(invalid_request_line):
-                with self.assertRaisesRegex(
-                    wsgi._RequestError,
+                with self.assert_http_error(
+                    http.HTTPStatus.BAD_REQUEST,
                     r'invalid request line: ',
                 ):
                     self.parse_request_line(invalid_request_line)
@@ -664,8 +717,8 @@ class RequestQueueTest(unittest.TestCase):
             'text/plain\r\n',
         ]:
             with self.subTest(invalid_header):
-                with self.assertRaisesRegex(
-                    wsgi._RequestError,
+                with self.assert_http_error(
+                    http.HTTPStatus.BAD_REQUEST,
                     r'invalid request header: ',
                 ):
                     self.parse_request_header(invalid_header)
@@ -772,7 +825,7 @@ class RequestBufferTest(unittest.TestCase):
         self.mock_sock.recv.side_effect = [data, b'']
         self.assert_buffer([], False)
         with self.assertRaisesRegex(
-            wsgi._RequestError,
+            wsgi._TooLong,
             r'request line length exceeds 15',
         ):
             self.readline_decoded(15)
