@@ -28,6 +28,7 @@ class CommandsTest(unittest.TestCase):
                 check=True,
                 cwd=unittest.mock.ANY,
                 input=None,
+                env=None,
             ) for args in args_list
         ])
 
@@ -78,6 +79,7 @@ class CommandsTest(unittest.TestCase):
                 check=False,
                 cwd=None,
                 input=b'123 foo',
+                env=None,
             ),
             unittest.mock.call(
                 ['sha256sum', '--check', '--status', '-'],
@@ -85,6 +87,7 @@ class CommandsTest(unittest.TestCase):
                 check=False,
                 cwd=None,
                 input=b'789 baz',
+                env=None,
             ),
             unittest.mock.call(
                 ['sha512sum', '--check', '--status', '-'],
@@ -92,6 +95,7 @@ class CommandsTest(unittest.TestCase):
                 check=False,
                 cwd=None,
                 input=b'456 bar',
+                env=None,
             ),
         ])
 
@@ -103,6 +107,7 @@ class CommandsTest(unittest.TestCase):
             check=True,
             cwd=None,
             input=b'bar',
+            env=None,
             stdout=subprocess.DEVNULL,
         )
 

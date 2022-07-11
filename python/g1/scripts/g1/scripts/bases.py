@@ -19,8 +19,9 @@ __all__ = [
     'doing_dry_run',
     'get_cwd',
     'get_dry_run',
-    'preserving_sudo_envs',
+    'preserving_sudo_envs',  # TODO: Rename to preserving_sudo_env.
     'using_cwd',
+    'using_env',
     'using_input',
     'using_relative_cwd',
     'using_prefix',
@@ -48,6 +49,7 @@ _CAPTURE_OUTPUT = 'capture_output'
 _CHECK = 'check'
 _CWD = 'cwd'
 _DRY_RUN = 'dry_run'
+_ENV = 'env'
 _INPUT = 'input'
 _PREFIX = 'prefix'
 _STDIN = 'stdin'
@@ -60,6 +62,7 @@ _DEFAULTS = {
     _CHECK: True,
     _CWD: None,
     _DRY_RUN: False,
+    _ENV: None,
     _INPUT: None,
     _PREFIX: (),
     _STDIN: None,
@@ -142,6 +145,14 @@ def using_relative_cwd(relative_cwd):
         return _using(_CWD, get_cwd() / relative_cwd)
 
 
+def using_env(env):
+    """Context of using an environment dict.
+
+    NOTE: This replaces, not merges, the environment dict.
+    """
+    return _using(_ENV, env)
+
+
 def using_input(input):  # pylint: disable=redefined-builtin
     return _using(_INPUT, input)
 
@@ -209,6 +220,7 @@ def _prepare_args(args):
 def _prepare_kwargs():
     kwargs = {
         'cwd': _get(_CWD),
+        'env': _get(_ENV),
     }
     # Work around subprocess.run limitation that it checks presence of
     # stdin, stdout, and stderr in kwargs, not whether their value is
