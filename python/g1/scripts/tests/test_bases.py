@@ -77,10 +77,16 @@ class BasesTest(unittest.TestCase):
     def test_using_sudo(self):
         self.do_test_using(bases.using_sudo, bases._SUDO, True, False)
 
-    def test_preserving_sudo_envs(self):
+    def test_preserving_sudo_env(self):
         self.do_test_using(
-            bases.preserving_sudo_envs, bases._SUDO_ENVS, [], ['X']
+            bases.preserving_sudo_env, bases._SUDO_ENV, [], ['X']
         )
+        with self.assertRaisesRegex(
+            AssertionError,
+            r'expect .* not containing \'PATH\'',
+        ):
+            with bases.preserving_sudo_env(['PATH']):
+                pass
 
     def do_test_using(self, using, name, value1, value2):
         self.assertEqual(bases._CONTEXT, {})
@@ -145,7 +151,7 @@ class BasesTest(unittest.TestCase):
             bases.doing_check(False), \
             bases.using_prefix(['ssh', 'localhost']), \
             bases.using_sudo(), \
-            bases.preserving_sudo_envs(['X', 'Y']), \
+            bases.preserving_sudo_env(['X', 'Y']), \
             bases.using_cwd(Path('foo')), \
             bases.using_env({'x': 'y'}) \
         :

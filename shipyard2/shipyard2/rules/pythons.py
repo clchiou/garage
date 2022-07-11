@@ -113,7 +113,7 @@ def _build(parameters, make_global_options):
     # `sudo --preserve-env` does not preserve PYTHONPATH (in case you
     # are curious, you may run `sudo sudo -V` to get the list of
     # preserved variables).
-    with scripts.using_sudo(), scripts.preserving_sudo_envs(['PYTHONPATH']):
+    with scripts.using_sudo(), scripts.preserving_sudo_env(['PYTHONPATH']):
         scripts.run([
             parameters['//third-party/cpython:pip'],
             'install',

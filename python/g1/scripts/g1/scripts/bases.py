@@ -19,7 +19,7 @@ __all__ = [
     'doing_dry_run',
     'get_cwd',
     'get_dry_run',
-    'preserving_sudo_envs',  # TODO: Rename to preserving_sudo_env.
+    'preserving_sudo_env',
     'using_cwd',
     'using_env',
     'using_input',
@@ -56,7 +56,7 @@ _STDIN = 'stdin'
 _STDOUT = 'stdout'
 _STDERR = 'stderr'
 _SUDO = 'sudo'
-_SUDO_ENVS = 'sudo_envs'
+_SUDO_ENV = 'sudo_env'
 _DEFAULTS = {
     _CAPTURE_OUTPUT: False,
     _CHECK: True,
@@ -69,7 +69,7 @@ _DEFAULTS = {
     _STDOUT: None,
     _STDERR: None,
     _SUDO: False,
-    _SUDO_ENVS: (),
+    _SUDO_ENV: (),
 }
 
 
@@ -177,8 +177,10 @@ def using_sudo(sudo=True):
     return _using(_SUDO, sudo)
 
 
-def preserving_sudo_envs(sudo_envs):
-    return _using(_SUDO_ENVS, sudo_envs)
+def preserving_sudo_env(sudo_env):
+    # Typically sudo is configured to reset PATH to a known good value
+    # via secure_path option.  So we forbid preserving PATH here.
+    return _using(_SUDO_ENV, ASSERT.not_contains(sudo_env, 'PATH'))
 
 
 def popen(args):
@@ -205,12 +207,12 @@ def run(args):
 def _prepare_args(args):
     args = list(map(str, args))
     if _get(_SUDO):
-        sudo_envs = _get(_SUDO_ENVS)
-        if sudo_envs:
-            preserve_envs_arg = ('--preserve-env=%s' % ','.join(sudo_envs), )
+        sudo_env = _get(_SUDO_ENV)
+        if sudo_env:
+            preserve_env_arg = ('--preserve-env=%s' % ','.join(sudo_env), )
         else:
-            preserve_envs_arg = ()
-        args[:0] = ['sudo', '--non-interactive', *preserve_envs_arg]
+            preserve_env_arg = ()
+        args[:0] = ['sudo', '--non-interactive', *preserve_env_arg]
     prefix = _get(_PREFIX)
     if prefix:
         args[:0] = prefix
