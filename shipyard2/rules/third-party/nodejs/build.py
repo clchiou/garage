@@ -17,8 +17,19 @@ shipyard2.rules.bases.define_archive(
 @foreman.rule.depend('//bases:build')
 @foreman.rule.depend('extract')
 def build(parameters):
-    scripts.export_path(
-        'PATH',
+    scripts.export_path('PATH', _get_bin_dir_path(parameters))
+
+
+@foreman.rule
+@foreman.rule.depend('//bases:build')
+@foreman.rule.depend('build')
+def install(parameters):
+    with scripts.using_sudo():
+        scripts.cp(_get_bin_dir_path(parameters) / 'node', '/usr/local/bin')
+
+
+def _get_bin_dir_path(parameters):
+    return (
         parameters['//bases:drydock'] / foreman.get_relpath() /
-        parameters['archive'].output / 'bin',
+        parameters['archive'].output / 'bin'
     )
