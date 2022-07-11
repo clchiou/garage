@@ -122,16 +122,17 @@ _INITIALIZE_BUILDER = (
 
 
 def _get_apps(parameters, builder_images, root_host_paths, rules):
-    builder_script = []
+    builder_script = ['set -o errexit']
     if not builder_images:
         LOG.info('no intermediate builder images; initialize builder')
         builder_script.extend(_INITIALIZE_BUILDER)
     if rules:
-        builder_script.append(
+        builder_script.extend([
             # For reasons that I do not understand, apt-get sometimes
             # cannot log its stdout/stderr to journal and will crash; so
             # we redirect everything to a file to work around this.
-            ' '.join([
+            'LOG_PATH="$(mktemp --tmpdir=/tmp build-XXXXXXXXXX.log)"',
+            'if ! ' + ' '.join([
                 'sudo',
                 *('-u', 'plumber'),
                 *('-g', 'plumber'),
@@ -142,9 +143,13 @@ def _get_apps(parameters, builder_images, root_host_paths, rules):
                 *('--parameter', '//bases:inside-builder-pod=true'),
                 *_foreman_make_parameters(parameters),
                 *map(str, rules),
-                '> "$(mktemp --tmpdir=/tmp build-XXXXXXXXXX.log)" 2>&1',
-            ])
-        )
+                '> "${LOG_PATH}" 2>&1',
+            ]),
+            'then echo "+ tail -100 ${LOG_PATH}"',
+            'tail -100 "${LOG_PATH}"',
+            'exit 1',
+            'fi',
+        ])
     ASSERT.not_empty(builder_script)
     return [
         {
