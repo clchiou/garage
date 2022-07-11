@@ -99,6 +99,18 @@ class CommandsTest(unittest.TestCase):
             ),
         ])
 
+    def test_which(self):
+        commands.which('hello')
+        self.subprocess_mock.run.assert_called_once_with(
+            ['which', 'hello'],
+            capture_output=False,
+            check=True,
+            cwd=None,
+            input=None,
+            env=None,
+            stdout=bases.subprocess.PIPE,
+        )
+
     def test_write_bytes(self):
         commands.write_bytes(b'bar', 'a/b/c')
         self.subprocess_mock.run.assert_called_once_with(

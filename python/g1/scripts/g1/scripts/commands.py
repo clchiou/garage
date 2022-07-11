@@ -9,6 +9,7 @@ __all__ = [
     'rm',
     'rmdir',
     'validate_checksum',
+    'which',
     'write_bytes',
     # Archive.
     'extract',
@@ -115,6 +116,11 @@ def _parse_checksum(checksum):
         if checksum.startswith(prefix):
             return command, checksum[len(prefix):]
     return ASSERT.unreachable('unknown checksum algorithm: {}', checksum)
+
+
+def which(name):
+    with bases.doing_capture_stdout():
+        return Path(bases.run(['which', name]).stdout.decode('utf-8').strip())
 
 
 def write_bytes(data, path):
