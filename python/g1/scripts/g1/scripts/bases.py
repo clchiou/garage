@@ -19,6 +19,7 @@ __all__ = [
     'doing_dry_run',
     'get_cwd',
     'get_dry_run',
+    'merging_env',
     'preserving_sudo_env',
     'using_cwd',
     'using_env',
@@ -33,6 +34,7 @@ __all__ = [
 
 import contextlib
 import logging
+import os
 import subprocess
 from pathlib import Path
 
@@ -151,6 +153,21 @@ def using_env(env):
     NOTE: This replaces, not merges, the environment dict.
     """
     return _using(_ENV, env)
+
+
+def merging_env(env):
+    """Context of merging an environment dict.
+
+    If the current `env` is None (which is the default), the given
+    environment dict will be merged with os.environ.
+    """
+    old_env, is_default = _get2(_ENV)
+    if env:
+        new_env = dict(os.environ if is_default else old_env)
+        new_env.update(env)
+        return using_env(new_env)
+    else:
+        return contextlib.nullcontext(old_env)
 
 
 def using_input(input):  # pylint: disable=redefined-builtin

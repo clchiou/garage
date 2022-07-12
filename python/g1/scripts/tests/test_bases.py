@@ -52,6 +52,45 @@ class BasesTest(unittest.TestCase):
     def test_using_env(self):
         self.do_test_using(bases.using_env, bases._ENV, {'x': 'y'}, {})
 
+    @unittest.mock.patch.object(bases, 'os')
+    def test_merging_env(self, mock_os):
+        mock_os.environ = {'PATH': '/bin'}
+
+        self.assertEqual(bases._CONTEXT, {})
+
+        with bases.merging_env(None) as old_env:
+            self.assertIsNone(old_env)
+            self.assertEqual(bases._CONTEXT, {})
+        self.assertEqual(bases._CONTEXT, {})
+
+        with bases.merging_env({}) as old_env:
+            self.assertIsNone(old_env)
+            self.assertEqual(bases._CONTEXT, {})
+        self.assertEqual(bases._CONTEXT, {})
+
+        expect_context_1 = {
+            bases._ENV: {
+                'PATH': '/bin',
+                'X': '0',
+                'Y': '1',
+            },
+        }
+        expect_context_2 = {
+            bases._ENV: {
+                'PATH': '/bin',
+                'X': '2',
+                'Y': '1',
+            },
+        }
+        with bases.merging_env({'X': '0', 'Y': '1'}) as old_env_1:
+            self.assertIsNone(old_env_1)
+            self.assertEqual(bases._CONTEXT, expect_context_1)
+            with bases.merging_env({'X': '2'}) as old_env_2:
+                self.assertEqual(old_env_2, expect_context_1[bases._ENV])
+                self.assertEqual(bases._CONTEXT, expect_context_2)
+            self.assertEqual(bases._CONTEXT, expect_context_1)
+        self.assertEqual(bases._CONTEXT, {})
+
     def test_using_input(self):
         self.do_test_using(bases.using_input, bases._INPUT, b'1', b'2')
         self.do_test_using(bases.using_input, bases._INPUT, b'1', None)
