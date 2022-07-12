@@ -21,13 +21,16 @@ DEFAULT_FILTERS = (
     # Do not leak any source codes to the application image.
     # Keep drydock path in sync with //bases:build.
     ('exclude', '/home/plumber/drydock'),
+    ('exclude', '/home/plumber/.cache'),
     ('exclude', '/home/plumber/.gradle'),
     ('exclude', '/home/plumber/.gsutil'),
+    ('exclude', '/home/plumber/.npm'),
     ('exclude', '/home/plumber/.python_history'),
     ('exclude', '/home/plumber/.vpython_cipd_cache'),
     ('exclude', '/home/plumber/.vpython-root'),
     ('exclude', '/home/plumber/.wget-hsts'),
     ('exclude', '/root/.cache'),
+    ('exclude', '/root/.npm'),
     ('exclude', '/usr/src'),
     # Include only relevant files under /etc.
     ('include', '/etc/'),
@@ -59,8 +62,11 @@ DEFAULT_FILTERS = (
     # image includes a base set of distro binaries).
     ('exclude', '/bin'),
     ('exclude', '/sbin'),
-    # We use distro java at the moment.
+    # For /usr/bin/...
+    # * Include dbus because it might get updated by, e.g., playwright.
+    # * Include java because we use distro java at the moment.
     ('include', '/usr/bin/'),
+    ('include', '/usr/bin/dbus-*'),
     ('include', '/usr/bin/java'),
     ('exclude', '/usr/bin/**'),
     ('exclude', '/usr/bin'),
