@@ -93,8 +93,7 @@ class BuildersTest(fixtures.TestCaseBase):
         self.assertEqual(
             unit_path.read_text(),
             '[Unit]\n'
-            'Conflicts=shutdown.target\n'
-            'Before=pod.target shutdown.target\n'
+            'After=pod.target\n'
             '\n'
             '[Service]\n'
             'Restart=no\n'
@@ -119,8 +118,7 @@ class BuildersTest(fixtures.TestCaseBase):
         self.assertEqual(
             (etc_path / 'hello-world-1.service').read_text(),
             '[Unit]\n'
-            'Conflicts=shutdown.target\n'
-            'Before=pod.target shutdown.target\n'
+            'After=pod.target\n'
             '\n'
             '[Service]\n'
             'Restart=no\n'
@@ -143,8 +141,7 @@ class BuildersTest(fixtures.TestCaseBase):
         self.assertEqual(
             (etc_path / 'hello-world-2.service').read_text(),
             '[Unit]\n'
-            'Conflicts=shutdown.target\n'
-            'Before=pod.target shutdown.target\n'
+            'After=pod.target\n'
             '\n'
             '[Service]\n'
             'ExecStart=/bin/echo hello world\n',

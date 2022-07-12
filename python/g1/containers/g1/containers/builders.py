@@ -311,8 +311,7 @@ LimitNOFILE=65536'''.format(
         service_section = app.service_section
     return '''\
 [Unit]
-Conflicts=shutdown.target
-Before=pod.target shutdown.target
+After=pod.target
 
 [Service]
 {service_section}
