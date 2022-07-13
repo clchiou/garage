@@ -70,6 +70,7 @@ def rsync(src_path, dst_path, rsync_args=()):
     scripts.run([
         'rsync',
         '--archive',
+        '--xattrs',
         *rsync_args,
         # Use the trailing slash trick.
         '%s/' % src_path,

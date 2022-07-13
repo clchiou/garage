@@ -538,6 +538,7 @@ def build_image(metadata, make_rootfs, output_path):
             *('--file', output_path),
             '--gzip',
             *('--directory', temp_output_dir_path),
+            *('--xattrs', '--xattrs-include=*'),
             _METADATA,
             _ROOTFS,
         ])
@@ -561,6 +562,7 @@ def _extract_image(archive_path, dst_dir_path):
         *('--file', '-'),
         *('--directory', dst_dir_path),
         *(('--same-owner', '--same-permissions') if i_am_root else ()),
+        *(('--xattrs', '--xattrs-include=*') if i_am_root else ()),
     ]) as proc:
         try:
             with gzip.open(archive_path, 'rb') as archive:

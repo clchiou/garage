@@ -115,6 +115,7 @@ def rsync_copy(src_path, dst_path, rsync_args=()):
     scripts.run([
         'rsync',
         '--archive',
+        '--xattrs',
         *rsync_args,
         # Trailing slash is an rsync trick.
         '%s/' % src_path,
