@@ -468,10 +468,16 @@ class Response:
             parser = _get_html_parser(
                 encoding or ASSERT.not_none(self.encoding)
             )
+        document = lxml.etree.fromstring(string, parser)
         # Check whether fromstring returns None because apparently
         # HTMLParser is more lenient than XMLParser and may cause
         # fromstring to return None on some malformed HTML input.
-        return ASSERT.not_none(lxml.etree.fromstring(string, parser))
+        if document is None:
+            raise AssertionError(
+                'lxml.etree.fromstring error: %s content=%r' %
+                (self.url, self.content)
+            )
+        return document
 
     def xml(self):
         """Parse response as an XML document."""
