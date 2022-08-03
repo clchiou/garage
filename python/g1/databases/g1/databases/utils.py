@@ -27,19 +27,19 @@ def add_if_not_exists_clause(index, connectable):
 
 
 @contextlib.contextmanager
-def executing(connectable, statement):
+def executing(connectable, statement, *args, **kwargs):
     if isinstance(connectable, sqlalchemy.engine.Connection):
         # Do NOT close Connection object that caller passes to us.
         ctx = contextlib.nullcontext(connectable)
     else:
         ctx = connectable.connect()
-    with ctx as conn:
-        # ResultProxy does not implement __enter__ and __exit__.
-        result = conn.execute(statement)
-        try:
-            yield result
-        finally:
-            result.close()
+    with \
+        ctx as conn, \
+        contextlib.closing(
+            conn.execute(statement, *args, **kwargs)
+        ) as result \
+    :
+        yield result
 
 
 # I don't know why but SQLAlchemy only make this available in ORM, not
