@@ -14,7 +14,9 @@ __all__ = [
     # Response statuses.
     'Statuses',
     # Response headers.
+    'HEADER_ACCEPT_LANGUAGE',
     'HEADER_ALLOW',
+    'HEADER_CONTENT_LANGUAGE',
     'HEADER_CONTENT_LENGTH',
     'HEADER_CONTENT_TYPE',
     'HEADER_DATE',
@@ -37,7 +39,9 @@ METHOD_POST = 'POST'
 METHOD_PUT = 'PUT'
 METHOD_TRACE = 'TRACE'
 
+HEADER_ACCEPT_LANGUAGE = 'Accept-Language'
 HEADER_ALLOW = 'Allow'
+HEADER_CONTENT_LANGUAGE = 'Content-Language'
 HEADER_CONTENT_LENGTH = 'Content-Length'
 HEADER_CONTENT_TYPE = 'Content-Type'
 HEADER_DATE = 'Date'

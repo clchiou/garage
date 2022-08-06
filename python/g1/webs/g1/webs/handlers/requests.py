@@ -2,10 +2,12 @@
 
 __all__ = [
     'RateLimiter',
+    'parse_accept_language',
 ]
 
 import logging
 import math
+import re
 import time
 
 from g1.bases import collections as g1_collections
@@ -103,3 +105,30 @@ class TokenBucket:
             self._bucket_size,
         )
         self._last_added = now
+
+
+ACCEPT_LANGUAGE_PATTERN = re.compile(
+    r'''
+    ([A-Za-z0-9-]+ | \*)
+    \s*
+    (?: ; \s* q = (0(?:\.[0-9]{,3})? | 1(?:\.0{,3})?))?
+    \s*
+    (?: , | $)
+    ''',
+    re.VERBOSE,
+)
+
+
+def parse_accept_language(request):
+    accept_language = []
+    value = request.get_header(consts.HEADER_ACCEPT_LANGUAGE)
+    if value is not None:
+        for match in ACCEPT_LANGUAGE_PATTERN.finditer(value):
+            language = match.group(1)
+            weight = match.group(2)
+            accept_language.append((
+                language.split('-') if language != '*' else language,
+                float(weight) if weight is not None else 1.0,
+            ))
+        accept_language.sort(key=lambda pair: pair[1], reverse=True)
+    return accept_language
