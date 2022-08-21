@@ -69,6 +69,9 @@ def make_create_engine_params(db_url=None, dialect=None, **kwargs):
             pragmas=parameters.Parameter(
                 kwargs.get('pragmas', ()), type=collections.abc.Iterable
             ),
+            temporary_database_hack=parameters.Parameter(
+                kwargs.get('temporary_database_hack', False), type=bool
+            ),
         )
 
     else:
@@ -96,6 +99,8 @@ def make_create_engine(params):
         kwargs['check_same_thread'] = params.check_same_thread.get()
         kwargs['trace'] = trace
         kwargs['pragmas'] = params.pragmas.get()
+        kwargs['temporary_database_hack'] = \
+            params.temporary_database_hack.get()
 
     else:
         ASSERT.unreachable('unsupported dialect: {}', dialect)

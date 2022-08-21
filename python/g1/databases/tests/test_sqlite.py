@@ -70,6 +70,38 @@ class CreateEngineTest(unittest.TestCase):
             r')',
         )
 
+    def test_temporary_database_hack(self):
+        with tempfile.NamedTemporaryFile() as f:
+            engine = sqlite.create_engine(
+                'sqlite:///%s' % f.name,
+                temporary_database_hack=True,
+            )
+            metadata, table = self.make_metadata()
+
+            with engine.connect() as conn:
+                metadata.create_all(conn)
+            with engine.connect() as conn:
+                self.assertEqual(
+                    conn.dialect.get_table_names(conn),
+                    ['test_table'],
+                )
+
+            with engine.connect() as conn:
+                conn.execute(
+                    table.insert(),
+                    [{
+                        'test_data': i
+                    } for i in range(10)],
+                )
+            with engine.connect() as conn:
+                self.assertEqual(
+                    conn.execute(table.select()).all(),
+                    [(i, ) for i in range(10)],
+                )
+
+            # Make sure engine does not write to the file.
+            self.assertEqual(Path(f.name).read_bytes(), b'')
+
 
 class AttachingTest(unittest.TestCase):
 

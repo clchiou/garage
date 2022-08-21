@@ -14,6 +14,7 @@ import re
 from pathlib import Path
 
 import sqlalchemy
+import sqlalchemy.pool
 
 from g1.bases.assertions import ASSERT
 
@@ -28,6 +29,7 @@ def create_engine(
     check_same_thread=True,
     trace=False,
     pragmas=(),
+    temporary_database_hack=False,
 ):
     ASSERT(
         DB_URL_PATTERN.fullmatch(db_url),
@@ -35,11 +37,22 @@ def create_engine(
         db_url,
     )
 
+    # SQLAlchemy (normally) cannot open temporary database because it
+    # treats empty path string as `:memory:`.  Let us use the
+    # `file:?uri=true` trick here.  (Note: Do not confuse temporary
+    # database with TEMP database; they are different things.)
+    if temporary_database_hack:
+        db_url = 'sqlite:///file:?uri=true'
+        poolclass = sqlalchemy.pool.StaticPool
+    else:
+        poolclass = None
+
     engine = sqlalchemy.create_engine(
         db_url,
         connect_args={
             'check_same_thread': check_same_thread,
         },
+        poolclass=poolclass,
     )
 
     # It would be better to call ``add_trace`` before ``config_db``.
