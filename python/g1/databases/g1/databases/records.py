@@ -175,8 +175,7 @@ class Records(collections.abc.Collection):
 
     def create_indices(self):
         for index in self._schema.make_indices():
-            stmt = utils.add_if_not_exists_clause(index, self._conn)
-            self._conn.execute(stmt)
+            index.create(self._conn, checkfirst=True)
 
     def __len__(self):
         # This works in both keyed and keyless schema.
@@ -228,7 +227,7 @@ class Records(collections.abc.Collection):
     def get(self, keys, default=None):
         self._schema.assert_keyed()
         stmt = self._schema.query_values_by_keys(keys)
-        row = utils.one_or_none(self._conn, stmt)
+        row = self._conn.execute(stmt).one_or_none()
         if row is None:
             return default
         else:

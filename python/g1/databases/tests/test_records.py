@@ -71,9 +71,10 @@ class RecordsSchemaTest(unittest.TestCase):
             r'^.*data BLOB NOT NULL,\s*$\n'
             r'^.*PRIMARY KEY \(key1, key2\)$\n'
             r'(?s:.*)'  # 's' makes '.' match multiple lines.
-            r'^.*CREATE INDEX IF NOT EXISTS '
+            r'^.*CREATE INDEX '
             r'index_test__key1__data ON test \(key1, data\)$\n'
-            r'^.*CREATE INDEX IF NOT EXISTS '
+            r'(?s:.*)'  # 's' makes '.' match multiple lines.
+            r'^.*CREATE INDEX '
             r'index_test__key2__data ON test \(key2, data\)$\n'
             r')',
         )
