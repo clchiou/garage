@@ -9,10 +9,13 @@ __all__ = [
     # Retry.
     'no_retry',
     'ExponentialBackoff',
+    # Cookie.
+    'BlockAllCookiePolicy',
 ]
 
 import collections
 import enum
+import http.cookiejar
 import logging
 import time
 
@@ -289,3 +292,23 @@ class ExponentialBackoff:
             return None
         else:
             return self._backoff_base * 2**retry_count
+
+
+class BlockAllCookiePolicy(http.cookiejar.CookiePolicy):
+
+    def set_ok(self, cookie, request):
+        return False
+
+    def return_ok(self, cookie, request):
+        return False
+
+    def domain_return_ok(self, domain, request):
+        return False
+
+    def path_return_ok(self, path, request):
+        return False
+
+    netscape = True
+
+    rfc2965 = False
+    hide_cookie2 = False

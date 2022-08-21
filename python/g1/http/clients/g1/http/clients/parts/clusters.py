@@ -2,6 +2,7 @@ from g1.apps import parameters
 from g1.apps import utils
 
 from .. import clusters
+from .. import policies
 from . import bases
 
 SESSION_LABEL_NAMES = (
@@ -48,12 +49,14 @@ def setup_stub(module_labels, module_params):
 
 def make_session_params(
     user_agent=bases.DEFAULT_USER_AGENT,
+    block_all_cookies=True,
     num_pools=0,
     num_connections_per_pool=0,
 ):
     return parameters.Namespace(
         'make HTTP cluster session',
         user_agent=parameters.Parameter(user_agent, type=str),
+        block_all_cookies=parameters.Parameter(block_all_cookies, type=bool),
         **bases.make_connection_pool_params_dict(
             num_pools=num_pools,
             num_connections_per_pool=num_connections_per_pool,
@@ -78,6 +81,8 @@ def make_session(params, stubs, executor):
     user_agent = params.user_agent.get()
     if user_agent:
         session.headers['User-Agent'] = user_agent
+    if params.block_all_cookies.get():
+        session.cookies.set_policy(policies.BlockAllCookiePolicy())
     return session
 
 
