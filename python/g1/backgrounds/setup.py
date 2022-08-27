@@ -26,6 +26,10 @@ setup(
             # Sadly setup.py cannot depend itself.
             # 'g1.backgrounds[executors,tasks]',
         ],
+        'multiprocessings': [
+            'g1.apps',
+            'g1.bases',
+        ],
         'tasks': [
             'g1.asyncs.agents[parts]',
             'g1.asyncs.bases',

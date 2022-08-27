@@ -33,6 +33,13 @@ shipyard2.rules.pythons.define_package(
             ],
         ),
         (
+            'multiprocessings',
+            [
+                '//python/g1/apps:build',
+                '//python/g1/bases:build',
+            ],
+        ),
+        (
             'tasks',
             [
                 '//python/g1/asyncs/agents:build/parts',
