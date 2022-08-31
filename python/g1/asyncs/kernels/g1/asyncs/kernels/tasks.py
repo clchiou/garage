@@ -18,6 +18,16 @@ LOG = logging.getLogger(__name__)
 ASSERT.greater_or_equal(sys.version_info, (3, 4))
 
 
+# Sentinel for when a coroutine is completed.
+class _Sentinel:
+
+    def __repr__(self):
+        return '<completed coroutine sentinel>'
+
+
+_SENTINEL = _Sentinel()
+
+
 class Task:
     """Task object.
 
@@ -134,6 +144,13 @@ class Task:
         self._call_callbacks()
         return None
 
+    @staticmethod
+    def _is_generator_exit_ignored(exc):
+        return (
+            isinstance(exc, RuntimeError)
+            and str(exc) == 'coroutine ignored GeneratorExit'
+        )
+
     def abort(self):
         """Close the running coroutine.
 
@@ -148,10 +165,7 @@ class Task:
         # when the coroutine cannot be aborted.
         ASSERT.none(self._tick(self._coroutine.close))
         if self._completed:
-            if (
-                isinstance(self._exception, RuntimeError)
-                and str(self._exception) == 'coroutine ignored GeneratorExit'
-            ):
+            if self._is_generator_exit_ignored(self._exception):
                 LOG.warning('task cannot be aborted: %r', self)
                 self._completed = False
                 self._exception = None
@@ -159,6 +173,7 @@ class Task:
                 self._call_callbacks()
         else:
             self._completed = True
+            self._coroutine = _SENTINEL
             self._exception = errors.Cancelled('task abort')
             self._call_callbacks()
 
@@ -168,13 +183,20 @@ class Task:
             return func(*args)
         except errors.TaskCancellation as exc:
             self._completed = True
+            self._coroutine = _SENTINEL
             self._exception = errors.Cancelled()
             self._exception.__cause__ = exc
         except StopIteration as exc:
             self._completed = True
+            self._coroutine = _SENTINEL
             self._result = exc.value
         except BaseException as exc:
             self._completed = True
+            # In `abort` we set self._completed back to False; so we
+            # should not destroy coroutine here when GeneratorExit is
+            # ignored.
+            if not self._is_generator_exit_ignored(exc):
+                self._coroutine = _SENTINEL
             self._exception = exc
         return None
 
