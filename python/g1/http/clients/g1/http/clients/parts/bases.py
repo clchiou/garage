@@ -1,5 +1,5 @@
 __all__ = [
-    'DEFAULT_USER_AGENT',
+    'DEFAULT_HEADERS',
     'make_connection_pool_params_dict',
     'make_params_dict',
     'make_rate_limit',
@@ -10,7 +10,7 @@ from g1.apps import parameters
 
 from .. import policies
 
-DEFAULT_USER_AGENT = 'Mozilla/5.0'
+DEFAULT_HEADERS = {'User-Agent': 'Mozilla/5.0'}
 
 
 def make_params_dict(
