@@ -47,6 +47,7 @@ class TestOnlyOneError:
 # Don't inherit from ``TestInterface`` because we intentionally leave
 # out ``f`` unimplemented.
 class TestApplication:
+    # pylint: disable=no-self-use
 
     async def greet(self, name):
         return 'Hello, %s' % name

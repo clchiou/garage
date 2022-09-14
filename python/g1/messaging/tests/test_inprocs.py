@@ -11,6 +11,7 @@ class InternalServerError(Exception):
 
 @reqrep.raising(InternalServerError)
 class TestInterface:
+    # pylint: disable=no-self-use
 
     @reqrep.raising(ZeroDivisionError)
     async def div(self, x: float, y: float) -> float:

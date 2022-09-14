@@ -43,6 +43,10 @@ class JsonWireData(wiredata.WireData):
     ``typing.Tuple``, ``typing.List``, ``typing.Set``,
     ``typing.FrozenSet``, and ``typing.Union``.
 
+    In addition, this supports ``typing.Dict``, which ``capnps`` does
+    not support natively.  Be careful when you switching from ``jsons``
+    to ``capnps``.
+
     Caveats:
 
     * This only supports simple exceptions; they are exceptions that can
@@ -91,6 +95,15 @@ class JsonWireData(wiredata.WireData):
                         value,
                     )
                 )
+
+            elif value_type.__origin__ is dict:
+                # JSON keys must be string-typed.
+                ASSERT.issubclass(value_type.__args__[0], str)
+                return {
+                    self._encode_value(value_type.__args__[0], pair[0]):
+                    self._encode_value(value_type.__args__[1], pair[1])
+                    for pair in value.items()
+                }
 
             elif typings.is_union_type(value_type):
 
@@ -189,6 +202,15 @@ class JsonWireData(wiredata.WireData):
                     )
                 )
 
+            elif value_type.__origin__ is dict:
+                # JSON keys must be string-typed.
+                ASSERT.issubclass(value_type.__args__[0], str)
+                return {
+                    self._decode_raw_value(value_type.__args__[0], pair[0]):
+                    self._decode_raw_value(value_type.__args__[1], pair[1])
+                    for pair in raw_value.items()
+                }
+
             elif typings.is_union_type(value_type):
 
                 # Handle ``None`` special case.
@@ -286,6 +308,15 @@ def _match_recursive_type(type_, value):
             len(value) == len(type_.__args__) and
             all(_match_recursive_type(t, v)
                 for t, v in zip(type_.__args__, value))
+        )
+
+    elif type_.__origin__ is dict:
+        return (
+            isinstance(value, dict) and all(
+                _match_recursive_type(type_.__args__[0], k)
+                and _match_recursive_type(type_.__args__[1], v)
+                for k, v in value.items()
+            )
         )
 
     elif typings.is_union_type(type_):

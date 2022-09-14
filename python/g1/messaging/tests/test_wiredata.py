@@ -43,6 +43,7 @@ class TestType:
     t: typing.Tuple[int, str]
     l: typing.List[typing.Union[int, str]]
     s: typing.Set[str]
+    d: typing.Dict[str, int]
     fs: typing.FrozenSet[str]
     u0: typing.Optional[SubType]
     u1: typing.Optional[SubType]
@@ -65,6 +66,10 @@ class JsonWireDataTest(unittest.TestCase):
         t=(1, 'some string'),
         l=[1, 2, 3, 'x', 'y', 'z'],
         s={'x'},
+        d={
+            'x': 1,
+            'y': 2,
+        },
         fs=frozenset(('x', )),
         u0=SubType(y=1, s='x'),
         u1=None,
@@ -121,6 +126,11 @@ class JsonWireDataTest(unittest.TestCase):
         ],
         # typing.Set[str]
         's': ['x'],
+        # typing.Dict[str, int]
+        'd': {
+            'x': 1,
+            'y': 2,
+        },
         # typing.FrozenSet[str]
         'fs': ['x'],
         # typing.Optional[SubType]
@@ -198,6 +208,13 @@ class JsonWireDataTest(unittest.TestCase):
             (typing.Set[str], set(('x', ))),
             (typing.FrozenSet[str], frozenset()),
             (typing.FrozenSet[str], frozenset(('x', ))),
+            (
+                typing.Dict[str, int],
+                {
+                    'x': 1,
+                    'y': 2,
+                },
+            ),
             (typing.Union[int, str], 0),
             (typing.Union[int, str], ''),
             (typing.Union[type(None), typing.Union[str, int]], 0),
@@ -214,6 +231,13 @@ class JsonWireDataTest(unittest.TestCase):
             (typing.Tuple[typing.Tuple[int]], (('', ), )),
             (typing.Set[str], set((1, ))),
             (typing.FrozenSet[str], frozenset((1, ))),
+            (
+                typing.Dict[str, int],
+                {
+                    1: 'x',
+                    2: 'y',
+                },
+            ),
             (typing.Union[int, str], ()),
             (typing.Union[type(None), typing.Union[str, int]], ()),
         ):
@@ -225,6 +249,15 @@ class JsonWireDataTest(unittest.TestCase):
             (typing.List[typing.List[int]], [], []),
             (typing.List[typing.List[int]], [[0], [1, 2]], [[0], [1, 2]]),
             (typing.Tuple[typing.Tuple[int]], ((0, ), ), ((0, ), )),
+            (
+                typing.Dict[str, typing.Tuple[int]],
+                {
+                    'x': (1, )
+                },
+                {
+                    'x': (1, ),
+                },
+            ),
             (
                 typing.Union[int, str],
                 'x',
@@ -259,6 +292,12 @@ class JsonWireDataTest(unittest.TestCase):
             self.json_wire_data._encode_value(
                 typing.Tuple[typing.Tuple[int]], ((0, 1), )
             )
+
+        with self.assertRaisesRegex(
+            AssertionError,
+            r'''expect subclass of <class 'str'>, not <class 'int'>''',
+        ):
+            self.json_wire_data._encode_value(typing.Dict[int, str], {1: 'x'})
 
 
 if __name__ == '__main__':

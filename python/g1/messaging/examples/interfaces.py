@@ -6,6 +6,7 @@ from g1.messaging.wiredata import jsons
 
 
 class Calculator:
+    # pylint: disable=no-self-use
 
     async def add(self, x: float, y: float) -> float:
         del self  # Unused.
