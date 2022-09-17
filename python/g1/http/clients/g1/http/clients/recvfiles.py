@@ -105,9 +105,8 @@ async def recvfile(response, file):
     # after recvfile.
     response.close()
 
-    loggings.ONCE_PER(
-        1000, LOG.info, 'buffer pool stats: %r', _BUFFER_POOL.get_stats()
-    )
+    if loggings.ONCE_PER.check(1000):
+        LOG.info('buffer pool stats: %r', _BUFFER_POOL.get_stats())
 
 
 class DecoderChain:
