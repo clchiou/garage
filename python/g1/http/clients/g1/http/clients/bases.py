@@ -5,6 +5,7 @@ __all__ = [
     'Sender',
 ]
 
+import dataclasses
 import functools
 import itertools
 import json
@@ -23,6 +24,7 @@ from g1.asyncs.bases import tasks
 from g1.asyncs.bases import timers
 from g1.bases import classes
 from g1.bases import collections as g1_collections
+from g1.bases import loggings
 from g1.bases.assertions import ASSERT
 from g1.threads import executors
 
@@ -35,6 +37,13 @@ LOG = logging.getLogger(__name__)
 class Sender:
     """Request sender with local cache, rate limit, and retry."""
 
+    # This is mutable.  Be sure to return a copy to external users.
+    @dataclasses.dataclass
+    class CacheStats:
+        num_hits: int
+        num_misses: int
+        num_revalidations: int
+
     def __init__(
         self,
         send,
@@ -46,7 +55,9 @@ class Sender:
     ):
         self._send = send
         self._cache = g1_collections.LruCache(cache_size)
+        self._cache_stats = self.CacheStats(0, 0, 0)
         self._unbounded_cache = {}
+        self._unbounded_cache_stats = self.CacheStats(0, 0, 0)
         self._circuit_breakers = circuit_breakers or policies.NO_BREAK
         self._rate_limit = rate_limit or policies.unlimited
         self._retry = retry or policies.no_retry
@@ -119,19 +130,34 @@ class Sender:
         ASSERT.unreachable('retry loop should not break')
 
     async def _try_cache(self, cache, key, revalidate, request, kwargs):
+        if cache is self._cache:
+            log_prefix = ''
+            cache_stats = self._cache_stats
+        else:
+            log_prefix = 'sticky '
+            cache_stats = self._unbounded_cache_stats
         task = cache.get(key)
         if task is None:
             task = cache[key] = tasks.spawn(self(request, **kwargs))
             result = 'miss'
+            cache_stats.num_misses += 1
         elif revalidate:
             task = cache[key] = tasks.spawn(self(request, **kwargs))
             result = 'revalidate'
+            cache_stats.num_revalidations += 1
         else:
             result = 'hit'
+            cache_stats.num_hits += 1
         LOG.debug(
             'send: cache %s: key=%r, %r, kwargs=%r', \
             result, key, request, kwargs,
         )
+        if loggings.ONCE_PER.check(1000):
+            LOG.info(
+                '%sresponse cache stats: %r',
+                log_prefix,
+                dataclasses.replace(cache_stats),  # Make a copy.
+            )
         # Here is a risk that, if all task waiting for this task get
         # cancelled before this task completes, this task might not
         # be joined, but this risk is probably too small.

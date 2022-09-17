@@ -180,28 +180,58 @@ class SessionTest(TestCaseBase):
             kernels.run(session.send(self.REQUEST))
         self.mock_session.get.assert_called_once_with(self.URL)
 
+    def _assert_cache_stats(
+        self, cache_stats, num_hits, num_misses, num_revalidations
+    ):
+        self.assertEqual(
+            cache_stats,
+            bases.Sender.CacheStats(
+                num_hits=num_hits,
+                num_misses=num_misses,
+                num_revalidations=num_revalidations,
+            ),
+        )
+
+    def assert_cache_stats(self, session, *args):
+        self._assert_cache_stats(session._sender._cache_stats, *args)
+
+    def assert_sticky_cache_stats(self, session, *args):
+        self._assert_cache_stats(session._sender._unbounded_cache_stats, *args)
+
     @kernels.with_kernel
     def test_cache_key(self):
         session = clients.Session(executor=self.executor)
+        self.assert_cache_stats(session, 0, 0, 0)
+        self.assert_sticky_cache_stats(session, 0, 0, 0)
         self.set_mock_response(200)
         response = kernels.run(session.send(self.REQUEST, cache_key='x'))
-        for _ in range(3):
+        self.assert_cache_stats(session, 0, 1, 0)
+        self.assert_sticky_cache_stats(session, 0, 0, 0)
+        for i in range(3):
             self.assertIs(
                 kernels.run(session.send(self.REQUEST, cache_key='x')),
                 response,
             )
+            self.assert_cache_stats(session, i + 1, 1, 0)
+            self.assert_sticky_cache_stats(session, 0, 0, 0)
         self.mock_session.get.assert_called_once_with(self.URL)
 
     @kernels.with_kernel
     def test_sticky_key(self):
         session = clients.Session(executor=self.executor)
+        self.assert_cache_stats(session, 0, 0, 0)
+        self.assert_sticky_cache_stats(session, 0, 0, 0)
         self.set_mock_response(200)
         response = kernels.run(session.send(self.REQUEST, sticky_key='y'))
-        for _ in range(3):
+        self.assert_cache_stats(session, 0, 0, 0)
+        self.assert_sticky_cache_stats(session, 0, 1, 0)
+        for i in range(3):
             self.assertIs(
                 kernels.run(session.send(self.REQUEST, sticky_key='y')),
                 response,
             )
+            self.assert_cache_stats(session, 0, 0, 0)
+            self.assert_sticky_cache_stats(session, i + 1, 1, 0)
         self.mock_session.get.assert_called_once_with(self.URL)
 
     @kernels.with_kernel
@@ -215,13 +245,17 @@ class SessionTest(TestCaseBase):
     @kernels.with_kernel
     def test_cache_revalidate(self):
         session = clients.Session(executor=self.executor)
+        self.assert_cache_stats(session, 0, 0, 0)
+        self.assert_sticky_cache_stats(session, 0, 0, 0)
         self.set_mock_response(200)
-        for _ in range(3):
+        for i in range(3):
             kernels.run(
                 session.send(
                     self.REQUEST, cache_key='x', cache_revalidate=True
                 )
             )
+            self.assert_cache_stats(session, 0, 1, i)
+            self.assert_sticky_cache_stats(session, 0, 0, 0)
         self.mock_session.get.assert_has_calls([
             unittest.mock.call(self.URL),
             unittest.mock.call().close(),
