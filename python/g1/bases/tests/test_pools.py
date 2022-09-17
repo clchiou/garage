@@ -111,7 +111,7 @@ class TimeoutPoolTest(unittest.TestCase):
         self.pool.return_(3)
         self.assert_pool([(0, 1000), (1, 1100), (2, 1200), (3, 1300)], 4, 4, 4)
 
-        # Test `get` returning the most recently released resource.
+        # Test `get` returning the most recently returned resource.
         mock_monotonic.return_value = 1400
         self.assertEqual(self.pool.get(), 3)
         self.assert_pool([(1, 1100), (2, 1200)], 4, 3, 4)
@@ -169,7 +169,7 @@ class TimeoutPoolTest(unittest.TestCase):
             self.assert_pool([(1, 1001)], 2, 2, 2)
         self.assert_pool([(1, 1001), (0, 1001)], 2, 2, 2)
 
-        # Test `get` returning the most recently released resource.
+        # Test `get` returning the most recently returned resource.
         for _ in range(3):
             with self.pool.using() as r0:
                 self.assertEqual(r0, 0)
@@ -496,7 +496,7 @@ class ProcessActorTest(unittest.TestCase):
             self.assertEqual(stub.apply(func, 10, z=100), 114)
 
             with self.assertRaisesRegex(
-                TypeError, r'cannot pickle \'_io\.TextIOWrapper\' object'
+                TypeError, r'cannot pickle \'_io\.BufferedReader\' object'
             ):
                 stub.m.not_pickle_able('/dev/null')
 
@@ -566,7 +566,7 @@ class Acc:
 
     @staticmethod
     def not_pickle_able(path):
-        with open(path) as f:
+        with open(path, 'rb') as f:
             return f
 
 

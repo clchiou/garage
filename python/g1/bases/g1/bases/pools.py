@@ -99,8 +99,8 @@ class TimeoutPool:
                 self._num_concurrent_resources, self._max_concurrent_resources
             )
         else:
-            # Return the most recently released resource so that the
-            # less recently released resources may grow older and then
+            # Return the most recently returned resource so that the
+            # less recently returned resources may grow older and then
             # released eventually.
             resource = self._pool.pop()[0]
             max_concurrent_resources = self._max_concurrent_resources
@@ -118,8 +118,8 @@ class TimeoutPool:
     def return_(self, resource):
         """Return the resource to the pool.
 
-        The pool will release resources for resources that exceed the
-        timeout, or when the pool is full.
+        The pool will release resources that exceed the timeout, or when
+        the pool is full.
         """
         now = time.monotonic()
         self._pool.append((resource, now))
@@ -142,16 +142,16 @@ class TimeoutPool:
                 len(self._pool) > self._pool_size
                 or self._pool[0][1] < deadline
             ):
-                self._release_least_recently_released_resource()
+                self._release_least_recently_returned_resource()
             else:
                 break
 
     def close(self):
         """Release all resources in the pool."""
         while self._pool:
-            self._release_least_recently_released_resource()
+            self._release_least_recently_returned_resource()
 
-    def _release_least_recently_released_resource(self):
+    def _release_least_recently_returned_resource(self):
         self._num_concurrent_resources -= 1
         self._release(self._pool.popleft()[0])
 
