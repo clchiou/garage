@@ -334,10 +334,23 @@ class Isolate : public ContextManagerMixin<v8::Isolate> {
 Re-entering an isolate is allowed.)";
   class Scope {
    public:
-    explicit Scope(const Isolate& isolate) : isolate_(isolate.Get()) {}
+    explicit Scope(const Isolate& isolate) : isolate_(isolate.Get()), depth_(0) {}
 
-    void Enter() { isolate_->Enter(); }
-    void Exit(EXIT_ARGS()) { isolate_->Exit(); }
+    void Enter() {
+      if (v8::Locker::IsActive() && !v8::Locker::IsLocked(isolate_)) {
+        locker_ = std::make_shared<v8::Locker>(isolate_);
+      }
+      isolate_->Enter();
+      depth_++;
+    }
+
+    void Exit(EXIT_ARGS()) {
+      isolate_->Exit();
+      depth_--;
+      if (depth_ == 0) {
+        locker_.reset();
+      }
+    }
 
    private:
     // NOTE: We deliberately take a raw pointer here rather than Isolate
@@ -346,6 +359,15 @@ Re-entering an isolate is allowed.)";
     // that a leaked or retained Scope object might access an invalid
     // v8::Isolate pointer.
     v8::Isolate* isolate_;
+
+    // TODO: V8 had an idiosyncrasy that, if an isolate uses a locker,
+    // all isolates are forced to use a locker.  Fortunately this is
+    // fixed in:
+    // https://chromium-review.googlesource.com/c/v8/v8/+/3401595
+    //
+    // Remove these after we upgrade V8.
+    std::shared_ptr<v8::Locker> locker_;
+    int depth_;
   };
 
   static int num_alive;
@@ -365,6 +387,7 @@ Re-entering an isolate is allowed.)";
   friend class Context;
   friend class GlobalContext;
   friend class HandleScope;
+  friend class Locker;
 
   static void Dispose(v8::Isolate* isolate) {
     isolate->Dispose();
@@ -375,6 +398,25 @@ Re-entering an isolate is allowed.)";
 };
 
 int Isolate::num_alive = 0;
+
+static constexpr const char* LockerDoc = R"(Wrapper of v8::Locker.)";
+class Locker {
+ public:
+  explicit Locker(const Isolate& isolate) : isolate_(isolate.Get()) {}
+
+  void Enter() {
+    if (locker_) {
+      throw std::runtime_error("this locker is already locking an isolate");
+    }
+    locker_ = std::make_shared<v8::Locker>(isolate_);
+  }
+
+  void Exit(EXIT_ARGS()) { locker_.reset(); }
+
+ private:
+  v8::Isolate* isolate_;
+  std::shared_ptr<v8::Locker> locker_;
+};
 
 static constexpr const char* HandleScopeDoc =
     R"(Wrapper of v8::HandleScope.
@@ -1085,6 +1127,16 @@ BOOST_PYTHON_MODULE(_v8) {
         .setattr("__qualname__", "Isolate.Scope")
         .ENTER(v8_python::Isolate::Scope)
         .EXIT(v8_python::Isolate::Scope);
+  }
+
+  {
+    boost::python::class_<v8_python::Locker>("Locker", v8_python::LockerDoc,
+                                             INIT(const v8_python::Isolate&, isolate))
+        // TODO: Remove this after we upgrade V8.
+        .def("is_active", &v8::Locker::IsActive)
+        .staticmethod("is_active")
+        .ENTER(v8_python::Locker)
+        .EXIT(v8_python::Locker);
   }
 
   {

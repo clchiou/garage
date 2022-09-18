@@ -5,6 +5,7 @@ __all__ = [
     'HandleScope',
     'Isolate',
     'JavaScriptError',
+    'Locker',
     'Object',
     'Script',
     'UNDEFINED',
@@ -31,6 +32,7 @@ from ._v8 import Context
 from ._v8 import GlobalContext
 from ._v8 import HandleScope
 from ._v8 import Isolate
+from ._v8 import Locker
 from ._v8 import Object
 from ._v8 import Script
 from ._v8 import UNDEFINED
