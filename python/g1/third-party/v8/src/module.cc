@@ -332,7 +332,7 @@ class Isolate : public ContextManagerMixin<v8::Isolate> {
       R"(Helper context manager that enters and exits an isolate.
 
 Re-entering an isolate is allowed.)";
-  class Scope : public ContextManagerMixin<v8::Isolate::Scope> {
+  class Scope {
    public:
     explicit Scope(const Isolate& isolate) : isolate_(isolate.Get()) {}
 
