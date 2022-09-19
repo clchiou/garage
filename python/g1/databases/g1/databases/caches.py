@@ -3,6 +3,7 @@ __all__ = [
 ]
 
 import dataclasses
+import logging
 import threading
 import time
 
@@ -17,9 +18,12 @@ from sqlalchemy import (
     select,
 )
 
+from g1.bases import timers
 from g1.bases.assertions import ASSERT
 
 from . import sqlite
+
+LOG = logging.getLogger(__name__)
 
 # By default we keep 80% of entries post eviction.
 POST_EVICTION_SIZE_RATIO = 0.8
@@ -115,6 +119,16 @@ class Cache:
             return self._evict_require_lock_by_caller(conn, None)
 
     def _evict_require_lock_by_caller(self, conn, key):
+        with timers.measuring_duration() as get_duration:
+            num_evicted = self._do_evict_require_lock_by_caller(conn, key)
+        LOG.info(
+            'evict %d entries in %f seconds',
+            num_evicted,
+            get_duration(),
+        )
+        return num_evicted
+
+    def _do_evict_require_lock_by_caller(self, conn, key):
         # SQLite supports non-standard LIMIT and ORDER BY clause in a
         # DELETE statement, but SQLAlchemy does not.  So here we might
         # "over evict" rows if time.monotonic_ns is not strictly
