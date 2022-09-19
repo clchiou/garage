@@ -118,9 +118,9 @@ class Cache:
         with self._lock, self._engine.begin() as conn:
             return self._evict_require_lock_by_caller(conn, None)
 
-    def _evict_require_lock_by_caller(self, conn, key):
+    def _evict_require_lock_by_caller(self, conn, keys):
         with timers.measuring_duration() as get_duration:
-            num_evicted = self._do_evict_require_lock_by_caller(conn, key)
+            num_evicted = self._do_evict_require_lock_by_caller(conn, keys)
         LOG.info(
             'evict %d entries in %f seconds',
             num_evicted,
@@ -128,7 +128,7 @@ class Cache:
         )
         return num_evicted
 
-    def _do_evict_require_lock_by_caller(self, conn, key):
+    def _do_evict_require_lock_by_caller(self, conn, keys):
         # SQLite supports non-standard LIMIT and ORDER BY clause in a
         # DELETE statement, but SQLAlchemy does not.  So here we might
         # "over evict" rows if time.monotonic_ns is not strictly
@@ -143,8 +143,8 @@ class Cache:
         if used_at is None:
             return 0
         stmt = self._table.delete().where(self._table.c.used_at <= used_at)
-        if key is not None:
-            stmt = stmt.where(self._table.c.key != key)
+        if keys is not None:
+            stmt = stmt.where(self._table.c.key.not_in(keys))
         return conn.execute(stmt).rowcount
 
     def get(self, key: str, default=None):
@@ -166,16 +166,19 @@ class Cache:
 
     def set(self, key: str, value: bytes):
         with self._lock, self._engine.begin() as conn:
-            conn.execute(
-                sqlite.upsert(self._table)\
-                .values(
-                    key=key,
-                    value=value,
-                    used_at=time.monotonic_ns(),
-                )
-            )
+            self._set_require_lock_by_caller(conn, key, value)
             if self._get_size_require_lock_by_caller(conn) > self._capacity:
-                self._evict_require_lock_by_caller(conn, key)
+                self._evict_require_lock_by_caller(conn, [key])
+
+    def _set_require_lock_by_caller(self, conn, key, value):
+        conn.execute(
+            sqlite.upsert(self._table)\
+            .values(
+                key=key,
+                value=value,
+                used_at=time.monotonic_ns(),
+            )
+        )
 
     def pop(self, key: str, default=_SENTINEL):
         with self._lock, self._engine.begin() as conn:
@@ -192,3 +195,20 @@ class Cache:
                 .where(self._table.c.key == key)
             )
             return value
+
+    def update(self, iterable=None, /, **kwargs):
+        with self._lock, self._engine.begin() as conn:
+            if iterable is not None:
+                iterkeys = getattr(iterable, 'keys', None)
+                if iterkeys is not None:
+                    items = ((key, iterable[key]) for key in iterkeys())
+                else:
+                    items = iterable
+            else:
+                items = kwargs.items()
+            keys = []
+            for key, value in items:
+                self._set_require_lock_by_caller(conn, key, value)
+                keys.append(key)
+            if self._get_size_require_lock_by_caller(conn) > self._capacity:
+                self._evict_require_lock_by_caller(conn, keys)

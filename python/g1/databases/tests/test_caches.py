@@ -61,6 +61,50 @@ class CacheTest(unittest.TestCase):
         self.assert_stats(cache, 2, 1)
 
     @unittest.mock.patch.object(caches, 'time')
+    def test_update(self, mock_time):
+        mock_time.monotonic_ns.side_effect = itertools.count(1000)
+
+        cache = caches.Cache(10, post_eviction_size=8)
+        self.assert_rows(cache, [])
+        self.assert_stats(cache, 0, 0)
+
+        cache.update([('0', b'0'), ('1', b'1')])
+        self.assert_rows(
+            cache,
+            [('%d' % i, b'%d' % i, 1000 + i) for i in range(2)],
+        )
+        self.assert_stats(cache, 0, 0)
+
+        cache.update({'2': b'2', '3': b'3'})
+        self.assert_rows(
+            cache,
+            [('%d' % i, b'%d' % i, 1000 + i) for i in range(4)],
+        )
+        self.assert_stats(cache, 0, 0)
+
+        cache.update(**{'4': b'4', '5': b'5'})
+        self.assert_rows(
+            cache,
+            [('%d' % i, b'%d' % i, 1000 + i) for i in range(6)],
+        )
+        self.assert_stats(cache, 0, 0)
+
+        # Trigger an eviction.  The newly added rows are not evicted.
+        cache.update([('%d' % i, b'%d' % i) for i in range(6, 20)])
+        self.assert_rows(
+            cache,
+            [('%d' % i, b'%d' % i, 1000 + i) for i in range(6, 20)],
+        )
+        self.assert_stats(cache, 0, 0)
+
+        self.assertEqual(cache.evict(), 6)
+        self.assert_rows(
+            cache,
+            [('%d' % i, b'%d' % i, 1000 + i) for i in range(12, 20)],
+        )
+        self.assert_stats(cache, 0, 0)
+
+    @unittest.mock.patch.object(caches, 'time')
     def test_evict(self, mock_time):
         mock_time.monotonic_ns.side_effect = itertools.count(1000)
 
