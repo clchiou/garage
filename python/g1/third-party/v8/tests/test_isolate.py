@@ -51,7 +51,7 @@ class IsolateTest(unittest.TestCase):
         self.assertFalse(v8.Locker.is_active())
         with self.assertRaises(v8.JavaScriptError):
             with v8.Isolate() as isolate:
-                self.call_target(isolate, contextlib.nullcontext())
+                self.call(return_42, isolate, contextlib.nullcontext())
 
         with v8.Isolate() as isolate:
             with v8.Locker(isolate) as locker:
@@ -66,29 +66,54 @@ class IsolateTest(unittest.TestCase):
         self.assertTrue(v8.Locker.is_active())
         with v8.Isolate() as isolate:
             self.assertEqual(
-                self.call_target(isolate, contextlib.nullcontext()),
+                self.call(return_42, isolate, contextlib.nullcontext()),
                 42,
             )
 
         with v8.Isolate() as isolate:
             self.assertEqual(
-                self.call_target(isolate, v8.Locker(isolate)),
+                self.call(return_42, isolate, v8.Locker(isolate)),
                 42,
             )
 
+        # Test global context.
+        with contextlib.ExitStack() as exit_stack:
+            isolate = exit_stack.enter_context(v8.Isolate())
+            with \
+                v8.Locker(isolate), \
+                isolate.scope(), \
+                v8.HandleScope(isolate) \
+            :
+                with v8.Context(isolate) as c1:
+                    c1['x'] = 42
+                    g1 = exit_stack.enter_context(
+                        v8.GlobalContext(isolate, c1)
+                    )
+                with v8.Context(isolate) as c2:
+                    c2['x'] = 99
+                    g2 = exit_stack.enter_context(
+                        v8.GlobalContext(isolate, c2)
+                    )
+
+            self.assertEqual(self.call(global_context_get, isolate, g1), 42)
+            self.assertEqual(self.call(global_context_get, isolate, g2), 99)
+            self.call(global_context_set, isolate, g1, 43)
+            self.assertEqual(self.call(global_context_get, isolate, g1), 43)
+            self.assertEqual(self.call(global_context_get, isolate, g2), 99)
+
     @staticmethod
-    def call_target(isolate, locker):
+    def call(target, *args):
         f = futures.Future()
         t = threading.Thread(
             target=futures.wrap_thread_target(target, f),
-            args=(isolate, locker),
+            args=args,
         )
         t.start()
         t.join()
         return f.get_result()
 
 
-def target(isolate, locker):
+def return_42(isolate, locker):
     with \
         locker, \
         isolate.scope(), \
@@ -97,6 +122,24 @@ def target(isolate, locker):
     :
         v8.run(context, 'var x = 42;')
         return context['x']
+
+
+def global_context_get(isolate, global_context):
+    with \
+        v8.Locker(isolate), \
+        isolate.scope(), \
+        v8.HandleScope(isolate) \
+    :
+        return global_context.get(isolate)['x']
+
+
+def global_context_set(isolate, global_context, new_x):
+    with \
+        v8.Locker(isolate), \
+        isolate.scope(), \
+        v8.HandleScope(isolate) \
+    :
+        global_context.get(isolate)['x'] = new_x
 
 
 if __name__ == '__main__':
