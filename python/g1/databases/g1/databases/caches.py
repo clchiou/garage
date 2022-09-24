@@ -19,6 +19,7 @@ from sqlalchemy import (
 )
 
 from g1.bases import timers
+from g1.bases import times
 from g1.bases.assertions import ASSERT
 
 from . import sqlite
@@ -45,6 +46,7 @@ def make_table(metadata):
         Column('key', String, nullable=False, primary_key=True),
         Column('value', LargeBinary, nullable=False),
         Column('used_at', Integer, nullable=False, index=True),
+        Column('written_at', Integer, nullable=False, index=True),
     )
 
 
@@ -71,6 +73,7 @@ class Cache:
         engine=None,  # This must be temporary.
         metadata=None,
         post_eviction_size=None,
+        expire_after_write=None,
     ):
         self._lock = threading.Lock()
 
@@ -85,6 +88,16 @@ class Cache:
             self._capacity,
             self._post_eviction_size,
         )
+        if expire_after_write is None:
+            self._expire_after_write = None
+        else:
+            self._expire_after_write = int(
+                times.convert(
+                    times.Units.SECONDS,
+                    times.Units.NANOSECONDS,
+                    ASSERT.greater_or_equal(expire_after_write, 0),
+                )
+            )
 
         self._engine = create_engine() if engine is None else engine
         if metadata is None:
@@ -147,36 +160,66 @@ class Cache:
             stmt = stmt.where(self._table.c.key.not_in(keys))
         return conn.execute(stmt).rowcount
 
+    def _expire_require_lock_by_caller(self, conn, now):
+        with timers.measuring_duration() as get_duration:
+            num_expired = self._do_expire_require_lock_by_caller(conn, now)
+        LOG.info(
+            'expire %d entries in %f seconds',
+            num_expired,
+            get_duration(),
+        )
+        return num_expired
+
+    def _do_expire_require_lock_by_caller(self, conn, now):
+        return conn.execute(
+            self._table.delete().where(\
+                self._table.c.written_at <=
+                now - ASSERT.not_none(self._expire_after_write)
+            )
+        ).rowcount
+
     def get(self, key: str, default=None):
         with self._lock, self._engine.begin() as conn:
-            value = conn.execute(
-                select([self._table.c.value])\
+            row = conn.execute(
+                select([self._table.c.value, self._table.c.written_at])\
                 .where(self._table.c.key == key)
-            ).scalar()
-            if value is None:
+            ).one_or_none()
+            if row is None:
+                self._num_misses += 1
+                return default
+            value, written_at = row
+            now = time.monotonic_ns()
+            if (
+                self._expire_after_write is not None
+                and written_at + self._expire_after_write <= now
+            ):
+                self._expire_require_lock_by_caller(conn, now)
                 self._num_misses += 1
                 return default
             conn.execute(
                 self._table.update()\
                 .where(self._table.c.key == key)
-                .values(used_at=time.monotonic_ns())
+                .values(used_at=now)
             )
             self._num_hits += 1
             return value
 
     def set(self, key: str, value: bytes):
         with self._lock, self._engine.begin() as conn:
-            self._set_require_lock_by_caller(conn, key, value)
+            self._set_require_lock_by_caller(
+                conn, key, value, time.monotonic_ns()
+            )
             if self._get_size_require_lock_by_caller(conn) > self._capacity:
                 self._evict_require_lock_by_caller(conn, [key])
 
-    def _set_require_lock_by_caller(self, conn, key, value):
+    def _set_require_lock_by_caller(self, conn, key, value, now):
         conn.execute(
             sqlite.upsert(self._table)\
             .values(
                 key=key,
                 value=value,
-                used_at=time.monotonic_ns(),
+                used_at=now,
+                written_at=now,
             )
         )
 
@@ -207,8 +250,9 @@ class Cache:
             else:
                 items = kwargs.items()
             keys = []
+            now = time.monotonic_ns()
             for key, value in items:
-                self._set_require_lock_by_caller(conn, key, value)
+                self._set_require_lock_by_caller(conn, key, value, now)
                 keys.append(key)
             if self._get_size_require_lock_by_caller(conn) > self._capacity:
                 self._evict_require_lock_by_caller(conn, keys)
