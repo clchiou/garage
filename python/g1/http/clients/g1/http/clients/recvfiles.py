@@ -3,9 +3,9 @@ __all__ = [
 ]
 
 import contextlib
+import enum
 import http.client
 import logging
-import re
 import socket
 
 from g1.asyncs.bases import adapters
@@ -76,7 +76,7 @@ async def recvfile(response, file):
             if chunked:
                 # TODO: If server sends more data at the end, like
                 # response of the next request, for now recvfile might
-                # read them, and then err out.  Maybe recvfile should
+                # read them and then ignore them.  Maybe recvfile should
                 # check this, and not read more than it should instead?
                 num_read = await src.readinto1(buffer)
             else:
@@ -139,19 +139,33 @@ class DecoderChain:
 
 class ChunkDecoder:
 
-    _CRLF_PATTERN = re.compile(br'\r\n')
+    class _States(enum.Enum):
+        CHUNK_SIZE = enum.auto()
+        CHUNK_EXTENSION = enum.auto()
+        CHUNK_HEADER_LF = enum.auto()
+        CHUNK_DATA = enum.auto()
+        CHUNK_DATA_CR = enum.auto()
+        CHUNK_DATA_LF = enum.auto()
+        TRAILER_SECTION = enum.auto()
+        TRAILER_SECTION_LF = enum.auto()
+        END = enum.auto()
+
+    _SEMICOLON = ord(b';')
+    _CR = ord(b'\r')
+    _LF = ord(b'\n')
 
     def __init__(self):
-        self.eof = False
-        self._chunk_remaining = -2
-        # Buffer for residual chunk size data from the last `_decode`.
-        # It is fairly small for now because we do not expect big chunk
-        # parameter.
-        self._buffer = memoryview(bytearray(64))
-        self._pos = 0
+        self._state = self._States.CHUNK_SIZE
+        self._buffer = memoryview(bytearray(16))
+        self._buffer_size = 0
+        self._chunk_remaining = 0
+
+    @property
+    def eof(self):
+        return self._state is self._States.END
 
     def decode(self, pieces):
-        ASSERT.false(self.eof)
+        ASSERT.is_not(self._state, self._States.END)
         output = []
         for data in pieces:
             if data:
@@ -159,78 +173,115 @@ class ChunkDecoder:
         return output
 
     def _decode(self, data, output):
+        # pylint: disable=too-many-statements
 
-        def move(n):
-            """Move ``n`` bytes from ``data`` to ``output``."""
-            nonlocal data
-            ASSERT.greater_or_equal(self._chunk_remaining, n)
-            output.append(data[:n])
-            data = data[n:]
-            self._chunk_remaining -= n
-
-        def expect(pattern):
-            """Drop ``pattern`` prefix from ``data``."""
-            nonlocal data
-            n = min(len(pattern), len(data))
-            ASSERT.equal(pattern[:n], data[:n])
-            data = data[n:]
-            return n
+        def find(*values):
+            for i, b in enumerate(data):
+                if b in values:
+                    return i
+            return -1
 
         while data:
-            if self._chunk_remaining > 0:
-                move(min(self._chunk_remaining, len(data)))
-                continue
-
-            if self._chunk_remaining == 0:
-                self._chunk_remaining -= expect(b'\r\n')
-                continue
-
-            if self._chunk_remaining == -1:
-                self._chunk_remaining -= expect(b'\n')
-                continue
-
-            match = self._CRLF_PATTERN.search(data)
-            if not match:
-                self._append(data)
-                match = self._CRLF_PATTERN.search(self._buffer[:self._pos])
-                if not match:
+            if self._state is self._States.CHUNK_SIZE:
+                i = find(self._SEMICOLON, self._CR)
+                if i == -1:
+                    self._append_chunk_size_buffer(data)
                     break
-                data = self._reset()
+                self._append_chunk_size_buffer(data[:i])
+                if data[i] == self._SEMICOLON:
+                    self._state = self._States.CHUNK_EXTENSION
+                else:
+                    self._state = self._States.CHUNK_HEADER_LF
+                data = data[i + 1:]
 
-            chunk_size = data[:match.start()]
-            if self._pos > 0:
-                self._append(chunk_size)
-                chunk_size = self._reset()
-            # TODO: Handle parameters (stuff after ';').
-            chunk_size = int(
-                bytes(chunk_size).split(b';', maxsplit=1)[0],
-                base=16,
-            )
-            if chunk_size == 0:
-                # TODO: Handle trailers.
-                self.eof = True
+            elif self._state is self._States.CHUNK_EXTENSION:
+                i = find(self._CR)
+                if i == -1:
+                    break
+                self._state = self._States.CHUNK_HEADER_LF
+                data = data[i + 1:]
+
+            elif self._state is self._States.CHUNK_HEADER_LF:
+                ASSERT.equal(data[0], self._LF)
+                self._chunk_remaining = self._parse_chunk_size()
+                if self._chunk_remaining == 0:
+                    self._state = self._States.TRAILER_SECTION
+                else:
+                    self._state = self._States.CHUNK_DATA
+                data = data[1:]
+
+            elif self._state is self._States.CHUNK_DATA:
+                if self._chunk_remaining > len(data):
+                    output.append(data)
+                    self._chunk_remaining -= len(data)
+                    break
+                self._state = self._States.CHUNK_DATA_CR
+                output.append(data[:self._chunk_remaining])
+                data = data[self._chunk_remaining:]
+                self._chunk_remaining = 0
+
+            elif self._state is self._States.CHUNK_DATA_CR:
+                ASSERT.equal(data[0], self._CR)
+                self._state = self._States.CHUNK_DATA_LF
+                data = data[1:]
+
+            elif self._state is self._States.CHUNK_DATA_LF:
+                ASSERT.equal(data[0], self._LF)
+                self._state = self._States.CHUNK_SIZE
+                data = data[1:]
+
+            elif self._state is self._States.TRAILER_SECTION:
+                i = find(self._CR)
+                if i == -1:
+                    # Re-use _chunk_remaining to track the length of the
+                    # field line.
+                    self._chunk_remaining += len(data)
+                    break
+                self._state = self._States.TRAILER_SECTION_LF
+                self._chunk_remaining += i
+                data = data[i + 1:]
+
+            elif self._state is self._States.TRAILER_SECTION_LF:
+                ASSERT.equal(data[0], self._LF)
+                if self._chunk_remaining == 0:
+                    self._state = self._States.END
+                else:
+                    self._state = self._States.TRAILER_SECTION
+                self._chunk_remaining = 0
+                data = data[1:]
+
             else:
-                ASSERT.false(self.eof)
+                ASSERT.is_(self._state, self._States.END)
+                LOG.warning(
+                    'data after the end: len(data)=%d data[:64]=%r',
+                    len(data),
+                    bytes(data[:64]),
+                )
+                break
 
-            data = data[match.end():]
-            self._chunk_remaining = chunk_size
+    def _append_chunk_size_buffer(self, data):
+        new_size = ASSERT.less_or_equal(
+            self._buffer_size + len(data),
+            len(self._buffer),
+        )
+        self._buffer[self._buffer_size:new_size] = data
+        self._buffer_size = new_size
 
-        if self.eof:
-            ASSERT.empty(data)
-
-    def _append(self, data):
-        end = ASSERT.less_or_equal(self._pos + len(data), len(self._buffer))
-        self._buffer[self._pos:end] = data
-        self._pos = end
-
-    def _reset(self):
-        data = self._buffer[:self._pos]
-        self._pos = 0
-        return data
+    def _parse_chunk_size(self):
+        chunk_size = int(
+            bytes(self._buffer[:self._buffer_size]),
+            base=16,
+        )
+        self._buffer_size = 0
+        return chunk_size
 
     def flush(self):
-        ASSERT.true(self.eof)
-        ASSERT.equal(self._chunk_remaining, -2)
+        # Allow calling flush when TRAILER_SECTION because some sites do
+        # not send the last CRLF.
+        ASSERT.in_(
+            self._state,
+            (self._States.TRAILER_SECTION, self._States.END),
+        )
         return []
 
 

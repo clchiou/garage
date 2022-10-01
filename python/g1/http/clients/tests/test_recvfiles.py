@@ -5,17 +5,10 @@ from pathlib import Path
 
 from g1.http.clients import recvfiles
 
+States = recvfiles.ChunkDecoder._States
+
 
 class RecvfilesTest(unittest.TestCase):
-
-    def assert_chunk_decoder(
-        self,
-        decoder,
-        expect_eof,
-        expect_chunk_remaining,
-    ):
-        self.assertEqual(decoder.eof, expect_eof)
-        self.assertEqual(decoder._chunk_remaining, expect_chunk_remaining)
 
     def test_decoder_chain(self):  # pylint: disable=no-self-use
         mock_file = unittest.mock.Mock(spec_set=['write', 'flush'])
@@ -69,58 +62,154 @@ class RecvfilesTest(unittest.TestCase):
             unittest.mock.call.decode([b'd1-flush']),
         ])
 
+    def assert_chunk_decoder(
+        self,
+        decoder,
+        expect_state,
+        expect_buffer,
+        expect_chunk_remaining,
+    ):
+        self.assertIs(decoder._state, expect_state)
+        self.assertEqual(decoder._buffer_size, len(expect_buffer))
+        self.assertEqual(
+            bytes(decoder._buffer[:decoder._buffer_size]),
+            expect_buffer,
+        )
+        self.assertEqual(decoder._chunk_remaining, expect_chunk_remaining)
+
     def test_chunk_decoder(self):
         d = recvfiles.ChunkDecoder()
-        self.assert_chunk_decoder(d, False, -2)
+        self.assert_chunk_decoder(d, States.CHUNK_SIZE, b'', 0)
 
         self.assertEqual(d.decode([]), [])
-        self.assert_chunk_decoder(d, False, -2)
+        self.assert_chunk_decoder(d, States.CHUNK_SIZE, b'', 0)
 
-        output = []
-        d._decode(b'4;foo bar\r\nab', output)
-        self.assertEqual(output, [b'ab'])
-        self.assert_chunk_decoder(d, False, 2)
-        d._decode(b'cd', output)
-        self.assertEqual(output, [b'ab', b'cd'])
-        self.assert_chunk_decoder(d, False, 0)
-        d._decode(b'\r', output)
-        self.assertEqual(output, [b'ab', b'cd'])
-        self.assert_chunk_decoder(d, False, -1)
-        d._decode(b'\n', output)
-        self.assertEqual(output, [b'ab', b'cd'])
-        self.assert_chunk_decoder(d, False, -2)
-
-        output = []
-        d._decode(b'0;some parameters...\r\n', output)
-        self.assertEqual(output, [])
-        self.assert_chunk_decoder(d, True, 0)
-        d._decode(b'\r\n', output)
-        self.assertEqual(output, [])
-        self.assert_chunk_decoder(d, True, -2)
+        self.assertEqual(
+            d.decode([b'', b'b\r\nhello ', b'world', b'\r\n0\r\n\r\n']),
+            [b'hello ', b'world'],
+        )
+        self.assert_chunk_decoder(d, States.END, b'', 0)
 
         self.assertEqual(d.flush(), [])
-
-    def test_chunk_decoder_more_data_at_the_end(self):
-        d = recvfiles.ChunkDecoder()
-        with self.assertRaisesRegex(
-            AssertionError,
-            r'expect empty collection, not b\'some more data\'',
-        ):
-            d.decode([b'0\r\n\r\nsome more data'])
+        self.assert_chunk_decoder(d, States.END, b'', 0)
 
         d = recvfiles.ChunkDecoder()
-        with self.assertRaisesRegex(
-            AssertionError,
-            r'expect empty collection, not b\'some more data\'',
-        ):
-            d.decode([b'0\r\n\r\n', b'some more data'])
+        self.assert_chunk_decoder(d, States.CHUNK_SIZE, b'', 0)
+
+        self.assertEqual(d.decode([b'4;foo bar\r\nab']), [b'ab'])
+        self.assert_chunk_decoder(d, States.CHUNK_DATA, b'', 2)
+        self.assertEqual(d.decode([b'cd']), [b'cd'])
+        self.assert_chunk_decoder(d, States.CHUNK_DATA_CR, b'', 0)
+        self.assertEqual(d.decode([b'\r']), [])
+        self.assert_chunk_decoder(d, States.CHUNK_DATA_LF, b'', 0)
+        self.assertEqual(d.decode([b'\n']), [])
+        self.assert_chunk_decoder(d, States.CHUNK_SIZE, b'', 0)
+
+        self.assertEqual(d.decode([b'0;some parameters...\r\n']), [])
+        self.assert_chunk_decoder(d, States.TRAILER_SECTION, b'', 0)
+
+        self.assertEqual(d.decode([b'trailer ']), [])
+        self.assert_chunk_decoder(d, States.TRAILER_SECTION, b'', 8)
+        self.assertEqual(d.decode([b'data']), [])
+        self.assert_chunk_decoder(d, States.TRAILER_SECTION, b'', 12)
+        self.assertEqual(d.decode([b'\r']), [])
+        self.assert_chunk_decoder(d, States.TRAILER_SECTION_LF, b'', 12)
+        self.assertEqual(d.decode([b'\n']), [])
+        self.assert_chunk_decoder(d, States.TRAILER_SECTION, b'', 0)
+        self.assertEqual(d.decode([b'\r']), [])
+        self.assert_chunk_decoder(d, States.TRAILER_SECTION_LF, b'', 0)
+        self.assertEqual(d.decode([b'\n']), [])
+        self.assert_chunk_decoder(d, States.END, b'', 0)
+
+        self.assertEqual(d.flush(), [])
+        self.assert_chunk_decoder(d, States.END, b'', 0)
+
+    def test_chunk_decoder_header(self):
+        d = recvfiles.ChunkDecoder()
+        self.assert_chunk_decoder(d, States.CHUNK_SIZE, b'', 0)
+        self.assertEqual(d.decode([b'1']), [])
+        self.assert_chunk_decoder(d, States.CHUNK_SIZE, b'1', 0)
+        self.assertEqual(d.decode([b'0']), [])
+        self.assert_chunk_decoder(d, States.CHUNK_SIZE, b'10', 0)
+        self.assertEqual(d.decode([b';abc']), [])
+        self.assert_chunk_decoder(d, States.CHUNK_EXTENSION, b'10', 0)
+        self.assertEqual(d.decode([b';def']), [])
+        self.assert_chunk_decoder(d, States.CHUNK_EXTENSION, b'10', 0)
+        self.assertEqual(d.decode([b';ghi\r']), [])
+        self.assert_chunk_decoder(d, States.CHUNK_HEADER_LF, b'10', 0)
+        self.assertEqual(d.decode([b'\n']), [])
+        self.assert_chunk_decoder(d, States.CHUNK_DATA, b'', 0x10)
 
         d = recvfiles.ChunkDecoder()
+        self.assert_chunk_decoder(d, States.CHUNK_SIZE, b'', 0)
+        self.assertEqual(d.decode([b'123\r']), [])
+        self.assert_chunk_decoder(d, States.CHUNK_HEADER_LF, b'123', 0)
+        self.assertEqual(d.decode([b'\n']), [])
+        self.assert_chunk_decoder(d, States.CHUNK_DATA, b'', 0x123)
+
+        d = recvfiles.ChunkDecoder()
+        self.assert_chunk_decoder(d, States.CHUNK_SIZE, b'', 0)
+        self.assertEqual(d.decode([b'000']), [])
+        self.assert_chunk_decoder(d, States.CHUNK_SIZE, b'000', 0)
+        self.assertEqual(d.decode([b'\r\n']), [])
+        self.assert_chunk_decoder(d, States.TRAILER_SECTION, b'', 0)
+
+    def test_chunk_decoder_data(self):
+        d = recvfiles.ChunkDecoder()
+        self.assertEqual(d.decode([b'b\r\n']), [])
+        self.assert_chunk_decoder(d, States.CHUNK_DATA, b'', 11)
+        self.assertEqual(d.decode([b'\r\n'] * 5), [b'\r\n'] * 5)
+        self.assert_chunk_decoder(d, States.CHUNK_DATA, b'', 1)
+        self.assertEqual(d.decode([b'x']), [b'x'])
+        self.assert_chunk_decoder(d, States.CHUNK_DATA_CR, b'', 0)
+        self.assertEqual(d.decode([b'\r']), [])
+        self.assert_chunk_decoder(d, States.CHUNK_DATA_LF, b'', 0)
+        self.assertEqual(d.decode([b'\n']), [])
+        self.assert_chunk_decoder(d, States.CHUNK_SIZE, b'', 0)
+
+        d = recvfiles.ChunkDecoder()
+        self.assertEqual(d.decode([b'2\r\n']), [])
+        self.assert_chunk_decoder(d, States.CHUNK_DATA, b'', 2)
+        self.assertEqual(d.decode([b'ab\r\n3']), [b'ab'])
+        self.assert_chunk_decoder(d, States.CHUNK_SIZE, b'3', 0)
+
+    def test_chunk_decoder_trailer_section(self):
+        d = recvfiles.ChunkDecoder()
+        self.assertEqual(d.decode([b'0\r\n']), [])
+        self.assert_chunk_decoder(d, States.TRAILER_SECTION, b'', 0)
+        self.assertEqual(d.decode([b'abc ']), [])
+        self.assert_chunk_decoder(d, States.TRAILER_SECTION, b'', 4)
+        self.assertEqual(d.decode([b'xyz']), [])
+        self.assert_chunk_decoder(d, States.TRAILER_SECTION, b'', 7)
+        self.assertEqual(d.decode([b'\r']), [])
+        self.assert_chunk_decoder(d, States.TRAILER_SECTION_LF, b'', 7)
+        self.assertEqual(d.decode([b'\n']), [])
+        self.assert_chunk_decoder(d, States.TRAILER_SECTION, b'', 0)
+        self.assertEqual(d.decode([b'\r']), [])
+        self.assert_chunk_decoder(d, States.TRAILER_SECTION_LF, b'', 0)
+        self.assertEqual(d.decode([b'\n']), [])
+        self.assert_chunk_decoder(d, States.END, b'', 0)
+
+    def test_chunk_decoder_incomplete_last_chunk(self):
+        d = recvfiles.ChunkDecoder()
+        self.assertEqual(d.decode([b'0\r\n']), [])
+        self.assert_chunk_decoder(d, States.TRAILER_SECTION, b'', 0)
+        self.assertEqual(d.flush(), [])
+
+        # This is also incomplete, but for now we err out in this case.
+        d = recvfiles.ChunkDecoder()
+        self.assertEqual(d.decode([b'0\r\n\r']), [])
+        self.assert_chunk_decoder(d, States.TRAILER_SECTION_LF, b'', 0)
         with self.assertRaisesRegex(
             AssertionError,
-            r'expect false-value, not True',
+            r'expect .*TRAILER_SECTION_LF:.* in .*TRAILER_SECTION:.*END:',
         ):
-            d.decode([b'0\r\n\r\n1\r\nx\r\n'])
+            d.flush()
+
+    def test_chunk_decoder_ignore_data_after_the_end(self):
+        d = recvfiles.ChunkDecoder()
+        self.assertEqual(d.decode([b'0\r\n\r\nsome more data']), [])
+        self.assert_chunk_decoder(d, States.END, b'', 0)
 
     def test_chunk_decoder_one_byte_at_a_time(self):
         for content in [
@@ -130,30 +219,31 @@ class RecvfilesTest(unittest.TestCase):
         ]:
             with self.subTest(content):
                 # Two chunks, one byte at a time.
-                output = []
                 d = recvfiles.ChunkDecoder()
-                self.assert_chunk_decoder(d, False, -2)
+                output = []
                 for chunk_data in [
                     content[:len(content) // 2],
                     content[len(content) // 2:],
                     b'',
                 ]:
-                    chunk = b'%x\r\n%s\r\n' % (len(chunk_data), chunk_data)
+                    chunk = memoryview(
+                        b'%x\r\n%s\r\n' % (len(chunk_data), chunk_data)
+                    )
                     for i in range(len(chunk)):
-                        d._decode(memoryview(chunk[i:i + 1]), output)
-                    self.assert_chunk_decoder(d, chunk_data == b'', -2)
+                        d._decode(chunk[i:i + 1], output)
+                self.assert_chunk_decoder(d, States.END, b'', 0)
                 self.assertEqual(b''.join(output), content)
 
                 # One byte per chunk.
-                output = []
                 d = recvfiles.ChunkDecoder()
-                self.assert_chunk_decoder(d, False, -2)
+                output = []
                 for i in range(len(content) + 1):
                     chunk_data = content[i:i + 1]
-                    chunk = b'%x\r\n%s\r\n' % (len(chunk_data), chunk_data)
-                    d._decode(memoryview(chunk), output)
-                    self.assert_chunk_decoder(d, chunk_data == b'', -2)
-                    self.assertEqual(b''.join(output), content[:i + 1])
+                    chunk = memoryview(
+                        b'%x\r\n%s\r\n' % (len(chunk_data), content[i:i + 1])
+                    )
+                    d._decode(chunk, output)
+                self.assert_chunk_decoder(d, States.END, b'', 0)
                 self.assertEqual(b''.join(output), content)
 
 
