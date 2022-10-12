@@ -1,6 +1,8 @@
 import unittest
+import unittest.mock
 
 from g1.bases import loggings
+from g1.bases import times
 
 
 class LoggingsTest(unittest.TestCase):
@@ -17,17 +19,18 @@ class LoggingsTest(unittest.TestCase):
             once_per(4, actual.append, i)
         self.assertEqual(actual, [0, 4, 8, 12])
 
-        self.assertEqual(len(once_per._num_calls), 2)
-        for (location, num_calls), expect_lineno, expect_num_calls in zip(
-            once_per._num_calls.items(),
-            (12, 17),  # Line 12 and 17.
+        self.assertEqual(len(once_per._records), 2)
+        for (location, record), expect_lineno, expect_record in zip(
+            once_per._records.items(),
+            (14, 19),
             (10, 15),
         ):
             self.assertRegex(location[0], r'tests/test_loggings.py$')
             self.assertEqual(location[1], expect_lineno)
-            self.assertEqual(num_calls, expect_num_calls)
+            self.assertEqual(record, expect_record)
 
-    def test_check(self):
+    @unittest.mock.patch.object(loggings, 'time')
+    def test_check(self, mock_time):
         once_per = loggings.OncePer()
 
         actual = [once_per.check(3) for _ in range(10)]
@@ -39,15 +42,21 @@ class LoggingsTest(unittest.TestCase):
             [True, False, False, False] * 3 + [True, False, False],
         )
 
-        self.assertEqual(len(once_per._num_calls), 2)
-        for (location, num_calls), expect_lineno, expect_num_calls in zip(
-            once_per._num_calls.items(),
-            (33, 36),  # Line 33 and 36.
-            (10, 15),
+        mock_time.monotonic_ns.side_effect = [1, 1000, 1001, 1002]
+        actual = [
+            once_per.check(1, times.Units.MICROSECONDS) for _ in range(4)
+        ]
+        self.assertEqual(actual, [True, False, True, False])
+
+        self.assertEqual(len(once_per._records), 3)
+        for (location, record), expect_lineno, expect_record in zip(
+            once_per._records.items(),
+            (36, 39, 47),
+            (10, 15, 1001),
         ):
             self.assertRegex(location[0], r'tests/test_loggings.py$')
             self.assertEqual(location[1], expect_lineno)
-            self.assertEqual(num_calls, expect_num_calls)
+            self.assertEqual(record, expect_record)
 
 
 if __name__ == '__main__':
