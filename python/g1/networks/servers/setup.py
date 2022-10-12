@@ -7,6 +7,7 @@ setup(
     ],
     install_requires=[
         'g1.asyncs.bases',
+        'g1.bases',
     ],
     extras_require={
         'parts': [

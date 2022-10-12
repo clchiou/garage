@@ -7,6 +7,8 @@ import logging
 
 from g1.asyncs.bases import servers
 from g1.asyncs.bases import tasks
+from g1.bases import times
+from g1.bases.loggings import ONCE_PER
 
 LOG = logging.getLogger(__name__)
 LOG.addHandler(logging.NullHandler())
@@ -37,10 +39,11 @@ class SocketServer:
     async def _accept(self, queue):
         while True:
             if queue.is_full():
-                LOG.warning(
-                    'handler task queue is full; '
-                    'we cannot accept any new connections'
-                )
+                if ONCE_PER.check(600, times.Units.SECONDS):
+                    LOG.error(
+                        'handler task queue is full; '
+                        'we cannot accept any new connections'
+                    )
             await queue.puttable()
             try:
                 sock, addr = await self._socket.accept()
