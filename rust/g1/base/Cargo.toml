@@ -1,0 +1,4 @@
+[package]
+name = "g1_base"
+version.workspace = true
+edition.workspace = true

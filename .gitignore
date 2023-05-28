@@ -13,3 +13,7 @@ gradlew.bat
 __pycache__
 build
 dist
+
+# Rust.
+/rust/Cargo.lock
+/rust/target/
