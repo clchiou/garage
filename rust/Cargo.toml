@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "g1/base",
+    "g1/bytes",
 ]
 
 [workspace.package]
