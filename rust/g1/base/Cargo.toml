@@ -2,3 +2,6 @@
 name = "g1_base"
 version.workspace = true
 edition.workspace = true
+
+[dev-dependencies]
+trybuild = "1.0.80"

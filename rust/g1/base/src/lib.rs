@@ -5,3 +5,5 @@
 //! * Opinionated extension to the Rust stdlib.
 //!
 //! NOTE: The base library should only depend on the Rust stdlib.
+
+pub mod owner;

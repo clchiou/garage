@@ -1,0 +1,12 @@
+error[E0597]: `x` does not live long enough
+  --> tests/owner/static-borrower-ref.rs:17:23
+   |
+16 |     let x = Owner::try_from(Vec::new()).unwrap();
+   |         - binding `x` declared here
+17 |     static_borrow_ref(x.deref());
+   |     ------------------^^^^^^^^^-
+   |     |                 |
+   |     |                 borrowed value does not live long enough
+   |     argument requires that `x` is borrowed for `'static`
+18 | }
+   | - `x` dropped here while still borrowed
