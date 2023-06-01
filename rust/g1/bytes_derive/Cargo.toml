@@ -1,0 +1,13 @@
+[package]
+name = "g1_bytes_derive"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+proc-macro = true
+
+[dependencies]
+heck = "0.4.1"
+proc-macro2 = "1.0.59"
+quote = "1.0.28"
+syn = { version = "2.0.18", features = ["full"] }

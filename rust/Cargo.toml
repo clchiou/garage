@@ -2,6 +2,7 @@
 members = [
     "g1/base",
     "g1/bytes",
+    "g1/bytes_derive",
 ]
 
 [workspace.package]
