@@ -3,6 +3,7 @@ members = [
     "g1/base",
     "g1/bytes",
     "g1/bytes_derive",
+    "g1/tokio",
 ]
 
 [workspace.package]
