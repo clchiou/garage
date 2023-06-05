@@ -11,6 +11,7 @@
 //! NOTE: We have not given too much thought to the issue of `async_trait` vs
 //! `feature(async_fn_in_traits)`.  For now, `async_trait` is picked arbitrarily.
 
+pub mod codec;
 pub mod transform;
 
 use std::ops::DerefMut;
