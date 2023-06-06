@@ -9,6 +9,8 @@ use bytes::BytesMut;
 // `async fn next` method!
 use futures::{future::BoxFuture, sink, stream};
 
+use g1_base::fmt::InsertPlaceholder;
+
 use super::{StreamRecv, StreamSend};
 
 #[async_trait]
@@ -111,18 +113,6 @@ type SourceOutput<Stream, Decoder, Item, Error> = ((Stream, Decoder), Option<Res
 type SinkFuture<Stream, Error> = BoxFuture<'static, SinkOutput<Stream, Error>>;
 type SinkOutput<Stream, Error> = (Stream, Result<(), Error>);
 
-macro_rules! format_option_future {
-    ($option_future:expr $(,)?) => {
-        &format_args!(
-            "{}",
-            match &$option_future {
-                Some(_) => &"Some(_)",
-                None => &"None",
-            },
-        )
-    };
-}
-
 macro_rules! poll {
     ($this:ident, $get_future:ident, $context:ident $(,)?) => {
         match $this.$get_future().as_mut().poll($context) {
@@ -155,13 +145,13 @@ where
 
 impl<Stream, Decoder> fmt::Debug for Source<Stream, Decoder>
 where
-    Stream: StreamRecv + fmt::Debug,
-    Decoder: Decode<Stream> + fmt::Debug,
+    Stream: StreamRecv,
+    Decoder: Decode<Stream>,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Source")
-            .field("source", &self.source)
-            .field("next_future", format_option_future!(self.next_future))
+            .field("source", &InsertPlaceholder(&self.source))
+            .field("next_future", &InsertPlaceholder(&self.next_future))
             .finish()
     }
 }
@@ -219,15 +209,14 @@ where
 
 impl<Stream, Encoder> fmt::Debug for Sink<Stream, Encoder>
 where
-    Stream: StreamSend + fmt::Debug,
-    Encoder: fmt::Debug,
+    Stream: StreamSend,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Sink")
-            .field("stream", &self.stream)
-            .field("encoder", &self.encoder)
-            .field("flush_future", format_option_future!(self.flush_future))
-            .field("close_future", format_option_future!(self.close_future))
+            .field("stream", &InsertPlaceholder(&self.stream))
+            .field("encoder", &InsertPlaceholder(&self.encoder))
+            .field("flush_future", &InsertPlaceholder(&self.flush_future))
+            .field("close_future", &InsertPlaceholder(&self.close_future))
             .finish()
     }
 }
