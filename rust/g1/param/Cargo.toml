@@ -1,0 +1,12 @@
+[package]
+name = "g1_param"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+linkme = "0.3.10"
+serde = { version = "1.0.163", features = ["derive"] }
+serde_json = { version = "1.0.96", features = ["raw_value"] }
+
+[dev-dependencies]
+clap = { version = "4.3.1", features = ["derive"] }
