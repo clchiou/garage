@@ -6,6 +6,7 @@ members = [
     "g1/param",
     "g1/tokio",
 ]
+resolver = "2"
 
 [workspace.package]
 version = "0.0.0"
