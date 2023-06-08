@@ -31,7 +31,14 @@ macro_rules! define {
                 set,
                 load_default,
             );
-            static mut PARAMETER_VALUE: ::std::option::Option<$type> = ::std::option::Option::None;
+
+            // The parameter value is not dropped when `MaybeUninit` is being dropped, but that is
+            // fine because, according to the [language reference], a static variable is not
+            // dropped at the end of the program anyway.
+            //
+            // [language reference]: https://doc.rust-lang.org/reference/items/static-items.html
+            static mut PARAMETER_VALUE: ::std::mem::MaybeUninit<$type> =
+                ::std::mem::MaybeUninit::uninit();
 
             fn parse(value: &str) -> ::std::result::Result<
                 ::std::boxed::Box<dyn ::std::any::Any>,
@@ -60,19 +67,16 @@ macro_rules! define {
             }
 
             unsafe fn set(value: ::std::boxed::Box<dyn ::std::any::Any>) {
-                ::std::assert!(PARAMETER_VALUE.is_none());
-                PARAMETER_VALUE =
-                    ::std::option::Option::Some(PARAMETER.downcast::<$type>(value).unwrap());
+                PARAMETER_VALUE.write(PARAMETER.downcast::<$type>(value).unwrap());
             }
 
             unsafe fn load_default() {
-                ::std::assert!(PARAMETER_VALUE.is_none());
-                PARAMETER_VALUE = ::std::option::Option::Some($default);
+                PARAMETER_VALUE.write($default);
             }
 
             PARAMETER.load_default_if_unset();
             unsafe {
-                PARAMETER_VALUE.as_ref().unwrap()
+                PARAMETER_VALUE.assume_init_ref()
             }
         }
     };
