@@ -1,5 +1,14 @@
 use std::fmt;
 
+/// Escapes non-ASCII characters in a slice to produce `fmt::Debug` output.
+pub struct EscapeAscii<'a>(pub &'a [u8]);
+
+impl<'a> fmt::Debug for EscapeAscii<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "\"{}\"", self.0.escape_ascii())
+    }
+}
+
 /// Recursively inserts placeholders for a value of a type that does not "fully" implement
 /// `std::fmt::Debug`.
 pub struct InsertPlaceholder<'a, T: ?Sized>(pub &'a T);
@@ -109,6 +118,12 @@ impl<T: HaveImplDebug> fmt::Debug for InsertPlaceholderBase<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn escape_ascii() {
+        let escaped = b"\t".as_slice();
+        assert_eq!(format!("{:?}", EscapeAscii(escaped)), "\"\\t\"");
+    }
 
     #[derive(Debug)]
     struct YesDebug;
