@@ -18,12 +18,17 @@ use syn::{
 
 #[proc_macro_derive(BufExt, attributes(endian))]
 pub fn derive_buf_ext(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    derive::<Buf>(syn::parse_macro_input!(input as DeriveInput)).into()
+    derive::<BufExt>(syn::parse_macro_input!(input as DeriveInput)).into()
+}
+
+#[proc_macro_derive(BufPeekExt, attributes(endian))]
+pub fn derive_buf_peek_ext(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    derive::<BufPeekExt>(syn::parse_macro_input!(input as DeriveInput)).into()
 }
 
 #[proc_macro_derive(BufMutExt, attributes(endian))]
 pub fn derive_buf_mut_ext(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    derive::<BufMut>(syn::parse_macro_input!(input as DeriveInput)).into()
+    derive::<BufMutExt>(syn::parse_macro_input!(input as DeriveInput)).into()
 }
 
 const PRIMITIVE_TYPES: &[&str] = &[
@@ -63,13 +68,18 @@ struct Generator<'a, 'b, T> {
 }
 
 #[derive(Clone)]
-struct Buf {
+struct BufExt {
     get: Ident,
     try_get: Ident,
 }
 
 #[derive(Clone)]
-struct BufMut {
+struct BufPeekExt {
+    peek: Ident,
+}
+
+#[derive(Clone)]
+struct BufMutExt {
     put: Ident,
 }
 
@@ -126,7 +136,7 @@ where
     }
 }
 
-impl Target for Buf {
+impl Target for BufExt {
     fn new(snake_case: &str) -> Self {
         Self {
             get: quote::format_ident!("get_{}", snake_case),
@@ -135,7 +145,15 @@ impl Target for Buf {
     }
 }
 
-impl Target for BufMut {
+impl Target for BufPeekExt {
+    fn new(snake_case: &str) -> Self {
+        Self {
+            peek: quote::format_ident!("peek_{}", snake_case),
+        }
+    }
+}
+
+impl Target for BufMutExt {
     fn new(snake_case: &str) -> Self {
         Self {
             put: quote::format_ident!("put_{}", snake_case),
@@ -158,7 +176,7 @@ where
     }
 }
 
-impl<'a, 'b> Generate for Generator<'a, 'b, Buf> {
+impl<'a, 'b> Generate for Generator<'a, 'b, BufExt> {
     fn gen(&self, fields: &Punctuated<Field, Comma>) -> Result<TokenStream, Error> {
         Ok(self.gen_impl(self.gen_get(fields)?, self.gen_try_get(fields)?))
     }
@@ -183,7 +201,7 @@ impl<'a, 'b> Generate for Generator<'a, 'b, Buf> {
     }
 }
 
-impl<'a, 'b> Generator<'a, 'b, Buf> {
+impl<'a, 'b> Generator<'a, 'b, BufExt> {
     /// Generates a decoder for a struct.
     fn gen_impl(&self, get_body: TokenStream, try_get_body: TokenStream) -> TokenStream {
         let trait_name = quote::format_ident!("{}BufExt", self.camel_case);
@@ -244,7 +262,75 @@ impl<'a, 'b> Generator<'a, 'b, Buf> {
     }
 }
 
-impl<'a, 'b> Generate for Generator<'a, 'b, BufMut> {
+impl<'a, 'b> Generate for Generator<'a, 'b, BufPeekExt> {
+    fn gen(&self, fields: &Punctuated<Field, Comma>) -> Result<TokenStream, Error> {
+        Ok(self.gen_impl(self.gen_peek(fields)?))
+    }
+
+    fn gen_tuple(&self, fields: &Punctuated<Field, Comma>) -> Result<TokenStream, Error> {
+        Ok(self.gen_impl(self.gen_peek_tuple(fields)?))
+    }
+
+    fn gen_unit(&self) -> TokenStream {
+        let struct_name = &self.struct_name;
+        self.gen_impl(quote::quote!(Some(#struct_name)))
+    }
+
+    fn gen_dummy(&self) -> TokenStream {
+        self.gen_impl(quote::quote!(unimplemented!()))
+    }
+}
+
+impl<'a, 'b> Generator<'a, 'b, BufPeekExt> {
+    /// Generates a decoder for a struct.
+    fn gen_impl(&self, peek_body: TokenStream) -> TokenStream {
+        let trait_name = quote::format_ident!("{}BufPeekExt", self.camel_case);
+        let peek = &self.target.peek;
+        let vis = self.vis;
+        let struct_name = self.struct_name;
+        quote::quote! {
+            #vis trait #trait_name: ::g1_bytes::BufPeekExt {
+                fn #peek(&self) -> Option<#struct_name> {
+                    #peek_body
+                }
+            }
+
+            impl<T> #trait_name for T where T: ::g1_bytes::BufPeekExt {}
+        }
+    }
+
+    /// Generates the body of the `peek_foo` method for an ordinary struct.
+    fn gen_peek(&self, fields: &Punctuated<Field, Comma>) -> Result<TokenStream, Error> {
+        let size = fields::gen_size(fields)?;
+        let field = fields::gen_fields(fields)?;
+        let get = fields::gen_gets(fields, self.default_endian)?;
+        let struct_name = self.struct_name;
+        Ok(quote::quote! {
+            #size
+            let mut slice = self.peek_slice(SIZE)?;
+            #(let #field = slice.#get();)*
+            Some(#struct_name { #(#field),* })
+        })
+    }
+
+    /// Generates the body of the `peek_foo` method for a tuple struct.
+    fn gen_peek_tuple(&self, fields: &Punctuated<Field, Comma>) -> Result<TokenStream, Error> {
+        let size = fields::gen_size(fields)?;
+        let element = (0..fields.len())
+            .map(|i| quote::format_ident!("e{}", i))
+            .collect::<Vec<Ident>>();
+        let get = fields::gen_gets(fields, self.default_endian)?;
+        let struct_name = self.struct_name;
+        Ok(quote::quote! {
+            #size
+            let mut slice = self.peek_slice(SIZE)?;
+            #(let #element = slice.#get();)*
+            Some(#struct_name(#(#element),*))
+        })
+    }
+}
+
+impl<'a, 'b> Generate for Generator<'a, 'b, BufMutExt> {
     fn gen(&self, fields: &Punctuated<Field, Comma>) -> Result<TokenStream, Error> {
         Ok(self.gen_impl(self.gen_put(fields)?))
     }
@@ -262,7 +348,7 @@ impl<'a, 'b> Generate for Generator<'a, 'b, BufMut> {
     }
 }
 
-impl<'a, 'b> Generator<'a, 'b, BufMut> {
+impl<'a, 'b> Generator<'a, 'b, BufMutExt> {
     /// Generates an encoder for a struct.
     fn gen_impl(&self, put_body: TokenStream) -> TokenStream {
         let trait_name = quote::format_ident!("{}BufMutExt", self.camel_case);
@@ -359,7 +445,7 @@ mod tests {
         let input = syn::parse_quote! {
             pub(in super::super) struct r#Foo;
         };
-        let gen = Generator::<Buf>::new(&input);
+        let gen = Generator::<BufExt>::new(&input);
 
         let expect = quote::quote! {
             pub(in super::super) trait FooBufExt: ::bytes::Buf {
@@ -432,11 +518,75 @@ mod tests {
     }
 
     #[test]
+    fn gen_peek() {
+        let input = syn::parse_quote! {
+            pub(in super::super) struct r#FooBar;
+        };
+        let gen = Generator::<BufPeekExt>::new(&input);
+
+        let expect = quote::quote! {
+            pub(in super::super) trait FooBarBufPeekExt: ::g1_bytes::BufPeekExt {
+                fn peek_foo_bar(&self) -> Option<r#FooBar> {
+                    Some(r#FooBar)
+                }
+            }
+            impl<T> FooBarBufPeekExt for T where T: ::g1_bytes::BufPeekExt {}
+        }
+        .to_string();
+        assert_eq!(gen.gen_unit().to_string(), expect);
+
+        let fields: FieldsNamed = syn::parse_quote!({
+            ty_u8: u8,
+        });
+        let fields = fields.named;
+        let expect = quote::quote! {
+            const SIZE: usize = ::std::mem::size_of::<u8>();
+            let mut slice = self.peek_slice(SIZE)?;
+            let ty_u8 = slice.get_u8();
+            Some(r#FooBar { ty_u8 })
+        }
+        .to_string();
+        assert_matches!(gen.gen_peek(&fields), Ok(ts) if ts.to_string() == expect);
+        let expect = quote::quote! {
+            const SIZE: usize = ::std::mem::size_of::<u8>();
+            let mut slice = self.peek_slice(SIZE)?;
+            let e0 = slice.get_u8();
+            Some(r#FooBar(e0))
+        }
+        .to_string();
+        assert_matches!(gen.gen_peek_tuple(&fields), Ok(ts) if ts.to_string() == expect);
+
+        let fields: FieldsNamed = syn::parse_quote!({
+            ty_u8: u8,
+            ty_i8: i8,
+        });
+        let fields = fields.named;
+        let expect = quote::quote! {
+            const SIZE: usize = ::std::mem::size_of::<u8>() + ::std::mem::size_of::<i8>();
+            let mut slice = self.peek_slice(SIZE)?;
+            let ty_u8 = slice.get_u8();
+            let ty_i8 = slice.get_i8();
+            Some(r#FooBar { ty_u8, ty_i8 })
+        }
+        .to_string();
+        assert_matches!(gen.gen_peek(&fields), Ok(ts) if ts.to_string() == expect);
+        let expect = quote::quote! {
+            const SIZE: usize = ::std::mem::size_of::<u8>() + ::std::mem::size_of::<i8>();
+            let mut slice = self.peek_slice(SIZE)?;
+            let e0 = slice.get_u8();
+            let e1 = slice.get_i8();
+            Some(r#FooBar(e0, e1))
+        }
+        .to_string();
+        assert_matches!(gen.gen_peek_tuple(&fields), Ok(ts) if ts.to_string() == expect);
+    }
+
+    #[test]
     fn gen_put() {
         let input = syn::parse_quote! {
             pub(in super::super) struct r#Foo;
         };
-        let gen = Generator::<BufMut>::new(&input);
+        let gen = Generator::<BufMutExt>::new(&input);
 
         let expect = quote::quote! {
             pub(in super::super) trait FooBufMutExt: ::bytes::BufMut {
