@@ -3,5 +3,8 @@ name = "g1_base"
 version.workspace = true
 edition.workspace = true
 
+[dependencies]
+g1_base_derive = { path = "../base_derive" }
+
 [dev-dependencies]
 trybuild = "1.0.80"

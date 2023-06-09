@@ -1,5 +1,7 @@
 use std::fmt;
 
+pub use g1_base_derive::DebugExt;
+
 /// Escapes non-ASCII characters in a slice to produce `fmt::Debug` output.
 pub struct EscapeAscii<'a>(pub &'a [u8]);
 
