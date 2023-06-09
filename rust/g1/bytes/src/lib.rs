@@ -1,10 +1,13 @@
 //! Extends the `bytes` crate.
 
+#![feature(assert_matches)]
 #![feature(result_option_inspect)]
 
+use std::fmt;
+use std::io::{self, Write};
 use std::mem;
 
-use bytes::Buf;
+use bytes::{Buf, BufMut};
 use paste::paste;
 
 pub use g1_bytes_derive::{BufExt, BufMutExt, BufPeekExt};
@@ -216,8 +219,27 @@ impl BufSliceExt for &[u8] {
     }
 }
 
+pub trait BufMutExt: BufMut {
+    /// Formats a value using `fmt::Debug` and writes the output to the buffer.
+    ///
+    /// It returns an error when `fmt::Debug` encounters an error, which is then wrapped in an
+    /// `std::io::Error`.  The buffer write operation, on the other hand, is infallible.
+    fn put_debug<T: fmt::Debug>(&mut self, value: &T) -> Result<(), io::Error> {
+        write!(self.writer(), "{:?}", value)
+    }
+
+    /// It is similar to `put_debug` except that it uses `fmt::Display`.
+    fn put_display<T: fmt::Display>(&mut self, value: &T) -> Result<(), io::Error> {
+        write!(self.writer(), "{}", value)
+    }
+}
+
+impl<T> BufMutExt for T where T: BufMut {}
+
 #[cfg(test)]
 mod tests {
+    use std::assert_matches::assert_matches;
+
     use super::*;
 
     fn some(bytes: &[u8]) -> Option<&[u8]> {
@@ -429,5 +451,37 @@ mod tests {
         test(&data, |x| *x == b'x', None);
         test(&data, |_| true, some(b"h"));
         test(&data, |_| false, None);
+    }
+
+    struct FmtError;
+
+    impl fmt::Debug for FmtError {
+        fn fmt(&self, _: &mut fmt::Formatter<'_>) -> fmt::Result {
+            Err(Default::default())
+        }
+    }
+
+    impl fmt::Display for FmtError {
+        fn fmt(&self, _: &mut fmt::Formatter<'_>) -> fmt::Result {
+            Err(Default::default())
+        }
+    }
+
+    #[test]
+    fn put_debug() {
+        let mut buffer = Vec::new();
+        assert_matches!(buffer.put_debug(&"hello world"), Ok(()));
+        assert_eq!(&buffer, b"\"hello world\"");
+
+        assert_matches!(buffer.put_debug(&FmtError), Err(_));
+    }
+
+    #[test]
+    fn put_display() {
+        let mut buffer = Vec::new();
+        assert_matches!(buffer.put_display(&"hello world"), Ok(()));
+        assert_eq!(&buffer, b"hello world");
+
+        assert_matches!(buffer.put_display(&FmtError), Err(_));
     }
 }
