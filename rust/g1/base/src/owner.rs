@@ -2,15 +2,24 @@
 //!
 //! The container possesses a buffer and a borrower of the buffer.
 //!
-//! NOTE: The container is entirely implemented via the macro `def_owner!` because we are unable to
-//! implement the container for a generic borrower type `T`.  This limitation arises from the fact
-//! that a generic parameter `T` cannot be bounded by a lifetime parameter (e.g., `T<'a>`).
+//! NOTE: The container is entirely implemented via the macro `define_owner!` because we are unable
+//! to implement the container for a generic borrower type `T`.  This limitation arises from the
+//! fact that a generic parameter `T` cannot be bounded by a lifetime parameter (e.g., `T<'a>`).
 //! However, the container requires the ability to "downgrade" the lifetime of the borrower from
 //! `'static` to `'a`.
 
+/// Creates a container type for the `$borrower` type.
+///
+/// NOTE: Although `$borrower` is a type, the macro captures it as an identifier instead of a type
+/// or a path.  This limitation exists because the macro needs to manipulate the `$borrower`.
+//
+// TODO: We cannot use the declarative macros 2.0 because their hygiene rules are the opposite of
+// the macros 1.0 rules.  Currently, macros 2.0 only support definition-site hygiene, which means
+// we are unable to "export" definitions from the macro body.
 #[macro_export]
-macro_rules! def_owner {
-    ($vis:vis $owner:ident for $borrower:ident) => {
+macro_rules! define_owner {
+    ($(#[$meta:meta])* $vis:vis $owner:ident for $borrower:ident) => {
+        $(#[$meta])*
         $vis struct $owner<Buffer> {
             buffer: ::std::pin::Pin<Buffer>,
             borrower: $borrower<'static>,
@@ -81,7 +90,7 @@ mod tests {
         }
     }
 
-    def_owner!(OwnedBytes for Bytes);
+    define_owner!(OwnedBytes for Bytes);
 
     #[test]
     fn owner() {

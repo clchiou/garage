@@ -8,7 +8,7 @@ impl<'a> TryFrom<&'a [u8]> for Struct<'a> {
     }
 }
 
-g1_base::def_owner!(Owner for Struct);
+g1_base::define_owner!(Owner for Struct);
 
 fn static_borrow_ref(_: &Struct<'static>) {}
 
