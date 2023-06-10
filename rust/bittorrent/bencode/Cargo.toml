@@ -1,0 +1,14 @@
+[package]
+name = "bittorrent_bencode"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+bytes = "1.4.0"
+snafu = "0.7.4"
+
+g1_base = { path = "../../g1/base" }
+g1_bytes = { path = "../../g1/bytes" }
+
+[features]
+test_harness = []
