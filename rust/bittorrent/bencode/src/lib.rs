@@ -1,5 +1,8 @@
 //! Implementation of Bencode Format as Specified in BEP 3
 
+#[cfg(feature = "serde")]
+pub mod serde;
+
 use std::collections::BTreeMap;
 use std::fmt;
 use std::ops::Deref;

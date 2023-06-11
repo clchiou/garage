@@ -10,5 +10,15 @@ snafu = "0.7.4"
 g1_base = { path = "../../g1/base" }
 g1_bytes = { path = "../../g1/bytes" }
 
+# feature: serde
+paste = { version = "1.0.12", optional = true }
+serde = { version = "1.0.163", optional = true }
+g1_serde = { path = "../../g1/serde", optional = true }
+
+[dev-dependencies]
+serde = { version = "1.0.163", features = ["derive"] }
+serde_bytes = "0.11.9"
+
 [features]
+serde = ["dep:paste", "dep:serde", "dep:g1_serde"]
 test_harness = []
