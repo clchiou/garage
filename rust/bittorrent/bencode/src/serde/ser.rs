@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::ops::Deref;
 
 use bytes::BytesMut;
 use serde::{
@@ -8,12 +9,46 @@ use serde::{
     },
     Serialize,
 };
+use serde_bytes::Bytes;
 
 use g1_serde::serialize;
 
 use crate::own::{ByteString, Dictionary, List, Value};
 
 use super::{error::Error, to_int};
+
+//
+// Serialize
+//
+
+impl<ByteString, List, Dictionary> Serialize for crate::Value<ByteString, List, Dictionary>
+where
+    ByteString: AsRef<[u8]>,
+    List: Deref<Target = Vec<Self>>,
+    Dictionary: Deref<Target = BTreeMap<ByteString, Self>>,
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: ser::Serializer,
+    {
+        match self {
+            Self::ByteString(bytes) => serializer.serialize_bytes(bytes.as_ref()),
+            Self::Integer(int) => serializer.serialize_i64(*int),
+            Self::List(list) => list.serialize(serializer),
+            Self::Dictionary(dict) => {
+                let mut map = serializer.serialize_map(Some(dict.len()))?;
+                for (key, value) in dict.iter() {
+                    map.serialize_entry(Bytes::new(key.as_ref()), value)?;
+                }
+                map.end()
+            }
+        }
+    }
+}
+
+//
+// Serializer
+//
 
 pub struct Serializer;
 

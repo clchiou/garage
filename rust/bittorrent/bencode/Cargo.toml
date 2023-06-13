@@ -13,11 +13,11 @@ g1_bytes = { path = "../../g1/bytes" }
 # feature: serde
 paste = { version = "1.0.12", optional = true }
 serde = { version = "1.0.163", optional = true }
+serde_bytes = "0.11.9"
 g1_serde = { path = "../../g1/serde", optional = true }
 
 [dev-dependencies]
 serde = { version = "1.0.163", features = ["derive"] }
-serde_bytes = "0.11.9"
 
 # examples/bencode
 clap = { version = "4.3.1", features = ["derive"] }

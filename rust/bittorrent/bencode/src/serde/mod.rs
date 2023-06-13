@@ -24,6 +24,9 @@ mod tests {
 
     use bytes::BytesMut;
     use serde::{Deserialize, Serialize};
+    use serde_bytes::Bytes;
+
+    use crate::{borrow, own};
 
     use super::*;
 
@@ -52,6 +55,18 @@ mod tests {
         },
     }
 
+    #[derive(Debug, Deserialize, Eq, PartialEq, Serialize)]
+    struct ValueField<'a> {
+        #[serde(borrow)]
+        field: borrow::Value<'a>,
+    }
+
+    #[derive(Debug, Deserialize, Eq, PartialEq, Serialize)]
+    struct Flatten<'a> {
+        #[serde(borrow, flatten)]
+        map: BTreeMap<&'a Bytes, own::Value>,
+    }
+
     #[test]
     fn test_ok() {
         fn test<'a, T>(value: T, expect: &'a [u8])
@@ -60,6 +75,21 @@ mod tests {
         {
             assert_eq!(to_bytes(&value), Ok(BytesMut::from(expect)));
             assert_eq!(from_bytes::<T>(expect), Ok(value));
+
+            let borrowed_value = borrow::Value::try_from(expect).unwrap();
+            let owned_value = borrowed_value.to_owned();
+
+            let value = own::Value::deserialize(Deserializer::from_bytes(expect));
+            assert_eq!(value, Ok(owned_value.clone()));
+            let value = borrow::Value::deserialize(Deserializer::from_bytes(expect));
+            assert_eq!(value, Ok(borrowed_value.clone()));
+            let value = value.unwrap();
+            if matches!(value, borrow::Value::List(_) | borrow::Value::Dictionary(_)) {
+                assert_eq!(value.raw_value(), expect);
+            }
+
+            assert_eq!(owned_value.serialize(Serializer), Ok(owned_value.clone()));
+            assert_eq!(borrowed_value.serialize(Serializer), Ok(owned_value));
         }
 
         test(false, b"i0e");
@@ -70,13 +100,20 @@ mod tests {
         test(0.1f64, b"8:\x3f\xb9\x99\x99\x99\x99\x99\x9a");
         test('A', b"i65e");
         test("hello world\n", b"12:hello world\n");
+        test(Bytes::new(b"hello world\n"), b"12:hello world\n");
         test(None::<u8>, b"le");
         test(Some(1), b"li1ee");
         test((), b"le");
         test(Unit, b"le");
         test(vec![vec![0u8]], b"lli0eee");
-        test((1, "foo"), b"li1e3:fooe");
+        test(vec!["foo"], b"l3:fooe");
+        test(vec![Bytes::new(b"bar")], b"l3:bare");
+        test((1, "foo", Bytes::new(b"bar")), b"li1e3:foo3:bare");
         test(BTreeMap::from([("foo", "bar")]), b"d3:foo3:bare");
+        test(
+            BTreeMap::from([(Bytes::new(b"foo"), Bytes::new(b"bar"))]),
+            b"d3:foo3:bare",
+        );
 
         let value = Struct {
             int: 42,
@@ -94,6 +131,35 @@ mod tests {
         test(Enum::Newtype(value), &enum_expect);
         test(Enum::Tuple(1, 2), b"d5:Tupleli1ei2eee");
         test(Enum::Struct { x: 3 }, b"d6:Structd1:xi3eee");
+
+        let value = ValueField {
+            field: BTreeMap::from([(
+                b"a".as_slice(),
+                BTreeMap::from([(
+                    b"b".as_slice(),
+                    BTreeMap::from([(b"c".as_slice(), BTreeMap::new().into())]).into(),
+                )])
+                .into(),
+            )])
+            .into(),
+        };
+        test(value, b"d5:fieldd1:ad1:bd1:cdeeeee");
+
+        let value = Flatten {
+            map: BTreeMap::from([(
+                Bytes::new(b"a"),
+                BTreeMap::from([(
+                    own::ByteString::from(b"b".as_slice()).into(),
+                    BTreeMap::from([(
+                        own::ByteString::from(b"c".as_slice()).into(),
+                        BTreeMap::new().into(),
+                    )])
+                    .into(),
+                )])
+                .into(),
+            )]),
+        };
+        test(value, b"d1:ad1:bd1:cdeeee");
     }
 
     #[test]
@@ -147,5 +213,40 @@ mod tests {
             }),
         );
         assert_eq!(to_bytes(&u64::MAX), Err(Error::IntegerValueOutOfRange));
+    }
+
+    #[test]
+    fn raw_value() {
+        fn as_list<'a>(value: &'a borrow::Value<'a>) -> &'a borrow::List<'a> {
+            match value {
+                borrow::Value::List(list) => list,
+                _ => panic!("expect list: {:?}", value),
+            }
+        }
+
+        fn as_dict<'a>(value: &'a borrow::Value<'a>) -> &'a borrow::Dictionary<'a> {
+            match value {
+                borrow::Value::Dictionary(dict) => dict,
+                _ => panic!("expect dictionary: {:?}", value),
+            }
+        }
+
+        let value = borrow::Value::deserialize(Deserializer::from_bytes(b"llelleee")).unwrap();
+        assert_eq!(value.raw_value(), b"llelleee");
+        let list = as_list(&value);
+        assert_eq!(list[0].raw_value(), b"le");
+        assert_eq!(list[1].raw_value(), b"llee");
+        let list = as_list(&list[1]);
+        assert_eq!(list[0].raw_value(), b"le");
+
+        let value =
+            borrow::Value::deserialize(Deserializer::from_bytes(b"d1:ad1:bd1:cdeeee")).unwrap();
+        assert_eq!(value.raw_value(), b"d1:ad1:bd1:cdeeee");
+        let dict = &as_dict(&value)[b"a".as_slice()];
+        assert_eq!(dict.raw_value(), b"d1:bd1:cdeee");
+        let dict = &as_dict(dict)[b"b".as_slice()];
+        assert_eq!(dict.raw_value(), b"d1:cdee");
+        let dict = &as_dict(dict)[b"c".as_slice()];
+        assert_eq!(dict.raw_value(), b"de");
     }
 }

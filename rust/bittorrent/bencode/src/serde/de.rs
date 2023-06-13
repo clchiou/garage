@@ -1,4 +1,5 @@
-use std::collections::btree_map;
+use std::collections::{btree_map, BTreeMap};
+use std::fmt;
 use std::iter::Peekable;
 use std::slice;
 use std::str;
@@ -14,12 +15,139 @@ use snafu::prelude::*;
 
 use g1_serde::{deserialize, deserialize_for_each};
 
-use crate::borrow::{ByteString, Dictionary, List, Value};
+use crate::{
+    borrow::{ByteString, Dictionary, List, Value},
+    own,
+};
 
 use super::{
     error::{DecodeSnafu, Error, InvalidDictionaryAsEnumSnafu, InvalidListAsTypeSnafu},
     to_int,
 };
+
+//
+// Deserialize
+//
+
+// Magic strings that do not collide with any legitimate type name.
+const BORROWED_VALUE_VISITOR: &str = "$bittorrent_bencode::serde::private::BorrowedValueVisitor";
+const RAW_VALUE_VISITOR: &str = "$bittorrent_bencode::serde::private::RawValueVisitor";
+
+struct OwnedValueVisitor;
+struct BorrowedValueVisitor;
+struct RawValueVisitor;
+
+impl<'de> Deserialize<'de> for own::Value {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: de::Deserializer<'de>,
+    {
+        deserializer.deserialize_any(OwnedValueVisitor)
+    }
+}
+
+impl<'de: 'a, 'a> Deserialize<'de> for Value<'a> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: de::Deserializer<'de>,
+    {
+        deserializer.deserialize_newtype_struct(BORROWED_VALUE_VISITOR, BorrowedValueVisitor)
+    }
+}
+
+// `own::Value` does not store the raw value; it can be deserialized without the need for the magic
+// token trick.  Therefore, it can be used in combination with `#[serde(flatten)]`.
+impl<'de> Visitor<'de> for OwnedValueVisitor {
+    type Value = own::Value;
+
+    fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("any valid Bencode value")
+    }
+
+    fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        Ok(value.into())
+    }
+
+    fn visit_borrowed_bytes<E>(self, value: &'de [u8]) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        Ok(own::ByteString::from(value).into())
+    }
+
+    fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+    where
+        A: SeqAccess<'de>,
+    {
+        let mut list = Vec::with_capacity(seq.size_hint().unwrap_or(0));
+        while let Some(item) = seq.next_element()? {
+            list.push(item);
+        }
+        Ok(list.into())
+    }
+
+    fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+    where
+        A: MapAccess<'de>,
+    {
+        let mut dict = BTreeMap::new();
+        while let Some((key, value)) = map.next_entry::<&[u8], own::Value>()? {
+            dict.insert(own::ByteString::from(key), value);
+        }
+        Ok(dict.into())
+    }
+}
+
+impl<'de> Visitor<'de> for BorrowedValueVisitor {
+    type Value = Value<'de>;
+
+    fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("any valid Bencode value")
+    }
+
+    fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        Ok(Value::Integer(value))
+    }
+
+    fn visit_borrowed_bytes<E>(self, value: &'de [u8]) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        Ok(Value::ByteString(value))
+    }
+
+    fn visit_newtype_struct<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+    where
+        D: de::Deserializer<'de>,
+    {
+        deserializer.deserialize_newtype_struct(RAW_VALUE_VISITOR, RawValueVisitor)
+    }
+}
+
+impl<'de> Visitor<'de> for RawValueVisitor {
+    type Value = Value<'de>;
+
+    fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("any valid Bencode raw value")
+    }
+
+    fn visit_borrowed_bytes<E>(self, value: &'de [u8]) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        Value::try_from(value).map_err(|e| E::custom(e.to_string()))
+    }
+}
+
+//
+// Deserializer
+//
 
 pub struct Deserializer<'de>(&'de [u8]);
 
@@ -212,7 +340,17 @@ impl<'de, 'a> de::Deserializer<'de> for &'a Value<'de> {
     });
     deserialize!(unit_struct => unit);
 
-    deserialize!(newtype_struct(self, _name, visitor) visitor.visit_newtype_struct(self));
+    deserialize!(newtype_struct(self, name, visitor) {
+        match name {
+            BORROWED_VALUE_VISITOR => match self {
+                Value::ByteString(bytes) => visitor.visit_borrowed_bytes(bytes),
+                Value::Integer(int) => visitor.visit_i64(*int),
+                Value::List(_) | Value::Dictionary(_) => visitor.visit_newtype_struct(self),
+            },
+            RAW_VALUE_VISITOR => visitor.visit_borrowed_bytes(self.raw_value()),
+            _ => visitor.visit_newtype_struct(self),
+        }
+    });
 
     deserialize!(seq(self, visitor) visitor.visit_seq(ListIter::new(as_!(List, self)?)));
     deserialize!(tuple => seq);
