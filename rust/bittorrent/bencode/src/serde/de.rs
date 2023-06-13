@@ -53,6 +53,21 @@ macro_rules! forward_to_value {
     };
 }
 
+// We provide all possible implementations (`&Self`, `&mut Self`, and `Self`) that `Either` may
+// require.
+
+impl<'de, 'a> de::Deserializer<'de> for &'a Deserializer<'de> {
+    type Error = Error;
+
+    deserialize_for_each!(forward_to_value);
+}
+
+impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
+    type Error = Error;
+
+    deserialize_for_each!(forward_to_value);
+}
+
 impl<'de> de::Deserializer<'de> for Deserializer<'de> {
     type Error = Error;
 

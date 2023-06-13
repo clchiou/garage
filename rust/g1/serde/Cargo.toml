@@ -2,3 +2,7 @@
 name = "g1_serde"
 version.workspace = true
 edition.workspace = true
+
+[dependencies]
+paste = "1.0.12"
+serde = "1.0.163"
