@@ -11,6 +11,18 @@ impl<'a> fmt::Debug for EscapeAscii<'a> {
     }
 }
 
+/// Formats a bytes slice into a hex string.
+pub struct Hex<'a>(pub &'a [u8]);
+
+impl<'a> fmt::Debug for Hex<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for byte in self.0 {
+            write!(f, "{:02x}", byte)?;
+        }
+        Ok(())
+    }
+}
+
 /// Recursively inserts placeholders for a value of a type that does not "fully" implement
 /// `std::fmt::Debug`.
 pub struct InsertPlaceholder<'a, T: ?Sized>(pub &'a T);
@@ -125,6 +137,12 @@ mod tests {
     fn escape_ascii() {
         let escaped = b"\t".as_slice();
         assert_eq!(format!("{:?}", EscapeAscii(escaped)), "\"\\t\"");
+    }
+
+    #[test]
+    fn hex() {
+        let data = [0xdeu8, 0xad, 0xbe, 0xef];
+        assert_eq!(format!("{:?}", Hex(&data)), "deadbeef");
     }
 
     #[derive(Debug)]
