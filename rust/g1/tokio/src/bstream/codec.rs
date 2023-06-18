@@ -1,4 +1,3 @@
-use std::fmt;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
@@ -9,7 +8,7 @@ use bytes::BytesMut;
 // `async fn next` method!
 use futures::{future::BoxFuture, sink, stream};
 
-use g1_base::fmt::InsertPlaceholder;
+use g1_base::fmt::{DebugExt, InsertPlaceholder};
 
 use super::{StreamRecv, StreamSend};
 
@@ -83,23 +82,31 @@ where
 //
 
 /// Byte Stream to `futures::stream::Stream` Adapter
+#[derive(DebugExt)]
 pub struct Source<Stream, Decoder>
 where
     Stream: StreamRecv,
     Decoder: Decode<Stream>,
 {
+    #[debug(with = InsertPlaceholder)]
     source: Option<(Stream, Decoder)>,
+    #[debug(with = InsertPlaceholder)]
     next_future: Option<SourceFuture<Stream, Decoder, Decoder::Item, Decoder::Error>>,
 }
 
 /// `futures::sink::Sink` to Byte Stream Adapter
+#[derive(DebugExt)]
 pub struct Sink<Stream, Encoder>
 where
     Stream: StreamSend,
 {
+    #[debug(with = InsertPlaceholder)]
     stream: Option<Stream>,
+    #[debug(with = InsertPlaceholder)]
     encoder: Encoder,
+    #[debug(with = InsertPlaceholder)]
     flush_future: Option<SinkFuture<Stream, Stream::Error>>,
+    #[debug(with = InsertPlaceholder)]
     close_future: Option<SinkFuture<Stream, Stream::Error>>,
 }
 
@@ -140,19 +147,6 @@ where
     fn reset(&mut self, source: (Stream, Decoder)) {
         self.source = Some(source);
         self.next_future = None;
-    }
-}
-
-impl<Stream, Decoder> fmt::Debug for Source<Stream, Decoder>
-where
-    Stream: StreamRecv,
-    Decoder: Decode<Stream>,
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Source")
-            .field("source", &InsertPlaceholder(&self.source))
-            .field("next_future", &InsertPlaceholder(&self.next_future))
-            .finish()
     }
 }
 
@@ -204,20 +198,6 @@ where
         self.stream = Some(stream);
         self.flush_future = None;
         self.close_future = None;
-    }
-}
-
-impl<Stream, Encoder> fmt::Debug for Sink<Stream, Encoder>
-where
-    Stream: StreamSend,
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Sink")
-            .field("stream", &InsertPlaceholder(&self.stream))
-            .field("encoder", &InsertPlaceholder(&self.encoder))
-            .field("flush_future", &InsertPlaceholder(&self.flush_future))
-            .field("close_future", &InsertPlaceholder(&self.close_future))
-            .finish()
     }
 }
 
