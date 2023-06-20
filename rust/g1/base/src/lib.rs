@@ -13,12 +13,9 @@
 #![feature(specialization)]
 
 pub mod fmt;
+pub mod ops;
 pub mod owner;
 
 pub mod cmp {
     pub use g1_base_derive::PartialEqExt;
-}
-
-pub mod ops {
-    pub use g1_base_derive::{Deref, DerefMut};
 }
