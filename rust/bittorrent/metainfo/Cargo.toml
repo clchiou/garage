@@ -12,6 +12,7 @@ snafu = "0.7.4"
 
 g1_base = { path = "../../g1/base" }
 
+bittorrent_base = { path = "../base" }
 bittorrent_bencode = { path = "../bencode", features = ["serde"] }
 
 [dev-dependencies]

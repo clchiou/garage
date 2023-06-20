@@ -8,11 +8,10 @@ use std::str;
 use chrono::{DateTime, TimeZone, Utc};
 use snafu::prelude::*;
 
+use bittorrent_base::PIECE_HASH_SIZE;
 use bittorrent_bencode::{borrow, own};
 
 use crate::{Error, InvalidNodeSnafu, InvalidPieceHashSizeSnafu};
-
-const PIECE_HASH_SIZE: usize = 20;
 
 pub(super) fn to_str(value: borrow::Value) -> Result<&str, Error> {
     let bytes = value

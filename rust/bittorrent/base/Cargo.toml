@@ -1,0 +1,4 @@
+[package]
+name = "bittorrent_base"
+version.workspace = true
+edition.workspace = true

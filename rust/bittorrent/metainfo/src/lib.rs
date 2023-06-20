@@ -17,11 +17,10 @@ use g1_base::{
     fmt::{DebugExt, EscapeAscii, Hex},
 };
 
+use bittorrent_base::INFO_HASH_SIZE;
 use bittorrent_bencode::{borrow, own};
 
 pub use self::sanity::Insanity;
-
-const INFO_HASH_SIZE: usize = 20;
 
 #[derive(Clone, DebugExt, Deserialize, Eq, PartialEq, Serialize)]
 // Use two-pass (de-)serialization because:
