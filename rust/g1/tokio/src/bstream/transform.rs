@@ -3,7 +3,7 @@ use std::ops::{Deref, DerefMut};
 use async_trait::async_trait;
 use bytes::BytesMut;
 
-use super::{StreamRecv, StreamSend};
+use super::{StreamIntoSplit, StreamRecv, StreamSend, StreamSplit};
 
 /// Transformer
 ///
@@ -15,6 +15,15 @@ use super::{StreamRecv, StreamSend};
 pub struct Transformer<Stream, Transform> {
     stream: Stream,
     transform: Transform,
+}
+
+/// It is similar to the `Transformer`, except that it has two transform functions that are applied
+/// to traffic in both directions.
+#[derive(Debug)]
+pub struct DuplexTransformer<Stream, RecvTransform, SendTransform> {
+    stream: Stream,
+    recv_transform: RecvTransform,
+    send_transform: SendTransform,
 }
 
 /// Transform Function
@@ -53,6 +62,24 @@ impl<Stream, Transform> Transformer<Stream, Transform> {
     }
 }
 
+macro_rules! recv {
+    ($stream:expr, $transform:expr $(,)?) => {{
+        let size = $stream.buffer().len();
+        let result = $stream.recv().await;
+        $transform.transform(&mut $stream.buffer()[size..]);
+        result
+    }};
+}
+
+macro_rules! recv_or_eof {
+    ($stream:expr, $transform:expr $(,)?) => {{
+        let size = $stream.buffer().len();
+        let result = $stream.recv_or_eof().await;
+        $transform.transform(&mut $stream.buffer()[size..]);
+        result
+    }};
+}
+
 #[async_trait]
 impl<S, T, E> StreamRecv for Transformer<S, T>
 where
@@ -65,17 +92,11 @@ where
     type Error = E;
 
     async fn recv(&mut self) -> Result<usize, Self::Error> {
-        let size = self.stream.buffer().len();
-        let result = self.stream.recv().await;
-        self.transform.transform(&mut self.stream.buffer()[size..]);
-        result
+        recv!(self.stream, self.transform)
     }
 
     async fn recv_or_eof(&mut self) -> Result<Option<usize>, Self::Error> {
-        let size = self.stream.buffer().len();
-        let result = self.stream.recv_or_eof().await;
-        self.transform.transform(&mut self.stream.buffer()[size..]);
-        result
+        recv_or_eof!(self.stream, self.transform)
     }
 
     fn buffer(&mut self) -> Self::Buffer<'_> {
@@ -154,14 +175,159 @@ where
     }
 }
 
+impl<T> Transform for &mut T
+where
+    T: Transform,
+{
+    fn transform(&mut self, buffer: &mut [u8]) {
+        (*self).transform(buffer)
+    }
+}
+
+impl Transform for Box<dyn Transform + Send> {
+    fn transform(&mut self, buffer: &mut [u8]) {
+        (**self).transform(buffer)
+    }
+}
+
+impl<Stream, RecvTransform, SendTransform> DuplexTransformer<Stream, RecvTransform, SendTransform> {
+    pub fn new(
+        stream: Stream,
+        recv_transform: RecvTransform,
+        send_transform: SendTransform,
+    ) -> Self {
+        Self {
+            stream,
+            recv_transform,
+            send_transform,
+        }
+    }
+
+    pub fn stream(&self) -> &Stream {
+        &self.stream
+    }
+}
+
+#[async_trait]
+impl<Stream, RecvTransform, SendTransform, Error> StreamRecv
+    for DuplexTransformer<Stream, RecvTransform, SendTransform>
+where
+    Stream: StreamRecv<Error = Error> + Send,
+    RecvTransform: Transform + Send,
+    SendTransform: Send,
+{
+    type Buffer<'a> = Stream::Buffer<'a>
+    where
+        Self: 'a;
+    type Error = Error;
+
+    async fn recv(&mut self) -> Result<usize, Self::Error> {
+        recv!(self.stream, self.recv_transform)
+    }
+
+    async fn recv_or_eof(&mut self) -> Result<Option<usize>, Self::Error> {
+        recv_or_eof!(self.stream, self.recv_transform)
+    }
+
+    fn buffer(&mut self) -> Self::Buffer<'_> {
+        self.stream.buffer()
+    }
+}
+
+#[async_trait]
+impl<Stream, RecvTransform, SendTransform, Error> StreamSend
+    for DuplexTransformer<Stream, RecvTransform, SendTransform>
+where
+    Stream: StreamSend<Error = Error> + Send,
+    RecvTransform: Send,
+    SendTransform: Transform + Send,
+{
+    type Buffer<'a> = SendBuffer<'a, Stream::Buffer<'a>, SendTransform>
+    where
+        Self: 'a;
+    type Error = Error;
+
+    fn buffer(&mut self) -> Self::Buffer<'_> {
+        SendBuffer::new(self.stream.buffer(), &mut self.send_transform)
+    }
+
+    async fn send_all(&mut self) -> Result<(), Self::Error> {
+        self.stream.send_all().await
+    }
+
+    async fn shutdown(&mut self) -> Result<(), Self::Error> {
+        self.stream.shutdown().await
+    }
+}
+
+impl<Stream, RecvTransform, SendTransform> StreamSplit
+    for DuplexTransformer<Stream, RecvTransform, SendTransform>
+where
+    Stream: StreamSplit,
+    for<'a> Stream::RecvHalf<'a>: Send,
+    for<'a> Stream::SendHalf<'a>: Send,
+    RecvTransform: Transform + Send,
+    SendTransform: Transform + Send,
+{
+    type RecvHalf<'a> = Transformer<Stream::RecvHalf<'a>, &'a mut RecvTransform>
+    where
+        Self: 'a;
+    type SendHalf<'a> = Transformer<Stream::SendHalf<'a>, &'a mut SendTransform>
+    where
+        Self: 'a;
+
+    fn split(&mut self) -> (Self::RecvHalf<'_>, Self::SendHalf<'_>) {
+        let (recv_half, send_half) = self.stream.split();
+        (
+            Transformer::new(recv_half, &mut self.recv_transform),
+            Transformer::new(send_half, &mut self.send_transform),
+        )
+    }
+}
+
+impl<Stream, RecvTransform, SendTransform> StreamIntoSplit
+    for DuplexTransformer<Stream, RecvTransform, SendTransform>
+where
+    Stream: StreamIntoSplit,
+    Stream::OwnedRecvHalf: Send,
+    Stream::OwnedSendHalf: Send,
+    RecvTransform: Transform + Send,
+    SendTransform: Transform + Send,
+{
+    type OwnedRecvHalf = Transformer<Stream::OwnedRecvHalf, RecvTransform>;
+    type OwnedSendHalf = Transformer<Stream::OwnedSendHalf, SendTransform>;
+
+    fn into_split(self) -> (Self::OwnedRecvHalf, Self::OwnedSendHalf) {
+        let (recv_half, send_half) = self.stream.into_split();
+        (
+            Transformer::new(recv_half, self.recv_transform),
+            Transformer::new(send_half, self.send_transform),
+        )
+    }
+
+    fn reunite(
+        recv: Self::OwnedRecvHalf,
+        send: Self::OwnedSendHalf,
+    ) -> Result<Self, (Self::OwnedRecvHalf, Self::OwnedSendHalf)> {
+        match Stream::reunite(recv.stream, send.stream) {
+            Ok(stream) => Ok(Self::new(stream, recv.transform, send.transform)),
+            Err((recv_half, send_half)) => Err((
+                Transformer::new(recv_half, recv.transform),
+                Transformer::new(send_half, send.transform),
+            )),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::assert_matches::assert_matches;
+    use std::fmt;
 
     use bytes::BufMut;
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::io::{AsyncReadExt, AsyncWriteExt, DuplexStream};
 
-    use crate::io::{RecvStream, SendStream};
+    use crate::io::{RecvStream, SendStream, Stream};
 
     use super::*;
 
@@ -179,7 +345,14 @@ mod tests {
     async fn transformer_recv() {
         let (stream, mut mock) = RecvStream::new_mock(4096);
         let mut transformer = Transformer::new(stream, Invert);
+        test_transformer_recv(&mut transformer, &mut mock).await;
+    }
 
+    async fn test_transformer_recv<T>(transformer: &mut T, mock: &mut DuplexStream)
+    where
+        T: StreamRecv + Send,
+        T::Error: fmt::Debug,
+    {
         mock.write_u8(0x01).await.unwrap();
         assert_matches!(transformer.recv().await, Ok(1));
         assert_eq!(transformer.buffer().as_ref(), &[!0x01]);
@@ -197,8 +370,24 @@ mod tests {
     async fn transformer_send() {
         let (stream, mut mock) = SendStream::new_mock(4096);
         let mut transformer = Transformer::new(stream, Invert);
+        test_transformer_send(&mut transformer, &mut mock).await;
+    }
+
+    async fn test_transformer_send<T>(transformer: &mut T, mock: &mut DuplexStream)
+    where
+        T: StreamSend + Send,
+        T::Error: fmt::Debug,
+    {
         transformer.buffer().put_u16(0x0102);
         assert_matches!(transformer.send_all().await, Ok(()));
         assert_eq!(mock.read_u16().await.unwrap(), !0x0102);
+    }
+
+    #[tokio::test]
+    async fn duplex_transformer() {
+        let (stream, mut mock) = Stream::new_mock(4096);
+        let mut transformer = DuplexTransformer::new(stream, Invert, Invert);
+        test_transformer_recv(&mut transformer, &mut mock).await;
+        test_transformer_send(&mut transformer, &mut mock).await;
     }
 }
