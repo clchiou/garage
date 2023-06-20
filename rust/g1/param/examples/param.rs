@@ -5,7 +5,10 @@ use clap::Parser;
 
 use g1_param::{self, Error, ParameterValues, Parameters};
 
-g1_param::define!(greet: String = "Hello, world!".to_string());
+g1_param::define!(
+    /// Greet Message
+    greet: String = "Hello, world!".to_string()
+);
 g1_param::define!(x: u32 = 42; validate = |x: &u32| *x > 0; validate = is_even);
 
 fn is_even(x: &u32) -> bool {

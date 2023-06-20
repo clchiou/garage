@@ -18,7 +18,11 @@ use serde_json::value::RawValue;
 
 #[macro_export]
 macro_rules! define {
-    ($v:vis $name:ident: $type:ty = $default:expr $(; validate = $validate:expr)* $(;)?) => {
+    (
+        $(#[$meta:meta])* $v:vis $name:ident: $type:ty = $default:expr
+        $(; validate = $validate:expr)* $(;)?
+    ) => {
+        $(#[$meta])*
         $v fn $name() -> &'static $type {
             #[::linkme::distributed_slice($crate::PARAMETERS)]
             static PARAMETER: $crate::Parameter = $crate::Parameter::new(
