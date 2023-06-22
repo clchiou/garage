@@ -2,3 +2,11 @@
 name = "bittorrent_base"
 version.workspace = true
 edition.workspace = true
+
+[dependencies]
+# feature: param
+linkme = { version = "0.3.10", optional = true }
+g1_param = { path = "../../g1/param", optional = true }
+
+[features]
+param = ["dep:linkme", "dep:g1_param"]
