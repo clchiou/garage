@@ -1,4 +1,6 @@
 use std::cmp;
+use std::num::ParseIntError;
+use std::str::FromStr;
 
 pub trait StrExt {
     // TODO: Deprecate this when/if the `str` type provides a `chunks` method.
@@ -14,8 +16,29 @@ impl StrExt for str {
     }
 }
 
+/// Parses a hex string.
+#[derive(Debug)]
+pub struct Hex<T>(pub T);
+
+impl<T> FromStr for Hex<T>
+where
+    T: FromIterator<u8>,
+{
+    type Err = ParseIntError;
+
+    fn from_str(hex: &str) -> Result<Self, Self::Err> {
+        // TODO: Should we disallow odd length of `hex`?
+        Ok(Hex(hex
+            .chunks(2)
+            .map(|byte| u8::from_str_radix(byte, 16))
+            .try_collect()?))
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use std::assert_matches::assert_matches;
+
     use super::*;
 
     #[test]
@@ -41,5 +64,27 @@ mod tests {
         test("abc", 2, vec!["ab", "c"]);
         test("abcd", 2, vec!["ab", "cd"]);
         test("abcdf", 2, vec!["ab", "cd", "f"]);
+    }
+
+    #[test]
+    fn hex() {
+        fn test(hex: &str, expect: Vec<u8>) {
+            assert_matches!(hex.parse::<Hex<Vec<u8>>>(), Ok(Hex(v)) if v == expect);
+        }
+
+        test("", vec![]);
+
+        test("0", vec![0]);
+        test("00", vec![0]);
+        test("000", vec![0, 0]);
+
+        test("1", vec![0x01]); // NOTE: It is 0x01, not 0x10.
+        test("12", vec![0x12]);
+        test("123", vec![0x12, 0x03]); // NOTE: It is 0x03, not 0x30.
+        test("1234", vec![0x12, 0x34]);
+
+        test("deadbeef", vec![0xde, 0xad, 0xbe, 0xef]);
+
+        assert_matches!("x".parse::<Hex<Vec<u8>>>(), Err(_));
     }
 }

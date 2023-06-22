@@ -9,6 +9,8 @@
 // TODO: We enable `specialization` for now and will switch to `min_specialization` when it is
 // sufficient for our use case in the `fmt` module.
 #![allow(incomplete_features)]
+#![feature(assert_matches)]
+#![feature(iterator_try_collect)]
 #![feature(return_position_impl_trait_in_trait)]
 #![feature(rustc_attrs)]
 #![feature(specialization)]
