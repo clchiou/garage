@@ -10,13 +10,18 @@ use tokio::{
     net::{TcpListener, TcpSocket},
 };
 
+use g1_base::str::Hex;
 use g1_tokio::{
     bstream::{StreamRecv, StreamSend},
     net::tcp::TcpStream,
 };
 
+use bittorrent_mse;
+
 #[derive(Debug, Parser)]
 struct NetCat {
+    #[arg(long, value_name = "INFO_HASH")]
+    mse: Option<String>,
     #[arg(long, short)]
     listen: bool,
     #[arg(default_value = "127.0.0.1")]
@@ -29,9 +34,19 @@ impl NetCat {
     async fn execute(&self) -> Result<(), Error> {
         if self.listen {
             let (stream, _) = self.bind()?.accept().await?;
-            recv(TcpStream::from(stream), io::stdout()).await
+            let stream = TcpStream::from(stream);
+            let stream = match self.parse_mse()? {
+                Some(info_hash) => bittorrent_mse::accept(stream, &info_hash).await?,
+                None => bittorrent_mse::wrap(stream),
+            };
+            recv(stream, io::stdout()).await
         } else {
-            send(io::stdin(), self.connect().await?).await
+            let stream = self.connect().await?;
+            let stream = match self.parse_mse()? {
+                Some(info_hash) => bittorrent_mse::connect(stream, &info_hash).await?,
+                None => bittorrent_mse::wrap(stream),
+            };
+            send(io::stdin(), stream).await
         }
     }
 
@@ -58,6 +73,16 @@ impl NetCat {
         let socket = TcpSocket::new_v4()?;
         socket.set_reuseaddr(true)?;
         Ok(socket)
+    }
+
+    fn parse_mse(&self) -> Result<Option<Vec<u8>>, Error> {
+        self.mse
+            .as_ref()
+            .map(|info_hash| match info_hash.parse::<Hex<Vec<u8>>>() {
+                Ok(Hex(hex)) => Ok(hex),
+                Err(error) => Err(Error::other(error)),
+            })
+            .transpose()
     }
 }
 

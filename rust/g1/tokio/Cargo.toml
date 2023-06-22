@@ -12,7 +12,9 @@ tokio = { version = "1.28.2", features = ["full"] }
 g1_base = { path = "../base" }
 
 [dev-dependencies]
+# examples/ncat
 clap = { version = "4.3.1", features = ["derive"] }
+bittorrent_mse = { path = "../../bittorrent/mse" }
 
 [features]
 test_harness = []
