@@ -6,6 +6,7 @@ __all__ = [
 
 import contextlib
 import logging
+import os
 import tempfile
 from pathlib import Path
 
@@ -143,7 +144,6 @@ def merge_image(
             )
         )
     )
-    filter_rules = _get_filter_rules(default_filters, filters)
     with contextlib.ExitStack() as stack:
         tempdir_path = stack.enter_context(
             tempfile.TemporaryDirectory(dir=output.parent)
@@ -153,11 +153,24 @@ def merge_image(
         LOG.info('generate application image under: %s', output_rootfs_path)
         # NOTE: Do NOT overlay-mount these rootfs (and then rsync from
         # the overlay) because the overlay does not include base and
-        # base-builder, and thus some tombstone files may not be copied
-        # correctly (I don't know why but rsync complains about this).
-        # For now our workaround is to rsync each rootfs sequentially.
+        # base-builder.  Therefore, some tombstone files may not be
+        # copied correctly.  For now, our workaround is to rsync each
+        # rootfs sequentially.
+        #
+        # TODO: Regarding the tombstone files, currently, we only handle
+        # whiteouts and do not handle opaque directories.
         for rootfs_path in rootfs_paths:
-            utils.rsync(rootfs_path, output_rootfs_path, filter_rules)
+            whiteouts = _find_whiteouts(rootfs_path)
+            for whiteout in whiteouts:
+                scripts.rm(output_rootfs_path / whiteout, recursive=True)
+            rootfs_filters = [('exclude', '/%s' % whiteout)
+                              for whiteout in whiteouts]
+            rootfs_filters.extend(filters)
+            utils.rsync(
+                rootfs_path,
+                output_rootfs_path,
+                _get_filter_rules(default_filters, rootfs_filters),
+            )
         ctr_scripts.ctr_build_image(name, version, output_rootfs_path, output)
 
 
@@ -171,3 +184,17 @@ def _get_filter_rules(default_filters, filters):
         *('--%s=%s' % pair for pair in filters),
         *('--%s=%s' % pair for pair in default_filters),
     ]
+
+
+def _find_whiteouts(dir_path):
+    whiteouts = []
+    with scripts.doing_capture_stdout():
+        for path in (
+            scripts.run(['find', dir_path, '-type', 'c'])\
+            .stdout.decode('utf-8').splitlines()
+        ):
+            path = Path(path)
+            stat = path.stat()
+            if os.major(stat.st_rdev) == 0 and os.minor(stat.st_rdev) == 0:
+                whiteouts.append(path.relative_to(dir_path))
+    return whiteouts
