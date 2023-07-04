@@ -1,27 +1,33 @@
 #![feature(io_error_other)]
 
-use std::io::Error;
+use std::io::{Error, ErrorKind};
 use std::marker::Unpin;
 use std::net::{Ipv4Addr, SocketAddr};
 
-use clap::Parser;
+use clap::{Parser, ValueEnum};
+use futures::{sink::SinkExt, stream::StreamExt};
 use tokio::{
     io::{self, AsyncReadExt, AsyncWriteExt},
-    net::{TcpListener, TcpSocket},
+    net::{self, TcpListener, TcpSocket},
 };
 
 use g1_base::str::Hex;
 use g1_tokio::{
     bstream::{StreamRecv, StreamSend},
     net::tcp::TcpStream,
+    net::udp::UdpSocket,
 };
 
 use bittorrent_mse;
 
 #[derive(Debug, Parser)]
 struct NetCat {
+    #[arg(long, value_enum, default_value_t = Protocol::Tcp)]
+    protocol: Protocol,
+
     #[arg(long, value_name = "INFO_HASH")]
     mse: Option<String>,
+
     #[arg(long, short)]
     listen: bool,
     #[arg(default_value = "127.0.0.1")]
@@ -30,8 +36,18 @@ struct NetCat {
     port: u16,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, ValueEnum)]
+enum Protocol {
+    Tcp,
+    Udp,
+}
+
 impl NetCat {
     async fn execute(&self) -> Result<(), Error> {
+        if self.protocol == Protocol::Udp {
+            return self.execute_udp().await;
+        }
+
         if self.listen {
             let (stream, _) = self.bind()?.accept().await?;
             let stream = TcpStream::from(stream);
@@ -47,6 +63,31 @@ impl NetCat {
                 None => bittorrent_mse::wrap(stream),
             };
             send(io::stdin(), stream).await
+        }
+    }
+
+    /// Receives/sends one datagram from/to a peer.
+    async fn execute_udp(&self) -> Result<(), Error> {
+        if self.mse.is_some() {
+            return Err(Error::other("udp mode does not support `--mse`"));
+        }
+        if self.listen {
+            let mut socket = UdpSocket::new(net::UdpSocket::bind(self.parse_endpoint()?).await?);
+            let (peer, mut payload) = socket
+                .next()
+                .await
+                .ok_or_else(|| Error::from(ErrorKind::UnexpectedEof))??;
+            eprintln!("receive datagram from: {}", peer);
+            io::stdout().write_all_buf(&mut payload).await
+        } else {
+            let mut socket = UdpSocket::new(net::UdpSocket::bind("127.0.0.1:0").await?);
+            eprintln!("local address: {}", socket.socket().local_addr()?);
+            let mut payload = Vec::new();
+            io::stdin().read_to_end(&mut payload).await?;
+            socket
+                .feed((self.parse_endpoint()?, payload.into()))
+                .await?;
+            socket.close().await
         }
     }
 
