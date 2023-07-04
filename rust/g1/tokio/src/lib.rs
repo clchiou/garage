@@ -1,6 +1,6 @@
 //! Extends the `tokio` crate.
 
-#![feature(assert_matches)]
+#![cfg_attr(test, feature(assert_matches))]
 
 pub mod bstream;
 pub mod io;

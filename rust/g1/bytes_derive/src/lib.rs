@@ -5,9 +5,9 @@
 //! * Arrays or tuples of primitive types.
 //! * Add attribute to skip fields (which will be initialized with default values).
 
-#![feature(assert_matches)]
 #![feature(iterator_try_collect)]
 #![feature(try_blocks)]
+#![cfg_attr(test, feature(assert_matches))]
 
 use heck::ToSnakeCase;
 use proc_macro2::{Ident, TokenStream};

@@ -1,4 +1,4 @@
-#![feature(assert_matches)]
+#![cfg_attr(test, feature(assert_matches))]
 
 mod attr;
 mod debug;

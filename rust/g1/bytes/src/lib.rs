@@ -1,7 +1,7 @@
 //! Extends the `bytes` crate.
 
-#![feature(assert_matches)]
 #![feature(result_option_inspect)]
+#![cfg_attr(test, feature(assert_matches))]
 
 use std::fmt;
 use std::io::{self, Write};
