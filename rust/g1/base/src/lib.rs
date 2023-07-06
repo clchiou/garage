@@ -20,6 +20,7 @@ pub mod ops;
 pub mod owner;
 pub mod slice;
 pub mod str;
+pub mod sync;
 
 pub mod cmp {
     pub use g1_base_derive::PartialEqExt;
