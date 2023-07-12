@@ -1,0 +1,13 @@
+[package]
+name = "bittorrent_utp"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+bytes = "1.4.0"
+snafu = "0.7.4"
+
+g1_bytes = { path = "../../g1/bytes" }
+
+[dev-dependencies]
+hex-literal = "0.4.1"
