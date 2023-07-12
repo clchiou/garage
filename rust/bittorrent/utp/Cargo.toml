@@ -4,10 +4,17 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+async-trait = "0.1.68"
 bytes = "1.4.0"
+linkme = "0.3.10" # Required by g1_param.
 snafu = "0.7.4"
+tokio = { version = "1.28.2", features = ["full"] }
 
 g1_bytes = { path = "../../g1/bytes" }
+g1_param = { path = "../../g1/param" }
+g1_tokio = { path = "../../g1/tokio" }
+
+bittorrent_base = { path = "../base", features = ["param"] }
 
 [dev-dependencies]
 hex-literal = "0.4.1"
