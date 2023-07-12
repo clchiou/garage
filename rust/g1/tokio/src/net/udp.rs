@@ -1,7 +1,11 @@
+use std::borrow::Borrow;
 use std::io::{Error, ErrorKind};
 use std::net::SocketAddr;
 use std::pin::Pin;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
 use std::task::{Context, Poll};
 
 use bytes::Bytes;
@@ -15,8 +19,11 @@ use g1_base::task::WakerCell;
 const BUFFER_CAPACITY: usize = 65536;
 
 #[derive(Debug)]
-pub struct UdpSocket {
-    socket: net::UdpSocket,
+pub struct UdpSocket<Socket = net::UdpSocket>
+where
+    Socket: Borrow<net::UdpSocket>,
+{
+    socket: Socket,
     eof: AtomicBool,
     recv_buffer: Box<[u8]>,
     send_item: Option<(SocketAddr, Bytes)>,
@@ -47,8 +54,17 @@ impl From<net::UdpSocket> for UdpSocket {
     }
 }
 
-impl UdpSocket {
-    pub fn new(socket: net::UdpSocket) -> Self {
+impl From<Arc<net::UdpSocket>> for UdpSocket<Arc<net::UdpSocket>> {
+    fn from(socket: Arc<net::UdpSocket>) -> Self {
+        Self::new(socket)
+    }
+}
+
+impl<Socket> UdpSocket<Socket>
+where
+    Socket: Borrow<net::UdpSocket>,
+{
+    pub fn new(socket: Socket) -> Self {
         Self {
             socket,
             eof: AtomicBool::new(false),
@@ -59,7 +75,7 @@ impl UdpSocket {
     }
 
     pub fn socket(&self) -> &net::UdpSocket {
-        &self.socket
+        self.socket.borrow()
     }
 
     // NOTE: This method name conflicts with `StreamExt::split` (though I think `StreamExt::split`
@@ -67,13 +83,13 @@ impl UdpSocket {
     pub fn split(&mut self) -> (UdpStream, UdpSink) {
         (
             UdpStream {
-                socket: &self.socket,
+                socket: self.socket.borrow(),
                 eof: &self.eof,
                 recv_buffer: &mut self.recv_buffer,
                 poll_next_waker: &self.poll_next_waker,
             },
             UdpSink {
-                socket: &self.socket,
+                socket: self.socket.borrow(),
                 eof: &self.eof,
                 send_item: &mut self.send_item,
                 poll_next_waker: &self.poll_next_waker,
