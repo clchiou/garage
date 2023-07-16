@@ -14,3 +14,8 @@ g1_param::define!(
     // BEP 29 does not specify this, but it would be nice to have one.
     max_rtt_timeout: Duration = Duration::from_secs(8)
 );
+
+g1_param::define!(
+    /// Limit on the number of times a packet can be resent.
+    resend_limit: usize = 2
+);
