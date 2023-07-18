@@ -16,6 +16,11 @@ g1_param::define!(
 );
 
 g1_param::define!(
+    /// Timeout for appending a payload to the stream's incoming queue.
+    recv_buffer_timeout: Duration = Duration::from_secs(1)
+);
+
+g1_param::define!(
     /// Limit on the number of times a packet can be resent.
     resend_limit: usize = 2
 );
