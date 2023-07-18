@@ -12,12 +12,12 @@ use tokio::{
 use g1_base::sync::MutexExt;
 
 use crate::bstream::{self, UtpRecvStream, UtpSendStream, UtpStream};
-use crate::packet::Packet;
+use crate::packet::{Packet, PacketType};
 use crate::timestamp::Timestamp;
 
 use super::{
-    handshake::Handshake, state::State, Error, IncomingRecv, IncomingSend, InvalidPacketSnafu,
-    OutgoingSend,
+    handshake::Handshake, state::State, ConnectedSend, Error, IncomingRecv, IncomingSend,
+    InvalidPacketSnafu, OutgoingSend,
 };
 
 #[derive(Debug)]
@@ -32,6 +32,7 @@ pub(crate) struct Actor<S = InitState> {
 #[derive(Debug)]
 pub(crate) struct InitState {
     handshake: Handshake,
+    connected_send: ConnectedSend,
     incoming_recv: IncomingRecv,
     stream_outgoing_recv: bstream::OutgoingRecv,
 }
@@ -48,6 +49,7 @@ impl Actor<InitState> {
     pub(crate) fn new(
         handshake: Handshake,
         peer_endpoint: SocketAddr,
+        connected_send: ConnectedSend,
         outgoing_send: OutgoingSend,
         stream_incoming_send: bstream::IncomingSend,
         stream_outgoing_recv: bstream::OutgoingRecv,
@@ -57,6 +59,7 @@ impl Actor<InitState> {
             Self {
                 state: InitState {
                     handshake,
+                    connected_send,
                     incoming_recv,
                     stream_outgoing_recv,
                 },
@@ -73,6 +76,7 @@ impl Actor<InitState> {
         handshake: Handshake,
         socket: Arc<UdpSocket>,
         peer_endpoint: SocketAddr,
+        connected_send: ConnectedSend,
         outgoing_send: OutgoingSend,
     ) -> ((Self, IncomingSend), UtpStream) {
         let (recv, stream_incoming_send) = UtpRecvStream::new(socket.clone(), peer_endpoint);
@@ -81,6 +85,7 @@ impl Actor<InitState> {
             Self::new(
                 handshake,
                 peer_endpoint,
+                connected_send,
                 outgoing_send,
                 stream_incoming_send,
                 stream_outgoing_recv,
@@ -93,10 +98,38 @@ impl Actor<InitState> {
         let (this, init) = self.into_state(());
         let InitState {
             handshake,
+            connected_send,
             mut incoming_recv,
             stream_outgoing_recv,
         } = init;
         let (mut this, _) = this.into_state(handshake);
+
+        let state = match this.handshake(&mut incoming_recv).await {
+            Ok(state) => state,
+            Err(Error::ExpectPacketType {
+                packet_type: PacketType::Reset,
+                expect: PacketType::Synchronize,
+            }) => {
+                // This is probably the result of an earlier connection reset.  We may ignore it
+                // and close the connection.
+                tracing::debug!("expect synchronize but receive reset");
+                return Ok(());
+            }
+            Err(error) => {
+                let _ = connected_send.send(Err(error.to_io_error()));
+                return Err(error);
+            }
+        };
+        let _ = connected_send.send(Ok(()));
+        // Wrap the state in a `Mutex` in order to work around the "single mutable borrow" rule in
+        // the `tokio::try_join!` block.
+        let (this, _) = this.into_state(Mutex::new(state));
+
+        // Unlike TCP, BEP 29 does not specify the protocol for closing a connection.  Therefore,
+        // we simply send a reset and do not wait for any response from the peer.
+        let packet = this.state.must_lock().new_reset_packet();
+        this.outgoing_send(packet).await?;
+
         Ok(())
     }
 }

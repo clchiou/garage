@@ -9,9 +9,12 @@ use std::net::SocketAddr;
 
 use bytes::Bytes;
 use snafu::prelude::*;
-use tokio::sync::mpsc::{self, Receiver, Sender};
+use tokio::sync::{
+    mpsc::{self, Receiver, Sender},
+    oneshot,
+};
 
-use crate::packet::{self, Packet};
+use crate::packet::{self, Packet, PacketType};
 use crate::timestamp::Timestamp;
 
 pub(crate) use self::actor::Actor;
@@ -22,6 +25,9 @@ pub(crate) enum Error {
     BrokenPipe,
     UnexpectedEof,
 
+    ConnectTimeout,
+    AcceptTimeout,
+
     RecvBufferTimeout,
 
     #[snafu(display("resend limit exceeded: seq={seq}"))]
@@ -31,6 +37,12 @@ pub(crate) enum Error {
 
     InvalidPacket {
         source: packet::Error,
+    },
+
+    #[snafu(display("expect packet type {expect:?}: {packet_type:?}"))]
+    ExpectPacketType {
+        packet_type: PacketType,
+        expect: PacketType,
     },
 
     #[snafu(display("ack exceed seq: ack={ack} seq={seq}"))]
@@ -54,6 +66,10 @@ pub(crate) enum Error {
         eof: u16,
     },
 }
+
+pub(crate) type Connected = Result<(), io::Error>;
+pub(crate) type ConnectedRecv = oneshot::Receiver<Connected>;
+pub(crate) type ConnectedSend = oneshot::Sender<Connected>;
 
 g1_param::define!(incoming_queue_size: usize = 32);
 g1_param::define!(outgoing_queue_size: usize = 256);
@@ -81,6 +97,9 @@ impl Error {
                 io::Error::new(io::ErrorKind::UnexpectedEof, "utp connection is closing")
             }
 
+            Error::ConnectTimeout => io::Error::new(io::ErrorKind::TimedOut, "utp connect timeout"),
+            Error::AcceptTimeout => io::Error::new(io::ErrorKind::TimedOut, "utp accept timeout"),
+
             Error::RecvBufferTimeout => {
                 io::Error::new(io::ErrorKind::TimedOut, "utp recv buffer timeout")
             }
@@ -93,7 +112,8 @@ impl Error {
                 io::Error::new(io::ErrorKind::ConnectionAborted, source.clone())
             }
 
-            Error::AckExceedSeq { .. }
+            Error::ExpectPacketType { .. }
+            | Error::AckExceedSeq { .. }
             | Error::DifferentEof { .. }
             | Error::DistantSeq { .. }
             | Error::SeqExceedEof { .. } => {
