@@ -1,5 +1,9 @@
 //! uTorrent Transport Protocol (uTP)
 
+#![feature(result_option_inspect)]
+#![feature(try_blocks)]
+#![cfg_attr(test, feature(assert_matches))]
+
 mod bstream;
 mod conn;
 mod packet;
@@ -23,8 +27,17 @@ g1_param::define!(
 );
 
 g1_param::define!(
+    /// Timeout for receiving any packet.
+    recv_idle_timeout: Duration = Duration::from_secs(1)
+);
+g1_param::define!(
     /// Timeout for appending a payload to the stream's incoming queue.
     recv_buffer_timeout: Duration = Duration::from_secs(1)
+);
+g1_param::define!(
+    /// Timeout for when the remaining data packets arrive after the stream receives the finish
+    /// packet.
+    recv_grace_period: Duration = Duration::from_secs(4)
 );
 
 g1_param::define!(

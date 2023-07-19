@@ -1,6 +1,8 @@
 mod actor;
 mod handshake;
+mod recv;
 mod rtt;
+mod send;
 mod state;
 mod window;
 
@@ -28,7 +30,12 @@ pub(crate) enum Error {
     ConnectTimeout,
     AcceptTimeout,
 
+    ConnectionReset,
+
     RecvBufferTimeout,
+    RecvGracePeriodExpired,
+
+    SendTimeout,
 
     #[snafu(display("resend limit exceeded: seq={seq}"))]
     ResendLimitExceeded {
@@ -44,6 +51,7 @@ pub(crate) enum Error {
         packet_type: PacketType,
         expect: PacketType,
     },
+    UnexpectedResynchronize,
 
     #[snafu(display("ack exceed seq: ack={ack} seq={seq}"))]
     AckExceedSeq {
@@ -100,9 +108,19 @@ impl Error {
             Error::ConnectTimeout => io::Error::new(io::ErrorKind::TimedOut, "utp connect timeout"),
             Error::AcceptTimeout => io::Error::new(io::ErrorKind::TimedOut, "utp accept timeout"),
 
+            Error::ConnectionReset => io::Error::new(
+                io::ErrorKind::ConnectionReset,
+                "utp connection is reset by peer",
+            ),
+
             Error::RecvBufferTimeout => {
                 io::Error::new(io::ErrorKind::TimedOut, "utp recv buffer timeout")
             }
+            Error::RecvGracePeriodExpired => {
+                io::Error::new(io::ErrorKind::TimedOut, "utp recv grace period expired")
+            }
+
+            Error::SendTimeout => io::Error::new(io::ErrorKind::TimedOut, "utp send timeout"),
 
             Error::ResendLimitExceeded { .. } => {
                 io::Error::new(io::ErrorKind::TimedOut, self.clone())
@@ -113,6 +131,7 @@ impl Error {
             }
 
             Error::ExpectPacketType { .. }
+            | Error::UnexpectedResynchronize
             | Error::AckExceedSeq { .. }
             | Error::DifferentEof { .. }
             | Error::DistantSeq { .. }

@@ -125,6 +125,18 @@ impl Actor<InitState> {
         // the `tokio::try_join!` block.
         let (this, _) = this.into_state(Mutex::new(state));
 
+        tokio::select! {
+            result = async {
+                tokio::try_join!(this.recv(incoming_recv), this.send(stream_outgoing_recv))
+                    .map(|((), ())| ())
+            } => result,
+            result = this.rtt_timer() => result,
+        }
+        .inspect_err(|error| {
+            this.abort_stream(error);
+            this.abort_peer();
+        })?;
+
         // Unlike TCP, BEP 29 does not specify the protocol for closing a connection.  Therefore,
         // we simply send a reset and do not wait for any response from the peer.
         let packet = this.state.must_lock().new_reset_packet();
