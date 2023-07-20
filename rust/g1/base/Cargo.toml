@@ -7,4 +7,5 @@ edition.workspace = true
 g1_base_derive = { path = "../base_derive" }
 
 [dev-dependencies]
+tokio = { version = "1.28.2", features = ["full"] }
 trybuild = "1.0.80"

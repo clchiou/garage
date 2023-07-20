@@ -10,12 +10,14 @@
 // sufficient for our use case in the `fmt` module.
 #![allow(incomplete_features)]
 #![feature(iterator_try_collect)]
+#![feature(result_option_inspect)]
 #![feature(return_position_impl_trait_in_trait)]
 #![feature(rustc_attrs)]
 #![feature(specialization)]
 #![cfg_attr(test, feature(assert_matches))]
 
 pub mod fmt;
+pub mod future;
 pub mod ops;
 pub mod owner;
 pub mod slice;
