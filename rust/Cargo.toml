@@ -8,6 +8,7 @@ members = [
     "g1/base_derive",
     "g1/bytes",
     "g1/bytes_derive",
+    "g1/cli",
     "g1/param",
     "g1/serde",
     "g1/tokio",

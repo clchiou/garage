@@ -1,0 +1,18 @@
+[package]
+name = "g1_cli"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+clap = { version = "4.3.1", features = ["derive"] }
+
+# feature: param
+g1_param = { path = "../param", optional = true }
+
+# feature: tracing
+console-subscriber = { version = "0.1.10", optional = true }
+tracing-subscriber = { version = "0.3.17", features = ["env-filter"], optional = true }
+
+[features]
+param = ["dep:g1_param"]
+tracing = ["dep:console-subscriber", "dep:tracing-subscriber"]
