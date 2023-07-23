@@ -30,8 +30,6 @@ where
     poll_next_waker: WakerCell,
 }
 
-// TODO: Provide an owned version of `UdpStream` and `UdpSink`.
-
 #[derive(Debug)]
 pub struct UdpStream<'a> {
     socket: &'a net::UdpSocket,
@@ -46,6 +44,22 @@ pub struct UdpSink<'a> {
     eof: &'a AtomicBool,
     send_item: &'a mut Option<(SocketAddr, Bytes)>,
     poll_next_waker: &'a WakerCell,
+}
+
+#[derive(Debug)]
+pub struct OwnedUdpStream {
+    socket: Arc<net::UdpSocket>,
+    eof: Arc<AtomicBool>,
+    recv_buffer: Box<[u8]>,
+    poll_next_waker: Arc<WakerCell>,
+}
+
+#[derive(Debug)]
+pub struct OwnedUdpSink {
+    socket: Arc<net::UdpSocket>,
+    eof: Arc<AtomicBool>,
+    send_item: Option<(SocketAddr, Bytes)>,
+    poll_next_waker: Arc<WakerCell>,
 }
 
 impl From<net::UdpSocket> for UdpSocket {
@@ -98,6 +112,47 @@ where
     }
 }
 
+impl UdpSocket<net::UdpSocket> {
+    pub fn into_split(self) -> (OwnedUdpStream, OwnedUdpSink) {
+        UdpSocket {
+            socket: Arc::new(self.socket),
+            eof: self.eof,
+            recv_buffer: self.recv_buffer,
+            send_item: self.send_item,
+            poll_next_waker: self.poll_next_waker,
+        }
+        .into_split()
+    }
+}
+
+impl UdpSocket<Arc<net::UdpSocket>> {
+    pub fn into_split(self) -> (OwnedUdpStream, OwnedUdpSink) {
+        let UdpSocket {
+            socket,
+            eof,
+            recv_buffer,
+            send_item,
+            poll_next_waker,
+        } = self;
+        let eof = Arc::new(eof);
+        let poll_next_waker = Arc::new(poll_next_waker);
+        (
+            OwnedUdpStream {
+                socket: socket.clone(),
+                eof: eof.clone(),
+                recv_buffer,
+                poll_next_waker: poll_next_waker.clone(),
+            },
+            OwnedUdpSink {
+                socket,
+                eof,
+                send_item,
+                poll_next_waker,
+            },
+        )
+    }
+}
+
 impl<'a> UdpStream<'a> {
     pub fn socket(&self) -> &net::UdpSocket {
         self.socket
@@ -107,6 +162,18 @@ impl<'a> UdpStream<'a> {
 impl<'a> UdpSink<'a> {
     pub fn socket(&self) -> &net::UdpSocket {
         self.socket
+    }
+}
+
+impl OwnedUdpStream {
+    pub fn socket(&self) -> &net::UdpSocket {
+        &self.socket
+    }
+}
+
+impl OwnedUdpSink {
+    pub fn socket(&self) -> &net::UdpSocket {
+        &self.socket
     }
 }
 
@@ -146,6 +213,10 @@ impl Stream for UdpSocket {
 }
 
 impl<'a> Stream for UdpStream<'a> {
+    gen_stream_impl!();
+}
+
+impl Stream for OwnedUdpStream {
     gen_stream_impl!();
 }
 
@@ -244,6 +315,10 @@ impl<'a> Sink<(SocketAddr, Bytes)> for UdpSink<'a> {
     gen_sink_impl!();
 }
 
+impl Sink<(SocketAddr, Bytes)> for OwnedUdpSink {
+    gen_sink_impl!();
+}
+
 #[cfg(test)]
 mod tests {
     use std::assert_matches::assert_matches;
@@ -290,6 +365,11 @@ mod tests {
 
         let mut socket = UdpSocket::new(net::UdpSocket::bind("127.0.0.1:0").await.unwrap());
         let (stream, _) = UdpSocket::split(&mut socket);
+        let addr = stream.socket().local_addr().unwrap();
+        test(stream, addr).await;
+
+        let socket = UdpSocket::new(net::UdpSocket::bind("127.0.0.1:0").await.unwrap());
+        let (stream, _) = socket.into_split();
         let addr = stream.socket().local_addr().unwrap();
         test(stream, addr).await;
     }
@@ -347,12 +427,21 @@ mod tests {
         let (_, sink) = UdpSocket::split(&mut socket);
         let addr = sink.socket().local_addr().unwrap();
         test(sink, addr).await;
+
+        let socket = UdpSocket::new(net::UdpSocket::bind("127.0.0.1:0").await.unwrap());
+        let (_, sink) = socket.into_split();
+        let addr = sink.socket().local_addr().unwrap();
+        test(sink, addr).await;
     }
 
     #[tokio::test]
     async fn close_unblock_stream() {
         let mut socket = UdpSocket::new(net::UdpSocket::bind("127.0.0.1:0").await.unwrap());
         let (mut stream, mut sink) = UdpSocket::split(&mut socket);
+        assert_matches!(tokio::join!(stream.next(), sink.close()), (None, Ok(())));
+
+        let socket = UdpSocket::new(net::UdpSocket::bind("127.0.0.1:0").await.unwrap());
+        let (mut stream, mut sink) = socket.into_split();
         assert_matches!(tokio::join!(stream.next(), sink.close()), (None, Ok(())));
     }
 }
