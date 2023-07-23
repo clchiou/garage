@@ -7,7 +7,7 @@ edition.workspace = true
 async-trait = "0.1.68"
 bytes = "1.4.0"
 futures = "0.3.28"
-tokio = { version = "1.28.2", features = ["full"] }
+tokio = { version = "1.28.2", features = ["full", "tracing"] }
 
 g1_base = { path = "../base" }
 
@@ -15,6 +15,7 @@ g1_base = { path = "../base" }
 # examples/ncat
 clap = { version = "4.3.1", features = ["derive"] }
 bittorrent_mse = { path = "../../bittorrent/mse" }
+g1_cli = { path = "../cli", features = ["param", "tracing"] }
 
 [features]
 test_harness = []

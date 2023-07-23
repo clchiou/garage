@@ -12,6 +12,7 @@ use tokio::{
 };
 
 use g1_base::str::Hex;
+use g1_cli::{param::ParametersConfig, tracing::TracingConfig};
 use g1_tokio::{
     bstream::{StreamRecv, StreamSend},
     net::tcp::TcpStream,
@@ -22,6 +23,11 @@ use bittorrent_mse;
 
 #[derive(Debug, Parser)]
 struct NetCat {
+    #[command(flatten)]
+    tracing: TracingConfig,
+    #[command(flatten)]
+    parameters: ParametersConfig,
+
     #[arg(long, value_enum, default_value_t = Protocol::Tcp)]
     protocol: Protocol,
 
@@ -152,5 +158,8 @@ where
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    NetCat::parse().execute().await
+    let ncat = NetCat::parse();
+    ncat.tracing.init();
+    ncat.parameters.init();
+    ncat.execute().await
 }
