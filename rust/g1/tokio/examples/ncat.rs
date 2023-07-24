@@ -3,6 +3,7 @@
 use std::io::{Error, ErrorKind};
 use std::marker::Unpin;
 use std::net::{Ipv4Addr, SocketAddr};
+use std::sync::Arc;
 
 use clap::{Parser, ValueEnum};
 use futures::{sink::SinkExt, stream::StreamExt};
@@ -20,6 +21,7 @@ use g1_tokio::{
 };
 
 use bittorrent_mse::MseStream;
+use bittorrent_utp::UtpSocket;
 
 #[derive(Debug, Parser)]
 struct NetCat {
@@ -56,14 +58,19 @@ struct NetCat {
 enum Protocol {
     Tcp,
     Udp,
+    Utp,
 }
 
 impl NetCat {
     async fn execute(&self) -> Result<(), Error> {
-        if self.protocol == Protocol::Udp {
-            return self.execute_udp().await;
+        match self.protocol {
+            Protocol::Tcp => return self.execute_tcp().await,
+            Protocol::Udp => return self.execute_udp().await,
+            Protocol::Utp => return self.execute_utp().await,
         }
+    }
 
+    async fn execute_tcp(&self) -> Result<(), Error> {
         let stream = if self.listen {
             let (stream, _) = self.bind()?.accept().await?;
             TcpStream::from(stream)
@@ -109,6 +116,23 @@ impl NetCat {
         }
     }
 
+    async fn execute_utp(&self) -> Result<(), Error> {
+        let (socket, stream) = if self.listen {
+            let socket = self.new_utp_socket(net::UdpSocket::bind(self.parse_endpoint()?).await?);
+            let stream = socket.accept().await?;
+            eprintln!("peer endpoint: {}", stream.peer_endpoint());
+            (socket, stream)
+        } else {
+            let socket = self.new_utp_socket(net::UdpSocket::bind("127.0.0.1:0").await?);
+            eprintln!("local endpoint: {}", socket.socket().local_addr()?);
+            let stream = socket.connect(self.parse_endpoint()?).await?;
+            (socket, stream)
+        };
+        let stream = self.mse_handshake(stream).await?;
+        self.copy_bidirectional(stream).await?;
+        socket.shutdown().await
+    }
+
     fn bind(&self) -> Result<TcpListener, Error> {
         let socket = self.make_socket()?;
         socket.bind(self.parse_endpoint()?)?;
@@ -132,6 +156,12 @@ impl NetCat {
         let socket = TcpSocket::new_v4()?;
         socket.set_reuseaddr(true)?;
         Ok(socket)
+    }
+
+    fn new_utp_socket(&self, socket: net::UdpSocket) -> UtpSocket {
+        let socket = Arc::new(socket);
+        let (stream, sink) = UdpSocket::new(socket.clone()).into_split();
+        UtpSocket::new(socket, stream, sink)
     }
 
     async fn mse_handshake<Stream>(&self, stream: Stream) -> Result<MseStream<Stream>, Error>

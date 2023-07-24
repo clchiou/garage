@@ -15,6 +15,7 @@ g1_base = { path = "../base" }
 # examples/ncat
 clap = { version = "4.3.1", features = ["derive"] }
 bittorrent_mse = { path = "../../bittorrent/mse" }
+bittorrent_utp = { path = "../../bittorrent/utp" }
 g1_cli = { path = "../cli", features = ["param", "tracing"] }
 
 [features]
