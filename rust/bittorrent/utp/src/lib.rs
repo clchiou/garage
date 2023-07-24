@@ -1,5 +1,6 @@
 //! uTorrent Transport Protocol (uTP)
 
+#![feature(io_error_other)]
 #![feature(result_option_inspect)]
 #![feature(try_blocks)]
 #![cfg_attr(test, feature(assert_matches))]
@@ -8,11 +9,13 @@
 mod bstream;
 mod conn;
 mod packet;
+mod socket;
 mod timestamp;
 
 use std::time::Duration;
 
 pub use crate::bstream::{UtpRecvStream, UtpSendStream, UtpStream};
+pub use crate::socket::UtpSocket;
 
 g1_param::define!(recv_window_size: usize = 65536);
 g1_param::define!(send_window_size_limit: usize = 65536);
@@ -47,4 +50,9 @@ g1_param::define!(
 g1_param::define!(
     /// Limit on the number of times a packet can be resent.
     resend_limit: usize = 2
+);
+
+g1_param::define!(
+    /// Timeout for the socket actor shutdown.
+    grace_period: Duration = Duration::from_secs(2)
 );

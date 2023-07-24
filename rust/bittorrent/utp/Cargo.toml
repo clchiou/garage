@@ -7,6 +7,7 @@ edition.workspace = true
 async-trait = "0.1.68"
 bitvec = "1.0.1"
 bytes = "1.4.0"
+futures = "0.3.28"
 linkme = "0.3.10" # Required by g1_param.
 rand = "0.8.5"
 snafu = "0.7.4"
