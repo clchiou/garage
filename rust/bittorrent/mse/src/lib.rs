@@ -1,6 +1,5 @@
 //! Message Stream Encryption (MSE)
 
-#![feature(io_error_other)]
 #![cfg_attr(test, feature(assert_matches))]
 
 mod cipher;

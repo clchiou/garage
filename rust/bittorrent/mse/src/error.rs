@@ -51,8 +51,20 @@ pub enum Error {
 impl From<Error> for io::Error {
     fn from(error: Error) -> Self {
         match error {
+            Error::ExpectCryptoProvide { .. }
+            | Error::ExpectCryptoSelect { .. }
+            | Error::ExpectPaddingSize { .. }
+            | Error::ExpectPayloadSize { .. }
+            | Error::ExpectRecv { .. }
+            | Error::ExpectRecvPublicKeySize { .. }
+            | Error::ExpectResynchronize { .. } => {
+                io::Error::new(io::ErrorKind::ConnectionAborted, error)
+            }
             Error::Io { source } => source,
-            _ => io::Error::other(error),
+            Error::RecvPublicKeyTimeout => {
+                io::Error::new(io::ErrorKind::TimedOut, "mse recv public key timeout")
+            }
+            Error::Timeout => io::Error::new(io::ErrorKind::TimedOut, "mse handshake timeout"),
         }
     }
 }
