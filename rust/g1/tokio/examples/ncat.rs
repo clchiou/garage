@@ -19,7 +19,7 @@ use g1_tokio::{
     net::udp::UdpSocket,
 };
 
-use bittorrent_mse;
+use bittorrent_mse::MseStream;
 
 #[derive(Debug, Parser)]
 struct NetCat {
@@ -54,20 +54,16 @@ impl NetCat {
             return self.execute_udp().await;
         }
 
-        if self.listen {
+        let stream = if self.listen {
             let (stream, _) = self.bind()?.accept().await?;
-            let stream = TcpStream::from(stream);
-            let stream = match self.parse_mse()? {
-                Some(info_hash) => bittorrent_mse::accept(stream, &info_hash).await?,
-                None => bittorrent_mse::wrap(stream),
-            };
+            TcpStream::from(stream)
+        } else {
+            self.connect().await?
+        };
+        let stream = self.mse_handshake(stream).await?;
+        if self.listen {
             recv(stream, io::stdout()).await
         } else {
-            let stream = self.connect().await?;
-            let stream = match self.parse_mse()? {
-                Some(info_hash) => bittorrent_mse::connect(stream, &info_hash).await?,
-                None => bittorrent_mse::wrap(stream),
-            };
             send(io::stdin(), stream).await
         }
     }
@@ -120,6 +116,22 @@ impl NetCat {
         let socket = TcpSocket::new_v4()?;
         socket.set_reuseaddr(true)?;
         Ok(socket)
+    }
+
+    async fn mse_handshake<Stream>(&self, stream: Stream) -> Result<MseStream<Stream>, Error>
+    where
+        Stream: StreamRecv<Error = Error> + StreamSend<Error = Error> + Send,
+    {
+        Ok(match self.parse_mse()? {
+            Some(info_hash) => {
+                if self.listen {
+                    bittorrent_mse::accept(stream, &info_hash).await?
+                } else {
+                    bittorrent_mse::connect(stream, &info_hash).await?
+                }
+            }
+            None => bittorrent_mse::wrap(stream),
+        })
     }
 
     fn parse_mse(&self) -> Result<Option<Vec<u8>>, Error> {

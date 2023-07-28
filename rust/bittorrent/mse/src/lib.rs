@@ -18,7 +18,7 @@ pub use self::handshake::{accept, connect};
 
 g1_param::define!(rc4_enable: bool = true);
 
-type MseStream<Stream> = DuplexTransformer<Stream, DynTransform, DynTransform>;
+pub type MseStream<Stream> = DuplexTransformer<Stream, DynTransform, DynTransform>;
 type DynTransform = Box<dyn Transform + Send>;
 
 pub fn wrap<Stream>(stream: Stream) -> MseStream<Stream> {
