@@ -14,7 +14,7 @@ use tokio::{
 use g1_base::str::Hex;
 use g1_cli::{param::ParametersConfig, tracing::TracingConfig};
 use g1_tokio::{
-    bstream::{StreamRecv, StreamSend},
+    bstream::{StreamIntoSplit, StreamRecv, StreamSend},
     net::tcp::TcpStream,
     net::udp::UdpSocket,
 };
@@ -40,6 +40,16 @@ struct NetCat {
     address: String,
     #[arg(default_value = "8000")]
     port: u16,
+
+    #[arg(long, conflicts_with("no_recv"))]
+    recv: bool,
+    #[arg(long)]
+    no_recv: bool,
+
+    #[arg(long, conflicts_with("no_send"))]
+    send: bool,
+    #[arg(long)]
+    no_send: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, ValueEnum)]
@@ -61,17 +71,23 @@ impl NetCat {
             self.connect().await?
         };
         let stream = self.mse_handshake(stream).await?;
-        if self.listen {
-            recv(stream, io::stdout()).await
-        } else {
-            send(io::stdin(), stream).await
-        }
+        self.copy_bidirectional(stream).await
     }
 
     /// Receives/sends one datagram from/to a peer.
     async fn execute_udp(&self) -> Result<(), Error> {
         if self.mse.is_some() {
             return Err(Error::other("udp mode does not support `--mse`"));
+        }
+        if self.recv || self.no_recv {
+            return Err(Error::other(
+                "udp mode does not support `--recv` nor `--no-recv`",
+            ));
+        }
+        if self.send || self.no_send {
+            return Err(Error::other(
+                "udp mode does not support `--send` nor `--no-send`",
+            ));
         }
         if self.listen {
             let mut socket = UdpSocket::new(net::UdpSocket::bind(self.parse_endpoint()?).await?);
@@ -142,6 +158,56 @@ impl NetCat {
                 Err(error) => Err(Error::other(error)),
             })
             .transpose()
+    }
+
+    async fn copy_bidirectional<Stream, Source, Sink>(&self, stream: Stream) -> Result<(), Error>
+    where
+        Stream: StreamIntoSplit<OwnedRecvHalf = Source, OwnedSendHalf = Sink>,
+        Source: StreamRecv<Error = Error>,
+        Sink: StreamSend<Error = Error>,
+    {
+        let (source, sink) = stream.into_split();
+        tokio::try_join!(
+            async {
+                if self.should_recv() {
+                    recv(source, io::stdout()).await
+                } else {
+                    drop(source);
+                    Ok(())
+                }
+            },
+            async {
+                if self.should_send() {
+                    send(io::stdin(), sink).await
+                } else {
+                    drop(sink);
+                    Ok(())
+                }
+            },
+        )?;
+        Ok(())
+    }
+
+    fn should_recv(&self) -> bool {
+        assert_eq!(self.recv && self.no_recv, false);
+        if self.recv {
+            true
+        } else if self.no_recv {
+            false
+        } else {
+            self.listen
+        }
+    }
+
+    fn should_send(&self) -> bool {
+        assert_eq!(self.send && self.no_send, false);
+        if self.send {
+            true
+        } else if self.no_send {
+            false
+        } else {
+            !self.listen
+        }
     }
 }
 
