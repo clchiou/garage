@@ -3,6 +3,7 @@
 #![feature(result_option_inspect)]
 #![feature(try_blocks)]
 #![cfg_attr(test, feature(assert_matches))]
+#![cfg_attr(test, feature(duration_constants))]
 
 mod bstream;
 mod conn;
@@ -19,6 +20,9 @@ g1_param::define!(packet_size: usize = 150);
 
 g1_param::define!(connect_timeout: Duration = Duration::from_secs(2));
 g1_param::define!(accept_timeout: Duration = Duration::from_secs(2));
+
+g1_param::define!(congestion_control_target: Duration = Duration::from_millis(100));
+g1_param::define!(max_congestion_window_increase_per_rtt: usize = 3000);
 
 g1_param::define!(
     /// Upper bound of the RTT timeout.

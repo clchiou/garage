@@ -1,4 +1,5 @@
 mod actor;
+mod control;
 mod handshake;
 mod recv;
 mod rtt;

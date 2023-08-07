@@ -1,4 +1,5 @@
 use std::cmp;
+use std::time::Duration;
 
 use bytes::{Bytes, BytesMut};
 use snafu::prelude::*;
@@ -7,6 +8,7 @@ use crate::packet::{Packet, PacketHeader, PacketType, SelectiveAck};
 use crate::timestamp::{self, Timestamp};
 
 use super::{
+    control::DelayWindow,
     window::{RecvWindow, SendWindow},
     Error, ResendLimitExceededSnafu, MIN_PACKET_SIZE,
 };
@@ -18,6 +20,7 @@ pub(super) struct State {
     pub(super) recv_window: RecvWindow,
     pub(super) send_window: SendWindow,
     pub(super) send_delay: u32,
+    pub(super) delay_window: DelayWindow,
     pub(super) packet_size: usize,
 }
 
@@ -35,6 +38,9 @@ impl State {
             recv_window,
             send_window,
             send_delay: 0,
+            delay_window: DelayWindow::new(
+                Duration::from_secs(120), // Window size specified by BEP 29.
+            ),
             packet_size: cmp::max(packet_size, MIN_PACKET_SIZE),
         }
     }
@@ -42,6 +48,38 @@ impl State {
     // NOTE: You must call this method whenever you receive a packet.
     pub(super) fn update_send_delay(&mut self, header: &PacketHeader, recv_at: Timestamp) {
         self.send_delay = timestamp::as_micros_u32(recv_at).wrapping_sub(header.send_at);
+        self.delay_window.push(recv_at, header.send_delay);
+    }
+
+    /// Updates `send_window.size_limit` in accordance with the congestion control algorithm
+    /// specified by BEP 29.
+    pub(super) fn apply_control(&mut self, send_delay: u32) {
+        let target = f64::from(
+            u32::try_from(crate::congestion_control_target().as_micros() % (1 << u32::BITS))
+                .unwrap(),
+        );
+        let off_target = target - f64::from(self.delay_window.subtract_min_delay(send_delay));
+        let delay_factor = off_target / target;
+
+        let window_factor = to_f64(self.send_window.used) / to_f64(self.send_window.size_limit);
+
+        let scale_gain =
+            to_f64(*crate::max_congestion_window_increase_per_rtt()) * delay_factor * window_factor;
+        let scale_gain = unsafe { scale_gain.to_int_unchecked::<isize>() };
+
+        let scale_gain_limit =
+            isize::try_from(*crate::max_congestion_window_increase_per_rtt()).unwrap();
+        assert!(
+            -scale_gain_limit <= scale_gain && scale_gain <= scale_gain_limit,
+            "invalid scale_gain: {}",
+            scale_gain,
+        );
+
+        self.send_window.set_size_limit(
+            self.send_window
+                .size_limit
+                .saturating_add_signed(scale_gain),
+        );
     }
 
     pub(super) fn set_packet_size(&mut self, packet_size: usize) {
@@ -163,4 +201,8 @@ impl State {
             payload,
         )
     }
+}
+
+fn to_f64(x: usize) -> f64 {
+    u32::try_from(x).unwrap().into()
 }

@@ -189,6 +189,17 @@ impl Actor<Mutex<State>> {
             self.notifiers.send.notify_one();
         }
 
+        // BEP 29 does not seem to specify this, and libutp appears to apply congestion control
+        // only when receiving an ack.
+        if packet_type == PacketType::State {
+            state.apply_control(packet.header.send_delay);
+            self.notifiers.send.notify_one();
+            tracing::trace!(
+                window_size_limit = state.send_window.size_limit,
+                "congestion control",
+            );
+        }
+
         let mut num_lost = 0;
         for seq in state.send_window.seqs().collect::<Vec<_>>() {
             if state.send_window.is_packet_lost(seq) {
