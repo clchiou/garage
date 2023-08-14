@@ -1,4 +1,3 @@
-use std::cell::Cell;
 use std::collections::HashMap;
 use std::io::{Error, ErrorKind};
 use std::net::SocketAddr;
@@ -21,7 +20,6 @@ use tokio::{
 };
 use tracing::Instrument;
 
-use g1_base::fmt;
 use g1_tokio::task::JoinQueue;
 
 use crate::bstream::UtpStream;
@@ -30,7 +28,7 @@ use crate::conn::{
 };
 use crate::timestamp;
 
-#[derive(fmt::DebugExt)]
+#[derive(Debug)]
 pub struct UtpSocket {
     socket: Arc<UdpSocket>,
 
@@ -39,8 +37,7 @@ pub struct UtpSocket {
 
     conn_tasks: JoinQueue<Result<(), conn::Error>>,
 
-    #[debug(with = fmt::InsertPlaceholder)]
-    task: Cell<Option<JoinHandle<Result<(), Error>>>>,
+    task: Mutex<JoinHandle<Result<(), Error>>>,
 }
 
 #[derive(Debug)]
@@ -92,7 +89,7 @@ impl UtpSocket {
             connect_send,
             accept_recv: Mutex::new(accept_recv),
             conn_tasks,
-            task: Cell::new(Some(tokio::spawn(actor.run()))),
+            task: Mutex::new(tokio::spawn(actor.run())),
         }
     }
 
@@ -123,20 +120,20 @@ impl UtpSocket {
 
     pub async fn shutdown(&self) -> Result<(), Error> {
         self.conn_tasks.close();
-        let task = match self.task.take() {
-            Some(task) => task,
-            None => return Ok(()),
+
+        let join_result = {
+            let mut task = self.task.lock().await;
+            time::timeout(*crate::grace_period(), &mut *task)
+                .await
+                .inspect_err(|_| task.abort())
+                .map_err(|_| {
+                    Error::new(
+                        ErrorKind::TimedOut,
+                        "utp socket shutdown grace period is exceeded",
+                    )
+                })?
         };
-        let abort_handle = task.abort_handle();
-        let join_result = time::timeout(*crate::grace_period(), task)
-            .await
-            .inspect_err(|_| abort_handle.abort())
-            .map_err(|_| {
-                Error::new(
-                    ErrorKind::TimedOut,
-                    "utp socket shutdown grace period is exceeded",
-                )
-            })?;
+
         match join_result {
             Ok(result) => result,
             Err(join_error) => {
@@ -153,9 +150,7 @@ impl UtpSocket {
 impl Drop for UtpSocket {
     fn drop(&mut self) {
         self.conn_tasks.abort_all();
-        if let Some(task) = self.task.take() {
-            task.abort();
-        }
+        self.task.get_mut().abort();
     }
 }
 
