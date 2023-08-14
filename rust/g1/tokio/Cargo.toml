@@ -11,12 +11,28 @@ tokio = { version = "1.28.2", features = ["full", "tracing"] }
 
 g1_base = { path = "../base" }
 
+# feature: icmp
+libc = { version = "0.2.147", optional = true }
+nix = { version ="0.26.2", features = ["uio"], optional = true }
+g1_nix = { path = "../nix", optional = true }
+
 [dev-dependencies]
-# examples/ncat
+# examples
 clap = { version = "4.3.1", features = ["derive"] }
-bittorrent_mse = { path = "../../bittorrent/mse" }
-bittorrent_utp = { path = "../../bittorrent/utp" }
 g1_cli = { path = "../cli", features = ["param", "tracing"] }
 
+# examples/ncat
+bittorrent_mse = { path = "../../bittorrent/mse" }
+bittorrent_utp = { path = "../../bittorrent/utp" }
+
+# examples/path-mtu
+rand = "0.8.5"
+tracing = "0.1.37"
+
+[[example]]
+name = "path-mtu"
+required-features = ["icmp"]
+
 [features]
+icmp = ["dep:libc", "dep:nix", "dep:g1_nix"]
 test_harness = []
