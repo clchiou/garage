@@ -8,6 +8,7 @@ async-trait = "0.1.68"
 bitvec = "1.0.1"
 bytes = "1.4.0"
 futures = "0.3.28"
+libc = "0.2.147"
 linkme = "0.3.10" # Required by g1_param.
 rand = "0.8.5"
 snafu = "0.7.4"
@@ -17,7 +18,7 @@ tracing = "0.1.37"
 g1_base = { path = "../../g1/base" }
 g1_bytes = { path = "../../g1/bytes" }
 g1_param = { path = "../../g1/param" }
-g1_tokio = { path = "../../g1/tokio" }
+g1_tokio = { path = "../../g1/tokio", features = ["icmp"] }
 
 bittorrent_base = { path = "../base", features = ["param"] }
 

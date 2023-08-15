@@ -14,7 +14,7 @@ use bytes::Bytes;
 use snafu::prelude::*;
 use tokio::sync::{
     mpsc::{self, Receiver, Sender},
-    oneshot,
+    oneshot, watch,
 };
 
 use crate::packet::{self, Packet, PacketType};
@@ -87,9 +87,18 @@ pub(crate) type Incoming = (Bytes, Timestamp);
 pub(crate) type IncomingRecv = Receiver<Incoming>;
 pub(crate) type IncomingSend = Sender<Incoming>;
 
+#[derive(Debug)]
+pub(crate) struct ActorStub {
+    pub(crate) incoming_send: IncomingSend,
+    pub(crate) packet_size_send: PacketSizeSend,
+}
+
 pub(crate) type Outgoing = (SocketAddr, Packet);
 pub(crate) type OutgoingRecv = Receiver<Outgoing>;
 pub(crate) type OutgoingSend = Sender<Outgoing>;
+
+pub(crate) type PacketSizeRecv = watch::Receiver<usize>;
+pub(crate) type PacketSizeSend = watch::Sender<usize>;
 
 pub(crate) fn new_outgoing_queue() -> (OutgoingRecv, OutgoingSend) {
     let (send, recv) = mpsc::channel(*outgoing_queue_size());

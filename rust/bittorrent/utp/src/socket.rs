@@ -24,8 +24,9 @@ use g1_tokio::task::JoinQueue;
 
 use crate::bstream::UtpStream;
 use crate::conn::{
-    self, ConnectedRecv, Handshake, Incoming, IncomingSend, OutgoingRecv, OutgoingSend,
+    self, ActorStub, ConnectedRecv, Handshake, Incoming, OutgoingRecv, OutgoingSend,
 };
+use crate::mtu::{self, PathMtuProber};
 use crate::timestamp;
 
 #[derive(Debug)]
@@ -52,9 +53,11 @@ struct Actor<UdpStream, UdpSink> {
 
     conn_tasks: JoinQueue<Result<(), conn::Error>>,
     peer_endpoints: HashMap<Id, SocketAddr>,
-    incoming_sends: HashMap<SocketAddr, IncomingSend>,
+    stubs: HashMap<SocketAddr, ActorStub>,
     outgoing_recv: OutgoingRecv,
     outgoing_send: OutgoingSend,
+
+    prober: PathMtuProber,
 }
 
 g1_param::define!(connect_queue_size: usize = 64);
@@ -176,9 +179,10 @@ where
             accept_send,
             conn_tasks,
             peer_endpoints: HashMap::new(),
-            incoming_sends: HashMap::new(),
+            stubs: HashMap::new(),
             outgoing_recv,
             outgoing_send,
+            prober: PathMtuProber::new(*crate::path_mtu_reprobe_period()).unwrap(),
         }
     }
 
@@ -219,6 +223,12 @@ where
                         packet.encode(&mut buffer);
                         self.sink.send((peer_endpoint, buffer.freeze())).await?;
                     }
+                    Some((peer_endpoint, path_mtu)) = self.prober.next() => {
+                        if let Some(stub) = self.stubs.get(&peer_endpoint) {
+                            // Ignore the channel closed error.
+                            let _ = stub.packet_size_send.send(mtu::to_packet_size(path_mtu));
+                        }
+                    }
                 }
             }
         };
@@ -244,7 +254,7 @@ where
     ) {
         // Unfortunately, the borrow checker disallows the use of `HashMap::entry` because we call
         // methods (which also borrow `self`) while holding the entry.
-        if self.incoming_sends.contains_key(&peer_endpoint) {
+        if self.stubs.contains_key(&peer_endpoint) {
             let _ = result_send.send(Err(Error::new(
                 ErrorKind::AddrInUse,
                 format!("duplicated utp connections: {}", peer_endpoint),
@@ -285,7 +295,7 @@ where
 
     fn incoming_send(&mut self, peer_endpoint: SocketAddr, incoming: Incoming) {
         // We cannot use `HashMap::entry` for the same reason as above.
-        if !self.incoming_sends.contains_key(&peer_endpoint) && !self.accept(peer_endpoint) {
+        if !self.stubs.contains_key(&peer_endpoint) && !self.accept(peer_endpoint) {
             let (payload, _) = incoming;
             tracing::debug!(
                 ?peer_endpoint,
@@ -294,16 +304,13 @@ where
             );
             return;
         }
-        if let Err(error) = self
-            .incoming_sends
-            .get(&peer_endpoint)
-            .unwrap()
-            .try_send(incoming)
-        {
+        let stub = self.stubs.get(&peer_endpoint).unwrap();
+        if let Err(error) = stub.incoming_send.try_send(incoming) {
             if matches!(error, TrySendError::Full(_)) {
                 tracing::warn!(?peer_endpoint, "utp connection incoming queue is full");
             }
-            self.incoming_sends.remove(&peer_endpoint);
+            self.stubs.remove(&peer_endpoint);
+            self.prober.unregister(&peer_endpoint);
         }
     }
 
@@ -313,7 +320,7 @@ where
         new_handshake: fn() -> Handshake,
     ) -> Option<(UtpStream, ConnectedRecv)> {
         let (connected_send, connected_recv) = oneshot::channel();
-        let ((actor, incoming_send), stream) = conn::Actor::with_socket(
+        let ((actor, stub), stream) = conn::Actor::with_socket(
             new_handshake(),
             self.socket.clone(),
             peer_endpoint,
@@ -329,10 +336,8 @@ where
                     .peer_endpoints
                     .insert(handle.id(), peer_endpoint)
                     .is_none());
-                assert!(self
-                    .incoming_sends
-                    .insert(peer_endpoint, incoming_send)
-                    .is_none());
+                assert!(self.stubs.insert(peer_endpoint, stub).is_none());
+                self.prober.register(peer_endpoint);
                 Some((stream, connected_recv))
             }
             Err(handle) => {
@@ -344,7 +349,8 @@ where
 
     fn remove_by_id(&mut self, id: &Id) {
         if let Some(peer_endpoint) = self.peer_endpoints.remove(id) {
-            self.incoming_sends.remove(&peer_endpoint);
+            self.stubs.remove(&peer_endpoint);
+            self.prober.unregister(&peer_endpoint);
         }
     }
 }

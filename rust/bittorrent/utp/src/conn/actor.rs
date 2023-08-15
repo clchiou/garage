@@ -5,7 +5,7 @@ use bytes::Bytes;
 use snafu::prelude::*;
 use tokio::{
     net::UdpSocket,
-    sync::{mpsc, Notify},
+    sync::{mpsc, watch, Notify},
     time,
 };
 
@@ -16,8 +16,8 @@ use crate::packet::{Packet, PacketType};
 use crate::timestamp::Timestamp;
 
 use super::{
-    handshake::Handshake, state::State, ConnectedSend, Error, IncomingRecv, IncomingSend,
-    InvalidPacketSnafu, OutgoingSend,
+    handshake::Handshake, state::State, ActorStub, ConnectedSend, Error, IncomingRecv,
+    InvalidPacketSnafu, OutgoingSend, PacketSizeRecv, MIN_PACKET_SIZE,
 };
 
 #[derive(Debug)]
@@ -34,6 +34,7 @@ pub(crate) struct InitState {
     handshake: Handshake,
     connected_send: ConnectedSend,
     incoming_recv: IncomingRecv,
+    packet_size_recv: PacketSizeRecv,
     stream_outgoing_recv: bstream::OutgoingRecv,
 }
 
@@ -53,14 +54,16 @@ impl Actor<InitState> {
         outgoing_send: OutgoingSend,
         stream_incoming_send: bstream::IncomingSend,
         stream_outgoing_recv: bstream::OutgoingRecv,
-    ) -> (Self, IncomingSend) {
+    ) -> (Self, ActorStub) {
         let (incoming_send, incoming_recv) = mpsc::channel(*super::incoming_queue_size());
+        let (packet_size_send, packet_size_recv) = watch::channel(MIN_PACKET_SIZE);
         (
             Self {
                 state: InitState {
                     handshake,
                     connected_send,
                     incoming_recv,
+                    packet_size_recv,
                     stream_outgoing_recv,
                 },
                 peer_endpoint,
@@ -68,7 +71,10 @@ impl Actor<InitState> {
                 stream_incoming_send,
                 notifiers: Notifiers::new(),
             },
-            incoming_send,
+            ActorStub {
+                incoming_send,
+                packet_size_send,
+            },
         )
     }
 
@@ -78,7 +84,7 @@ impl Actor<InitState> {
         peer_endpoint: SocketAddr,
         connected_send: ConnectedSend,
         outgoing_send: OutgoingSend,
-    ) -> ((Self, IncomingSend), UtpStream) {
+    ) -> ((Self, ActorStub), UtpStream) {
         let (recv, stream_incoming_send) = UtpRecvStream::new(socket.clone(), peer_endpoint);
         let (send, stream_outgoing_recv) = UtpSendStream::new(socket, peer_endpoint);
         (
@@ -100,6 +106,7 @@ impl Actor<InitState> {
             handshake,
             connected_send,
             mut incoming_recv,
+            packet_size_recv,
             stream_outgoing_recv,
         } = init;
         let (mut this, _) = this.into_state(handshake);
@@ -131,6 +138,7 @@ impl Actor<InitState> {
                     .map(|((), ())| ())
             } => result,
             result = this.rtt_timer() => result,
+            result = this.recv_packet_size(packet_size_recv) => result,
         }
         .inspect_err(|error| {
             this.abort_stream(error);
@@ -239,6 +247,17 @@ impl Actor<Mutex<State>> {
             "send",
         );
         let _ = self.outgoing_send.try_send((self.peer_endpoint, packet));
+    }
+
+    async fn recv_packet_size(&self, mut packet_size_recv: PacketSizeRecv) -> Result<(), Error> {
+        loop {
+            packet_size_recv
+                .changed()
+                .await
+                .map_err(|_| Error::UnexpectedEof)?;
+            let packet_size = *packet_size_recv.borrow_and_update();
+            self.state.must_lock().set_packet_size(packet_size);
+        }
     }
 }
 

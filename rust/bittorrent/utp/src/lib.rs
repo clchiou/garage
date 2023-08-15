@@ -8,6 +8,7 @@
 
 mod bstream;
 mod conn;
+mod mtu;
 mod packet;
 mod socket;
 mod timestamp;
@@ -51,6 +52,10 @@ g1_param::define!(
     /// Limit on the number of times a packet can be resent.
     resend_limit: usize = 2
 );
+
+g1_param::define!(path_mtu_max_probe_size: usize = 2400);
+g1_param::define!(path_mtu_reprobe_period: Duration = Duration::from_secs(60));
+g1_param::define!(path_mtu_icmp_reply_timeout: Duration = Duration::from_secs(2));
 
 g1_param::define!(
     /// Timeout for the socket actor shutdown.
