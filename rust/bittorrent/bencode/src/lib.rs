@@ -1,5 +1,9 @@
 //! Implementation of Bencode Format as Specified in BEP 3
 
+#![feature(iterator_try_collect)]
+
+pub mod convert;
+pub mod dict;
 #[cfg(feature = "serde")]
 pub mod serde;
 

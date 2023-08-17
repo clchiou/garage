@@ -4,7 +4,12 @@ use std::collections::BTreeMap;
 
 use serde_bytes::Bytes;
 
-use bittorrent_bencode::{borrow, own};
+use bittorrent_bencode::{
+    borrow,
+    convert::{from_dict, from_str, from_vec, to_dict, to_int, to_str, to_vec},
+    dict::{DictionaryInsert, DictionaryRemove},
+    own,
+};
 
 use crate::{Error, File, Info, Metainfo, Mode};
 
@@ -38,7 +43,7 @@ impl<'a> TryFrom<BTreeMap<&'a [u8], borrow::Value<'a>>> for Metainfo<'a> {
 
     fn try_from(mut dict: BTreeMap<&'a [u8], borrow::Value<'a>>) -> Result<Self, Self::Error> {
         let this = Self {
-            announce: remove_str(&mut dict, ANNOUNCE)?,
+            announce: dict.remove_str::<Error>(ANNOUNCE)?,
             announce_list: dict
                 .remove(ANNOUNCE_LIST)
                 .map(to_announce_list)
@@ -46,13 +51,14 @@ impl<'a> TryFrom<BTreeMap<&'a [u8], borrow::Value<'a>>> for Metainfo<'a> {
             nodes: dict.remove(NODES).map(to_nodes).transpose()?,
             url_list: dict.remove(URL_LIST).map(to_url_list).transpose()?,
 
-            comment: remove_str(&mut dict, COMMENT)?,
-            created_by: remove_str(&mut dict, CREATED_BY)?,
-            creation_date: remove_int(&mut dict, CREATION_DATE)?
+            comment: dict.remove_str::<Error>(COMMENT)?,
+            created_by: dict.remove_str::<Error>(CREATED_BY)?,
+            creation_date: dict
+                .remove_int::<Error>(CREATION_DATE)?
                 .map(to_timestamp)
                 .transpose()?,
-            encoding: remove_str(&mut dict, ENCODING)?,
-            info: Info::try_from(must_remove(&mut dict, INFO)?)?,
+            encoding: dict.remove_str::<Error>(ENCODING)?,
+            info: Info::try_from(dict.must_remove::<Error>(INFO)?)?,
 
             extra: dict,
         };
@@ -65,25 +71,15 @@ impl<'a> From<Metainfo<'a>> for BTreeMap<&'a Bytes, own::Value> {
     fn from(metainfo: Metainfo<'a>) -> Self {
         let mut dict = from_dict(metainfo.extra, Bytes::new);
 
-        d_insert(&mut dict, ANNOUNCE, metainfo.announce, from_str);
-        d_insert(
-            &mut dict,
-            ANNOUNCE_LIST,
-            metainfo.announce_list,
-            from_announce_list,
-        );
-        d_insert(&mut dict, NODES, metainfo.nodes, from_nodes);
-        d_insert(&mut dict, URL_LIST, metainfo.url_list, from_url_list);
+        dict.insert_from(ANNOUNCE, metainfo.announce, from_str);
+        dict.insert_from(ANNOUNCE_LIST, metainfo.announce_list, from_announce_list);
+        dict.insert_from(NODES, metainfo.nodes, from_nodes);
+        dict.insert_from(URL_LIST, metainfo.url_list, from_url_list);
 
-        d_insert(&mut dict, COMMENT, metainfo.comment, from_str);
-        d_insert(&mut dict, CREATED_BY, metainfo.created_by, from_str);
-        d_insert(
-            &mut dict,
-            CREATION_DATE,
-            metainfo.creation_date,
-            from_timestamp,
-        );
-        d_insert(&mut dict, ENCODING, metainfo.encoding, from_str);
+        dict.insert_from(COMMENT, metainfo.comment, from_str);
+        dict.insert_from(CREATED_BY, metainfo.created_by, from_str);
+        dict.insert_from(CREATION_DATE, metainfo.creation_date, from_timestamp);
+        dict.insert_from(ENCODING, metainfo.encoding, from_str);
         dict.insert(Bytes::new(INFO), metainfo.info.into());
 
         dict
@@ -94,16 +90,17 @@ impl<'a> TryFrom<borrow::Value<'a>> for Info<'a> {
     type Error = Error;
 
     fn try_from(value: borrow::Value<'a>) -> Result<Self, Self::Error> {
-        let (mut dict, raw_info) = to_dict(value)?;
+        let (mut dict, raw_info) = to_dict::<Error>(value)?;
         let this = Self {
             raw_info: raw_info.unwrap(),
-            name: must_remove(&mut dict, NAME).and_then(to_str)?,
+            name: dict.must_remove::<Error>(NAME).and_then(to_str)?,
             mode: Mode::decode(&mut dict)?,
-            piece_length: must_remove(&mut dict, PIECE_LENGTH)
+            piece_length: dict
+                .must_remove::<Error>(PIECE_LENGTH)
                 .and_then(to_int)
                 .and_then(to_length)?,
-            pieces: must_remove(&mut dict, PIECES).and_then(to_pieces)?,
-            private: remove_int(&mut dict, PRIVATE)?.map(to_private),
+            pieces: dict.must_remove::<Error>(PIECES).and_then(to_pieces)?,
+            private: dict.remove_int::<Error>(PRIVATE)?.map(to_private),
             extra: dict,
         };
         this.sanity_check()?;
@@ -118,7 +115,7 @@ impl<'a> From<Info<'a>> for own::Value {
         info.mode.encode_into(&mut dict);
         dict.insert(PIECE_LENGTH.into(), from_length(info.piece_length));
         dict.insert(PIECES.into(), from_pieces(info.pieces));
-        v_insert(&mut dict, PRIVATE, info.private, from_private);
+        dict.insert_from(PRIVATE, info.private, from_private);
         dict.into()
     }
 }
@@ -127,13 +124,15 @@ impl<'a> Mode<'a> {
     fn decode(dict: &mut BTreeMap<&'a [u8], borrow::Value<'a>>) -> Result<Self, Error> {
         // TODO: "length" and "files" should not both be present, but for now we are not checking
         // this.
-        Ok(match remove_int(dict, LENGTH)? {
+        Ok(match dict.remove_int::<Error>(LENGTH)? {
             Some(length) => Self::SingleFile {
                 length: to_length(length)?,
-                md5sum: remove_str(dict, MD5SUM)?,
+                md5sum: dict.remove_str::<Error>(MD5SUM)?,
             },
             None => Self::MultiFile {
-                files: must_remove(dict, FILES).and_then(|value| to_vec(value, File::try_from))?,
+                files: dict
+                    .must_remove::<Error>(FILES)
+                    .and_then(|value| to_vec(value, File::try_from))?,
             },
         })
     }
@@ -142,7 +141,7 @@ impl<'a> Mode<'a> {
         match self {
             Self::SingleFile { length, md5sum } => {
                 dict.insert(LENGTH.into(), from_length(length));
-                v_insert(dict, MD5SUM, md5sum, from_str);
+                dict.insert_from(MD5SUM, md5sum, from_str);
             }
             Self::MultiFile { files } => {
                 dict.insert(
@@ -162,13 +161,16 @@ impl<'a> TryFrom<borrow::Value<'a>> for File<'a> {
     type Error = Error;
 
     fn try_from(value: borrow::Value<'a>) -> Result<Self, Self::Error> {
-        let (mut dict, _) = to_dict(value)?;
+        let (mut dict, _) = to_dict::<Error>(value)?;
         Ok(Self {
-            path: must_remove(&mut dict, PATH).and_then(|value| to_vec(value, to_str))?,
-            length: must_remove(&mut dict, LENGTH)
+            path: dict
+                .must_remove::<Error>(PATH)
+                .and_then(|value| to_vec(value, to_str))?,
+            length: dict
+                .must_remove::<Error>(LENGTH)
                 .and_then(to_int)
                 .and_then(to_length)?,
-            md5sum: remove_str(&mut dict, MD5SUM)?,
+            md5sum: dict.remove_str::<Error>(MD5SUM)?,
             extra: dict,
         })
     }
@@ -179,92 +181,9 @@ impl<'a> From<File<'a>> for own::Value {
         let mut dict = from_dict(file.extra, own::ByteString::from);
         dict.insert(PATH.into(), from_vec(file.path, from_str));
         dict.insert(LENGTH.into(), from_length(file.length));
-        v_insert(&mut dict, MD5SUM, file.md5sum, from_str);
+        dict.insert_from(MD5SUM, file.md5sum, from_str);
         dict.into()
     }
-}
-
-#[allow(clippy::type_complexity)]
-fn to_dict(value: borrow::Value) -> Result<(BTreeMap<&[u8], borrow::Value>, Option<&[u8]>), Error> {
-    value
-        .into_dictionary()
-        .map_err(|value| Error::ExpectDictionary {
-            value: value.to_owned(),
-        })
-}
-
-fn from_dict<'a, K, KF>(
-    dict: BTreeMap<&'a [u8], borrow::Value<'a>>,
-    convert: KF,
-) -> BTreeMap<K, own::Value>
-where
-    K: Ord + 'a,
-    KF: Fn(&'a [u8]) -> K,
-{
-    dict.into_iter()
-        .map(|(key, value)| (convert(key), value.to_owned()))
-        .collect::<BTreeMap<K, own::Value>>()
-}
-
-fn must_remove<'a>(
-    dict: &mut BTreeMap<&[u8], borrow::Value<'a>>,
-    key: &[u8],
-) -> Result<borrow::Value<'a>, Error> {
-    dict.remove(key).ok_or_else(|| Error::MissingDictionaryKey {
-        key: key.escape_ascii().to_string(),
-    })
-}
-
-fn remove_str<'a>(
-    dict: &mut BTreeMap<&[u8], borrow::Value<'a>>,
-    key: &[u8],
-) -> Result<Option<&'a str>, Error> {
-    dict.remove(key).map(to_str).transpose()
-}
-
-fn remove_int(
-    dict: &mut BTreeMap<&[u8], borrow::Value<'_>>,
-    key: &[u8],
-) -> Result<Option<i64>, Error> {
-    dict.remove(key).map(to_int).transpose()
-}
-
-fn insert<'a, K, V, KF, VF>(
-    dict: &mut BTreeMap<K, own::Value>,
-    key: &'a [u8],
-    convert_key: KF,
-    value: Option<V>,
-    convert_value: VF,
-) where
-    K: Ord + 'a,
-    KF: Fn(&'a [u8]) -> K,
-    VF: Fn(V) -> own::Value,
-{
-    if let Some(value) = value {
-        dict.insert(convert_key(key), convert_value(value));
-    }
-}
-
-fn v_insert<V, VF>(
-    dict: &mut BTreeMap<own::ByteString, own::Value>,
-    key: &[u8],
-    value: Option<V>,
-    convert_value: VF,
-) where
-    VF: Fn(V) -> own::Value,
-{
-    insert(dict, key, own::ByteString::from, value, convert_value)
-}
-
-fn d_insert<'a, V, VF>(
-    dict: &mut BTreeMap<&'a Bytes, own::Value>,
-    key: &'a [u8],
-    value: Option<V>,
-    convert_value: VF,
-) where
-    VF: Fn(V) -> own::Value,
-{
-    insert(dict, key, Bytes::new, value, convert_value)
 }
 
 #[cfg(test)]

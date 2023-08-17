@@ -3,35 +3,36 @@
 //! Generally, `to_foo` converts `borrow::Value` to `Foo`, and `from_foo` converts `Foo` to
 //! `own::Value`.
 
-use std::str;
-
 use chrono::{DateTime, TimeZone, Utc};
 use snafu::prelude::*;
 
 use bittorrent_base::PIECE_HASH_SIZE;
-use bittorrent_bencode::{borrow, own};
+use bittorrent_bencode::{
+    borrow,
+    convert::{self, from_str, from_vec, to_int, to_str, to_vec},
+    dict, own,
+};
 
 use crate::{Error, InvalidNodeSnafu, InvalidPieceHashSizeSnafu};
 
-pub(super) fn to_str(value: borrow::Value) -> Result<&str, Error> {
-    let bytes = value
-        .as_byte_string()
-        .ok_or_else(|| Error::ExpectByteString {
-            value: value.to_owned(),
-        })?;
-    str::from_utf8(bytes).map_err(|_| Error::InvalidUtf8String {
-        string: bytes.escape_ascii().to_string(),
-    })
+impl From<convert::Error> for Error {
+    fn from(error: convert::Error) -> Self {
+        match error {
+            convert::Error::ExpectByteString { value } => Self::ExpectByteString { value },
+            convert::Error::ExpectInteger { value } => Self::ExpectInteger { value },
+            convert::Error::ExpectList { value } => Self::ExpectList { value },
+            convert::Error::ExpectDictionary { value } => Self::ExpectDictionary { value },
+            convert::Error::InvalidUtf8String { string } => Self::InvalidUtf8String { string },
+        }
+    }
 }
 
-pub(super) fn from_str(string: &str) -> own::Value {
-    own::ByteString::from(string.as_bytes()).into()
-}
-
-pub(super) fn to_int(value: borrow::Value) -> Result<i64, Error> {
-    value.as_integer().ok_or_else(|| Error::ExpectInteger {
-        value: value.to_owned(),
-    })
+impl From<dict::Error> for Error {
+    fn from(error: dict::Error) -> Self {
+        match error {
+            dict::Error::MissingDictionaryKey { key } => Error::MissingDictionaryKey { key },
+        }
+    }
 }
 
 pub(super) fn to_timestamp(timestamp: i64) -> Result<DateTime<Utc>, Error> {
@@ -63,32 +64,6 @@ pub(super) fn from_private(private: bool) -> own::Value {
     i64::from(private).into()
 }
 
-pub(super) fn to_vec<'a, T, F>(value: borrow::Value<'a>, convert: F) -> Result<Vec<T>, Error>
-where
-    T: 'a,
-    F: Fn(borrow::Value<'a>) -> Result<T, Error>,
-{
-    value
-        .into_list()
-        .map_err(|value| Error::ExpectList {
-            value: value.to_owned(),
-        })?
-        .0
-        .into_iter()
-        .map(convert)
-        .try_collect()
-}
-
-pub(super) fn from_vec<T, F>(vec: Vec<T>, convert: F) -> own::Value
-where
-    F: Fn(T) -> own::Value,
-{
-    vec.into_iter()
-        .map(convert)
-        .collect::<Vec<own::Value>>()
-        .into()
-}
-
 pub(super) fn to_announce_list(value: borrow::Value) -> Result<Vec<Vec<&str>>, Error> {
     to_vec(value, |list| to_vec(list, to_str))
 }
@@ -118,9 +93,9 @@ pub(super) fn to_node(value: borrow::Value) -> Result<(&str, u16), Error> {
                 .collect::<Vec<own::Value>>(),
         }
     );
-    let port = to_int(node.pop().unwrap())?;
+    let port = to_int::<Error>(node.pop().unwrap())?;
     let port = u16::try_from(port).map_err(|_| Error::InvalidPort { port })?;
-    let host = to_str(node.pop().unwrap())?;
+    let host = to_str::<Error>(node.pop().unwrap())?;
     Ok((host, port))
 }
 
@@ -131,7 +106,7 @@ pub(super) fn from_node((host, port): (&str, u16)) -> own::Value {
 pub(super) fn to_url_list(value: borrow::Value) -> Result<Vec<&str>, Error> {
     match value.into_list() {
         Ok((list, _)) => list.into_iter().map(to_str).try_collect(),
-        Err(value) => Ok(vec![to_str(value)?]),
+        Err(value) => Ok(vec![to_str::<Error>(value)?]),
     }
 }
 
@@ -203,31 +178,6 @@ mod tests {
             assert_eq!(to_func(value), Err(expect));
         }
 
-        // str
-        ok(new_bytes(b"foo"), "foo", to_str, from_str);
-        err(
-            0.into(),
-            Error::ExpectByteString { value: 0.into() },
-            to_str,
-        );
-        err(
-            new_bytes(b"2:\xc3\x28"),
-            Error::InvalidUtf8String {
-                string: b"2:\xc3\x28".escape_ascii().to_string(),
-            },
-            to_str,
-        );
-
-        // int
-        ok(100.into(), 100, to_int, own::Value::from);
-        err(
-            new_bytes(b""),
-            Error::ExpectInteger {
-                value: new_owned_bytes(b""),
-            },
-            to_int,
-        );
-
         // timestamp
         ok(
             100.into(),
@@ -246,26 +196,6 @@ mod tests {
         err((-1).into(), Error::InvalidLength { length: -1 }, |value| {
             to_int(value).and_then(to_length)
         });
-
-        // vec
-        ok(
-            vec![new_bytes(b"foo")].into(),
-            vec!["foo"],
-            |list| to_vec(list, to_str),
-            |vec| from_vec(vec, from_str),
-        );
-        err(
-            new_bytes(b"foo"),
-            Error::ExpectList {
-                value: new_owned_bytes(b"foo"),
-            },
-            |list| to_vec(list, to_str),
-        );
-        err(
-            vec![new_bytes(b"foo"), 0.into()].into(),
-            Error::ExpectByteString { value: 0.into() },
-            |list| to_vec(list, to_str),
-        );
 
         // announce_list
         ok(
