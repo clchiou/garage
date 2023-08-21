@@ -14,11 +14,11 @@ use snafu::Snafu;
 
 use g1_base::{
     cmp::PartialEqExt,
-    fmt::{DebugExt, EscapeAscii, Hex},
+    fmt::{DebugExt, Hex},
 };
 
 use bittorrent_base::INFO_HASH_SIZE;
-use bittorrent_bencode::{borrow, own};
+use bittorrent_bencode::{borrow, own, FormatDictionary};
 
 pub use self::sanity::Insanity;
 
@@ -47,7 +47,7 @@ pub struct Metainfo<'a> {
     pub encoding: Option<&'a str>,
     pub info: Info<'a>,
 
-    #[debug(with = FormatExtra)]
+    #[debug(with = FormatDictionary)]
     pub extra: BTreeMap<&'a [u8], borrow::Value<'a>>,
 }
 
@@ -65,7 +65,7 @@ pub struct Info<'a> {
     // BEP 27 Private Torrents
     pub private: Option<bool>,
 
-    #[debug(with = FormatExtra)]
+    #[debug(with = FormatDictionary)]
     pub extra: BTreeMap<&'a [u8], borrow::Value<'a>>,
 }
 
@@ -86,7 +86,7 @@ pub struct File<'a> {
     pub length: u64,
     pub md5sum: Option<&'a str>,
 
-    #[debug(with = FormatExtra)]
+    #[debug(with = FormatDictionary)]
     pub extra: BTreeMap<&'a [u8], borrow::Value<'a>>,
 }
 
@@ -184,16 +184,7 @@ mod test_harness {
     }
 }
 
-struct FormatExtra<'a>(&'a BTreeMap<&'a [u8], borrow::Value<'a>>);
 struct FormatPieces<'a>(&'a Vec<&'a [u8]>);
-
-impl<'a> fmt::Debug for FormatExtra<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_map()
-            .entries(self.0.iter().map(|(key, value)| (EscapeAscii(key), value)))
-            .finish()
-    }
-}
 
 impl<'a> fmt::Debug for FormatPieces<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

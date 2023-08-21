@@ -176,6 +176,16 @@ impl<'a> fmt::Debug for borrow::Dictionary<'a> {
     }
 }
 
+pub struct FormatDictionary<'a>(pub &'a BTreeMap<&'a [u8], borrow::Value<'a>>);
+
+impl<'a> fmt::Debug for FormatDictionary<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_map()
+            .entries(self.0.iter().map(|(k, v)| (EscapeAscii(k), v)))
+            .finish()
+    }
+}
+
 impl From<own::ByteString> for own::Value {
     fn from(bytes: own::ByteString) -> Self {
         Self::ByteString(bytes)
