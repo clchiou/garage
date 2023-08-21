@@ -2,6 +2,7 @@
 members = [
     "bittorrent/base",
     "bittorrent/bencode",
+    "bittorrent/dht",
     "bittorrent/metainfo",
     "bittorrent/mse",
     "bittorrent/utp",
