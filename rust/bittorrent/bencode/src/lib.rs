@@ -417,6 +417,22 @@ where
 }
 
 impl<'a> borrow::Value<'a> {
+    pub fn new_list_without_raw_value(list: Vec<borrow::Value<'a>>) -> Self {
+        Self::List(borrow::List {
+            list,
+            raw_value: b"",
+        })
+    }
+
+    pub fn new_dictionary_without_raw_value(
+        dict: BTreeMap<borrow::ByteString<'a>, borrow::Value<'a>>,
+    ) -> Self {
+        Self::Dictionary(borrow::Dictionary {
+            dict,
+            raw_value: b"",
+        })
+    }
+
     pub fn raw_value(&self) -> &'a [u8] {
         match self {
             Self::List(list) => list.raw_value,
@@ -572,19 +588,13 @@ mod test_harness {
 
     impl<'a> From<Vec<borrow::Value<'a>>> for borrow::Value<'a> {
         fn from(list: Vec<borrow::Value<'a>>) -> Self {
-            Self::List(borrow::List {
-                list,
-                raw_value: b"",
-            })
+            Self::new_list_without_raw_value(list)
         }
     }
 
     impl<'a> From<BTreeMap<borrow::ByteString<'a>, borrow::Value<'a>>> for borrow::Value<'a> {
         fn from(dict: BTreeMap<borrow::ByteString<'a>, borrow::Value<'a>>) -> Self {
-            Self::Dictionary(borrow::Dictionary {
-                dict,
-                raw_value: b"",
-            })
+            Self::new_dictionary_without_raw_value(dict)
         }
     }
 }
