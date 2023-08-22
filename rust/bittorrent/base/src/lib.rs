@@ -1,3 +1,8 @@
+#![cfg_attr(feature = "compact", feature(return_position_impl_trait_in_trait))]
+
+#[cfg(feature = "compact")]
+pub mod compact;
+
 use std::array::TryFromSliceError;
 use std::borrow::Borrow;
 use std::sync::Arc;
@@ -8,6 +13,8 @@ pub const PROTOCOL_ID: &[u8] = b"BitTorrent protocol";
 
 pub const INFO_HASH_SIZE: usize = 20;
 pub const PIECE_HASH_SIZE: usize = 20;
+
+pub const NODE_ID_SIZE: usize = 20; // BEP 5.
 
 #[cfg(feature = "param")]
 g1_param::define!(pub recv_buffer_capacity: usize = 65536);
