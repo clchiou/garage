@@ -3,7 +3,9 @@
 
 #![feature(iterator_try_collect)]
 #![cfg_attr(test, feature(generic_arg_infer))]
+#![cfg_attr(test, feature(is_sorted))]
 
+mod kbucket;
 mod message;
 
 use std::array::TryFromSliceError;
