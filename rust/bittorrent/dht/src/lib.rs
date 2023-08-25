@@ -2,11 +2,13 @@
 // TODO: Implement BEP 32 IPv6 extension for DHT.
 
 #![feature(iterator_try_collect)]
+#![cfg_attr(test, feature(assert_matches))]
 #![cfg_attr(test, feature(generic_arg_infer))]
 #![cfg_attr(test, feature(is_sorted))]
 
 mod kbucket;
 mod message;
+mod routing;
 
 use std::array::TryFromSliceError;
 use std::net::SocketAddr;
@@ -22,6 +24,8 @@ use bittorrent_base::{INFO_HASH_SIZE, NODE_ID_SIZE};
 // Our code is written under this assumption.
 #[allow(clippy::assertions_on_constants)]
 const _: () = assert!(INFO_HASH_SIZE == NODE_ID_SIZE);
+
+g1_param::define!(k: usize = 20);
 
 #[derive(Clone, DebugExt, Deserialize, Eq, Hash, PartialEq)]
 pub struct NodeId(
