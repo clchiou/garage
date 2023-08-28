@@ -3,11 +3,13 @@
 
 #![feature(io_error_other)]
 #![feature(iterator_try_collect)]
+#![feature(try_blocks)]
 #![cfg_attr(test, feature(assert_matches))]
 #![cfg_attr(test, feature(generic_arg_infer))]
 #![cfg_attr(test, feature(is_sorted))]
 
 mod kbucket;
+mod lookup;
 mod message;
 mod reqrep;
 mod routing;
@@ -32,6 +34,11 @@ const _: () = assert!(INFO_HASH_SIZE == NODE_ID_SIZE);
 
 g1_param::define!(k: usize = 20);
 g1_param::define!(alpha: usize = 16);
+g1_param::define!(bootstrap: Vec<String> = vec![
+    "router.bittorrent.com:6881".to_string(),
+    "router.utorrent.com:6881".to_string(),
+    "dht.transmissionbt.com:6881".to_string(),
+]);
 
 g1_param::define!(token_period: Duration = Duration::from_secs(5 * 60));
 g1_param::define!(token_valid_since: Duration = Duration::from_secs(10 * 60));
