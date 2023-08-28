@@ -4,6 +4,8 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+g1_base = { path = "../../g1/base" }
+
 # feature: param
 linkme = { version = "0.3.10", optional = true }
 g1_param = { path = "../../g1/param", optional = true }
