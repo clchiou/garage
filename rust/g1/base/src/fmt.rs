@@ -1,4 +1,5 @@
 use std::fmt;
+use std::sync::Arc;
 
 pub use g1_base_derive::DebugExt;
 
@@ -12,9 +13,90 @@ impl<'a> fmt::Debug for EscapeAscii<'a> {
 }
 
 /// Formats a bytes slice into a hex string.
-pub struct Hex<'a>(pub &'a [u8]);
+pub struct Hex<'a, T: ?Sized = [u8]>(pub &'a T);
 
-impl<'a> fmt::Debug for Hex<'a> {
+// TODO: Make `Hex` support `&Some(&[T; N])` and `&Some(&&[T])`.
+impl<'a, T> fmt::Debug for Hex<'a, Option<T>>
+where
+    Hex<'a, T>: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.0 {
+            Some(some) => f.debug_tuple("Some").field(&Hex(some)).finish(),
+            None => write!(f, "None"),
+        }
+    }
+}
+
+impl<'a, T> fmt::Debug for Hex<'a, Arc<T>>
+where
+    Hex<'a, T>: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Hex(&**self.0).fmt(f)
+    }
+}
+
+// TODO: I do not know why, but `impl for Hex<'a, Arc<T>>` does not seem to cover this case.
+impl<'a, T> fmt::Debug for Hex<'a, Arc<[T]>>
+where
+    Hex<'a, [T]>: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Hex(&**self.0).fmt(f)
+    }
+}
+
+// TODO: Make `Hex` support `&[&[T; N]]` and `&[&&[T]]`.
+impl<'a, T> fmt::Debug for Hex<'a, Vec<T>>
+where
+    Hex<'a, T>: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Hex(self.0.as_slice()).fmt(f)
+    }
+}
+
+impl<'a, T, const N: usize> fmt::Debug for Hex<'a, [T; N]>
+where
+    Hex<'a, T>: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Hex(self.0.as_slice()).fmt(f)
+    }
+}
+
+impl<'a, T> fmt::Debug for Hex<'a, &[T]>
+where
+    Hex<'a, T>: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Hex(*self.0).fmt(f)
+    }
+}
+
+impl<'a, T> fmt::Debug for Hex<'a, [T]>
+where
+    Hex<'a, T>: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_list().entries(self.0.iter().map(Hex)).finish()
+    }
+}
+
+impl<'a, const N: usize> fmt::Debug for Hex<'a, [u8; N]> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Hex(self.0.as_slice()).fmt(f)
+    }
+}
+
+impl<'a> fmt::Debug for Hex<'a, &[u8]> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Hex(*self.0).fmt(f)
+    }
+}
+
+impl<'a> fmt::Debug for Hex<'a, [u8]> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for byte in self.0 {
             write!(f, "{:02x}", byte)?;
@@ -141,8 +223,38 @@ mod tests {
 
     #[test]
     fn hex() {
-        let data = [0xdeu8, 0xad, 0xbe, 0xef];
-        assert_eq!(format!("{:?}", Hex(&data)), "deadbeef");
+        // TODO: Turn this into a generic function.
+        macro_rules! test {
+            ($data:expr, $expect:expr $(,)?) => {
+                assert_eq!(format!("{:?}", Hex($data)), $expect);
+            };
+        }
+
+        let array = [0xdeu8, 0xad, 0xbe, 0xef];
+        let slice = array.as_slice();
+
+        test!(&Some(slice), "Some(deadbeef)");
+        test!(&Some(Some(slice)), "Some(Some(deadbeef))");
+        test!(&None as &Option<&[u8]>, "None");
+        test!(&None as &Option<Option<&[u8]>>, "None");
+
+        let arc: Arc<[u8; 4]> = Arc::new(array.clone());
+        test!(&arc, "deadbeef");
+        test!(&Some(arc.clone()), "Some(deadbeef)");
+        let arc: Arc<[u8]> = Arc::from(slice);
+        test!(&arc, "deadbeef");
+        test!(&Some(arc.clone()), "Some(deadbeef)");
+        test!(&Arc::new(Some(slice)), "Some(deadbeef)");
+
+        test!(&vec![slice], "[deadbeef]");
+        test!(&vec![Some(slice), None], "[Some(deadbeef), None]");
+        test!(&[slice], "[deadbeef]");
+        test!([slice].as_slice(), "[deadbeef]");
+        test!(&[slice].as_slice(), "[deadbeef]");
+
+        test!(&array, "deadbeef");
+        test!(slice, "deadbeef");
+        test!(&slice, "deadbeef");
     }
 
     #[derive(Debug)]
