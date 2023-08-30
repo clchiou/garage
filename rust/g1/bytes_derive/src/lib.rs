@@ -1032,7 +1032,7 @@ pub(crate) mod attr {
 
             test_err(
                 &syn::parse_quote!(#[endian()]),
-                "unexpected end of input, expected expression",
+                "unexpected end of input, expected an expression",
             );
             test_err(
                 &syn::parse_quote!(#[endian(1)]),
