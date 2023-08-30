@@ -20,6 +20,12 @@ impl StrExt for str {
 #[derive(Debug)]
 pub struct Hex<T>(pub T);
 
+impl<T> Hex<T> {
+    pub fn into_inner(self) -> T {
+        self.0
+    }
+}
+
 impl<T> FromStr for Hex<T>
 where
     T: FromIterator<u8>,
@@ -32,6 +38,23 @@ where
             .chunks(2)
             .map(|byte| u8::from_str_radix(byte, 16))
             .try_collect()?))
+    }
+}
+
+// TODO: Is it possible to implement `FromStr` for `Hex<[u8; N]>` using specialization?
+impl<'a, const N: usize> TryFrom<&'a str> for Hex<[u8; N]> {
+    type Error = &'a str;
+
+    // NOTE: We disallow odd length of `hex` here.
+    fn try_from(hex: &'a str) -> Result<Self, Self::Error> {
+        if hex.len() != N * 2 {
+            return Err(hex);
+        }
+        let mut array = [0u8; N];
+        for (p, byte) in array.iter_mut().zip(hex.chunks(2)) {
+            *p = u8::from_str_radix(byte, 16).map_err(|_| hex)?;
+        }
+        Ok(Hex(array))
     }
 }
 
@@ -67,7 +90,7 @@ mod tests {
     }
 
     #[test]
-    fn hex() {
+    fn hex_vec() {
         fn test(hex: &str, expect: Vec<u8>) {
             assert_matches!(hex.parse::<Hex<Vec<u8>>>(), Ok(Hex(v)) if v == expect);
         }
@@ -86,5 +109,24 @@ mod tests {
         test("deadbeef", vec![0xde, 0xad, 0xbe, 0xef]);
 
         assert_matches!("x".parse::<Hex<Vec<u8>>>(), Err(_));
+    }
+
+    #[test]
+    fn hex_array() {
+        fn test<const N: usize>(hex: &str, expect: [u8; N]) {
+            assert_matches!(hex.try_into(), Ok(Hex(v)) if v == expect);
+        }
+
+        test("", []);
+
+        test("00", [0]);
+        assert_matches!(Hex::<[u8; 1]>::try_from("0"), Err("0"));
+        assert_matches!(Hex::<[u8; 1]>::try_from("000"), Err("000"));
+
+        test("12", [0x12]);
+        test("1234", [0x12, 0x34]);
+        test("deadbeef", [0xde, 0xad, 0xbe, 0xef]);
+
+        assert_matches!(Hex::<[u8; 1]>::try_from("xx"), Err("xx"));
     }
 }
