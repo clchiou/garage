@@ -2,7 +2,7 @@
 
 use std::io::{Error, ErrorKind};
 use std::marker::Unpin;
-use std::net::{Ipv4Addr, SocketAddr};
+use std::net::SocketAddr;
 use std::sync::Arc;
 
 use clap::{Parser, ValueEnum};
@@ -38,10 +38,8 @@ struct NetCat {
 
     #[arg(long, short)]
     listen: bool,
-    #[arg(default_value = "127.0.0.1")]
-    address: String,
-    #[arg(default_value = "8000")]
-    port: u16,
+    #[arg(default_value = "127.0.0.1:8000")]
+    endpoint: SocketAddr,
 
     #[arg(long, conflicts_with("no_recv"))]
     recv: bool,
@@ -97,7 +95,7 @@ impl NetCat {
             ));
         }
         if self.listen {
-            let mut socket = UdpSocket::new(net::UdpSocket::bind(self.parse_endpoint()?).await?);
+            let mut socket = UdpSocket::new(net::UdpSocket::bind(self.endpoint).await?);
             let (peer, mut payload) = socket
                 .next()
                 .await
@@ -109,23 +107,21 @@ impl NetCat {
             eprintln!("local address: {}", socket.socket().local_addr()?);
             let mut payload = Vec::new();
             io::stdin().read_to_end(&mut payload).await?;
-            socket
-                .feed((self.parse_endpoint()?, payload.into()))
-                .await?;
+            socket.feed((self.endpoint, payload.into())).await?;
             socket.close().await
         }
     }
 
     async fn execute_utp(&self) -> Result<(), Error> {
         let (socket, stream) = if self.listen {
-            let socket = self.new_utp_socket(net::UdpSocket::bind(self.parse_endpoint()?).await?);
+            let socket = self.new_utp_socket(net::UdpSocket::bind(self.endpoint).await?);
             let stream = socket.accept().await?;
             eprintln!("peer endpoint: {}", stream.peer_endpoint());
             (socket, stream)
         } else {
             let socket = self.new_utp_socket(net::UdpSocket::bind("127.0.0.1:0").await?);
             eprintln!("local endpoint: {}", socket.socket().local_addr()?);
-            let stream = socket.connect(self.parse_endpoint()?).await?;
+            let stream = socket.connect(self.endpoint).await?;
             (socket, stream)
         };
         let stream = self.mse_handshake(stream).await?;
@@ -135,21 +131,12 @@ impl NetCat {
 
     fn bind(&self) -> Result<TcpListener, Error> {
         let socket = self.make_socket()?;
-        socket.bind(self.parse_endpoint()?)?;
+        socket.bind(self.endpoint)?;
         Ok(socket.listen(8)?)
     }
 
     async fn connect(&self) -> Result<TcpStream, Error> {
-        Ok(self
-            .make_socket()?
-            .connect(self.parse_endpoint()?)
-            .await?
-            .into())
-    }
-
-    fn parse_endpoint(&self) -> Result<SocketAddr, Error> {
-        let address: Ipv4Addr = self.address.parse().map_err(Error::other)?;
-        Ok(SocketAddr::from((address, self.port)))
+        Ok(self.make_socket()?.connect(self.endpoint).await?.into())
     }
 
     fn make_socket(&self) -> Result<TcpSocket, Error> {
