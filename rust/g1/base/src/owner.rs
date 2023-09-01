@@ -8,6 +8,8 @@
 //! However, the container requires the ability to "downgrade" the lifetime of the borrower from
 //! `'static` to `'a`.
 
+use std::pin::Pin;
+
 /// Creates a container type for the `$borrower` type.
 ///
 /// NOTE: Although `$borrower` is a type, the macro captures it as an identifier instead of a type
@@ -74,13 +76,60 @@ macro_rules! define_owner {
                 &self.borrower
             }
         }
+
+        impl<Buffer> $crate::owner::_Owner<Buffer> for $owner<Buffer> {
+            type Borrower = $borrower<'static>;
+
+            fn into_parts(self) -> (::std::pin::Pin<Buffer>, Self::Borrower) {
+                (self.buffer, self.borrower)
+            }
+
+            fn from_parts(buffer: ::std::pin::Pin<Buffer>, borrower: Self::Borrower) -> Self {
+                Self { buffer, borrower }
+            }
+        }
     };
+}
+
+/// Implements `TryFrom` for conversion between two container types.
+#[macro_export]
+macro_rules! impl_owner_try_from {
+    ($($from_owner:tt)::* for $($to_owner:tt)::*) => {
+        impl<Buffer, T, U>
+            ::std::convert::TryFrom<$($from_owner)::*<Buffer>> for $($to_owner)::*<Buffer>
+        where
+            $($from_owner)::*<Buffer>: $crate::owner::_Owner<Buffer, Borrower = T>,
+            $($to_owner)::*<Buffer>: $crate::owner::_Owner<Buffer, Borrower = U>,
+            U: ::std::convert::TryFrom<T>,
+        {
+            type Error = <U as ::std::convert::TryFrom<T>>::Error;
+
+            fn try_from(owner: $($from_owner)::*<Buffer>) -> Result<Self, Self::Error> {
+                use $crate::owner::_Owner;
+
+                let (buffer, borrower) = owner.into_parts();
+                Ok(Self::from_parts(buffer, borrower.try_into()?))
+            }
+        }
+    };
+}
+
+/// Private helper trait for container `TryFrom` implementations.
+pub trait _Owner<Buffer> {
+    type Borrower;
+
+    fn into_parts(self) -> (Pin<Buffer>, Self::Borrower);
+
+    fn from_parts(buffer: Pin<Buffer>, borrower: Self::Borrower) -> Self;
 }
 
 #[cfg(test)]
 mod tests {
     #[derive(Debug, Eq, PartialEq)]
     struct Bytes<'a>(&'a [u8]);
+
+    #[derive(Debug, Eq, PartialEq)]
+    struct HalfBytes<'a>(&'a [u8]);
 
     impl<'a> TryFrom<&'a [u8]> for Bytes<'a> {
         type Error = ();
@@ -90,12 +139,44 @@ mod tests {
         }
     }
 
+    impl<'a> TryFrom<&'a [u8]> for HalfBytes<'a> {
+        type Error = ();
+
+        fn try_from(bytes: &'a [u8]) -> Result<Self, Self::Error> {
+            Ok(HalfBytes(&bytes[..bytes.len() / 2]))
+        }
+    }
+
+    impl<'a> TryFrom<Bytes<'a>> for HalfBytes<'a> {
+        type Error = ();
+
+        fn try_from(Bytes(bytes): Bytes<'a>) -> Result<Self, Self::Error> {
+            Ok(HalfBytes(&bytes[..bytes.len() / 2]))
+        }
+    }
+
     define_owner!(OwnedBytes for Bytes);
+
+    define_owner!(OwnedHalfBytes for HalfBytes);
+
+    mod foo {
+        mod bar {
+            impl_owner_try_from!(super::super::OwnedBytes for super::super::OwnedHalfBytes);
+        }
+    }
 
     #[test]
     fn owner() {
         let x = OwnedBytes::try_from(vec![0, 1, 2]).unwrap();
         assert_eq!(OwnedBytes::as_slice(&x), &[0, 1, 2]);
         assert_eq!(x.deref(), &Bytes(&[0, 1, 2]));
+
+        let x: OwnedHalfBytes<_> = x.try_into().unwrap();
+        assert_eq!(OwnedHalfBytes::as_slice(&x), &[0, 1, 2]);
+        assert_eq!(x.deref(), &HalfBytes(&[0]));
+
+        let x = OwnedHalfBytes::try_from(vec![0, 1, 2, 3]).unwrap();
+        assert_eq!(OwnedHalfBytes::as_slice(&x), &[0, 1, 2, 3]);
+        assert_eq!(x.deref(), &HalfBytes(&[0, 1]));
     }
 }
