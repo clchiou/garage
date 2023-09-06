@@ -9,10 +9,12 @@
 mod kbucket;
 mod message;
 mod routing;
+mod token;
 
 use std::array::TryFromSliceError;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::time::Duration;
 
 use bitvec::prelude::*;
 use serde::{de, Deserialize, Deserializer};
@@ -26,6 +28,10 @@ use bittorrent_base::{INFO_HASH_SIZE, NODE_ID_SIZE};
 const _: () = assert!(INFO_HASH_SIZE == NODE_ID_SIZE);
 
 g1_param::define!(k: usize = 20);
+
+g1_param::define!(token_period: Duration = Duration::from_secs(5 * 60));
+g1_param::define!(token_valid_since: Duration = Duration::from_secs(10 * 60));
+g1_param::define!(token_secret: u64 = rand::random());
 
 #[derive(Clone, DebugExt, Deserialize, Eq, Hash, PartialEq)]
 pub struct NodeId(
