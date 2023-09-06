@@ -20,7 +20,7 @@ use tokio::{
 };
 use tracing::Instrument;
 
-use g1_tokio::task::JoinQueue;
+use g1_tokio::task::{self, JoinQueue, JoinTaskError};
 
 use crate::bstream::UtpStream;
 use crate::conn::{
@@ -123,30 +123,15 @@ impl UtpSocket {
 
     pub async fn shutdown(&self) -> Result<(), Error> {
         self.conn_tasks.close();
-
-        let join_result = {
-            let mut task = self.task.lock().await;
-            time::timeout(*crate::grace_period(), &mut *task)
-                .await
-                .inspect_err(|_| task.abort())
-                .map_err(|_| {
-                    Error::new(
-                        ErrorKind::TimedOut,
-                        "utp socket shutdown grace period is exceeded",
-                    )
-                })?
-        };
-
-        match join_result {
-            Ok(result) => result,
-            Err(join_error) => {
-                if join_error.is_panic() {
-                    panic::resume_unwind(join_error.into_panic());
-                }
-                assert!(join_error.is_cancelled());
-                Err(Error::other("utp socket actor is cancelled"))
-            }
-        }
+        task::join_task(&self.task, *crate::grace_period())
+            .await
+            .map_err(|error| match error {
+                JoinTaskError::Cancelled => Error::other("utp socket actor is cancelled"),
+                JoinTaskError::Timeout => Error::new(
+                    ErrorKind::TimedOut,
+                    "utp socket shutdown grace period is exceeded",
+                ),
+            })?
     }
 }
 
