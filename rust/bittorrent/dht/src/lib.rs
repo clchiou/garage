@@ -1,6 +1,7 @@
 //! Distributed Hash Table
 // TODO: Implement BEP 32 IPv6 extension for DHT.
 
+#![feature(io_error_other)]
 #![feature(iterator_try_collect)]
 #![cfg_attr(test, feature(assert_matches))]
 #![cfg_attr(test, feature(generic_arg_infer))]
@@ -8,6 +9,7 @@
 
 mod kbucket;
 mod message;
+mod reqrep;
 mod routing;
 mod token;
 
