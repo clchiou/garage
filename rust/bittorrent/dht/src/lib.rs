@@ -8,6 +8,7 @@
 #![cfg_attr(test, feature(generic_arg_infer))]
 #![cfg_attr(test, feature(is_sorted))]
 
+mod agent;
 mod kbucket;
 mod lookup;
 mod message;
@@ -28,6 +29,8 @@ use g1_base::fmt::{DebugExt, Hex};
 
 use bittorrent_base::{INFO_HASH_SIZE, NODE_ID_SIZE};
 
+pub use agent::Agent;
+
 // Our code is written under this assumption.
 #[allow(clippy::assertions_on_constants)]
 const _: () = assert!(INFO_HASH_SIZE == NODE_ID_SIZE);
@@ -39,6 +42,8 @@ g1_param::define!(bootstrap: Vec<String> = vec![
     "router.utorrent.com:6881".to_string(),
     "dht.transmissionbt.com:6881".to_string(),
 ]);
+
+g1_param::define!(self_id: NodeId = NodeId::new(rand::random()));
 
 g1_param::define!(token_period: Duration = Duration::from_secs(5 * 60));
 g1_param::define!(token_valid_since: Duration = Duration::from_secs(10 * 60));
