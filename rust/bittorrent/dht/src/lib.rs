@@ -11,6 +11,7 @@ mod kbucket;
 mod message;
 mod reqrep;
 mod routing;
+mod server;
 mod token;
 
 use std::array::TryFromSliceError;
@@ -30,10 +31,14 @@ use bittorrent_base::{INFO_HASH_SIZE, NODE_ID_SIZE};
 const _: () = assert!(INFO_HASH_SIZE == NODE_ID_SIZE);
 
 g1_param::define!(k: usize = 20);
+g1_param::define!(alpha: usize = 16);
 
 g1_param::define!(token_period: Duration = Duration::from_secs(5 * 60));
 g1_param::define!(token_valid_since: Duration = Duration::from_secs(10 * 60));
 g1_param::define!(token_secret: u64 = rand::random());
+
+g1_param::define!(kbucket_full_queue_size: usize = 64);
+g1_param::define!(grace_period: Duration = Duration::from_secs(2));
 
 #[derive(Clone, DebugExt, Deserialize, Eq, Hash, PartialEq)]
 pub struct NodeId(
