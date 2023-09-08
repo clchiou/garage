@@ -1,10 +1,12 @@
 use std::io::Error;
 use std::sync::Arc;
 
+use tracing::Instrument;
+
 use g1_base::sync::MutexExt;
 use g1_tokio::task::Joiner;
 
-use crate::{kbucket::KBucketItem, NodeContactInfo};
+use crate::{kbucket::KBucketItem, lookup::Lookup, NodeContactInfo, NodeId};
 
 use super::Inner;
 
@@ -86,6 +88,37 @@ impl NodeRefresher {
             }
         }
 
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub(super) struct KBucketRefresher {
+    inner: Arc<Inner>,
+    ids: Vec<NodeId>,
+}
+
+impl KBucketRefresher {
+    pub(super) fn new(inner: Arc<Inner>, ids: Vec<NodeId>) -> Self {
+        Self { inner, ids }
+    }
+
+    pub(super) async fn run(self) -> Result<(), Error> {
+        let Self { inner, ids } = self;
+        let lookup = Lookup::new(inner.clone());
+        // Refresh buckets serially.
+        for id in ids {
+            let nodes = lookup
+                .lookup_nodes(id.clone())
+                .instrument(tracing::info_span!("dht/refresh", ?id))
+                .await;
+            {
+                let mut routing = inner.routing.must_lock();
+                for node in nodes {
+                    routing.must_insert(KBucketItem::new(node));
+                }
+            }
+        }
         Ok(())
     }
 }

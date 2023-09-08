@@ -45,6 +45,7 @@ g1_param::define!(token_valid_since: Duration = Duration::from_secs(10 * 60));
 g1_param::define!(token_secret: u64 = rand::random());
 
 g1_param::define!(kbucket_full_queue_size: usize = 64);
+g1_param::define!(refresh_period: Duration = Duration::from_secs(15 * 60));
 g1_param::define!(grace_period: Duration = Duration::from_secs(2));
 
 #[derive(Clone, DebugExt, Deserialize, Eq, Hash, PartialEq)]

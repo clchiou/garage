@@ -6,22 +6,28 @@ use std::io::Error;
 use std::net::SocketAddr;
 use std::panic;
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
+use bitvec::prelude::*;
 use tokio::{sync::mpsc, task::JoinError, time};
 use tracing::Instrument;
 
+use g1_base::sync::MutexExt;
 use g1_tokio::task::JoinQueue;
 
 use bittorrent_base::InfoHash;
 
 use crate::{
     reqrep::{Client, Incoming, ReqRep, Sender},
-    routing::{KBucketFull, RoutingTable},
+    routing::{KBucketFull, KBucketPrefix, RoutingTable},
     token::TokenSource,
-    NodeId,
+    NodeId, NODE_ID_SIZE,
 };
 
-use self::{handle::Handler, refresh::NodeRefresher};
+use self::{
+    handle::Handler,
+    refresh::{KBucketRefresher, NodeRefresher},
+};
 
 #[derive(Debug)]
 pub(crate) struct Server {
@@ -31,6 +37,7 @@ pub(crate) struct Server {
     tasks: JoinQueue<Result<(), Error>>,
     kbucket_full_recv: mpsc::Receiver<KBucketFull>,
     kbucket_full_send: mpsc::Sender<KBucketFull>,
+    kbucket_refresh_period: Duration,
 }
 
 // Declared as `pub(crate)` to be shared with `agent`.
@@ -56,6 +63,7 @@ impl Server {
             tasks: JoinQueue::new(),
             kbucket_full_recv,
             kbucket_full_send,
+            kbucket_refresh_period: *crate::refresh_period(),
         }
     }
 
@@ -64,6 +72,7 @@ impl Server {
     }
 
     pub(crate) async fn run(mut self) -> Result<(), Error> {
+        let mut kbucket_refresh_interval = time::interval(self.kbucket_refresh_period);
         loop {
             tokio::select! {
                 request = self.inner.reqrep.accept() => {
@@ -79,6 +88,9 @@ impl Server {
                 full = self.kbucket_full_recv.recv() => {
                     // We can call `unwrap` because `kbucket_full_recv` is never closed.
                     self.spawn_node_refresher(full.unwrap());
+                }
+                _ = kbucket_refresh_interval.tick() => {
+                    self.spawn_kbucket_refresher(Instant::now());
                 }
             }
         }
@@ -121,6 +133,23 @@ impl Server {
         // We can call `unwrap` because `tasks` is not closed in the main loop.
         let _ = self.tasks.spawn(refresher_run).unwrap();
     }
+
+    fn spawn_kbucket_refresher(&self, now: Instant) {
+        let mut ids = Vec::new();
+        let should_refresh = now - self.kbucket_refresh_period;
+        for (kbucket, prefix) in self.inner.routing.must_lock().iter() {
+            if let Some(recently_seen) = kbucket.recently_seen() {
+                if recently_seen <= should_refresh {
+                    ids.push(random_id(prefix));
+                }
+            }
+        }
+        // We can call `unwrap` because `tasks` is not closed in the main loop.
+        let _ = self
+            .tasks
+            .spawn(KBucketRefresher::new(self.inner.clone(), ids).run())
+            .unwrap();
+    }
 }
 
 impl Drop for Server {
@@ -146,6 +175,12 @@ fn join_task(join_result: Result<Result<(), Error>, JoinError>) {
     }
 }
 
+fn random_id(prefix: KBucketPrefix) -> NodeId {
+    let mut id: [u8; NODE_ID_SIZE] = rand::random();
+    id.view_bits_mut()[0..prefix.len()].copy_from_bitslice(&prefix);
+    NodeId::new(id)
+}
+
 impl Inner {
     fn new(self_id: NodeId, reqrep: ReqRep) -> Self {
         let routing = Mutex::new(RoutingTable::new(self_id.clone()));
@@ -159,5 +194,25 @@ impl Inner {
 
     pub(crate) fn connect(&self, peer_endpoint: SocketAddr) -> Client {
         Client::new(&self.reqrep, self.self_id.clone(), peer_endpoint)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_random_id() {
+        for expect in [NodeId::min(), NodeId::max()] {
+            for i in 0..=NODE_ID_SIZE * 8 {
+                let id = random_id(KBucketPrefix::from(&expect.bits()[..i]));
+                assert_eq!(&id.bits()[..i], &expect.bits()[..i]);
+                // It has sufficient bits to ensure that an `assert_ne` is very, very unlikely to
+                // fail randomly.
+                if NODE_ID_SIZE * 8 - i > 30 {
+                    assert_ne!(&id.bits()[i..], &expect.bits()[i..]);
+                }
+            }
+        }
     }
 }
