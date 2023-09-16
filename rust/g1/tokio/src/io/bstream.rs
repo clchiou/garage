@@ -188,7 +188,7 @@ where
 }
 
 #[cfg(any(test, feature = "test_harness"))]
-pub mod mock {
+mod mock {
     use bytes::BytesMut;
     use tokio::io::{self, DuplexStream};
 
