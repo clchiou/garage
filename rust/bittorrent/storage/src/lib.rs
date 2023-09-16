@@ -5,6 +5,7 @@ pub mod error;
 
 mod coord;
 mod io;
+mod metainfo;
 
 use std::io::Error;
 
