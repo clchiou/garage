@@ -2,6 +2,7 @@
 #![feature(iterator_try_collect)]
 
 pub mod error;
+pub mod single;
 
 mod coord;
 mod io;
