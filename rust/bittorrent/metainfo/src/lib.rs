@@ -134,7 +134,7 @@ impl<'a> Info<'a> {
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test_harness"))]
 mod test_harness {
     use super::*;
 
