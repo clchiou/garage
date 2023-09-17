@@ -157,7 +157,7 @@ impl fmt::Debug for own::List {
 impl fmt::Debug for own::Dictionary {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_map()
-            .entries(self.0.iter().map(|(k, v)| (EscapeAscii(k), v)))
+            .entries(self.0.iter().map(|(k, v)| (EscapeAscii(k.as_ref()), v)))
             .finish()
     }
 }

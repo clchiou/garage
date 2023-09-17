@@ -4,9 +4,93 @@ use std::sync::Arc;
 pub use g1_base_derive::DebugExt;
 
 /// Escapes non-ASCII characters in a slice to produce `fmt::Debug` output.
-pub struct EscapeAscii<'a>(pub &'a [u8]);
+pub struct EscapeAscii<'a, T: ?Sized = [u8]>(pub &'a T);
 
-impl<'a> fmt::Debug for EscapeAscii<'a> {
+// TODO: Make `EscapeAscii` support `&Some(&[T; N])` and `&Some(&&[T])`.
+impl<'a, T> fmt::Debug for EscapeAscii<'a, Option<T>>
+where
+    EscapeAscii<'a, T>: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.0 {
+            Some(some) => f.debug_tuple("Some").field(&EscapeAscii(some)).finish(),
+            None => write!(f, "None"),
+        }
+    }
+}
+
+impl<'a, T> fmt::Debug for EscapeAscii<'a, Arc<T>>
+where
+    EscapeAscii<'a, T>: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        EscapeAscii(&**self.0).fmt(f)
+    }
+}
+
+// TODO: I do not know why, but `impl for EscapeAscii<'a, Arc<T>>` does not seem to cover this
+// case.
+impl<'a, T> fmt::Debug for EscapeAscii<'a, Arc<[T]>>
+where
+    EscapeAscii<'a, [T]>: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        EscapeAscii(&**self.0).fmt(f)
+    }
+}
+
+// TODO: Make `EscapeAscii` support `&[&[T; N]]` and `&[&&[T]]`.
+impl<'a, T> fmt::Debug for EscapeAscii<'a, Vec<T>>
+where
+    EscapeAscii<'a, T>: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        EscapeAscii(self.0.as_slice()).fmt(f)
+    }
+}
+
+impl<'a, T, const N: usize> fmt::Debug for EscapeAscii<'a, [T; N]>
+where
+    EscapeAscii<'a, T>: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        EscapeAscii(self.0.as_slice()).fmt(f)
+    }
+}
+
+impl<'a, T> fmt::Debug for EscapeAscii<'a, &[T]>
+where
+    EscapeAscii<'a, T>: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        EscapeAscii(*self.0).fmt(f)
+    }
+}
+
+impl<'a, T> fmt::Debug for EscapeAscii<'a, [T]>
+where
+    EscapeAscii<'a, T>: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_list()
+            .entries(self.0.iter().map(EscapeAscii))
+            .finish()
+    }
+}
+
+impl<'a, const N: usize> fmt::Debug for EscapeAscii<'a, [u8; N]> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        EscapeAscii(self.0.as_slice()).fmt(f)
+    }
+}
+
+impl<'a> fmt::Debug for EscapeAscii<'a, &[u8]> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        EscapeAscii(*self.0).fmt(f)
+    }
+}
+
+impl<'a> fmt::Debug for EscapeAscii<'a, [u8]> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "\"{}\"", self.0.escape_ascii())
     }
@@ -217,8 +301,40 @@ mod tests {
 
     #[test]
     fn escape_ascii() {
-        let escaped = b"\t".as_slice();
-        assert_eq!(format!("{:?}", EscapeAscii(escaped)), "\"\\t\"");
+        // TODO: Turn this into a generic function.
+        macro_rules! test {
+            ($data:expr, $expect:expr $(,)?) => {
+                assert_eq!(format!("{:?}", EscapeAscii($data)), $expect);
+            };
+        }
+
+        test!(b"spam \tegg\r\n", "\"spam \\tegg\\r\\n\"");
+
+        let array: [u8; 8] = *b"deadbeef";
+        let slice = array.as_slice();
+
+        test!(&Some(slice), "Some(\"deadbeef\")");
+        test!(&Some(Some(slice)), "Some(Some(\"deadbeef\"))");
+        test!(&None as &Option<&[u8]>, "None");
+        test!(&None as &Option<Option<&[u8]>>, "None");
+
+        let arc: Arc<[u8; 8]> = Arc::new(array.clone());
+        test!(&arc, "\"deadbeef\"");
+        test!(&Some(arc.clone()), "Some(\"deadbeef\")");
+        let arc: Arc<[u8]> = Arc::from(slice);
+        test!(&arc, "\"deadbeef\"");
+        test!(&Some(arc.clone()), "Some(\"deadbeef\")");
+        test!(&Arc::new(Some(slice)), "Some(\"deadbeef\")");
+
+        test!(&vec![slice], "[\"deadbeef\"]");
+        test!(&vec![Some(slice), None], "[Some(\"deadbeef\"), None]");
+        test!(&[slice], "[\"deadbeef\"]");
+        test!([slice].as_slice(), "[\"deadbeef\"]");
+        test!(&[slice].as_slice(), "[\"deadbeef\"]");
+
+        test!(&array, "\"deadbeef\"");
+        test!(slice, "\"deadbeef\"");
+        test!(&slice, "\"deadbeef\"");
     }
 
     #[test]
