@@ -12,6 +12,8 @@ snafu = { version = "0.7.4", optional = true }
 
 # feature: param
 linkme = { version = "0.3.10", optional = true }
+rand = { version = "0.8.5", optional = true } # Required by peer_id.
+serde = { version = "1.0.163", features = ["derive"], optional = true } # Required by peer_id.
 g1_param = { path = "../../g1/param", optional = true }
 
 [dev-dependencies]
@@ -19,4 +21,4 @@ hex-literal = "0.4.1"
 
 [features]
 compact = ["dep:bytes", "dep:snafu"]
-param = ["dep:linkme", "dep:g1_param"]
+param = ["dep:linkme", "dep:rand", "dep:serde", "dep:g1_param"]

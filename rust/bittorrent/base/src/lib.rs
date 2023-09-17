@@ -3,18 +3,29 @@
 #[cfg(feature = "compact")]
 pub mod compact;
 
+#[cfg(feature = "param")]
+mod peer_id;
+
 use std::array::TryFromSliceError;
 use std::borrow::Borrow;
 use std::sync::Arc;
 
-use g1_base::fmt::{DebugExt, Hex};
+#[cfg(feature = "param")]
+use serde::Deserialize;
+
+use g1_base::fmt::{DebugExt, EscapeAscii, Hex};
 
 pub const PROTOCOL_ID: &[u8] = b"BitTorrent protocol";
 
 pub const INFO_HASH_SIZE: usize = 20;
 pub const PIECE_HASH_SIZE: usize = 20;
 
+pub const PEER_ID_SIZE: usize = 20;
+
 pub const NODE_ID_SIZE: usize = 20; // BEP 5.
+
+#[cfg(feature = "param")]
+g1_param::define!(pub self_id: PeerId = PeerId::new(peer_id::generate()));
 
 #[cfg(feature = "param")]
 g1_param::define!(pub recv_buffer_capacity: usize = 65536);
@@ -50,6 +61,38 @@ impl AsRef<[u8]> for InfoHash {
 impl Borrow<[u8]> for InfoHash {
     fn borrow(&self) -> &[u8] {
         self.0.as_slice()
+    }
+}
+
+#[derive(Clone, DebugExt, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "param", derive(Deserialize))]
+pub struct PeerId(
+    #[debug(with = EscapeAscii)]
+    #[cfg_attr(feature = "param", serde(deserialize_with = "peer_id::parse"))]
+    Arc<[u8; PEER_ID_SIZE]>,
+);
+
+impl<'a> TryFrom<&'a [u8]> for PeerId {
+    type Error = TryFromSliceError;
+
+    fn try_from(peer_id: &'a [u8]) -> Result<PeerId, TryFromSliceError> {
+        peer_id.try_into().map(PeerId::new)
+    }
+}
+
+impl PeerId {
+    pub fn new(peer_id: [u8; PEER_ID_SIZE]) -> Self {
+        Self(Arc::new(peer_id))
+    }
+
+    pub fn as_array(&self) -> &[u8; PEER_ID_SIZE] {
+        &self.0
+    }
+}
+
+impl AsRef<[u8]> for PeerId {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
     }
 }
 
