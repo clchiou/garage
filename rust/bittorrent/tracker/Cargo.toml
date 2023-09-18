@@ -6,12 +6,17 @@ edition.workspace = true
 [dependencies]
 percent-encoding = "2.3.0"
 rand = "0.8.5"
+serde = { version = "1.0.163", features = ["derive"] }
 snafu = "0.7.4"
 
-bittorrent_base = { path = "../base" }
+g1_base = { path = "../../g1/base" }
+
+bittorrent_base = { path = "../base", features = ["compact"] }
+bittorrent_bencode = { path = "../bencode", features = ["serde"] }
 bittorrent_metainfo = { path = "../metainfo" }
 
 [dev-dependencies]
 hex-literal = "0.4.1"
 
+bittorrent_bencode = { path = "../bencode", features = ["serde", "test_harness"] }
 bittorrent_metainfo = { path = "../metainfo", features = ["test_harness"] }
