@@ -6,6 +6,7 @@ members = [
     "bittorrent/metainfo",
     "bittorrent/mse",
     "bittorrent/storage",
+    "bittorrent/tracker",
     "bittorrent/utp",
     "g1/base",
     "g1/base_derive",
