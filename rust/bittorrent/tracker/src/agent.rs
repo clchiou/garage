@@ -1,0 +1,272 @@
+use std::net::SocketAddr;
+
+use tokio::{
+    sync::{
+        mpsc::{self, error::TrySendError},
+        watch, Mutex,
+    },
+    task::JoinHandle,
+    time::{self, Instant},
+};
+
+use g1_tokio::task::{self, JoinTaskError};
+
+use bittorrent_base::{InfoHash, PeerId};
+use bittorrent_metainfo::Metainfo;
+
+use crate::{
+    client::Client,
+    error,
+    request::{Event, Request},
+    response,
+};
+
+type Error = Box<dyn std::error::Error + Send + 'static>;
+
+// We need this because Rust implements `From<E>` for `Box<dyn std::error::Error + Send + Sync>`,
+// but it does not for `Box<dyn std::error::Error + Send>`.
+fn to_error<E>(error: E) -> Error
+where
+    Box<dyn std::error::Error + Send + Sync>: From<E>,
+{
+    let error: Box<dyn std::error::Error + Send + Sync> = From::from(error);
+    let error: Error = error;
+    error
+}
+
+pub trait Torrent {
+    fn num_bytes_send(&self) -> u64;
+    fn num_bytes_recv(&self) -> u64;
+    fn num_bytes_left(&self) -> u64;
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PeerContactInfo {
+    pub id: Option<PeerId>,
+    pub endpoint: Endpoint,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Endpoint {
+    SocketAddr(SocketAddr),
+    DomainName(String, u16),
+}
+
+#[derive(Debug)]
+pub struct Agent {
+    event_send: watch::Sender<Option<Event>>,
+    peer_recv: Mutex<mpsc::Receiver<PeerContactInfo>>,
+    task: Mutex<JoinHandle<Result<(), Error>>>,
+}
+
+#[derive(Debug)]
+struct Actor<T> {
+    info_hash: InfoHash,
+    self_id: PeerId,
+    port: u16,
+    torrent: T,
+
+    client: Client,
+    next_request_at: Option<Instant>,
+
+    event_recv: watch::Receiver<Option<Event>>,
+    peer_send: mpsc::Sender<PeerContactInfo>,
+}
+
+impl<'a> From<&'a response::PeerContactInfo<'a>> for PeerContactInfo {
+    fn from(peer: &'a response::PeerContactInfo<'a>) -> Self {
+        Self {
+            id: peer.id.map(|id| id.try_into().unwrap()),
+            endpoint: (&peer.endpoint).into(),
+        }
+    }
+}
+
+impl<'a> From<&'a response::Endpoint<'a>> for Endpoint {
+    fn from(endpoint: &'a response::Endpoint<'a>) -> Self {
+        match endpoint {
+            response::Endpoint::SocketAddr(endpoint) => Endpoint::SocketAddr(*endpoint),
+            response::Endpoint::DomainName(domain_name, port) => {
+                Endpoint::DomainName(domain_name.to_string(), *port)
+            }
+        }
+    }
+}
+
+impl Agent {
+    pub fn new<T>(metainfo: &Metainfo, info_hash: InfoHash, port: u16, torrent: T) -> Self
+    where
+        T: Torrent,
+        T: Send + 'static,
+    {
+        let (event_send, event_recv) = watch::channel(None);
+        let (peer_send, peer_recv) = mpsc::channel(*crate::peer_queue_size());
+        let actor = Actor::new(
+            metainfo,
+            info_hash,
+            bittorrent_base::self_id().clone(),
+            port,
+            torrent,
+            event_recv,
+            peer_send,
+        );
+        Self {
+            event_send,
+            peer_recv: Mutex::new(peer_recv),
+            task: Mutex::new(tokio::spawn(actor.run())),
+        }
+    }
+
+    pub fn start(&self) {
+        self.send_event(Some(Event::Started));
+    }
+
+    pub fn complete(&self) {
+        self.send_event(Some(Event::Completed));
+    }
+
+    pub fn stop(&self) {
+        self.send_event(Some(Event::Stopped));
+    }
+
+    fn send_event(&self, new_event: Option<Event>) {
+        self.event_send.send_if_modified(|event| {
+            if event == &new_event {
+                return false;
+            }
+            let accept = match event {
+                None => true,
+                Some(Event::Started) => {
+                    matches!(new_event, Some(Event::Completed) | Some(Event::Stopped))
+                }
+                Some(Event::Completed) => matches!(new_event, Some(Event::Stopped)),
+                Some(Event::Stopped) => false,
+            };
+            if accept {
+                *event = new_event;
+                true
+            } else {
+                tracing::warn!(?event, ?new_event, "ignore new event");
+                false
+            }
+        });
+    }
+
+    pub async fn next(&self) -> Option<PeerContactInfo> {
+        self.peer_recv.lock().await.recv().await
+    }
+
+    pub async fn shutdown(&self) -> Result<(), Error> {
+        self.stop();
+        task::join_task(&self.task, *crate::grace_period())
+            .await
+            .map_err(|error| {
+                to_error(match error {
+                    JoinTaskError::Cancelled => "tracker is cancelled",
+                    JoinTaskError::Timeout => "tracker shutdown grace period is exceeded",
+                })
+            })?
+    }
+}
+
+impl Drop for Agent {
+    fn drop(&mut self) {
+        self.task.get_mut().abort();
+    }
+}
+
+impl<T> Actor<T> {
+    fn new(
+        metainfo: &Metainfo,
+        info_hash: InfoHash,
+        self_id: PeerId,
+        port: u16,
+        torrent: T,
+        event_recv: watch::Receiver<Option<Event>>,
+        peer_send: mpsc::Sender<PeerContactInfo>,
+    ) -> Self {
+        Self {
+            info_hash,
+            self_id,
+            port,
+            torrent,
+            client: Client::new(metainfo),
+            next_request_at: None,
+            event_recv,
+            peer_send,
+        }
+    }
+}
+
+impl<T> Actor<T>
+where
+    T: Torrent,
+{
+    async fn run(mut self) -> Result<(), Error> {
+        loop {
+            tokio::select! {
+                result = self.event_recv.changed() => {
+                    // We can call `unwrap` because `event_recv` is never closed.
+                    result.unwrap();
+
+                    let event = self.event_recv.borrow_and_update().clone();
+                    tracing::info!(?event);
+
+                    self.request(event.clone()).await?;
+
+                    if matches!(event, Some(Event::Stopped)) {
+                        break;
+                    }
+                }
+                true = async {
+                    if let Some(next_request_at) = self.next_request_at {
+                        time::sleep_until(next_request_at).await;
+                        true
+                    } else {
+                        false
+                    }
+                } => {
+                    self.request(None).await?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    async fn request(&mut self, event: Option<Event>) -> Result<(), Error> {
+        let request = Request::new(
+            self.info_hash.clone(),
+            self.self_id.clone(),
+            self.port,
+            self.torrent.num_bytes_send(),
+            self.torrent.num_bytes_recv(),
+            self.torrent.num_bytes_left(),
+            event,
+        );
+
+        let response_owner = match self.client.get(&request).await {
+            Ok(response_owner) => response_owner,
+            Err(error) => {
+                if matches!(
+                    error.downcast_ref::<error::Error>(),
+                    Some(error::Error::AnnounceUrlsFailed),
+                ) {
+                    return Err(to_error(error::Error::AnnounceUrlsFailed));
+                }
+                tracing::warn!(?error, "tracker error");
+                return Ok(()); // For now, we ignore all other types of error.
+            }
+        };
+        let response = response_owner.deref();
+
+        self.next_request_at = Some(Instant::now() + response.interval);
+
+        for peer in &response.peers {
+            if let Err(TrySendError::Full(peer)) = self.peer_send.try_send(peer.into()) {
+                tracing::warn!(?peer, "drop peer because queue is full");
+            }
+        }
+
+        Ok(())
+    }
+}

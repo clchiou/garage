@@ -5,16 +5,20 @@ edition.workspace = true
 
 [dependencies]
 bytes = "1.4.0"
+linkme = "0.3.10" # Required by g1_param.
 percent-encoding = "2.3.0"
 rand = "0.8.5"
 reqwest = "0.11.20"
 serde = { version = "1.0.163", features = ["derive"] }
 snafu = "0.7.4"
+tokio = { version = "1.28.2", features = ["full"] }
 tracing = "0.1.37"
 
 g1_base = { path = "../../g1/base" }
+g1_param = { path = "../../g1/param" }
+g1_tokio = { path = "../../g1/tokio" }
 
-bittorrent_base = { path = "../base", features = ["compact"] }
+bittorrent_base = { path = "../base", features = ["compact", "param"] }
 bittorrent_bencode = { path = "../bencode", features = ["serde"] }
 bittorrent_metainfo = { path = "../metainfo" }
 
