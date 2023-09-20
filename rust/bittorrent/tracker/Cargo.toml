@@ -27,3 +27,7 @@ hex-literal = "0.4.1"
 
 bittorrent_bencode = { path = "../bencode", features = ["serde", "test_harness"] }
 bittorrent_metainfo = { path = "../metainfo", features = ["test_harness"] }
+
+# examples/tracker
+clap = { version = "4.3.1", features = ["derive"] }
+g1_cli = { path = "../../g1/cli", features = ["param", "tracing"] }
