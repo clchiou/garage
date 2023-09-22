@@ -1,0 +1,19 @@
+[package]
+name = "bittorrent_socket"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+bytes = "1.4.0"
+snafu = "0.7.4"
+tokio = { version = "1.28.2", features = ["full"] }
+
+g1_bytes = { path = "../../g1/bytes" }
+g1_tokio = { path = "../../g1/tokio" }
+
+bittorrent_base = { path = "../base", features = ["param"] }
+
+[dev-dependencies]
+hex-literal = "0.4.1"
+
+g1_tokio = { path = "../../g1/tokio", features = ["test_harness"] }

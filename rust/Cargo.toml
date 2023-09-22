@@ -5,6 +5,7 @@ members = [
     "bittorrent/dht",
     "bittorrent/metainfo",
     "bittorrent/mse",
+    "bittorrent/socket",
     "bittorrent/storage",
     "bittorrent/tracker",
     "bittorrent/utp",
