@@ -22,3 +22,6 @@ bittorrent_base = { path = "../base", features = ["param"] }
 hex-literal = "0.4.1"
 
 g1_tokio = { path = "../../g1/tokio", features = ["test_harness"] }
+
+[features]
+test_harness = []

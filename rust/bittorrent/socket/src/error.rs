@@ -4,6 +4,8 @@ use snafu::prelude::*;
 
 use bittorrent_base::{InfoHash, PeerId};
 
+use crate::message::Message;
+
 #[derive(Clone, Debug, Eq, PartialEq, Snafu)]
 #[snafu(visibility(pub(crate)))]
 pub enum Error {
@@ -20,6 +22,11 @@ pub enum Error {
     ExpectProtocolIdSize { size: usize, expect: usize },
     #[snafu(display("handshake timeout"))]
     HandshakeTimeout,
+
+    #[snafu(display("expect feature to be enabled: {message:?}"))]
+    ExpectFeatureEnabled { message: Message },
+    #[snafu(display("expect feature to be supported by peer: {message:?}"))]
+    ExpectFeatureSupported { message: Message },
 
     #[snafu(display("expect message {id} size == {expect}: {size}"))]
     ExpectSizeEqual { id: u8, size: u32, expect: u32 },
