@@ -24,6 +24,15 @@ pub const PEER_ID_SIZE: usize = 20;
 
 pub const NODE_ID_SIZE: usize = 20; // BEP 5.
 
+// These parameters are not declared as `pub` because they should only be accessed via
+// `Features::load`.
+#[cfg(feature = "param")]
+g1_param::define!(dht_enable: bool = true); // BEP 5
+#[cfg(feature = "param")]
+g1_param::define!(fast_enable: bool = true); // BEP 6
+#[cfg(feature = "param")]
+g1_param::define!(extension_enable: bool = true); // BEP 10
+
 #[cfg(feature = "param")]
 g1_param::define!(pub self_id: PeerId = PeerId::new(peer_id::generate()));
 
@@ -34,6 +43,28 @@ g1_param::define!(pub send_buffer_capacity: usize = 65536);
 
 #[cfg(feature = "param")]
 g1_param::define!(pub payload_size_limit: usize = 65536);
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Features {
+    pub dht: bool,
+    pub fast: bool,
+    pub extension: bool,
+}
+
+impl Features {
+    #[cfg(feature = "param")]
+    pub fn load() -> Self {
+        Self::new(*dht_enable(), *fast_enable(), *extension_enable())
+    }
+
+    pub fn new(dht: bool, fast: bool, extension: bool) -> Self {
+        Self {
+            dht,
+            fast,
+            extension,
+        }
+    }
+}
 
 #[derive(Clone, DebugExt, Eq, Hash, PartialEq)]
 pub struct InfoHash(#[debug(with = Hex)] Arc<[u8; INFO_HASH_SIZE]>);
