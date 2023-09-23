@@ -62,22 +62,6 @@ impl<'a, Stream, Side> Handshake<'a, Stream, Side> {
         }
         hash_2.into()
     }
-
-    pub(super) fn finish(mut self, crypto_select: u32) -> MseStream<Stream> {
-        // Prefer CRYPTO_RC4 over CRYPTO_PLAINTEXT.
-        if (crypto_select & CRYPTO_RC4) != 0 {
-            tracing::debug!("handshake finish: rc4");
-            MseStream::new(
-                self.stream,
-                self.decrypt.take().unwrap(),
-                self.encrypt.take().unwrap(),
-            )
-        } else {
-            assert_ne!(crypto_select & CRYPTO_PLAINTEXT, 0);
-            tracing::debug!("handshake finish: plaintext");
-            MseStream::new(self.stream, Box::new(Plaintext), Box::new(Plaintext))
-        }
-    }
 }
 
 impl<'a, Stream, Side> Handshake<'a, Stream, Side>
@@ -140,6 +124,31 @@ where
         self.decrypt = Some(Box::new(decrypt));
         self.encrypt = Some(Box::new(encrypt));
         self.secret = secret.to_be_byte_array();
+    }
+
+    pub(super) fn finish(mut self, crypto_select: u32) -> MseStream<Stream> {
+        assert!(self.stream.send_buffer().is_empty());
+
+        // Prefer CRYPTO_RC4 over CRYPTO_PLAINTEXT.
+        if (crypto_select & CRYPTO_RC4) != 0 {
+            tracing::debug!("handshake finish: rc4");
+
+            // In case we have already received some data from the peer.
+            self.decrypt
+                .as_mut()
+                .unwrap()
+                .transform(&mut self.stream.recv_buffer());
+
+            MseStream::new(
+                self.stream,
+                self.decrypt.take().unwrap(),
+                self.encrypt.take().unwrap(),
+            )
+        } else {
+            assert_ne!(crypto_select & CRYPTO_PLAINTEXT, 0);
+            tracing::debug!("handshake finish: plaintext");
+            MseStream::new(self.stream, Box::new(Plaintext), Box::new(Plaintext))
+        }
     }
 }
 
