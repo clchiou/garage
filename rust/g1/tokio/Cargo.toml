@@ -22,7 +22,9 @@ clap = { version = "4.3.1", features = ["derive"] }
 g1_cli = { path = "../cli", features = ["param", "tracing"] }
 
 # examples/ncat
+bittorrent_base = { path = "../../bittorrent/base", features = ["param"] }
 bittorrent_mse = { path = "../../bittorrent/mse" }
+bittorrent_socket = { path = "../../bittorrent/socket" }
 bittorrent_utp = { path = "../../bittorrent/utp" }
 
 # examples/path-mtu

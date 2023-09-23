@@ -20,7 +20,9 @@ use g1_tokio::{
     net::udp::UdpSocket,
 };
 
+use bittorrent_base::{Features, InfoHash};
 use bittorrent_mse::MseStream;
+use bittorrent_socket::{Message, Socket};
 use bittorrent_utp::UtpSocket;
 
 #[derive(Debug, Parser)]
@@ -35,6 +37,9 @@ struct NetCat {
 
     #[arg(long, value_name = "INFO_HASH")]
     mse: Option<String>,
+
+    #[arg(long)]
+    info_hash: Option<String>,
 
     #[arg(long, short)]
     listen: bool,
@@ -54,6 +59,7 @@ struct NetCat {
 
 #[derive(Clone, Debug, Eq, PartialEq, ValueEnum)]
 enum Protocol {
+    Bt,
     Tcp,
     Udp,
     Utp,
@@ -62,10 +68,68 @@ enum Protocol {
 impl NetCat {
     async fn execute(&self) -> Result<(), Error> {
         match self.protocol {
+            Protocol::Bt => return self.execute_bt().await,
             Protocol::Tcp => return self.execute_tcp().await,
             Protocol::Udp => return self.execute_udp().await,
             Protocol::Utp => return self.execute_utp().await,
         }
+    }
+
+    /// Receives/sends one piece from/to a peer.
+    async fn execute_bt(&self) -> Result<(), Error> {
+        let info_hash = self
+            .parse_info_hash()?
+            .ok_or_else(|| Error::other("`--info-hash` is required"))?;
+        if self.recv || self.no_recv {
+            return Err(Error::other(
+                "bt mode does not support `--recv` nor `--no-recv`",
+            ));
+        }
+        if self.send || self.no_send {
+            return Err(Error::other(
+                "bt mode does not support `--send` nor `--no-send`",
+            ));
+        }
+
+        let stream = if self.listen {
+            let (stream, _) = self.bind()?.accept().await?;
+            TcpStream::from(stream)
+        } else {
+            self.connect().await?
+        };
+        let stream = self.mse_handshake(stream).await?;
+
+        let self_id = bittorrent_base::self_id().clone();
+        let self_features = Features::load();
+        eprintln!("self id: {:?}", self_id);
+        eprintln!("self features: {:?}", self_features);
+        let mut socket = if self.listen {
+            Socket::accept(stream, info_hash, self_id, self_features, None).await
+        } else {
+            Socket::connect(stream, info_hash, self_id, self_features, None).await
+        }?;
+        eprintln!("peer id: {:?}", socket.peer_id());
+        eprintln!("peer features: {:?}", socket.peer_features());
+
+        if self.listen {
+            let message = socket.recv().await?;
+            let mut payload = match message {
+                Message::Piece(_, payload) => payload,
+                _ => return Err(Error::other(format!("expect piece: {:?}", message))),
+            };
+            io::stdout().write_all_buf(&mut payload).await?;
+        } else {
+            let mut payload = Vec::new();
+            io::stdin().read_to_end(&mut payload).await?;
+            socket
+                .send(Message::Piece(
+                    (0, 0, payload.len().try_into().unwrap()).into(),
+                    payload.into(),
+                ))
+                .await?;
+        }
+
+        socket.shutdown().await
     }
 
     async fn execute_tcp(&self) -> Result<(), Error> {
@@ -172,6 +236,16 @@ impl NetCat {
             .as_ref()
             .map(|info_hash| match info_hash.parse::<Hex<Vec<u8>>>() {
                 Ok(Hex(hex)) => Ok(hex),
+                Err(error) => Err(Error::other(error)),
+            })
+            .transpose()
+    }
+
+    fn parse_info_hash(&self) -> Result<Option<InfoHash>, Error> {
+        self.info_hash
+            .as_ref()
+            .map(|info_hash| match info_hash.as_str().try_into() {
+                Ok(Hex(hex)) => Ok(InfoHash::new(hex)),
                 Err(error) => Err(Error::other(error)),
             })
             .transpose()
