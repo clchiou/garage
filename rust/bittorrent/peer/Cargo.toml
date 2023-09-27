@@ -1,0 +1,9 @@
+[package]
+name = "bittorrent_peer"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+tokio = { version = "1.28.2", features = ["full"] }
+
+g1_tokio = { path = "../../g1/tokio" }
