@@ -4,6 +4,10 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+bytes = "1.4.0"
 tokio = { version = "1.28.2", features = ["full"] }
 
+g1_base = { path = "../../g1/base" }
 g1_tokio = { path = "../../g1/tokio" }
+
+bittorrent_base = { path = "../base" }
