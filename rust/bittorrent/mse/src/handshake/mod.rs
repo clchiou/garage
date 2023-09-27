@@ -125,4 +125,37 @@ mod tests {
         peer_b_task.await.unwrap().unwrap();
         copy_task.await.unwrap().unwrap();
     }
+
+    #[tokio::test]
+    async fn peer_not_implement_mse() {
+        let (mut stream_a, mut mock_a) = Stream::new_mock(4096);
+        let (stream_b, mut mock_b) = Stream::new_mock(4096);
+
+        let peer_a_task = tokio::spawn(async move {
+            stream_a.send_buffer().put_slice(b"\x13BitTorrent protocol");
+            stream_a.send_all().await?;
+            stream_a.send_buffer().put_slice(b"ping");
+            stream_a.send_all().await?;
+            stream_a.recv_fill(4).await?;
+            assert_eq!(stream_a.recv_buffer().as_ref(), b"pong");
+            Ok::<_, io::Error>(())
+        });
+        let peer_b_task = tokio::spawn(async move {
+            let mut stream_b = accept(stream_b, b"foo").await.map_err(io::Error::from)?;
+            stream_b.recv_fill(1 + 19 + 4).await?;
+            assert_eq!(
+                stream_b.recv_buffer().as_ref(),
+                b"\x13BitTorrent protocolping",
+            );
+            stream_b.send_buffer().put_slice(b"pong");
+            stream_b.send_all().await?;
+            Ok::<_, io::Error>(())
+        });
+        let copy_task =
+            tokio::spawn(async move { io::copy_bidirectional(&mut mock_a, &mut mock_b).await });
+
+        peer_a_task.await.unwrap().unwrap();
+        peer_b_task.await.unwrap().unwrap();
+        copy_task.await.unwrap().unwrap();
+    }
 }

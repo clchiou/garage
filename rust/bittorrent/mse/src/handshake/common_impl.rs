@@ -13,8 +13,6 @@ use g1_base::ops::SliceCompoundAssignOp;
 use g1_base::slice::SliceExt;
 use g1_tokio::bstream::{transform::Transform, StreamBuffer, StreamRecv, StreamSend};
 
-use bittorrent_base::PROTOCOL_ID;
-
 use crate::{
     cipher::Plaintext,
     compute_hash,
@@ -69,31 +67,16 @@ where
     Stream: StreamRecv<Error = io::Error> + StreamSend<Error = io::Error> + Send,
     Side: HandshakeSide,
 {
-    /// Exchanges the public key and returns false if the peer does not support MSE.
-    pub(super) async fn exchange_key(&mut self) -> Result<bool, Error> {
+    pub(super) async fn exchange_key(&mut self) -> Result<(), Error> {
         self.put_self_public_key();
         self.stream.send_all().await.context(IoSnafu)?;
-        if self.check_peer_not_implement_mse().await? {
-            return Ok(false);
-        }
-        self.recv_peer_public_key().await?;
-        Ok(true)
+        self.recv_peer_public_key().await
     }
 
     fn put_self_public_key(&mut self) {
         let mut buffer = self.stream.send_buffer();
         buffer.put_slice(&self.self_public_key.to_be_byte_array());
         put_random_padding(&mut buffer);
-    }
-
-    async fn check_peer_not_implement_mse(&mut self) -> Result<bool, Error> {
-        self.stream
-            .recv_fill(1 + PROTOCOL_ID.len())
-            .await
-            .context(IoSnafu)?;
-        let buffer = self.stream.recv_buffer();
-        Ok(usize::from(buffer[0]) == PROTOCOL_ID.len()
-            && &buffer[1..1 + PROTOCOL_ID.len()] == PROTOCOL_ID)
     }
 
     async fn recv_peer_public_key(&mut self) -> Result<(), Error> {

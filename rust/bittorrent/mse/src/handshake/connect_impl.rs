@@ -32,9 +32,7 @@ where
     }
 
     async fn handshake_impl(mut self) -> Result<MseStream<Stream>, Error> {
-        if !self.exchange_key().await? {
-            return Ok(self.finish(CRYPTO_PLAINTEXT));
-        }
+        self.exchange_key().await?;
 
         let hash_1 = self.compute_hash_1();
         let hash_2 = self.compute_hash_2();

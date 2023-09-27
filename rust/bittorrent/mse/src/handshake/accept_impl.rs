@@ -8,7 +8,7 @@ use tokio::time;
 
 use g1_tokio::bstream::{transform::Transform, StreamBuffer, StreamRecv, StreamSend};
 
-use bittorrent_base::payload_size_limit;
+use bittorrent_base::{payload_size_limit, PROTOCOL_ID};
 
 use crate::{
     error::{Error, ExpectCryptoProvideSnafu, ExpectPayloadSizeSnafu, IoSnafu},
@@ -31,9 +31,11 @@ where
     }
 
     async fn handshake_impl(mut self) -> Result<MseStream<Stream>, Error> {
-        if !self.exchange_key().await? {
+        if self.check_peer_not_implement_mse().await? {
             return Ok(self.finish(CRYPTO_PLAINTEXT));
         }
+
+        self.exchange_key().await?;
 
         // Receive padding_a and hashes.
         let hash_1 = self.compute_hash_1();
@@ -77,6 +79,18 @@ where
         self.stream.send_all().await.context(IoSnafu)?;
 
         Ok(self.finish(crypto_select))
+    }
+
+    async fn check_peer_not_implement_mse(&mut self) -> Result<bool, Error> {
+        self.stream
+            .recv_fill(1 + PROTOCOL_ID.len())
+            .await
+            .context(IoSnafu)?;
+        Ok({
+            let buffer = self.stream.recv_buffer();
+            usize::from(buffer[0]) == PROTOCOL_ID.len()
+                && &buffer[1..1 + PROTOCOL_ID.len()] == PROTOCOL_ID
+        })
     }
 
     async fn recv_initial_payload(&mut self) -> Result<(), Error> {
