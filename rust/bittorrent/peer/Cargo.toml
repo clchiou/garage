@@ -5,9 +5,11 @@ edition.workspace = true
 
 [dependencies]
 bytes = "1.4.0"
+linkme = "0.3.10" # Required by g1_param.
 tokio = { version = "1.28.2", features = ["full"] }
 
 g1_base = { path = "../../g1/base" }
+g1_param = { path = "../../g1/param" }
 g1_tokio = { path = "../../g1/tokio" }
 
 bittorrent_base = { path = "../base" }
