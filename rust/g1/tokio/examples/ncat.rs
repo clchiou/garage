@@ -5,6 +5,7 @@ use std::marker::Unpin;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
+use bytes::{Buf, Bytes};
 use clap::{Parser, ValueEnum};
 use futures::{sink::SinkExt, stream::StreamExt};
 use tokio::{
@@ -22,6 +23,7 @@ use g1_tokio::{
 
 use bittorrent_base::{Features, InfoHash};
 use bittorrent_mse::MseStream;
+use bittorrent_peer::Agent;
 use bittorrent_socket::{Message, Socket};
 use bittorrent_utp::UtpSocket;
 
@@ -60,6 +62,7 @@ struct NetCat {
 #[derive(Clone, Debug, Eq, PartialEq, ValueEnum)]
 enum Protocol {
     Bt,
+    BtPeer,
     Tcp,
     Udp,
     Utp,
@@ -69,6 +72,7 @@ impl NetCat {
     async fn execute(&self) -> Result<(), Error> {
         match self.protocol {
             Protocol::Bt => return self.execute_bt().await,
+            Protocol::BtPeer => return self.execute_bt_peer().await,
             Protocol::Tcp => return self.execute_tcp().await,
             Protocol::Udp => return self.execute_udp().await,
             Protocol::Utp => return self.execute_utp().await,
@@ -77,9 +81,6 @@ impl NetCat {
 
     /// Receives/sends one piece from/to a peer.
     async fn execute_bt(&self) -> Result<(), Error> {
-        let info_hash = self
-            .parse_info_hash()?
-            .ok_or_else(|| Error::other("`--info-hash` is required"))?;
         if self.recv || self.no_recv {
             return Err(Error::other(
                 "bt mode does not support `--recv` nor `--no-recv`",
@@ -91,25 +92,7 @@ impl NetCat {
             ));
         }
 
-        let stream = if self.listen {
-            let (stream, _) = self.bind()?.accept().await?;
-            TcpStream::from(stream)
-        } else {
-            self.connect().await?
-        };
-        let stream = self.mse_handshake(stream).await?;
-
-        let self_id = bittorrent_base::self_id().clone();
-        let self_features = Features::load();
-        eprintln!("self id: {:?}", self_id);
-        eprintln!("self features: {:?}", self_features);
-        let mut socket = if self.listen {
-            Socket::accept(stream, info_hash, self_id, self_features, None).await
-        } else {
-            Socket::connect(stream, info_hash, self_id, self_features, None).await
-        }?;
-        eprintln!("peer id: {:?}", socket.peer_id());
-        eprintln!("peer features: {:?}", socket.peer_features());
+        let (mut socket, _) = self.make_bittorrent_socket().await?;
 
         if self.listen {
             let message = socket.recv().await?;
@@ -130,6 +113,54 @@ impl NetCat {
         }
 
         socket.shutdown().await
+    }
+
+    /// Receives/sends one piece from/to a peer.
+    async fn execute_bt_peer(&self) -> Result<(), Error> {
+        if self.recv || self.no_recv {
+            return Err(Error::other(
+                "bt-peer mode does not support `--recv` nor `--no-recv`",
+            ));
+        }
+        if self.send || self.no_send {
+            return Err(Error::other(
+                "bt-peer mode does not support `--send` nor `--no-send`",
+            ));
+        }
+
+        let (socket, peer_endpoint) = self.make_bittorrent_socket().await?;
+        let (mut recvs, sends) = bittorrent_peer::new_channels();
+        let agent = Agent::new(socket, peer_endpoint, sends);
+
+        if self.listen {
+            let response_recv = agent.request((0, 0, 4).into()).unwrap().unwrap();
+            let size = u64::from(response_recv.await.map_err(Error::other)?.get_u32());
+            let response_recv = agent.request((0, 1, size).into()).unwrap().unwrap();
+            let mut payload = response_recv.await.map_err(Error::other)?;
+            io::stdout().write_all_buf(&mut payload).await?;
+            agent.shutdown().await
+        } else {
+            let mut payload = Vec::new();
+            io::stdin().read_to_end(&mut payload).await?;
+            let size = Bytes::copy_from_slice(&u32::try_from(payload.len()).unwrap().to_be_bytes());
+
+            agent.set_self_choking(false);
+            let (_, _, response_send) = recvs.request_recv.recv().await.unwrap();
+            response_send.send(size).unwrap();
+            let (_, _, response_send) = recvs.request_recv.recv().await.unwrap();
+            response_send.send(payload.into()).unwrap();
+
+            agent.join().await;
+            let result = agent.shutdown().await;
+            if result
+                .as_ref()
+                .is_err_and(|error| error.kind() == ErrorKind::UnexpectedEof)
+            {
+                Ok(())
+            } else {
+                result
+            }
+        }
     }
 
     async fn execute_tcp(&self) -> Result<(), Error> {
@@ -229,6 +260,37 @@ impl NetCat {
             }
             None => bittorrent_mse::wrap(stream),
         })
+    }
+
+    async fn make_bittorrent_socket(
+        &self,
+    ) -> Result<(Socket<MseStream<TcpStream>>, SocketAddr), Error> {
+        let info_hash = self
+            .parse_info_hash()?
+            .ok_or_else(|| Error::other("`--info-hash` is required"))?;
+
+        let stream = if self.listen {
+            let (stream, _) = self.bind()?.accept().await?;
+            TcpStream::from(stream)
+        } else {
+            self.connect().await?
+        };
+        let peer_endpoint = stream.stream().peer_addr()?;
+        let stream = self.mse_handshake(stream).await?;
+
+        let self_id = bittorrent_base::self_id().clone();
+        let self_features = Features::load();
+        eprintln!("self id: {:?}", self_id);
+        eprintln!("self features: {:?}", self_features);
+        let socket = if self.listen {
+            Socket::accept(stream, info_hash, self_id, self_features, None).await
+        } else {
+            Socket::connect(stream, info_hash, self_id, self_features, None).await
+        }?;
+        eprintln!("peer id: {:?}", socket.peer_id());
+        eprintln!("peer features: {:?}", socket.peer_features());
+
+        Ok((socket, peer_endpoint))
     }
 
     fn parse_mse(&self) -> Result<Option<Vec<u8>>, Error> {

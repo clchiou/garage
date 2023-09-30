@@ -24,6 +24,7 @@ g1_cli = { path = "../cli", features = ["param", "tracing"] }
 # examples/ncat
 bittorrent_base = { path = "../../bittorrent/base", features = ["param"] }
 bittorrent_mse = { path = "../../bittorrent/mse" }
+bittorrent_peer = { path = "../../bittorrent/peer" }
 bittorrent_socket = { path = "../../bittorrent/socket" }
 bittorrent_utp = { path = "../../bittorrent/utp" }
 
