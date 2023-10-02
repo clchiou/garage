@@ -1,9 +1,7 @@
-use std::ops::{Deref, DerefMut};
-
 use async_trait::async_trait;
 use bytes::BytesMut;
 
-use super::{StreamIntoSplit, StreamRecv, StreamSend, StreamSplit};
+use super::{Defer, SendBuffer, StreamIntoSplit, StreamRecv, StreamSend, StreamSplit};
 
 /// Transformer
 ///
@@ -36,20 +34,18 @@ pub trait Transform {
     fn transform(&mut self, buffer: &mut [u8]);
 }
 
-/// Wraps the buffer of a `StreamSend` and transforms the buffer data when it is being dropped.
+/// Makes a `defer` function for `SendBuffer`.
 ///
-/// NOTE: This implementation assumes that the buffer is append-only.  If the user mutates the
-/// buffer in any other manner, such as by consuming it, `SendBuffer` will transform the incorrect
-/// buffer data.
-#[derive(Debug)]
-pub struct SendBuffer<'a, B, T>
+/// NOTE: The returned `defer` function assumes that the buffer is append-only.  If the user
+/// mutates the buffer in any other way, such as by consuming the buffer, it will corrupt the
+/// buffer.
+fn new_defer<T>(transform: &mut T, end: usize) -> Defer<'_>
 where
-    B: DerefMut<Target = BytesMut>,
     T: Transform,
 {
-    buffer: B,
-    transform: &'a mut T,
-    size: usize,
+    Box::new(move |buffer| {
+        transform.transform(&mut buffer[end..]);
+    })
 }
 
 impl<Stream, Transform> Transformer<Stream, Transform> {
@@ -86,9 +82,6 @@ where
     S: StreamRecv<Error = E> + Send,
     T: Transform + Send,
 {
-    type Buffer<'a> = S::Buffer<'a>
-    where
-        Self: 'a;
     type Error = E;
 
     async fn recv(&mut self) -> Result<usize, Self::Error> {
@@ -99,7 +92,7 @@ where
         recv_or_eof!(self.stream, self.transform)
     }
 
-    fn buffer(&mut self) -> Self::Buffer<'_> {
+    fn buffer(&mut self) -> &mut BytesMut {
         self.stream.buffer()
     }
 }
@@ -110,13 +103,12 @@ where
     S: StreamSend<Error = E> + Send,
     T: Transform + Send,
 {
-    type Buffer<'a> = SendBuffer<'a, S::Buffer<'a>, T>
-    where
-        Self: 'a;
     type Error = E;
 
-    fn buffer(&mut self) -> Self::Buffer<'_> {
-        SendBuffer::new(self.stream.buffer(), &mut self.transform)
+    fn buffer(&mut self) -> SendBuffer<'_> {
+        let mut buffer = self.stream.buffer();
+        buffer.push_defer(new_defer(&mut self.transform, buffer.len()));
+        buffer
     }
 
     async fn send_all(&mut self) -> Result<(), Self::Error> {
@@ -125,53 +117,6 @@ where
 
     async fn shutdown(&mut self) -> Result<(), Self::Error> {
         self.stream.shutdown().await
-    }
-}
-
-impl<'a, B, T> SendBuffer<'a, B, T>
-where
-    B: DerefMut<Target = BytesMut>,
-    T: Transform,
-{
-    fn new(buffer: B, transform: &'a mut T) -> Self {
-        let size = buffer.len();
-        Self {
-            buffer,
-            transform,
-            size,
-        }
-    }
-}
-
-impl<'a, B, T> Drop for SendBuffer<'a, B, T>
-where
-    B: DerefMut<Target = BytesMut>,
-    T: Transform,
-{
-    fn drop(&mut self) {
-        self.transform.transform(&mut self.buffer[self.size..]);
-    }
-}
-
-impl<'a, B, T> Deref for SendBuffer<'a, B, T>
-where
-    B: DerefMut<Target = BytesMut>,
-    T: Transform,
-{
-    type Target = BytesMut;
-
-    fn deref(&self) -> &Self::Target {
-        self.buffer.deref()
-    }
-}
-
-impl<'a, B, T> DerefMut for SendBuffer<'a, B, T>
-where
-    B: DerefMut<Target = BytesMut>,
-    T: Transform,
-{
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.buffer.deref_mut()
     }
 }
 
@@ -216,9 +161,6 @@ where
     RecvTransform: Transform + Send,
     SendTransform: Send,
 {
-    type Buffer<'a> = Stream::Buffer<'a>
-    where
-        Self: 'a;
     type Error = Error;
 
     async fn recv(&mut self) -> Result<usize, Self::Error> {
@@ -229,7 +171,7 @@ where
         recv_or_eof!(self.stream, self.recv_transform)
     }
 
-    fn buffer(&mut self) -> Self::Buffer<'_> {
+    fn buffer(&mut self) -> &mut BytesMut {
         self.stream.buffer()
     }
 }
@@ -242,13 +184,12 @@ where
     RecvTransform: Send,
     SendTransform: Transform + Send,
 {
-    type Buffer<'a> = SendBuffer<'a, Stream::Buffer<'a>, SendTransform>
-    where
-        Self: 'a;
     type Error = Error;
 
-    fn buffer(&mut self) -> Self::Buffer<'_> {
-        SendBuffer::new(self.stream.buffer(), &mut self.send_transform)
+    fn buffer(&mut self) -> SendBuffer<'_> {
+        let mut buffer = self.stream.buffer();
+        buffer.push_defer(new_defer(&mut self.send_transform, buffer.len()));
+        buffer
     }
 
     async fn send_all(&mut self) -> Result<(), Self::Error> {

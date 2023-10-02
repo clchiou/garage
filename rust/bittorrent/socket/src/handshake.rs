@@ -102,7 +102,7 @@ where
 
     stream.recv_fill(PROTOCOL_ID.len()).await?;
     {
-        let mut buffer = stream.buffer();
+        let buffer = stream.buffer();
         ensure!(
             buffer.starts_with(PROTOCOL_ID),
             error::ExpectProtocolIdSnafu {
@@ -124,7 +124,7 @@ where
 
     stream.recv_fill(INFO_HASH_SIZE).await?;
     {
-        let mut buffer = stream.buffer();
+        let buffer = stream.buffer();
         ensure!(
             buffer.starts_with(info_hash.as_ref()),
             error::ExpectInfoHashSnafu {

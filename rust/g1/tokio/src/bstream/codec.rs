@@ -46,7 +46,7 @@ where
 
     async fn decode(&mut self, stream: &mut Stream) -> Result<Option<Self::Item>, Self::Error> {
         loop {
-            if let Some(item) = self(&mut stream.buffer())? {
+            if let Some(item) = self(stream.buffer())? {
                 return Ok(Some(item));
             }
             if stream.recv_or_eof().await?.is_none() {

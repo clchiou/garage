@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use bytes::BytesMut;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-use crate::bstream::{StreamRecv, StreamSend};
+use crate::bstream::{SendBuffer, StreamRecv, StreamSend};
 
 #[derive(Debug)]
 pub struct Stream<SubStream> {
@@ -76,9 +76,6 @@ impl<SubStream> StreamRecv for Stream<SubStream>
 where
     SubStream: AsyncReadExt + Send + Unpin,
 {
-    type Buffer<'a> = &'a mut BytesMut
-    where
-        Self: 'a;
     type Error = Error;
 
     async fn recv(&mut self) -> Result<usize, Self::Error> {
@@ -96,7 +93,7 @@ where
         }
     }
 
-    fn buffer(&mut self) -> Self::Buffer<'_> {
+    fn buffer(&mut self) -> &mut BytesMut {
         &mut self.recv_buffer
     }
 }
@@ -106,13 +103,10 @@ impl<SubStream> StreamSend for Stream<SubStream>
 where
     SubStream: AsyncWriteExt + Send + Unpin,
 {
-    type Buffer<'a> = &'a mut BytesMut
-    where
-        Self: 'a;
     type Error = Error;
 
-    fn buffer(&mut self) -> Self::Buffer<'_> {
-        &mut self.send_buffer
+    fn buffer(&mut self) -> SendBuffer<'_> {
+        SendBuffer::new(&mut self.send_buffer)
     }
 
     async fn send_all(&mut self) -> Result<(), Self::Error> {
@@ -134,9 +128,6 @@ where
     SubStream: AsyncReadExt + Send + Unpin,
     Buffer: BorrowMut<BytesMut> + Send,
 {
-    type Buffer<'a> = &'a mut BytesMut
-    where
-        Self: 'a;
     type Error = Error;
 
     async fn recv(&mut self) -> Result<usize, Self::Error> {
@@ -154,7 +145,7 @@ where
         }
     }
 
-    fn buffer(&mut self) -> Self::Buffer<'_> {
+    fn buffer(&mut self) -> &mut BytesMut {
         self.buffer.borrow_mut()
     }
 }
@@ -165,13 +156,10 @@ where
     SubStream: AsyncWriteExt + Send + Unpin,
     Buffer: BorrowMut<BytesMut> + Send,
 {
-    type Buffer<'a> = &'a mut BytesMut
-    where
-        Self: 'a;
     type Error = Error;
 
-    fn buffer(&mut self) -> Self::Buffer<'_> {
-        self.buffer.borrow_mut()
+    fn buffer(&mut self) -> SendBuffer<'_> {
+        SendBuffer::new(self.buffer.borrow_mut())
     }
 
     async fn send_all(&mut self) -> Result<(), Self::Error> {
@@ -274,13 +262,13 @@ mod tests {
     where
         Stream: StreamSend<Error = Error> + Send + Unpin,
     {
-        assert_eq!(stream.buffer().as_ref(), b"");
+        assert_eq!(stream.buffer().as_ref(), b"".as_slice());
 
         stream.buffer().put_slice(b"hello world");
-        assert_eq!(stream.buffer().as_ref(), b"hello world");
+        assert_eq!(stream.buffer().as_ref(), b"hello world".as_slice());
 
         assert_matches!(stream.send_all().await, Ok(()));
-        assert_eq!(stream.buffer().as_ref(), b"");
+        assert_eq!(stream.buffer().as_ref(), b"".as_slice());
 
         let mut buffer = BytesMut::new();
         mock.read_buf(&mut buffer).await.unwrap();

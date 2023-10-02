@@ -9,7 +9,7 @@ use tokio::{
     sync::{mpsc, oneshot},
 };
 
-use g1_tokio::bstream::{StreamIntoSplit, StreamRecv, StreamSend, StreamSplit};
+use g1_tokio::bstream::{SendBuffer, StreamIntoSplit, StreamRecv, StreamSend, StreamSplit};
 
 #[derive(Debug)]
 pub struct UtpStream {
@@ -122,9 +122,6 @@ impl UtpSendStream {
 
 #[async_trait]
 impl StreamRecv for UtpRecvStream {
-    type Buffer<'a> = &'a mut BytesMut
-    where
-        Self: 'a;
     type Error = Error;
 
     async fn recv(&mut self) -> Result<usize, Self::Error> {
@@ -143,22 +140,19 @@ impl StreamRecv for UtpRecvStream {
         }
     }
 
-    fn buffer(&mut self) -> Self::Buffer<'_> {
+    fn buffer(&mut self) -> &mut BytesMut {
         &mut self.buffer
     }
 }
 
 #[async_trait]
 impl StreamSend for UtpSendStream {
-    type Buffer<'a> = &'a mut BytesMut
-    where
-        Self: 'a;
     type Error = Error;
 
     // I am not sure if this is a good design, but the buffer becomes unavailable after `send_all`
     // returns an error.
-    fn buffer(&mut self) -> Self::Buffer<'_> {
-        self.buffer.as_mut().unwrap()
+    fn buffer(&mut self) -> SendBuffer<'_> {
+        SendBuffer::new(self.buffer.as_mut().unwrap())
     }
 
     async fn send_all(&mut self) -> Result<(), Self::Error> {
@@ -201,9 +195,6 @@ impl StreamSend for UtpSendStream {
 
 #[async_trait]
 impl StreamRecv for UtpStream {
-    type Buffer<'a> = &'a mut BytesMut
-    where
-        Self: 'a;
     type Error = Error;
 
     async fn recv(&mut self) -> Result<usize, Self::Error> {
@@ -214,19 +205,16 @@ impl StreamRecv for UtpStream {
         self.recv.recv_or_eof().await
     }
 
-    fn buffer(&mut self) -> Self::Buffer<'_> {
+    fn buffer(&mut self) -> &mut BytesMut {
         self.recv.buffer()
     }
 }
 
 #[async_trait]
 impl StreamSend for UtpStream {
-    type Buffer<'a> = &'a mut BytesMut
-    where
-        Self: 'a;
     type Error = Error;
 
-    fn buffer(&mut self) -> Self::Buffer<'_> {
+    fn buffer(&mut self) -> SendBuffer<'_> {
         self.send.buffer()
     }
 
@@ -244,9 +232,6 @@ impl StreamSend for UtpStream {
 
 #[async_trait]
 impl StreamRecv for &mut UtpRecvStream {
-    type Buffer<'a> = &'a mut BytesMut
-    where
-        Self: 'a;
     type Error = Error;
 
     async fn recv(&mut self) -> Result<usize, Self::Error> {
@@ -261,19 +246,16 @@ impl StreamRecv for &mut UtpRecvStream {
         (*self).recv_fill(min_size).await
     }
 
-    fn buffer(&mut self) -> Self::Buffer<'_> {
+    fn buffer(&mut self) -> &mut BytesMut {
         (*self).buffer()
     }
 }
 
 #[async_trait]
 impl StreamSend for &mut UtpSendStream {
-    type Buffer<'a> = &'a mut BytesMut
-    where
-        Self: 'a;
     type Error = Error;
 
-    fn buffer(&mut self) -> Self::Buffer<'_> {
+    fn buffer(&mut self) -> SendBuffer<'_> {
         (*self).buffer()
     }
 

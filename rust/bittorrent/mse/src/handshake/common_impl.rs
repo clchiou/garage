@@ -88,7 +88,7 @@ where
         .map_err(|_| error::Error::RecvPublicKeyTimeout)??;
         let peer_public_key;
         {
-            let mut buffer = self.stream.recv_buffer();
+            let buffer = self.stream.recv_buffer();
             ensure!(
                 buffer.len() <= DH_KEY_NUM_BYTES + PADDING_SIZE_RANGE.end(),
                 ExpectRecvPublicKeySizeSnafu { size: buffer.len() },
@@ -119,7 +119,7 @@ where
             self.decrypt
                 .as_mut()
                 .unwrap()
-                .transform(&mut self.stream.recv_buffer());
+                .transform(self.stream.recv_buffer());
 
             MseStream::new(
                 self.stream,
@@ -147,7 +147,7 @@ where
         let mut size = 0;
         loop {
             self.stream.recv_fill(pattern.len()).await?;
-            let mut buffer = self.stream.buffer();
+            let buffer = self.stream.buffer();
             match buffer.as_ref().find(pattern) {
                 Some(i) => {
                     let j = i + pattern.len(); // buffer[i..j] == pattern
@@ -185,7 +185,7 @@ where
         expect: &[u8],
     ) -> Result<(), Error> {
         self.stream.recv_fill(expect.len()).await?;
-        let mut buffer = self.stream.buffer();
+        let buffer = self.stream.buffer();
         let actual = &buffer[0..expect.len()];
         ensure!(
             actual == expect,
@@ -201,14 +201,14 @@ where
 
     pub(super) async fn recv_decrypt_u32(&mut self) -> Result<u32, Error> {
         self.stream.recv_fill(4).await?;
-        let mut buffer = self.stream.buffer();
+        let buffer = self.stream.buffer();
         self.decrypt.as_mut().unwrap().transform(&mut buffer[0..4]);
         Ok(buffer.get_u32())
     }
 
     pub(super) async fn recv_decrypt_size(&mut self) -> Result<usize, Error> {
         self.stream.recv_fill(2).await?;
-        let mut buffer = self.stream.buffer();
+        let buffer = self.stream.buffer();
         self.decrypt.as_mut().unwrap().transform(&mut buffer[0..2]);
         Ok(buffer.get_u16().try_into().unwrap())
     }
@@ -220,7 +220,7 @@ where
             ExpectPaddingSizeSnafu { size },
         );
         self.stream.recv_fill(size).await?;
-        let mut buffer = self.stream.buffer();
+        let buffer = self.stream.buffer();
         self.decrypt
             .as_mut()
             .unwrap()

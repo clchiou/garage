@@ -14,16 +14,15 @@
 pub mod codec;
 pub mod transform;
 
-use std::ops::DerefMut;
+use std::ops::{Deref, DerefMut};
 
 use async_trait::async_trait;
 use bytes::{Buf, BytesMut};
 
+use g1_base::fmt::{DebugExt, InsertPlaceholder};
+
 #[async_trait]
 pub trait StreamRecv {
-    type Buffer<'a>: DerefMut<Target = BytesMut>
-    where
-        Self: 'a;
     type Error;
 
     /// Receives data from the sub-stream, returning the size of the received data or an error when
@@ -48,18 +47,15 @@ pub trait StreamRecv {
     }
 
     /// Returns the buffer of the stream.
-    fn buffer(&mut self) -> Self::Buffer<'_>;
+    fn buffer(&mut self) -> &mut BytesMut;
 }
 
 #[async_trait]
 pub trait StreamSend {
-    type Buffer<'a>: DerefMut<Target = BytesMut>
-    where
-        Self: 'a;
     type Error;
 
     /// Returns the buffer of the stream.
-    fn buffer(&mut self) -> Self::Buffer<'_>;
+    fn buffer(&mut self) -> SendBuffer<'_>;
 
     /// Sends all buffer data to the sub-stream.
     ///
@@ -70,15 +66,72 @@ pub trait StreamSend {
     async fn shutdown(&mut self) -> Result<(), Self::Error>;
 }
 
+/// Attaches `defer` functions to the buffer of a `StreamSend`.
+#[derive(DebugExt)]
+pub struct SendBuffer<'a> {
+    buffer: &'a mut BytesMut,
+    #[debug(with = InsertPlaceholder)]
+    defers: Vec<Defer<'a>>,
+}
+
+pub type Defer<'a> = Box<dyn FnMut(&mut BytesMut) + 'a>;
+
+impl<'a> SendBuffer<'a> {
+    pub fn new(buffer: &'a mut BytesMut) -> Self {
+        Self {
+            buffer,
+            defers: Vec::new(),
+        }
+    }
+
+    pub fn push_defer(&mut self, defer: Defer<'a>) {
+        self.defers.push(defer);
+    }
+}
+
+impl<'a> AsRef<BytesMut> for SendBuffer<'a> {
+    fn as_ref(&self) -> &BytesMut {
+        self.buffer
+    }
+}
+
+impl<'a> AsMut<BytesMut> for SendBuffer<'a> {
+    fn as_mut(&mut self) -> &mut BytesMut {
+        self.buffer
+    }
+}
+
+impl<'a> Deref for SendBuffer<'a> {
+    type Target = BytesMut;
+
+    fn deref(&self) -> &Self::Target {
+        self.buffer
+    }
+}
+
+impl<'a> DerefMut for SendBuffer<'a> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.buffer
+    }
+}
+
+impl<'a> Drop for SendBuffer<'a> {
+    fn drop(&mut self) {
+        for defer in self.defers.iter_mut().rev() {
+            (defer)(self.buffer);
+        }
+    }
+}
+
 /// Helper trait that resolves method name conflicts among the super-traits.
 pub trait StreamBuffer: StreamRecv + StreamSend {
     /// Returns the send buffer of the stream.
-    fn recv_buffer(&mut self) -> <Self as StreamRecv>::Buffer<'_> {
+    fn recv_buffer(&mut self) -> &mut BytesMut {
         StreamRecv::buffer(self)
     }
 
     /// Returns the recv buffer of the stream.
-    fn send_buffer(&mut self) -> <Self as StreamSend>::Buffer<'_> {
+    fn send_buffer(&mut self) -> SendBuffer<'_> {
         StreamSend::buffer(self)
     }
 }

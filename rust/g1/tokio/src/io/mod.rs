@@ -1,4 +1,5 @@
 mod bstream;
+mod traitobj;
 
 use std::io::{Error, ErrorKind};
 
@@ -6,7 +7,8 @@ use async_trait::async_trait;
 use bytes::BufMut;
 use tokio::io::AsyncReadExt;
 
-pub use bstream::{RecvStream, SendStream, Stream};
+pub use self::bstream::{RecvStream, SendStream, Stream};
+pub use self::traitobj::{DynStream, DynStreamRecv, DynStreamSend};
 
 #[async_trait]
 pub trait AsyncReadBufExact: AsyncReadExt {

@@ -68,7 +68,7 @@ impl Message {
         stream.recv_fill(mem::size_of::<u32>()).await?;
         let size = ensure_limit(stream.buffer().peek_u32().unwrap())?;
         stream.recv_fill(size.try_into().unwrap()).await?;
-        Self::decode(&mut stream.buffer())
+        Self::decode(stream.buffer())
     }
 
     fn decode(buffer: &mut BytesMut) -> Result<Self, Error> {

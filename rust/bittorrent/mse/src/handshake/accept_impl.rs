@@ -101,7 +101,7 @@ where
             },
         );
         self.stream.recv_fill(size).await?;
-        let mut buffer = self.stream.recv_buffer();
+        let buffer = self.stream.recv_buffer();
         self.decrypt
             .as_mut()
             .unwrap()
