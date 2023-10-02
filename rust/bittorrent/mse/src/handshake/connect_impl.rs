@@ -1,6 +1,6 @@
 //! Implementation of `ConnectSide` of `Handshake`
 
-use std::io;
+use std::io::Error;
 
 use bytes::{Buf, BufMut};
 use snafu::prelude::*;
@@ -9,7 +9,7 @@ use tokio::time;
 use g1_tokio::bstream::{transform::Transform, StreamBuffer, StreamRecv, StreamSend};
 
 use crate::{
-    error::{Error, ExpectCryptoSelectSnafu, IoSnafu},
+    error::{self, ExpectCryptoSelectSnafu},
     MseStream,
 };
 
@@ -23,12 +23,12 @@ const SELF_INITIAL_PAYLOAD: [u8; 0] = [];
 
 impl<'a, Stream> Handshake<'a, Stream, ConnectSide>
 where
-    Stream: StreamRecv<Error = io::Error> + StreamSend<Error = io::Error> + Send,
+    Stream: StreamRecv<Error = Error> + StreamSend<Error = Error> + Send,
 {
     pub(super) async fn handshake(self) -> Result<MseStream<Stream>, Error> {
         time::timeout(*timeout(), self.handshake_impl())
             .await
-            .map_err(|_| Error::Timeout)?
+            .map_err(|_| error::Error::Timeout)?
     }
 
     async fn handshake_impl(mut self) -> Result<MseStream<Stream>, Error> {
@@ -43,7 +43,7 @@ where
         }
         let crypto_provide = load_crypto_provide();
         self.put_crypto_provide(crypto_provide);
-        self.stream.send_all().await.context(IoSnafu)?;
+        self.stream.send_all().await?;
 
         // Receive padding_b and VC.
         let mut vc = VC;

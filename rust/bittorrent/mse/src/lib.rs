@@ -1,9 +1,10 @@
 //! Message Stream Encryption (MSE)
 
-#![cfg_attr(test, feature(assert_matches))]
+#![cfg_attr(test, feature(io_error_downcast))]
+
+pub mod error;
 
 mod cipher;
-mod error;
 mod handshake;
 
 use sha1::{digest::Output, Digest, Sha1, Sha1Core};
@@ -12,7 +13,6 @@ use g1_tokio::bstream::transform::{DuplexTransformer, Transform};
 
 use self::cipher::Plaintext;
 
-pub use self::error::Error;
 pub use self::handshake::{accept, connect};
 
 g1_param::define!(rc4_enable: bool = true);

@@ -3,7 +3,7 @@ mod common_impl;
 mod connect_impl;
 mod dh;
 
-use std::io;
+use std::io::Error;
 use std::marker::PhantomData;
 use std::ops::RangeInclusive;
 use std::time::Duration;
@@ -12,14 +12,14 @@ use crypto_bigint::{ByteArray, U768};
 
 use g1_tokio::bstream::{StreamRecv, StreamSend};
 
-use crate::{cipher::MseRc4, error::Error, MseStream};
+use crate::{cipher::MseRc4, MseStream};
 
 g1_param::define!(timeout: Duration = Duration::from_secs(60));
 g1_param::define!(recv_public_key_timeout: Duration = Duration::from_secs(30));
 
 pub async fn connect<Stream>(stream: Stream, info_hash: &[u8]) -> Result<MseStream<Stream>, Error>
 where
-    Stream: StreamRecv<Error = io::Error> + StreamSend<Error = io::Error> + Send,
+    Stream: StreamRecv<Error = Error> + StreamSend<Error = Error> + Send,
 {
     Handshake::<_, ConnectSide>::new(stream, info_hash)
         .handshake()
@@ -28,7 +28,7 @@ where
 
 pub async fn accept<Stream>(stream: Stream, info_hash: &[u8]) -> Result<MseStream<Stream>, Error>
 where
-    Stream: StreamRecv<Error = io::Error> + StreamSend<Error = io::Error> + Send,
+    Stream: StreamRecv<Error = Error> + StreamSend<Error = Error> + Send,
 {
     Handshake::<_, AcceptSide>::new(stream, info_hash)
         .handshake()
@@ -103,20 +103,20 @@ mod tests {
         let (stream_b, mut mock_b) = Stream::new_mock(4096);
 
         let peer_a_task = tokio::spawn(async move {
-            let mut stream_a = connect(stream_a, b"foo").await.map_err(io::Error::from)?;
+            let mut stream_a = connect(stream_a, b"foo").await?;
             stream_a.send_buffer().put_slice(b"ping");
             stream_a.send_all().await?;
             stream_a.recv_fill(4).await?;
             assert_eq!(stream_a.recv_buffer().as_ref(), b"pong");
-            Ok::<_, io::Error>(())
+            Ok::<_, Error>(())
         });
         let peer_b_task = tokio::spawn(async move {
-            let mut stream_b = accept(stream_b, b"foo").await.map_err(io::Error::from)?;
+            let mut stream_b = accept(stream_b, b"foo").await?;
             stream_b.recv_fill(4).await?;
             assert_eq!(stream_b.recv_buffer().as_ref(), b"ping");
             stream_b.send_buffer().put_slice(b"pong");
             stream_b.send_all().await?;
-            Ok::<_, io::Error>(())
+            Ok::<_, Error>(())
         });
         let copy_task =
             tokio::spawn(async move { io::copy_bidirectional(&mut mock_a, &mut mock_b).await });
@@ -138,10 +138,10 @@ mod tests {
             stream_a.send_all().await?;
             stream_a.recv_fill(4).await?;
             assert_eq!(stream_a.recv_buffer().as_ref(), b"pong");
-            Ok::<_, io::Error>(())
+            Ok::<_, Error>(())
         });
         let peer_b_task = tokio::spawn(async move {
-            let mut stream_b = accept(stream_b, b"foo").await.map_err(io::Error::from)?;
+            let mut stream_b = accept(stream_b, b"foo").await?;
             stream_b.recv_fill(1 + 19 + 4).await?;
             assert_eq!(
                 stream_b.recv_buffer().as_ref(),
@@ -149,7 +149,7 @@ mod tests {
             );
             stream_b.send_buffer().put_slice(b"pong");
             stream_b.send_all().await?;
-            Ok::<_, io::Error>(())
+            Ok::<_, Error>(())
         });
         let copy_task =
             tokio::spawn(async move { io::copy_bidirectional(&mut mock_a, &mut mock_b).await });

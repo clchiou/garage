@@ -2,9 +2,9 @@ use std::io;
 
 use snafu::prelude::*;
 
-use super::handshake::PADDING_SIZE_RANGE;
+use crate::handshake::PADDING_SIZE_RANGE;
 
-#[derive(Debug, Snafu)]
+#[derive(Clone, Debug, Eq, PartialEq, Snafu)]
 #[snafu(visibility(pub(super)))]
 pub enum Error {
     #[snafu(display("expect crypto_provide & {expect} != 0: {crypto_provide}"))]
@@ -41,9 +41,6 @@ pub enum Error {
         size: usize,
         expect: usize,
     },
-    Io {
-        source: io::Error,
-    },
     RecvPublicKeyTimeout,
     Timeout,
 }
@@ -60,7 +57,6 @@ impl From<Error> for io::Error {
             | Error::ExpectResynchronize { .. } => {
                 io::Error::new(io::ErrorKind::ConnectionAborted, error)
             }
-            Error::Io { source } => source,
             Error::RecvPublicKeyTimeout => {
                 io::Error::new(io::ErrorKind::TimedOut, "mse recv public key timeout")
             }

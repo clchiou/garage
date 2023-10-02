@@ -1,6 +1,6 @@
 //! Implementation of `AcceptSide` of `Handshake`
 
-use std::io;
+use std::io::Error;
 
 use bytes::{Buf, BufMut};
 use snafu::prelude::*;
@@ -11,7 +11,7 @@ use g1_tokio::bstream::{transform::Transform, StreamBuffer, StreamRecv, StreamSe
 use bittorrent_base::{payload_size_limit, PROTOCOL_ID};
 
 use crate::{
-    error::{Error, ExpectCryptoProvideSnafu, ExpectPayloadSizeSnafu, IoSnafu},
+    error::{self, ExpectCryptoProvideSnafu, ExpectPayloadSizeSnafu},
     MseStream,
 };
 
@@ -22,12 +22,12 @@ use super::{
 
 impl<'a, Stream> Handshake<'a, Stream, AcceptSide>
 where
-    Stream: StreamRecv<Error = io::Error> + StreamSend<Error = io::Error> + Send,
+    Stream: StreamRecv<Error = Error> + StreamSend<Error = Error> + Send,
 {
     pub(super) async fn handshake(self) -> Result<MseStream<Stream>, Error> {
         time::timeout(*timeout(), self.handshake_impl())
             .await
-            .map_err(|_| Error::Timeout)?
+            .map_err(|_| error::Error::Timeout)?
     }
 
     async fn handshake_impl(mut self) -> Result<MseStream<Stream>, Error> {
@@ -76,16 +76,13 @@ where
         self.recv_initial_payload().await?;
 
         self.put_crypto_select(crypto_select);
-        self.stream.send_all().await.context(IoSnafu)?;
+        self.stream.send_all().await?;
 
         Ok(self.finish(crypto_select))
     }
 
     async fn check_peer_not_implement_mse(&mut self) -> Result<bool, Error> {
-        self.stream
-            .recv_fill(1 + PROTOCOL_ID.len())
-            .await
-            .context(IoSnafu)?;
+        self.stream.recv_fill(1 + PROTOCOL_ID.len()).await?;
         Ok({
             let buffer = self.stream.recv_buffer();
             usize::from(buffer[0]) == PROTOCOL_ID.len()
@@ -103,7 +100,7 @@ where
                 expect: limit,
             },
         );
-        self.stream.recv_fill(size).await.context(IoSnafu)?;
+        self.stream.recv_fill(size).await?;
         let mut buffer = self.stream.recv_buffer();
         self.decrypt
             .as_mut()

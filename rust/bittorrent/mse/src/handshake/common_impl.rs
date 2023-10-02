@@ -1,6 +1,6 @@
 //! Implementation of Common Parts of `Handshake`
 
-use std::io;
+use std::io::Error;
 use std::marker::PhantomData;
 
 use bytes::{Buf, BufMut, BytesMut};
@@ -17,8 +17,8 @@ use crate::{
     cipher::Plaintext,
     compute_hash,
     error::{
-        Error, ExpectPaddingSizeSnafu, ExpectRecvPublicKeySizeSnafu, ExpectRecvSnafu,
-        ExpectResynchronizeSnafu, IoSnafu,
+        self, ExpectPaddingSizeSnafu, ExpectRecvPublicKeySizeSnafu, ExpectRecvSnafu,
+        ExpectResynchronizeSnafu,
     },
     MseStream, HASH_SIZE,
 };
@@ -64,12 +64,12 @@ impl<'a, Stream, Side> Handshake<'a, Stream, Side> {
 
 impl<'a, Stream, Side> Handshake<'a, Stream, Side>
 where
-    Stream: StreamRecv<Error = io::Error> + StreamSend<Error = io::Error> + Send,
+    Stream: StreamRecv<Error = Error> + StreamSend<Error = Error> + Send,
     Side: HandshakeSide,
 {
     pub(super) async fn exchange_key(&mut self) -> Result<(), Error> {
         self.put_self_public_key();
-        self.stream.send_all().await.context(IoSnafu)?;
+        self.stream.send_all().await?;
         self.recv_peer_public_key().await
     }
 
@@ -85,8 +85,7 @@ where
             self.stream.recv_fill(DH_KEY_NUM_BYTES),
         )
         .await
-        .map_err(|_| Error::RecvPublicKeyTimeout)?
-        .context(IoSnafu)?;
+        .map_err(|_| error::Error::RecvPublicKeyTimeout)??;
         let peer_public_key;
         {
             let mut buffer = self.stream.recv_buffer();
@@ -137,7 +136,7 @@ where
 
 impl<'a, Stream, Side> Handshake<'a, Stream, Side>
 where
-    Stream: StreamRecv<Error = io::Error> + Send,
+    Stream: StreamRecv<Error = Error> + Send,
 {
     /// Finds the `pattern` in the first `upper_bound` bytes of data.
     pub(super) async fn resynchronize(
@@ -147,10 +146,7 @@ where
     ) -> Result<(), Error> {
         let mut size = 0;
         loop {
-            self.stream
-                .recv_fill(pattern.len())
-                .await
-                .context(IoSnafu)?;
+            self.stream.recv_fill(pattern.len()).await?;
             let mut buffer = self.stream.buffer();
             match buffer.as_ref().find(pattern) {
                 Some(i) => {
@@ -188,7 +184,7 @@ where
         name: &'static str,
         expect: &[u8],
     ) -> Result<(), Error> {
-        self.stream.recv_fill(expect.len()).await.context(IoSnafu)?;
+        self.stream.recv_fill(expect.len()).await?;
         let mut buffer = self.stream.buffer();
         let actual = &buffer[0..expect.len()];
         ensure!(
@@ -204,14 +200,14 @@ where
     }
 
     pub(super) async fn recv_decrypt_u32(&mut self) -> Result<u32, Error> {
-        self.stream.recv_fill(4).await.context(IoSnafu)?;
+        self.stream.recv_fill(4).await?;
         let mut buffer = self.stream.buffer();
         self.decrypt.as_mut().unwrap().transform(&mut buffer[0..4]);
         Ok(buffer.get_u32())
     }
 
     pub(super) async fn recv_decrypt_size(&mut self) -> Result<usize, Error> {
-        self.stream.recv_fill(2).await.context(IoSnafu)?;
+        self.stream.recv_fill(2).await?;
         let mut buffer = self.stream.buffer();
         self.decrypt.as_mut().unwrap().transform(&mut buffer[0..2]);
         Ok(buffer.get_u16().try_into().unwrap())
@@ -223,7 +219,7 @@ where
             PADDING_SIZE_RANGE.contains(&size),
             ExpectPaddingSizeSnafu { size },
         );
-        self.stream.recv_fill(size).await.context(IoSnafu)?;
+        self.stream.recv_fill(size).await?;
         let mut buffer = self.stream.buffer();
         self.decrypt
             .as_mut()
@@ -244,8 +240,6 @@ fn put_random_padding(buffer: &mut BytesMut) {
 
 #[cfg(test)]
 mod tests {
-    use std::assert_matches::assert_matches;
-
     use tokio::io::AsyncWriteExt;
 
     use g1_tokio::io::RecvStream;
@@ -258,7 +252,7 @@ mod tests {
             let (stream, mut mock) = RecvStream::new_mock(4096);
             let mut handshake = Handshake::<_, ()>::new(stream, b"");
             mock.write_all(data).await.unwrap();
-            assert_matches!(handshake.resynchronize(pattern, upper_bound).await, Ok(()));
+            handshake.resynchronize(pattern, upper_bound).await.unwrap();
             assert_eq!(handshake.stream.buffer().as_ref(), expect);
         }
 
@@ -266,13 +260,18 @@ mod tests {
             let (stream, mut mock) = RecvStream::new_mock(4096);
             let mut handshake = Handshake::<_, ()>::new(stream, b"");
             mock.write_all(data).await.unwrap();
-            assert_matches!(
-                handshake.resynchronize(pattern, upper_bound).await,
-                Err(Error::ExpectResynchronize {
-                    size,
-                    expect,
-                })
-                if size == expect_size && expect == upper_bound
+            assert_eq!(
+                handshake
+                    .resynchronize(pattern, upper_bound)
+                    .await
+                    .unwrap_err()
+                    .downcast::<error::Error>()
+                    .unwrap()
+                    .as_ref(),
+                &error::Error::ExpectResynchronize {
+                    size: expect_size,
+                    expect: upper_bound,
+                },
             );
         }
 
