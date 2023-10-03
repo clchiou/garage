@@ -8,10 +8,10 @@ use g1_tokio::bstream::transform::Transform;
 use super::{compute_hash, handshake::DhKey};
 
 #[derive(Debug)]
-pub(super) struct Plaintext;
+pub struct Plaintext;
 
 #[derive(DebugExt)]
-pub(super) struct MseRc4(#[debug(with = InsertPlaceholder)] Rc4<Rc4KeySize>);
+pub struct MseRc4(#[debug(with = InsertPlaceholder)] Rc4<Rc4KeySize>);
 
 type Rc4KeySize = U20;
 type Rc4Key = Key<Rc4KeySize>;
@@ -58,5 +58,11 @@ impl MseRc4 {
 impl Transform for MseRc4 {
     fn transform(&mut self, buffer: &mut [u8]) {
         self.0.apply_keystream(buffer);
+    }
+}
+
+impl Transform for Box<MseRc4> {
+    fn transform(&mut self, buffer: &mut [u8]) {
+        (**self).transform(buffer)
     }
 }

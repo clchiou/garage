@@ -93,7 +93,10 @@ mod tests {
     use bytes::BufMut;
     use tokio::io;
 
-    use g1_tokio::{bstream::StreamBuffer, io::Stream};
+    use g1_tokio::{
+        bstream::StreamBuffer,
+        io::{DynStream, Stream},
+    };
 
     use super::*;
 
@@ -103,7 +106,7 @@ mod tests {
         let (stream_b, mut mock_b) = Stream::new_mock(4096);
 
         let peer_a_task = tokio::spawn(async move {
-            let mut stream_a = connect(stream_a, b"foo").await?;
+            let mut stream_a = DynStream::from(connect(stream_a, b"foo").await?);
             stream_a.send_buffer().put_slice(b"ping");
             stream_a.send_all().await?;
             stream_a.recv_fill(4).await?;
@@ -111,7 +114,7 @@ mod tests {
             Ok::<_, Error>(())
         });
         let peer_b_task = tokio::spawn(async move {
-            let mut stream_b = accept(stream_b, b"foo").await?;
+            let mut stream_b = DynStream::from(accept(stream_b, b"foo").await?);
             stream_b.recv_fill(4).await?;
             assert_eq!(stream_b.recv_buffer().as_ref(), b"ping");
             stream_b.send_buffer().put_slice(b"pong");
@@ -141,7 +144,7 @@ mod tests {
             Ok::<_, Error>(())
         });
         let peer_b_task = tokio::spawn(async move {
-            let mut stream_b = accept(stream_b, b"foo").await?;
+            let mut stream_b = DynStream::from(accept(stream_b, b"foo").await?);
             stream_b.recv_fill(1 + 19 + 4).await?;
             assert_eq!(
                 stream_b.recv_buffer().as_ref(),

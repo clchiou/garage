@@ -17,6 +17,7 @@ use g1_base::str::Hex;
 use g1_cli::{param::ParametersConfig, tracing::TracingConfig};
 use g1_tokio::{
     bstream::{StreamIntoSplit, StreamRecv, StreamSend},
+    io::{DynStream, DynStreamRecv, DynStreamSend},
     net::tcp::TcpStream,
     net::udp::UdpSocket,
 };
@@ -258,13 +259,13 @@ impl NetCat {
                     bittorrent_mse::connect(stream, &info_hash).await?
                 }
             }
-            None => bittorrent_mse::wrap(stream),
+            None => MseStream::new_plaintext(stream),
         })
     }
 
     async fn make_bittorrent_socket(
         &self,
-    ) -> Result<(Socket<MseStream<TcpStream>>, SocketAddr), Error> {
+    ) -> Result<(Socket<DynStream<'static>>, SocketAddr), Error> {
         let info_hash = self
             .parse_info_hash()?
             .ok_or_else(|| Error::other("`--info-hash` is required"))?;
@@ -276,7 +277,7 @@ impl NetCat {
             self.connect().await?
         };
         let peer_endpoint = stream.stream().peer_addr()?;
-        let stream = self.mse_handshake(stream).await?;
+        let stream = self.mse_handshake(stream).await?.into();
 
         let self_id = bittorrent_base::self_id().clone();
         let self_features = Features::load();
@@ -313,13 +314,25 @@ impl NetCat {
             .transpose()
     }
 
-    async fn copy_bidirectional<Stream, Source, Sink>(&self, stream: Stream) -> Result<(), Error>
+    async fn copy_bidirectional<Stream, Source, Sink>(
+        &self,
+        stream: MseStream<Stream>,
+    ) -> Result<(), Error>
     where
         Stream: StreamIntoSplit<OwnedRecvHalf = Source, OwnedSendHalf = Sink>,
-        Source: StreamRecv<Error = Error>,
-        Sink: StreamSend<Error = Error>,
+        Source: StreamRecv<Error = Error> + Send,
+        Sink: StreamSend<Error = Error> + Send,
     {
-        let (source, sink) = stream.into_split();
+        let (source, sink): (DynStreamRecv, DynStreamSend) = match stream {
+            MseStream::Rc4(stream) => {
+                let (source, sink) = stream.into_split();
+                (Box::new(source), Box::new(sink))
+            }
+            MseStream::Plaintext(stream) => {
+                let (source, sink) = stream.into_split();
+                (Box::new(source), Box::new(sink))
+            }
+        };
         tokio::try_join!(
             async {
                 if self.should_recv() {

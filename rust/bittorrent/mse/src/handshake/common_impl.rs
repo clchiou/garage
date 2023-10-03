@@ -14,7 +14,6 @@ use g1_base::slice::SliceExt;
 use g1_tokio::bstream::{transform::Transform, StreamBuffer, StreamRecv, StreamSend};
 
 use crate::{
-    cipher::Plaintext,
     compute_hash,
     error::{
         self, ExpectPaddingSizeSnafu, ExpectRecvPublicKeySizeSnafu, ExpectRecvSnafu,
@@ -121,7 +120,7 @@ where
                 .unwrap()
                 .transform(self.stream.recv_buffer());
 
-            MseStream::new(
+            MseStream::new_rc4(
                 self.stream,
                 self.decrypt.take().unwrap(),
                 self.encrypt.take().unwrap(),
@@ -129,7 +128,7 @@ where
         } else {
             assert_ne!(crypto_select & CRYPTO_PLAINTEXT, 0);
             tracing::debug!("handshake finish: plaintext");
-            MseStream::new(self.stream, Box::new(Plaintext), Box::new(Plaintext))
+            MseStream::new_plaintext(self.stream)
         }
     }
 }
