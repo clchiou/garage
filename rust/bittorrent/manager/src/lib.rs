@@ -3,6 +3,7 @@
 pub mod error;
 
 mod actor;
+mod agent;
 mod net;
 
 use std::net::SocketAddr;
@@ -10,7 +11,12 @@ use std::time::Duration;
 
 use g1_tokio::io::DynStream;
 
+g1_param::define!(update_queue_size: usize = 256);
+g1_param::define!(grace_period: Duration = Duration::from_secs(2));
+
 g1_param::define!(connect_timeout: Duration = Duration::from_secs(4));
+
+pub use self::agent::Manager;
 
 pub type Preference = (Transport, Cipher);
 
