@@ -2,6 +2,7 @@
 
 pub mod error;
 
+mod actor;
 mod net;
 
 use std::net::SocketAddr;
@@ -34,3 +35,9 @@ pub(crate) const CIPHERS: &[Cipher] = &[Cipher::Mse, Cipher::Plaintext];
 pub type Endpoint = SocketAddr;
 
 pub(crate) type Socket = bittorrent_socket::Socket<DynStream<'static>>;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Update {
+    Start,
+    Stop,
+}
