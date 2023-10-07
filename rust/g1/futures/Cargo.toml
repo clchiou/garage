@@ -1,0 +1,13 @@
+[package]
+name = "g1_futures"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+futures = "0.3.28"
+tracing = "0.1.37"
+
+g1_base = { path = "../base" }
+
+[dev-dependencies]
+tokio = { version = "1.28.2", features = ["full"] }

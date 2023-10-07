@@ -16,6 +16,7 @@ members = [
     "g1/bytes",
     "g1/bytes_derive",
     "g1/cli",
+    "g1/futures",
     "g1/msg",
     "g1/nix",
     "g1/param",
