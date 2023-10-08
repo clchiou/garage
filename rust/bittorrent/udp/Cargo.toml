@@ -1,0 +1,11 @@
+[package]
+name = "bittorrent_udp"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+bytes = "1.4.0"
+linkme = "0.3.10" # Required by g1_param.
+
+g1_futures = { path = "../../g1/futures" }
+g1_param = { path = "../../g1/param" }

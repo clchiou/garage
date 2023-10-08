@@ -10,6 +10,7 @@ members = [
     "bittorrent/socket",
     "bittorrent/storage",
     "bittorrent/tracker",
+    "bittorrent/udp",
     "bittorrent/utp",
     "g1/base",
     "g1/base_derive",
