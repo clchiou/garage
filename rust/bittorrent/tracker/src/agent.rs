@@ -21,18 +21,8 @@ use crate::{
     response,
 };
 
-type Error = Box<dyn std::error::Error + Send + 'static>;
-
-// We need this because Rust implements `From<E>` for `Box<dyn std::error::Error + Send + Sync>`,
-// but it does not for `Box<dyn std::error::Error + Send>`.
-fn to_error<E>(error: E) -> Error
-where
-    Box<dyn std::error::Error + Send + Sync>: From<E>,
-{
-    let error: Box<dyn std::error::Error + Send + Sync> = From::from(error);
-    let error: Error = error;
-    error
-}
+// We add `Sync` to `Error` in order to make it convertible to `std::io::Error`.
+type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 
 pub trait Torrent {
     fn num_bytes_send(&self) -> u64;
@@ -160,11 +150,9 @@ impl Agent {
         self.stop();
         task::join_task(&self.task, *crate::grace_period())
             .await
-            .map_err(|error| {
-                to_error(match error {
-                    JoinTaskError::Cancelled => "tracker is cancelled",
-                    JoinTaskError::Timeout => "tracker shutdown grace period is exceeded",
-                })
+            .map_err(|error| match error {
+                JoinTaskError::Cancelled => "tracker is cancelled",
+                JoinTaskError::Timeout => "tracker shutdown grace period is exceeded",
             })?
     }
 }
@@ -251,7 +239,7 @@ where
                     error.downcast_ref::<error::Error>(),
                     Some(error::Error::AnnounceUrlsFailed),
                 ) {
-                    return Err(to_error(error::Error::AnnounceUrlsFailed));
+                    return Err(error::Error::AnnounceUrlsFailed.into());
                 }
                 tracing::warn!(?error, "tracker error");
                 return Ok(()); // For now, we ignore all other types of error.
