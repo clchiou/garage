@@ -2,6 +2,8 @@ use std::collections::{HashMap, VecDeque};
 use std::sync::MutexGuard;
 use std::task::{Context, Waker};
 
+use crate::task;
+
 pub(super) type Id = u64;
 
 #[derive(Debug)]
@@ -46,15 +48,8 @@ impl<T, F> ReadyQueueImpl<T, F> {
         futures
     }
 
-    pub(super) fn update_waker(&mut self, context: &mut Context) {
-        let new_waker = context.waker();
-        let should_update = match self.waker.as_ref() {
-            Some(old_waker) => !new_waker.will_wake(old_waker),
-            None => true,
-        };
-        if should_update {
-            self.waker = Some(new_waker.clone());
-        }
+    pub(super) fn update_waker(&mut self, context: &Context) {
+        task::update_waker(&mut self.waker, context);
     }
 
     pub(super) fn wake(mut this: MutexGuard<'_, Self>) {

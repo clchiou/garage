@@ -13,15 +13,7 @@ impl WakerCell {
     }
 
     pub fn update(&self, context: &mut Context) {
-        let mut waker = self.0.must_lock();
-        let new_waker = context.waker();
-        let should_update = match waker.as_ref() {
-            Some(old_waker) => !new_waker.will_wake(old_waker),
-            None => true,
-        };
-        if should_update {
-            *waker = Some(new_waker.clone());
-        }
+        update_waker(&mut self.0.must_lock(), context);
     }
 
     pub fn wake(&self) {
@@ -32,5 +24,16 @@ impl WakerCell {
 
     pub fn clear(&self) {
         *self.0.must_lock() = None;
+    }
+}
+
+pub fn update_waker(waker: &mut Option<Waker>, context: &Context) {
+    let new_waker = context.waker();
+    let should_update = match waker.as_ref() {
+        Some(old_waker) => !new_waker.will_wake(old_waker),
+        None => true,
+    };
+    if should_update {
+        *waker = Some(new_waker.clone());
     }
 }
