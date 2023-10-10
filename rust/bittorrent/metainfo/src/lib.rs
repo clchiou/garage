@@ -1,5 +1,6 @@
 #![feature(iterator_try_collect)]
 
+mod owner_impl;
 mod sanity;
 mod serde_impl;
 
@@ -21,6 +22,12 @@ use bittorrent_base::INFO_HASH_SIZE;
 use bittorrent_bencode::{borrow, own, FormatDictionary};
 
 pub use self::sanity::Insanity;
+
+g1_base::define_owner!(#[derive(Debug)] pub MetainfoOwner for Metainfo);
+
+g1_base::define_owner!(#[derive(Debug)] pub InfoOwner for Info);
+
+g1_base::impl_owner_try_from!(MetainfoOwner for InfoOwner);
 
 #[derive(Clone, DebugExt, Deserialize, Eq, PartialEq, Serialize)]
 // Use two-pass (de-)serialization because:
@@ -51,7 +58,8 @@ pub struct Metainfo<'a> {
     pub extra: BTreeMap<&'a [u8], borrow::Value<'a>>,
 }
 
-#[derive(Clone, DebugExt, Eq, PartialEqExt)]
+#[derive(Clone, DebugExt, Deserialize, Eq, PartialEqExt, Serialize)]
+#[serde(try_from = "borrow::Value", into = "own::Value")]
 pub struct Info<'a> {
     #[debug(skip)]
     #[partial_eq(skip)]
