@@ -21,9 +21,12 @@ use tokio::{
 
 use bittorrent_base::{BlockDesc, PieceIndex, PIECE_HASH_SIZE};
 
+// Use the same bit layout as the wire format for faster conversion.
+pub type Bitfield = BitVec<u8, Msb0>;
+
 #[async_trait]
 pub trait Storage {
-    async fn scan(&mut self) -> Result<BitVec, Error>;
+    async fn scan(&mut self) -> Result<Bitfield, Error>;
 
     async fn verify(&mut self, index: PieceIndex) -> Result<bool, Error>;
 
@@ -104,7 +107,7 @@ mod test_harness {
     use super::*;
 
     pub(crate) async fn assert_bitfield(storage: &mut impl Storage, expect: &[bool]) {
-        let bitfield: BitVec = expect.iter().collect();
+        let bitfield: Bitfield = expect.iter().collect();
         assert_eq!(storage.scan().await.unwrap(), bitfield);
         for (i, expect) in expect.iter().copied().enumerate() {
             assert_eq!(storage.verify(i.into()).await.unwrap(), expect);

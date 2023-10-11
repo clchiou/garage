@@ -2,7 +2,6 @@ use std::io::Error;
 use std::path::Path;
 
 use async_trait::async_trait;
-use bitvec::prelude::*;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use tokio::{fs::File, io::AsyncWriteExt};
 
@@ -14,7 +13,7 @@ use bittorrent_metainfo::Info;
 use crate::{
     coord::CoordSys,
     io::{self, PieceHasher},
-    metainfo, PieceHash,
+    metainfo, Bitfield, PieceHash,
 };
 
 #[derive(Debug)]
@@ -60,8 +59,8 @@ impl Storage {
 
 #[async_trait]
 impl crate::Storage for Storage {
-    async fn scan(&mut self) -> Result<BitVec, Error> {
-        let mut bitfield = BitVec::with_capacity(self.piece_hashes.len());
+    async fn scan(&mut self) -> Result<Bitfield, Error> {
+        let mut bitfield = Bitfield::with_capacity(self.piece_hashes.len());
         let _ = self.prepare((0, 0, 0).into()).await?.unwrap();
         for index in 0..self.piece_hashes.len() {
             let piece_hash = self

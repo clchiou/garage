@@ -2,7 +2,6 @@ use std::io::Error;
 use std::path::Path;
 
 use async_trait::async_trait;
-use bitvec::prelude::*;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use tokio::{fs::File, io::AsyncWriteExt};
 
@@ -14,7 +13,7 @@ use bittorrent_metainfo::Info;
 use crate::{
     coord::CoordSys,
     io::{self, PieceHasher},
-    metainfo, FileBlockDesc, FileBlockOffset, PieceHash,
+    metainfo, Bitfield, FileBlockDesc, FileBlockOffset, PieceHash,
 };
 
 #[derive(Debug)]
@@ -65,9 +64,9 @@ impl Storage {
 
 #[async_trait]
 impl crate::Storage for Storage {
-    async fn scan(&mut self) -> Result<BitVec, Error> {
+    async fn scan(&mut self) -> Result<Bitfield, Error> {
         // TODO: Is there an async version of `try_collect`?
-        let mut bitfield = BitVec::with_capacity(self.piece_hashes.len());
+        let mut bitfield = Bitfield::with_capacity(self.piece_hashes.len());
         for index in 0..self.piece_hashes.len() {
             bitfield.push(self.verify(index.into()).await?);
         }
