@@ -2,20 +2,13 @@ use std::path::{Path, PathBuf};
 
 use bittorrent_metainfo::{Info, Mode};
 
-use crate::{coord::CoordSys, error, io, PieceHash};
+use crate::{error, io, PieceHash};
 
 pub(crate) fn new_piece_hashes(info: &Info) -> Vec<PieceHash> {
     info.pieces
         .iter()
         .map(|piece_hash| (*piece_hash).try_into().unwrap())
         .collect()
-}
-
-pub(crate) fn new_coord_sys(
-    info: &Info,
-    file_sizes: impl Iterator<Item = u64>,
-) -> Result<CoordSys, error::Error> {
-    CoordSys::new(info.pieces.len(), info.piece_length, file_sizes)
 }
 
 pub(crate) fn new_paths(

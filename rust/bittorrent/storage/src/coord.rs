@@ -1,95 +1,52 @@
-use std::cmp::{self, Ordering};
+use std::cmp;
 
 use snafu::prelude::*;
 
-use bittorrent_base::{BlockDesc, BlockOffset, PieceIndex};
+use bittorrent_base::{BlockDesc, BlockOffset, Dimension};
 
 use crate::{error, FileBlockDesc, FileBlockOffset};
 
 /// Converts `BlockOffset` to `FileBlockOffset`.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct CoordSys {
-    num_pieces: usize,
-    piece_size: u64,
+    pub(crate) dim: Dimension,
     /// Maps file indexes to block offsets.
     file_ends: Vec<BlockOffset>,
 }
 
 impl CoordSys {
     pub(crate) fn new(
-        num_pieces: usize,
-        piece_size: u64,
+        dim: Dimension,
         file_sizes: impl Iterator<Item = u64>,
     ) -> Result<Self, error::Error> {
-        ensure!(num_pieces > 0, error::ExpectNonZeroNumPiecesSnafu);
-        ensure!(piece_size > 0, error::ExpectNonZeroPieceSizeSnafu);
-
+        let mut size = 0;
         let mut end = BlockOffset::from((0, 0));
         let file_ends: Vec<_> = file_sizes
-            .map(move |file_size| {
+            .map(|file_size| {
                 // Forbid zero `file_size`, as otherwise, binary search may return any one of the
                 // matches when there are multiple matches.
                 ensure!(file_size > 0, error::ExpectNonEmptyFileSnafu);
-                end = end.add_scalar(file_size, piece_size);
+                size += file_size;
+                end = end.add_scalar(file_size, dim.piece_size);
                 Ok(end)
             })
             .try_collect()?;
         ensure!(!file_ends.is_empty(), error::ExpectNonEmptyFileListSnafu);
-
-        let this = Self {
-            num_pieces,
-            piece_size,
-            file_ends,
-        };
-        let size = this.size();
-        let range = (this.piece_index_to_scalar((num_pieces - 1).into()) + 1)
-            ..=this.piece_index_to_scalar(num_pieces.into());
-        ensure!(
-            range.contains(&size),
-            error::InvalidTotalFileSizeSnafu { size, range },
-        );
-        Ok(this)
-    }
-
-    fn end(&self) -> BlockOffset {
-        *self.file_ends.last().unwrap()
-    }
-
-    fn size(&self) -> u64 {
-        self.end().to_scalar(self.piece_size)
-    }
-
-    fn piece_index_to_scalar(&self, index: PieceIndex) -> u64 {
-        index.to_scalar(self.piece_size)
-    }
-
-    pub(crate) fn piece_size(&self, index: PieceIndex) -> u64 {
-        match (usize::from(index) + 1).cmp(&self.num_pieces) {
-            Ordering::Less => self.piece_size,
-            Ordering::Equal => self.size() - index.to_scalar(self.piece_size),
-            Ordering::Greater => std::panic!("expect index < {}: {:?}", self.num_pieces, index),
-        }
+        assert_eq!(dim.size, size);
+        assert_eq!(&dim.end, file_ends.last().unwrap());
+        Ok(Self { dim, file_ends })
     }
 
     fn check_block_offset(&self, offset: BlockOffset) -> Result<BlockOffset, error::Error> {
-        let end = self.end();
-        ensure!(
-            offset <= end && offset.1 < self.piece_size,
-            error::InvalidBlockOffsetSnafu { offset, end },
-        );
-        Ok(offset)
+        self.dim
+            .check_block_offset(offset)
+            .ok_or(error::Error::InvalidBlockOffset { offset })
     }
 
     pub(crate) fn check_block_desc(&self, desc: BlockDesc) -> Result<BlockDesc, error::Error> {
-        let BlockDesc(offset, size) = desc;
-        let end = offset.add_scalar(size, self.piece_size);
-        self.check_block_offset(offset)?;
-        self.check_block_offset(end)?;
-        ensure!(
-            offset.0 == end.0 || (usize::from(offset.0) + 1 == usize::from(end.0) && end.1 == 0),
-            error::InvalidBlockDescSnafu { desc },
-        );
-        Ok(desc)
+        self.dim
+            .check_block_desc(desc)
+            .ok_or(error::Error::InvalidBlockDesc { desc })
     }
 
     pub(crate) fn to_file_descs(
@@ -101,12 +58,12 @@ impl CoordSys {
         while size > 0 {
             let file_offset = self.to_file_offset(offset).unwrap().unwrap();
             let file_size = cmp::min(
-                self.file_ends[usize::from(file_offset.0)].to_scalar(self.piece_size)
-                    - offset.to_scalar(self.piece_size),
+                self.file_ends[usize::from(file_offset.0)].to_scalar(self.dim.piece_size)
+                    - offset.to_scalar(self.dim.piece_size),
                 size,
             );
             file_descs.push((file_offset, file_size).into());
-            offset = offset.add_scalar(file_size, self.piece_size);
+            offset = offset.add_scalar(file_size, self.dim.piece_size);
             size -= file_size;
         }
         Ok(file_descs)
@@ -131,7 +88,8 @@ impl CoordSys {
         } else {
             self.file_ends[file_index - 1]
         };
-        let file_offset = offset.to_scalar(self.piece_size) - start.to_scalar(self.piece_size);
+        let file_offset =
+            offset.to_scalar(self.dim.piece_size) - start.to_scalar(self.dim.piece_size);
 
         Ok(Some((file_index, file_offset).into()))
     }
@@ -141,74 +99,61 @@ impl CoordSys {
 mod tests {
     use super::*;
 
+    const BLOCK_SIZE: u64 = 16384;
+
+    fn new_coord_sys(
+        num_pieces: usize,
+        piece_size: u64,
+        file_sizes: &[u64],
+    ) -> Result<CoordSys, error::Error> {
+        CoordSys::new(
+            Dimension::new(num_pieces, piece_size, file_sizes.iter().sum(), BLOCK_SIZE),
+            file_sizes.iter().copied(),
+        )
+    }
+
     #[test]
-    fn test_new() {
+    fn new() {
         assert_eq!(
-            CoordSys::new(1, 7, [7].into_iter()),
+            new_coord_sys(1, 7, &[7]),
             Ok(CoordSys {
-                num_pieces: 1,
-                piece_size: 7,
+                dim: Dimension::new(1, 7, 7, BLOCK_SIZE),
                 file_ends: vec![(1, 0).into()],
             }),
         );
         assert_eq!(
-            CoordSys::new(2, 7, [1, 2, 7, 2].into_iter()),
+            new_coord_sys(2, 7, &[1, 2, 7, 2]),
             Ok(CoordSys {
-                num_pieces: 2,
-                piece_size: 7,
+                dim: Dimension::new(2, 7, 12, BLOCK_SIZE),
                 file_ends: vec![(0, 1).into(), (0, 3).into(), (1, 3).into(), (1, 5).into()],
             }),
         );
-
         assert_eq!(
-            CoordSys::new(0, 7, [1].into_iter()),
-            Err(error::Error::ExpectNonZeroNumPieces),
-        );
-        assert_eq!(
-            CoordSys::new(1, 0, [1].into_iter()),
-            Err(error::Error::ExpectNonZeroPieceSize),
-        );
-        assert_eq!(
-            CoordSys::new(1, 7, [0].into_iter()),
+            CoordSys::new(Dimension::new(1, 7, 3, BLOCK_SIZE), [0].into_iter()),
             Err(error::Error::ExpectNonEmptyFile),
         );
         assert_eq!(
-            CoordSys::new(1, 7, [].into_iter()),
+            CoordSys::new(Dimension::new(1, 7, 3, BLOCK_SIZE), [].into_iter()),
             Err(error::Error::ExpectNonEmptyFileList),
-        );
-
-        assert_eq!(
-            CoordSys::new(2, 7, [7].into_iter()),
-            Err(error::Error::InvalidTotalFileSize {
-                size: 7,
-                range: 8..=14,
-            }),
-        );
-        assert_eq!(
-            CoordSys::new(2, 7, [7, 8].into_iter()),
-            Err(error::Error::InvalidTotalFileSize {
-                size: 15,
-                range: 8..=14,
-            }),
         );
     }
 
     #[test]
     fn piece_size() {
-        let coord_sys = CoordSys::new(2, 7, [1, 2, 7, 2].into_iter()).unwrap();
-        assert_eq!(coord_sys.piece_size(0.into()), 7);
-        assert_eq!(coord_sys.piece_size(1.into()), 5);
+        let coord_sys = new_coord_sys(2, 7, &[1, 2, 7, 2]).unwrap();
+        assert_eq!(coord_sys.dim.piece_size(0.into()), 7);
+        assert_eq!(coord_sys.dim.piece_size(1.into()), 5);
 
-        let coord_sys = CoordSys::new(2, 7, [7, 4, 3].into_iter()).unwrap();
-        assert_eq!(coord_sys.piece_size(0.into()), 7);
-        assert_eq!(coord_sys.piece_size(1.into()), 7);
+        let coord_sys = new_coord_sys(2, 7, &[7, 4, 3]).unwrap();
+        assert_eq!(coord_sys.dim.piece_size(0.into()), 7);
+        assert_eq!(coord_sys.dim.piece_size(1.into()), 7);
     }
 
     #[test]
     #[should_panic(expected = "expect index < 2: PieceIndex(2)")]
     fn piece_size_panic() {
-        let coord_sys = CoordSys::new(2, 7, [10].into_iter()).unwrap();
-        let _ = coord_sys.piece_size(2.into());
+        let coord_sys = new_coord_sys(2, 7, &[10]).unwrap();
+        let _ = coord_sys.dim.piece_size(2.into());
     }
 
     #[test]
@@ -218,26 +163,22 @@ mod tests {
             assert_eq!(coord_sys.check_block_offset(offset), Ok(offset));
         }
 
-        let coord_sys = CoordSys::new(2, 7, [1, 2, 7, 2].into_iter()).unwrap();
+        fn test_err(coord_sys: &CoordSys, offset: (usize, u64)) {
+            let offset = BlockOffset::from(offset);
+            assert_eq!(
+                coord_sys.check_block_offset(offset),
+                Err(error::Error::InvalidBlockOffset { offset }),
+            );
+        }
+
+        let coord_sys = new_coord_sys(2, 7, &[1, 2, 7, 2]).unwrap();
         test_ok(&coord_sys, (0, 0));
         test_ok(&coord_sys, (0, 6));
-        assert_eq!(
-            coord_sys.check_block_offset((0, 7).into()),
-            Err(error::Error::InvalidBlockOffset {
-                offset: (0, 7).into(),
-                end: (1, 5).into(),
-            }),
-        );
+        test_err(&coord_sys, (0, 7));
 
         test_ok(&coord_sys, (1, 0));
         test_ok(&coord_sys, (1, 5));
-        assert_eq!(
-            coord_sys.check_block_offset((1, 6).into()),
-            Err(error::Error::InvalidBlockOffset {
-                offset: (1, 6).into(),
-                end: (1, 5).into(),
-            }),
-        );
+        test_err(&coord_sys, (1, 6));
     }
 
     #[test]
@@ -247,25 +188,22 @@ mod tests {
             assert_eq!(coord_sys.check_block_desc(desc), Ok(desc));
         }
 
-        let coord_sys = CoordSys::new(2, 7, [1, 2, 7, 2].into_iter()).unwrap();
+        fn test_err(coord_sys: &CoordSys, desc: (usize, u64, u64)) {
+            let desc = BlockDesc::from(desc);
+            assert_eq!(
+                coord_sys.check_block_desc(desc),
+                Err(error::Error::InvalidBlockDesc { desc }),
+            );
+        }
+
+        let coord_sys = new_coord_sys(2, 7, &[1, 2, 7, 2]).unwrap();
         test_ok(&coord_sys, (0, 0, 0));
         test_ok(&coord_sys, (0, 0, 7));
-        assert_eq!(
-            coord_sys.check_block_desc((0, 0, 8).into()),
-            Err(error::Error::InvalidBlockDesc {
-                desc: (0, 0, 8).into(),
-            }),
-        );
+        test_err(&coord_sys, (0, 0, 8));
 
         test_ok(&coord_sys, (1, 0, 0));
         test_ok(&coord_sys, (1, 0, 5));
-        assert_eq!(
-            coord_sys.check_block_desc((1, 0, 6).into()),
-            Err(error::Error::InvalidBlockOffset {
-                offset: (1, 6).into(),
-                end: (1, 5).into(),
-            }),
-        );
+        test_err(&coord_sys, (1, 0, 6));
     }
 
     #[test]
@@ -275,32 +213,28 @@ mod tests {
             assert_eq!(coord_sys.to_file_descs(desc.into()), Ok(expect));
         }
 
-        let coord_sys = CoordSys::new(1, 7, [4].into_iter()).unwrap();
+        fn test_err(coord_sys: &CoordSys, desc: (usize, u64, u64)) {
+            let desc = BlockDesc::from(desc);
+            assert_eq!(
+                coord_sys.to_file_descs(desc),
+                Err(error::Error::InvalidBlockDesc { desc }),
+            );
+        }
+
+        let coord_sys = new_coord_sys(1, 7, &[4]).unwrap();
         for offset in 0..4 {
             test_ok(&coord_sys, (0, offset, 0), &[]);
         }
         for size in 1..=4 {
             test_ok(&coord_sys, (0, 0, size), &[(0, 0, size)]);
         }
-        assert_eq!(
-            coord_sys.to_file_descs((0, 5, 0).into()),
-            Err(error::Error::InvalidBlockOffset {
-                offset: (0, 5).into(),
-                end: (0, 4).into(),
-            }),
-        );
+        test_err(&coord_sys, (0, 5, 0));
 
         test_ok(&coord_sys, (0, 1, 1), &[(0, 1, 1)]);
         test_ok(&coord_sys, (0, 3, 1), &[(0, 3, 1)]);
-        assert_eq!(
-            coord_sys.to_file_descs((0, 4, 1).into()),
-            Err(error::Error::InvalidBlockOffset {
-                offset: (0, 5).into(),
-                end: (0, 4).into(),
-            }),
-        );
+        test_err(&coord_sys, (0, 4, 1));
 
-        let coord_sys = CoordSys::new(2, 7, [1, 2, 7, 2].into_iter()).unwrap();
+        let coord_sys = new_coord_sys(2, 7, &[1, 2, 7, 2]).unwrap();
         test_ok(&coord_sys, (0, 0, 7), &[(0, 0, 1), (1, 0, 2), (2, 0, 4)]);
         test_ok(&coord_sys, (0, 1, 6), &[(1, 0, 2), (2, 0, 4)]);
         test_ok(&coord_sys, (1, 0, 5), &[(2, 4, 3), (3, 0, 2)]);
@@ -315,21 +249,23 @@ mod tests {
             );
         }
 
-        let coord_sys = CoordSys::new(1, 7, [4].into_iter()).unwrap();
+        fn test_err(coord_sys: &CoordSys, offset: (usize, u64)) {
+            let offset = offset.into();
+            assert_eq!(
+                coord_sys.to_file_offset(offset),
+                Err(error::Error::InvalidBlockOffset { offset }),
+            );
+        }
+
+        let coord_sys = new_coord_sys(1, 7, &[4]).unwrap();
         test_ok(&coord_sys, (0, 0), (0, 0));
         test_ok(&coord_sys, (0, 1), (0, 1));
         test_ok(&coord_sys, (0, 3), (0, 3));
 
         assert_eq!(coord_sys.to_file_offset((0, 4).into()), Ok(None));
-        assert_eq!(
-            coord_sys.to_file_offset((0, 5).into()),
-            Err(error::Error::InvalidBlockOffset {
-                offset: (0, 5).into(),
-                end: (0, 4).into(),
-            }),
-        );
+        test_err(&coord_sys, (0, 5));
 
-        let coord_sys = CoordSys::new(2, 7, [1, 2, 7, 2].into_iter()).unwrap();
+        let coord_sys = new_coord_sys(2, 7, &[1, 2, 7, 2]).unwrap();
         test_ok(&coord_sys, (0, 0), (0, 0));
 
         test_ok(&coord_sys, (0, 1), (1, 0));
@@ -343,12 +279,6 @@ mod tests {
         test_ok(&coord_sys, (1, 4), (3, 1));
 
         assert_eq!(coord_sys.to_file_offset((1, 5).into()), Ok(None));
-        assert_eq!(
-            coord_sys.to_file_offset((1, 6).into()),
-            Err(error::Error::InvalidBlockOffset {
-                offset: (1, 6).into(),
-                end: (1, 5).into(),
-            }),
-        );
+        test_err(&coord_sys, (1, 6));
     }
 }

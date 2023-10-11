@@ -33,14 +33,19 @@ enum Mode {
 
 impl Program {
     async fn execute(&self) -> Result<(), Error> {
+        const BLOCK_SIZE: u64 = 16384;
+
         let metainfo_owner = fs::read(&self.metainfo).await?;
         let metainfo: Metainfo =
             serde_bencode::from_bytes(&metainfo_owner).map_err(Error::other)?;
+        let dim = metainfo.info.new_dimension(BLOCK_SIZE);
 
         let mut storage: Box<dyn Storage> = match self.mode {
-            Mode::File => Box::new(file::Storage::open(&metainfo.info, &self.torrent_dir).await?),
+            Mode::File => {
+                Box::new(file::Storage::open(&metainfo.info, dim, &self.torrent_dir).await?)
+            }
             Mode::Single => {
-                Box::new(single::Storage::open(&metainfo.info, &self.torrent_dir).await?)
+                Box::new(single::Storage::open(&metainfo.info, dim, &self.torrent_dir).await?)
             }
         };
 

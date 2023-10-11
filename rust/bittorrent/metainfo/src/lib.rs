@@ -18,7 +18,7 @@ use g1_base::{
     fmt::{DebugExt, Hex},
 };
 
-use bittorrent_base::INFO_HASH_SIZE;
+use bittorrent_base::{Dimension, INFO_HASH_SIZE};
 use bittorrent_bencode::{borrow, own, FormatDictionary};
 
 pub use self::sanity::Insanity;
@@ -139,6 +139,15 @@ impl<'a> Info<'a> {
             Mode::SingleFile { length, .. } => *length,
             Mode::MultiFile { files } => files.iter().map(|f| f.length).sum(),
         }
+    }
+
+    pub fn new_dimension(&self, block_size: u64) -> Dimension {
+        Dimension::new(
+            self.pieces.len(),
+            self.piece_length,
+            self.length(),
+            block_size,
+        )
     }
 }
 

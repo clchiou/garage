@@ -1,5 +1,4 @@
 use std::io;
-use std::ops::RangeInclusive;
 use std::path::PathBuf;
 
 use snafu::prelude::*;
@@ -11,20 +10,12 @@ use bittorrent_base::{BlockDesc, BlockOffset};
 pub enum Error {
     ExpectNonEmptyFile,
     ExpectNonEmptyFileList,
-    ExpectNonZeroNumPieces,
-    ExpectNonZeroPieceSize,
-    #[snafu(display("expect total size in {range:?}: {size}"))]
-    InvalidTotalFileSize {
-        size: u64,
-        range: RangeInclusive<u64>,
-    },
 
-    #[snafu(display("expect block offset <= {end:?}: {offset:?}"))]
+    #[snafu(display("invalid block offset: {offset:?}"))]
     InvalidBlockOffset {
         offset: BlockOffset,
-        end: BlockOffset,
     },
-    #[snafu(display("expect block to fit inside one piece: {desc:?}"))]
+    #[snafu(display("invalid block desc: {desc:?}"))]
     InvalidBlockDesc {
         desc: BlockDesc,
     },

@@ -7,7 +7,7 @@ use tokio::{fs::File, io::AsyncWriteExt};
 
 use g1_tokio::io::AsyncReadBufExact;
 
-use bittorrent_base::{BlockDesc, PieceIndex};
+use bittorrent_base::{BlockDesc, Dimension, PieceIndex};
 use bittorrent_metainfo::Info;
 
 use crate::{
@@ -27,10 +27,10 @@ impl Storage {
     /// Opens the storage.
     ///
     /// NOTE: This does not roll back (i.e., remove the created directories) on error.
-    pub async fn open(info: &Info<'_>, torrent_dir: &Path) -> Result<Self, Error> {
+    pub async fn open(info: &Info<'_>, dim: Dimension, torrent_dir: &Path) -> Result<Self, Error> {
         let paths = metainfo::new_paths(info, torrent_dir)?;
-        let coord_sys = metainfo::new_coord_sys(
-            info,
+        let coord_sys = CoordSys::new(
+            dim,
             paths.iter().filter_map(|(_, size)| {
                 let size = *size;
                 if size > 0 {
@@ -75,10 +75,11 @@ impl crate::Storage for Storage {
 
     async fn verify(&mut self, index: PieceIndex) -> Result<bool, Error> {
         let mut hasher = PieceHasher::new();
-        let desc = BlockDesc((index, 0).into(), self.coord_sys.piece_size(index));
-        for FileBlockDesc(offset, size) in self.coord_sys.to_file_descs(desc)? {
-            let size = usize::try_from(size).unwrap();
-            hasher.update(self.prepare(offset).await?, size).await?;
+        for desc in self.coord_sys.dim.block_descs(index) {
+            for FileBlockDesc(offset, size) in self.coord_sys.to_file_descs(desc)? {
+                let size = usize::try_from(size).unwrap();
+                hasher.update(self.prepare(offset).await?, size).await?;
+            }
         }
         Ok(self.piece_hashes[usize::from(index)] == hasher.finalize())
     }
@@ -167,8 +168,9 @@ mod tests {
     #[tokio::test]
     async fn scan() {
         let info = new_info();
+        let dim = info.new_dimension(16384);
         let tempdir = tempfile::tempdir().unwrap();
-        let mut storage = Storage::open(&info, tempdir.path()).await.unwrap();
+        let mut storage = Storage::open(&info, dim, tempdir.path()).await.unwrap();
         assert_bitfield(&mut storage, &[true, true, true, true]).await;
 
         write(&mut storage, (1, 0, 1), b"x").await;
@@ -181,9 +183,10 @@ mod tests {
     #[tokio::test]
     async fn read_write() {
         let info = new_info();
+        let dim = info.new_dimension(16384);
         let tempdir = tempfile::tempdir().unwrap();
         let path = tempdir.path().join(info.name);
-        let mut storage = Storage::open(&info, tempdir.path()).await.unwrap();
+        let mut storage = Storage::open(&info, dim, tempdir.path()).await.unwrap();
         assert_files(&path, &[0u8; 24]).await;
 
         write(&mut storage, (0, 0, 7), &hex!("11223344556677 ffff")).await;
