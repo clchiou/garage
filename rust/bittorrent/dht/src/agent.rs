@@ -19,12 +19,17 @@ use crate::{
 
 #[derive(Debug)]
 pub struct Agent {
+    self_endpoint: SocketAddr,
     inner: Arc<Inner>,
     task: Mutex<JoinHandle<Result<(), Error>>>,
 }
 
 impl Agent {
-    pub fn new<Incoming, Outgoing>(incoming: Incoming, outgoing: Outgoing) -> Self
+    pub fn new_default<Incoming, Outgoing>(
+        self_endpoint: SocketAddr,
+        incoming: Incoming,
+        outgoing: Outgoing,
+    ) -> Self
     where
         Incoming: Stream<Item = Result<(SocketAddr, Bytes), Error>> + Send + Unpin + 'static,
         Outgoing: Sink<(SocketAddr, Bytes), Error = Error> + Send + Unpin + 'static,
@@ -34,9 +39,18 @@ impl Agent {
         let server = Server::new(self_id, reqrep::new(incoming, outgoing));
         let inner = server.inner();
         Self {
+            self_endpoint,
             inner,
             task: Mutex::new(tokio::spawn(server.run())),
         }
+    }
+
+    pub fn self_id(&self) -> NodeId {
+        self.inner.self_id.clone()
+    }
+
+    pub fn self_endpoint(&self) -> SocketAddr {
+        self.self_endpoint
     }
 
     pub async fn ping(&self, peer_endpoint: SocketAddr) -> Result<(), Error> {

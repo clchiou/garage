@@ -42,8 +42,9 @@ enum Command {
 impl Dht {
     async fn execute(&self) -> Result<(), Error> {
         let socket = UdpSocket::new(net::UdpSocket::bind(self.self_endpoint).await?);
+        let self_endpoint = socket.socket().local_addr()?;
         let (stream, sink) = socket.into_split();
-        let agent = Agent::new(stream, sink);
+        let agent = Agent::new_default(self_endpoint, stream, sink);
         match &self.command {
             Command::Ping(this) => this.execute(&agent).await?,
             Command::FindNode(this) => this.execute(&agent).await?,
