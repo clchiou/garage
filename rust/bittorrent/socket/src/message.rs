@@ -67,7 +67,9 @@ impl Message {
         // NOTE: Use peek to ensure cancel safety.
         stream.recv_fill(mem::size_of::<u32>()).await?;
         let size = ensure_limit(stream.buffer().peek_u32().unwrap())?;
-        stream.recv_fill(size.try_into().unwrap()).await?;
+        stream
+            .recv_fill(mem::size_of::<u32>() + usize::try_from(size).unwrap())
+            .await?;
         Self::decode(stream.buffer())
     }
 
@@ -311,13 +313,32 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use bytes::BytesMut;
     use hex_literal::hex;
-    use tokio::io::AsyncWriteExt;
+    use tokio::{io::AsyncWriteExt, time};
 
     use g1_tokio::io::RecvStream;
 
     use super::*;
+
+    #[tokio::test]
+    async fn recv_from() {
+        let (mut stream, mut mock) = RecvStream::new_mock(4096);
+
+        let task = tokio::spawn(async move { Message::recv_from(&mut stream).await });
+
+        for byte in hex!("00000001 00") {
+            // TODO: Can we write this test without using `time::sleep`?
+            time::sleep(Duration::from_millis(10)).await;
+            assert_eq!(task.is_finished(), false);
+
+            mock.write_u8(byte).await.unwrap();
+        }
+
+        assert_eq!(task.await.unwrap().unwrap(), Message::Choke);
+    }
 
     #[tokio::test]
     async fn conversion() {
