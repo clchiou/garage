@@ -1,0 +1,17 @@
+[package]
+name = "bittorrent_extension"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+bytes = "1.4.0"
+serde = { version = "1.0.163", features = ["derive"] }
+serde_bytes = "0.11.9"
+snafu = "0.7.4"
+
+g1_base = { path = "../../g1/base" }
+
+bittorrent_bencode = { path = "../bencode", features = ["serde"] }
+
+[dev-dependencies]
+bittorrent_bencode = { path = "../bencode", features = ["serde", "test_harness"] }

@@ -3,6 +3,7 @@ members = [
     "bittorrent/base",
     "bittorrent/bencode",
     "bittorrent/dht",
+    "bittorrent/extension",
     "bittorrent/manager",
     "bittorrent/metainfo",
     "bittorrent/mse",
