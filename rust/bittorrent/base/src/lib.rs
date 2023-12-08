@@ -1,5 +1,3 @@
-#![cfg_attr(feature = "compact", feature(return_position_impl_trait_in_trait))]
-
 #[cfg(feature = "compact")]
 pub mod compact;
 

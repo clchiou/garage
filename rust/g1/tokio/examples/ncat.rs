@@ -1,5 +1,3 @@
-#![feature(io_error_other)]
-
 use std::io::{Error, ErrorKind};
 use std::marker::Unpin;
 use std::net::SocketAddr;

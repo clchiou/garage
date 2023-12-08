@@ -1,5 +1,3 @@
-#![feature(io_error_other)]
-
 pub mod error;
 
 mod actor;

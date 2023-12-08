@@ -45,7 +45,7 @@ impl<'a> Metainfo<'a> {
     fn iter_symptoms(&self) -> impl Iterator<Item = Insanity> + '_ {
         self.check_empty_announce_url()
             .into_iter()
-            .chain(self.check_empty_announce_list().into_iter())
+            .chain(self.check_empty_announce_list())
     }
 
     fn check_empty_announce_url(&self) -> Option<Insanity> {
@@ -85,9 +85,9 @@ impl<'a> Info<'a> {
     fn iter_symptoms(&self) -> impl Iterator<Item = Insanity> + '_ {
         self.check_empty_name()
             .into_iter()
-            .chain(self.check_files().into_iter())
-            .chain(self.check_pieces().into_iter())
-            .chain(self.check_invalid_piece_length().into_iter())
+            .chain(self.check_files())
+            .chain(self.check_pieces())
+            .chain(self.check_invalid_piece_length())
     }
 
     fn check_empty_name(&self) -> Option<Insanity> {

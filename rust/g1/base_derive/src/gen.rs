@@ -34,7 +34,7 @@ pub(crate) fn where_clause(input: &DeriveInput) -> TokenStream {
         .where_clause
         .as_ref()
         .map(|where_clause| quote::quote!(#where_clause))
-        .unwrap_or_else(TokenStream::new)
+        .unwrap_or_default()
 }
 
 pub(crate) fn field(index: usize, field: &Field) -> TokenStream {

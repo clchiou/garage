@@ -1,4 +1,3 @@
-#![feature(io_error_other)]
 #![feature(iterator_try_collect)]
 
 pub mod error;

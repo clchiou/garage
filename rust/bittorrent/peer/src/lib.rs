@@ -1,5 +1,3 @@
-#![feature(io_error_other)]
-#![feature(result_option_inspect)]
 #![cfg_attr(test, feature(assert_matches))]
 #![cfg_attr(test, feature(is_sorted))]
 

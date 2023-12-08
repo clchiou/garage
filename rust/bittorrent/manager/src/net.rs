@@ -55,7 +55,7 @@ pub(crate) struct Acceptor {
 }
 
 impl Connector {
-    const DEFAULT_PREFS: &[Preference] = &[
+    const DEFAULT_PREFS: &'static [Preference] = &[
         (Transport::Tcp, Cipher::Mse),
         (Transport::Utp, Cipher::Mse),
         (Transport::Tcp, Cipher::Plaintext),

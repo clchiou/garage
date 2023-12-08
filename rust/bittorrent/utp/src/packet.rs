@@ -99,8 +99,7 @@ impl TryFrom<Bytes> for Packet {
                         DuplicatedExtensionSnafu { extension },
                     );
                     extension = buffer.try_get_u8().ok_or(Error::Incomplete)?;
-                    let size =
-                        usize::try_from(buffer.try_get_u8().ok_or(Error::Incomplete)?).unwrap();
+                    let size = usize::from(buffer.try_get_u8().ok_or(Error::Incomplete)?);
                     ensure!(
                         size > 0 && size % 4 == 0,
                         ExpectSelectiveAckSizeSnafu { size },

@@ -209,7 +209,7 @@ where
         self.stream.recv_fill(2).await?;
         let buffer = self.stream.buffer();
         self.decrypt.as_mut().unwrap().transform(&mut buffer[0..2]);
-        Ok(buffer.get_u16().try_into().unwrap())
+        Ok(buffer.get_u16().into())
     }
 
     pub(super) async fn recv_padding(&mut self) -> Result<(), Error> {

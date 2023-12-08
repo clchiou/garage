@@ -1,6 +1,5 @@
 //! Extends the `bytes` crate.
 
-#![feature(result_option_inspect)]
 #![cfg_attr(test, feature(assert_matches))]
 
 use std::fmt;

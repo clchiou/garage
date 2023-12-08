@@ -1,5 +1,3 @@
-#![feature(io_error_other)]
-
 use std::future;
 use std::io::Error;
 use std::net::SocketAddr;

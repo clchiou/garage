@@ -459,7 +459,7 @@ mod test_harness {
     type Message = (String, String);
     type Endpoint = String;
 
-    type Outgoing = impl Sink<Message, Error = Error> + Unpin;
+    pub type Outgoing = impl Sink<Message, Error = Error> + Unpin;
 
     pub struct MockActor {
         pub exit: Arc<Notify>,

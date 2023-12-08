@@ -1,5 +1,8 @@
-error: higher-ranked lifetime error
+error: implementation of `TryFrom` is not general enough
   --> tests/owner/nonstatic-error.rs:14:5
    |
 14 |     Owner::try_from(Vec::new()).unwrap();
-   |     ^^^^^^^^^^^^^^^
+   |     ^^^^^^^^^^^^^^^ implementation of `TryFrom` is not general enough
+   |
+   = note: `TryFrom<&'a [u8]>` would have to be implemented for the type `Struct<'a>`
+   = note: ...but `TryFrom<&'0 [u8]>` is actually implemented for the type `Struct<'0>`, for some specific lifetime `'0`

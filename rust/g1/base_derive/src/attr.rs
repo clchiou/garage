@@ -117,7 +117,7 @@ mod error {
         crate::new_error(format!(
             "unknown argument of `#[{}(...)]`: {}",
             attr_name,
-            quote::quote!(#attr).to_string(),
+            quote::quote!(#attr),
         ))
     }
 }
