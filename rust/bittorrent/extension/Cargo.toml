@@ -5,11 +5,13 @@ edition.workspace = true
 
 [dependencies]
 bytes = "1.4.0"
+linkme = "0.3.10" # Required by g1_param.
 serde = { version = "1.0.163", features = ["derive"] }
 serde_bytes = "0.11.9"
 snafu = "0.7.4"
 
 g1_base = { path = "../../g1/base" }
+g1_param = { path = "../../g1/param" }
 
 bittorrent_bencode = { path = "../bencode", features = ["serde"] }
 
