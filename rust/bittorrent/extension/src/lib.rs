@@ -2,6 +2,7 @@
 
 mod handshake;
 mod metadata;
+mod pex;
 
 use std::convert::Infallible;
 
@@ -20,15 +21,19 @@ use bittorrent_bencode::{convert, dict, own::Value, serde as serde_bencode};
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Enabled {
     pub metadata: bool,
+    pub peer_exchange: bool,
 }
 
 impl Enabled {
     pub fn load() -> Self {
-        Self::new(*metadata::enable())
+        Self::new(*metadata::enable(), *pex::enable())
     }
 
-    pub fn new(metadata: bool) -> Self {
-        Self { metadata }
+    pub fn new(metadata: bool, peer_exchange: bool) -> Self {
+        Self {
+            metadata,
+            peer_exchange,
+        }
     }
 }
 
@@ -53,9 +58,15 @@ pub(crate) const EXTENSIONS: [Extension; NUM_EXTENSIONS] = [
         is_enabled: || *metadata::enable(),
         decode: |buffer| Ok(MetadataOwner::try_from(buffer)?.try_into().unwrap()),
     },
+    // BEP 11 Peer Exchange (PEX)
+    Extension {
+        name: "ut_pex",
+        is_enabled: || *pex::enable(),
+        decode: |buffer| Ok(PeerExchangeOwner::try_from(buffer)?.try_into().unwrap()),
+    },
 ];
 
-pub(crate) const NUM_EXTENSIONS: usize = 2;
+pub(crate) const NUM_EXTENSIONS: usize = 3;
 
 pub fn decode(id: u8, buffer: Bytes) -> Result<MessageOwner<Bytes>, serde_bencode::Error> {
     fn get(id: u8) -> Result<&'static Extension, Error> {
@@ -100,7 +111,10 @@ impl ExtensionIdMap {
     }
 
     pub fn peer_extensions(&self) -> Enabled {
-        Enabled::new(self.get(Metadata::ID).is_some())
+        Enabled::new(
+            self.get(Metadata::ID).is_some(),
+            self.get(PeerExchange::ID).is_some(),
+        )
     }
 
     pub fn map(&self, message: &Message) -> Option<u8> {
@@ -128,20 +142,26 @@ g1_base::impl_owner_try_from!(HandshakeOwner for MessageOwner);
 g1_base::define_owner!(#[derive(Debug)] pub MetadataOwner for Metadata);
 g1_base::impl_owner_try_from!(MetadataOwner for MessageOwner);
 
+g1_base::define_owner!(#[derive(Debug)] pub PeerExchangeOwner for PeerExchange);
+g1_base::impl_owner_try_from!(PeerExchangeOwner for MessageOwner);
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Message<'a> {
     Handshake(Handshake<'a>),
     Metadata(Metadata<'a>),
+    PeerExchange(PeerExchange<'a>),
 }
 
 pub use crate::handshake::Handshake;
 pub use crate::metadata::{Data, Metadata, Reject, Request};
+pub use crate::pex::{PeerContactInfo, PeerExchange, PeerFlag};
 
 impl<'a> Message<'a> {
     pub(crate) fn id(&self) -> u8 {
         match self {
             Self::Handshake(_) => Handshake::ID,
             Self::Metadata(_) => Metadata::ID,
+            Self::PeerExchange(_) => PeerExchange::ID,
         }
     }
 
@@ -196,6 +216,22 @@ impl<'a> TryFrom<Metadata<'a>> for Message<'a> {
     }
 }
 
+impl<'a> TryFrom<&'a [u8]> for PeerExchange<'a> {
+    type Error = serde_bencode::Error;
+
+    fn try_from(buffer: &'a [u8]) -> Result<Self, Self::Error> {
+        serde_bencode::from_bytes(buffer)
+    }
+}
+
+impl<'a> TryFrom<PeerExchange<'a>> for Message<'a> {
+    type Error = Infallible;
+
+    fn try_from(peer_exchange: PeerExchange<'a>) -> Result<Self, Self::Error> {
+        Ok(Message::PeerExchange(peer_exchange))
+    }
+}
+
 //
 // Error
 //
@@ -236,6 +272,14 @@ pub enum Error {
     InvalidMetadataSize { size: i64 },
     #[snafu(display("unknown metadata message type: {message_type}"))]
     UnknownMetadataMessageType { message_type: i64 },
+
+    //
+    // BEP 11
+    //
+    #[snafu(display("expect peer exchange endpoints size == {expect}: {size}"))]
+    ExpectPeerExchangeEndpointsSize { size: usize, expect: usize },
+    #[snafu(display("invalid peer exchange endpoints: {endpoints:?}"))]
+    InvalidPeerExchangeEndpoints { endpoints: Vec<u8> },
 }
 
 impl From<convert::Error> for Error {
@@ -267,21 +311,21 @@ mod tests {
     #[test]
     fn update() {
         let mut map = ExtensionIdMap::new();
-        assert_eq!(map, ExtensionIdMap { map: [0] });
+        assert_eq!(map, ExtensionIdMap { map: [0, 0] });
 
         map.update(&Handshake {
             extension_ids: BTreeMap::from([("foo", 42), ("ut_metadata", 99)]),
             metadata_size: None,
             extra: BTreeMap::from([]),
         });
-        assert_eq!(map, ExtensionIdMap { map: [99] });
+        assert_eq!(map, ExtensionIdMap { map: [99, 0] });
 
         map.update(&Handshake {
-            extension_ids: BTreeMap::from([("ut_metadata", 0)]),
+            extension_ids: BTreeMap::from([("ut_metadata", 0), ("ut_pex", 100)]),
             metadata_size: None,
             extra: BTreeMap::from([]),
         });
-        assert_eq!(map, ExtensionIdMap { map: [0] });
+        assert_eq!(map, ExtensionIdMap { map: [0, 100] });
     }
 
     #[test]
@@ -289,6 +333,7 @@ mod tests {
         let mut map = ExtensionIdMap::new();
         assert_eq!(map.get(0), Some(0));
         assert_eq!(map.get(1), None);
+        assert_eq!(map.get(2), None);
 
         map.update(&Handshake {
             extension_ids: BTreeMap::from([("ut_metadata", 99)]),
@@ -297,13 +342,15 @@ mod tests {
         });
         assert_eq!(map.get(0), Some(0));
         assert_eq!(map.get(1), Some(99));
+        assert_eq!(map.get(2), None);
 
         map.update(&Handshake {
-            extension_ids: BTreeMap::from([("ut_metadata", 0)]),
+            extension_ids: BTreeMap::from([("ut_metadata", 0), ("ut_pex", 100)]),
             metadata_size: None,
             extra: BTreeMap::from([]),
         });
         assert_eq!(map.get(0), Some(0));
         assert_eq!(map.get(1), None);
+        assert_eq!(map.get(2), Some(100));
     }
 }

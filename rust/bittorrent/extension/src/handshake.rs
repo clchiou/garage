@@ -142,7 +142,7 @@ mod tests {
         assert_eq!(
             Handshake::new(Some(42)),
             Handshake {
-                extension_ids: BTreeMap::from([("ut_metadata", 1)]),
+                extension_ids: BTreeMap::from([("ut_metadata", 1), ("ut_pex", 2)]),
                 metadata_size: Some(42),
                 extra: BTreeMap::new(),
             },
