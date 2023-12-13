@@ -53,17 +53,24 @@ macro_rules! define_owner {
             }
         }
 
-        /// Returns a reference to the buffer.
+        /// Buffer functions.
         ///
-        /// It is not a method of the owner but a function that operates on a reference to an owner
-        /// value.  The reason for this is that in the future, we might be able to implement `Deref`
-        /// for the owner.
+        /// These are not methods of the owner because, in the future, we might be able to
+        /// implement `Deref` for the owner.
         impl<Buffer> $owner<Buffer>
         where
             Buffer: ::std::ops::Deref<Target = [u8]>,
         {
+            /// Returns a reference to the buffer.
             $vis fn as_slice(this: &Self) -> &[u8] {
                 &this.buffer
+            }
+
+            /// Unwraps this container and returns the buffer.
+            $vis fn into_buffer(this: Self) -> Buffer {
+                let Self { buffer, borrower } = this;
+                drop(borrower);
+                ::std::pin::Pin::into_inner(buffer)
             }
         }
 
@@ -178,5 +185,14 @@ mod tests {
         let x = OwnedHalfBytes::try_from(vec![0, 1, 2, 3]).unwrap();
         assert_eq!(OwnedHalfBytes::as_slice(&x), &[0, 1, 2, 3]);
         assert_eq!(x.deref(), &HalfBytes(&[0, 1]));
+    }
+
+    #[test]
+    fn into_buffer() {
+        let x = OwnedBytes::try_from(vec![0, 1, 2]).unwrap();
+        assert_eq!(OwnedBytes::into_buffer(x), vec![0, 1, 2]);
+
+        let x = OwnedHalfBytes::try_from(vec![0, 1, 2, 3]).unwrap();
+        assert_eq!(OwnedHalfBytes::into_buffer(x), vec![0, 1, 2, 3]);
     }
 }
