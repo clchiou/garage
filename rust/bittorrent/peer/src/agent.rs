@@ -1,27 +1,28 @@
 use std::io::{Error, ErrorKind};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
-use bytes::Bytes;
 use tokio::{
     sync::{
         mpsc::{self, UnboundedSender},
-        Mutex, Notify,
+        Mutex as AsyncMutex, Notify,
     },
     task::JoinHandle,
 };
 use tracing::Instrument;
 
+use g1_base::sync::MutexExt;
 use g1_tokio::{
     bstream::{StreamRecv, StreamSend},
     task::{self, JoinTaskError},
 };
 
 use bittorrent_base::{BlockDesc, Features, PeerId};
+use bittorrent_extension::{Enabled, ExtensionIdMap};
 use bittorrent_socket::{Message, Socket};
 
 use crate::{
     actor::Actor,
-    chan::{Endpoint, Sends},
+    chan::{Endpoint, ExtensionMessageOwner, Sends},
     error, incoming,
     outgoing::{self, ResponseRecv},
     state::{self, ConnStateUpper},
@@ -36,12 +37,14 @@ pub struct Agent {
     peer_endpoint: Endpoint,
     peer_features: Features,
 
+    extension_ids: Arc<Mutex<ExtensionIdMap>>,
+
     conn_state: ConnStateUpper,
     outgoings: outgoing::QueueUpper,
     message_send: UnboundedSender<Message>,
 
     exit: Arc<Notify>,
-    task: Mutex<JoinHandle<Result<(), Error>>>,
+    task: AsyncMutex<JoinHandle<Result<(), Error>>>,
 }
 
 macro_rules! ensure_feature {
@@ -60,6 +63,7 @@ impl Agent {
         let self_features = socket.self_features();
         let peer_id = socket.peer_id();
         let peer_features = socket.peer_features();
+        let extension_ids = Arc::new(Mutex::new(ExtensionIdMap::new()));
         let (conn_state_upper, conn_state_lower) = state::new_conn_state();
         let incomings =
             incoming::Queue::new(u64::try_from(*bittorrent_base::send_buffer_capacity()).unwrap());
@@ -73,6 +77,7 @@ impl Agent {
         let actor = Actor::new(
             exit.clone(),
             socket,
+            extension_ids.clone(),
             conn_state_lower,
             incomings,
             outgoings_lower,
@@ -89,11 +94,12 @@ impl Agent {
             peer_id,
             peer_endpoint,
             peer_features,
+            extension_ids,
             conn_state: conn_state_upper,
             outgoings: outgoings_upper,
             message_send,
             exit,
-            task: Mutex::new(tokio::spawn(actor_run)),
+            task: AsyncMutex::new(tokio::spawn(actor_run)),
         }
     }
 
@@ -107,6 +113,10 @@ impl Agent {
 
     pub fn peer_features(&self) -> Features {
         self.peer_features
+    }
+
+    pub fn peer_extensions(&self) -> Enabled {
+        self.extension_ids.must_lock().peer_extensions()
     }
 
     pub async fn join(&self) {
@@ -208,8 +218,19 @@ impl Agent {
     // Extension
     //
 
-    pub fn send_extension(&self, id: u8, payload: Bytes) -> Result<(), Incompatible> {
+    pub fn send_extension(&self, message_owner: ExtensionMessageOwner) -> Result<(), Incompatible> {
         ensure_feature!(self, extension);
+        let id = {
+            let message = message_owner.deref();
+            if !message.is_enabled() {
+                return Err(Incompatible);
+            }
+            self.extension_ids
+                .must_lock()
+                .map(message)
+                .ok_or(Incompatible)?
+        };
+        let payload = ExtensionMessageOwner::into_buffer(message_owner);
         self.send_message(Message::Extended(id, payload));
         Ok(())
     }

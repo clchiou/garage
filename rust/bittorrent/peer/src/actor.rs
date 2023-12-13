@@ -1,6 +1,6 @@
 use std::collections::{HashSet, VecDeque};
 use std::io::{Error, ErrorKind};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use tokio::{
     sync::{
@@ -10,9 +10,11 @@ use tokio::{
     time::{self, Interval},
 };
 
+use g1_base::sync::MutexExt;
 use g1_tokio::bstream::{StreamRecv, StreamSend};
 
 use bittorrent_base::{BlockDesc, PieceIndex};
+use bittorrent_extension::{ExtensionIdMap, Message as ExtensionMessage};
 use bittorrent_socket::{Message, Socket};
 
 use crate::{
@@ -29,6 +31,8 @@ pub(crate) struct Actor<Stream> {
     exit: Arc<Notify>,
 
     socket: Socket<Stream>,
+
+    extension_ids: Arc<Mutex<ExtensionIdMap>>,
 
     conn_state: ConnStateLower,
     incomings: incoming::Queue,
@@ -65,6 +69,7 @@ where
     pub(crate) fn new(
         exit: Arc<Notify>,
         socket: Socket<Stream>,
+        extension_ids: Arc<Mutex<ExtensionIdMap>>,
         conn_state: ConnStateLower,
         incomings: incoming::Queue,
         outgoings: outgoing::QueueLower,
@@ -75,6 +80,7 @@ where
         Self {
             exit,
             socket,
+            extension_ids,
             conn_state,
             incomings,
             outgoings,
@@ -274,7 +280,11 @@ where
             }
 
             Message::Extended(id, payload) => {
-                try_send!(self, extension_send, (self.peer_endpoint, (id, payload)));
+                let message = bittorrent_extension::decode(id, payload).map_err(Error::other)?;
+                if let ExtensionMessage::Handshake(handshake) = message.deref() {
+                    self.extension_ids.must_lock().update(handshake);
+                }
+                try_send!(self, extension_send, (self.peer_endpoint, message));
                 Ok(())
             }
         }
@@ -383,6 +393,7 @@ mod test_harness {
                     PeerId::new([0u8; PEER_ID_SIZE]),
                     Features::new(true, true, true),
                 ),
+                Arc::new(Mutex::new(ExtensionIdMap::new())),
                 conn_state_lower,
                 incoming::Queue::new(10),
                 outgoings_lower,
@@ -412,6 +423,7 @@ mod tests {
     use tokio::io::{AsyncReadExt, DuplexStream};
 
     use bittorrent_base::BlockOffset;
+    use bittorrent_extension::Enabled;
 
     use super::*;
 
@@ -664,15 +676,26 @@ mod tests {
     #[tokio::test]
     async fn handle_recv_extended() {
         let (mut actor, mock, .., mut recvs) = Actor::new_mock();
+        assert_eq!(
+            actor.extension_ids.must_lock().peer_extensions(),
+            Enabled::new(false, false),
+        );
         assert_matches!(
             actor
-                .handle_recv(Message::Extended(1, Bytes::from_static(&hex!("deadbeef"))))
+                .handle_recv(Message::Extended(
+                    0,
+                    Bytes::from_static(b"d1:md11:ut_metadatai99eee"),
+                ))
                 .await,
             Ok(()),
         );
         assert_matches!(
             recvs.extension_recv.recv().await,
-            Some((_, (1, payload))) if payload == hex!("deadbeef").as_slice(),
+            Some((_, message)) if matches!(message.deref(), ExtensionMessage::Handshake(_)),
+        );
+        assert_eq!(
+            actor.extension_ids.must_lock().peer_extensions(),
+            Enabled::new(true, false),
         );
         drop(actor);
         assert_mock(mock, &[]).await;

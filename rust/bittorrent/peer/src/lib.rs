@@ -37,7 +37,7 @@ g1_param::define!(port_queue_size: usize = 256);
 g1_param::define!(extension_queue_size: usize = 256);
 
 pub use agent::Agent;
-pub use chan::{new_channels, Endpoint, Recvs, Sends};
+pub use chan::{new_channels, Endpoint, ExtensionMessageOwner, Recvs, Sends};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Incompatible;

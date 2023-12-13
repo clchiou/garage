@@ -13,6 +13,8 @@ use crate::{incoming::ResponseSend, Possession};
 // layer protocol (TCP vs uTP) used by the peer.
 pub type Endpoint = SocketAddr;
 
+pub type ExtensionMessageOwner = bittorrent_extension::MessageOwner<Bytes>;
+
 #[derive(Debug)]
 pub struct Recvs {
     pub interested_recv: Receiver<Endpoint>,
@@ -26,7 +28,7 @@ pub struct Recvs {
 
     pub port_recv: Receiver<(Endpoint, u16)>,
 
-    pub extension_recv: Receiver<(Endpoint, (u8, Bytes))>,
+    pub extension_recv: Receiver<(Endpoint, ExtensionMessageOwner)>,
 }
 
 #[derive(Clone, Debug)]
@@ -41,7 +43,7 @@ pub struct Sends {
 
     pub(crate) port_send: Sender<(Endpoint, u16)>,
 
-    pub(crate) extension_send: Sender<(Endpoint, (u8, Bytes))>,
+    pub(crate) extension_send: Sender<(Endpoint, ExtensionMessageOwner)>,
 }
 
 pub fn new_channels() -> (Recvs, Sends) {

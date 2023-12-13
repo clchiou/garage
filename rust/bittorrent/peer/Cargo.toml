@@ -15,6 +15,7 @@ g1_param = { path = "../../g1/param" }
 g1_tokio = { path = "../../g1/tokio" }
 
 bittorrent_base = { path = "../base", features = ["param"] }
+bittorrent_extension = { path = "../extension" }
 bittorrent_socket = { path = "../socket" }
 
 [dev-dependencies]
