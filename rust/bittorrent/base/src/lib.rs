@@ -1,3 +1,5 @@
+#[cfg(feature = "cli")]
+pub mod cli;
 #[cfg(feature = "compact")]
 pub mod compact;
 

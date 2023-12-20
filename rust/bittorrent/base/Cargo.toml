@@ -8,6 +8,8 @@ g1_base = { path = "../../g1/base" }
 
 # feature: compact
 bytes = { version = "1.4.0", optional = true }
+
+# feature: cli, compact
 snafu = { version = "0.7.4", optional = true }
 
 # feature: param
@@ -20,5 +22,6 @@ g1_param = { path = "../../g1/param", optional = true }
 hex-literal = "0.4.1"
 
 [features]
+cli = ["dep:snafu"]
 compact = ["dep:bytes", "dep:snafu"]
 param = ["dep:linkme", "dep:rand", "dep:serde", "dep:g1_param"]

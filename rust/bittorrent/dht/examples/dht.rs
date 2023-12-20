@@ -100,7 +100,7 @@ struct GetPeers {
     #[arg(long, default_value = "127.0.0.1:6881")]
     peer_endpoint: SocketAddr,
 
-    #[arg(value_parser = parse_info_hash)]
+    #[arg(value_parser = InfoHash::cli_parse)]
     info_hash: InfoHash,
 }
 
@@ -127,7 +127,7 @@ struct AnnouncePeer {
     #[arg(long, default_value = "127.0.0.1:6881")]
     peer_endpoint: SocketAddr,
 
-    #[arg(value_parser = parse_info_hash)]
+    #[arg(value_parser = InfoHash::cli_parse)]
     info_hash: InfoHash,
     port: u16,
     #[arg(long)]
@@ -165,7 +165,7 @@ impl LookupNodes {
 
 #[derive(Args, Debug)]
 struct LookupPeers {
-    #[arg(value_parser = parse_info_hash)]
+    #[arg(value_parser = InfoHash::cli_parse)]
     info_hash: InfoHash,
 }
 
@@ -190,14 +190,6 @@ fn parse_node_id(hex: &str) -> Result<NodeId, Error> {
     Ok(NodeId::new(
         Hex::try_from(hex)
             .map_err(|hex| Error::other(format!("invalid node id: {:?}", hex)))?
-            .into_inner(),
-    ))
-}
-
-fn parse_info_hash(hex: &str) -> Result<InfoHash, Error> {
-    Ok(InfoHash::new(
-        Hex::try_from(hex)
-            .map_err(|hex| Error::other(format!("invalid info hash: {:?}", hex)))?
             .into_inner(),
     ))
 }
