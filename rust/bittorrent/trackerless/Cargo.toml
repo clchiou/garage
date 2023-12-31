@@ -1,0 +1,28 @@
+[package]
+name = "bittorrent_trackerless"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+bytes = "1.4.0"
+snafu = "0.7.4"
+tokio = { version = "1.28.2", features = ["full"] }
+tracing = "0.1.37"
+
+bittorrent_base = { path = "../base", features = ["param"] }
+bittorrent_bencode = { path = "../bencode", features = ["serde"] }
+bittorrent_extension = { path = "../extension" }
+bittorrent_manager = { path = "../manager" }
+bittorrent_metainfo = { path = "../metainfo" }
+bittorrent_peer = { path = "../peer" }
+
+[dev-dependencies]
+# examples/info
+clap = { version = "4.3.1", features = ["derive"] }
+g1_cli = { path = "../../g1/cli", features = ["param", "tracing"] }
+g1_futures = { path = "../../g1/futures" }
+g1_tokio = { path = "../../g1/tokio" }
+bittorrent_base = { path = "../base", features = ["cli", "param"] }
+bittorrent_dht = { path = "../dht" }
+bittorrent_udp = { path = "../udp" }
+bittorrent_utp = { path = "../utp" }
