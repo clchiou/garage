@@ -20,6 +20,12 @@ const RESERVED_SIZE: usize = 8;
 const RESERVED_AZUREUS_MESSAGING: usize = 0;
 const RESERVED_LOCATION_AWARE: usize = 20;
 const RESERVED_EXTENSION: usize = 43; // BEP 10
+
+// BEP 30 does not specify the setting of reserved bit 44, and [libtorrent] appears to be in
+// violation of the BEP.
+// [libtorrent]: https://github.com/arvidn/libtorrent/commit/84a513bffbd7b3b6edf5d28c09892388d59e201a#diff-68c1bba05514f22a8cfc3a4f062f6ec8714f0942a359d7c4a65be32d1b3dab61R792
+const RESERVED_MERKLE_TREE: usize = 44;
+
 const RESERVED_EXTENSION_NEGOTIATION_0: usize = 46;
 const RESERVED_EXTENSION_NEGOTIATION_1: usize = 47;
 const RESERVED_HYBRID: usize = 59; // BEP 52
@@ -32,6 +38,7 @@ const RESERVED_OFFSETS: &[usize] = &[
     RESERVED_AZUREUS_MESSAGING,
     RESERVED_LOCATION_AWARE,
     RESERVED_EXTENSION,
+    RESERVED_MERKLE_TREE,
     RESERVED_EXTENSION_NEGOTIATION_0,
     RESERVED_EXTENSION_NEGOTIATION_1,
     RESERVED_HYBRID,
@@ -468,6 +475,6 @@ mod tests {
 
         let mut reserved = hex!("ff ff ff ff ff ff ff ff");
         reserved_clear_known_bits(&mut reserved);
-        assert_eq!(reserved, hex!("7f ff f7 ff ff ec ff e0"));
+        assert_eq!(reserved, hex!("7f ff f7 ff ff e4 ff e0"));
     }
 }
