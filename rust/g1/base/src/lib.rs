@@ -17,6 +17,7 @@
 
 pub mod fmt;
 pub mod future;
+pub mod iter;
 pub mod ops;
 pub mod owner;
 pub mod slice;
