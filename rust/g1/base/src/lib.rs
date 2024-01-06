@@ -15,6 +15,7 @@
 #![feature(specialization)]
 #![cfg_attr(test, feature(assert_matches))]
 
+pub mod collections;
 pub mod fmt;
 pub mod future;
 pub mod iter;
