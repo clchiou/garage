@@ -13,6 +13,7 @@
 #![feature(iterator_try_collect)]
 #![feature(rustc_attrs)]
 #![feature(specialization)]
+#![cfg_attr(feature = "collections_ext", feature(try_blocks))]
 #![cfg_attr(test, feature(assert_matches))]
 
 pub mod collections;
