@@ -1,4 +1,6 @@
 #[cfg(feature = "collections_ext")]
+pub mod cursor_set;
+#[cfg(feature = "collections_ext")]
 pub mod index_map;
 pub mod vec_list;
 
@@ -8,6 +10,8 @@ mod table;
 
 #[cfg(feature = "collections_ext")]
 pub use self::bimap::HashBiMap;
+#[cfg(feature = "collections_ext")]
+pub use self::cursor_set::HashCursorSet;
 #[cfg(feature = "collections_ext")]
 pub use self::index_map::HashIndexMap;
 pub use self::table::HashBasedTable;
