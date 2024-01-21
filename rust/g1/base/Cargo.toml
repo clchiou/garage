@@ -6,6 +6,12 @@ edition.workspace = true
 [dependencies]
 g1_base_derive = { path = "../base_derive" }
 
+# feature: collections_ext
+hashbrown = { version = "0.14.3", optional = true }
+
 [dev-dependencies]
 tokio = { version = "1.28.2", features = ["full"] }
 trybuild = "1.0.80"
+
+[features]
+collections_ext = ["dep:hashbrown"]
