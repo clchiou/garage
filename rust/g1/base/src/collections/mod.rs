@@ -1,3 +1,4 @@
+pub mod bigraph;
 #[cfg(feature = "collections_ext")]
 pub mod cursor_set;
 #[cfg(feature = "collections_ext")]
@@ -8,6 +9,7 @@ pub mod vec_list;
 mod bimap;
 mod table;
 
+pub use self::bigraph::NaiveHashBiGraph;
 #[cfg(feature = "collections_ext")]
 pub use self::bimap::HashBiMap;
 #[cfg(feature = "collections_ext")]
