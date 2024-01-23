@@ -9,7 +9,7 @@ pub mod vec_list;
 mod bimap;
 mod table;
 
-pub use self::bigraph::NaiveHashBiGraph;
+pub use self::bigraph::{NaiveBTreeBiGraph, NaiveHashBiGraph};
 #[cfg(feature = "collections_ext")]
 pub use self::bimap::HashBiMap;
 #[cfg(feature = "collections_ext")]

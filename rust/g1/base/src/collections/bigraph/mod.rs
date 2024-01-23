@@ -4,6 +4,9 @@
 //! `Map<K, Set<V>>` but with higher memory overhead.  If faster lookups are not required, you may
 //! use the latter instead.
 
+mod btree;
 mod hash;
 
+// TODO: Factor out common code between `NaiveBTreeBiGraph` and `NaiveHashBiGraph`.
+pub use self::btree::NaiveBTreeBiGraph;
 pub use self::hash::NaiveHashBiGraph;
