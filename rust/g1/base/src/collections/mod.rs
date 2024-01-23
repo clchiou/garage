@@ -9,6 +9,8 @@ pub mod vec_list;
 mod bimap;
 mod table;
 
+#[cfg(feature = "collections_ext")]
+pub use self::bigraph::HashBiGraph;
 pub use self::bigraph::{NaiveBTreeBiGraph, NaiveHashBiGraph};
 #[cfg(feature = "collections_ext")]
 pub use self::bimap::HashBiMap;

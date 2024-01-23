@@ -6,7 +6,11 @@
 
 mod btree;
 mod hash;
+#[cfg(feature = "collections_ext")]
+mod hash_ext;
 
 // TODO: Factor out common code between `NaiveBTreeBiGraph` and `NaiveHashBiGraph`.
 pub use self::btree::NaiveBTreeBiGraph;
 pub use self::hash::NaiveHashBiGraph;
+#[cfg(feature = "collections_ext")]
+pub use self::hash_ext::{HashBiGraph, SetView};
