@@ -1,0 +1,7 @@
+[package]
+name = "bittorrent_transceiver"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+bitvec = "1.0.1"
