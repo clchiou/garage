@@ -2,8 +2,11 @@
 
 mod bitfield;
 mod schedule;
+mod stat;
 
 use std::time::Duration;
+
+pub use crate::stat::Torrent;
 
 g1_param::define!(max_assignments: usize = 2);
 g1_param::define!(max_replicates: usize = 1);

@@ -16,6 +16,7 @@ g1_param = { path = "../../g1/param" }
 bittorrent_base = { path = "../base" }
 bittorrent_manager = { path = "../manager" }
 bittorrent_peer = { path = "../peer" }
+bittorrent_tracker = { path = "../tracker" }
 
 [dev-dependencies]
 tokio = { version = "1.28.2", features = ["full", "test-util"] }
