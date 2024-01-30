@@ -5,3 +5,17 @@ edition.workspace = true
 
 [dependencies]
 bitvec = "1.0.1"
+bytes = "1.4.0"
+linkme = "0.3.10" # Required by g1_param.
+snafu = "0.7.4"
+tokio = { version = "1.28.2", features = ["full"] }
+
+g1_base = { path = "../../g1/base" }
+g1_param = { path = "../../g1/param" }
+
+bittorrent_base = { path = "../base" }
+bittorrent_manager = { path = "../manager" }
+bittorrent_peer = { path = "../peer" }
+
+[dev-dependencies]
+tokio = { version = "1.28.2", features = ["full", "test-util"] }
