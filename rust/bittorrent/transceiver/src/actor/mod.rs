@@ -24,6 +24,7 @@ mod macros {
     }
 }
 
+mod download;
 mod upload;
 
 use std::io::Error;
