@@ -1,7 +1,9 @@
+#![feature(entry_insert)]
 #![cfg_attr(test, feature(duration_constants))]
 
 mod bitfield;
 mod progress;
+mod queue;
 mod schedule;
 mod stat;
 
