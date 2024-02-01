@@ -24,6 +24,8 @@ mod macros {
     }
 }
 
+mod upload;
+
 use std::io::Error;
 use std::sync::Arc;
 
