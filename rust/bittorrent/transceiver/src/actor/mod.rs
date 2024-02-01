@@ -28,6 +28,7 @@ mod dht;
 mod download;
 mod extension;
 mod peer;
+mod run;
 mod upload;
 
 use std::io::Error;
