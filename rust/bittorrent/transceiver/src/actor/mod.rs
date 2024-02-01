@@ -24,6 +24,7 @@ mod macros {
     }
 }
 
+mod dht;
 mod download;
 mod upload;
 
