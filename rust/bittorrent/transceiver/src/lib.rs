@@ -1,6 +1,7 @@
 #![cfg_attr(test, feature(duration_constants))]
 
 mod bitfield;
+mod progress;
 mod schedule;
 mod stat;
 
