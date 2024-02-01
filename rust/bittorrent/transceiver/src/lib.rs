@@ -1,4 +1,5 @@
 #![feature(entry_insert)]
+#![feature(try_blocks)]
 #![cfg_attr(test, feature(duration_constants))]
 
 mod actor;

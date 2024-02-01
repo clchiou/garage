@@ -26,6 +26,7 @@ mod macros {
 
 mod dht;
 mod download;
+mod extension;
 mod upload;
 
 use std::io::Error;

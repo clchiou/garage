@@ -16,6 +16,7 @@ g1_param = { path = "../../g1/param" }
 
 bittorrent_base = { path = "../base", features = ["param"] }
 bittorrent_dht = { path = "../dht" }
+bittorrent_extension = { path = "../extension" }
 bittorrent_manager = { path = "../manager" }
 bittorrent_peer = { path = "../peer" }
 bittorrent_storage = { path = "../storage" }
