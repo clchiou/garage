@@ -18,6 +18,9 @@ g1_tokio = { path = "../../g1/tokio" }
 bittorrent_base = { path = "../base", features = ["param"] }
 bittorrent_dht = { path = "../dht" }
 bittorrent_manager = { path = "../manager" }
+bittorrent_metainfo = { path = "../metainfo" }
 bittorrent_peer = { path = "../peer" }
+bittorrent_storage = { path = "../storage" }
+bittorrent_transceiver = { path = "../transceiver" }
 bittorrent_udp = { path = "../udp" }
 bittorrent_utp = { path = "../utp" }
