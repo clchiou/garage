@@ -1,0 +1,23 @@
+[package]
+name = "bittorrent_agents"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+bytes = "1.4.0"
+futures = "0.3.28"
+linkme = "0.3.10" # Required by g1_param.
+tokio = { version = "1.28.2", features = ["full"] }
+tracing = "0.1.37"
+
+g1_base = { path = "../../g1/base" }
+g1_futures = { path = "../../g1/futures" }
+g1_param = { path = "../../g1/param" }
+g1_tokio = { path = "../../g1/tokio" }
+
+bittorrent_base = { path = "../base", features = ["param"] }
+bittorrent_dht = { path = "../dht" }
+bittorrent_manager = { path = "../manager" }
+bittorrent_peer = { path = "../peer" }
+bittorrent_udp = { path = "../udp" }
+bittorrent_utp = { path = "../utp" }

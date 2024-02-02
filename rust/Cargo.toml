@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "bittorrent/agents",
     "bittorrent/base",
     "bittorrent/bencode",
     "bittorrent/dht",
