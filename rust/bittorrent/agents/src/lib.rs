@@ -1,5 +1,6 @@
 mod net;
 mod storage;
+mod task;
 
 use std::net::SocketAddr;
 
