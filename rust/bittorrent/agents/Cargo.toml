@@ -26,3 +26,9 @@ bittorrent_trackerless = { path = "../trackerless" }
 bittorrent_transceiver = { path = "../transceiver" }
 bittorrent_udp = { path = "../udp" }
 bittorrent_utp = { path = "../utp" }
+
+[dev-dependencies]
+clap = { version = "4.3.1", features = ["derive"] }
+g1_cli = { path = "../../g1/cli", features = ["param", "tracing"] }
+
+bittorrent_base = { path = "../base", features = ["cli", "param"] }
