@@ -78,9 +78,11 @@ impl crate::Storage for Storage {
     }
 
     async fn verify(&mut self, index: PieceIndex) -> Result<bool, Error> {
-        let size = self.coord_sys.dim.piece_size(index);
+        let size = self.coord_sys.dim.piece_size(index).try_into().unwrap();
         let index = usize::from(index);
-        let size = self.prepare((index, 0, size).into()).await?.unwrap();
+        // Do NOT pass `(index, 0, size)` to `prepare` because it is almost certain that `size`
+        // will exceed the `block_size` limit.
+        let _ = self.prepare((index, 0, 0).into()).await?.unwrap();
         let piece_hash = self.compute_piece_hash(size).await?;
         Ok(self.piece_hashes[index] == piece_hash)
     }
