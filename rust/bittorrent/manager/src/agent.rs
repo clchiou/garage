@@ -50,6 +50,8 @@ impl Manager {
         utp_socket_v4: Option<Arc<UtpSocket>>,
         utp_socket_v6: Option<Arc<UtpSocket>>,
     ) -> (Self, Recvs) {
+        tracing::info!(self_id = ?bittorrent_base::self_id().clone());
+
         let (recvs, sends) = bittorrent_peer::new_channels();
 
         let peers = Arc::new(Mutex::new(Peers::new(
