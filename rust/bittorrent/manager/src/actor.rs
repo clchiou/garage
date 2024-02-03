@@ -39,7 +39,8 @@ pub(crate) struct Peers {
     utp_socket_v6: Option<Arc<UtpSocket>>,
     sends: Sends,
 
-    // TODO: For now we do not evict `Connector`.
+    // We do not evict `Connector` entries.  Consequently, `Manager::peer_endpoints` will return
+    // all peer endpoints that we have ever encountered.
     connectors: HashMap<Endpoint, Option<Connector>>,
 
     agents: HashMap<Endpoint, Arc<Agent>>,
