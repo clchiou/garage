@@ -21,6 +21,8 @@ bittorrent_manager = { path = "../manager" }
 bittorrent_metainfo = { path = "../metainfo" }
 bittorrent_peer = { path = "../peer" }
 bittorrent_storage = { path = "../storage" }
+bittorrent_tracker = { path = "../tracker" }
+bittorrent_trackerless = { path = "../trackerless" }
 bittorrent_transceiver = { path = "../transceiver" }
 bittorrent_udp = { path = "../udp" }
 bittorrent_utp = { path = "../utp" }
