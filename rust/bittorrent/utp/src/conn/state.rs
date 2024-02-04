@@ -54,6 +54,14 @@ impl State {
     /// Updates `send_window.size_limit` in accordance with the congestion control algorithm
     /// specified by BEP 29.
     pub(super) fn apply_control(&mut self, send_delay: u32) {
+        // BEP 29 does not specify `window_factor` value when `used` or `size_limit` is 0.  This is
+        // what libutp appears to do.
+        if self.send_window.used == 0 {
+            return;
+        }
+        let window_factor = to_f64(cmp::min(self.send_window.used, self.send_window.size_limit))
+            / to_f64(cmp::max(self.send_window.used, self.send_window.size_limit));
+
         let target = f64::from(
             u32::try_from(crate::congestion_control_target().as_micros() % (1 << u32::BITS))
                 .unwrap(),
@@ -61,19 +69,12 @@ impl State {
         let off_target = target - f64::from(self.delay_window.subtract_min_delay(send_delay));
         let delay_factor = off_target / target;
 
-        let window_factor = to_f64(self.send_window.used) / to_f64(self.send_window.size_limit);
-
-        let scale_gain =
-            to_f64(*crate::max_congestion_window_increase_per_rtt()) * delay_factor * window_factor;
+        // Again, BEP 29 does not explicitly specify this, but it appears that libutp restricts the
+        // range of `scale_gain`.
+        let scale_gain_limit = to_f64(*crate::max_congestion_window_increase_per_rtt());
+        let scale_gain = (scale_gain_limit * delay_factor * window_factor)
+            .clamp(-scale_gain_limit, scale_gain_limit);
         let scale_gain = unsafe { scale_gain.to_int_unchecked::<isize>() };
-
-        let scale_gain_limit =
-            isize::try_from(*crate::max_congestion_window_increase_per_rtt()).unwrap();
-        assert!(
-            -scale_gain_limit <= scale_gain && scale_gain <= scale_gain_limit,
-            "invalid scale_gain: {}",
-            scale_gain,
-        );
 
         self.send_window.set_size_limit(
             self.send_window
