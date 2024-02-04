@@ -36,8 +36,6 @@ pub(crate) enum Error {
     RecvBufferTimeout,
     RecvGracePeriodExpired,
 
-    SendTimeout,
-
     #[snafu(display("resend limit exceeded: seq={seq}"))]
     ResendLimitExceeded {
         seq: u16,
@@ -129,8 +127,6 @@ impl Error {
             Error::RecvGracePeriodExpired => {
                 io::Error::new(io::ErrorKind::TimedOut, "utp recv grace period expired")
             }
-
-            Error::SendTimeout => io::Error::new(io::ErrorKind::TimedOut, "utp send timeout"),
 
             Error::ResendLimitExceeded { .. } => {
                 io::Error::new(io::ErrorKind::TimedOut, self.clone())

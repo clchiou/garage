@@ -37,22 +37,36 @@ impl Actor<Mutex<State>> {
     }
 
     async fn send_payload(&self, payload: &mut BytesMut) -> Result<(), Error> {
+        // We diverge from BEP 29 here: When the socket triggers a timeout (usually due to
+        // `send_window` being full), we force the sending of a minimum-sized packet instead of
+        // resetting `send_window.size_limit`.
+        //
+        // By the way, do not confuse socket timeout with packet timeout -- BEP 29 defines both.
         let mut now = Instant::now();
+        let mut was_timeout = false;
         while !payload.is_empty() {
-            let packet = self.state.must_lock().make_data_packet(payload);
+            let packet = self
+                .state
+                .must_lock()
+                .make_data_packet(payload, was_timeout);
             match packet {
                 Some(packet) => {
                     self.outgoing_send(packet).await?;
                     now = Instant::now();
+                    was_timeout = false;
                 }
                 None => {
                     // This is roughly the time when `rtt_timer` returns `ResendLimitExceeded`.  It
                     // seems reasonable to use this value as the send timeout.
                     let send_timeout = self.state.must_lock().send_window.rtt.timeout
                         * (1 + *crate::resend_limit()).try_into().unwrap();
-                    time::timeout_at(now + send_timeout, self.notifiers.send.notified())
-                        .await
-                        .map_err(|_| Error::SendTimeout)?;
+                    tokio::select! {
+                        _ = time::sleep_until(now + send_timeout) => {
+                            tracing::debug!("send timeout");
+                            was_timeout = true;
+                        }
+                        _ = self.notifiers.send.notified() => {}
+                    }
                 }
             }
         }
@@ -186,22 +200,24 @@ mod tests {
         actor.state.must_lock().send_window.rtt.timeout = Duration::ZERO;
         assert_state(&actor.state, 2000, &[]);
 
-        let mut data = [0u8; SEND_WINDOW_SIZE + 1];
+        let mut data = [0u8; SEND_WINDOW_SIZE + 130 + 1];
         for i in 0..data.len() {
             data[i] = (i % 256).try_into().unwrap();
         }
 
         let mut payload = BytesMut::from(&data[..]);
-        assert_eq!(
-            actor.send_payload(&mut payload).await,
-            Err(Error::SendTimeout),
-        );
-        assert_eq!(payload, &data[SEND_WINDOW_SIZE..]);
+        assert_eq!(actor.send_payload(&mut payload).await, Ok(()));
+        assert_eq!(payload.is_empty(), true);
         assert_state(
             &actor.state,
-            2002,
+            2004,
             // 130 == packet size - header size
-            &[(2000, &data[..130]), (2001, &data[130..SEND_WINDOW_SIZE])],
+            &[
+                (2000, &data[..130]),
+                (2001, &data[130..SEND_WINDOW_SIZE]),
+                (2002, &data[SEND_WINDOW_SIZE..SEND_WINDOW_SIZE + 130]),
+                (2003, &data[SEND_WINDOW_SIZE + 130..]),
+            ],
         );
 
         drop(actor);
@@ -211,7 +227,12 @@ mod tests {
         }
         assert_data_packets(
             &packets,
-            &[(2000, &data[..130]), (2001, &data[130..SEND_WINDOW_SIZE])],
+            &[
+                (2000, &data[..130]),
+                (2001, &data[130..SEND_WINDOW_SIZE]),
+                (2002, &data[SEND_WINDOW_SIZE..SEND_WINDOW_SIZE + 130]),
+                (2003, &data[SEND_WINDOW_SIZE + 130..]),
+            ],
         );
     }
 }

@@ -91,15 +91,20 @@ impl State {
         self.packet_size = cmp::max(packet_size, MIN_PACKET_SIZE);
     }
 
-    pub(super) fn make_data_packet(&mut self, data: &mut BytesMut) -> Option<Packet> {
-        let payload_size = self.send_window.reserve(cmp::min(
+    pub(super) fn make_data_packet(&mut self, data: &mut BytesMut, force: bool) -> Option<Packet> {
+        let reserved = self.send_window.reserve(cmp::min(
             // For now, data packets do not have extensions.
             self.packet_size - PacketHeader::SIZE,
             data.len(),
         ));
-        if payload_size == 0 {
+        let payload_size = if reserved != 0 {
+            reserved
+        } else if force {
+            // For now, data packets do not have extensions.
+            cmp::min(MIN_PACKET_SIZE - PacketHeader::SIZE, data.len())
+        } else {
             return None;
-        }
+        };
         let payload = data.split_to(payload_size).freeze();
         // It is okay to call `Bytes::clone` because it shares the underlying buffer and,
         // therefore, is very cheap.
