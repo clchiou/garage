@@ -48,7 +48,11 @@ impl State {
     // NOTE: You must call this method whenever you receive a packet.
     pub(super) fn update_send_delay(&mut self, header: &PacketHeader, recv_at: Timestamp) {
         self.send_delay = timestamp::as_micros_u32(recv_at).wrapping_sub(header.send_at);
-        self.delay_window.push(recv_at, header.send_delay);
+        // BEP 29 specifies that we should ignore `header.send_delay` when it is 0, indicating that
+        // the socket is newly opened.
+        if header.send_delay != 0 {
+            self.delay_window.push(recv_at, header.send_delay);
+        }
     }
 
     /// Updates `send_window.size_limit` in accordance with the congestion control algorithm
