@@ -11,6 +11,12 @@ pub(crate) enum Error {
     DuplicatedExtension {
         extension: u8,
     },
+    #[snafu(display("expect extension {extension} size == {expect}: {size}"))]
+    ExpectExtensionSize {
+        extension: u8,
+        size: usize,
+        expect: usize,
+    },
     #[snafu(display("expect selective ack size > 0 && size % 4 == 0: {size}"))]
     ExpectSelectiveAckSize {
         size: usize,
@@ -20,10 +26,6 @@ pub(crate) enum Error {
         version: u8,
     },
     Incomplete,
-    #[snafu(display("unknown extension: {extension}"))]
-    UnknownExtension {
-        extension: u8,
-    },
     #[snafu(display("unknown packet type: {packet_type}"))]
     UnknownPacketType {
         packet_type: u8,
@@ -78,11 +80,22 @@ const VERSION: u8 = 1;
 
 const EXTENSION_NONE: u8 = 0;
 const EXTENSION_SELECTIVE_ACK: u8 = 1;
+// Unofficial extension that is also deprecated, likely from an early version of libutp.
+const EXTENSION_DEPRECATED: u8 = 2;
+// Unofficial extension from libtorrent.
+const EXTENSION_CLOSE_REASON: u8 = 3;
 
 impl TryFrom<Bytes> for Packet {
     type Error = Error;
 
     fn try_from(mut buffer: Bytes) -> Result<Self, Self::Error> {
+        fn decode_extension(buffer: &mut Bytes) -> Result<(Bytes, u8), Error> {
+            let next_extension = buffer.try_get_u8().ok_or(Error::Incomplete)?;
+            let size = usize::from(buffer.try_get_u8().ok_or(Error::Incomplete)?);
+            ensure!(buffer.remaining() >= size, IncompleteSnafu);
+            Ok((buffer.split_to(size), next_extension))
+        }
+
         let header = buffer.try_get_packet_header().ok_or(Error::Incomplete)?;
 
         header.try_packet_type()?;
@@ -92,25 +105,52 @@ impl TryFrom<Bytes> for Packet {
         let mut selective_ack = None;
         let mut extension = header.extension;
         while extension != EXTENSION_NONE {
+            let (data, next) = decode_extension(&mut buffer)?;
+            let size = data.len();
             match extension {
                 EXTENSION_SELECTIVE_ACK => {
                     ensure!(
                         selective_ack.is_none(),
                         DuplicatedExtensionSnafu { extension },
                     );
-                    extension = buffer.try_get_u8().ok_or(Error::Incomplete)?;
-                    let size = usize::from(buffer.try_get_u8().ok_or(Error::Incomplete)?);
                     ensure!(
                         size > 0 && size % 4 == 0,
                         ExpectSelectiveAckSizeSnafu { size },
                     );
-                    ensure!(buffer.remaining() >= size, IncompleteSnafu);
-                    selective_ack = Some(SelectiveAck(buffer.split_to(size)));
+                    selective_ack = Some(SelectiveAck(data));
+                }
+                EXTENSION_DEPRECATED => {
+                    let expect = 8;
+                    ensure!(
+                        size == expect,
+                        ExpectExtensionSizeSnafu {
+                            extension,
+                            size,
+                            expect,
+                        },
+                    );
+                    if data != [0; 8].as_slice() {
+                        tracing::warn!(extension_bits = ?data, "expect all-zero extension bits");
+                    }
+                }
+                EXTENSION_CLOSE_REASON => {
+                    let expect = 4;
+                    ensure!(
+                        size == expect,
+                        ExpectExtensionSizeSnafu {
+                            extension,
+                            size,
+                            expect,
+                        },
+                    );
+                    let close_reason = (&data[2..4]).get_u16();
+                    tracing::debug!(close_reason);
                 }
                 _ => {
-                    return Err(Error::UnknownExtension { extension });
+                    tracing::warn!(extension, ?data, "unknown extension");
                 }
             }
+            extension = next;
         }
 
         Ok(Self {
@@ -252,20 +292,34 @@ mod tests {
             ),
             &hex!("01 00 0001 00000002 00000003 00000004 0005 0006"),
         );
-        test(
-            Packet::new(
-                PacketType::Synchronize,
-                0x1234,
-                Timestamp::from_micros(0x01020304),
-                0x05060708,
-                0x090a0b0c,
-                0x5678,
-                0x9abc,
-                Some(SelectiveAck(Bytes::from_static(&hex!("01020304")))),
-                Bytes::from_static(&hex!("deadbeef")),
-            ),
-            &hex!("41 01 1234 01020304 05060708 090a0b0c 5678 9abc 00 04 01020304 deadbeef"),
+
+        let packet = Packet::new(
+            PacketType::Synchronize,
+            0x1234,
+            Timestamp::from_micros(0x01020304),
+            0x05060708,
+            0x090a0b0c,
+            0x5678,
+            0x9abc,
+            Some(SelectiveAck(Bytes::from_static(&hex!("01020304")))),
+            Bytes::from_static(&hex!("deadbeef")),
         );
+        test(
+            packet.clone(),
+            &hex!(
+                "41 01 1234 01020304 05060708 090a0b0c 5678 9abc"
+                "00 04 01020304"
+                "deadbeef"
+            ),
+        );
+        let bytes = Bytes::from_static(&hex!(
+            "41 01 1234 01020304 05060708 090a0b0c 5678 9abc"
+            "02 04 01020304"
+            "03 08 00000000 00000000"
+            "00 04 00000000"
+            "deadbeef"
+        ));
+        assert_eq!(Packet::try_from(bytes), Ok(packet));
     }
 
     #[test]
@@ -296,12 +350,24 @@ mod tests {
         );
 
         test(
-            &hex!("01 02 0001 00000002 00000003 00000004 0005 0006"),
-            Error::UnknownExtension { extension: 2 },
+            &hex!("01 02 0001 00000002 00000003 00000004 0005 0006 00 01 ff"),
+            Error::ExpectExtensionSize {
+                extension: 2,
+                size: 1,
+                expect: 8,
+            },
+        );
+        test(
+            &hex!("01 03 0001 00000002 00000003 00000004 0005 0006 00 01 ff"),
+            Error::ExpectExtensionSize {
+                extension: 3,
+                size: 1,
+                expect: 4,
+            },
         );
 
         test(
-            &hex!("01 01 0001 00000002 00000003 00000004 0005 0006 01 04 01020304"),
+            &hex!("01 01 0001 00000002 00000003 00000004 0005 0006 01 04 01020304 00 00"),
             Error::DuplicatedExtension { extension: 1 },
         );
 
