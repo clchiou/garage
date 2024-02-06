@@ -1,3 +1,5 @@
+#![cfg_attr(feature = "parse", feature(try_blocks))]
+
 #[cfg(feature = "compact")]
 pub mod compact;
 #[cfg(feature = "parse")]
@@ -69,6 +71,12 @@ impl Features {
             extension,
         }
     }
+}
+
+// TODO: Add other Magnet URI parameters.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MagnetUri {
+    pub info_hashes: Vec<InfoHash>,
 }
 
 #[derive(Clone, DebugExt, Eq, Hash, PartialEq)]

@@ -9,7 +9,7 @@ use clap::{Args, Parser};
 use g1_cli::{param::ParametersConfig, tracing::TracingConfig};
 
 use bittorrent_agents::{Agents, Mode, StorageOpen};
-use bittorrent_base::InfoHash;
+use bittorrent_base::{InfoHash, MagnetUri};
 use bittorrent_metainfo::{InfoOwner, MetainfoOwner};
 
 #[derive(Debug, Parser)]
@@ -25,12 +25,13 @@ struct Program {
     output: Output,
 }
 
-// TODO: Add Magnet URI.
 #[derive(Args, Debug)]
 #[group(required = true, multiple = false)]
 struct TorrentSource {
     #[arg(long)]
     metainfo: Option<PathBuf>,
+    #[arg(long, value_parser = MagnetUri::from_str)]
+    magnet_uri: Option<MagnetUri>,
     #[arg(long)]
     info: Option<PathBuf>,
     #[arg(long, value_parser = InfoHash::from_str)]
@@ -62,6 +63,12 @@ impl TorrentSource {
                 .map_err(Error::other)?;
             let info_hash = InfoHash::new(metainfo.deref().info.compute_info_hash());
             Ok((Mode::Tracker(metainfo), info_hash))
+        } else if let Some(mut magnet_uri) = self.magnet_uri {
+            // TODO: Support multiple downloads.
+            Ok((
+                Mode::Trackerless(None),
+                magnet_uri.info_hashes.pop().unwrap(),
+            ))
         } else if let Some(info_path) = self.info {
             let info =
                 InfoOwner::try_from(Bytes::from(fs::read(&info_path)?)).map_err(Error::other)?;
