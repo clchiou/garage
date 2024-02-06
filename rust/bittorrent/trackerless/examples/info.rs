@@ -3,6 +3,7 @@ use std::fs::File;
 use std::io::{Error, Write};
 use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -38,7 +39,7 @@ struct Program {
     #[arg(long, default_value = "0.0.0.0:6881")]
     self_endpoint: SocketAddr,
 
-    #[arg(value_parser = InfoHash::cli_parse)]
+    #[arg(value_parser = InfoHash::from_str)]
     info_hash: InfoHash,
     info_path: PathBuf,
 }

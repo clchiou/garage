@@ -1,6 +1,7 @@
 use std::future;
 use std::io::Error;
 use std::net::SocketAddr;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use clap::{Args, Parser, Subcommand};
@@ -100,7 +101,7 @@ struct GetPeers {
     #[arg(long, default_value = "127.0.0.1:6881")]
     peer_endpoint: SocketAddr,
 
-    #[arg(value_parser = InfoHash::cli_parse)]
+    #[arg(value_parser = InfoHash::from_str)]
     info_hash: InfoHash,
 }
 
@@ -127,7 +128,7 @@ struct AnnouncePeer {
     #[arg(long, default_value = "127.0.0.1:6881")]
     peer_endpoint: SocketAddr,
 
-    #[arg(value_parser = InfoHash::cli_parse)]
+    #[arg(value_parser = InfoHash::from_str)]
     info_hash: InfoHash,
     port: u16,
     #[arg(long)]
@@ -165,7 +166,7 @@ impl LookupNodes {
 
 #[derive(Args, Debug)]
 struct LookupPeers {
-    #[arg(value_parser = InfoHash::cli_parse)]
+    #[arg(value_parser = InfoHash::from_str)]
     info_hash: InfoHash,
 }
 

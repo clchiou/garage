@@ -33,4 +33,4 @@ bittorrent_bencode = { path = "../bencode", features = ["serde", "test_harness"]
 # examples/dht
 clap = { version = "4.3.1", features = ["derive"] }
 g1_cli = { path = "../../g1/cli", features = ["param", "tracing"] }
-bittorrent_base = { path = "../base", features = ["cli", "compact"] }
+bittorrent_base = { path = "../base", features = ["compact", "parse"] }

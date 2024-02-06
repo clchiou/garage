@@ -31,4 +31,4 @@ bittorrent_utp = { path = "../utp" }
 clap = { version = "4.3.1", features = ["derive"] }
 g1_cli = { path = "../../g1/cli", features = ["param", "tracing"] }
 
-bittorrent_base = { path = "../base", features = ["cli", "param"] }
+bittorrent_base = { path = "../base", features = ["param", "parse"] }

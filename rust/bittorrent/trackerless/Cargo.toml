@@ -22,7 +22,7 @@ clap = { version = "4.3.1", features = ["derive"] }
 g1_cli = { path = "../../g1/cli", features = ["param", "tracing"] }
 g1_futures = { path = "../../g1/futures" }
 g1_tokio = { path = "../../g1/tokio" }
-bittorrent_base = { path = "../base", features = ["cli", "param"] }
+bittorrent_base = { path = "../base", features = ["param", "parse"] }
 bittorrent_dht = { path = "../dht" }
 bittorrent_udp = { path = "../udp" }
 bittorrent_utp = { path = "../utp" }

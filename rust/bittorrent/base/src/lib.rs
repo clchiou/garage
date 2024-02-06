@@ -1,10 +1,10 @@
-#[cfg(feature = "cli")]
-pub mod cli;
 #[cfg(feature = "compact")]
 pub mod compact;
+#[cfg(feature = "parse")]
+pub mod parse;
 
 #[cfg(feature = "param")]
-mod peer_id;
+mod param;
 
 use std::array::TryFromSliceError;
 use std::borrow::Borrow;
@@ -36,7 +36,7 @@ g1_param::define!(fast_enable: bool = true); // BEP 6
 g1_param::define!(extension_enable: bool = true); // BEP 10
 
 #[cfg(feature = "param")]
-g1_param::define!(pub self_id: PeerId = PeerId::new(peer_id::generate()));
+g1_param::define!(pub self_id: PeerId = PeerId::generate());
 
 #[cfg(feature = "param")]
 g1_param::define!(pub block_size: u64 = 16384);
@@ -104,7 +104,7 @@ impl Borrow<[u8]> for InfoHash {
 #[cfg_attr(feature = "param", derive(Deserialize))]
 pub struct PeerId(
     #[debug(with = EscapeAscii)]
-    #[cfg_attr(feature = "param", serde(deserialize_with = "peer_id::parse"))]
+    #[cfg_attr(feature = "param", serde(deserialize_with = "PeerId::deserialize"))]
     Arc<[u8; PEER_ID_SIZE]>,
 );
 

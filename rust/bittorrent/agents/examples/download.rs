@@ -1,6 +1,7 @@
 use std::fs;
 use std::io::Error;
 use std::path::PathBuf;
+use std::str::FromStr;
 
 use bytes::Bytes;
 use clap::{Args, Parser};
@@ -32,7 +33,7 @@ struct TorrentSource {
     metainfo: Option<PathBuf>,
     #[arg(long)]
     info: Option<PathBuf>,
-    #[arg(long, value_parser = InfoHash::cli_parse)]
+    #[arg(long, value_parser = InfoHash::from_str)]
     info_hash: Option<InfoHash>,
 }
 
