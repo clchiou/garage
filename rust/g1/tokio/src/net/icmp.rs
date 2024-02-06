@@ -80,10 +80,11 @@ impl IcmpSocket {
         &self,
         buffer: &mut [u8],
     ) -> Option<(usize, Option<Ipv4Addr>, sock_extended_err)> {
+        let mut io_slices = [IoSliceMut::new(buffer)];
         let mut cmsg_buffer = nix::cmsg_space!(sock_extended_err, Option<sockaddr_in>);
         let message = match recvmsg::<SockaddrIn>(
             self.fd(),
-            &mut [IoSliceMut::new(buffer)],
+            &mut io_slices,
             Some(&mut cmsg_buffer),
             MsgFlags::MSG_ERRQUEUE,
         ) {
