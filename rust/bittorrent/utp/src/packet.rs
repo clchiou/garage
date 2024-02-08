@@ -17,10 +17,6 @@ pub(crate) enum Error {
         size: usize,
         expect: usize,
     },
-    #[snafu(display("expect selective ack size > 0 && size % 4 == 0: {size}"))]
-    ExpectSelectiveAckSize {
-        size: usize,
-    },
     #[snafu(display("expect version == {VERSION}: {version}"))]
     ExpectVersion {
         version: u8,
@@ -113,10 +109,11 @@ impl TryFrom<Bytes> for Packet {
                         selective_ack.is_none(),
                         DuplicatedExtensionSnafu { extension },
                     );
-                    ensure!(
-                        size > 0 && size % 4 == 0,
-                        ExpectSelectiveAckSizeSnafu { size },
-                    );
+                    // BEP 29 specifies that the size should be at least 4 and in multiples of 4;
+                    // however, [libtorrent] disregards this requirement, and so we do not check the
+                    // size here.
+                    //
+                    // [libtorrent]: https://github.com/arvidn/libtorrent/issues/7068
                     selective_ack = Some(SelectiveAck(data));
                 }
                 EXTENSION_DEPRECATED => {
@@ -278,19 +275,26 @@ mod tests {
             );
         }
 
+        let mut packet = Packet::new(
+            PacketType::Data,
+            1,
+            Timestamp::from_micros(2),
+            3,
+            4,
+            5,
+            6,
+            None,
+            Bytes::from_static(&[]),
+        );
         test(
-            Packet::new(
-                PacketType::Data,
-                1,
-                Timestamp::from_micros(2),
-                3,
-                4,
-                5,
-                6,
-                None,
-                Bytes::from_static(&[]),
-            ),
+            packet.clone(),
             &hex!("01 00 0001 00000002 00000003 00000004 0005 0006"),
+        );
+        packet.header.extension = 1;
+        packet.selective_ack = Some(SelectiveAck(Bytes::from_static(&hex!("aabbcc"))));
+        test(
+            packet,
+            &hex!("01 01 0001 00000002 00000003 00000004 0005 0006 00 03 aabbcc"),
         );
 
         let packet = Packet::new(
@@ -369,15 +373,6 @@ mod tests {
         test(
             &hex!("01 01 0001 00000002 00000003 00000004 0005 0006 01 04 01020304 00 00"),
             Error::DuplicatedExtension { extension: 1 },
-        );
-
-        test(
-            &hex!("01 01 0001 00000002 00000003 00000004 0005 0006 00 00"),
-            Error::ExpectSelectiveAckSize { size: 0 },
-        );
-        test(
-            &hex!("01 01 0001 00000002 00000003 00000004 0005 0006 00 05 0102030405"),
-            Error::ExpectSelectiveAckSize { size: 5 },
         );
     }
 }
