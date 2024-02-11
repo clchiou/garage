@@ -187,9 +187,10 @@ impl RecvWindow {
         }
         let i = usize::try_from(d - 1).unwrap();
 
-        if i >= self.packets.len() {
-            self.packets.reserve(i - self.packets.len() + 1);
-            for _ in self.packets.len()..=i {
+        let range = self.packets.len()..i + 1;
+        if !range.is_empty() {
+            self.packets.reserve(range.len());
+            for _ in range {
                 self.packets.push_back(None);
             }
         }
