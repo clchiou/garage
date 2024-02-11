@@ -187,7 +187,11 @@ where
                     }
                     join_result = self.conn_tasks.join_next_with_id() => {
                         match join_result {
-                            Some(join_result) => self.remove_by_id(&join_conn_actor(join_result)),
+                            Some(join_result) => {
+                                let peer_endpoint =
+                                    join_conn_actor(&mut self.peer_endpoints, join_result);
+                                self.remove(peer_endpoint);
+                            }
                             None => break, // `UtpSocket::shutdown` was called.
                         }
                     }
@@ -219,11 +223,15 @@ where
         };
 
         // Drop `mpsc` channels to induce graceful shutdown in `conn::Actor`.
-        let Actor { conn_tasks, .. } = self;
+        let Actor {
+            conn_tasks,
+            mut peer_endpoints,
+            ..
+        } = self;
         conn_tasks.close();
         let _ = time::timeout(*crate::grace_period() / 2, async {
             while let Some(join_result) = conn_tasks.join_next_with_id().await {
-                join_conn_actor(join_result);
+                join_conn_actor(&mut peer_endpoints, join_result);
             }
         })
         .await;
@@ -294,8 +302,7 @@ where
             if matches!(error, TrySendError::Full(_)) {
                 tracing::warn!(?peer_endpoint, "utp connection incoming queue is full");
             }
-            self.stubs.remove(&peer_endpoint);
-            self.prober.unregister(&peer_endpoint);
+            self.remove(peer_endpoint);
         }
     }
 
@@ -332,29 +339,32 @@ where
         }
     }
 
-    fn remove_by_id(&mut self, id: &Id) {
-        if let Some(peer_endpoint) = self.peer_endpoints.remove(id) {
-            self.stubs.remove(&peer_endpoint);
-            self.prober.unregister(&peer_endpoint);
-        }
+    fn remove(&mut self, peer_endpoint: SocketAddr) {
+        self.stubs.remove(&peer_endpoint);
+        self.prober.unregister(&peer_endpoint);
     }
 }
 
-fn join_conn_actor(join_result: Result<(Id, Result<(), conn::Error>), JoinError>) -> Id {
+fn join_conn_actor(
+    peer_endpoints: &mut HashMap<Id, SocketAddr>,
+    join_result: Result<(Id, Result<(), conn::Error>), JoinError>,
+) -> SocketAddr {
     match join_result {
         Ok((id, result)) => {
+            let peer_endpoint = peer_endpoints.remove(&id).unwrap();
             if let Err(error) = result {
-                tracing::warn!(?error, "utp connection actor error");
+                tracing::warn!(?peer_endpoint, ?error, "utp connection actor error");
             }
-            id
+            peer_endpoint
         }
         Err(join_error) => {
             if join_error.is_panic() {
                 panic::resume_unwind(join_error.into_panic());
             }
             assert!(join_error.is_cancelled());
-            tracing::warn!("utp connection actor is cancelled");
-            join_error.id()
+            let peer_endpoint = peer_endpoints.remove(&join_error.id()).unwrap();
+            tracing::warn!(?peer_endpoint, "utp connection actor is cancelled");
+            peer_endpoint
         }
     }
 }
