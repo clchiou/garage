@@ -78,8 +78,9 @@ pub(crate) type Connected = Result<(), io::Error>;
 pub(crate) type ConnectedRecv = oneshot::Receiver<Connected>;
 pub(crate) type ConnectedSend = oneshot::Sender<Connected>;
 
-g1_param::define!(incoming_queue_size: usize = 32);
-g1_param::define!(outgoing_queue_size: usize = 256);
+// Do not set queue sizes too small; otherwise, fast peers might occasionally overflow the queues.
+g1_param::define!(incoming_queue_size: usize = 512);
+g1_param::define!(outgoing_queue_size: usize = 4096);
 
 pub(crate) type Incoming = (Bytes, Timestamp);
 pub(crate) type IncomingRecv = Receiver<Incoming>;
