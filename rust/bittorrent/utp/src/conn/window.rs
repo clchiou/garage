@@ -1,6 +1,5 @@
 use std::cmp;
-use std::collections::{HashSet, VecDeque};
-use std::mem;
+use std::collections::VecDeque;
 use std::ops::RangeInclusive;
 
 use bitvec::prelude::*;
@@ -22,9 +21,6 @@ pub(super) struct RecvWindow {
     // `in_order_seq` plus one.
     in_order_seq: u16,
     packets: VecDeque<Option<(u16, Bytes)>>,
-
-    pub(super) last_ack: u16,
-    recv_seqs: HashSet<u16>,
 
     pub(super) eof: Option<u16>,
 }
@@ -71,52 +67,6 @@ fn measure(origin_seq: u16, target_seq: u16) -> i32 {
     }
 }
 
-/// Computes an ordinary ack and selective acks based on the last ack and the received seqs.
-fn compute_ack(last_ack: u16, recv_seqs: HashSet<u16>) -> (u16, Option<SelectiveAck>) {
-    fn compute_selective_ack(base: usize, ds: &[i32]) -> Option<SelectiveAck> {
-        fn bitmask_index(base: usize, d: i32) -> usize {
-            usize::try_from(d).unwrap() - base
-        }
-
-        if ds.is_empty() {
-            return None;
-        }
-        let num_bits = bitmask_index(base, ds[ds.len() - 1]) + 1;
-        let size = num_bits / 8 + if num_bits % 8 != 0 { 1 } else { 0 };
-        let size = size - size % 4 + if size % 4 != 0 { 4 } else { 0 };
-        let mut bitmask = vec![0u8; size];
-        let bits = bitmask.view_bits_mut::<Lsb0>();
-        for d in ds {
-            bits.set(bitmask_index(base, *d), true);
-        }
-        Some(SelectiveAck(bitmask.into()))
-    }
-
-    let mut ds: Vec<_> = recv_seqs
-        .iter()
-        .copied()
-        .map(|seq| measure(last_ack, seq))
-        .collect();
-    ds.sort();
-    match ds.binary_search(&1) {
-        Ok(i) => {
-            // Find the position of the first non-consecutive value in `ds[i..]`.
-            let mut n = 1;
-            while i + n < ds.len() {
-                if ds[i + n - 1] + 1 != ds[i + n] {
-                    break;
-                }
-                n += 1;
-            }
-            (
-                last_ack.wrapping_add(u16::try_from(n).unwrap()),
-                compute_selective_ack(2 + n, &ds[i + n..]),
-            )
-        }
-        Err(i) => (last_ack, compute_selective_ack(2, &ds[i..])),
-    }
-}
-
 fn iter_bitmask(bitmask: &Bytes, ack: u16) -> impl Iterator<Item = u16> + '_ {
     bitmask
         .view_bits::<Lsb0>()
@@ -130,8 +80,6 @@ impl RecvWindow {
             size: size.try_into().unwrap(),
             in_order_seq: ack,
             packets: VecDeque::new(),
-            last_ack: ack,
-            recv_seqs: HashSet::new(),
             eof: None,
         }
     }
@@ -149,6 +97,48 @@ impl RecvWindow {
             Some(eof) => measure(self.in_order_seq, eof) == 1,
             None => false,
         }
+    }
+
+    pub(super) fn ack(&self) -> u16 {
+        self.find_ack().0
+    }
+
+    pub(super) fn selective_ack(&self) -> (u16, Option<SelectiveAck>) {
+        let (ack, i) = self.find_ack();
+        (ack, self.compute_selective_ack_since(i))
+    }
+
+    fn find_ack(&self) -> (u16, Option<usize>) {
+        let mut ack_index = (self.in_order_seq, None);
+        for (i, packet) in self.packets.iter().enumerate() {
+            ack_index = match packet {
+                Some((seq, _)) => (*seq, Some(i)),
+                None => break,
+            };
+        }
+        ack_index
+    }
+
+    fn compute_selective_ack_since(&self, index: Option<usize>) -> Option<SelectiveAck> {
+        let index = match index {
+            Some(index) => index + 2,
+            None => 1,
+        };
+        let range = index..self.packets.len();
+        if range.is_empty() {
+            return None;
+        }
+        assert!(self.packets[index - 1].is_none());
+        // BEP 29 specifies that the size should be at least 4 and in multiples of 4.
+        let size = range.len().next_multiple_of(32) / 8;
+        let mut bitmask = vec![0u8; size];
+        let bits = bitmask.view_bits_mut::<Lsb0>();
+        for (i, packet) in self.packets.range(range).enumerate() {
+            if packet.is_some() {
+                bits.set(i, true);
+            }
+        }
+        Some(SelectiveAck(bitmask.into()))
     }
 
     pub(super) fn close(&mut self, eof: u16) -> Result<(), Error> {
@@ -186,8 +176,6 @@ impl RecvWindow {
                 in_order_seq: self.in_order_seq,
             },
         );
-
-        self.recv_seqs.insert(seq);
 
         if d < 1 {
             tracing::debug!(
@@ -230,17 +218,6 @@ impl RecvWindow {
         self.in_order_seq = *seq;
         self.size += isize::try_from(payload.len()).unwrap();
         packet
-    }
-
-    pub(super) fn next_ack(&mut self) -> Option<(u16, Option<SelectiveAck>)> {
-        let recv_seqs = mem::take(&mut self.recv_seqs);
-        if recv_seqs.is_empty() {
-            None
-        } else {
-            let (ack, selective_ack) = compute_ack(self.last_ack, recv_seqs);
-            self.last_ack = ack;
-            Some((ack, selective_ack))
-        }
     }
 }
 
@@ -510,12 +487,6 @@ mod tests {
         );
     }
 
-    fn assert_recv_seqs(window: &RecvWindow, expect: &[u16]) {
-        let mut recv_seqs = window.recv_seqs.iter().copied().collect::<Vec<_>>();
-        recv_seqs.sort();
-        assert_eq!(recv_seqs, expect);
-    }
-
     fn assert_send_window(window: &SendWindow, expect: &[(u16, usize)]) {
         assert_eq!(
             window
@@ -552,86 +523,6 @@ mod tests {
     }
 
     #[test]
-    fn test_compute_ack() {
-        assert_eq!(compute_ack(10, HashSet::new()), (10, None));
-        assert_eq!(compute_ack(10, HashSet::from([11])), (11, None));
-        assert_eq!(compute_ack(10, HashSet::from([11, 12])), (12, None));
-        assert_eq!(compute_ack(10, HashSet::from([8, 11, 12])), (12, None));
-        assert_eq!(
-            compute_ack(10, HashSet::from([9, 10, 11, 12, 13])),
-            (13, None),
-        );
-
-        assert_eq!(
-            compute_ack(10, HashSet::from([8, 9, 10, 12])),
-            (
-                10,
-                Some(SelectiveAck(Bytes::from_static(&hex!("01 00 00 00")))),
-            ),
-        );
-        assert_eq!(
-            compute_ack(10, HashSet::from([7, 8, 9, 13, 20, 21, 27, 44])),
-            (
-                10,
-                Some(SelectiveAck(Bytes::from_static(&hex!(
-                    "02 83 00 00 01 00 00 00"
-                )))),
-            ),
-        );
-
-        assert_eq!(
-            compute_ack(10, HashSet::from([11, 13])),
-            (
-                11,
-                Some(SelectiveAck(Bytes::from_static(&hex!("01 00 00 00")))),
-            ),
-        );
-        assert_eq!(
-            compute_ack(10, HashSet::from([11, 14])),
-            (
-                11,
-                Some(SelectiveAck(Bytes::from_static(&hex!("02 00 00 00")))),
-            ),
-        );
-    }
-
-    #[test]
-    fn test_compute_ack_wraparound() {
-        assert_eq!(compute_ack(u16::MAX, HashSet::from([0])), (0, None));
-        assert_eq!(compute_ack(u16::MAX, HashSet::from([0, 1])), (1, None));
-
-        assert_eq!(
-            compute_ack(u16::MAX - 1, HashSet::from([u16::MAX, 0, 1])),
-            (1, None),
-        );
-
-        assert_eq!(
-            compute_ack(u16::MAX - 1, HashSet::from([0])),
-            (
-                u16::MAX - 1,
-                Some(SelectiveAck(Bytes::from_static(&hex!("01 00 00 00")))),
-            ),
-        );
-        assert_eq!(
-            compute_ack(u16::MAX - 1, HashSet::from([1, 7, 32])),
-            (
-                u16::MAX - 1,
-                Some(SelectiveAck(Bytes::from_static(&hex!(
-                    "82 00 00 00 01 00 00 00"
-                )))),
-            ),
-        );
-
-        assert_eq!(
-            compute_ack(u16::MAX - 2, HashSet::from([u16::MAX, 0, 1])),
-            (
-                u16::MAX - 2,
-                Some(SelectiveAck(Bytes::from_static(&hex!("07 00 00 00")))),
-            )
-        );
-    }
-
-    #[test]
     fn recv_window_is_completed() {
         let mut window = RecvWindow::new(0, 100);
         assert_eq!(window.is_completed(), false);
@@ -642,6 +533,66 @@ mod tests {
         assert_eq!(window.recv(101, Bytes::new()), Ok(true));
         assert_eq!(window.next(), Some((101, Bytes::new())));
         assert_eq!(window.is_completed(), true);
+    }
+
+    #[test]
+    fn selective_ack() {
+        fn test(
+            in_order_seq: u16,
+            seqs: &[u16],
+            expect_ack: u16,
+            expect_selective_ack: Option<&'static [u8]>,
+        ) {
+            let mut window = RecvWindow::new(0, in_order_seq);
+            for seq in seqs {
+                assert!(window.recv(*seq, Bytes::new()).is_ok());
+            }
+
+            let expect = (
+                expect_ack,
+                expect_selective_ack.map(|bitmask| SelectiveAck(Bytes::from_static(bitmask))),
+            );
+            assert_eq!(window.selective_ack(), expect);
+            while window.next().is_some() {
+                assert_eq!(window.selective_ack(), expect);
+            }
+            assert_eq!(window.selective_ack(), expect);
+        }
+
+        test(10, &[], 10, None);
+        test(10, &[9], 10, None);
+        test(10, &[10], 10, None);
+        test(10, &[11], 11, None);
+        test(10, &[11, 12], 12, None);
+        test(10, &[8, 11, 12], 12, None);
+        test(10, &[9, 10, 11, 12, 13], 13, None);
+        test(10, &[8, 9, 10, 12], 10, Some(&hex!("01 00 00 00")));
+        test(10, &[8, 11, 13], 11, Some(&hex!("01 00 00 00")));
+        test(
+            10,
+            &[7, 8, 9, 13, 20, 21, 27, 44],
+            10,
+            Some(&hex!("02 83 00 00 01 00 00 00")),
+        );
+        test(10, &[10, 11, 13], 11, Some(&hex!("01 00 00 00")));
+        test(10, &[10, 11, 14], 11, Some(&hex!("02 00 00 00")));
+
+        test(u16::MAX, &[0], 0, None);
+        test(u16::MAX, &[0, 1], 1, None);
+        test(u16::MAX - 1, &[u16::MAX, 0, 1], 1, None);
+        test(u16::MAX - 1, &[0], u16::MAX - 1, Some(&hex!("01 00 00 00")));
+        test(
+            u16::MAX - 1,
+            &[1, 7, 32],
+            u16::MAX - 1,
+            Some(&hex!("82 00 00 00 01 00 00 00")),
+        );
+        test(
+            u16::MAX - 2,
+            &[u16::MAX, 0, 1],
+            u16::MAX - 2,
+            Some(&hex!("07 00 00 00")),
+        );
     }
 
     #[test]
@@ -666,7 +617,6 @@ mod tests {
     fn recv() {
         let mut window = RecvWindow::new(0, 100);
         assert_recv_window(&window, &[]);
-        assert_recv_seqs(&window, &[]);
 
         assert_eq!(
             window.recv(0, Bytes::new()),
@@ -676,7 +626,6 @@ mod tests {
             }),
         );
         assert_recv_window(&window, &[]);
-        assert_recv_seqs(&window, &[]);
         assert_eq!(
             window.recv(200, Bytes::new()),
             Err(Error::DistantSeq {
@@ -685,40 +634,31 @@ mod tests {
             }),
         );
         assert_recv_window(&window, &[]);
-        assert_recv_seqs(&window, &[]);
 
         assert_eq!(window.recv(99, Bytes::new()), Ok(false));
         assert_recv_window(&window, &[]);
-        assert_recv_seqs(&window, &[99]);
         assert_eq!(window.recv(100, Bytes::new()), Ok(false));
         assert_recv_window(&window, &[]);
-        assert_recv_seqs(&window, &[99, 100]);
 
         assert_eq!(window.recv(101, Bytes::new()), Ok(true));
         assert_recv_window(&window, &[Some(101)]);
-        assert_recv_seqs(&window, &[99, 100, 101]);
         assert_eq!(window.recv(101, Bytes::new()), Ok(false));
         assert_recv_window(&window, &[Some(101)]);
-        assert_recv_seqs(&window, &[99, 100, 101]);
 
         assert_eq!(window.recv(102, Bytes::new()), Ok(true));
         assert_recv_window(&window, &[Some(101), Some(102)]);
-        assert_recv_seqs(&window, &[99, 100, 101, 102]);
 
         assert_eq!(window.recv(105, Bytes::new()), Ok(true));
         assert_recv_window(&window, &[Some(101), Some(102), None, None, Some(105)]);
-        assert_recv_seqs(&window, &[99, 100, 101, 102, 105]);
 
         assert_eq!(window.recv(103, Bytes::new()), Ok(true));
         assert_recv_window(&window, &[Some(101), Some(102), Some(103), None, Some(105)]);
-        assert_recv_seqs(&window, &[99, 100, 101, 102, 103, 105]);
 
         assert_eq!(window.recv(104, Bytes::new()), Ok(true));
         assert_recv_window(
             &window,
             &[Some(101), Some(102), Some(103), Some(104), Some(105)],
         );
-        assert_recv_seqs(&window, &[99, 100, 101, 102, 103, 104, 105]);
     }
 
     #[test]
@@ -730,6 +670,74 @@ mod tests {
         assert_recv_window(&window, &[None, Some(u16::MAX), Some(0)]);
         assert_eq!(window.recv(2, Bytes::new()), Ok(true));
         assert_recv_window(&window, &[None, Some(u16::MAX), Some(0), None, Some(2)]);
+    }
+
+    #[test]
+    fn recv_out_of_order() {
+        let mut window = RecvWindow::new(0, 100);
+        assert_recv_window(&window, &[]);
+
+        assert_eq!(window.recv(102, Bytes::new()), Ok(true));
+        let expect = (
+            100,
+            Some(SelectiveAck(Bytes::from_static(&hex!("01 00 00 00")))),
+        );
+        assert_eq!(window.selective_ack(), expect);
+        assert_eq!(window.in_order_seq, 100);
+        assert_recv_window(&window, &[None, Some(102)]);
+
+        assert_eq!(window.next(), None);
+        assert_eq!(window.selective_ack(), expect);
+        assert_eq!(window.in_order_seq, 100);
+        assert_recv_window(&window, &[None, Some(102)]);
+
+        assert_eq!(window.recv(101, Bytes::new()), Ok(true));
+        assert_eq!(window.selective_ack(), (102, None));
+        assert_eq!(window.in_order_seq, 100);
+        assert_recv_window(&window, &[Some(101), Some(102)]);
+
+        assert_eq!(window.next(), Some((101, Bytes::new())));
+        assert_eq!(window.selective_ack(), (102, None));
+        assert_eq!(window.in_order_seq, 101);
+        assert_recv_window(&window, &[Some(102)]);
+
+        assert_eq!(window.next(), Some((102, Bytes::new())));
+        assert_eq!(window.selective_ack(), (102, None));
+        assert_eq!(window.in_order_seq, 102);
+        assert_recv_window(&window, &[]);
+
+        assert_eq!(window.next(), None);
+        assert_eq!(window.selective_ack(), (102, None));
+        assert_eq!(window.in_order_seq, 102);
+        assert_recv_window(&window, &[]);
+    }
+
+    #[test]
+    fn recv_out_of_order_deep() {
+        let mut window = RecvWindow::new(0, 100);
+        assert_recv_window(&window, &[]);
+
+        assert_eq!(window.recv(103, Bytes::new()), Ok(true));
+        assert_eq!(window.recv(104, Bytes::new()), Ok(true));
+        assert_eq!(window.recv(105, Bytes::new()), Ok(true));
+        assert_eq!(window.recv(110, Bytes::new()), Ok(true));
+        assert_eq!(window.recv(119, Bytes::new()), Ok(true));
+        assert_eq!(window.recv(128, Bytes::new()), Ok(true));
+        assert_eq!(window.recv(134, Bytes::new()), Ok(true));
+        assert_eq!(window.recv(141, Bytes::new()), Ok(true));
+
+        assert_eq!(window.next(), None);
+
+        assert_eq!(
+            window.selective_ack(),
+            (
+                100,
+                Some(SelectiveAck(Bytes::from_static(&hex!(
+                    "0e 01 02 04 81 00 00 00"
+                )))),
+            ),
+        );
+        assert_eq!(window.in_order_seq, 100);
     }
 
     #[test]
@@ -746,15 +754,12 @@ mod tests {
             Err(Error::SeqExceedEof { seq: 2, eof: 1 }),
         );
         assert_recv_window(&window, &[]);
-        assert_recv_seqs(&window, &[]);
 
         assert_eq!(window.recv(0, Bytes::new()), Ok(true));
         assert_recv_window(&window, &[None, Some(0)]);
-        assert_recv_seqs(&window, &[0]);
 
         assert_eq!(window.recv(u16::MAX, Bytes::new()), Ok(true));
         assert_recv_window(&window, &[Some(u16::MAX), Some(0)]);
-        assert_recv_seqs(&window, &[0, u16::MAX]);
 
         assert_eq!(window.close(1), Ok(()));
 
@@ -856,28 +861,6 @@ mod tests {
         assert_eq!(window.next(), Some((0, Bytes::new())));
         assert_recv_window(&window, &[Some(1)]);
         assert_eq!(window.in_order_seq, 0);
-    }
-
-    #[test]
-    fn next_ack() {
-        let mut window = RecvWindow::new(0, 100);
-        assert_eq!(window.recv(101, Bytes::new()), Ok(true));
-        assert_eq!(window.recv(102, Bytes::new()), Ok(true));
-        assert_eq!(window.recv(104, Bytes::new()), Ok(true));
-        assert_eq!(window.last_ack, 100);
-        assert_recv_seqs(&window, &[101, 102, 104]);
-
-        assert_eq!(
-            window.next_ack(),
-            Some((
-                102,
-                Some(SelectiveAck(Bytes::from_static(&hex!("01 00 00 00")))),
-            )),
-        );
-        assert_eq!(window.last_ack, 102);
-        assert_recv_seqs(&window, &[]);
-
-        assert_eq!(window.next_ack(), None);
     }
 
     #[test]

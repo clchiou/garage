@@ -135,21 +135,21 @@ impl State {
         self.new_packet(
             PacketType::Data,
             seq,
-            self.recv_window.last_ack,
+            self.recv_window.ack(),
             None, // For now, data packets do not have extensions.
             payload,
         )
     }
 
-    pub(super) fn make_ack_packet(&mut self) -> Option<Packet> {
-        let (ack, selective_ack) = self.recv_window.next_ack()?;
-        Some(self.new_packet(
+    pub(super) fn new_ack_packet(&self) -> Packet {
+        let (ack, selective_ack) = self.recv_window.selective_ack();
+        self.new_packet(
             PacketType::State,
             self.send_window.seq,
             ack,
             selective_ack,
             Bytes::new(),
-        ))
+        )
     }
 
     pub(super) fn new_fin_ack_packet(&self) -> Option<Packet> {
@@ -175,7 +175,7 @@ impl State {
         self.new_packet(
             PacketType::Finish,
             seq,
-            self.recv_window.last_ack,
+            self.recv_window.ack(),
             None,
             Bytes::new(),
         )
@@ -185,7 +185,7 @@ impl State {
         self.new_packet(
             PacketType::Reset,
             self.send_window.seq,
-            self.recv_window.last_ack,
+            self.recv_window.ack(),
             None,
             Bytes::new(),
         )

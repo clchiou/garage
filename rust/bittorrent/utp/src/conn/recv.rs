@@ -138,6 +138,7 @@ impl Actor<Mutex<State>> {
                 while let Some((_, payload)) = state.recv_window.next() {
                     payloads.push(payload);
                 }
+                packets.push(state.new_ack_packet());
             }
             PacketType::State => state
                 .recv_window
@@ -150,9 +151,6 @@ impl Actor<Mutex<State>> {
                 }
             }
             PacketType::Reset | PacketType::Synchronize => std::unreachable!(),
-        }
-        if let Some(packet) = state.make_ack_packet() {
-            packets.push(packet);
         }
         if !recv_state.fin_ack_sent {
             if let Some(packet) = state.new_fin_ack_packet() {

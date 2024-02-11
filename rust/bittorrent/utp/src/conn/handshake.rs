@@ -142,7 +142,7 @@ impl Actor<Handshake> {
 
         tracing::debug!(
             seq = state.send_window.seq,
-            ack = state.recv_window.last_ack,
+            ack = state.recv_window.ack(),
             "connect",
         );
         Ok(state)
@@ -178,7 +178,7 @@ impl Actor<Handshake> {
 
         tracing::debug!(
             seq = state.send_window.seq,
-            ack = state.recv_window.last_ack,
+            ack = state.recv_window.ack(),
             "accept",
         );
         Ok(state)
@@ -272,7 +272,7 @@ mod tests {
             acceptor_state.send_window.seq.wrapping_sub(1),
         );
         assert_eq!(
-            connector_state.recv_window.last_ack,
+            connector_state.recv_window.ack(),
             acceptor_state.send_window.seq.wrapping_sub(1),
         );
         assert_eq!(
@@ -280,7 +280,7 @@ mod tests {
             connector_state.send_window.seq.wrapping_sub(1),
         );
         assert_eq!(
-            acceptor_state.recv_window.last_ack,
+            acceptor_state.recv_window.ack(),
             connector_state.send_window.seq.wrapping_sub(1),
         );
 
