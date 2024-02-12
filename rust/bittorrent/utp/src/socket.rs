@@ -353,7 +353,11 @@ fn join_conn_actor(
         Ok((id, result)) => {
             let peer_endpoint = peer_endpoints.remove(&id).unwrap();
             if let Err(error) = result {
-                tracing::warn!(?peer_endpoint, ?error, "utp connection actor error");
+                if error == conn::Error::ConnectTimeout {
+                    tracing::debug!(?peer_endpoint, ?error, "utp connect timeout");
+                } else {
+                    tracing::warn!(?peer_endpoint, ?error, "utp connection actor error");
+                }
             }
             peer_endpoint
         }

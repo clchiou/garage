@@ -97,7 +97,11 @@ impl PathMtuProber {
                 let mut path_mtu = match probe_task.await {
                     Ok(Ok(path_mtu)) => Some((*peer_endpoint, path_mtu)),
                     Ok(Err(error)) => {
-                        tracing::warn!(?peer_endpoint, ?error, "path mtu probe error");
+                        if error.kind() == ErrorKind::TimedOut {
+                            tracing::debug!(?peer_endpoint, ?error, "path mtu probe timeout");
+                        } else {
+                            tracing::warn!(?peer_endpoint, ?error, "path mtu probe error");
+                        }
                         None
                     }
                     Err(join_error) => {

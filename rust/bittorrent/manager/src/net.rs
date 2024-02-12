@@ -1,4 +1,4 @@
-use std::io::Error;
+use std::io::{Error, ErrorKind};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -133,11 +133,21 @@ impl Connector {
                     }
                     return Ok(socket);
                 }
-                Err(error) => tracing::warn!(
-                    peer_endpoint = ?self.peer_endpoint,
-                    ?error,
-                    "peer connect error",
-                ),
+                Err(error) => {
+                    if error.kind() == ErrorKind::TimedOut {
+                        tracing::debug!(
+                            peer_endpoint = ?self.peer_endpoint,
+                            ?error,
+                            "peer connect timeout",
+                        );
+                    } else {
+                        tracing::warn!(
+                            peer_endpoint = ?self.peer_endpoint,
+                            ?error,
+                            "peer connect error",
+                        );
+                    }
+                }
             }
         }
         Err(error::Error::ConnectError.into())

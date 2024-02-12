@@ -129,7 +129,8 @@ impl Actor {
             match socket {
                 Ok(socket) => peers.insert_agent(peer_endpoint, socket),
                 Err(error) => {
-                    tracing::warn!(?peer_endpoint, ?error, "peer socket connect error");
+                    // Log it at debug level since its cause has already been logged by `connect`.
+                    tracing::debug!(?peer_endpoint, ?error, "peer socket connect error");
                     return;
                 }
             }
