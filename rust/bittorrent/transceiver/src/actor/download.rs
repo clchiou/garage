@@ -160,6 +160,9 @@ impl Actor {
         self.check_endgame();
 
         let _ = self.update_send.send(Update::Download(piece));
+        for peer in self.manager.agents() {
+            peer.possess(Possession::Have(piece)).unwrap();
+        }
 
         Ok(())
     }
