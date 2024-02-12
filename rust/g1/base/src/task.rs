@@ -29,11 +29,11 @@ impl WakerCell {
 
 pub fn update_waker(waker: &mut Option<Waker>, context: &Context) {
     let new_waker = context.waker();
-    let should_update = match waker.as_ref() {
-        Some(old_waker) => !new_waker.will_wake(old_waker),
-        None => true,
-    };
-    if should_update {
-        *waker = Some(new_waker.clone());
+    match waker {
+        // The [doc] recommends using `clone_from`.
+        //
+        // [doc]: https://doc.rust-lang.org/std/task/struct.Waker.html
+        Some(waker) => waker.clone_from(new_waker),
+        None => *waker = Some(new_waker.clone()),
     }
 }
