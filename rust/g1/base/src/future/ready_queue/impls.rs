@@ -66,8 +66,8 @@ impl<T, F> ReadyQueueImpl<T, F> {
     //          +------------ pending <-----------+
     //
     // NOTE: `Future::poll` might call `FutureWaker::wake_by_ref`, and it could do so multiple
-    // times.  Therefore, `move_to_pending,` `move_to_ready,` and `move_to_polling` have to handle
-    // such cases.
+    // times.  Therefore, `move_to_pending,` `move_to_ready,` `move_to_polling`, and
+    // `return_polling` have to handle such case.
     //
 
     fn next_id(&mut self) -> Id {
@@ -100,17 +100,22 @@ impl<T, F> ReadyQueueImpl<T, F> {
 
     /// Moves the current future to `pending`.
     // This is called by `ReadyQeueu::poll_pop_ready_with_future`.
-    pub(super) fn move_to_pending(&mut self, id: Id, future: F) {
+    pub(super) fn move_to_pending(&mut self, id: Id, future: F) -> Result<(), (Id, F)> {
         match self.current_id.take() {
             Some(current_id) => {
                 assert_eq!(current_id, id);
                 assert!(self.pending.insert(id, future).is_none());
+                Ok(())
             }
-            None => {
-                // `move_to_polling` was called.  Let us move the future to `polling`.
-                self.polling.push_back((id, future));
-            }
+            None => Err((id, future)),
         }
+    }
+
+    /// Returns the current future to `polling`.
+    // This is called by `ReadyQeueu::poll_pop_ready_with_future`.
+    pub(super) fn return_polling(&mut self, id: Id, future: F) {
+        assert!(self.current_id.is_none());
+        self.polling.push_back((id, future));
     }
 
     /// Moves a future from `pending` to `polling`.
@@ -129,29 +134,21 @@ impl<T, F> ReadyQueueImpl<T, F> {
 }
 
 #[cfg(test)]
-mod tests {
-    use std::fmt;
-    use std::future;
+pub(crate) mod test_harness {
     use std::sync::{
         atomic::{AtomicUsize, Ordering},
         Arc,
     };
-    use std::task::{Poll, Wake};
+    use std::task::Wake;
 
-    use tokio::sync::Notify;
-
-    use crate::sync::MutexExt;
-
-    use super::{super::ReadyQueue, *};
-
-    struct MockWaker(AtomicUsize);
+    pub(crate) struct MockWaker(AtomicUsize);
 
     impl MockWaker {
-        fn new() -> Self {
+        pub(crate) fn new() -> Self {
             Self(AtomicUsize::new(0))
         }
 
-        fn num_calls(&self) -> usize {
+        pub(crate) fn num_calls(&self) -> usize {
             self.0.load(Ordering::SeqCst)
         }
     }
@@ -165,6 +162,20 @@ mod tests {
             self.0.fetch_add(1, Ordering::SeqCst);
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fmt;
+    use std::future;
+    use std::sync::Arc;
+    use std::task::Poll;
+
+    use tokio::sync::Notify;
+
+    use crate::sync::MutexExt;
+
+    use super::{super::ReadyQueue, test_harness::MockWaker, *};
 
     fn assert_queue<T, F>(
         queue: &ReadyQueue<T, F>,
@@ -303,7 +314,11 @@ mod tests {
                 assert_queue(&queue, false, 3, &[2], None, &[], &[], false);
             }
 
-            queue.0.must_lock().move_to_pending(id, future);
+            let error = queue.0.must_lock().move_to_pending(id, future).unwrap_err();
+            assert_eq!(error.0, id);
+            assert_queue(&queue, false, 3, &[2], None, &[], &[], false);
+
+            queue.0.must_lock().return_polling(error.0, error.1);
             assert_queue(&queue, false, 3, &[2, 1], None, &[], &[], false);
 
             assert!(matches!(queue.0.must_lock().pop_ready(), None));
@@ -345,7 +360,10 @@ mod tests {
         assert_eq!(id, 0);
         assert_queue(&queue, false, 2, &[1], Some(0), &[], &[], false);
 
-        queue.0.must_lock().move_to_pending(id, future);
+        assert!(matches!(
+            queue.0.must_lock().move_to_pending(id, future),
+            Ok(()),
+        ));
         assert_queue(&queue, false, 2, &[1], None, &[0], &[], false);
 
         assert!(matches!(queue.0.must_lock().pop_ready(), None));

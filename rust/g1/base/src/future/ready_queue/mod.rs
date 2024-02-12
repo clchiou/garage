@@ -133,6 +133,7 @@ where
 
     fn poll_pop_ready_with_future(&self, context: &mut Context<'_>) -> Poll<Option<(T, F)>> {
         let mut this = self.0.must_lock();
+        let mut should_yield = false;
         while let Some((id, mut future)) = this.move_to_current() {
             let waker = Waker::from(Arc::new(FutureWaker::new(Arc::downgrade(&self.0), id)));
             let mut future_context = Context::from_waker(&waker);
@@ -143,7 +144,17 @@ where
 
             match poll {
                 Poll::Ready(value) => this.move_to_ready(id, value, future),
-                Poll::Pending => this.move_to_pending(id, future),
+                Poll::Pending => {
+                    if let Err((id, future)) = this.move_to_pending(id, future) {
+                        // `poll` returns `Pending` but also calls `wake`, signaling that we have
+                        // depleted our cooperative [budget] and should yield.
+                        //
+                        // [budget]: https://docs.rs/tokio/latest/tokio/task/index.html#cooperative-scheduling
+                        this.return_polling(id, future);
+                        should_yield = true;
+                        break;
+                    }
+                }
             }
         }
 
@@ -154,7 +165,11 @@ where
                 if this.closed && this.is_empty() {
                     Poll::Ready(None)
                 } else {
-                    this.update_waker(context);
+                    if should_yield {
+                        context.waker().wake_by_ref();
+                    } else {
+                        this.update_waker(context);
+                    }
                     Poll::Pending
                 }
             }
@@ -164,11 +179,12 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::future;
     use std::time::Duration;
 
     use tokio::time;
 
-    use super::*;
+    use super::{impls::test_harness::MockWaker, *};
 
     fn assert_queue<T, F>(queue: &ReadyQueue<T, F>, is_closed: bool, len: usize) {
         assert_eq!(queue.is_closed(), is_closed);
@@ -204,6 +220,63 @@ mod tests {
         for _ in 0..3 {
             assert_eq!(queue.pop_ready().await, None);
             assert_queue(&queue, true, 0);
+        }
+    }
+
+    #[test]
+    fn poll_pop_ready_with_future() {
+        let mock_waker = Arc::new(MockWaker::new());
+        let waker = Waker::from(mock_waker.clone());
+        let mut context = Context::from_waker(&waker);
+
+        let queue = ReadyQueue::new();
+        for _ in 0..10 {
+            assert!(matches!(queue.push(future::pending::<()>()), Ok(())));
+        }
+        assert_queue(&queue, false, 10);
+        assert_eq!(mock_waker.num_calls(), 0);
+
+        for _ in 1..=3 {
+            assert!(matches!(
+                queue.poll_pop_ready_with_future(&mut context),
+                Poll::Pending,
+            ));
+            assert_queue(&queue, false, 10);
+            assert_eq!(mock_waker.num_calls(), 0);
+        }
+    }
+
+    #[test]
+    fn poll_pop_ready_with_future_yield() {
+        struct Yield;
+
+        impl Future for Yield {
+            type Output = ();
+
+            fn poll(self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<Self::Output> {
+                context.waker().wake_by_ref();
+                Poll::Pending
+            }
+        }
+
+        let mock_waker = Arc::new(MockWaker::new());
+        let waker = Waker::from(mock_waker.clone());
+        let mut context = Context::from_waker(&waker);
+
+        let queue = ReadyQueue::new();
+        for _ in 0..10 {
+            assert!(matches!(queue.push(Yield), Ok(())));
+        }
+        assert_queue(&queue, false, 10);
+        assert_eq!(mock_waker.num_calls(), 0);
+
+        for i in 1..=3 {
+            assert!(matches!(
+                queue.poll_pop_ready_with_future(&mut context),
+                Poll::Pending,
+            ));
+            assert_queue(&queue, false, 10);
+            assert_eq!(mock_waker.num_calls(), i);
         }
     }
 
