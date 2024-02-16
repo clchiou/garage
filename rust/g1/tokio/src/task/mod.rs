@@ -1,3 +1,4 @@
+mod join_guard;
 mod join_queue;
 mod joiner;
 
@@ -6,8 +7,9 @@ use std::time::Duration;
 
 use tokio::{sync::Mutex, task::JoinHandle, time};
 
-pub use join_queue::JoinQueue;
-pub use joiner::Joiner;
+pub use self::join_guard::{Cancel, JoinGuard, ShutdownError};
+pub use self::join_queue::JoinQueue;
+pub use self::joiner::Joiner;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum JoinTaskError {
