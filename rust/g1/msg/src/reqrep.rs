@@ -2,7 +2,6 @@ use std::collections::{hash_map::Entry, HashMap, VecDeque};
 use std::fmt;
 use std::hash::Hash;
 use std::io::{Error, ErrorKind};
-use std::sync::Arc;
 use std::time::Duration;
 
 use futures::{
@@ -10,18 +9,14 @@ use futures::{
     stream::{Stream, TryStreamExt},
 };
 use tokio::{
-    sync::{
-        mpsc::{
-            self,
-            error::{SendError, TrySendError},
-        },
-        oneshot, Mutex, Notify,
-    },
-    task::JoinHandle,
+    sync::{mpsc, oneshot},
     time::{self, Instant},
 };
 
-use g1_tokio::task::{self, JoinTaskError};
+use g1_tokio::{
+    sync::mpmc,
+    task::{Cancel, JoinGuard},
+};
 
 //
 // Implementer's Notes: There is an alternative design that does not employ an actor and instead
@@ -35,23 +30,17 @@ g1_param::define!(response_queue_size: usize = 64);
 
 g1_param::define!(request_timeout: Duration = Duration::from_secs(2));
 
-g1_param::define!(grace_period: Duration = Duration::from_secs(2));
-
 pub mod error {
     use snafu::prelude::*;
 
     #[derive(Clone, Debug, Eq, PartialEq, Snafu)]
     pub enum Error {
-        #[snafu(display("reqrep actor is cancelled"))]
-        Cancelled,
         #[snafu(display("request conflict: {endpoint}"))]
         RequestConflict { endpoint: String },
         #[snafu(display("request timeout"))]
         RequestTimeout,
         #[snafu(display("reqrep was shut down"))]
         Shutdown,
-        #[snafu(display("reqrep shutdown grace period is exceeded"))]
-        ShutdownGracePeriodExceeded,
     }
 }
 
@@ -83,12 +72,11 @@ type ResultSend<T> = oneshot::Sender<Result<T, Error>>;
 pub struct ReqRep<M, N, E> {
     request_send: mpsc::Sender<(N, ResultSend<M>)>,
 
-    accept_recv: Mutex<mpsc::Receiver<(M, ResultRecv<()>)>>,
+    accept_recv: mpmc::Receiver<(M, ResultRecv<()>)>,
     response_send: mpsc::Sender<Result<N, E>>,
-
-    exit: Arc<Notify>,
-    task: Mutex<JoinHandle<Result<(), Error>>>,
 }
+
+pub type ReqRepGuard = JoinGuard<Result<(), Error>>;
 
 #[derive(Debug)]
 pub struct Sender<N, E> {
@@ -100,7 +88,7 @@ pub struct Sender<N, E> {
 
 #[derive(Debug)]
 struct Actor<M, N, E, I, O> {
-    exit: Arc<Notify>,
+    cancel: Cancel,
 
     incoming: I,
     outgoing: O,
@@ -110,7 +98,7 @@ struct Actor<M, N, E, I, O> {
     // For now, we can use `VecDeque` because `request_timeout` is fixed.
     request_deadlines: VecDeque<(Instant, E)>,
 
-    accept_send: mpsc::Sender<(M, ResultRecv<()>)>,
+    accept_send: mpmc::Sender<(M, ResultRecv<()>)>,
     response_recv: mpsc::Receiver<Result<N, E>>,
 
     reqrep: HashMap<E, State<M>>,
@@ -122,8 +110,18 @@ enum State<M> {
     Response(ResultSend<()>),
 }
 
+impl<M, N, E> Clone for ReqRep<M, N, E> {
+    fn clone(&self) -> Self {
+        Self {
+            request_send: self.request_send.clone(),
+            accept_recv: self.accept_recv.clone(),
+            response_send: self.response_send.clone(),
+        }
+    }
+}
+
 impl<M, N, E> ReqRep<M, N, E> {
-    pub fn new<I, O>(incoming: I, outgoing: O) -> Self
+    pub fn spawn<I, O>(incoming: I, outgoing: O) -> (Self, ReqRepGuard)
     where
         M: Message<Endpoint = E> + 'static,
         N: Message<Endpoint = E> + 'static,
@@ -131,25 +129,28 @@ impl<M, N, E> ReqRep<M, N, E> {
         I: Stream<Item = Result<M, Error>> + Send + Unpin + 'static,
         O: Sink<N, Error = Error> + Send + Unpin + 'static,
     {
-        let exit = Arc::new(Notify::new());
         let (request_send, request_recv) = mpsc::channel(*request_queue_size());
-        let (accept_send, accept_recv) = mpsc::channel(*accept_queue_size());
+        let (accept_send, accept_recv) = mpmc::channel(*accept_queue_size());
         let (response_send, response_recv) = mpsc::channel(*response_queue_size());
-        let actor = Actor::new(
-            exit.clone(),
-            incoming,
-            outgoing,
-            request_recv,
-            accept_send,
-            response_recv,
-        );
-        Self {
-            request_send,
-            accept_recv: Mutex::new(accept_recv),
-            response_send,
-            exit,
-            task: Mutex::new(tokio::spawn(actor.run())),
-        }
+        let guard = ReqRepGuard::spawn(move |cancel| {
+            Actor::new(
+                cancel,
+                incoming,
+                outgoing,
+                request_recv,
+                accept_send,
+                response_recv,
+            )
+            .run()
+        });
+        (
+            Self {
+                request_send,
+                accept_recv,
+                response_send,
+            },
+            guard,
+        )
     }
 
     pub async fn request(&self, message: N) -> Result<M, Error> {
@@ -166,41 +167,14 @@ impl<M, N, E> ReqRep<M, N, E> {
         M: Message<Endpoint = E>,
         E: Clone,
     {
-        self.accept_recv
-            .lock()
-            .await
-            .recv()
-            .await
-            .map(|(message, result_recv)| {
-                let endpoint = message.endpoint().clone();
-                (
-                    message,
-                    Sender::new(self.response_send.clone(), result_recv, endpoint),
-                )
-            })
-    }
-
-    pub fn close(&self) {
-        self.exit.notify_one();
-    }
-
-    pub async fn shutdown(&self) -> Result<(), Error> {
-        self.close();
-        task::join_task(&self.task, *grace_period())
-            .await
-            .map_err(|error| match error {
-                JoinTaskError::Cancelled => Error::other(error::Error::Cancelled),
-                JoinTaskError::Timeout => Error::new(
-                    ErrorKind::TimedOut,
-                    error::Error::ShutdownGracePeriodExceeded,
-                ),
-            })?
-    }
-}
-
-impl<M, N, E> Drop for ReqRep<M, N, E> {
-    fn drop(&mut self) {
-        self.task.get_mut().abort();
+        self.accept_recv.recv().await.map(|(message, result_recv)| {
+            let sender = Sender::new(
+                self.response_send.clone(),
+                result_recv,
+                message.endpoint().clone(),
+            );
+            (message, sender)
+        })
     }
 }
 
@@ -243,7 +217,7 @@ impl<N, E> Drop for Sender<N, E> {
             // actor, but what should we do if the queue is full?  Should we crash the process?
             if matches!(
                 self.response_send.try_send(Err(endpoint)),
-                Err(TrySendError::Full(_)),
+                Err(mpsc::error::TrySendError::Full(_)),
             ) {
                 tracing::warn!("reqrep response queue is full");
             }
@@ -260,15 +234,15 @@ where
     O: Sink<N, Error = Error> + Unpin,
 {
     fn new(
-        exit: Arc<Notify>,
+        cancel: Cancel,
         incoming: I,
         outgoing: O,
         request_recv: mpsc::Receiver<(N, ResultSend<M>)>,
-        accept_send: mpsc::Sender<(M, ResultRecv<()>)>,
+        accept_send: mpmc::Sender<(M, ResultRecv<()>)>,
         response_recv: mpsc::Receiver<Result<N, E>>,
     ) -> Self {
         Self {
-            exit,
+            cancel,
             incoming,
             outgoing,
             request_recv,
@@ -283,21 +257,18 @@ where
     async fn run(mut self) -> Result<(), Error> {
         loop {
             tokio::select! {
-                _ = self.exit.notified() => {
-                    break;
-                }
+                _ = self.cancel.wait() => break,
+
                 incoming = self.incoming.try_next() => {
-                    match incoming? {
-                        Some(message) => self.handle_incoming(message).await,
-                        None => break,
-                    }
+                    let Some(message) = incoming? else { break };
+                    self.handle_incoming(message).await;
                 }
+
                 request = self.request_recv.recv() => {
-                    match request {
-                        Some(request) => self.handle_request(request).await,
-                        None => break,
-                    }
+                    let Some(request) = request else { break };
+                    self.handle_request(request).await;
                 }
+
                 Some(()) = {
                     let deadline = self
                         .request_deadlines
@@ -308,14 +279,10 @@ where
                 } => {
                     self.handle_timeout(Instant::now());
                 }
-                _ = self.accept_send.closed() => {
-                    break;
-                }
+
                 response = self.response_recv.recv() => {
-                    match response {
-                        Some(response) => self.handle_response(response).await,
-                        None => break,
-                    }
+                    let Some(response) = response else { break };
+                    self.handle_response(response).await;
                 }
             }
         }
@@ -349,7 +316,7 @@ where
             Entry::Vacant(entry) => {
                 let (result_send, result_recv) = oneshot::channel();
                 entry.insert(State::Response(result_send));
-                if let Err(SendError((message, _))) =
+                if let Err(mpmc::error::SendError((message, _))) =
                     self.accept_send.send((message, result_recv)).await
                 {
                     let endpoint = message.endpoint();
@@ -462,27 +429,26 @@ mod test_harness {
     pub type Outgoing = impl Sink<Message, Error = Error> + Unpin;
 
     pub struct MockActor {
-        pub exit: Arc<Notify>,
+        pub cancel: Cancel,
         pub incoming_send: futures_mpsc::UnboundedSender<Result<Message, Error>>,
         pub outgoing_recv: futures_mpsc::UnboundedReceiver<Message>,
         pub request_send: mpsc::Sender<(Message, ResultSend<Message>)>,
-        pub accept_recv: mpsc::Receiver<(Message, ResultRecv<()>)>,
+        pub accept_recv: mpmc::Receiver<(Message, ResultRecv<()>)>,
         pub response_send: mpsc::Sender<Result<Message, Endpoint>>,
     }
 
     impl ReqRep<Message, Message, Endpoint> {
-        pub fn new_mock() -> (
+        pub fn spawn_mock() -> (
             Self,
+            ReqRepGuard,
             futures_mpsc::UnboundedSender<Result<Message, Error>>,
             futures_mpsc::UnboundedReceiver<Message>,
         ) {
             let (incoming_send, incoming_recv) = futures_mpsc::unbounded();
             let (outgoing_send, outgoing_recv) = futures_mpsc::unbounded();
-            (
-                ReqRep::new(incoming_recv, outgoing_send.sink_map_err(Error::other)),
-                incoming_send,
-                outgoing_recv,
-            )
+            let (this, guard) =
+                ReqRep::spawn(incoming_recv, outgoing_send.sink_map_err(Error::other));
+            (this, guard, incoming_send, outgoing_recv)
         }
     }
 
@@ -496,15 +462,15 @@ mod test_harness {
         >
     {
         pub fn new_mock() -> (Self, MockActor) {
-            let exit = Arc::new(Notify::new());
+            let cancel = Cancel::new();
             let (incoming_send, incoming_recv) = futures_mpsc::unbounded();
             let (outgoing_send, outgoing_recv) = futures_mpsc::unbounded();
             let (request_send, request_recv) = mpsc::channel(*request_queue_size());
-            let (accept_send, accept_recv) = mpsc::channel(*accept_queue_size());
+            let (accept_send, accept_recv) = mpmc::channel(*accept_queue_size());
             let (response_send, response_recv) = mpsc::channel(*response_queue_size());
             (
                 Self::new(
-                    exit.clone(),
+                    cancel.clone(),
                     incoming_recv,
                     outgoing_send.sink_map_err(Error::other),
                     request_recv,
@@ -512,7 +478,7 @@ mod test_harness {
                     response_recv,
                 ),
                 MockActor {
-                    exit,
+                    cancel,
                     incoming_send,
                     outgoing_recv,
                     request_send,
@@ -587,8 +553,7 @@ mod tests {
 
     #[tokio::test]
     async fn request() {
-        let (reqrep, mut mock_incoming, mut mock_outgoing) = ReqRep::new_mock();
-        let reqrep = Arc::new(reqrep);
+        let (reqrep, mut guard, mut mock_incoming, mut mock_outgoing) = ReqRep::spawn_mock();
 
         let task = {
             let reqrep = reqrep.clone();
@@ -600,14 +565,14 @@ mod tests {
         assert_matches!(mock_incoming.send(Ok(msg("x", "pong"))).await, Ok(()));
         assert_matches!(task.await, Ok(Ok(m)) if m == msg("x", "pong"));
 
-        assert_matches!(reqrep.shutdown().await, Ok(()));
+        assert_matches!(guard.shutdown().await, Ok(Ok(())));
         assert_eq!(mock_outgoing.next().await, Some(msg("x", "ping")));
         assert_eq!(mock_outgoing.next().await, None);
     }
 
     #[tokio::test]
     async fn request_conflict() {
-        let (reqrep, mut mock_incoming, mut mock_outgoing) = ReqRep::new_mock();
+        let (reqrep, mut guard, mut mock_incoming, mut mock_outgoing) = ReqRep::spawn_mock();
 
         assert_matches!(mock_incoming.send(Ok(msg("x", "pong"))).await, Ok(()));
         time::sleep(Duration::from_millis(10)).await;
@@ -619,27 +584,27 @@ mod tests {
             },
         );
 
-        assert_matches!(reqrep.shutdown().await, Ok(()));
+        assert_matches!(guard.shutdown().await, Ok(Ok(())));
         assert_eq!(mock_outgoing.next().await, None);
     }
 
     #[tokio::test]
     async fn request_outgoing_closed() {
-        let (reqrep, _mock_incoming, _) = ReqRep::new_mock();
+        let (reqrep, mut guard, _mock_incoming, _) = ReqRep::spawn_mock();
 
         let error = reqrep.request(msg("x", "ping")).await.unwrap_err();
         assert_eq!(error.kind(), ErrorKind::Other);
         let inner = error.downcast::<futures_mpsc::SendError>().unwrap();
         assert_eq!(inner.is_disconnected(), true);
 
-        assert_matches!(reqrep.shutdown().await, Ok(()));
+        assert_matches!(guard.shutdown().await, Ok(Ok(())));
     }
 
     #[tokio::test]
     async fn request_shutdown_before() {
-        let (reqrep, _mock_incoming, mut mock_outgoing) = ReqRep::new_mock();
+        let (reqrep, mut guard, _mock_incoming, mut mock_outgoing) = ReqRep::spawn_mock();
 
-        assert_matches!(reqrep.shutdown().await, Ok(()));
+        assert_matches!(guard.shutdown().await, Ok(Ok(())));
         assert_err(
             reqrep.request(msg("x", "foo")).await,
             ErrorKind::ConnectionAborted,
@@ -651,8 +616,7 @@ mod tests {
 
     #[tokio::test]
     async fn request_shutdown_during() {
-        let (reqrep, _mock_incoming, mut mock_outgoing) = ReqRep::new_mock();
-        let reqrep = Arc::new(reqrep);
+        let (reqrep, mut guard, _mock_incoming, mut mock_outgoing) = ReqRep::spawn_mock();
 
         let task = {
             let reqrep = reqrep.clone();
@@ -661,7 +625,7 @@ mod tests {
         time::sleep(Duration::from_millis(10)).await;
         assert_eq!(task.is_finished(), false);
 
-        assert_matches!(reqrep.shutdown().await, Ok(()));
+        assert_matches!(guard.shutdown().await, Ok(Ok(())));
         assert_err(
             task.await.unwrap(),
             ErrorKind::ConnectionAborted,
@@ -674,8 +638,7 @@ mod tests {
 
     #[tokio::test]
     async fn response() {
-        let (reqrep, mut mock_incoming, mut mock_outgoing) = ReqRep::new_mock();
-        let reqrep = Arc::new(reqrep);
+        let (reqrep, mut guard, mut mock_incoming, mut mock_outgoing) = ReqRep::spawn_mock();
 
         let task = {
             let reqrep = reqrep.clone();
@@ -689,15 +652,14 @@ mod tests {
         assert_eq!(message, msg("x", "ping"));
         assert_matches!(sender.send(msg("x", "pong")).await, Ok(()));
 
-        assert_matches!(reqrep.shutdown().await, Ok(()));
+        assert_matches!(guard.shutdown().await, Ok(Ok(())));
         assert_eq!(mock_outgoing.next().await, Some(msg("x", "pong")));
         assert_eq!(mock_outgoing.next().await, None);
     }
 
     #[tokio::test]
     async fn response_outgoing_closed() {
-        let (reqrep, mut mock_incoming, _) = ReqRep::new_mock();
-        let reqrep = Arc::new(reqrep);
+        let (reqrep, mut guard, mut mock_incoming, _) = ReqRep::spawn_mock();
 
         let task = {
             let reqrep = reqrep.clone();
@@ -714,21 +676,21 @@ mod tests {
         let inner = error.downcast::<futures_mpsc::SendError>().unwrap();
         assert_eq!(inner.is_disconnected(), true);
 
-        assert_matches!(reqrep.shutdown().await, Ok(()));
+        assert_matches!(guard.shutdown().await, Ok(Ok(())));
     }
 
     #[tokio::test]
     async fn accept_incoming_closed() {
-        let (reqrep, _, _) = ReqRep::new_mock();
+        let (reqrep, mut guard, _, _) = ReqRep::spawn_mock();
         assert_matches!(reqrep.accept().await, None);
-        assert_matches!(reqrep.shutdown().await, Ok(()));
+        assert_matches!(guard.shutdown().await, Ok(Ok(())));
     }
 
     #[tokio::test]
     async fn accept_shutdown_before() {
-        let (reqrep, _mock_incoming, mut mock_outgoing) = ReqRep::new_mock();
+        let (reqrep, mut guard, _mock_incoming, mut mock_outgoing) = ReqRep::spawn_mock();
 
-        assert_matches!(reqrep.shutdown().await, Ok(()));
+        assert_matches!(guard.shutdown().await, Ok(Ok(())));
         assert_matches!(reqrep.accept().await, None);
 
         assert_eq!(mock_outgoing.next().await, None);
@@ -736,8 +698,7 @@ mod tests {
 
     #[tokio::test]
     async fn accept_shutdown_during() {
-        let (reqrep, _mock_incoming, mut mock_outgoing) = ReqRep::new_mock();
-        let reqrep = Arc::new(reqrep);
+        let (reqrep, mut guard, _mock_incoming, mut mock_outgoing) = ReqRep::spawn_mock();
 
         let task = {
             let reqrep = reqrep.clone();
@@ -746,7 +707,7 @@ mod tests {
         time::sleep(Duration::from_millis(10)).await;
         assert_eq!(task.is_finished(), false);
 
-        assert_matches!(reqrep.shutdown().await, Ok(()));
+        assert_matches!(guard.shutdown().await, Ok(Ok(())));
         assert_matches!(task.await, Ok(None));
 
         assert_eq!(mock_outgoing.next().await, None);
@@ -754,8 +715,7 @@ mod tests {
 
     #[tokio::test]
     async fn accept_without_response() {
-        let (reqrep, mut mock_incoming, mut mock_outgoing) = ReqRep::new_mock();
-        let reqrep = Arc::new(reqrep);
+        let (reqrep, mut guard, mut mock_incoming, mut mock_outgoing) = ReqRep::spawn_mock();
 
         let task = {
             let reqrep = reqrep.clone();
@@ -778,20 +738,24 @@ mod tests {
         assert_matches!(mock_incoming.send(Ok(msg("x", "bar"))).await, Ok(()));
         assert_matches!(task.await, Ok(Ok(m)) if m == msg("x", "bar"));
 
-        assert_matches!(reqrep.shutdown().await, Ok(()));
+        assert_matches!(guard.shutdown().await, Ok(Ok(())));
         assert_eq!(mock_outgoing.next().await, Some(msg("x", "foo")));
         assert_eq!(mock_outgoing.next().await, None);
     }
 
     #[tokio::test]
     async fn shutdown_error() {
-        let (reqrep, mut mock_incoming, _) = ReqRep::new_mock();
+        let (reqrep, mut guard, mut mock_incoming, _) = ReqRep::spawn_mock();
         assert_matches!(
             mock_incoming.send(Err(Error::other(OtherError))).await,
             Ok(()),
         );
         assert_matches!(reqrep.accept().await, None);
-        assert_err(reqrep.shutdown().await, ErrorKind::Other, OtherError);
+        assert_err(
+            guard.shutdown().await.unwrap(),
+            ErrorKind::Other,
+            OtherError,
+        );
     }
 
     #[tokio::test]

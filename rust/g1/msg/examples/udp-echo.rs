@@ -32,13 +32,13 @@ impl UdpEcho {
 
         eprintln!("self endpoint: {}", socket.socket().local_addr()?);
         let (stream, sink) = socket.into_split();
-        let reqrep = ReqRep::new(stream, sink);
+        let (reqrep, mut guard) = ReqRep::spawn(stream, sink);
 
         if self.listen {
             while let Some(((endpoint, payload), response_send)) = reqrep.accept().await {
                 eprintln!("peer-> {} {:?}", endpoint, EscapeAscii(payload.as_ref()));
                 if payload.as_ref() == b"exit\n" {
-                    reqrep.close();
+                    guard.cancel();
                 }
                 response_send.send((endpoint, payload)).await?;
             }
@@ -49,7 +49,7 @@ impl UdpEcho {
             eprintln!("peer-> {} {:?}", endpoint, EscapeAscii(response.as_ref()));
         }
 
-        reqrep.shutdown().await
+        guard.shutdown().await?
     }
 }
 
