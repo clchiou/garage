@@ -39,6 +39,34 @@ pub enum ShutdownError {
 
 pub(super) const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(1);
 
+/// Merge join results.
+///
+/// I am not sure about the details yet, but for now, the priority is as follows:
+/// E > TaskAborted > JoinTimeout > Ok
+///
+/// TODO: I need a better idea here, but for now, if both `JoinGuard::shutdown` return an error,
+/// one of them is silently dropped.
+#[allow(clippy::type_complexity)]
+pub(super) fn merge<E>(
+    join_results: (
+        Result<Result<(), E>, ShutdownError>,
+        Result<Result<(), E>, ShutdownError>,
+    ),
+) -> Result<Result<(), E>, ShutdownError> {
+    match join_results {
+        (result @ Ok(Err(_)), _) => result,
+        (_, result @ Ok(Err(_))) => result,
+
+        (result @ Err(ShutdownError::TaskAborted), _) => result,
+        (_, result @ Err(ShutdownError::TaskAborted)) => result,
+
+        (result @ Err(ShutdownError::JoinTimeout), _) => result,
+        (_, result @ Err(ShutdownError::JoinTimeout)) => result,
+
+        (Ok(Ok(())), Ok(Ok(()))) => Ok(Ok(())),
+    }
+}
+
 impl<T> JoinGuard<T> {
     pub fn spawn<F>(new_future: impl FnOnce(Cancel) -> F) -> Self
     where
@@ -227,6 +255,51 @@ impl From<ShutdownError> for io::Error {
     }
 }
 
+/// Joins `JoinGuard` together in a "join-any-shutdown-all" manner.
+///
+/// I am not sure about the details yet; for example, how do we merge errors?
+#[derive(Debug)]
+pub struct JoinAny<E>(JoinGuard<Result<(), E>>, JoinGuard<Result<(), E>>);
+
+impl<E> JoinAny<E> {
+    pub fn new(guard0: JoinGuard<Result<(), E>>, guard1: JoinGuard<Result<(), E>>) -> Self {
+        Self(guard0, guard1)
+    }
+
+    pub fn add_parent(&self, parent: Cancel) {
+        self.0.add_parent(parent.clone());
+        self.1.add_parent(parent);
+    }
+
+    pub fn add_timeout(&self, timeout: Duration) {
+        self.0.add_timeout(timeout);
+        self.1.add_timeout(timeout);
+    }
+
+    pub fn add_deadline(&self, deadline: Instant) {
+        self.0.add_deadline(deadline);
+        self.1.add_deadline(deadline);
+    }
+
+    pub fn cancel(&self) {
+        self.0.cancel();
+        self.1.cancel();
+    }
+
+    /// Returns when any `JoinGuard::join` returns.
+    pub async fn join(&mut self) {
+        tokio::select! {
+            _ = self.0.join() => {}
+            _ = self.1.join() => {}
+        }
+    }
+
+    /// Shuts down all `JoinGuard`.
+    pub async fn shutdown(&mut self) -> Result<Result<(), E>, ShutdownError> {
+        merge(tokio::join!(self.0.shutdown(), self.1.shutdown()))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::future;
@@ -382,5 +455,59 @@ mod tests {
         drop(guard);
         time::sleep(Duration::from_millis(10)).await;
         assert_eq!(*mock.must_lock(), ["guard"]);
+    }
+
+    #[test]
+    fn test_merge() {
+        fn test(
+            r0: Result<Result<(), &str>, ShutdownError>,
+            r1: Result<Result<(), &str>, ShutdownError>,
+            expect: Result<Result<(), &str>, ShutdownError>,
+        ) {
+            assert_eq!(merge((r0.clone(), r1.clone())), expect);
+            assert_eq!(merge((r1, r0)), expect);
+        }
+
+        assert_eq!(merge((Ok(Err("foo")), Ok(Err("bar")))), Ok(Err("foo")));
+        test(
+            Ok(Err("foo")),
+            Err(ShutdownError::TaskAborted),
+            Ok(Err("foo")),
+        );
+        test(
+            Ok(Err("foo")),
+            Err(ShutdownError::JoinTimeout),
+            Ok(Err("foo")),
+        );
+        test(Ok(Err("foo")), Ok(Ok(())), Ok(Err("foo")));
+
+        test(
+            Err(ShutdownError::TaskAborted),
+            Err(ShutdownError::TaskAborted),
+            Err(ShutdownError::TaskAborted),
+        );
+        test(
+            Err(ShutdownError::TaskAborted),
+            Err(ShutdownError::JoinTimeout),
+            Err(ShutdownError::TaskAborted),
+        );
+        test(
+            Err(ShutdownError::TaskAborted),
+            Ok(Ok(())),
+            Err(ShutdownError::TaskAborted),
+        );
+
+        test(
+            Err(ShutdownError::JoinTimeout),
+            Err(ShutdownError::JoinTimeout),
+            Err(ShutdownError::JoinTimeout),
+        );
+        test(
+            Err(ShutdownError::JoinTimeout),
+            Ok(Ok(())),
+            Err(ShutdownError::JoinTimeout),
+        );
+
+        test(Ok(Ok(())), Ok(Ok(())), Ok(Ok(())));
     }
 }

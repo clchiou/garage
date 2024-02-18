@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use tokio::{sync::Mutex, task::JoinHandle, time};
 
-pub use self::join_guard::{Cancel, JoinGuard, ShutdownError};
+pub use self::join_guard::{Cancel, JoinAny, JoinGuard, ShutdownError};
 pub use self::join_queue::JoinQueue;
 pub use self::joiner::Joiner;
 
