@@ -17,11 +17,11 @@ use crate::{
     token::{Token, TokenSource},
 };
 
-use super::Inner;
+use super::NodeState;
 
 #[derive(Debug)]
 pub(super) struct Handler {
-    inner: Arc<Inner>,
+    state: NodeState,
     token_src: Arc<TokenSource>,
     kbucket_full_send: mpsc::Sender<KBucketFull>,
     endpoint: Endpoint,
@@ -31,7 +31,7 @@ pub(super) struct Handler {
 
 impl Handler {
     pub(super) fn new(
-        inner: Arc<Inner>,
+        state: NodeState,
         token_src: Arc<TokenSource>,
         kbucket_full_send: mpsc::Sender<KBucketFull>,
         endpoint: Endpoint,
@@ -39,7 +39,7 @@ impl Handler {
         response_send: Sender,
     ) -> Self {
         Self {
-            inner,
+            state,
             token_src,
             kbucket_full_send,
             endpoint,
@@ -79,7 +79,7 @@ impl Handler {
         }
 
         {
-            let mut routing = self.inner.routing.must_lock();
+            let mut routing = self.state.routing.must_lock();
             let item = KBucketItem::new((query.id().try_into().unwrap(), self.endpoint.0).into());
             if let Err(full) = routing.insert(item) {
                 tracing::info!("kbucket full");
@@ -102,7 +102,7 @@ impl Handler {
 
     fn handle_find_node(&self, find_node: &query::FindNode) -> Result<Bytes, Error> {
         let nodes = self
-            .inner
+            .state
             .routing
             .must_lock()
             .get_closest(find_node.target_bits());
@@ -114,8 +114,8 @@ impl Handler {
         let token = self.generate_token();
         let (values, nodes) = {
             // You must maintain the locking order.
-            let routing = self.inner.routing.must_lock();
-            let peers = self.inner.peers.must_lock();
+            let routing = self.state.routing.must_lock();
+            let peers = self.state.peers.must_lock();
             match peers.get(get_peers.info_hash) {
                 Some(peers) => (
                     Some(response::GetPeers::encode_peers_v4(peers.iter().copied())),
@@ -152,7 +152,7 @@ impl Handler {
             peer.set_port(announce_peer.port);
         }
         tracing::info!(?info_hash, ?peer, "accept announce_peer");
-        self.inner
+        self.state
             .peers
             .must_lock()
             .entry(info_hash)
@@ -162,7 +162,7 @@ impl Handler {
     }
 
     fn id(&self) -> &[u8] {
-        self.inner.self_id.as_ref()
+        self.state.self_id.as_ref()
     }
 
     fn generate_token(&self) -> Token {

@@ -1,3 +1,8 @@
+//! Node Agent
+//!
+//! I refer to it as an agent because it does more than a server; it not only serves requests from
+//! peers but also actively sends requests to peers.
+
 mod handle;
 mod refresh;
 
@@ -13,7 +18,7 @@ use tokio::{sync::mpsc, task::JoinError, time};
 use tracing::Instrument;
 
 use g1_base::sync::MutexExt;
-use g1_tokio::task::JoinQueue;
+use g1_tokio::task::{Cancel, JoinGuard, JoinQueue};
 
 use bittorrent_base::InfoHash;
 
@@ -29,20 +34,9 @@ use self::{
     refresh::{KBucketRefresher, NodeRefresher},
 };
 
+// TODO: We are currently declaring stub fields as `pub(crate)` for the ease of implementation.
 #[derive(Debug)]
-pub(crate) struct Server {
-    inner: Arc<Inner>,
-    token_src: Arc<TokenSource>,
-    // For now, we are spawning handlers and refreshers onto the same queue.
-    tasks: JoinQueue<Result<(), Error>>,
-    kbucket_full_recv: mpsc::Receiver<KBucketFull>,
-    kbucket_full_send: mpsc::Sender<KBucketFull>,
-    kbucket_refresh_period: Duration,
-}
-
-// Declared as `pub(crate)` to be shared with `agent`.
-#[derive(Debug)]
-pub(crate) struct Inner {
+pub(crate) struct Agent {
     pub(crate) self_id: NodeId,
     // NOTE: There is no deadlock because `Handler::handle_query` always acquires `routing` before
     // `peers`.
@@ -53,12 +47,52 @@ pub(crate) struct Inner {
     pub(crate) reqrep: ReqRep,
 }
 
-impl Server {
-    pub(crate) fn new(self_id: NodeId, reqrep: ReqRep) -> Self {
+pub(crate) type AgentGuard = JoinGuard<Result<(), Error>>;
+
+// TODO: For now, the agent stub doubles as the node state.
+pub(crate) type NodeState = Arc<Agent>;
+
+#[derive(Debug)]
+struct Actor {
+    cancel: Cancel,
+    state: NodeState,
+    token_src: Arc<TokenSource>,
+    // For now, we are spawning handlers and refreshers onto the same queue.
+    tasks: JoinQueue<Result<(), Error>>,
+    kbucket_full_recv: mpsc::Receiver<KBucketFull>,
+    kbucket_full_send: mpsc::Sender<KBucketFull>,
+    kbucket_refresh_period: Duration,
+}
+
+impl Agent {
+    pub(crate) fn spawn(self_id: NodeId, reqrep: ReqRep) -> (Arc<Self>, AgentGuard) {
+        let this = Arc::new(Self::new(self_id, reqrep));
+        let state = this.clone();
+        let guard = JoinGuard::spawn(move |cancel| Actor::new(cancel, state).run());
+        (this, guard)
+    }
+
+    fn new(self_id: NodeId, reqrep: ReqRep) -> Self {
+        Self {
+            self_id: self_id.clone(),
+            routing: Mutex::new(RoutingTable::new(self_id)),
+            peers: Mutex::new(HashMap::new()),
+            reqrep,
+        }
+    }
+
+    pub(crate) fn connect(&self, peer_endpoint: SocketAddr) -> Client {
+        Client::new(self.reqrep.clone(), self.self_id.clone(), peer_endpoint)
+    }
+}
+
+impl Actor {
+    fn new(cancel: Cancel, state: NodeState) -> Self {
         let (kbucket_full_send, kbucket_full_recv) =
             mpsc::channel(*crate::kbucket_full_queue_size());
         Self {
-            inner: Arc::new(Inner::new(self_id, reqrep)),
+            cancel,
+            state,
             token_src: Arc::new(TokenSource::new()),
             tasks: JoinQueue::new(),
             kbucket_full_recv,
@@ -67,19 +101,16 @@ impl Server {
         }
     }
 
-    pub(crate) fn inner(&self) -> Arc<Inner> {
-        self.inner.clone()
-    }
-
-    pub(crate) async fn run(mut self) -> Result<(), Error> {
+    // It returns `Result<(), Error>` to maintain compatibility with `JoinAny`.
+    async fn run(mut self) -> Result<(), Error> {
         let mut kbucket_refresh_interval = time::interval(self.kbucket_refresh_period);
         loop {
             tokio::select! {
-                request = self.inner.reqrep.accept() => {
-                    match request {
-                        Some(request) => self.spawn_handler(request),
-                        None => break,
-                    }
+                _ = self.cancel.wait() => break,
+
+                request = self.state.reqrep.accept() => {
+                    let Some(request) = request else { break };
+                    self.spawn_handler(request);
                 }
                 join_result = self.tasks.join_next() => {
                     // We can call `unwrap` because `tasks` is not closed in the main loop.
@@ -94,23 +125,15 @@ impl Server {
                 }
             }
         }
-
-        self.tasks.close();
-        let _ = time::timeout(*crate::grace_period() / 2, async {
-            while let Some(join_result) = self.tasks.join_next().await {
-                join_task(join_result);
-            }
-        })
-        .await;
+        // TODO: Implement cooperative cancellation for handler tasks.
         self.tasks.abort_all_then_join().await;
-
         Ok(())
     }
 
     fn spawn_handler(&self, ((endpoint, request), response_send): (Incoming, Sender)) {
         let socket_addr = endpoint.0;
         let handler = Handler::new(
-            self.inner.clone(),
+            self.state.clone(),
             self.token_src.clone(),
             self.kbucket_full_send.clone(),
             endpoint,
@@ -126,7 +149,7 @@ impl Server {
 
     fn spawn_node_refresher(&self, (incumbents, candidate): KBucketFull) {
         let contact_info = candidate.contact_info.clone();
-        let refresher = NodeRefresher::new(self.inner.clone(), incumbents, candidate);
+        let refresher = NodeRefresher::new(self.state.clone(), incumbents, candidate);
         let refresher_run = refresher
             .run()
             .instrument(tracing::info_span!("dht/refresh", candidate = ?contact_info));
@@ -137,7 +160,7 @@ impl Server {
     fn spawn_kbucket_refresher(&self, now: Instant) {
         let mut ids = Vec::new();
         let should_refresh = now - self.kbucket_refresh_period;
-        for (kbucket, prefix) in self.inner.routing.must_lock().iter() {
+        for (kbucket, prefix) in self.state.routing.must_lock().iter() {
             if let Some(recently_seen) = kbucket.recently_seen() {
                 if recently_seen <= should_refresh {
                     ids.push(random_id(prefix));
@@ -147,14 +170,8 @@ impl Server {
         // We can call `unwrap` because `tasks` is not closed in the main loop.
         let _ = self
             .tasks
-            .spawn(KBucketRefresher::new(self.inner.clone(), ids).run())
+            .spawn(KBucketRefresher::new(self.state.clone(), ids).run())
             .unwrap();
-    }
-}
-
-impl Drop for Server {
-    fn drop(&mut self) {
-        self.tasks.abort_all();
     }
 }
 
@@ -162,7 +179,7 @@ fn join_task(join_result: Result<Result<(), Error>, JoinError>) {
     match join_result {
         Ok(result) => {
             if let Err(error) = result {
-                tracing::warn!(?error, "dht task error");
+                tracing::warn!(?error, "node agent task error");
             }
         }
         Err(join_error) => {
@@ -170,7 +187,7 @@ fn join_task(join_result: Result<Result<(), Error>, JoinError>) {
                 panic::resume_unwind(join_error.into_panic());
             }
             assert!(join_error.is_cancelled());
-            tracing::warn!("dht task is cancelled");
+            tracing::warn!("node agent task is cancelled");
         }
     }
 }
@@ -179,22 +196,6 @@ fn random_id(prefix: KBucketPrefix) -> NodeId {
     let mut id: [u8; NODE_ID_SIZE] = rand::random();
     id.view_bits_mut()[0..prefix.len()].copy_from_bitslice(&prefix);
     NodeId::new(id)
-}
-
-impl Inner {
-    fn new(self_id: NodeId, reqrep: ReqRep) -> Self {
-        let routing = Mutex::new(RoutingTable::new(self_id.clone()));
-        Self {
-            self_id,
-            routing,
-            peers: Mutex::new(HashMap::new()),
-            reqrep,
-        }
-    }
-
-    pub(crate) fn connect(&self, peer_endpoint: SocketAddr) -> Client {
-        Client::new(&self.reqrep, self.self_id.clone(), peer_endpoint)
-    }
 }
 
 #[cfg(test)]

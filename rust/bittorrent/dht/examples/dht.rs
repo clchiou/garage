@@ -12,10 +12,10 @@ use g1_cli::{param::ParametersConfig, tracing::TracingConfig};
 use g1_tokio::net::udp::UdpSocket;
 
 use bittorrent_base::InfoHash;
-use bittorrent_dht::{Agent, NodeId};
+use bittorrent_dht::{Dht, NodeId};
 
 #[derive(Debug, Parser)]
-struct Dht {
+struct Program {
     #[command(flatten)]
     tracing: TracingConfig,
     #[command(flatten)]
@@ -38,31 +38,31 @@ enum Command {
     Serve,
 }
 
-impl Dht {
+impl Program {
     async fn execute(&self) -> Result<(), Error> {
         let socket = UdpSocket::new(net::UdpSocket::bind(self.self_endpoint).await?);
         let self_endpoint = socket.socket().local_addr()?;
         let (stream, sink) = socket.into_split();
-        let agent = Agent::new_default(self_endpoint, stream, sink);
+        let (dht, mut dht_guard) = Dht::spawn(self_endpoint, stream, sink);
         match &self.command {
-            Command::Ping(this) => this.execute(&agent).await?,
-            Command::FindNode(this) => this.execute(&agent).await?,
-            Command::GetPeers(this) => this.execute(&agent).await?,
-            Command::AnnouncePeer(this) => this.execute(&agent).await?,
-            Command::LookupNodes(this) => this.execute(&agent).await?,
-            Command::LookupPeers(this) => this.execute(&agent).await?,
+            Command::Ping(this) => this.execute(dht).await?,
+            Command::FindNode(this) => this.execute(dht).await?,
+            Command::GetPeers(this) => this.execute(dht).await?,
+            Command::AnnouncePeer(this) => this.execute(dht).await?,
+            Command::LookupNodes(this) => this.execute(dht).await?,
+            Command::LookupPeers(this) => this.execute(dht).await?,
             Command::Serve => future::pending().await,
         }
-        agent.shutdown().await
+        dht_guard.shutdown().await?
     }
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    let dht = Dht::parse();
-    dht.tracing.init();
-    dht.parameters.init();
-    dht.execute().await
+    let program = Program::parse();
+    program.tracing.init();
+    program.parameters.init();
+    program.execute().await
 }
 
 #[derive(Args, Debug)]
@@ -72,8 +72,8 @@ struct Ping {
 }
 
 impl Ping {
-    async fn execute(&self, agent: &Agent) -> Result<(), Error> {
-        agent.ping(self.peer_endpoint).await
+    async fn execute(&self, dht: Dht) -> Result<(), Error> {
+        dht.ping(self.peer_endpoint).await
     }
 }
 
@@ -87,8 +87,8 @@ struct FindNode {
 }
 
 impl FindNode {
-    async fn execute(&self, agent: &Agent) -> Result<(), Error> {
-        let nodes = agent
+    async fn execute(&self, dht: Dht) -> Result<(), Error> {
+        let nodes = dht
             .find_node(self.peer_endpoint, self.target.as_ref())
             .await?;
         println!("{:#?}", nodes);
@@ -106,9 +106,9 @@ struct GetPeers {
 }
 
 impl GetPeers {
-    async fn execute(&self, agent: &Agent) -> Result<(), Error> {
+    async fn execute(&self, dht: Dht) -> Result<(), Error> {
         use g1_base::fmt::Hex;
-        let (token, peers, nodes) = agent
+        let (token, peers, nodes) = dht
             .get_peers(self.peer_endpoint, self.info_hash.as_ref())
             .await?;
         println!(
@@ -138,16 +138,15 @@ struct AnnouncePeer {
 }
 
 impl AnnouncePeer {
-    async fn execute(&self, agent: &Agent) -> Result<(), Error> {
-        agent
-            .announce_peer(
-                self.peer_endpoint,
-                self.info_hash.as_ref(),
-                self.port,
-                self.implied_port,
-                &self.token,
-            )
-            .await
+    async fn execute(&self, dht: Dht) -> Result<(), Error> {
+        dht.announce_peer(
+            self.peer_endpoint,
+            self.info_hash.as_ref(),
+            self.port,
+            self.implied_port,
+            &self.token,
+        )
+        .await
     }
 }
 
@@ -158,8 +157,8 @@ struct LookupNodes {
 }
 
 impl LookupNodes {
-    async fn execute(&self, agent: &Agent) -> Result<(), Error> {
-        println!("{:#?}", agent.lookup_nodes(self.id.clone()).await);
+    async fn execute(&self, dht: Dht) -> Result<(), Error> {
+        println!("{:#?}", dht.lookup_nodes(self.id.clone()).await);
         Ok(())
     }
 }
@@ -171,9 +170,9 @@ struct LookupPeers {
 }
 
 impl LookupPeers {
-    async fn execute(&self, agent: &Agent) -> Result<(), Error> {
+    async fn execute(&self, dht: Dht) -> Result<(), Error> {
         use g1_base::fmt::Hex;
-        let (peers, closest) = agent.lookup_peers(self.info_hash.clone()).await;
+        let (peers, closest) = dht.lookup_peers(self.info_hash.clone()).await;
         println!(
             "{:#?}",
             (

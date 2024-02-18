@@ -8,12 +8,12 @@
 #![cfg_attr(test, feature(is_sorted))]
 
 mod agent;
+mod dht;
 mod kbucket;
 mod lookup;
 mod message;
 mod reqrep;
 mod routing;
-mod server;
 mod token;
 
 use std::array::TryFromSliceError;
@@ -28,7 +28,7 @@ use g1_base::fmt::{DebugExt, Hex};
 
 use bittorrent_base::{INFO_HASH_SIZE, NODE_ID_SIZE};
 
-pub use agent::Agent;
+pub use self::dht::{Dht, DhtGuard};
 
 // Our code is written under this assumption.
 #[allow(clippy::assertions_on_constants)]
@@ -50,7 +50,6 @@ g1_param::define!(token_secret: u64 = rand::random());
 
 g1_param::define!(kbucket_full_queue_size: usize = 64);
 g1_param::define!(refresh_period: Duration = Duration::from_secs(15 * 60));
-g1_param::define!(grace_period: Duration = Duration::from_secs(2));
 
 #[derive(Clone, DebugExt, Deserialize, Eq, Hash, PartialEq)]
 pub struct NodeId(

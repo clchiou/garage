@@ -6,7 +6,6 @@ use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::io::Error;
 use std::mem;
 use std::net::SocketAddr;
-use std::sync::Arc;
 
 use async_trait::async_trait;
 use bitvec::prelude::*;
@@ -17,14 +16,14 @@ use g1_tokio::{net, task::Joiner};
 use bittorrent_base::InfoHash;
 
 use crate::{
+    agent::NodeState,
     reqrep::{Client, GetPeers, Nodes, Token},
-    server::Inner,
     Distance, NodeContactInfo, NodeId, NodeIdBitSlice,
 };
 
 #[derive(Debug)]
 pub(crate) struct Lookup {
-    inner: Arc<Inner>,
+    state: NodeState,
     limit: usize,
     concurrency: usize,
 }
@@ -38,13 +37,13 @@ pub(crate) type LookupPeers = (
 type Peers = BTreeSet<SocketAddr>;
 
 impl Lookup {
-    pub(crate) fn new(inner: Arc<Inner>) -> Self {
-        Self::with_limit(inner, *crate::k(), *crate::alpha())
+    pub(crate) fn new(state: NodeState) -> Self {
+        Self::with_limit(state, *crate::k(), *crate::alpha())
     }
 
-    fn with_limit(inner: Arc<Inner>, limit: usize, concurrency: usize) -> Self {
+    fn with_limit(state: NodeState, limit: usize, concurrency: usize) -> Self {
         Self {
-            inner,
+            state,
             limit,
             concurrency,
         }
@@ -67,7 +66,7 @@ impl Lookup {
         // because the XOR metric is unidirectional, which means that `p == q` if and only if
         // `d(id, p) == d(id, q)`.
         let mut candidates = BTreeMap::from_iter(into_entries(
-            self.inner
+            self.state
                 .routing
                 .must_lock()
                 .get_closest_with_limit(id.bits(), self.limit),
@@ -92,10 +91,10 @@ impl Lookup {
             let queries: Vec<_> = closest_candidates
                 .into_iter()
                 .map(|candidate| {
-                    let inner = self.inner.clone();
+                    let state = self.state.clone();
                     let id = id.clone();
                     async move {
-                        let client = inner.connect(candidate.endpoint);
+                        let client = state.connect(candidate.endpoint);
                         (candidate, L::request(client, id.as_ref()).await)
                     }
                 })
@@ -116,7 +115,7 @@ impl Lookup {
                     }
                     Err(error) => {
                         tracing::warn!(?candidate, ?error, "{} error", L::KRPC_METHOD_NAME);
-                        let _ = self.inner.routing.must_lock().remove(&candidate);
+                        let _ = self.state.routing.must_lock().remove(&candidate);
                     }
                 }
             }
@@ -140,12 +139,12 @@ impl Lookup {
             .iter()
             .cloned()
             .map(|bootstrap| {
-                let inner = self.inner.clone();
+                let state = self.state.clone();
                 let id = id.clone();
                 async move {
                     let nodes: Result<Nodes, Error> = try {
                         let endpoint = net::lookup_host_first(&bootstrap).await?;
-                        inner.connect(endpoint).find_node(id.as_ref()).await?
+                        state.connect(endpoint).find_node(id.as_ref()).await?
                     };
                     match nodes {
                         Ok(nodes) => nodes,
@@ -207,7 +206,7 @@ trait Lookuper {
 
     const KRPC_METHOD_NAME: &'static str;
 
-    async fn request(client: Client<'_>, id: &[u8]) -> Result<Self::Response, Error>;
+    async fn request(client: Client, id: &[u8]) -> Result<Self::Response, Error>;
 
     fn process_response(
         &mut self,
@@ -235,7 +234,7 @@ impl Lookuper for NodeLookuper {
 
     const KRPC_METHOD_NAME: &'static str = "find_node";
 
-    async fn request(client: Client<'_>, id: &[u8]) -> Result<Self::Response, Error> {
+    async fn request(client: Client, id: &[u8]) -> Result<Self::Response, Error> {
         client.find_node(id).await
     }
 
@@ -276,7 +275,7 @@ impl Lookuper for PeerLookuper {
 
     const KRPC_METHOD_NAME: &'static str = "get_peers";
 
-    async fn request(client: Client<'_>, id: &[u8]) -> Result<Self::Response, Error> {
+    async fn request(client: Client, id: &[u8]) -> Result<Self::Response, Error> {
         client.get_peers(id).await
     }
 

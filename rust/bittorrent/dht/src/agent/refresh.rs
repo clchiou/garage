@@ -1,5 +1,4 @@
 use std::io::Error;
-use std::sync::Arc;
 
 use tracing::Instrument;
 
@@ -8,11 +7,11 @@ use g1_tokio::task::Joiner;
 
 use crate::{kbucket::KBucketItem, lookup::Lookup, NodeContactInfo, NodeId};
 
-use super::Inner;
+use super::NodeState;
 
 #[derive(Debug)]
 pub(super) struct NodeRefresher {
-    inner: Arc<Inner>,
+    state: NodeState,
     incumbents: Vec<NodeContactInfo>,
     candidate: KBucketItem,
     concurrency: usize,
@@ -20,21 +19,21 @@ pub(super) struct NodeRefresher {
 
 impl NodeRefresher {
     pub(super) fn new(
-        inner: Arc<Inner>,
+        state: NodeState,
         incumbents: Vec<NodeContactInfo>,
         candidate: KBucketItem,
     ) -> Self {
-        Self::with_concurrency(inner, incumbents, candidate, *crate::alpha())
+        Self::with_concurrency(state, incumbents, candidate, *crate::alpha())
     }
 
     fn with_concurrency(
-        inner: Arc<Inner>,
+        state: NodeState,
         incumbents: Vec<NodeContactInfo>,
         candidate: KBucketItem,
         concurrency: usize,
     ) -> Self {
         Self {
-            inner,
+            state,
             incumbents,
             candidate,
             concurrency,
@@ -46,7 +45,7 @@ impl NodeRefresher {
     // from BEP 5: Every node in the bucket is pinged, and it is only pinged once.
     pub(super) async fn run(self) -> Result<(), Error> {
         let Self {
-            inner,
+            state,
             incumbents,
             candidate,
             concurrency,
@@ -54,9 +53,9 @@ impl NodeRefresher {
 
         let mut tasks = Joiner::new(
             incumbents.into_iter().map(|incumbent| {
-                let inner = inner.clone();
+                let state = state.clone();
                 async move {
-                    let client = inner.connect(incumbent.endpoint);
+                    let client = state.connect(incumbent.endpoint);
                     (incumbent, client.ping().await)
                 }
             }),
@@ -73,14 +72,14 @@ impl NodeRefresher {
                     ?error,
                     "ping node error; remove from routing table",
                 );
-                if inner.routing.must_lock().remove(&incumbent).is_some() {
+                if state.routing.must_lock().remove(&incumbent).is_some() {
                     have_removed_nodes = true;
                 }
             }
         }
 
         if have_removed_nodes {
-            if let Err((_, candidate)) = inner.routing.must_lock().insert(candidate) {
+            if let Err((_, candidate)) = state.routing.must_lock().insert(candidate) {
                 tracing::warn!(
                     candidate = ?candidate.contact_info,
                     "discard candidate because kbucket is still full after removing nodes",
@@ -94,18 +93,18 @@ impl NodeRefresher {
 
 #[derive(Debug)]
 pub(super) struct KBucketRefresher {
-    inner: Arc<Inner>,
+    state: NodeState,
     ids: Vec<NodeId>,
 }
 
 impl KBucketRefresher {
-    pub(super) fn new(inner: Arc<Inner>, ids: Vec<NodeId>) -> Self {
-        Self { inner, ids }
+    pub(super) fn new(state: NodeState, ids: Vec<NodeId>) -> Self {
+        Self { state, ids }
     }
 
     pub(super) async fn run(self) -> Result<(), Error> {
-        let Self { inner, ids } = self;
-        let lookup = Lookup::new(inner.clone());
+        let Self { state, ids } = self;
+        let lookup = Lookup::new(state.clone());
         // Refresh buckets serially.
         for id in ids {
             let nodes = lookup
@@ -113,7 +112,7 @@ impl KBucketRefresher {
                 .instrument(tracing::info_span!("dht/refresh", ?id))
                 .await;
             {
-                let mut routing = inner.routing.must_lock();
+                let mut routing = state.routing.must_lock();
                 for node in nodes {
                     routing.must_insert(KBucketItem::new(node));
                 }

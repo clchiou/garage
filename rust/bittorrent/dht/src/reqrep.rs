@@ -20,6 +20,8 @@ use crate::{
     NodeContactInfo, NodeId,
 };
 
+pub(crate) use g1_msg::reqrep::ReqRepGuard;
+
 pub(crate) type ReqRep = reqrep::ReqRep<Incoming, Outgoing, Endpoint>;
 pub(crate) type Sender = reqrep::Sender<Outgoing, Endpoint>;
 pub(crate) type Incoming = (Endpoint, MessageOwner<Bytes>);
@@ -31,12 +33,12 @@ pub(crate) struct Endpoint(
     #[debug(with = Hex)] pub(crate) Arc<[u8]>,
 );
 
-pub(crate) fn new<I, O>(incoming: I, outgoing: O) -> ReqRep
+pub(crate) fn spawn<I, O>(incoming: I, outgoing: O) -> (ReqRep, ReqRepGuard)
 where
     I: Stream<Item = Result<(SocketAddr, Bytes), Error>> + Send + Unpin + 'static,
     O: Sink<(SocketAddr, Bytes), Error = Error> + Send + Unpin + 'static,
 {
-    ReqRep::new(
+    ReqRep::spawn(
         incoming.map(|raw_message| {
             raw_message.and_then(|(raw_endpoint, raw_payload)| {
                 let payload = MessageOwner::try_from(raw_payload).map_err(Error::other)?;
@@ -50,8 +52,8 @@ where
 }
 
 #[derive(Debug)]
-pub(crate) struct Client<'a> {
-    reqrep: &'a ReqRep,
+pub(crate) struct Client {
+    reqrep: ReqRep,
     self_id: NodeId,
     peer_endpoint: SocketAddr,
 }
@@ -62,8 +64,8 @@ pub(crate) type GetPeers = (Option<Token>, Option<Peers>, Option<Nodes>);
 pub(crate) type Token = Bytes;
 pub(crate) type Peers = Vec<SocketAddr>;
 
-impl<'a> Client<'a> {
-    pub(crate) fn new(reqrep: &'a ReqRep, self_id: NodeId, peer_endpoint: SocketAddr) -> Self {
+impl Client {
+    pub(crate) fn new(reqrep: ReqRep, self_id: NodeId, peer_endpoint: SocketAddr) -> Self {
         Self {
             reqrep,
             self_id,
