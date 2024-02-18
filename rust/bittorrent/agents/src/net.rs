@@ -12,7 +12,7 @@ use g1_futures::sink;
 use g1_tokio::net::udp::{self, OwnedUdpSink, OwnedUdpStream};
 
 use bittorrent_base::{Features, InfoHash};
-use bittorrent_dht::Agent as DhtAgent;
+use bittorrent_dht::{Dht, DhtGuard};
 use bittorrent_manager::Manager;
 use bittorrent_peer::Recvs;
 use bittorrent_utp::UtpSocket;
@@ -40,7 +40,8 @@ struct NetInit {
     self_endpoint: SocketAddr,
     self_features: Features,
 
-    dht: Option<Arc<DhtAgent>>,
+    dht: Option<Dht>,
+    dht_guard: Option<DhtGuard>,
     dht_stream: Option<Fork>,
     dht_sink: Option<Fanin>,
 
@@ -133,12 +134,20 @@ impl Init {
     // DHT
     //
 
-    pub(crate) async fn init_dht_ipv4(&mut self) -> Result<Option<Arc<DhtAgent>>, Error> {
+    pub(crate) async fn init_dht_ipv4(&mut self) -> Result<Option<Dht>, Error> {
         Ok(call!(self.net_ipv4, init_dht).flatten())
     }
 
-    pub(crate) async fn init_dht_ipv6(&mut self) -> Result<Option<Arc<DhtAgent>>, Error> {
+    pub(crate) async fn init_dht_ipv6(&mut self) -> Result<Option<Dht>, Error> {
         Ok(call!(self.net_ipv6, init_dht).flatten())
+    }
+
+    pub(crate) async fn init_once_dht_guard_ipv4(&mut self) -> Result<Option<DhtGuard>, Error> {
+        Ok(call!(self.net_ipv4, init_once_dht_guard).flatten())
+    }
+
+    pub(crate) async fn init_once_dht_guard_ipv6(&mut self) -> Result<Option<DhtGuard>, Error> {
+        Ok(call!(self.net_ipv6, init_once_dht_guard).flatten())
     }
 
     //
@@ -161,6 +170,7 @@ impl NetInit {
             self_features,
 
             dht: None,
+            dht_guard: None,
             dht_stream: None,
             dht_sink: None,
 
@@ -194,19 +204,32 @@ impl NetInit {
     // DHT
     //
 
-    async fn init_dht(&mut self) -> Result<Option<Arc<DhtAgent>>, Error> {
-        if !self.self_features.dht {
-            return Ok(None);
-        }
-        if self.dht.is_none() {
-            tracing::info!(self_endpoint = ?self.self_endpoint, "init dht agent");
-            self.dht = Some(Arc::new(DhtAgent::new_default(
+    async fn init_dht(&mut self) -> Result<Option<Dht>, Error> {
+        self.init_dht_and_guard().await?;
+        Ok(self.dht.clone())
+    }
+
+    async fn init_once_dht_guard(&mut self) -> Result<Option<DhtGuard>, Error> {
+        self.init_dht_and_guard().await?;
+        Ok(if self.dht.is_some() {
+            Some(self.dht_guard.take().unwrap())
+        } else {
+            None
+        })
+    }
+
+    async fn init_dht_and_guard(&mut self) -> Result<(), Error> {
+        if self.self_features.dht && self.dht.is_none() {
+            tracing::info!(self_endpoint = ?self.self_endpoint, "init dht");
+            let (dht, dht_guard) = Dht::spawn(
                 self.self_endpoint,
                 self.init_once_dht_stream().await?,
                 self.init_once_dht_sink().await?,
-            )));
+            );
+            self.dht = Some(dht);
+            self.dht_guard = Some(dht_guard);
         }
-        Ok(self.dht.clone())
+        Ok(())
     }
 
     async fn init_once_dht_stream(&mut self) -> Result<Fork, Error> {

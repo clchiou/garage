@@ -18,7 +18,7 @@ use g1_futures::sink;
 use g1_tokio::net::udp::{self as g1_udp, OwnedUdpSink, OwnedUdpStream};
 
 use bittorrent_base::{Features, InfoHash};
-use bittorrent_dht::Agent;
+use bittorrent_dht::Dht;
 use bittorrent_extension::Enabled;
 use bittorrent_manager::Manager;
 use bittorrent_peer::Recvs;
@@ -140,10 +140,12 @@ impl Program {
         dht_stream: Fork,
         dht_sink: Fanin,
     ) -> Result<BTreeSet<SocketAddr>, Error> {
-        let agent = Agent::new_default(udp_socket.local_addr()?, dht_stream, dht_sink);
-        let (peers, _) = agent.lookup_peers(self.info_hash.clone()).await;
-        if let Err(error) = agent.shutdown().await {
-            tracing::warn!(?error, "dht agent shutdown error");
+        let (dht, mut guard) = Dht::spawn(udp_socket.local_addr()?, dht_stream, dht_sink);
+        let (peers, _) = dht.lookup_peers(self.info_hash.clone()).await;
+        match guard.shutdown().await {
+            Ok(Ok(())) => {}
+            Ok(Err(error)) => tracing::warn!(?error, "dht error"),
+            Err(error) => tracing::warn!(?error, "dht shutdown error"),
         }
         Ok(peers)
     }

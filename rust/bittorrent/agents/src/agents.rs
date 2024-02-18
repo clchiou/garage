@@ -11,7 +11,7 @@ use tokio::{
 use g1_tokio::net::{self, udp::OwnedUdpStream};
 
 use bittorrent_base::{Dimension, InfoHash};
-use bittorrent_dht::Agent as DhtAgent;
+use bittorrent_dht::{Dht, DhtGuard};
 use bittorrent_manager::Manager;
 use bittorrent_metainfo::{Info, InfoOwner, MetainfoOwner};
 use bittorrent_peer::Recvs;
@@ -26,9 +26,12 @@ use crate::{net::Init, storage::StorageOpen, task::TaskQueue};
 pub struct Agents {
     pub txrx: TxrxAgent,
     pub manager: Arc<Manager>,
-    pub dht_ipv4: Option<Arc<DhtAgent>>,
-    pub dht_ipv6: Option<Arc<DhtAgent>>,
+    pub dht_ipv4: Option<Dht>,
+    pub dht_ipv6: Option<Dht>,
     pub tracker: Option<Arc<TrackerAgent>>,
+
+    dht_guard_ipv4: Option<DhtGuard>,
+    dht_guard_ipv6: Option<DhtGuard>,
     tasks: TaskQueue,
 }
 
@@ -142,31 +145,47 @@ impl Agents {
             dht_ipv4,
             dht_ipv6,
             tracker,
+
+            dht_guard_ipv4: net_init.init_once_dht_guard_ipv4().await?,
+            dht_guard_ipv6: net_init.init_once_dht_guard_ipv6().await?,
             tasks,
         })
     }
 
-    pub async fn join_any(&self) {
+    pub async fn join_any(&mut self) {
+        macro_rules! join {
+            ($guard:ident $(,)?) => {
+                OptionFuture::from(self.$guard.as_mut().map(|guard| guard.join()))
+            };
+        }
         tokio::select! {
             _ = self.txrx.join() => {}
+            Some(()) = join!(dht_guard_ipv4) => {}
+            Some(()) = join!(dht_guard_ipv6) => {}
             _ = self.tasks.join_any() => {}
         }
     }
 
-    pub async fn shutdown_all(&self) -> Result<(), Error> {
+    pub async fn shutdown_all(&mut self) -> Result<(), Error> {
         macro_rules! shutdown {
-            ($agent:ident $(,)?) => {
-                OptionFuture::from(self.$agent.as_ref().map(|agent| agent.shutdown()))
-                    .await
-                    .transpose()
+            ($guard:ident $(,)?) => {
+                match OptionFuture::from(self.$guard.as_mut().map(|guard| guard.shutdown())).await {
+                    Some(join_result) => join_result?,
+                    None => Ok(()),
+                }
             };
         }
         tokio::try_join!(
             self.txrx.shutdown(),
             self.manager.shutdown(),
-            async { shutdown!(dht_ipv4) },
-            async { shutdown!(dht_ipv6) },
-            async { shutdown!(tracker).map_err(Error::other) },
+            async { shutdown!(dht_guard_ipv4) },
+            async { shutdown!(dht_guard_ipv6) },
+            async {
+                match self.tracker.as_ref() {
+                    Some(tracker) => tracker.shutdown().await.map_err(Error::other),
+                    None => Ok(()),
+                }
+            },
             async {
                 self.tasks.abort_all_then_join().await;
                 Ok(())
@@ -226,7 +245,7 @@ async fn make_warm_calls(mut update_recv: Receiver<Update>, manager: Arc<Manager
 }
 
 // NOTE: This never exits.  You have to abort it.
-async fn recruit_from_dht(dht: Arc<DhtAgent>, info_hash: InfoHash, manager: Arc<Manager>) {
+async fn recruit_from_dht(dht: Dht, info_hash: InfoHash, manager: Arc<Manager>) {
     let mut interval = time::interval(*crate::dht_lookup_peers_period());
     loop {
         interval.tick().await;

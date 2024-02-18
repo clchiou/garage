@@ -1,8 +1,6 @@
 //! DHT Handlers
 
-use std::sync::Arc;
-
-use bittorrent_dht::Agent;
+use bittorrent_dht::Dht;
 use bittorrent_manager::Endpoint;
 
 use super::Actor;
@@ -20,7 +18,7 @@ impl Actor {
         });
     }
 
-    pub(super) fn dht(&self, peer_endpoint: Endpoint) -> Option<Arc<Agent>> {
+    pub(super) fn dht(&self, peer_endpoint: Endpoint) -> Option<Dht> {
         if peer_endpoint.is_ipv4() {
             self.dht_ipv4.clone()
         } else {

@@ -42,7 +42,7 @@ use tokio::sync::{
 };
 
 use bittorrent_base::{BlockDesc, Dimension, Features, PieceIndex};
-use bittorrent_dht::Agent;
+use bittorrent_dht::Dht;
 use bittorrent_manager::{Endpoint, Manager, Update as PeerUpdate};
 use bittorrent_peer::Recvs;
 use bittorrent_storage::{Bitfield, Storage};
@@ -100,8 +100,8 @@ pub(crate) struct Actor {
     #[debug(with = InsertPlaceholder)]
     storage: DynStorage,
 
-    dht_ipv4: Option<Arc<Agent>>,
-    dht_ipv6: Option<Arc<Agent>>,
+    dht_ipv4: Option<Dht>,
+    dht_ipv6: Option<Dht>,
 
     pub(crate) torrent: Arc<TorrentInner>,
     update_send: Sender<Update>,
@@ -116,8 +116,8 @@ impl Actor {
         manager: Arc<Manager>,
         recvs: Recvs,
         mut storage: DynStorage,
-        dht_ipv4: Option<Arc<Agent>>,
-        dht_ipv6: Option<Arc<Agent>>,
+        dht_ipv4: Option<Dht>,
+        dht_ipv6: Option<Dht>,
         update_send: Sender<Update>,
     ) -> Result<Self, Error> {
         let self_pieces = storage.scan().await?;

@@ -13,7 +13,7 @@ use tokio::{
 use g1_tokio::task::{self, JoinTaskError};
 
 use bittorrent_base::Dimension;
-use bittorrent_dht::Agent as DhtAgent;
+use bittorrent_dht::Dht;
 use bittorrent_manager::Manager;
 use bittorrent_peer::Recvs;
 
@@ -45,8 +45,8 @@ impl Init {
         manager: Arc<Manager>,
         recvs: Recvs,
         storage: DynStorage,
-        dht_ipv4: Option<Arc<DhtAgent>>,
-        dht_ipv6: Option<Arc<DhtAgent>>,
+        dht_ipv4: Option<Dht>,
+        dht_ipv6: Option<Dht>,
     ) -> Result<Self, Error> {
         let exit = Arc::new(Notify::new());
         let (update_send, update_recv) = broadcast::channel(*crate::update_queue_size());

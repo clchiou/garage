@@ -50,7 +50,7 @@ struct Output {
 impl Program {
     async fn execute(self) -> Result<(), Error> {
         let (mode, info_hash) = self.torrent_source.into_mode()?;
-        let agents = Agents::make(mode, info_hash, self.output.into_open()).await?;
+        let mut agents = Agents::make(mode, info_hash, self.output.into_open()).await?;
         agents.join_any().await;
         agents.shutdown_all().await
     }
