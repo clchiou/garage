@@ -1,16 +1,28 @@
-use std::future::Future;
-use std::panic;
+use std::time::Duration;
 
-#[cfg(tokio_unstable)]
-use tokio::task::Id;
-use tokio::task::{AbortHandle, JoinError, JoinHandle};
+use tokio::time::{self, Instant};
 
 use g1_base::future::ReadyQueue;
 
-// `JoinQueue::clone` is shallow, not deep.  This is the opposite of ordinary collection types.
-// We keep it shallow to facilitate sharing among threads.
-#[derive(Clone, Debug)]
-pub struct JoinQueue<T>(ReadyQueue<Result<T, JoinError>, JoinHandle<T>>);
+use super::join_guard::{self, Cancel, JoinGuard, ShutdownError, SHUTDOWN_TIMEOUT};
+
+// It is easy to share `JoinQueue` among threads.  However, we do not implement `Clone` for
+// `JoinQueue` because we have implemented `Drop` for `JoinQueue` and want to avoid the scenario
+// where one of the clones cancels all tasks upon being dropped.
+//
+// If you need to create clones of `JoinQueue`, wrap it in `Arc` instead.
+#[derive(Debug)]
+pub struct JoinQueue<T> {
+    guards: ReadyQueue<(), JoinGuard<T>>,
+    cancel: Cancel,
+}
+
+impl<T> Drop for JoinQueue<T> {
+    fn drop(&mut self) {
+        // It is necessary to call `cancel` here for the same reason as in `JoinGuard::drop`.
+        self.cancel();
+    }
+}
 
 impl<T> Default for JoinQueue<T> {
     fn default() -> Self {
@@ -20,185 +32,238 @@ impl<T> Default for JoinQueue<T> {
 
 impl<T> JoinQueue<T> {
     pub fn new() -> Self {
-        Self(ReadyQueue::new())
+        Self::with_cancel(Cancel::new())
     }
 
+    pub fn with_cancel(cancel: Cancel) -> Self {
+        Self {
+            guards: ReadyQueue::new(),
+            cancel,
+        }
+    }
+
+    pub fn add_parent(&self, parent: Cancel) {
+        self.cancel.add_parent(parent);
+    }
+
+    pub fn add_timeout(&self, timeout: Duration) {
+        self.cancel.add_timeout(timeout);
+    }
+
+    pub fn add_deadline(&self, deadline: Instant) {
+        self.cancel.add_deadline(deadline);
+    }
+
+    pub fn cancel_handle(&self) -> Cancel {
+        self.cancel.clone()
+    }
+
+    pub fn cancel(&self) {
+        self.guards.close();
+        self.cancel.set();
+    }
+
+    // Should we really expose the "closed but not cancelled" use case?
     pub fn close(&self) {
-        self.0.close();
+        self.guards.close()
     }
 
     pub fn is_closed(&self) -> bool {
-        self.0.is_closed()
+        self.guards.is_closed()
     }
 
     pub fn len(&self) -> usize {
-        self.0.len()
+        self.guards.len()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
+        self.guards.is_empty()
     }
 }
 
 impl<T> JoinQueue<T>
 where
-    T: Send + 'static,
+    T: Send + Unpin + 'static,
 {
-    pub fn spawn<F>(&self, task: F) -> Result<AbortHandle, JoinHandle<T>>
-    where
-        F: Future<Output = T> + Send + 'static,
-    {
-        let handle = tokio::spawn(task);
-        let abort_handle = handle.abort_handle();
-        self.0.push_future(handle)?;
-        Ok(abort_handle)
+    pub fn push(&self, guard: JoinGuard<T>) -> Result<(), JoinGuard<T>> {
+        guard.add_parent(self.cancel.clone());
+        self.guards.push_future(guard)
     }
 
-    pub async fn join_next(&self) -> Option<Result<T, JoinError>> {
-        self.0.pop_ready().await
+    pub async fn joinable(&self) {
+        self.guards.ready().await
     }
 
-    #[cfg(tokio_unstable)]
-    pub async fn join_next_with_id(&self) -> Option<Result<(Id, T), JoinError>> {
-        self.0
+    pub async fn join_next(&self) -> Option<JoinGuard<T>> {
+        self.guards
             .pop_ready_with_future()
             .await
-            .map(|(result, handle)| result.map(|value| (handle.id(), value)))
-    }
-
-    pub async fn abort_all_then_join(&self) {
-        async fn abort_all_then_join_impl<T>(this: &JoinQueue<T>) {
-            let handles = this.0.detach_all();
-            for handle in &handles {
-                handle.abort();
-            }
-            for handle in handles {
-                resume_panic(handle.await);
-            }
-            while let Some(join_result) = this.0.try_pop_ready() {
-                resume_panic(join_result);
-            }
-        }
-
-        self.0.close();
-        abort_all_then_join_impl(self).await;
-        // `ReadyQueue::detach_all` has an idiosyncrasy: if it is called while `pop_ready` is
-        // executing, the future that is currently being polled by `pop_ready` will not be returned
-        // by `detach_all`.  In this case, we call `detach_all` again and hope that we are lucky
-        // enough that the future is not being polled this time.
-        //
-        // TODO: Figure out how to handle this corner case that does not rely on luck.
-        if !self.0.is_empty() {
-            assert_eq!(self.0.len(), 1);
-            abort_all_then_join_impl(self).await;
-            assert!(self.0.is_empty());
-        }
-    }
-
-    /// Aborts all tasks.
-    ///
-    /// NOTE: Unlike `tokio::task::JoinSet::abort_all`, this method removes all tasks from the
-    /// queue.
-    // TODO: Consider changing this method to avoid removing tasks from the queue.
-    pub fn abort_all(&self) {
-        fn abort_all_impl<T>(this: &JoinQueue<T>) {
-            let handles = this.0.detach_all();
-            for handle in &handles {
-                handle.abort();
-            }
-            while this.0.try_pop_ready().is_some() {
-                // Do nothing here.
-            }
-        }
-
-        self.0.close();
-        abort_all_impl(self);
-        // Ditto.
-        if !self.0.is_empty() {
-            assert_eq!(self.0.len(), 1);
-            abort_all_impl(self);
-            assert!(self.0.is_empty());
-        }
+            .map(|((), guard)| guard)
     }
 }
 
-fn resume_panic<T>(join_result: Result<T, JoinError>) {
-    if let Err(join_error) = join_result {
-        if join_error.is_panic() {
-            panic::resume_unwind(join_error.into_panic());
+impl<E> JoinQueue<Result<(), E>>
+where
+    E: Send + Unpin + 'static,
+{
+    /// Shuts down the remaining tasks gracefully.
+    ///
+    /// I am not sure about the details yet; for example, how do we merge errors?
+    pub async fn shutdown(&self) -> Result<Result<(), E>, ShutdownError> {
+        self.shutdown_with_timeout(SHUTDOWN_TIMEOUT).await
+    }
+
+    pub async fn shutdown_with_timeout(
+        &self,
+        timeout: Duration,
+    ) -> Result<Result<(), E>, ShutdownError> {
+        self.cancel();
+
+        let mut result = Ok(Ok(()));
+        tokio::pin! { let sleep = time::sleep(timeout); }
+        loop {
+            tokio::select! {
+                () = &mut sleep => {
+                    result = join_guard::merge((result, Err(ShutdownError::JoinTimeout)));
+                    break;
+                }
+                guard = self.join_next() => {
+                    let Some(mut guard) = guard else { break };
+                    result = join_guard::merge((result, guard.take_result()));
+                }
+            }
         }
-        assert!(join_error.is_cancelled());
+
+        result
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::assert_matches::assert_matches;
     use std::future;
-    use std::time::Duration;
+    use std::sync::Arc;
 
     use tokio::time;
 
     use super::*;
 
-    fn assert_queue<T>(queue: &JoinQueue<T>, is_closed: bool, len: usize) {
-        assert_eq!(queue.is_closed(), is_closed);
-        assert_eq!(queue.len(), len);
-        assert_eq!(queue.is_empty(), len == 0);
+    impl<T> JoinQueue<T> {
+        fn assert(&self, closed: bool, len: usize, cancel: bool) {
+            assert_eq!(self.is_closed(), closed);
+            assert_eq!(self.len(), len);
+            assert_eq!(self.is_empty(), len == 0);
+            assert_eq!(self.cancel.is_set(), cancel);
+        }
     }
 
     #[tokio::test]
-    async fn abort_all_then_join() {
-        let queue = JoinQueue::<()>::new();
-        let abort_handle = queue.spawn(future::pending()).unwrap();
-        assert_queue(&queue, false, 1);
+    async fn join_queue() {
+        fn spawn(value: u8) -> JoinGuard<u8> {
+            JoinGuard::spawn(|cancel| async move {
+                cancel.wait().await;
+                value
+            })
+        }
+
+        let queue = Arc::new(JoinQueue::new());
+        queue.assert(false, 0, false);
+
+        assert_matches!(queue.push(spawn(1)), Ok(()));
+        queue.assert(false, 1, false);
+
+        let guard = spawn(2);
+        guard.add_timeout(Duration::ZERO);
+        assert_matches!(queue.push(guard), Ok(()));
+        queue.assert(false, 2, false);
+
+        let mut guard = queue.join_next().await.unwrap();
+        queue.assert(false, 1, false);
+        assert_eq!(guard.is_finished(), true);
+        assert_eq!(guard.shutdown().await, Ok(2));
 
         let join_next_task = {
             let queue = queue.clone();
             tokio::spawn(async move { queue.join_next().await })
         };
+
         // TODO: Can we write this test without using `time::sleep`?
         time::sleep(Duration::from_millis(10)).await;
-        assert_eq!(abort_handle.is_finished(), false);
         assert_eq!(join_next_task.is_finished(), false);
 
-        queue.abort_all_then_join().await;
-        assert_queue(&queue, true, 0);
+        queue.cancel();
+        let mut guard = join_next_task.await.unwrap().unwrap();
+        queue.assert(true, 0, true);
+        assert_eq!(guard.is_finished(), true);
+        assert_eq!(guard.shutdown().await, Ok(1));
 
-        assert_eq!(abort_handle.is_finished(), true);
-        assert!(matches!(join_next_task.await, Ok(None)));
+        for _ in 0..3 {
+            assert_matches!(queue.join_next().await, None);
+        }
+    }
+
+    #[test]
+    fn cancel_when_drop() {
+        let queue = JoinQueue::<()>::new();
+        let cancel = queue.cancel_handle();
+        assert_eq!(cancel.is_set(), false);
+
+        drop(queue);
+        assert_eq!(cancel.is_set(), true);
     }
 
     #[tokio::test]
-    #[should_panic(expected = "test panic")]
-    async fn abort_all_then_join_panic() {
+    async fn shutdown() {
+        async fn test(
+            queue: &JoinQueue<Result<(), ()>>,
+            expect: Result<Result<(), ()>, ShutdownError>,
+            expect_len: usize,
+        ) {
+            assert_eq!(
+                queue.shutdown_with_timeout(Duration::from_millis(10)).await,
+                expect,
+            );
+            assert_eq!(queue.len(), expect_len);
+        }
+
+        fn spawn_ok() -> JoinGuard<Result<(), ()>> {
+            JoinGuard::spawn(|cancel| async move { Ok(cancel.wait().await) })
+        }
+
+        fn spawn_err() -> JoinGuard<Result<(), ()>> {
+            JoinGuard::spawn(|cancel| async move { Err(cancel.wait().await) })
+        }
+
+        fn spawn_pending() -> JoinGuard<Result<(), ()>> {
+            JoinGuard::spawn(|_| future::pending())
+        }
+
         let queue = JoinQueue::new();
-        assert!(matches!(queue.spawn(async { panic!("test panic") }), Ok(_)));
-        // TODO: Can we write this test without using `time::sleep`?
-        time::sleep(Duration::from_millis(10)).await;
-        queue.abort_all_then_join().await;
-    }
+        assert_matches!(queue.push(spawn_ok()), Ok(()));
+        test(&queue, Ok(Ok(())), 0).await;
 
-    #[tokio::test]
-    async fn abort_all() {
-        let queue = JoinQueue::<()>::new();
-        let abort_handle = queue.spawn(future::pending()).unwrap();
-        assert_queue(&queue, false, 1);
+        let queue = JoinQueue::new();
+        assert_matches!(queue.push(spawn_err()), Ok(()));
+        test(&queue, Ok(Err(())), 0).await;
 
-        let join_next_task = {
-            let queue = queue.clone();
-            tokio::spawn(async move { queue.join_next().await })
-        };
-        // TODO: Can we write this test without using `time::sleep`?
-        time::sleep(Duration::from_millis(10)).await;
-        assert_eq!(abort_handle.is_finished(), false);
-        assert_eq!(join_next_task.is_finished(), false);
+        let queue = JoinQueue::new();
+        assert_matches!(queue.push(spawn_ok()), Ok(()));
+        assert_matches!(queue.push(spawn_err()), Ok(()));
+        test(&queue, Ok(Err(())), 0).await;
 
-        queue.abort_all();
-        assert_queue(&queue, true, 0);
+        let queue = JoinQueue::new();
+        assert_matches!(queue.push(spawn_pending()), Ok(()));
+        test(&queue, Err(ShutdownError::JoinTimeout), 1).await;
 
-        // TODO: Can we write this test without using `time::sleep`?
-        time::sleep(Duration::from_millis(10)).await;
-        assert_eq!(abort_handle.is_finished(), true);
-        assert!(matches!(join_next_task.await, Ok(None)));
+        let queue = JoinQueue::new();
+        assert_matches!(queue.push(spawn_ok()), Ok(()));
+        assert_matches!(queue.push(spawn_pending()), Ok(()));
+        test(&queue, Err(ShutdownError::JoinTimeout), 1).await;
+
+        let queue = JoinQueue::new();
+        assert_matches!(queue.push(spawn_ok()), Ok(()));
+        assert_matches!(queue.push(spawn_err()), Ok(()));
+        assert_matches!(queue.push(spawn_pending()), Ok(()));
+        test(&queue, Ok(Err(())), 1).await;
     }
 }
