@@ -3,7 +3,7 @@ use std::io::Error;
 use tracing::Instrument;
 
 use g1_base::sync::MutexExt;
-use g1_tokio::task::Joiner;
+use g1_tokio::task::{Cancel, Joiner};
 
 use crate::{kbucket::KBucketItem, lookup::Lookup, NodeContactInfo, NodeId};
 
@@ -11,6 +11,7 @@ use super::NodeState;
 
 #[derive(Debug)]
 pub(super) struct NodeRefresher {
+    cancel: Cancel,
     state: NodeState,
     incumbents: Vec<NodeContactInfo>,
     candidate: KBucketItem,
@@ -19,20 +20,23 @@ pub(super) struct NodeRefresher {
 
 impl NodeRefresher {
     pub(super) fn new(
+        cancel: Cancel,
         state: NodeState,
         incumbents: Vec<NodeContactInfo>,
         candidate: KBucketItem,
     ) -> Self {
-        Self::with_concurrency(state, incumbents, candidate, *crate::alpha())
+        Self::with_concurrency(cancel, state, incumbents, candidate, *crate::alpha())
     }
 
     fn with_concurrency(
+        cancel: Cancel,
         state: NodeState,
         incumbents: Vec<NodeContactInfo>,
         candidate: KBucketItem,
         concurrency: usize,
     ) -> Self {
         Self {
+            cancel,
             state,
             incumbents,
             candidate,
@@ -45,6 +49,7 @@ impl NodeRefresher {
     // from BEP 5: Every node in the bucket is pinged, and it is only pinged once.
     pub(super) async fn run(self) -> Result<(), Error> {
         let Self {
+            cancel,
             state,
             incumbents,
             candidate,
@@ -63,7 +68,17 @@ impl NodeRefresher {
         );
 
         let mut have_removed_nodes = false;
-        while let Some(join_result) = tasks.join_next().await {
+        loop {
+            let Some(join_result) = tokio::select! {
+                _ = cancel.wait() => {
+                    tracing::debug!("dht node refresher is cancelled");
+                    return Ok(());
+                }
+                join_result = tasks.join_next() => join_result,
+            } else {
+                break;
+            };
+
             // We can call `unwrap` because we do not expect tasks to crash.
             let (incumbent, result) = join_result.unwrap();
             if let Err(error) = result {
@@ -93,24 +108,31 @@ impl NodeRefresher {
 
 #[derive(Debug)]
 pub(super) struct KBucketRefresher {
+    cancel: Cancel,
     state: NodeState,
     ids: Vec<NodeId>,
 }
 
 impl KBucketRefresher {
-    pub(super) fn new(state: NodeState, ids: Vec<NodeId>) -> Self {
-        Self { state, ids }
+    pub(super) fn new(cancel: Cancel, state: NodeState, ids: Vec<NodeId>) -> Self {
+        Self { cancel, state, ids }
     }
 
     pub(super) async fn run(self) -> Result<(), Error> {
-        let Self { state, ids } = self;
+        let Self { cancel, state, ids } = self;
         let lookup = Lookup::new(state.clone());
         // Refresh buckets serially.
         for id in ids {
-            let nodes = lookup
+            let lookup_nodes = lookup
                 .lookup_nodes(id.clone())
-                .instrument(tracing::info_span!("dht/refresh", ?id))
-                .await;
+                .instrument(tracing::info_span!("dht/refresh", ?id));
+            let nodes = tokio::select! {
+                _ = cancel.wait() => {
+                    tracing::debug!("dht kbucket refresher is cancelled");
+                    return Ok(());
+                }
+                nodes = lookup_nodes => nodes,
+            };
             {
                 let mut routing = state.routing.must_lock();
                 for node in nodes {

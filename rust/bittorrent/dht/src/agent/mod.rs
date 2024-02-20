@@ -14,7 +14,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use bitvec::prelude::*;
-use tokio::{sync::mpsc, task::JoinError, time};
+use tokio::{sync::mpsc, time};
 use tracing::Instrument;
 
 use g1_base::sync::MutexExt;
@@ -91,10 +91,10 @@ impl Actor {
         let (kbucket_full_send, kbucket_full_recv) =
             mpsc::channel(*crate::kbucket_full_queue_size());
         Self {
-            cancel,
+            cancel: cancel.clone(),
             state,
             token_src: Arc::new(TokenSource::new()),
-            tasks: JoinQueue::new(),
+            tasks: JoinQueue::with_cancel(cancel),
             kbucket_full_recv,
             kbucket_full_send,
             kbucket_refresh_period: *crate::refresh_period(),
@@ -112,9 +112,9 @@ impl Actor {
                     let Some(request) = request else { break };
                     self.spawn_handler(request);
                 }
-                join_result = self.tasks.join_next() => {
-                    // We can call `unwrap` because `tasks` is not closed in the main loop.
-                    join_task(join_result.unwrap());
+                guard = self.tasks.join_next() => {
+                    let Some(guard) = guard else { break };
+                    Self::log_task_result(guard);
                 }
                 full = self.kbucket_full_recv.recv() => {
                     // We can call `unwrap` because `kbucket_full_recv` is never closed.
@@ -125,36 +125,39 @@ impl Actor {
                 }
             }
         }
-        // TODO: Implement cooperative cancellation for handler tasks.
-        self.tasks.abort_all_then_join().await;
+        self.tasks.cancel();
+        while let Some(guard) = self.tasks.join_next().await {
+            Self::log_task_result(guard);
+        }
         Ok(())
     }
 
     fn spawn_handler(&self, ((endpoint, request), response_send): (Incoming, Sender)) {
-        let socket_addr = endpoint.0;
-        let handler = Handler::new(
-            self.state.clone(),
-            self.token_src.clone(),
-            self.kbucket_full_send.clone(),
-            endpoint,
-            request,
-            response_send,
-        );
-        let handler_run = handler
-            .run()
-            .instrument(tracing::info_span!("dht/peer", peer_endpoint = ?socket_addr));
-        // We can call `unwrap` because `tasks` is not closed in the main loop.
-        let _ = self.tasks.spawn(handler_run).unwrap();
+        self.push_task(JoinGuard::spawn(move |cancel| {
+            let socket_addr = endpoint.0;
+            let handler = Handler::new(
+                cancel,
+                self.state.clone(),
+                self.token_src.clone(),
+                self.kbucket_full_send.clone(),
+                endpoint,
+                request,
+                response_send,
+            );
+            handler
+                .run()
+                .instrument(tracing::info_span!("dht/peer", peer_endpoint = ?socket_addr))
+        }));
     }
 
     fn spawn_node_refresher(&self, (incumbents, candidate): KBucketFull) {
-        let contact_info = candidate.contact_info.clone();
-        let refresher = NodeRefresher::new(self.state.clone(), incumbents, candidate);
-        let refresher_run = refresher
-            .run()
-            .instrument(tracing::info_span!("dht/refresh", candidate = ?contact_info));
-        // We can call `unwrap` because `tasks` is not closed in the main loop.
-        let _ = self.tasks.spawn(refresher_run).unwrap();
+        self.push_task(JoinGuard::spawn(move |cancel| {
+            let contact_info = candidate.contact_info.clone();
+            let refresher = NodeRefresher::new(cancel, self.state.clone(), incumbents, candidate);
+            refresher
+                .run()
+                .instrument(tracing::info_span!("dht/refresh", candidate = ?contact_info))
+        }));
     }
 
     fn spawn_kbucket_refresher(&self, now: Instant) {
@@ -167,27 +170,20 @@ impl Actor {
                 }
             }
         }
-        // We can call `unwrap` because `tasks` is not closed in the main loop.
-        let _ = self
-            .tasks
-            .spawn(KBucketRefresher::new(self.state.clone(), ids).run())
-            .unwrap();
+        self.push_task(JoinGuard::spawn(move |cancel| {
+            KBucketRefresher::new(cancel, self.state.clone(), ids).run()
+        }));
     }
-}
 
-fn join_task(join_result: Result<Result<(), Error>, JoinError>) {
-    match join_result {
-        Ok(result) => {
-            if let Err(error) = result {
-                tracing::warn!(?error, "node agent task error");
-            }
-        }
-        Err(join_error) => {
-            if join_error.is_panic() {
-                panic::resume_unwind(join_error.into_panic());
-            }
-            assert!(join_error.is_cancelled());
-            tracing::warn!("node agent task is cancelled");
+    fn push_task(&self, guard: JoinGuard<Result<(), Error>>) {
+        // `tasks.push` returns an error if `tasks` is cancelled, and in this case, we may ignore
+        // the error.
+        let _ = self.tasks.push(guard);
+    }
+
+    fn log_task_result(mut guard: JoinGuard<Result<(), Error>>) {
+        if let Err(error) = guard.take_result().map_err(Error::from).flatten() {
+            tracing::warn!(?error, "node agent task error");
         }
     }
 }

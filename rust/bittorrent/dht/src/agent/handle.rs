@@ -6,6 +6,7 @@ use bytes::Bytes;
 use tokio::sync::mpsc;
 
 use g1_base::{fmt::Hex, sync::MutexExt};
+use g1_tokio::task::Cancel;
 
 use bittorrent_bencode::{borrow, serde as serde_bencode, FormatDictionary};
 
@@ -21,6 +22,7 @@ use super::NodeState;
 
 #[derive(Debug)]
 pub(super) struct Handler {
+    cancel: Cancel,
     state: NodeState,
     token_src: Arc<TokenSource>,
     kbucket_full_send: mpsc::Sender<KBucketFull>,
@@ -31,6 +33,7 @@ pub(super) struct Handler {
 
 impl Handler {
     pub(super) fn new(
+        cancel: Cancel,
         state: NodeState,
         token_src: Arc<TokenSource>,
         kbucket_full_send: mpsc::Sender<KBucketFull>,
@@ -39,6 +42,7 @@ impl Handler {
         response_send: Sender,
     ) -> Self {
         Self {
+            cancel,
             state,
             token_src,
             kbucket_full_send,
@@ -66,9 +70,13 @@ impl Handler {
             }
         };
 
-        self.response_send
-            .send((self.endpoint.clone(), response))
-            .await
+        tokio::select! {
+            _ = self.cancel.wait() => {
+                tracing::debug!("dht handler is cancelled");
+                Ok(())
+            }
+            result = self.response_send.send((self.endpoint.clone(), response)) => result,
+        }
     }
 
     fn handle_query(&self, query: &query::Query) -> Result<Bytes, Error> {

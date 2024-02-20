@@ -2,6 +2,7 @@
 // TODO: Implement BEP 32 IPv6 extension for DHT.
 
 #![feature(iterator_try_collect)]
+#![feature(result_flattening)]
 #![feature(try_blocks)]
 #![cfg_attr(test, feature(assert_matches))]
 #![cfg_attr(test, feature(generic_arg_infer))]
