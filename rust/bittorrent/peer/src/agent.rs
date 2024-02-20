@@ -13,7 +13,7 @@ use tracing::Instrument;
 use g1_base::sync::MutexExt;
 use g1_tokio::{
     bstream::{StreamRecv, StreamSend},
-    task::{self, JoinTaskError},
+    task::{self, Cancel, JoinTaskError},
 };
 
 use bittorrent_base::{BlockDesc, Features, PeerId};
@@ -65,8 +65,10 @@ impl Agent {
         let peer_features = socket.peer_features();
         let extension_ids = Arc::new(Mutex::new(ExtensionIdMap::new()));
         let (conn_state_upper, conn_state_lower) = state::new_conn_state();
-        let incomings =
-            incoming::Queue::new(u64::try_from(*bittorrent_base::send_buffer_capacity()).unwrap());
+        let incomings = incoming::Queue::new(
+            u64::try_from(*bittorrent_base::send_buffer_capacity()).unwrap(),
+            Cancel::new(), // TODO: Implement cooperative cancellation.
+        );
         let (outgoings_upper, outgoings_lower) = outgoing::new_queue(
             u64::try_from(*bittorrent_base::recv_buffer_capacity()).unwrap(),
             *crate::request_timeout(),

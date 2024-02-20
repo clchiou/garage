@@ -4,13 +4,10 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 use bytes::Bytes;
-use tokio::{
-    sync::oneshot::{self, error::RecvError, Sender},
-    task::AbortHandle,
-};
+use tokio::sync::oneshot::{self, error::RecvError, Sender};
 
 use g1_base::sync::MutexExt;
-use g1_tokio::task::JoinQueue;
+use g1_tokio::task::{Cancel, JoinGuard, JoinQueue};
 
 use bittorrent_base::BlockDesc;
 
@@ -19,12 +16,12 @@ use crate::Full;
 #[derive(Debug)]
 pub(crate) struct Queue {
     inner: Mutex<Inner>,
-    tasks: JoinQueue<(BlockDesc, Result<Bytes, RecvError>)>,
+    tasks: JoinQueue<Option<(BlockDesc, Result<Bytes, RecvError>)>>,
 }
 
 #[derive(Debug)]
 struct Inner {
-    requests: HashMap<BlockDesc, AbortHandle>,
+    requests: HashMap<BlockDesc, Cancel>,
     size: u64,
     limit: u64,
 }
@@ -38,10 +35,10 @@ pub(crate) type Response = Result<Bytes, Reject>;
 pub(crate) struct Reject;
 
 impl Queue {
-    pub(crate) fn new(limit: u64) -> Self {
+    pub(crate) fn new(limit: u64, cancel: Cancel) -> Self {
         Self {
             inner: Mutex::new(Inner::new(limit)),
-            tasks: JoinQueue::new(),
+            tasks: JoinQueue::with_cancel(cancel),
         }
     }
 
@@ -52,33 +49,31 @@ impl Queue {
             return Ok(None);
         }
         let (response_send, response_recv) = oneshot::channel();
-        // We can call `unwrap` because `tasks` is never closed.
-        let handle = self
-            .tasks
-            .spawn(async move { (desc, response_recv.await) })
-            .unwrap();
-        inner.insert(desc, handle);
+        let guard = JoinGuard::spawn(move |cancel| async move {
+            tokio::select! {
+                response = response_recv => Some((desc, response)),
+                _ = cancel.wait() => None,
+            }
+        });
+        let cancel = guard.cancel_handle();
+        if self.tasks.push(guard).is_err() {
+            return Ok(None);
+        }
+        inner.insert(desc, cancel);
         Ok(Some(response_send))
     }
 
     pub(crate) fn cancel(&self, desc: BlockDesc) {
-        if let Some(handle) = self.inner.must_lock().remove(desc) {
-            handle.abort();
+        if let Some(cancel) = self.inner.must_lock().remove(desc) {
+            cancel.set();
         }
     }
 
-    pub(crate) async fn dequeue(&self) -> (BlockDesc, Response) {
+    pub(crate) async fn dequeue(&self) -> Option<(BlockDesc, Response)> {
         loop {
-            // We can call `unwrap` because `tasks` is never closed.
-            match self.tasks.join_next().await.unwrap() {
-                Ok((desc, result)) => {
-                    let _ = self.inner.must_lock().remove(desc);
-                    return (desc, result.map_err(|_| Reject));
-                }
-                Err(join_error) => {
-                    assert!(join_error.is_cancelled());
-                    continue;
-                }
+            if let Ok(Some((desc, result))) = self.tasks.join_next().await?.take_result() {
+                let _ = self.inner.must_lock().remove(desc);
+                return Some((desc, result.map_err(|_| Reject)));
             }
         }
     }
@@ -103,13 +98,13 @@ impl Inner {
         }
     }
 
-    fn insert(&mut self, desc: BlockDesc, handle: AbortHandle) {
-        assert!(self.requests.insert(desc, handle).is_none());
+    fn insert(&mut self, desc: BlockDesc, cancel: Cancel) {
+        assert!(self.requests.insert(desc, cancel).is_none());
         self.size += desc.1;
         assert!(self.size <= self.limit);
     }
 
-    fn remove(&mut self, desc: BlockDesc) -> Option<AbortHandle> {
+    fn remove(&mut self, desc: BlockDesc) -> Option<Cancel> {
         self.requests.remove(&desc).inspect(|_| self.size -= desc.1)
     }
 }
@@ -156,7 +151,7 @@ mod tests {
 
     #[tokio::test]
     async fn queue() {
-        let queue = Queue::new(10);
+        let queue = Queue::new(10, Cancel::new());
         queue.assert(&[], 0);
         assert_eq!(queue.tasks.len(), 0);
 
@@ -173,14 +168,14 @@ mod tests {
         queue.assert(&[DESC3], 3);
         assert_eq!(queue.tasks.len(), 1);
 
-        assert_eq!(queue.dequeue().await, (DESC3, Err(Reject)));
+        assert_eq!(queue.dequeue().await, Some((DESC3, Err(Reject))));
         queue.assert(&[], 0);
         assert_eq!(queue.tasks.len(), 0);
     }
 
     #[tokio::test]
     async fn queue_cancel() {
-        let queue = Queue::new(10);
+        let queue = Queue::new(10, Cancel::new());
         queue.assert(&[], 0);
         assert_eq!(queue.tasks.len(), 0);
 
@@ -195,19 +190,16 @@ mod tests {
         time::sleep(Duration::from_millis(10)).await;
 
         assert_matches!(response_send.send(Bytes::from_static(b"spam")), Err(_));
-        assert!(queue
-            .tasks
-            .join_next()
-            .await
-            .unwrap()
-            .unwrap_err()
-            .is_cancelled());
+        assert_eq!(
+            queue.tasks.join_next().await.unwrap().take_result(),
+            Ok(None),
+        );
         assert_eq!(queue.tasks.len(), 0);
     }
 
     #[tokio::test]
     async fn queue_dequeue() {
-        let queue = Queue::new(10);
+        let queue = Queue::new(10, Cancel::new());
         queue.assert(&[], 0);
         assert_eq!(queue.tasks.len(), 0);
 
@@ -218,7 +210,7 @@ mod tests {
         assert_matches!(response_send.send(Bytes::from_static(b"spam")), Ok(()));
         assert_eq!(
             queue.dequeue().await,
-            (DESC3, Ok(Bytes::from_static(b"spam"))),
+            Some((DESC3, Ok(Bytes::from_static(b"spam")))),
         );
         queue.assert(&[], 0);
         assert_eq!(queue.tasks.len(), 0);
@@ -231,13 +223,13 @@ mod tests {
         assert_eq!(inner.can_insert(DESC10), Ok(true));
         assert_eq!(inner.can_insert(DESC11), Err(Full));
 
-        inner.insert(DESC4, tokio::spawn(async {}).abort_handle());
+        inner.insert(DESC4, Cancel::new());
         inner.assert(&[DESC4], 4);
         assert_eq!(inner.can_insert(DESC4), Ok(false));
         assert_eq!(inner.can_insert(DESC6), Ok(true));
         assert_eq!(inner.can_insert(DESC7), Err(Full));
 
-        inner.insert(DESC2, tokio::spawn(async {}).abort_handle());
+        inner.insert(DESC2, Cancel::new());
         inner.assert(&[DESC2, DESC4], 6);
 
         assert_matches!(inner.remove(DESC4), Some(_));

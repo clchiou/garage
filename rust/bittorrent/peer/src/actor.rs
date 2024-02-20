@@ -119,7 +119,8 @@ where
                     }
                 }
 
-                (desc, response) = self.incomings.dequeue() => {
+                incoming = self.incomings.dequeue() => {
+                    let Some((desc, response)) = incoming else { break };
                     self.handle_incoming(desc, response).await?;
                 }
 
@@ -357,7 +358,7 @@ mod test_harness {
 
     use tokio::{io::DuplexStream, sync::mpsc};
 
-    use g1_tokio::io::Stream;
+    use g1_tokio::{io::Stream, task::Cancel};
 
     use bittorrent_base::{Features, PeerId, PEER_ID_SIZE};
 
@@ -395,7 +396,7 @@ mod test_harness {
                 ),
                 Arc::new(Mutex::new(ExtensionIdMap::new())),
                 conn_state_lower,
-                incoming::Queue::new(10),
+                incoming::Queue::new(10, Cancel::new()),
                 outgoings_lower,
                 message_recv,
                 "127.0.0.1:8000".parse().unwrap(),
