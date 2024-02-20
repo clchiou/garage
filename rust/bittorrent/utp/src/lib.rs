@@ -54,8 +54,3 @@ g1_param::define!(
 g1_param::define!(path_mtu_max_probe_size: usize = 2400);
 g1_param::define!(path_mtu_reprobe_period: Duration = Duration::from_secs(60));
 g1_param::define!(path_mtu_icmp_reply_timeout: Duration = Duration::from_secs(2));
-
-g1_param::define!(
-    /// Timeout for the socket actor shutdown.
-    grace_period: Duration = Duration::from_secs(2)
-);

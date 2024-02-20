@@ -15,12 +15,11 @@ use tokio::{
         mpsc::{self, error::TrySendError, Receiver, Sender},
         oneshot, Mutex,
     },
-    task::{Id, JoinError, JoinHandle},
-    time,
+    task::Id,
 };
 use tracing::Instrument;
 
-use g1_tokio::task::{self, JoinQueue, JoinTaskError};
+use g1_tokio::task::{Cancel, JoinGuard, JoinQueue};
 
 use crate::bstream::UtpStream;
 use crate::conn::{
@@ -36,13 +35,13 @@ pub struct UtpSocket {
     connect_send: ConnectSend,
     accept_recv: Mutex<AcceptRecv>,
 
-    conn_tasks: JoinQueue<Result<(), conn::Error>>,
-
-    task: Mutex<JoinHandle<Result<(), Error>>>,
+    guard: Mutex<JoinGuard<Result<(), Error>>>,
 }
 
 #[derive(Debug)]
 struct Actor<UdpStream, UdpSink> {
+    cancel: Cancel,
+
     socket: Arc<UdpSocket>,
 
     stream: UdpStream,
@@ -51,7 +50,7 @@ struct Actor<UdpStream, UdpSink> {
     connect_recv: ConnectRecv,
     accept_send: AcceptSend,
 
-    conn_tasks: JoinQueue<Result<(), conn::Error>>,
+    tasks: JoinQueue<Result<(), conn::Error>>,
     peer_endpoints: HashMap<Id, SocketAddr>,
     stubs: HashMap<SocketAddr, ActorStub>,
     outgoing_recv: OutgoingRecv,
@@ -78,21 +77,17 @@ impl UtpSocket {
     {
         let (connect_send, connect_recv) = mpsc::channel(*connect_queue_size());
         let (accept_send, accept_recv) = mpsc::channel(*accept_queue_size());
-        let conn_tasks = JoinQueue::new();
-        let actor = Actor::new(
-            socket.clone(),
-            stream,
-            sink,
-            connect_recv,
-            accept_send,
-            conn_tasks.clone(),
-        );
+        let guard = {
+            let socket = socket.clone();
+            JoinGuard::spawn(move |cancel| {
+                Actor::new(cancel, socket, stream, sink, connect_recv, accept_send).run()
+            })
+        };
         Self {
             socket,
             connect_send,
             accept_recv: Mutex::new(accept_recv),
-            conn_tasks,
-            task: Mutex::new(tokio::spawn(actor.run())),
+            guard: Mutex::new(guard),
         }
     }
 
@@ -122,23 +117,7 @@ impl UtpSocket {
     }
 
     pub async fn shutdown(&self) -> Result<(), Error> {
-        self.conn_tasks.close();
-        task::join_task(&self.task, *crate::grace_period())
-            .await
-            .map_err(|error| match error {
-                JoinTaskError::Cancelled => Error::other("utp socket actor is cancelled"),
-                JoinTaskError::Timeout => Error::new(
-                    ErrorKind::TimedOut,
-                    "utp socket shutdown grace period is exceeded",
-                ),
-            })?
-    }
-}
-
-impl Drop for UtpSocket {
-    fn drop(&mut self) {
-        self.conn_tasks.abort_all();
-        self.task.get_mut().abort();
+        self.guard.lock().await.shutdown().await?
     }
 }
 
@@ -148,21 +127,22 @@ where
     UdpSink: Sink<(SocketAddr, Bytes), Error = Error> + Unpin,
 {
     fn new(
+        cancel: Cancel,
         socket: Arc<UdpSocket>,
         stream: UdpStream,
         sink: UdpSink,
         connect_recv: ConnectRecv,
         accept_send: AcceptSend,
-        conn_tasks: JoinQueue<Result<(), conn::Error>>,
     ) -> Self {
         let (outgoing_recv, outgoing_send) = conn::new_outgoing_queue();
         Self {
+            cancel: cancel.clone(),
             socket,
             stream,
             sink,
             connect_recv,
             accept_send,
-            conn_tasks,
+            tasks: JoinQueue::with_cancel(cancel),
             peer_endpoints: HashMap::new(),
             stubs: HashMap::new(),
             outgoing_recv,
@@ -175,25 +155,20 @@ where
         let result = try {
             loop {
                 tokio::select! {
+                    _ = self.cancel.wait() => break,
+
                     connect = self.connect_recv.recv() => {
-                        match connect {
-                            Some((peer_endpoint, result_send)) => {
-                                self.connect(peer_endpoint, result_send);
-                            }
+                        let Some((peer_endpoint, result_send)) = connect else {
                             // `UtpSocket` was dropped (which aborts the actor), and in this case,
                             // the actor should exit.
-                            None => break,
-                        }
+                            break;
+                        };
+                        self.connect(peer_endpoint, result_send);
                     }
-                    join_result = self.conn_tasks.join_next_with_id() => {
-                        match join_result {
-                            Some(join_result) => {
-                                let peer_endpoint =
-                                    join_conn_actor(&mut self.peer_endpoints, join_result);
-                                self.remove(peer_endpoint);
-                            }
-                            None => break, // `UtpSocket::shutdown` was called.
-                        }
+                    guard = self.tasks.join_next() => {
+                        let Some(guard) = guard else { break };
+                        let peer_endpoint = join_conn_actor(&mut self.peer_endpoints, guard);
+                        self.remove(peer_endpoint);
                     }
                     incoming = self.stream.try_next() => {
                         let recv_at = timestamp::now();
@@ -224,18 +199,14 @@ where
 
         // Drop `mpsc` channels to induce graceful shutdown in `conn::Actor`.
         let Actor {
-            conn_tasks,
+            tasks,
             mut peer_endpoints,
             ..
         } = self;
-        conn_tasks.close();
-        let _ = time::timeout(*crate::grace_period() / 2, async {
-            while let Some(join_result) = conn_tasks.join_next_with_id().await {
-                join_conn_actor(&mut peer_endpoints, join_result);
-            }
-        })
-        .await;
-        conn_tasks.abort_all_then_join().await;
+        tasks.cancel();
+        while let Some(guard) = tasks.join_next().await {
+            join_conn_actor(&mut peer_endpoints, guard);
+        }
 
         result
     }
@@ -322,21 +293,14 @@ where
         let actor_run = actor
             .run()
             .instrument(tracing::info_span!("utp/conn", ?peer_endpoint));
-        match self.conn_tasks.spawn(actor_run) {
-            Ok(handle) => {
-                assert!(self
-                    .peer_endpoints
-                    .insert(handle.id(), peer_endpoint)
-                    .is_none());
-                assert!(self.stubs.insert(peer_endpoint, stub).is_none());
-                self.prober.register(peer_endpoint);
-                Some((stream, connected_recv))
-            }
-            Err(handle) => {
-                handle.abort();
-                None
-            }
-        }
+        // TODO: Implement cooperative cancellation in conn::Actor.
+        let guard = JoinGuard::spawn(move |_| actor_run);
+        let id = guard.id();
+        self.tasks.push(guard).ok()?;
+        assert!(self.peer_endpoints.insert(id, peer_endpoint).is_none());
+        assert!(self.stubs.insert(peer_endpoint, stub).is_none());
+        self.prober.register(peer_endpoint);
+        Some((stream, connected_recv))
     }
 
     fn remove(&mut self, peer_endpoint: SocketAddr) {
@@ -347,28 +311,19 @@ where
 
 fn join_conn_actor(
     peer_endpoints: &mut HashMap<Id, SocketAddr>,
-    join_result: Result<(Id, Result<(), conn::Error>), JoinError>,
+    mut guard: JoinGuard<Result<(), conn::Error>>,
 ) -> SocketAddr {
-    match join_result {
-        Ok((id, result)) => {
-            let peer_endpoint = peer_endpoints.remove(&id).unwrap();
-            if let Err(error) = result {
-                if error == conn::Error::ConnectTimeout {
-                    tracing::debug!(?peer_endpoint, ?error, "utp connect timeout");
-                } else {
-                    tracing::warn!(?peer_endpoint, ?error, "utp connection actor error");
-                }
+    let peer_endpoint = peer_endpoints.remove(&guard.id()).unwrap();
+    match guard.take_result() {
+        Ok(Ok(())) => {}
+        Ok(Err(error)) => {
+            if error == conn::Error::ConnectTimeout {
+                tracing::debug!(?peer_endpoint, "utp connect timeout");
+            } else {
+                tracing::warn!(?peer_endpoint, ?error, "utp connection error");
             }
-            peer_endpoint
         }
-        Err(join_error) => {
-            if join_error.is_panic() {
-                panic::resume_unwind(join_error.into_panic());
-            }
-            assert!(join_error.is_cancelled());
-            let peer_endpoint = peer_endpoints.remove(&join_error.id()).unwrap();
-            tracing::warn!(?peer_endpoint, "utp connection actor is cancelled");
-            peer_endpoint
-        }
+        Err(error) => tracing::warn!(?peer_endpoint, ?error, "utp connection shutdown error"),
     }
+    peer_endpoint
 }
