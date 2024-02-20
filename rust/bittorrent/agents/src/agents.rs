@@ -8,7 +8,10 @@ use tokio::{
     time,
 };
 
-use g1_tokio::net::{self, udp::OwnedUdpStream};
+use g1_tokio::{
+    net::{self, udp::OwnedUdpStream},
+    task::{Cancel, JoinGuard, JoinQueue},
+};
 
 use bittorrent_base::{Dimension, InfoHash};
 use bittorrent_dht::{Dht, DhtGuard};
@@ -20,7 +23,7 @@ use bittorrent_trackerless::Trackerless;
 use bittorrent_transceiver::{Agent as TxrxAgent, DynStorage, Init as TxrxAgentInit, Update};
 use bittorrent_udp::Fork;
 
-use crate::{net::Init, storage::StorageOpen, task::TaskQueue};
+use crate::{net::Init, storage::StorageOpen};
 
 #[derive(Debug)]
 pub struct Agents {
@@ -32,7 +35,7 @@ pub struct Agents {
 
     dht_guard_ipv4: Option<DhtGuard>,
     dht_guard_ipv6: Option<DhtGuard>,
-    tasks: TaskQueue,
+    tasks: JoinQueue<Result<(), Error>>,
 }
 
 #[derive(Debug)]
@@ -55,7 +58,8 @@ impl Agents {
         let mut recvs = net_init.init_once_recvs().await?;
         let dht_ipv4 = net_init.init_dht_ipv4().await?;
         let dht_ipv6 = net_init.init_dht_ipv6().await?;
-        let tasks = TaskQueue::new();
+        // TODO: Implement cooperative cancellation.
+        let tasks = JoinQueue::with_cancel(Cancel::new());
 
         for &peer_endpoint in crate::peer_endpoints() {
             manager.connect(peer_endpoint, None);
@@ -64,10 +68,13 @@ impl Agents {
         for dht in [dht_ipv4.clone(), dht_ipv6.clone()].into_iter().flatten() {
             let info_hash = info_hash.clone();
             let manager = manager.clone();
-            tasks.spawn(async move {
-                recruit_from_dht(dht, info_hash, manager).await;
+            let _ = tasks.push(JoinGuard::spawn(move |cancel| async move {
+                tokio::select! {
+                    _ = recruit_from_dht(dht, info_hash, manager) => {}
+                    _ = cancel.wait() => {}
+                }
                 Ok(())
-            });
+            }));
         }
         for udp_error_stream in [
             net_init.init_once_udp_error_stream_ipv4().await?,
@@ -76,7 +83,12 @@ impl Agents {
         .into_iter()
         .flatten()
         {
-            tasks.spawn(handle_udp_error(udp_error_stream));
+            let _ = tasks.push(JoinGuard::spawn(move |cancel| async move {
+                tokio::select! {
+                    result = handle_udp_error(udp_error_stream) => result,
+                    _ = cancel.wait() => Ok(()),
+                }
+            }));
         }
 
         let (metainfo, (raw_info, dim, storage)) = match mode {
@@ -108,10 +120,13 @@ impl Agents {
         {
             let manager = manager.clone();
             let update_recv = txrx_init.subscribe();
-            tasks.spawn(async move {
-                make_warm_calls(update_recv, manager).await;
+            let _ = tasks.push(JoinGuard::spawn(move |cancel| async move {
+                tokio::select! {
+                    _ = make_warm_calls(update_recv, manager) => {}
+                    _ = cancel.wait() => {}
+                }
                 Ok(())
-            });
+            }));
         }
 
         let tracker = metainfo.map(|metainfo| {
@@ -127,16 +142,22 @@ impl Agents {
             {
                 let tracker = tracker.clone();
                 let update_recv = txrx_init.subscribe();
-                tasks.spawn(async move {
-                    update_tracker(update_recv, tracker).await;
+                let _ = tasks.push(JoinGuard::spawn(move |cancel| async move {
+                    tokio::select! {
+                        _ = update_tracker(update_recv, tracker) => {}
+                        _ = cancel.wait() => {}
+                    }
                     Ok(())
-                });
+                }));
             }
             let manager = manager.clone();
-            tasks.spawn(async move {
-                recruit_from_tracker(tracker, manager).await;
+            let _ = tasks.push(JoinGuard::spawn(move |cancel| async move {
+                tokio::select! {
+                    _ = recruit_from_tracker(tracker, manager) => {}
+                    _ = cancel.wait() => {}
+                }
                 Ok(())
-            });
+            }));
         }
 
         Ok(Self {
@@ -162,7 +183,7 @@ impl Agents {
             _ = self.txrx.join() => {}
             Some(()) = join!(dht_guard_ipv4) => {}
             Some(()) = join!(dht_guard_ipv6) => {}
-            _ = self.tasks.join_any() => {}
+            _ = self.tasks.joinable() => {}
         }
     }
 
@@ -175,6 +196,7 @@ impl Agents {
                 }
             };
         }
+        self.tasks.cancel();
         tokio::try_join!(
             self.txrx.shutdown(),
             self.manager.shutdown(),
@@ -186,10 +208,7 @@ impl Agents {
                     None => Ok(()),
                 }
             },
-            async {
-                self.tasks.abort_all_then_join().await;
-                Ok(())
-            },
+            async { self.tasks.shutdown().await? },
         )?;
         Ok(())
     }

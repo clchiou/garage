@@ -1,7 +1,8 @@
+#![feature(result_flattening)]
+
 mod agents;
 mod net;
 mod storage;
-mod task;
 
 use std::net::SocketAddr;
 use std::time::Duration;
