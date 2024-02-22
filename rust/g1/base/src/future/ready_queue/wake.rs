@@ -3,23 +3,24 @@ use std::task::Wake;
 
 use crate::sync::MutexExt;
 
-use super::impls::{Id, ReadyQueueImpl};
+use super::queue::{Id, Queue};
 
+/// Transitions a future from the `pending` state to the `polling` state.
 #[derive(Debug)]
-pub(super) struct FutureWaker<T, F> {
+pub(super) struct FutureWaker<T, Fut> {
     // I am not sure if there is a circular reference, but using a weak reference is probably
     // harmless anyway.
-    queue: Weak<Mutex<ReadyQueueImpl<T, F>>>,
+    queue: Weak<Mutex<Queue<T, Fut>>>,
     id: Id,
 }
 
-impl<T, F> FutureWaker<T, F> {
-    pub(super) fn new(queue: Weak<Mutex<ReadyQueueImpl<T, F>>>, id: Id) -> Self {
+impl<T, Fut> FutureWaker<T, Fut> {
+    pub(super) fn new(queue: Weak<Mutex<Queue<T, Fut>>>, id: Id) -> Self {
         Self { queue, id }
     }
 }
 
-impl<T, F> Wake for FutureWaker<T, F> {
+impl<T, Fut> Wake for FutureWaker<T, Fut> {
     fn wake(self: Arc<Self>) {
         Self::wake_by_ref(&self);
     }
@@ -28,9 +29,7 @@ impl<T, F> Wake for FutureWaker<T, F> {
         // If `ReadyQueue` is dropped before the waker gets called, I guess we should just do
         // nothing.  It is possible that the waker lives longer than its future.
         if let Some(queue) = self.queue.upgrade() {
-            let mut queue = queue.must_lock();
-            queue.move_to_polling(self.id);
-            ReadyQueueImpl::wake(queue);
+            queue.must_lock().resume_polling(self.id);
         }
     }
 }

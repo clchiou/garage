@@ -11,6 +11,7 @@
 #![allow(incomplete_features)]
 #![allow(internal_features)]
 #![feature(iterator_try_collect)]
+#![feature(mutex_unlock)]
 #![feature(rustc_attrs)]
 #![feature(specialization)]
 #![cfg_attr(feature = "collections_ext", feature(try_blocks))]

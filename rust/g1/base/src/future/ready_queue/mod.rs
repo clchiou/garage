@@ -1,52 +1,52 @@
-mod impls;
+mod poll;
+mod queue;
 mod wake;
 
-use std::future::{self, Future};
+use std::future::Future;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
-use std::task::{Context, Poll, Waker};
 
 use crate::sync::MutexExt;
 
-use self::impls::ReadyQueueImpl;
-use self::wake::FutureWaker;
+use self::{
+    poll::{PopReady, Ready},
+    queue::Queue,
+};
 
 type BoxFuture<T> = Pin<Box<dyn Future<Output = T> + Send + 'static>>;
 
 /// Polls an indefinite number of futures.
 #[derive(Debug)]
-pub struct ReadyQueue<T, F = BoxFuture<T>>(Arc<Mutex<ReadyQueueImpl<T, F>>>);
+pub struct ReadyQueue<T, Fut = BoxFuture<T>>(Arc<Mutex<Queue<T, Fut>>>);
 
 // `ReadyQueue::clone` is shallow, not deep.  This is the opposite of ordinary collection types.
 // We keep it shallow to facilitate sharing among threads.  Besides, futures are usually not
 // cloneable anyway.
 //
-// We cannot `derive(Clone) for `ReadyQueue` because `F` usually does not implement `Clone`.
-impl<T, F> Clone for ReadyQueue<T, F> {
+// We cannot `derive(Clone) for `ReadyQueue` because `Fut` usually does not implement `Clone`.
+impl<T, Fut> Clone for ReadyQueue<T, Fut> {
     fn clone(&self) -> Self {
         Self(self.0.clone())
     }
 }
 
-impl<T, F> Default for ReadyQueue<T, F> {
+impl<T, Fut> Default for ReadyQueue<T, Fut> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<T, F> ReadyQueue<T, F> {
+impl<T, Fut> ReadyQueue<T, Fut> {
     pub fn new() -> Self {
-        Self(Arc::new(Mutex::new(ReadyQueueImpl::new())))
+        Self(Arc::new(Mutex::new(Queue::new())))
     }
 
     pub fn close(&self) {
-        let mut this = self.0.must_lock();
-        this.closed = true;
-        ReadyQueueImpl::wake(this)
+        self.0.must_lock().close()
     }
 
     pub fn is_closed(&self) -> bool {
-        self.0.must_lock().closed
+        self.0.must_lock().is_closed()
     }
 
     pub fn len(&self) -> usize {
@@ -57,11 +57,15 @@ impl<T, F> ReadyQueue<T, F> {
         self.0.must_lock().is_empty()
     }
 
+    pub fn is_ready(&self) -> bool {
+        self.0.must_lock().is_ready()
+    }
+
     pub fn try_pop_ready(&self) -> Option<T> {
         self.0.must_lock().pop_ready().map(|(value, _)| value)
     }
 
-    pub fn try_pop_ready_with_future(&self) -> Option<(T, F)> {
+    pub fn try_pop_ready_with_future(&self) -> Option<(T, Fut)> {
         self.0.must_lock().pop_ready()
     }
 
@@ -70,31 +74,28 @@ impl<T, F> ReadyQueue<T, F> {
     /// NOTE: Due to an implementation detail, if `detach_all` is called while `pop_ready` is
     /// executing, the future that is currently being polled by `pop_ready` is not included in the
     /// returned futures.
-    pub fn detach_all(&self) -> Vec<F> {
-        let mut this = self.0.must_lock();
-        let futures = this.detach_all();
-        ReadyQueueImpl::wake(this);
-        futures
+    pub fn detach_all(&self) -> Vec<Fut> {
+        self.0.must_lock().detach_all()
     }
 }
 
 impl<T> ReadyQueue<T, BoxFuture<T>> {
-    pub fn push<F>(&self, future: F) -> Result<(), F>
+    pub fn push<Fut>(&self, future: Fut) -> Result<(), Fut>
     where
-        F: Future<Output = T> + Send + 'static,
+        Fut: Future<Output = T> + Send + 'static,
     {
-        let this = self.0.must_lock();
-        if this.closed {
+        let mut this = self.0.must_lock();
+        if this.is_closed() {
             return Err(future);
         }
-        ReadyQueueImpl::push_polling(this, Box::pin(future));
+        this.push_polling(Box::pin(future));
         Ok(())
     }
 }
 
-impl<T, F> ReadyQueue<T, F>
+impl<T, Fut> ReadyQueue<T, Fut>
 where
-    F: Future<Output = T> + Send + Unpin + 'static,
+    Fut: Future<Output = T> + Send + Unpin + 'static,
     T: Send + 'static,
 {
     /// Adds a future to the queue.
@@ -102,77 +103,104 @@ where
     /// It returns an error when the queue is closed.
     // We would like to name this method `push`, but Rust specialization seems to apply only to
     // trait implementations for now.
-    pub fn push_future(&self, future: F) -> Result<(), F> {
-        let this = self.0.must_lock();
-        if this.closed {
+    pub fn push_future(&self, future: Fut) -> Result<(), Fut> {
+        let mut this = self.0.must_lock();
+        if this.is_closed() {
             return Err(future);
         }
-        ReadyQueueImpl::push_polling(this, future);
+        this.push_polling(future);
         Ok(())
+    }
+
+    /// Similar to `pop_ready`, but does not remove a future from the queue.
+    pub fn ready(&self) -> impl Future<Output = ()> {
+        Ready::new(self.0.clone())
     }
 
     /// Polls the futures and removes one of the resolved futures from the queue.
     ///
     /// It returns `None` when the queue is closed and empty.
-    ///
-    /// NOTE: You should *not* call `pop_ready` from multiple tasks because `ReadyQueue` keeps only
-    /// one waker.  As a result, only one task will be awakened, and the rest of the tasks will
-    /// sleep forever.
-    // TODO: This method serves two purposes: polling the futures and removing a resolved future
-    // from the queue.  Consider splitting this method into two separate ones.
-    pub async fn pop_ready(&self) -> Option<T> {
-        future::poll_fn(|context| self.poll_pop_ready_with_future(context))
-            .await
-            .map(|(value, _)| value)
+    pub fn pop_ready(&self) -> impl Future<Output = Option<T>> {
+        let pop_ready = self.pop_ready_with_future();
+        async move { pop_ready.await.map(|(value, _)| value) }
     }
 
     /// Similar to `pop_ready`, but also returns the resolved future.
-    pub async fn pop_ready_with_future(&self) -> Option<(T, F)> {
-        future::poll_fn(|context| self.poll_pop_ready_with_future(context)).await
+    pub fn pop_ready_with_future(&self) -> impl Future<Output = Option<(T, Fut)>> {
+        PopReady::new(self.0.clone())
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod test_harness {
+    use std::future::Future;
+    use std::marker::PhantomData;
+    use std::pin::Pin;
+    use std::sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    };
+    use std::task::{Context, Poll, Wake, Waker};
+
+    pub(crate) struct MockContext {
+        pub(crate) mock_waker: Arc<MockWaker>,
+        pub(crate) waker: Waker,
     }
 
-    fn poll_pop_ready_with_future(&self, context: &mut Context<'_>) -> Poll<Option<(T, F)>> {
-        let mut this = self.0.must_lock();
-        let mut should_yield = false;
-        while let Some((id, mut future)) = this.move_to_current() {
-            let waker = Waker::from(Arc::new(FutureWaker::new(Arc::downgrade(&self.0), id)));
-            let mut future_context = Context::from_waker(&waker);
-
-            drop(this);
-            let poll = Pin::new(&mut future).poll(&mut future_context);
-            this = self.0.must_lock();
-
-            match poll {
-                Poll::Ready(value) => this.move_to_ready(id, value, future),
-                Poll::Pending => {
-                    if let Err((id, future)) = this.move_to_pending(id, future) {
-                        // `poll` returns `Pending` but also calls `wake`, signaling that we have
-                        // depleted our cooperative [budget] and should yield.
-                        //
-                        // [budget]: https://docs.rs/tokio/latest/tokio/task/index.html#cooperative-scheduling
-                        this.return_polling(id, future);
-                        should_yield = true;
-                        break;
-                    }
-                }
+    impl MockContext {
+        pub(crate) fn new() -> Self {
+            let mock_waker = Arc::new(MockWaker::new());
+            Self {
+                mock_waker: mock_waker.clone(),
+                waker: Waker::from(mock_waker),
             }
         }
 
-        let output = this.pop_ready();
-        match output {
-            Some(_) => Poll::Ready(output),
-            None => {
-                if this.closed && this.is_empty() {
-                    Poll::Ready(None)
-                } else {
-                    if should_yield {
-                        context.waker().wake_by_ref();
-                    } else {
-                        this.update_waker(context);
-                    }
-                    Poll::Pending
-                }
-            }
+        pub(crate) fn context(&self) -> Context {
+            Context::from_waker(&self.waker)
+        }
+    }
+
+    pub(crate) struct MockWaker(AtomicUsize);
+
+    impl MockWaker {
+        pub(crate) fn new() -> Self {
+            Self(AtomicUsize::new(0))
+        }
+
+        pub(crate) fn get(&self) -> usize {
+            self.0.load(Ordering::SeqCst)
+        }
+
+        pub(crate) fn reset(&self) {
+            self.0.store(0, Ordering::SeqCst);
+        }
+    }
+
+    impl Wake for MockWaker {
+        fn wake(self: Arc<Self>) {
+            Self::wake_by_ref(&self);
+        }
+
+        fn wake_by_ref(self: &Arc<Self>) {
+            self.0.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+
+    pub(crate) struct Yield<T>(PhantomData<T>);
+
+    impl<T> Yield<T> {
+        pub(crate) fn new() -> Self {
+            Self(PhantomData)
+        }
+    }
+
+    impl<T> Future for Yield<T> {
+        type Output = T;
+
+        fn poll(self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<Self::Output> {
+            context.waker().wake_by_ref();
+            Poll::Pending
         }
     }
 }
@@ -184,165 +212,134 @@ mod tests {
 
     use tokio::time;
 
-    use super::{impls::test_harness::MockWaker, *};
-
-    fn assert_queue<T, F>(queue: &ReadyQueue<T, F>, is_closed: bool, len: usize) {
-        assert_eq!(queue.is_closed(), is_closed);
-        assert_eq!(queue.len(), len);
-        assert_eq!(queue.is_empty(), len == 0);
-    }
+    use super::*;
 
     #[tokio::test]
     async fn ready_queue() {
-        // We cannot use `assert_matches!` because async blocks do not implement `Debug`.
+        fn assert<T, F>(queue: &ReadyQueue<T, F>, is_closed: bool, len: usize, is_ready: bool) {
+            assert_eq!(queue.is_closed(), is_closed);
+            assert_eq!(queue.len(), len);
+            assert_eq!(queue.is_empty(), len == 0);
+            assert_eq!(queue.is_ready(), is_ready);
+        }
 
         let queue = ReadyQueue::new();
-        assert_queue(&queue, false, 0);
+        assert(&queue, false, 0, false);
 
-        assert!(matches!(queue.push(async { 0usize }), Ok(())));
-        assert_queue(&queue, false, 1);
+        assert!(matches!(queue.push(future::ready(101)), Ok(())));
+        assert(&queue, false, 1, false);
 
-        assert!(matches!(queue.push(async { 1usize }), Ok(())));
-        assert_queue(&queue, false, 2);
+        assert!(matches!(
+            queue.push_future(Box::pin(future::ready(102))),
+            Ok(()),
+        ));
+        assert(&queue, false, 2, false);
 
         queue.close();
-        assert_queue(&queue, true, 2);
+        assert(&queue, true, 2, false);
 
-        assert!(matches!(queue.push(async { 2usize }), Err(_)));
-        assert_queue(&queue, true, 2);
+        assert!(matches!(queue.push(future::ready(103)), Err(_)));
+        assert(&queue, true, 2, false);
+        assert!(matches!(
+            queue.push_future(Box::pin(future::ready(104))),
+            Err(_),
+        ));
+        assert(&queue, true, 2, false);
 
-        assert_eq!(queue.pop_ready().await, Some(0usize));
-        assert_queue(&queue, true, 1);
+        assert_eq!(queue.pop_ready().await, Some(101));
+        assert(&queue, true, 1, true);
 
-        assert_eq!(queue.pop_ready().await, Some(1usize));
-        assert_queue(&queue, true, 0);
+        assert_eq!(queue.pop_ready().await, Some(102));
+        assert(&queue, true, 0, true);
 
         for _ in 0..3 {
             assert_eq!(queue.pop_ready().await, None);
-            assert_queue(&queue, true, 0);
-        }
-    }
-
-    #[test]
-    fn poll_pop_ready_with_future() {
-        let mock_waker = Arc::new(MockWaker::new());
-        let waker = Waker::from(mock_waker.clone());
-        let mut context = Context::from_waker(&waker);
-
-        let queue = ReadyQueue::new();
-        for _ in 0..10 {
-            assert!(matches!(queue.push(future::pending::<()>()), Ok(())));
-        }
-        assert_queue(&queue, false, 10);
-        assert_eq!(mock_waker.num_calls(), 0);
-
-        for _ in 1..=3 {
-            assert!(matches!(
-                queue.poll_pop_ready_with_future(&mut context),
-                Poll::Pending,
-            ));
-            assert_queue(&queue, false, 10);
-            assert_eq!(mock_waker.num_calls(), 0);
-        }
-    }
-
-    #[test]
-    fn poll_pop_ready_with_future_yield() {
-        struct Yield;
-
-        impl Future for Yield {
-            type Output = ();
-
-            fn poll(self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<Self::Output> {
-                context.waker().wake_by_ref();
-                Poll::Pending
-            }
-        }
-
-        let mock_waker = Arc::new(MockWaker::new());
-        let waker = Waker::from(mock_waker.clone());
-        let mut context = Context::from_waker(&waker);
-
-        let queue = ReadyQueue::new();
-        for _ in 0..10 {
-            assert!(matches!(queue.push(Yield), Ok(())));
-        }
-        assert_queue(&queue, false, 10);
-        assert_eq!(mock_waker.num_calls(), 0);
-
-        for i in 1..=3 {
-            assert!(matches!(
-                queue.poll_pop_ready_with_future(&mut context),
-                Poll::Pending,
-            ));
-            assert_queue(&queue, false, 10);
-            assert_eq!(mock_waker.num_calls(), i);
+            assert(&queue, true, 0, true);
         }
     }
 
     #[tokio::test]
     async fn detach_all() {
         let queue = ReadyQueue::new();
-        assert_queue(&queue, false, 0);
-
         assert!(matches!(queue.push(future::pending()), Ok(())));
+        assert!(matches!(queue.push(future::ready(101)), Ok(())));
+        assert_eq!(queue.detach_all().len(), 2);
+
+        let queue = ReadyQueue::new();
         assert!(matches!(queue.push(future::pending()), Ok(())));
-        assert!(matches!(queue.push(future::pending()), Ok(())));
-        assert!(matches!(queue.push(async { 0usize }), Ok(())));
-        assert!(matches!(
-            queue.push_future(Box::pin(async { 1usize })),
-            Ok(()),
-        ));
-        queue.close();
-        assert_queue(&queue, true, 5);
-
-        assert_eq!(queue.pop_ready().await, Some(0usize));
-        assert_queue(&queue, true, 4);
-
-        assert_eq!(queue.detach_all().len(), 3);
-        assert_queue(&queue, true, 1);
-
-        assert_eq!(queue.pop_ready().await, Some(1usize));
-        assert_queue(&queue, true, 0);
-    }
-
-    #[tokio::test]
-    async fn close_unblock_pop_ready() {
-        let queue = ReadyQueue::<()>::new();
-        assert_queue(&queue, false, 0);
-
-        let pop_ready_task = {
-            let queue = queue.clone();
-            tokio::spawn(async move { queue.pop_ready().await })
-        };
-        // TODO: Can we write this test without using `time::sleep`?
-        time::sleep(Duration::from_millis(10)).await;
-        assert_eq!(pop_ready_task.is_finished(), false);
-
-        queue.close();
-        assert_queue(&queue, true, 0);
-
-        assert!(matches!(pop_ready_task.await, Ok(None)));
-    }
-
-    #[tokio::test]
-    async fn detach_all_unblock_pop_ready() {
-        let queue = ReadyQueue::<()>::new();
-        assert!(matches!(queue.push(future::pending()), Ok(())));
-        queue.close();
-        assert_queue(&queue, true, 1);
-
-        let pop_ready_task = {
-            let queue = queue.clone();
-            tokio::spawn(async move { queue.pop_ready().await })
-        };
-        // TODO: Can we write this test without using `time::sleep`?
-        time::sleep(Duration::from_millis(10)).await;
-        assert_eq!(pop_ready_task.is_finished(), false);
-
+        assert!(matches!(queue.push(future::ready(101)), Ok(())));
+        assert_eq!(queue.ready().await, ());
         assert_eq!(queue.detach_all().len(), 1);
-        assert_queue(&queue, true, 0);
+    }
 
-        assert!(matches!(pop_ready_task.await, Ok(None)));
+    #[tokio::test]
+    async fn multitasking() {
+        let queue = ReadyQueue::new();
+
+        let ready_tasks = [
+            tokio::spawn(queue.ready()),
+            tokio::spawn(queue.ready()),
+            tokio::spawn(queue.ready()),
+        ];
+        let pop_ready_tasks = [
+            tokio::spawn(queue.pop_ready()),
+            tokio::spawn(queue.pop_ready()),
+            tokio::spawn(queue.pop_ready()),
+        ];
+        // TODO: Can we write this test without using `time::sleep`?
+        time::sleep(Duration::from_millis(10)).await;
+        for task in &ready_tasks {
+            assert_eq!(task.is_finished(), false);
+        }
+        for task in &pop_ready_tasks {
+            assert_eq!(task.is_finished(), false);
+        }
+
+        assert!(matches!(queue.push(future::ready(102)), Ok(())));
+        assert!(matches!(queue.push(future::ready(101)), Ok(())));
+        assert!(matches!(queue.push(future::ready(103)), Ok(())));
+
+        for task in ready_tasks {
+            assert!(matches!(task.await, Ok(())));
+        }
+        let mut outputs = Vec::new();
+        for task in pop_ready_tasks {
+            outputs.push(task.await.unwrap().unwrap());
+        }
+        outputs.sort();
+        assert_eq!(outputs, [101, 102, 103]);
+    }
+
+    #[tokio::test]
+    async fn multitasking_close() {
+        let queue = ReadyQueue::<()>::new();
+
+        let ready_tasks = [
+            tokio::spawn(queue.ready()),
+            tokio::spawn(queue.ready()),
+            tokio::spawn(queue.ready()),
+        ];
+        let pop_ready_tasks = [
+            tokio::spawn(queue.pop_ready()),
+            tokio::spawn(queue.pop_ready()),
+            tokio::spawn(queue.pop_ready()),
+        ];
+        // TODO: Can we write this test without using `time::sleep`?
+        time::sleep(Duration::from_millis(10)).await;
+        for task in &ready_tasks {
+            assert_eq!(task.is_finished(), false);
+        }
+        for task in &pop_ready_tasks {
+            assert_eq!(task.is_finished(), false);
+        }
+
+        queue.close();
+
+        for task in ready_tasks {
+            assert!(matches!(task.await, Ok(())));
+        }
+        for task in pop_ready_tasks {
+            assert!(matches!(task.await, Ok(None)));
+        }
     }
 }
