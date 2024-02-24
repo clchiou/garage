@@ -1,26 +1,28 @@
-use std::collections::{hash_map::Entry, HashMap};
 use std::io::{Error, ErrorKind};
 use std::net::{IpAddr, SocketAddr};
 use std::panic;
-use std::sync::Arc;
-use std::time::Duration;
 
-use tokio::{
-    task::JoinHandle,
-    time::{self, Instant},
-};
-use tracing::Instrument;
+use tokio::sync::mpsc::{self, Receiver, Sender};
+use tokio::time;
 
 use g1_tokio::net::icmp::{IcmpEchoHeader, IcmpSocket, IpPmtudisc};
+use g1_tokio::task::{Cancel, JoinGuard};
+
+#[derive(Debug)]
+pub(crate) struct PathMtuProber {
+    pub(crate) probe_send: Sender<SocketAddr>,
+    pub(crate) path_mtu_recv: Receiver<(SocketAddr, usize)>,
+}
+
+pub(crate) type PathMtuProberGuard = JoinGuard<()>;
 
 // TODO: Support IPv6.
 #[derive(Debug)]
-pub(crate) struct PathMtuProber {
-    socket: Arc<IcmpSocket>,
-    last_probe_ats: HashMap<SocketAddr, Instant>,
-    reprobe_after: Duration,
-    probe_task: Option<(SocketAddr, JoinHandle<Result<usize, Error>>)>,
-    next_probe_at: Option<(Instant, SocketAddr)>,
+struct Actor {
+    cancel: Cancel,
+    socket: IcmpSocket,
+    probe_recv: Receiver<SocketAddr>,
+    path_mtu_send: Sender<(SocketAddr, usize)>,
 }
 
 const IP_HEADER_SIZE: usize = 20;
@@ -37,132 +39,78 @@ fn to_payload_size(path_mtu: usize) -> usize {
 }
 
 impl PathMtuProber {
-    pub(crate) fn new(reprobe_after: Duration) -> Result<Self, Error> {
+    pub(crate) fn spawn() -> Result<(Self, PathMtuProberGuard), Error> {
         let socket = IcmpSocket::new()?;
         socket.set_mtu_discover(IpPmtudisc::Probe)?;
         socket.set_recverr(true)?;
-        Ok(Self {
-            socket: Arc::new(socket),
-            last_probe_ats: HashMap::new(),
-            reprobe_after,
-            probe_task: None,
-            next_probe_at: None,
-        })
+        let (probe_send, probe_recv) = mpsc::channel(*crate::path_mtu_queue_size());
+        let (path_mtu_send, path_mtu_recv) = mpsc::channel(*crate::path_mtu_queue_size());
+        Ok((
+            Self {
+                probe_send,
+                path_mtu_recv,
+            },
+            JoinGuard::spawn(move |cancel| {
+                Actor::new(cancel, socket, probe_recv, path_mtu_send).run()
+            }),
+        ))
     }
+}
 
-    pub(crate) fn register(&mut self, peer_endpoint: SocketAddr) {
-        if peer_endpoint.is_ipv6() {
-            tracing::warn!(
-                ?peer_endpoint,
-                "probing ipv6 path mtu is not supported at the moment",
-            );
-            return;
-        }
-        if let Entry::Vacant(entry) = self.last_probe_ats.entry(peer_endpoint) {
-            // Probe the new peer immediately.
-            let new_next_probe_at = *entry.insert(Instant::now());
-            if self
-                .next_probe_at
-                .map(|(next_probe_at, _)| new_next_probe_at < next_probe_at)
-                .unwrap_or(true)
-            {
-                self.next_probe_at = Some((new_next_probe_at, peer_endpoint));
-            }
-        }
-    }
-
-    pub(crate) fn unregister(&mut self, peer_endpoint: &SocketAddr) {
-        if peer_endpoint.is_ipv6() {
-            tracing::warn!(
-                ?peer_endpoint,
-                "probing ipv6 path mtu is not supported at the moment",
-            );
-            return;
-        }
-        if self.last_probe_ats.remove(peer_endpoint).is_some()
-            && self
-                .next_probe_at
-                .map(|(_, endpoint)| endpoint == *peer_endpoint)
-                .unwrap_or(false)
-        {
-            self.next_probe_at = None;
+impl Actor {
+    pub(crate) fn new(
+        cancel: Cancel,
+        socket: IcmpSocket,
+        probe_recv: Receiver<SocketAddr>,
+        path_mtu_send: Sender<(SocketAddr, usize)>,
+    ) -> Self {
+        Self {
+            cancel,
+            socket,
+            probe_recv,
+            path_mtu_send,
         }
     }
 
-    pub(crate) async fn next(&mut self) -> Option<(SocketAddr, usize)> {
-        // NOTE: Be aware of cancellation safety.  As a general rule, you should only modify
-        // `probe_task` or `next_probe_at` after a successful asynchronous operation.
+    async fn run(mut self) {
         loop {
-            if let Some((peer_endpoint, probe_task)) = self.probe_task.as_mut() {
-                let mut path_mtu = match probe_task.await {
-                    Ok(Ok(path_mtu)) => Some((*peer_endpoint, path_mtu)),
-                    Ok(Err(error)) => {
-                        if error.kind() == ErrorKind::TimedOut {
-                            tracing::debug!(?peer_endpoint, ?error, "path mtu probe timeout");
-                        } else {
-                            tracing::warn!(?peer_endpoint, ?error, "path mtu probe error");
-                        }
-                        None
-                    }
-                    Err(join_error) => {
-                        if join_error.is_panic() {
-                            panic::resume_unwind(join_error.into_panic());
-                        }
-                        assert!(join_error.is_cancelled());
-                        tracing::warn!(?peer_endpoint, "path mtu probe task is cancelled");
-                        None
-                    }
-                };
-
-                match self.last_probe_ats.get_mut(peer_endpoint) {
-                    Some(last_probe_at) => {
-                        *last_probe_at = Instant::now();
-                    }
-                    None => {
-                        // Do not return the path MTU if the peer has been unregistered.
-                        path_mtu = None;
-                    }
-                }
-
-                self.probe_task = None;
-
-                if path_mtu.is_some() {
-                    return path_mtu;
+            tokio::select! {
+                _ = self.cancel.wait() => break,
+                peer_endpoint = self.probe_recv.recv() => {
+                    let Some(peer_endpoint) = peer_endpoint else { break };
+                    self.probe(peer_endpoint).await;
                 }
             }
+        }
+    }
 
-            if self.next_probe_at.is_none() {
-                let (peer_endpoint, last_probe_at) = self
-                    .last_probe_ats
-                    .iter()
-                    .min_by_key(|(_, last_probe_at)| *last_probe_at)?;
-                self.next_probe_at = Some((*last_probe_at + self.reprobe_after, *peer_endpoint));
+    async fn probe(&self, peer_endpoint: SocketAddr) {
+        if peer_endpoint.is_ipv6() {
+            tracing::warn!(
+                ?peer_endpoint,
+                "probing ipv6 path mtu is not supported at the moment",
+            );
+            return;
+        }
+
+        // TODO: Retry when probing fails.
+        match probe(&self.socket, peer_endpoint).await {
+            Ok(path_mtu) => {
+                let _ = self.path_mtu_send.send((peer_endpoint, path_mtu)).await;
             }
-
-            let (probe_at, peer_endpoint) = self.next_probe_at.unwrap();
-            time::sleep_until(probe_at).await;
-
-            self.probe_task = Some((
-                peer_endpoint,
-                tokio::spawn(
-                    probe(self.socket.clone(), peer_endpoint)
-                        .instrument(tracing::info_span!("utp/mtu", ?peer_endpoint)),
-                ),
-            ));
-            self.next_probe_at = None;
+            Err(error) => {
+                if error.kind() == ErrorKind::TimedOut {
+                    tracing::debug!(?peer_endpoint, ?error, "path mtu probe timeout");
+                } else {
+                    tracing::warn!(?peer_endpoint, ?error, "path mtu probe error");
+                }
+            }
         }
     }
 }
 
-impl Drop for PathMtuProber {
-    fn drop(&mut self) {
-        if let Some((_, probe_task)) = self.probe_task.as_ref() {
-            probe_task.abort();
-        }
-    }
-}
-
-async fn probe(socket: Arc<IcmpSocket>, peer_endpoint: SocketAddr) -> Result<usize, Error> {
+#[tracing::instrument(name = "utp/mtu", skip(socket))]
+async fn probe(socket: &IcmpSocket, peer_endpoint: SocketAddr) -> Result<usize, Error> {
     let address = match peer_endpoint.ip() {
         IpAddr::V4(address) => address,
         IpAddr::V6(_) => {

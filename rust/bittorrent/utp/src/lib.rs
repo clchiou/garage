@@ -53,6 +53,6 @@ g1_param::define!(
     resend_limit: usize = 2
 );
 
+g1_param::define!(path_mtu_queue_size: usize = 64);
 g1_param::define!(path_mtu_max_probe_size: usize = 2400);
-g1_param::define!(path_mtu_reprobe_period: Duration = Duration::from_secs(60));
 g1_param::define!(path_mtu_icmp_reply_timeout: Duration = Duration::from_secs(2));

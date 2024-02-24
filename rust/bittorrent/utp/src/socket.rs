@@ -25,7 +25,7 @@ use crate::conn::{
     self, ConnectedRecv, Connection, Handshake, Incoming, OutgoingRecv, OutgoingSend,
 };
 use crate::error;
-use crate::mtu::{self, PathMtuProber};
+use crate::mtu::{self, PathMtuProber, PathMtuProberGuard};
 use crate::timestamp;
 
 #[derive(Debug)]
@@ -69,6 +69,7 @@ struct Actor<UdpStream, UdpSink> {
     outgoing_send: OutgoingSend,
 
     prober: PathMtuProber,
+    prober_task: PathMtuProberGuard,
 }
 
 g1_param::define!(connect_queue_size: usize = 64);
@@ -183,6 +184,11 @@ where
         accept_send: AcceptSend,
     ) -> Self {
         let (outgoing_recv, outgoing_send) = conn::new_outgoing_queue();
+
+        // TODO: Handle `PathMtuProber::spawn` error.
+        let (prober, prober_task) = PathMtuProber::spawn().unwrap();
+        prober_task.add_parent(cancel.clone());
+
         Self {
             cancel: cancel.clone(),
             socket,
@@ -195,7 +201,8 @@ where
             stubs: HashMap::new(),
             outgoing_recv,
             outgoing_send,
-            prober: PathMtuProber::new(*crate::path_mtu_reprobe_period()).unwrap(),
+            prober,
+            prober_task,
         }
     }
 
@@ -232,7 +239,8 @@ where
                         packet.encode(&mut buffer);
                         self.sink.send((peer_endpoint, buffer.freeze())).await?;
                     }
-                    Some((peer_endpoint, path_mtu)) = self.prober.next() => {
+                    path_mtu = self.prober.path_mtu_recv.recv() => {
+                        let Some((peer_endpoint, path_mtu)) = path_mtu else { break };
                         if let Some(stub) = self.stubs.get(&peer_endpoint) {
                             // Ignore the channel closed error.
                             let _ = stub.packet_size_send.send(mtu::to_packet_size(path_mtu));
@@ -246,12 +254,22 @@ where
         let Actor {
             tasks,
             mut peer_endpoints,
+            mut prober_task,
             ..
         } = self;
-        tasks.cancel();
-        while let Some(guard) = tasks.join_next().await {
-            handle_conn_result(&mut peer_endpoints, guard);
-        }
+        tokio::join!(
+            async move {
+                tasks.cancel();
+                while let Some(guard) = tasks.join_next().await {
+                    handle_conn_result(&mut peer_endpoints, guard);
+                }
+            },
+            async move {
+                if let Err(error) = prober_task.shutdown().await {
+                    tracing::warn!(?error, "path mtu prober task error");
+                }
+            },
+        );
 
         result
     }
@@ -271,15 +289,25 @@ where
             return;
         }
         if let Some((stream, connected_recv)) = self.spawn(peer_endpoint, Handshake::new_connect) {
+            let probe_send = self.prober.probe_send.clone();
             tokio::spawn(async move {
-                let _ = result_send.send(match connected_recv.await {
-                    Ok(Ok(())) => Ok(stream),
+                let result = match connected_recv.await {
+                    Ok(Ok(())) => {
+                        if matches!(
+                            probe_send.try_send(peer_endpoint),
+                            Err(mpsc::error::TrySendError::Full(_)),
+                        ) {
+                            tracing::warn!(?peer_endpoint, "path mtu prober queue is full");
+                        }
+                        Ok(stream)
+                    }
                     Ok(Err(error)) => Err(error),
                     Err(_) => Err(Error::new(
                         ErrorKind::ConnectionAborted,
                         error::Error::Handshake { peer_endpoint },
                     )),
-                });
+                };
+                let _ = result_send.send(result);
             });
         }
         // Dropping `result_send` causes `UtpSocket::connect` to return a `BrokenPipe` error.
@@ -289,8 +317,15 @@ where
         match self.spawn(peer_endpoint, Handshake::new_accept) {
             Some((stream, connected_recv)) => {
                 let accept_send = self.accept_send.clone();
+                let probe_send = self.prober.probe_send.clone();
                 tokio::spawn(async move {
                     if matches!(connected_recv.await, Ok(Ok(()))) {
+                        if matches!(
+                            probe_send.try_send(peer_endpoint),
+                            Err(mpsc::error::TrySendError::Full(_)),
+                        ) {
+                            tracing::warn!(?peer_endpoint, "path mtu prober queue is full");
+                        }
                         if matches!(
                             accept_send.try_send(stream),
                             Err(mpmc::error::TrySendError::Full(_)),
@@ -343,13 +378,11 @@ where
         self.tasks.push(guard).ok()?;
         assert!(self.peer_endpoints.insert(id, peer_endpoint).is_none());
         assert!(self.stubs.insert(peer_endpoint, stub).is_none());
-        self.prober.register(peer_endpoint);
         Some((stream, connected_recv))
     }
 
     fn remove(&mut self, peer_endpoint: SocketAddr) {
         self.stubs.remove(&peer_endpoint);
-        self.prober.unregister(&peer_endpoint);
     }
 }
 
