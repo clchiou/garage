@@ -17,10 +17,11 @@ use tokio::sync::{
     oneshot, watch,
 };
 
+use g1_tokio::task::JoinGuard;
+
 use crate::packet::{self, Packet, PacketType};
 use crate::timestamp::Timestamp;
 
-pub(crate) use self::actor::Actor;
 pub(crate) use self::handshake::Handshake;
 
 #[derive(Clone, Debug, Eq, PartialEq, Snafu)]
@@ -87,10 +88,12 @@ pub(crate) type IncomingRecv = Receiver<Incoming>;
 pub(crate) type IncomingSend = Sender<Incoming>;
 
 #[derive(Debug)]
-pub(crate) struct ActorStub {
+pub(crate) struct Connection {
     pub(crate) incoming_send: IncomingSend,
     pub(crate) packet_size_send: PacketSizeSend,
 }
+
+pub(crate) type ConnectionGuard = JoinGuard<Result<(), Error>>;
 
 pub(crate) type Outgoing = (SocketAddr, Packet);
 pub(crate) type OutgoingRecv = Receiver<Outgoing>;

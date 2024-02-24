@@ -14,7 +14,6 @@ use tokio::{
     sync::{mpsc, oneshot},
     task::Id,
 };
-use tracing::Instrument;
 
 use g1_tokio::{
     sync::mpmc,
@@ -23,7 +22,7 @@ use g1_tokio::{
 
 use crate::bstream::UtpStream;
 use crate::conn::{
-    self, ActorStub, ConnectedRecv, Handshake, Incoming, OutgoingRecv, OutgoingSend,
+    self, ConnectedRecv, Connection, Handshake, Incoming, OutgoingRecv, OutgoingSend,
 };
 use crate::error;
 use crate::mtu::{self, PathMtuProber};
@@ -65,7 +64,7 @@ struct Actor<UdpStream, UdpSink> {
 
     tasks: JoinQueue<Result<(), conn::Error>>,
     peer_endpoints: HashMap<Id, SocketAddr>,
-    stubs: HashMap<SocketAddr, ActorStub>,
+    stubs: HashMap<SocketAddr, Connection>,
     outgoing_recv: OutgoingRecv,
     outgoing_send: OutgoingSend,
 
@@ -216,7 +215,7 @@ where
                     }
                     guard = self.tasks.join_next() => {
                         let Some(guard) = guard else { break };
-                        let peer_endpoint = join_conn_actor(&mut self.peer_endpoints, guard);
+                        let peer_endpoint = handle_conn_result(&mut self.peer_endpoints, guard);
                         self.remove(peer_endpoint);
                     }
                     incoming = self.stream.try_next() => {
@@ -243,7 +242,7 @@ where
             }
         };
 
-        // Drop `mpsc` channels to induce graceful shutdown in `conn::Actor`.
+        // Drop `mpsc` channels to induce graceful shutdown in `Connection`.
         let Actor {
             tasks,
             mut peer_endpoints,
@@ -251,7 +250,7 @@ where
         } = self;
         tasks.cancel();
         while let Some(guard) = tasks.join_next().await {
-            join_conn_actor(&mut peer_endpoints, guard);
+            handle_conn_result(&mut peer_endpoints, guard);
         }
 
         result
@@ -291,11 +290,12 @@ where
             Some((stream, connected_recv)) => {
                 let accept_send = self.accept_send.clone();
                 tokio::spawn(async move {
-                    if let Ok(Ok(())) = connected_recv.await {
-                        if let Err(mpmc::error::TrySendError::Full(_)) =
-                            accept_send.try_send(stream)
-                        {
-                            tracing::warn!("utp accept queue is full");
+                    if matches!(connected_recv.await, Ok(Ok(()))) {
+                        if matches!(
+                            accept_send.try_send(stream),
+                            Err(mpmc::error::TrySendError::Full(_)),
+                        ) {
+                            tracing::warn!(?peer_endpoint, "utp accept queue is full");
                         }
                         // Dropping `stream` causes connection actor to exit.
                     }
@@ -332,18 +332,13 @@ where
         new_handshake: fn() -> Handshake,
     ) -> Option<(UtpStream, ConnectedRecv)> {
         let (connected_send, connected_recv) = oneshot::channel();
-        let ((actor, stub), stream) = conn::Actor::with_socket(
+        let (stub, guard, stream) = conn::Connection::spawn(
             new_handshake(),
             self.socket.clone(),
             peer_endpoint,
             connected_send,
             self.outgoing_send.clone(),
         );
-        let actor_run = actor
-            .run()
-            .instrument(tracing::info_span!("utp/conn", ?peer_endpoint));
-        // TODO: Implement cooperative cancellation in conn::Actor.
-        let guard = JoinGuard::spawn(move |_| actor_run);
         let id = guard.id();
         self.tasks.push(guard).ok()?;
         assert!(self.peer_endpoints.insert(id, peer_endpoint).is_none());
@@ -358,7 +353,7 @@ where
     }
 }
 
-fn join_conn_actor(
+fn handle_conn_result(
     peer_endpoints: &mut HashMap<Id, SocketAddr>,
     mut guard: JoinGuard<Result<(), conn::Error>>,
 ) -> SocketAddr {

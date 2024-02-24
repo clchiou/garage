@@ -8,20 +8,23 @@ use tokio::{
     sync::{mpsc, watch, Notify},
     time,
 };
+use tracing::Instrument;
 
 use g1_base::sync::MutexExt;
+use g1_tokio::task::{Cancel, JoinGuard};
 
 use crate::bstream::{self, UtpRecvStream, UtpSendStream, UtpStream};
 use crate::packet::{Packet, PacketType};
 use crate::timestamp::Timestamp;
 
 use super::{
-    handshake::Handshake, state::State, ActorStub, ConnectedSend, Error, IncomingRecv,
-    InvalidPacketSnafu, OutgoingSend, PacketSizeRecv, MIN_PACKET_SIZE,
+    handshake::Handshake, state::State, ConnectedSend, Connection, ConnectionGuard, Error,
+    IncomingRecv, InvalidPacketSnafu, OutgoingSend, PacketSizeRecv, MIN_PACKET_SIZE,
 };
 
 #[derive(Debug)]
-pub(crate) struct Actor<S = InitState> {
+pub(super) struct Actor<S = InitState> {
+    cancel: Cancel,
     pub(super) state: S,
     peer_endpoint: SocketAddr,
     outgoing_send: OutgoingSend,
@@ -30,7 +33,7 @@ pub(crate) struct Actor<S = InitState> {
 }
 
 #[derive(Debug)]
-pub(crate) struct InitState {
+pub(super) struct InitState {
     handshake: Handshake,
     connected_send: ConnectedSend,
     incoming_recv: IncomingRecv,
@@ -46,61 +49,47 @@ pub(super) struct Notifiers {
     pub(super) rtt_timer: Notify,
 }
 
-impl Actor<InitState> {
-    pub(crate) fn new(
-        handshake: Handshake,
-        peer_endpoint: SocketAddr,
-        connected_send: ConnectedSend,
-        outgoing_send: OutgoingSend,
-        stream_incoming_send: bstream::IncomingSend,
-        stream_outgoing_recv: bstream::OutgoingRecv,
-    ) -> (Self, ActorStub) {
-        let (incoming_send, incoming_recv) = mpsc::channel(*super::incoming_queue_size());
-        let (packet_size_send, packet_size_recv) = watch::channel(MIN_PACKET_SIZE);
-        (
-            Self {
-                state: InitState {
-                    handshake,
-                    connected_send,
-                    incoming_recv,
-                    packet_size_recv,
-                    stream_outgoing_recv,
-                },
-                peer_endpoint,
-                outgoing_send,
-                stream_incoming_send,
-                notifiers: Notifiers::new(),
-            },
-            ActorStub {
-                incoming_send,
-                packet_size_send,
-            },
-        )
-    }
-
-    pub(crate) fn with_socket(
+impl Connection {
+    pub(crate) fn spawn(
         handshake: Handshake,
         socket: Arc<UdpSocket>,
         peer_endpoint: SocketAddr,
         connected_send: ConnectedSend,
         outgoing_send: OutgoingSend,
-    ) -> ((Self, ActorStub), UtpStream) {
+    ) -> (Self, ConnectionGuard, UtpStream) {
+        let (incoming_send, incoming_recv) = mpsc::channel(*super::incoming_queue_size());
+        let (packet_size_send, packet_size_recv) = watch::channel(MIN_PACKET_SIZE);
         let (recv, stream_incoming_send) = UtpRecvStream::new(socket.clone(), peer_endpoint);
         let (send, stream_outgoing_recv) = UtpSendStream::new(socket, peer_endpoint);
         (
-            Self::new(
-                handshake,
-                peer_endpoint,
-                connected_send,
-                outgoing_send,
-                stream_incoming_send,
-                stream_outgoing_recv,
-            ),
+            Self {
+                incoming_send,
+                packet_size_send,
+            },
+            JoinGuard::spawn(move |cancel| {
+                Actor::new(
+                    cancel,
+                    InitState {
+                        handshake,
+                        connected_send,
+                        incoming_recv,
+                        packet_size_recv,
+                        stream_outgoing_recv,
+                    },
+                    peer_endpoint,
+                    outgoing_send,
+                    stream_incoming_send,
+                )
+                .run()
+                .instrument(tracing::info_span!("utp/conn", ?peer_endpoint))
+            }),
             UtpStream::new(recv, send),
         )
     }
+}
 
-    pub(crate) async fn run(self) -> Result<(), Error> {
+impl Actor<InitState> {
+    async fn run(self) -> Result<(), Error> {
         let (this, init) = self.into_state(());
         let InitState {
             handshake,
@@ -110,8 +99,14 @@ impl Actor<InitState> {
             stream_outgoing_recv,
         } = init;
         let (mut this, _) = this.into_state(handshake);
+        let cancel = this.cancel.clone();
 
-        let state = match this.handshake(&mut incoming_recv).await {
+        let handshake_result = tokio::select! {
+            _ = cancel.wait() => return Ok(()), // Should we send a reset?
+            handshake_result = this.handshake(&mut incoming_recv) => handshake_result,
+        };
+
+        let state = match handshake_result {
             Ok(state) => state,
             Err(Error::ExpectPacketType {
                 packet_type: PacketType::Reset,
@@ -120,6 +115,7 @@ impl Actor<InitState> {
                 // This is probably the result of an earlier connection reset.  We may ignore it
                 // and close the connection.
                 tracing::debug!("expect synchronize but receive reset");
+                // Should we send a reset?
                 return Ok(());
             }
             Err(error) => {
@@ -133,6 +129,7 @@ impl Actor<InitState> {
         let (this, _) = this.into_state(Mutex::new(state));
 
         tokio::select! {
+            _ = cancel.wait() => Ok(()),
             result = async {
                 tokio::try_join!(this.recv(incoming_recv), this.send(stream_outgoing_recv))
                     .map(|((), ())| ())
@@ -155,9 +152,27 @@ impl Actor<InitState> {
 }
 
 impl<S> Actor<S> {
+    fn new(
+        cancel: Cancel,
+        state: S,
+        peer_endpoint: SocketAddr,
+        outgoing_send: OutgoingSend,
+        stream_incoming_send: bstream::IncomingSend,
+    ) -> Self {
+        Self {
+            cancel,
+            state,
+            peer_endpoint,
+            outgoing_send,
+            stream_incoming_send,
+            notifiers: Notifiers::new(),
+        }
+    }
+
     pub(super) fn into_state<T>(self, next_state: T) -> (Actor<T>, S) {
         (
             Actor {
+                cancel: self.cancel,
                 state: next_state,
                 peer_endpoint: self.peer_endpoint,
                 outgoing_send: self.outgoing_send,
@@ -282,13 +297,13 @@ mod test_harness {
             let (outgoing_send, outgoing_recv) = mpsc::channel(32);
             let (stream_incoming_send, stream_incoming_recv) = mpsc::channel(32);
             (
-                Self {
+                Self::new(
+                    Cancel::new(),
                     state,
                     peer_endpoint,
                     outgoing_send,
                     stream_incoming_send,
-                    notifiers: Notifiers::new(),
-                },
+                ),
                 outgoing_recv,
                 stream_incoming_recv,
             )
