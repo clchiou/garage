@@ -3,15 +3,13 @@ use std::io::{Error, ErrorKind};
 use std::sync::{Arc, Mutex};
 
 use tokio::{
-    sync::{
-        mpsc::{error::TrySendError, UnboundedReceiver},
-        Notify,
-    },
+    sync::mpsc::{error::TrySendError, UnboundedReceiver},
     time::{self, Interval},
 };
 
 use g1_base::sync::MutexExt;
 use g1_tokio::bstream::{StreamRecv, StreamSend};
+use g1_tokio::task::Cancel;
 
 use bittorrent_base::{BlockDesc, PieceIndex};
 use bittorrent_extension::{ExtensionIdMap, Message as ExtensionMessage};
@@ -19,16 +17,15 @@ use bittorrent_socket::{Message, Socket};
 
 use crate::{
     chan::{Endpoint, Sends},
-    error,
     incoming::{self, Reject, Response},
     outgoing,
     state::ConnStateLower,
-    Full, Possession,
+    Full, KeepAliveTimeout, Possession,
 };
 
 #[derive(Debug)]
 pub(crate) struct Actor<Stream> {
-    exit: Arc<Notify>,
+    cancel: Cancel,
 
     socket: Socket<Stream>,
 
@@ -67,7 +64,7 @@ where
 {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
-        exit: Arc<Notify>,
+        cancel: Cancel,
         socket: Socket<Stream>,
         extension_ids: Arc<Mutex<ExtensionIdMap>>,
         conn_state: ConnStateLower,
@@ -78,7 +75,7 @@ where
         sends: Sends,
     ) -> Self {
         Self {
-            exit,
+            cancel,
             socket,
             extension_ids,
             conn_state,
@@ -98,9 +95,7 @@ where
         self.send_keep_alive_interval.reset();
         loop {
             tokio::select! {
-                _ = self.exit.notified() => {
-                    break;
-                }
+                _ = self.cancel.wait() => break,
 
                 message = self.socket.recv() => {
                     self.handle_recv(message?).await?;
@@ -148,7 +143,7 @@ where
                 }
 
                 _ = self.recv_keep_alive_interval.tick() => {
-                    return Err(Error::new(ErrorKind::TimedOut, error::Error::KeepAliveTimeout));
+                    return Err(Error::new(ErrorKind::TimedOut, KeepAliveTimeout));
                 }
                 _ = self.send_keep_alive_interval.tick() => {
                     self.send(Message::KeepAlive).await?;
@@ -374,20 +369,20 @@ mod test_harness {
         pub fn new_mock() -> (
             Self,
             DuplexStream,
-            Arc<Notify>,
+            Cancel,
             ConnStateUpper,
             outgoing::QueueUpper,
             mpsc::UnboundedSender<Message>,
             Recvs,
         ) {
-            let exit = Arc::new(Notify::new());
+            let cancel = Cancel::new();
             let (stream, mock) = Stream::new_mock(4096);
             let (conn_state_upper, conn_state_lower) = state::new_conn_state();
             let (outgoings_upper, outgoings_lower) = outgoing::new_queue(10, Duration::ZERO);
             let (message_send, message_recv) = mpsc::unbounded_channel();
             let (recvs, sends) = chan::new_channels();
             let actor = Actor::new(
-                exit.clone(),
+                cancel.clone(),
                 Socket::new_mock(
                     stream,
                     Features::new(true, true, true),
@@ -405,7 +400,7 @@ mod test_harness {
             (
                 actor,
                 mock,
-                exit,
+                cancel,
                 conn_state_upper,
                 outgoings_upper,
                 message_send,

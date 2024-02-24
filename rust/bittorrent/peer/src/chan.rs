@@ -1,4 +1,4 @@
-//! Channels to which peer agents send data.
+//! Channels to which peers send data.
 
 use std::net::SocketAddr;
 

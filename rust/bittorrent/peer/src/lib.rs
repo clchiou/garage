@@ -1,23 +1,21 @@
 #![cfg_attr(test, feature(assert_matches))]
 #![cfg_attr(test, feature(is_sorted))]
 
-pub mod error;
-
 mod actor;
-mod agent;
 mod chan;
 mod incoming;
 mod outgoing;
+mod peer;
 mod state;
 
 use std::time::Duration;
 
 use bytes::Bytes;
+use snafu::prelude::*;
 
 use bittorrent_base::PieceIndex;
 
 g1_param::define!(request_timeout: Duration = Duration::from_secs(16));
-g1_param::define!(grace_period: Duration = Duration::from_secs(2));
 
 g1_param::define!(recv_keep_alive_timeout: Duration = Duration::from_secs(120));
 // This is slightly shorter than `recv_keep_alive_timeout` because we aim to send a `KeepAlive`
@@ -36,8 +34,11 @@ g1_param::define!(port_queue_size: usize = 256);
 
 g1_param::define!(extension_queue_size: usize = 256);
 
-pub use agent::Agent;
-pub use chan::{new_channels, Endpoint, ExtensionMessageOwner, Recvs, Sends};
+pub use crate::chan::{new_channels, Endpoint, ExtensionMessageOwner, Recvs, Sends};
+pub use crate::peer::{Peer, PeerGuard};
+
+#[derive(Clone, Debug, Eq, PartialEq, Snafu)]
+pub struct KeepAliveTimeout;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Incompatible;
