@@ -4,6 +4,8 @@
 #![cfg_attr(test, feature(assert_matches))]
 #![cfg_attr(test, feature(duration_constants))]
 
+pub mod error;
+
 mod bstream;
 mod conn;
 mod mtu;
@@ -14,7 +16,7 @@ mod timestamp;
 use std::time::Duration;
 
 pub use crate::bstream::{UtpRecvStream, UtpSendStream, UtpStream};
-pub use crate::socket::UtpSocket;
+pub use crate::socket::{UtpConnector, UtpListener, UtpSocket};
 
 g1_param::define!(recv_window_size: usize = 65536);
 g1_param::define!(send_window_size_limit: usize = 65536);

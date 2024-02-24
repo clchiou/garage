@@ -11,20 +11,21 @@ use futures::{
 };
 use tokio::{
     net::UdpSocket,
-    sync::{
-        mpsc::{self, error::TrySendError, Receiver, Sender},
-        oneshot, Mutex,
-    },
+    sync::{mpsc, oneshot},
     task::Id,
 };
 use tracing::Instrument;
 
-use g1_tokio::task::{Cancel, JoinGuard, JoinQueue};
+use g1_tokio::{
+    sync::mpmc,
+    task::{Cancel, JoinGuard, JoinQueue},
+};
 
 use crate::bstream::UtpStream;
 use crate::conn::{
     self, ActorStub, ConnectedRecv, Handshake, Incoming, OutgoingRecv, OutgoingSend,
 };
+use crate::error;
 use crate::mtu::{self, PathMtuProber};
 use crate::timestamp;
 
@@ -33,9 +34,21 @@ pub struct UtpSocket {
     socket: Arc<UdpSocket>,
 
     connect_send: ConnectSend,
-    accept_recv: Mutex<AcceptRecv>,
+    accept_recv: AcceptRecv,
 
-    guard: Mutex<JoinGuard<Result<(), Error>>>,
+    guard: JoinGuard<Result<(), Error>>,
+}
+
+#[derive(Clone, Debug)]
+pub struct UtpConnector {
+    socket: Arc<UdpSocket>,
+    connect_send: ConnectSend,
+}
+
+#[derive(Clone, Debug)]
+pub struct UtpListener {
+    socket: Arc<UdpSocket>,
+    accept_recv: AcceptRecv,
 }
 
 #[derive(Debug)]
@@ -63,11 +76,11 @@ g1_param::define!(connect_queue_size: usize = 64);
 g1_param::define!(accept_queue_size: usize = 64);
 
 type Connect = (SocketAddr, oneshot::Sender<Result<UtpStream, Error>>);
-type ConnectRecv = Receiver<Connect>;
-type ConnectSend = Sender<Connect>;
+type ConnectRecv = mpsc::Receiver<Connect>;
+type ConnectSend = mpsc::Sender<Connect>;
 
-type AcceptRecv = Receiver<UtpStream>;
-type AcceptSend = Sender<UtpStream>;
+type AcceptRecv = mpmc::Receiver<UtpStream>;
+type AcceptSend = mpmc::Sender<UtpStream>;
 
 impl UtpSocket {
     pub fn new<UdpStream, UdpSink>(socket: Arc<UdpSocket>, stream: UdpStream, sink: UdpSink) -> Self
@@ -76,7 +89,7 @@ impl UtpSocket {
         UdpSink: Sink<(SocketAddr, Bytes), Error = Error> + Send + Unpin + 'static,
     {
         let (connect_send, connect_recv) = mpsc::channel(*connect_queue_size());
-        let (accept_send, accept_recv) = mpsc::channel(*accept_queue_size());
+        let (accept_send, accept_recv) = mpmc::channel(*accept_queue_size());
         let guard = {
             let socket = socket.clone();
             JoinGuard::spawn(move |cancel| {
@@ -86,8 +99,37 @@ impl UtpSocket {
         Self {
             socket,
             connect_send,
-            accept_recv: Mutex::new(accept_recv),
-            guard: Mutex::new(guard),
+            accept_recv,
+            guard,
+        }
+    }
+
+    pub fn socket(&self) -> &UdpSocket {
+        &self.socket
+    }
+
+    pub fn connector(&self) -> UtpConnector {
+        UtpConnector::new(self.socket.clone(), self.connect_send.clone())
+    }
+
+    pub fn listener(&self) -> UtpListener {
+        UtpListener::new(self.socket.clone(), self.accept_recv.clone())
+    }
+
+    pub async fn join(&mut self) {
+        self.guard.join().await
+    }
+
+    pub async fn shutdown(&mut self) -> Result<(), Error> {
+        self.guard.shutdown().await?
+    }
+}
+
+impl UtpConnector {
+    fn new(socket: Arc<UdpSocket>, connect_send: ConnectSend) -> Self {
+        Self {
+            socket,
+            connect_send,
         }
     }
 
@@ -97,7 +139,7 @@ impl UtpSocket {
 
     pub async fn connect(&self, peer_endpoint: SocketAddr) -> Result<UtpStream, Error> {
         fn to_io_error<E>(_: E) -> Error {
-            Error::new(ErrorKind::ConnectionAborted, "utp socket is shutting down")
+            Error::new(ErrorKind::ConnectionAborted, error::Error::Shutdown)
         }
         let (result_send, result_recv) = oneshot::channel();
         self.connect_send
@@ -106,18 +148,25 @@ impl UtpSocket {
             .map_err(to_io_error)?;
         result_recv.await.map_err(to_io_error)?
     }
+}
+
+impl UtpListener {
+    fn new(socket: Arc<UdpSocket>, accept_recv: AcceptRecv) -> Self {
+        Self {
+            socket,
+            accept_recv,
+        }
+    }
+
+    pub fn socket(&self) -> &UdpSocket {
+        &self.socket
+    }
 
     pub async fn accept(&self) -> Result<UtpStream, Error> {
         self.accept_recv
-            .lock()
-            .await
             .recv()
             .await
-            .ok_or_else(|| Error::new(ErrorKind::ConnectionAborted, "utp socket is shutting down"))
-    }
-
-    pub async fn shutdown(&self) -> Result<(), Error> {
-        self.guard.lock().await.shutdown().await?
+            .ok_or_else(|| Error::new(ErrorKind::ConnectionAborted, error::Error::Shutdown))
     }
 }
 
@@ -173,10 +222,7 @@ where
                     incoming = self.stream.try_next() => {
                         let recv_at = timestamp::now();
                         let (peer_endpoint, payload) = incoming?.ok_or_else(|| {
-                            Error::new(
-                                ErrorKind::UnexpectedEof,
-                                "the underlying udp socket is closed",
-                            )
+                            Error::new(ErrorKind::UnexpectedEof, error::Error::Closed)
                         })?;
                         self.incoming_send(peer_endpoint, (payload, recv_at));
                     }
@@ -221,17 +267,18 @@ where
         if self.stubs.contains_key(&peer_endpoint) {
             let _ = result_send.send(Err(Error::new(
                 ErrorKind::AddrInUse,
-                format!("duplicated utp connections: {}", peer_endpoint),
+                error::Error::Duplicated { peer_endpoint },
             )));
             return;
         }
         if let Some((stream, connected_recv)) = self.spawn(peer_endpoint, Handshake::new_connect) {
             tokio::spawn(async move {
                 let _ = result_send.send(match connected_recv.await {
-                    Ok(result) => result.map(|()| stream),
+                    Ok(Ok(())) => Ok(stream),
+                    Ok(Err(error)) => Err(error),
                     Err(_) => Err(Error::new(
                         ErrorKind::ConnectionAborted,
-                        "utp handshake error",
+                        error::Error::Handshake { peer_endpoint },
                     )),
                 });
             });
@@ -245,7 +292,9 @@ where
                 let accept_send = self.accept_send.clone();
                 tokio::spawn(async move {
                     if let Ok(Ok(())) = connected_recv.await {
-                        if let Err(TrySendError::Full(_)) = accept_send.try_send(stream) {
+                        if let Err(mpmc::error::TrySendError::Full(_)) =
+                            accept_send.try_send(stream)
+                        {
                             tracing::warn!("utp accept queue is full");
                         }
                         // Dropping `stream` causes connection actor to exit.
@@ -270,7 +319,7 @@ where
         }
         let stub = self.stubs.get(&peer_endpoint).unwrap();
         if let Err(error) = stub.incoming_send.try_send(incoming) {
-            if matches!(error, TrySendError::Full(_)) {
+            if matches!(error, mpsc::error::TrySendError::Full(_)) {
                 tracing::warn!(?peer_endpoint, "utp connection incoming queue is full");
             }
             self.remove(peer_endpoint);
