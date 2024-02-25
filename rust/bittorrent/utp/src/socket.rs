@@ -255,6 +255,7 @@ where
             tasks,
             mut peer_endpoints,
             mut prober_task,
+            mut sink,
             ..
         } = self;
         tokio::join!(
@@ -269,6 +270,11 @@ where
                     tracing::warn!(?error, "path mtu prober task error");
                 }
             },
+            async move {
+                if let Err(error) = sink.close().await {
+                    tracing::warn!(?error, "udp sink close error");
+                }
+            }
         );
 
         result
