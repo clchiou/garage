@@ -8,7 +8,7 @@ use bittorrent_base::{Features, InfoHash};
 use bittorrent_bencode::serde as serde_bencode;
 use bittorrent_extension::{Enabled, Handshake, Message, Metadata, PeerExchange, Reject, Request};
 use bittorrent_manager::{Endpoint, Manager, Update};
-use bittorrent_peer::{Agent, ExtensionMessageOwner, Recvs};
+use bittorrent_peer::{ExtensionMessageOwner, Peer, Recvs};
 
 #[derive(Clone, Debug, Eq, PartialEq, Snafu)]
 pub enum Error {
@@ -214,7 +214,7 @@ impl<'a> Trackerless<'a> {
         Ok(())
     }
 
-    fn handle_handshake(&mut self, peer: &Agent, handshake: &Handshake) {
+    fn handle_handshake(&mut self, peer: &Peer, handshake: &Handshake) {
         if self.metadata_size.is_none() {
             assert!(self.pieces.is_empty());
             let metadata_size = try_then!(handshake.metadata_size, return);
@@ -222,7 +222,7 @@ impl<'a> Trackerless<'a> {
             self.metadata_size = Some(metadata_size);
             self.pieces.extend(0..Metadata::num_pieces(metadata_size));
 
-            for peer in self.manager.agents() {
+            for peer in self.manager.peers() {
                 if peer.peer_features().extension && peer.peer_extensions().metadata {
                     let piece = try_then!(self.next_piece(), break);
                     self.send_metadata(&peer, Metadata::Request(Request::new(piece)));
@@ -234,7 +234,7 @@ impl<'a> Trackerless<'a> {
         }
     }
 
-    fn handle_metadata(&mut self, peer: &Agent, metadata: &Metadata) {
+    fn handle_metadata(&mut self, peer: &Peer, metadata: &Metadata) {
         match metadata {
             Metadata::Request(request) => {
                 self.send_metadata(peer, Metadata::Reject(Reject::new(request.piece)))
@@ -275,7 +275,7 @@ impl<'a> Trackerless<'a> {
     // Send Helpers
     //
 
-    fn send_handshake(&self, peer: &Agent) {
+    fn send_handshake(&self, peer: &Peer) {
         assert!(peer.peer_features().extension);
         // TODO: We do not have a builder API for message owners.  As a workaround, we employ an
         // encode-decode trick for now.
@@ -287,7 +287,7 @@ impl<'a> Trackerless<'a> {
         peer.send_extension(message).unwrap();
     }
 
-    fn send_metadata(&mut self, peer: &Agent, metadata: Metadata) {
+    fn send_metadata(&mut self, peer: &Peer, metadata: Metadata) {
         assert!(peer.peer_features().extension);
         assert!(peer.peer_extensions().metadata);
 
