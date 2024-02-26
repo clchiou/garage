@@ -1,15 +1,13 @@
 use std::net::SocketAddr;
+use std::sync::Arc;
 
 use tokio::{
-    sync::{
-        mpsc::{self, error::TrySendError},
-        watch, Mutex,
-    },
-    task::JoinHandle,
+    sync::watch,
     time::{self, Instant},
 };
 
-use g1_tokio::task::{self, JoinTaskError};
+use g1_tokio::sync::mpmc::{self, error::TrySendError};
+use g1_tokio::task::{Cancel, JoinGuard};
 
 use bittorrent_base::{InfoHash, PeerId};
 use bittorrent_metainfo::Metainfo;
@@ -42,15 +40,19 @@ pub enum Endpoint {
     DomainName(String, u16),
 }
 
-#[derive(Debug)]
-pub struct Agent {
-    event_send: watch::Sender<Option<Event>>,
-    peer_recv: Mutex<mpsc::Receiver<PeerContactInfo>>,
-    task: Mutex<JoinHandle<Result<(), Error>>>,
+#[derive(Clone, Debug)]
+pub struct Tracker {
+    // Wrap it in an `Arc` so that `Clone` can be derived for `Tracker`.
+    event_send: Arc<watch::Sender<Option<Event>>>,
+    peer_recv: mpmc::Receiver<PeerContactInfo>,
 }
+
+pub type TrackerGuard = JoinGuard<Result<(), Error>>;
 
 #[derive(Debug)]
 struct Actor<T> {
+    cancel: Cancel,
+
     info_hash: InfoHash,
     self_id: PeerId,
     port: u16,
@@ -60,7 +62,7 @@ struct Actor<T> {
     next_request_at: Option<Instant>,
 
     event_recv: watch::Receiver<Option<Event>>,
-    peer_send: mpsc::Sender<PeerContactInfo>,
+    peer_send: mpmc::Sender<PeerContactInfo>,
 }
 
 impl<'a> From<&'a response::PeerContactInfo<'a>> for PeerContactInfo {
@@ -83,28 +85,38 @@ impl<'a> From<&'a response::Endpoint<'a>> for Endpoint {
     }
 }
 
-impl Agent {
-    pub fn new<T>(metainfo: &Metainfo, info_hash: InfoHash, port: u16, torrent: T) -> Self
+impl Tracker {
+    pub fn spawn<T>(
+        metainfo: &Metainfo,
+        info_hash: InfoHash,
+        port: u16,
+        torrent: T,
+    ) -> (Self, TrackerGuard)
     where
         T: Torrent,
         T: Send + 'static,
     {
         let (event_send, event_recv) = watch::channel(None);
-        let (peer_send, peer_recv) = mpsc::channel(*crate::peer_queue_size());
-        let actor = Actor::new(
-            metainfo,
-            info_hash,
-            bittorrent_base::self_id().clone(),
-            port,
-            torrent,
-            event_recv,
-            peer_send,
-        );
-        Self {
-            event_send,
-            peer_recv: Mutex::new(peer_recv),
-            task: Mutex::new(tokio::spawn(actor.run())),
-        }
+        let (peer_send, peer_recv) = mpmc::channel(*crate::peer_queue_size());
+        (
+            Self {
+                event_send: Arc::new(event_send),
+                peer_recv,
+            },
+            JoinGuard::spawn(move |cancel| {
+                Actor::new(
+                    cancel,
+                    metainfo,
+                    info_hash,
+                    bittorrent_base::self_id().clone(),
+                    port,
+                    torrent,
+                    event_recv,
+                    peer_send,
+                )
+                .run()
+            }),
+        )
     }
 
     pub fn start(&self) {
@@ -143,37 +155,24 @@ impl Agent {
     }
 
     pub async fn next(&self) -> Option<PeerContactInfo> {
-        self.peer_recv.lock().await.recv().await
-    }
-
-    pub async fn shutdown(&self) -> Result<(), Error> {
-        self.stop();
-        task::join_task(&self.task, *crate::grace_period())
-            .await
-            .map_err(|error| match error {
-                JoinTaskError::Cancelled => "tracker is cancelled",
-                JoinTaskError::Timeout => "tracker shutdown grace period is exceeded",
-            })?
-    }
-}
-
-impl Drop for Agent {
-    fn drop(&mut self) {
-        self.task.get_mut().abort();
+        self.peer_recv.recv().await
     }
 }
 
 impl<T> Actor<T> {
+    #[allow(clippy::too_many_arguments)]
     fn new(
+        cancel: Cancel,
         metainfo: &Metainfo,
         info_hash: InfoHash,
         self_id: PeerId,
         port: u16,
         torrent: T,
         event_recv: watch::Receiver<Option<Event>>,
-        peer_send: mpsc::Sender<PeerContactInfo>,
+        peer_send: mpmc::Sender<PeerContactInfo>,
     ) -> Self {
         Self {
+            cancel,
             info_hash,
             self_id,
             port,
@@ -193,17 +192,16 @@ where
     async fn run(mut self) -> Result<(), Error> {
         loop {
             tokio::select! {
+                () = self.cancel.wait() => break,
+
                 result = self.event_recv.changed() => {
                     // We can call `unwrap` because `event_recv` is never closed.
                     result.unwrap();
-
                     let event = self.event_recv.borrow_and_update().clone();
-                    tracing::info!(?event);
-
-                    self.request(event.clone()).await?;
-
                     if matches!(event, Some(Event::Stopped)) {
                         break;
+                    } else {
+                        self.request(event).await?;
                     }
                 }
                 true = async {
@@ -218,10 +216,12 @@ where
                 }
             }
         }
-        Ok(())
+        self.request(Some(Event::Stopped)).await
     }
 
     async fn request(&mut self, event: Option<Event>) -> Result<(), Error> {
+        tracing::info!(?event, "->tracker");
+
         let request = Request::new(
             self.info_hash.clone(),
             self.self_id.clone(),
