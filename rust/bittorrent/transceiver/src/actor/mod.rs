@@ -31,14 +31,12 @@ mod peer;
 mod run;
 mod upload;
 
-use std::io::Error;
 use std::sync::Arc;
 
 use bytes::Bytes;
 use tokio::sync::{
     broadcast::{Receiver, Sender},
     oneshot::error::RecvError,
-    Notify,
 };
 
 use bittorrent_base::{BlockDesc, Dimension, Features, PieceIndex};
@@ -51,6 +49,7 @@ use g1_base::{
     fmt::{DebugExt, InsertPlaceholder},
     future::ReadyQueue,
 };
+use g1_tokio::task::Cancel;
 
 use crate::{
     queue::Queues,
@@ -71,7 +70,7 @@ pub type DynStorage = Box<dyn Storage + Send + 'static>;
 
 #[derive(DebugExt)]
 pub(crate) struct Actor {
-    exit: Arc<Notify>,
+    cancel: Cancel,
 
     raw_info: Bytes,
     dim: Dimension,
@@ -103,41 +102,33 @@ pub(crate) struct Actor {
     dht_ipv4: Option<Dht>,
     dht_ipv6: Option<Dht>,
 
-    pub(crate) torrent: Arc<TorrentInner>,
+    torrent: Arc<TorrentInner>,
     update_send: Sender<Update>,
 }
 
 impl Actor {
     #[allow(clippy::too_many_arguments)]
-    pub(crate) async fn make(
-        exit: Arc<Notify>,
+    pub(crate) fn new(
+        cancel: Cancel,
+
         raw_info: Bytes,
         dim: Dimension,
+        self_pieces: Bitfield,
+
         manager: Manager,
         recvs: Recvs,
-        mut storage: DynStorage,
+        storage: DynStorage,
         dht_ipv4: Option<Dht>,
         dht_ipv6: Option<Dht>,
-        update_send: Sender<Update>,
-    ) -> Result<Self, Error> {
-        let self_pieces = storage.scan().await?;
-        use crate::bitfield::{Bitfield, BitfieldExt};
-        Bitfield::from_bytes(self_pieces.as_raw_slice(), dim.num_pieces)
-            .ok_or_else(|| Error::other("expect no spare bits in self_pieces"))?;
 
+        torrent: Arc<TorrentInner>,
+        update_send: Sender<Update>,
+    ) -> Self {
         let scheduler = Scheduler::new(dim.clone(), &self_pieces);
         let queues = Queues::new(dim.clone());
         let peer_update_recv = manager.subscribe();
-        let torrent = Arc::new(TorrentInner::new(
-            self_pieces
-                .iter_ones()
-                .map(|piece| dim.piece_size(piece.into()))
-                .sum(),
-            dim.size,
-        ));
-
-        Ok(Self {
-            exit,
+        Self {
+            cancel,
 
             raw_info,
             dim,
@@ -168,6 +159,6 @@ impl Actor {
 
             torrent,
             update_send,
-        })
+        }
     }
 }

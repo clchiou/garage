@@ -40,9 +40,7 @@ impl Actor {
             }
 
             tokio::select! {
-                _ = self.exit.notified() => {
-                    break;
-                }
+                () = self.cancel.wait() => break,
 
                 message = self.peer_update_recv.recv() => {
                     match message {
