@@ -7,7 +7,7 @@ use tokio::{sync::oneshot::error::RecvError, time::Instant};
 
 use bittorrent_base::{BlockDesc, PieceIndex};
 use bittorrent_manager::Endpoint;
-use bittorrent_peer::{Agent, Full, Possession};
+use bittorrent_peer::{Full, Peer, Possession};
 
 use super::{Actor, Update};
 
@@ -19,7 +19,7 @@ impl Actor {
         let peer = try_then!(self.manager.get(peer_endpoint), return);
         if let Err(error) = self.scheduler.notify_possession(peer_endpoint, possession) {
             tracing::warn!(?peer_endpoint, ?error, "close peer due to invalid message");
-            peer.close();
+            peer.cancel();
             return;
         }
         self.send_requests(&peer);
@@ -34,7 +34,7 @@ impl Actor {
         let peer = try_then!(self.manager.get(peer_endpoint), return);
         let piece = try_then!(self.dim.check_piece_index(piece), {
             tracing::warn!(?peer_endpoint, ?piece, "close peer due to invalid piece");
-            peer.close();
+            peer.cancel();
             return;
         });
         self.scheduler.assign(peer_endpoint, piece);
@@ -91,7 +91,7 @@ impl Actor {
         self.scheduler.schedule(Instant::now());
     }
 
-    pub(super) fn send_requests(&mut self, peer: &Agent) {
+    pub(super) fn send_requests(&mut self, peer: &Peer) {
         let peer_endpoint = peer.peer_endpoint();
         for piece in try_then!(self.scheduler.assignments(peer_endpoint), return) {
             let mut queue = self.queues.get_or_default(piece);
@@ -160,7 +160,7 @@ impl Actor {
         self.check_endgame();
 
         let _ = self.update_send.send(Update::Download(piece));
-        for peer in self.manager.agents() {
+        for peer in self.manager.peers() {
             peer.possess(Possession::Have(piece)).unwrap();
         }
 

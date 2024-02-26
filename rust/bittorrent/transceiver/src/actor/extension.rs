@@ -4,7 +4,7 @@ use bytes::BytesMut;
 
 use bittorrent_extension::{Data, Error, Handshake, Message, Metadata, PeerExchange};
 use bittorrent_manager::Endpoint;
-use bittorrent_peer::{Agent, ExtensionMessageOwner};
+use bittorrent_peer::{ExtensionMessageOwner, Peer};
 
 use super::Actor;
 
@@ -19,7 +19,7 @@ impl Actor {
             ($predicate:expr, $log:expr $(,)?) => {
                 if !$predicate {
                     tracing::warn!(?peer_endpoint, ?message, $log);
-                    peer.close();
+                    peer.cancel();
                     return;
                 }
             };
@@ -48,7 +48,7 @@ impl Actor {
         }
     }
 
-    fn handle_metadata(&mut self, peer: &Agent, metadata: &Metadata) {
+    fn handle_metadata(&mut self, peer: &Peer, metadata: &Metadata) {
         match metadata {
             Metadata::Request(request) => {
                 let metadata_size = self.raw_info.len();
@@ -59,7 +59,7 @@ impl Actor {
                         ?request,
                         "close peer due to invalid metadata piece",
                     );
-                    peer.close();
+                    peer.cancel();
                     return;
                 }
 
@@ -75,7 +75,7 @@ impl Actor {
         }
     }
 
-    fn handle_peer_exchange(&mut self, peer: &Agent, peer_exchange: &PeerExchange) {
+    fn handle_peer_exchange(&mut self, peer: &Peer, peer_exchange: &PeerExchange) {
         let result: Result<_, Error> = try {
             (
                 peer_exchange.decode_added_v4()?,
@@ -96,7 +96,7 @@ impl Actor {
                     ?error,
                     "close peer due to invalid pex message",
                 );
-                peer.close();
+                peer.cancel();
             }
         }
     }

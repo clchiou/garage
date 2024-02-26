@@ -42,7 +42,7 @@ impl Init {
     pub async fn make(
         raw_info: Bytes,
         dim: Dimension,
-        manager: Arc<Manager>,
+        manager: Manager,
         recvs: Recvs,
         storage: DynStorage,
         dht_ipv4: Option<Dht>,

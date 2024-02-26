@@ -17,7 +17,7 @@ mod macros {
                     ?$block,
                     "close peer due to invalid block",
                 );
-                $peer.close();
+                $peer.cancel();
                 return Ok(());
             })
         };
@@ -92,7 +92,7 @@ pub(crate) struct Actor {
     #[debug(with = InsertPlaceholder)]
     responses: ReadyQueue<(Endpoint, BlockDesc, Result<Bytes, RecvError>)>,
 
-    manager: Arc<Manager>,
+    manager: Manager,
 
     peer_update_recv: Receiver<(Endpoint, PeerUpdate)>,
     recvs: Recvs,
@@ -113,7 +113,7 @@ impl Actor {
         exit: Arc<Notify>,
         raw_info: Bytes,
         dim: Dimension,
-        manager: Arc<Manager>,
+        manager: Manager,
         recvs: Recvs,
         mut storage: DynStorage,
         dht_ipv4: Option<Dht>,

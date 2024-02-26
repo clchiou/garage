@@ -4,7 +4,7 @@ use bytes::Bytes;
 
 use bittorrent_extension::Handshake;
 use bittorrent_manager::{Endpoint, Update};
-use bittorrent_peer::{Agent, Possession};
+use bittorrent_peer::{Peer, Possession};
 
 use super::{extension::ToMessage, Actor};
 
@@ -12,7 +12,7 @@ impl Actor {
     pub(super) fn handle_peer_update(&mut self, (peer_endpoint, update): (Endpoint, Update)) {
         match update {
             Update::Start => {
-                self.send_handshake(try_then!(self.manager.get(peer_endpoint), return).as_ref());
+                self.send_handshake(&try_then!(self.manager.get(peer_endpoint), return));
             }
             Update::Stop => {
                 self.queues.remove_peer(peer_endpoint);
@@ -21,7 +21,7 @@ impl Actor {
         self.scheduler.notify_peer_update(peer_endpoint, update);
     }
 
-    fn send_handshake(&self, peer: &Agent) {
+    fn send_handshake(&self, peer: &Peer) {
         let peer_features = peer.peer_features();
 
         let possession = if self.self_features.fast && peer_features.fast {

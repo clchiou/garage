@@ -20,7 +20,7 @@ impl Actor {
 
         self.check_endgame();
 
-        for peer in self.manager.agents() {
+        for peer in self.manager.peers() {
             self.handle_peer_update((peer.peer_endpoint(), PeerUpdate::Start));
         }
 
