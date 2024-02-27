@@ -22,7 +22,7 @@ use g1_tokio::{
 
 use bittorrent_base::{Features, InfoHash};
 use bittorrent_mse::MseStream;
-use bittorrent_peer::Agent;
+use bittorrent_peer::Peer;
 use bittorrent_socket::{Message, Socket};
 use bittorrent_utp::UtpSocket;
 
@@ -129,28 +129,28 @@ impl NetCat {
 
         let (socket, peer_endpoint) = self.make_bittorrent_socket().await?;
         let (mut recvs, sends) = bittorrent_peer::new_channels();
-        let agent = Agent::new(socket, peer_endpoint, sends);
+        let (peer, mut guard) = Peer::spawn(socket, peer_endpoint, sends);
 
         if self.listen {
-            let response_recv = agent.request((0, 0, 4).into()).unwrap().unwrap();
+            let response_recv = peer.request((0, 0, 4).into()).unwrap().unwrap();
             let size = u64::from(response_recv.await.map_err(Error::other)?.get_u32());
-            let response_recv = agent.request((0, 1, size).into()).unwrap().unwrap();
+            let response_recv = peer.request((0, 1, size).into()).unwrap().unwrap();
             let mut payload = response_recv.await.map_err(Error::other)?;
             io::stdout().write_all_buf(&mut payload).await?;
-            agent.shutdown().await
+            guard.shutdown().await?
         } else {
             let mut payload = Vec::new();
             io::stdin().read_to_end(&mut payload).await?;
             let size = Bytes::copy_from_slice(&u32::try_from(payload.len()).unwrap().to_be_bytes());
 
-            agent.set_self_choking(false);
+            peer.set_self_choking(false);
             let (_, _, response_send) = recvs.request_recv.recv().await.unwrap();
             response_send.send(size).unwrap();
             let (_, _, response_send) = recvs.request_recv.recv().await.unwrap();
             response_send.send(payload.into()).unwrap();
 
-            agent.join().await;
-            let result = agent.shutdown().await;
+            guard.join().await;
+            let result = guard.shutdown().await?;
             if result
                 .as_ref()
                 .is_err_and(|error| error.kind() == ErrorKind::UnexpectedEof)
@@ -207,15 +207,15 @@ impl NetCat {
     }
 
     async fn execute_utp(&self) -> Result<(), Error> {
-        let (socket, stream) = if self.listen {
+        let (mut socket, stream) = if self.listen {
             let socket = self.new_utp_socket(net::UdpSocket::bind(self.endpoint).await?);
-            let stream = socket.accept().await?;
+            let stream = socket.listener().accept().await?;
             eprintln!("peer endpoint: {}", stream.peer_endpoint());
             (socket, stream)
         } else {
             let socket = self.new_utp_socket(net::UdpSocket::bind("127.0.0.1:0").await?);
             eprintln!("local endpoint: {}", socket.socket().local_addr()?);
-            let stream = socket.connect(self.endpoint).await?;
+            let stream = socket.connector().connect(self.endpoint).await?;
             (socket, stream)
         };
         let stream = self.mse_handshake(stream).await?;

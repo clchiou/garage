@@ -12,18 +12,18 @@ use bittorrent_metainfo::Metainfo;
 use bittorrent_tracker::{
     client::Client,
     request::{Event, Request},
-    Agent,
+    Tracker,
 };
 
 #[derive(Debug, Parser)]
-struct Tracker {
+struct Program {
     #[command(flatten)]
     tracing: TracingConfig,
     #[command(flatten)]
     parameters: ParametersConfig,
 
     #[arg(long)]
-    agent: bool,
+    tracker: bool,
 
     #[arg(long, default_value_t = 6881)]
     port: u16,
@@ -53,7 +53,7 @@ struct Torrent {
     num_bytes_left: u64,
 }
 
-impl Tracker {
+impl Program {
     async fn execute(&self) -> Result<(), Box<dyn Error>> {
         let self_id = bittorrent_base::self_id().clone();
         tracing::info!(?self_id);
@@ -61,8 +61,8 @@ impl Tracker {
         let metainfo_owner = fs::read(&self.metainfo).await?;
         let metainfo: Metainfo = serde_bencode::from_bytes(&metainfo_owner)?;
 
-        if self.agent {
-            let agent = Agent::new(
+        if self.tracker {
+            let (tracker, mut tracker_guard) = Tracker::spawn(
                 &metainfo,
                 InfoHash::new(metainfo.info.compute_info_hash()),
                 self.port,
@@ -72,13 +72,13 @@ impl Tracker {
                     self.num_bytes_left,
                 ),
             );
-            agent.start();
-            while let Some(peer) = agent.next().await {
+            tracker.start();
+            while let Some(peer) = tracker.next().await {
                 println!("{:?}", peer);
             }
             // I do not fully understand why, but Rust does not automatically implement
             // `From<Box<dyn Error + Send>>` for `Box<dyn Error>`, and thus `?` does not work.
-            if let Err(error) = agent.shutdown().await {
+            if let Err(error) = tracker_guard.shutdown().await? {
                 return Err(error);
             }
         } else {
@@ -136,8 +136,8 @@ impl bittorrent_tracker::Torrent for Torrent {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let tracker = Tracker::parse();
-    tracker.tracing.init();
-    tracker.parameters.init();
-    tracker.execute().await
+    let program = Program::parse();
+    program.tracing.init();
+    program.parameters.init();
+    program.execute().await
 }

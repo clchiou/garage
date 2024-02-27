@@ -18,9 +18,9 @@ use g1_futures::sink;
 use g1_tokio::net::udp::{self as g1_udp, OwnedUdpSink, OwnedUdpStream};
 
 use bittorrent_base::{Features, InfoHash};
-use bittorrent_dht::Dht;
+use bittorrent_dht::{Dht, DhtGuard};
 use bittorrent_extension::Enabled;
-use bittorrent_manager::Manager;
+use bittorrent_manager::{Manager, ManagerGuard};
 use bittorrent_peer::Recvs;
 use bittorrent_trackerless::{InfoOwner, Trackerless};
 use bittorrent_utp::UtpSocket;
@@ -38,6 +38,9 @@ struct Program {
 
     #[arg(long, default_value = "0.0.0.0:6881")]
     self_endpoint: SocketAddr,
+
+    #[arg(long, default_value = "120")]
+    timeout: u64,
 
     #[arg(value_parser = InfoHash::from_str)]
     info_hash: InfoHash,
@@ -57,26 +60,48 @@ impl Program {
         let ((dht_stream, dht_sink), (utp_stream, utp_sink), _) =
             self.new_stream_and_sink(udp_socket.clone())?;
 
-        let peer_endpoints = self
+        let (peer_endpoints, mut dht_guard) = self
             .lookup_peers(udp_socket.clone(), dht_stream, dht_sink)
             .await?;
+        if peer_endpoints.is_empty() {
+            return Err(Error::other("no peers available"));
+        }
 
-        let (manager, mut recvs) = self.new_manager(udp_socket, utp_stream, utp_sink)?;
+        let mut utp_socket = UtpSocket::new(udp_socket, utp_stream, utp_sink);
+
+        let (manager, mut recvs, mut manager_guard) = self.new_manager(&utp_socket)?;
         for peer_endpoint in peer_endpoints {
             manager.connect(peer_endpoint, None);
         }
 
         let trackerless = Trackerless::new(self.info_hash.clone(), &manager, &mut recvs);
-        let info = time::timeout(Duration::from_secs(30), trackerless.fetch())
+        let info = time::timeout(Duration::from_secs(self.timeout), trackerless.fetch())
             .await
             .map_err(|_| Error::other("timeout on fetch info blob"))?
             .map_err(Error::other)?;
         File::create(&self.info_path)?.write_all(InfoOwner::as_slice(&info))?;
 
-        manager.agents().iter().for_each(|agent| agent.close());
-        if let Err(error) = manager.shutdown().await {
-            tracing::warn!(?error, "peer manager shutdown error");
-        }
+        tokio::join!(
+            async {
+                match dht_guard.shutdown().await {
+                    Ok(Ok(())) => {}
+                    Ok(Err(error)) => tracing::warn!(?error, "dht error"),
+                    Err(error) => tracing::warn!(?error, "dht shutdown error"),
+                }
+            },
+            async {
+                if let Err(error) = utp_socket.shutdown().await {
+                    tracing::warn!(?error, "utp socket error");
+                }
+            },
+            async {
+                match manager_guard.shutdown().await {
+                    Ok(Ok(())) => {}
+                    Ok(Err(error)) => tracing::warn!(?error, "peer manager error"),
+                    Err(error) => tracing::warn!(?error, "peer manager shutdown error"),
+                }
+            },
+        );
 
         Ok(())
     }
@@ -95,13 +120,7 @@ impl Program {
         ))
     }
 
-    fn new_manager(
-        &self,
-        udp_socket: Arc<UdpSocket>,
-        utp_stream: Fork,
-        utp_sink: Fanin,
-    ) -> Result<(Manager, Recvs), Error> {
-        let utp_socket = Arc::new(UtpSocket::new(udp_socket, utp_stream, utp_sink));
+    fn new_manager(&self, utp_socket: &UtpSocket) -> Result<(Manager, Recvs, ManagerGuard), Error> {
         let (tcp_listener_v4, tcp_listener_v6, utp_socket_v4, utp_socket_v6) =
             if self.self_endpoint.is_ipv4() {
                 (
@@ -119,7 +138,7 @@ impl Program {
                     Some(utp_socket),
                 )
             };
-        Ok(Manager::new(
+        Ok(Manager::spawn(
             self.info_hash.clone(),
             tcp_listener_v4,
             tcp_listener_v6,
@@ -139,15 +158,10 @@ impl Program {
         udp_socket: Arc<UdpSocket>,
         dht_stream: Fork,
         dht_sink: Fanin,
-    ) -> Result<BTreeSet<SocketAddr>, Error> {
-        let (dht, mut guard) = Dht::spawn(udp_socket.local_addr()?, dht_stream, dht_sink);
+    ) -> Result<(BTreeSet<SocketAddr>, DhtGuard), Error> {
+        let (dht, guard) = Dht::spawn(udp_socket.local_addr()?, dht_stream, dht_sink);
         let (peers, _) = dht.lookup_peers(self.info_hash.clone()).await;
-        match guard.shutdown().await {
-            Ok(Ok(())) => {}
-            Ok(Err(error)) => tracing::warn!(?error, "dht error"),
-            Err(error) => tracing::warn!(?error, "dht shutdown error"),
-        }
-        Ok(peers)
+        Ok((peers, guard))
     }
 }
 

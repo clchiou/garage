@@ -8,7 +8,7 @@ use clap::{Args, Parser};
 
 use g1_cli::{param::ParametersConfig, tracing::TracingConfig};
 
-use bittorrent_agents::{Agents, Mode, StorageOpen};
+use bittorrent_actor::{Actors, Mode, StorageOpen};
 use bittorrent_base::{InfoHash, MagnetUri};
 use bittorrent_metainfo::{InfoOwner, MetainfoOwner};
 
@@ -50,9 +50,9 @@ struct Output {
 impl Program {
     async fn execute(self) -> Result<(), Error> {
         let (mode, info_hash) = self.torrent_source.into_mode()?;
-        let mut agents = Agents::make(mode, info_hash, self.output.into_open()).await?;
-        agents.join_any().await;
-        agents.shutdown_all().await
+        let mut actors = Actors::spawn(mode, info_hash, self.output.into_open()).await?;
+        actors.join_any().await;
+        actors.shutdown_all().await
     }
 }
 
