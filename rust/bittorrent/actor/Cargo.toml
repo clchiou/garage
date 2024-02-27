@@ -1,5 +1,5 @@
 [package]
-name = "bittorrent_agents"
+name = "bittorrent_actor"
 version.workspace = true
 edition.workspace = true
 
