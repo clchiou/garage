@@ -2,7 +2,9 @@ use std::io::{self, Error, Read};
 use std::net::SocketAddr;
 
 use clap::Parser;
+use futures::future::FutureExt;
 use tokio::net;
+use tokio::signal;
 
 use g1_base::fmt::EscapeAscii;
 use g1_cli::{param::ParametersConfig, tracing::TracingConfig};
@@ -35,13 +37,16 @@ impl UdpEcho {
         let (reqrep, mut guard) = ReqRep::spawn(stream, sink);
 
         if self.listen {
-            while let Some(((endpoint, payload), response_send)) = reqrep.accept().await {
-                eprintln!("peer-> {} {:?}", endpoint, EscapeAscii(payload.as_ref()));
-                if payload.as_ref() == b"exit\n" {
-                    guard.cancel();
-                }
-                response_send.send((endpoint, payload)).await?;
-            }
+            tokio::select! {
+                () = signal::ctrl_c().map(Result::unwrap) => eprintln!("ctrl-c received!"),
+                result = async {
+                    while let Some(((endpoint, payload), response_send)) = reqrep.accept().await {
+                        eprintln!("peer-> {} {:?}", endpoint, EscapeAscii(payload.as_ref()));
+                        response_send.send((endpoint, payload)).await?;
+                    }
+                    Ok::<_, Error>(())
+                } => result?,
+            };
         } else {
             let mut payload = Vec::new();
             io::stdin().read_to_end(&mut payload)?;

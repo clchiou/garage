@@ -2,7 +2,9 @@ use std::error::Error;
 use std::path::PathBuf;
 
 use clap::{Parser, ValueEnum};
+use futures::future::FutureExt;
 use tokio::fs;
+use tokio::signal;
 
 use g1_cli::{param::ParametersConfig, tracing::TracingConfig};
 
@@ -72,9 +74,14 @@ impl Program {
                     self.num_bytes_left,
                 ),
             );
-            tracker.start();
-            while let Some(peer) = tracker.next().await {
-                println!("{:?}", peer);
+            tokio::select! {
+                () = signal::ctrl_c().map(Result::unwrap) => eprintln!("ctrl-c received!"),
+                () = async {
+                    tracker.start();
+                    while let Some(peer) = tracker.next().await {
+                        println!("{:?}", peer);
+                    }
+                } => {}
             }
             // I do not fully understand why, but Rust does not automatically implement
             // `From<Box<dyn Error + Send>>` for `Box<dyn Error>`, and thus `?` does not work.

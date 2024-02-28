@@ -5,6 +5,8 @@ use std::str::FromStr;
 
 use bytes::Bytes;
 use clap::{Args, Parser};
+use futures::future::FutureExt;
+use tokio::signal;
 
 use g1_cli::{param::ParametersConfig, tracing::TracingConfig};
 
@@ -51,7 +53,10 @@ impl Program {
     async fn execute(self) -> Result<(), Error> {
         let (mode, info_hash) = self.torrent_source.into_mode()?;
         let mut actors = Actors::spawn(mode, info_hash, self.output.into_open()).await?;
-        actors.join_any().await;
+        tokio::select! {
+            () = signal::ctrl_c().map(Result::unwrap) => eprintln!("ctrl-c received!"),
+            () = actors.join_any() => {}
+        }
         actors.shutdown_all().await
     }
 }

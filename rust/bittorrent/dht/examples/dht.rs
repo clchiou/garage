@@ -1,11 +1,12 @@
-use std::future;
 use std::io::Error;
 use std::net::SocketAddr;
 use std::str::FromStr;
 use std::sync::Arc;
 
 use clap::{Args, Parser, Subcommand};
+use futures::future::FutureExt;
 use tokio::net;
+use tokio::signal;
 
 use g1_base::str::Hex;
 use g1_cli::{param::ParametersConfig, tracing::TracingConfig};
@@ -51,7 +52,12 @@ impl Program {
             Command::AnnouncePeer(this) => this.execute(dht).await?,
             Command::LookupNodes(this) => this.execute(dht).await?,
             Command::LookupPeers(this) => this.execute(dht).await?,
-            Command::Serve => future::pending().await,
+            Command::Serve => {
+                tokio::select! {
+                    () = signal::ctrl_c().map(Result::unwrap) => eprintln!("ctrl-c received!"),
+                    () = dht_guard.join() => {}
+                }
+            }
         }
         dht_guard.shutdown().await?
     }
