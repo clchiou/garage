@@ -3,7 +3,7 @@
 use std::collections::{hash_map::Entry, HashMap, VecDeque};
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, Weak};
 use std::task::{Context, Poll};
 use std::time::Duration;
 
@@ -52,7 +52,7 @@ pub struct ResponseRecv {
     recv: oneshot::Receiver<Bytes>,
 
     // We cannot use `Sender::closed` to get the cancellation because it requires `&mut self`.
-    queue: Arc<Mutex<Queue>>,
+    queue: Weak<Mutex<Queue>>,
     desc: BlockDesc,
 }
 
@@ -81,7 +81,7 @@ impl QueueUpper {
             let _ = self.new_send.send(desc);
             ResponseRecv {
                 recv,
-                queue: self.queue.clone(),
+                queue: Arc::downgrade(&self.queue),
                 desc,
             }
         }))
@@ -201,7 +201,9 @@ impl Future for ResponseRecv {
 
 impl Drop for ResponseRecv {
     fn drop(&mut self) {
-        self.queue.must_lock().cancel(self.desc);
+        if let Some(queue) = self.queue.upgrade() {
+            queue.must_lock().cancel(self.desc);
+        }
     }
 }
 
