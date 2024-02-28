@@ -5,6 +5,8 @@ use std::sync::{Arc, Mutex};
 use tokio::sync::{broadcast::Sender, mpsc::UnboundedReceiver};
 use tokio::task::Id;
 
+use g1_base::fmt::{DebugExt, InsertPlaceholder};
+use g1_base::future::ReadyQueue;
 use g1_base::sync::MutexExt;
 use g1_tokio::task::{Cancel, JoinQueue};
 
@@ -17,11 +19,14 @@ use crate::{
     Endpoint, Preference, Socket, Update,
 };
 
-#[derive(Debug)]
+#[derive(DebugExt)]
 pub(crate) struct Actor {
     cancel: Cancel,
 
     connect_recv: UnboundedReceiver<(Endpoint, Option<PeerId>)>,
+    #[debug(with = InsertPlaceholder)]
+    connected_futures: ReadyQueue<(Endpoint, Connector, Result<Socket, Error>)>,
+
     listener: Listener,
 
     peers: Arc<Mutex<Peers>>,
@@ -66,6 +71,7 @@ impl Actor {
         Self {
             cancel: cancel.clone(),
             connect_recv,
+            connected_futures: ReadyQueue::new(),
             listener,
             peers,
             tasks: JoinQueue::with_cancel(cancel),
@@ -81,8 +87,12 @@ impl Actor {
 
                 peer_endpoint = self.connect_recv.recv() => {
                     let Some((peer_endpoint, peer_id)) = peer_endpoint else { break };
-                    self.handle_connect(peer_endpoint, peer_id).await;
+                    self.handle_connect(peer_endpoint, peer_id);
                 }
+                connected = self.connected_futures.pop_ready() => {
+                    self.handle_connected(connected.unwrap()).await;
+                }
+
                 accept = self.listener.accept() => {
                     let (socket, peer_endpoint, prefs) = accept?;
                     self.handle_accept(socket, peer_endpoint, prefs).await;
@@ -103,7 +113,7 @@ impl Actor {
         Ok(())
     }
 
-    async fn handle_connect(&self, peer_endpoint: Endpoint, peer_id: Option<PeerId>) {
+    fn handle_connect(&self, peer_endpoint: Endpoint, peer_id: Option<PeerId>) {
         let mut connector = {
             let mut peers = self.peers.must_lock();
             if peers.contains(peer_endpoint) {
@@ -113,7 +123,7 @@ impl Actor {
             match peers.borrow_connector(peer_endpoint) {
                 Ok(connector) => connector,
                 Err(ConnectorInUse) => {
-                    tracing::error!(?peer_endpoint, "we are currently connecting to peer");
+                    tracing::debug!(?peer_endpoint, "we are currently connecting to peer");
                     return;
                 }
             }
@@ -121,11 +131,19 @@ impl Actor {
         if peer_id.is_some() {
             connector.set_peer_id(peer_id);
         }
+        assert!(self
+            .connected_futures
+            .push(async move {
+                let socket = connector.connect().await;
+                (peer_endpoint, connector, socket)
+            })
+            .is_ok());
+    }
 
-        // For now, we call `connect` here, rather than in a separate task, for the sake of
-        // simplicity.
-        let socket = connector.connect().await;
-
+    async fn handle_connected(
+        &self,
+        (peer_endpoint, connector, socket): (Endpoint, Connector, Result<Socket, Error>),
+    ) {
         let guard = {
             let mut peers = self.peers.must_lock();
             peers.return_connector(peer_endpoint, connector);
