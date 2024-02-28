@@ -11,15 +11,20 @@ use bittorrent_peer::ResponseSend;
 use super::Actor;
 
 impl Actor {
-    pub(super) fn handle_interested(&self, peer: Endpoint) {
-        try_then!(self.manager.get(peer), return).set_self_choking(self.should_choke_peer(peer, 0));
+    pub(super) fn handle_interested(&self, peer_endpoint: Endpoint) {
+        let Some(peer) = self.manager.get(peer_endpoint) else {
+            return;
+        };
+        peer.set_self_choking(self.should_choke_peer(peer_endpoint, 0));
     }
 
     pub(super) async fn handle_request(
         &mut self,
         (peer_endpoint, block, response_send): (Endpoint, BlockDesc, ResponseSend),
     ) -> Result<(), Error> {
-        let peer = try_then!(self.manager.get(peer_endpoint), return Ok(()));
+        let Some(peer) = self.manager.get(peer_endpoint) else {
+            return Ok(());
+        };
         let block = ensure_block!(self, peer, block);
 
         let BlockDesc(BlockOffset(piece, _), size) = block;

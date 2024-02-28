@@ -12,7 +12,10 @@ impl Actor {
     pub(super) fn handle_peer_update(&mut self, (peer_endpoint, update): (Endpoint, Update)) {
         match update {
             Update::Start => {
-                self.send_handshake(&try_then!(self.manager.get(peer_endpoint), return));
+                let Some(peer) = self.manager.get(peer_endpoint) else {
+                    return;
+                };
+                self.send_handshake(&peer);
             }
             Update::Stop => {
                 self.queues.remove_peer(peer_endpoint);

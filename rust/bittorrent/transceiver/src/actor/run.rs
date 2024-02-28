@@ -54,11 +54,13 @@ impl Actor {
                 }
 
                 message = self.recvs.port_recv.recv() => {
-                    self.handle_port(try_then!(message, break));
+                    let Some(message) = message else { break };
+                    self.handle_port(message);
                 }
 
                 message = self.recvs.extension_recv.recv() => {
-                    self.handle_extension(try_then!(message, break));
+                    let Some(message) = message else { break };
+                    self.handle_extension(message);
                 }
 
                 //
@@ -66,10 +68,12 @@ impl Actor {
                 //
 
                 message = self.recvs.interested_recv.recv() => {
-                    self.handle_interested(try_then!(message, break));
+                    let Some(message) = message else { break };
+                    self.handle_interested(message);
                 }
                 message = self.recvs.request_recv.recv() => {
-                    self.handle_request(try_then!(message, break)).await?;
+                    let Some(message) = message else { break };
+                    self.handle_request(message).await?;
                 }
 
                 //
@@ -77,16 +81,20 @@ impl Actor {
                 //
 
                 message = self.recvs.possession_recv.recv() => {
-                    self.handle_possession(try_then!(message, break));
+                    let Some(message) = message else { break };
+                    self.handle_possession(message);
                 }
                 message = self.recvs.suggest_recv.recv() => {
-                    self.handle_suggest(try_then!(message, break));
+                    let Some(message) = message else { break };
+                    self.handle_suggest(message);
                 }
                 message = self.recvs.allowed_fast_recv.recv() => {
-                    self.handle_allowed_fast(try_then!(message, break));
+                    let Some(message) = message else { break };
+                    self.handle_allowed_fast(message);
                 }
                 message = self.recvs.block_recv.recv() => {
-                    self.handle_block(try_then!(message, break)).await?;
+                    let Some(message) = message else { break };
+                    self.handle_block(message).await?;
                 }
 
                 message = self.responses.pop_ready() => {

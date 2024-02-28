@@ -13,7 +13,9 @@ impl Actor {
         &mut self,
         (peer_endpoint, message): (Endpoint, ExtensionMessageOwner),
     ) {
-        let peer = try_then!(self.manager.get(peer_endpoint), return);
+        let Some(peer) = self.manager.get(peer_endpoint) else {
+            return;
+        };
 
         macro_rules! ensure_peer {
             ($predicate:expr, $log:expr $(,)?) => {

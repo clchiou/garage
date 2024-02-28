@@ -16,7 +16,9 @@ impl Actor {
         &mut self,
         (peer_endpoint, possession): (Endpoint, Possession),
     ) {
-        let peer = try_then!(self.manager.get(peer_endpoint), return);
+        let Some(peer) = self.manager.get(peer_endpoint) else {
+            return;
+        };
         if let Err(error) = self.scheduler.notify_possession(peer_endpoint, possession) {
             tracing::warn!(?peer_endpoint, ?error, "close peer due to invalid message");
             peer.cancel();
@@ -31,12 +33,14 @@ impl Actor {
     }
 
     pub(super) fn handle_allowed_fast(&mut self, (peer_endpoint, piece): (Endpoint, PieceIndex)) {
-        let peer = try_then!(self.manager.get(peer_endpoint), return);
-        let piece = try_then!(self.dim.check_piece_index(piece), {
+        let Some(peer) = self.manager.get(peer_endpoint) else {
+            return;
+        };
+        let Some(piece) = self.dim.check_piece_index(piece) else {
             tracing::warn!(?peer_endpoint, ?piece, "close peer due to invalid piece");
             peer.cancel();
             return;
-        });
+        };
         self.scheduler.assign(peer_endpoint, piece);
         self.send_requests(&peer);
     }
@@ -47,7 +51,9 @@ impl Actor {
     ) -> Result<(), Error> {
         // For now, we drop this block if we are not connected to this peer.  However, we accept it
         // even if we did not request it from this peer.
-        let peer = try_then!(self.manager.get(peer_endpoint), return Ok(()));
+        let Some(peer) = self.manager.get(peer_endpoint) else {
+            return Ok(());
+        };
         let block = ensure_block!(self, peer, block);
         self.recv_block(peer_endpoint, block, buffer).await?;
         self.send_requests(&peer);
@@ -58,7 +64,9 @@ impl Actor {
         &mut self,
         (peer_endpoint, request, response): (Endpoint, BlockDesc, Result<Bytes, RecvError>),
     ) -> Result<(), Error> {
-        let peer = try_then!(self.manager.get(peer_endpoint), return Ok(()));
+        let Some(peer) = self.manager.get(peer_endpoint) else {
+            return Ok(());
+        };
         let request = ensure_block!(self, peer, request);
         match response {
             Ok(buffer) => self.recv_block(peer_endpoint, request, buffer).await?,
@@ -93,7 +101,10 @@ impl Actor {
 
     pub(super) fn send_requests(&mut self, peer: &Peer) {
         let peer_endpoint = peer.peer_endpoint();
-        for piece in try_then!(self.scheduler.assignments(peer_endpoint), return) {
+        let Some(assignments) = self.scheduler.assignments(peer_endpoint) else {
+            return;
+        };
+        for piece in assignments {
             let mut queue = self.queues.get_or_default(piece);
             while let Some(request) = queue.pop_request() {
                 match peer.request(request) {

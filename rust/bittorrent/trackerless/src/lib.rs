@@ -47,15 +47,6 @@ pub struct Trackerless<'a> {
 
 pub type InfoOwner = bittorrent_metainfo::InfoOwner<Bytes>;
 
-macro_rules! try_then {
-    ($value:expr, $then:expr $(,)?) => {
-        match $value {
-            Some(value) => value,
-            None => $then,
-        }
-    };
-}
-
 impl<'a> Trackerless<'a> {
     pub fn new(info_hash: InfoHash, manager: &'a Manager, recvs: &'a mut Recvs) -> Self {
         assert!(Features::load().extension);
@@ -154,7 +145,9 @@ impl<'a> Trackerless<'a> {
             Ok((peer_endpoint, peer_update)) => {
                 match peer_update {
                     Update::Start => {
-                        let peer = try_then!(self.manager.get(peer_endpoint), return Ok(()));
+                        let Some(peer) = self.manager.get(peer_endpoint) else {
+                            return Ok(());
+                        };
                         if peer.peer_features().extension {
                             self.send_handshake(&peer);
                         }
@@ -186,7 +179,9 @@ impl<'a> Trackerless<'a> {
             };
         }
 
-        let peer = try_then!(self.manager.get(peer_endpoint), return Ok(()));
+        let Some(peer) = self.manager.get(peer_endpoint) else {
+            return Ok(());
+        };
         ensure_peer!(
             peer.peer_features().extension,
             "peer claims non-support for extension"
@@ -217,19 +212,25 @@ impl<'a> Trackerless<'a> {
     fn handle_handshake(&mut self, peer: &Peer, handshake: &Handshake) {
         if self.metadata_size.is_none() {
             assert!(self.pieces.is_empty());
-            let metadata_size = try_then!(handshake.metadata_size, return);
+            let Some(metadata_size) = handshake.metadata_size else {
+                return;
+            };
             self.info.resize(metadata_size, 0);
             self.metadata_size = Some(metadata_size);
             self.pieces.extend(0..Metadata::num_pieces(metadata_size));
 
             for peer in self.manager.peers() {
                 if peer.peer_features().extension && peer.peer_extensions().metadata {
-                    let piece = try_then!(self.next_piece(), break);
+                    let Some(piece) = self.next_piece() else {
+                        break;
+                    };
                     self.send_metadata(&peer, Metadata::Request(Request::new(piece)));
                 }
             }
         } else if peer.peer_features().extension && peer.peer_extensions().metadata {
-            let piece = try_then!(self.next_piece(), return);
+            let Some(piece) = self.next_piece() else {
+                return;
+            };
             self.send_metadata(peer, Metadata::Request(Request::new(piece)));
         }
     }
@@ -249,7 +250,9 @@ impl<'a> Trackerless<'a> {
                     self.info[Metadata::byte_range(data.piece, self.metadata_size.unwrap())]
                         .copy_from_slice(data.payload);
 
-                    let piece = try_then!(self.next_piece(), return);
+                    let Some(piece) = self.next_piece() else {
+                        return;
+                    };
                     self.send_metadata(peer, Metadata::Request(Request::new(piece)));
                 }
             }

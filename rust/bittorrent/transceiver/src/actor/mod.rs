@@ -1,17 +1,8 @@
 #[macro_use]
 mod macros {
-    macro_rules! try_then {
-        ($value:expr, $then:expr $(,)?) => {
-            match $value {
-                Some(value) => value,
-                None => $then,
-            }
-        };
-    }
-
     macro_rules! ensure_block {
-        ($self:ident, $peer:ident, $block:ident $(,)?) => {
-            try_then!($self.dim.check_block_desc($block), {
+        ($self:ident, $peer:ident, $block:ident $(,)?) => {{
+            let Some(block) = $self.dim.check_block_desc($block) else {
                 tracing::warn!(
                     peer_endpoint = ?$peer.peer_endpoint(),
                     ?$block,
@@ -19,8 +10,9 @@ mod macros {
                 );
                 $peer.cancel();
                 return Ok(());
-            })
-        };
+            };
+            block
+        }};
     }
 }
 

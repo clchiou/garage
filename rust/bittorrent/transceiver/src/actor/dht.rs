@@ -7,7 +7,9 @@ use super::Actor;
 
 impl Actor {
     pub(super) fn handle_port(&mut self, (peer_endpoint, port): (Endpoint, u16)) {
-        let dht = try_then!(self.dht(peer_endpoint), return);
+        let Some(dht) = self.dht(peer_endpoint) else {
+            return;
+        };
         // We probably should not block the main loop while performing DHT pings.
         tokio::spawn(async move {
             let mut dht_endpoint = peer_endpoint;
