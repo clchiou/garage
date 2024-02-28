@@ -1,6 +1,7 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
 
+use futures::future::OptionFuture;
 use tokio::{
     sync::watch,
     time::{self, Instant},
@@ -190,7 +191,14 @@ where
     T: Torrent,
 {
     async fn run(mut self) -> Result<(), Error> {
+        let mut next_request_at = None;
+        tokio::pin! { let timeout = OptionFuture::from(None); }
         loop {
+            if next_request_at != self.next_request_at {
+                next_request_at = self.next_request_at;
+                timeout.set(OptionFuture::from(next_request_at.map(time::sleep_until)));
+            }
+
             tokio::select! {
                 () = self.cancel.wait() => break,
 
@@ -204,14 +212,7 @@ where
                         self.request(event).await?;
                     }
                 }
-                true = async {
-                    if let Some(next_request_at) = self.next_request_at {
-                        time::sleep_until(next_request_at).await;
-                        true
-                    } else {
-                        false
-                    }
-                } => {
+                Some(()) = &mut timeout => {
                     self.request(None).await?;
                 }
             }

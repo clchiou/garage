@@ -5,6 +5,7 @@ use std::io::{Error, ErrorKind};
 use std::time::Duration;
 
 use futures::{
+    future::OptionFuture,
     sink::{Sink, SinkExt},
     stream::{Stream, TryStreamExt},
 };
@@ -255,7 +256,15 @@ where
     }
 
     async fn run(mut self) -> Result<(), Error> {
+        let mut deadline = None;
+        tokio::pin! { let timeout = OptionFuture::from(None); }
         loop {
+            let next_deadline = self.next_deadline();
+            if deadline != next_deadline {
+                deadline = next_deadline;
+                timeout.set(OptionFuture::from(deadline.map(time::sleep_until)));
+            }
+
             tokio::select! {
                 _ = self.cancel.wait() => break,
 
@@ -269,14 +278,7 @@ where
                     self.handle_request(request).await;
                 }
 
-                Some(()) = {
-                    let deadline = self
-                        .request_deadlines
-                        .front()
-                        .map(|(deadline, _)| deadline)
-                        .copied();
-                    async move { try { time::sleep_until(deadline?).await } }
-                } => {
+                Some(()) = &mut timeout => {
                     self.handle_timeout(Instant::now());
                 }
 
@@ -287,6 +289,13 @@ where
             }
         }
         self.outgoing.close().await
+    }
+
+    fn next_deadline(&self) -> Option<Instant> {
+        self.request_deadlines
+            .front()
+            .map(|(deadline, _)| deadline)
+            .copied()
     }
 
     //

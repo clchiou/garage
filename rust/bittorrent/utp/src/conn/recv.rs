@@ -1,6 +1,7 @@
 use std::sync::Mutex;
 
 use bytes::Bytes;
+use futures::future::OptionFuture;
 use tokio::time::{self, Instant};
 
 use g1_base::sync::MutexExt;
@@ -82,9 +83,10 @@ impl Actor<Mutex<State>> {
     async fn recv_packet(
         &self,
         incoming_recv: &mut IncomingRecv,
-        mut grace_period: Option<Instant>,
+        grace_period: Option<Instant>,
     ) -> Result<Option<(Packet, Timestamp)>, Error> {
         let mut recv_idle_interval = time::interval(*crate::recv_idle_timeout());
+        tokio::pin! { let timeout = OptionFuture::from(grace_period.map(time::sleep_until)); }
         loop {
             tokio::select! {
                 result = self.incoming_recv(incoming_recv) => {
@@ -97,18 +99,11 @@ impl Actor<Mutex<State>> {
                         return Ok(None);
                     }
                 }
-                true = async {
-                    if let Some(grace_period) = grace_period {
-                        time::sleep_until(grace_period).await;
-                        true
-                    } else {
-                        false
-                    }
-                } => {
+                Some(()) = &mut timeout => {
                     if self.is_only_recv_not_completed() {
                         return Err(Error::RecvGracePeriodExpired);
                     }
-                    grace_period = None;
+                    timeout.set(None.into());
                 }
             }
         }

@@ -5,6 +5,7 @@ edition.workspace = true
 
 [dependencies]
 bytes = "1.4.0"
+futures = "0.3.28"
 linkme = "0.3.10" # Required by g1_param.
 percent-encoding = "2.3.0"
 rand = "0.8.5"
