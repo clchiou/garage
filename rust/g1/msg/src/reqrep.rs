@@ -7,7 +7,7 @@ use std::time::Duration;
 use futures::{
     future::OptionFuture,
     sink::{Sink, SinkExt},
-    stream::{Stream, TryStreamExt},
+    stream::{Stream, StreamExt},
 };
 use tokio::{
     sync::{mpsc, oneshot},
@@ -268,9 +268,12 @@ where
             tokio::select! {
                 _ = self.cancel.wait() => break,
 
-                incoming = self.incoming.try_next() => {
-                    let Some(message) = incoming? else { break };
-                    self.handle_incoming(message).await;
+                incoming = self.incoming.next() => {
+                    match incoming {
+                        Some(Ok(message)) => self.handle_incoming(message).await,
+                        Some(Err(error)) => tracing::warn!(?error, "reqrep incoming error"),
+                        None => break,
+                    }
                 }
 
                 request = self.request_recv.recv() => {
@@ -753,18 +756,24 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn shutdown_error() {
-        let (reqrep, mut guard, mut mock_incoming, _) = ReqRep::spawn_mock();
+    async fn incoming_error_ignored() {
+        let (reqrep, mut guard, mut mock_incoming, mut mock_outgoing) = ReqRep::spawn_mock();
+
+        let task = {
+            let reqrep = reqrep.clone();
+            tokio::spawn(async move { reqrep.accept().await })
+        };
+
         assert_matches!(
             mock_incoming.send(Err(Error::other(OtherError))).await,
             Ok(()),
         );
-        assert_matches!(reqrep.accept().await, None);
-        assert_err(
-            guard.shutdown().await.unwrap(),
-            ErrorKind::Other,
-            OtherError,
-        );
+        time::sleep(Duration::from_millis(10)).await;
+        assert_eq!(task.is_finished(), false);
+
+        assert_matches!(guard.shutdown().await, Ok(Ok(())));
+        assert_eq!(mock_outgoing.next().await, None);
+        assert_matches!(task.await, Ok(None));
     }
 
     #[tokio::test]
