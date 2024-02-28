@@ -6,7 +6,19 @@ impl<'a> TryFrom<&'a [u8]> for Message<'a> {
     type Error = serde_bencode::Error;
 
     fn try_from(buffer: &'a [u8]) -> Result<Self, Self::Error> {
-        serde_bencode::from_bytes(buffer)
+        serde_bencode::from_bytes(buffer).or_else(|error| {
+            // Unfortunately, some DHT implementations do not adhere to BEP 3.  Let us try a
+            // lenient decoder; if it still does not work, return the original error.
+            serde_bencode::from_bytes_lenient_two_pass(buffer)
+                .inspect(|_| {
+                    tracing::debug!(
+                        buffer = buffer.escape_ascii().to_string(),
+                        ?error,
+                        "dht message strict decode error",
+                    );
+                })
+                .map_err(|_| error)
+        })
     }
 }
 
