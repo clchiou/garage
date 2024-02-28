@@ -250,8 +250,12 @@ where
         self.next_request_at = Some(Instant::now() + response.interval);
 
         for peer in &response.peers {
-            if let Err(TrySendError::Full(peer)) = self.peer_send.try_send(peer.into()) {
-                tracing::warn!(?peer, "drop peer because queue is full");
+            match self.peer_send.try_send(peer.into()) {
+                Ok(()) => {}
+                Err(TrySendError::Full(peer)) => {
+                    tracing::warn!(?peer, "drop peer because queue is full");
+                }
+                Err(TrySendError::Closed(_)) => break,
             }
         }
 
