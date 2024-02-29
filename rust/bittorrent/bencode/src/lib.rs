@@ -1,6 +1,7 @@
 //! Implementation of Bencode Format as Specified in BEP 3
 
 #![feature(iterator_try_collect)]
+#![cfg_attr(test, feature(assert_matches))]
 
 pub mod convert;
 pub mod dict;
@@ -22,8 +23,12 @@ use g1_bytes::{BufMutExt, BufPeekExt, BufSliceExt};
 ///
 /// This is the generic value type.  You should use concrete value types `own::Value` and
 /// `borrow::Value`.
+///
+/// Unfortunately, not all implementations adhere to BEP 3.  We offer both strict (which is the
+/// default) and lenient decoding, which is selected by the `STRICT` const generic parameter.
+/// However, in general, users should not be aware of the existence of `STRICT`.
 #[derive(Clone, Eq, PartialEq)]
-pub enum Value<ByteString, List, Dictionary> {
+pub enum Value<ByteString, List, Dictionary, const STRICT: bool = true> {
     ByteString(ByteString),
     // BEP 3 does not specify the size of integers.  Let us use i64 for now.
     Integer(i64),
@@ -43,7 +48,8 @@ pub mod own {
     ///
     /// It is constructable and mutable, as it implements both the `From` trait and the `DerefMut`
     /// trait.  If you intend to manipulate a Bencode value, use this type.
-    pub type Value = super::Value<ByteString, List, Dictionary>;
+    // Set `STRICT` to `true` because lenient decoding is only accessible via `borrow::Value`.
+    pub type Value = super::Value<ByteString, List, Dictionary, true>;
 
     pub type ByteString = BytesMut;
 
@@ -78,22 +84,23 @@ pub mod borrow {
     /// The borrowed value type supports a feature that the owned value type lacks: The list and
     /// dictionary values store a reference to the raw Bencode data.  You may use the raw data to
     /// compute the checksum of a Bencode value.
-    pub type Value<'a> = super::Value<ByteString<'a>, List<'a>, Dictionary<'a>>;
+    pub type Value<'a, const STRICT: bool = true> =
+        super::Value<ByteString<'a>, List<'a, STRICT>, Dictionary<'a, STRICT>, STRICT>;
 
     pub type ByteString<'a> = &'a [u8];
 
     #[derive(Clone, Deref, Eq, PartialEqExt)]
-    pub struct List<'a> {
+    pub struct List<'a, const STRICT: bool> {
         #[deref(target)]
-        pub(super) list: Vec<Value<'a>>,
+        pub(super) list: Vec<Value<'a, STRICT>>,
         #[partial_eq(skip)]
         pub(super) raw_value: &'a [u8],
     }
 
     #[derive(Clone, Deref, Eq, PartialEqExt)]
-    pub struct Dictionary<'a> {
+    pub struct Dictionary<'a, const STRICT: bool> {
         #[deref(target)]
-        pub(super) dict: BTreeMap<ByteString<'a>, Value<'a>>,
+        pub(super) dict: BTreeMap<ByteString<'a>, Value<'a, STRICT>>,
         #[partial_eq(skip)]
         pub(super) raw_value: &'a [u8],
     }
@@ -129,7 +136,8 @@ pub enum Error {
     },
 }
 
-impl<ByteString, List, Dictionary> fmt::Debug for Value<ByteString, List, Dictionary>
+impl<ByteString, List, Dictionary, const STRICT: bool> fmt::Debug
+    for Value<ByteString, List, Dictionary, STRICT>
 where
     ByteString: AsRef<[u8]>,
     List: fmt::Debug,
@@ -162,13 +170,13 @@ impl fmt::Debug for own::Dictionary {
     }
 }
 
-impl<'a> fmt::Debug for borrow::List<'a> {
+impl<'a, const STRICT: bool> fmt::Debug for borrow::List<'a, STRICT> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.list.fmt(f)
     }
 }
 
-impl<'a> fmt::Debug for borrow::Dictionary<'a> {
+impl<'a, const STRICT: bool> fmt::Debug for borrow::Dictionary<'a, STRICT> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_map()
             .entries(self.dict.iter().map(|(k, v)| (EscapeAscii(k), v)))
@@ -211,13 +219,13 @@ impl From<BTreeMap<own::ByteString, own::Value>> for own::Value {
 }
 
 // `borrow::ValueOwner::try_from` requires this.
-impl<'a> TryFrom<&'a [u8]> for borrow::Value<'a> {
+impl<'a, const STRICT: bool> TryFrom<&'a [u8]> for borrow::Value<'a, STRICT> {
     type Error = Error;
 
     fn try_from(mut buffer: &'a [u8]) -> Result<Self, Self::Error> {
         let value = Self::decode(&mut buffer)?;
         ensure!(
-            !buffer.has_remaining(),
+            !STRICT || !buffer.has_remaining(),
             UnexpectedTrailingDataSnafu {
                 value: value.to_owned(),
                 trailing_data: buffer.escape_ascii().to_string(),
@@ -227,7 +235,8 @@ impl<'a> TryFrom<&'a [u8]> for borrow::Value<'a> {
     }
 }
 
-impl<'a, ByteString, List, Dictionary> Value<ByteString, List, Dictionary>
+impl<'a, ByteString, List, Dictionary, const STRICT: bool>
+    Value<ByteString, List, Dictionary, STRICT>
 where
     Self: private::ValueNew<'a, ByteString, List, Dictionary> + 'a,
     ByteString: AsRef<[u8]> + Ord + 'a,
@@ -277,7 +286,7 @@ where
                     let value = Self::decode(&mut buf)?;
                     if let Some((last_key, _)) = dict.last_key_value() {
                         ensure!(
-                            *last_key < key,
+                            !STRICT || *last_key < key,
                             NotStrictlyIncreasingDictionaryKeySnafu {
                                 last_key: last_key.as_ref().escape_ascii().to_string(),
                                 new_key: key.as_ref().escape_ascii().to_string(),
@@ -446,7 +455,9 @@ impl<'a> borrow::Value<'a> {
             raw_value: b"",
         })
     }
+}
 
+impl<'a, const STRICT: bool> borrow::Value<'a, STRICT> {
     pub fn raw_value(&self) -> &'a [u8] {
         match self {
             Self::List(list) => list.raw_value,
@@ -474,6 +485,32 @@ impl<'a> borrow::Value<'a> {
                 .map(|(key, value)| ((*key).into(), value.to_owned()))
                 .collect::<BTreeMap<_, _>>()
                 .into(),
+        }
+    }
+}
+
+impl<'a> borrow::Value<'a, false> {
+    /// Designates a leniently-decoded value as strict.
+    ///
+    /// This does not validate the value; it simply updates the `STRICT` parameter.
+    pub fn to_strict(self) -> borrow::Value<'a, true> {
+        // TODO: Can/should we use `std::mem::transmute`?
+        match self {
+            Self::ByteString(bytes) => borrow::Value::ByteString(bytes),
+            Self::Integer(int) => borrow::Value::Integer(int),
+            Self::List(borrow::List { list, raw_value }) => borrow::Value::List(borrow::List {
+                list: list.into_iter().map(Self::to_strict).collect(),
+                raw_value,
+            }),
+            Self::Dictionary(borrow::Dictionary { dict, raw_value }) => {
+                borrow::Value::Dictionary(borrow::Dictionary {
+                    dict: dict
+                        .into_iter()
+                        .map(|(key, value)| (key, Self::to_strict(value)))
+                        .collect(),
+                    raw_value,
+                })
+            }
         }
     }
 }
@@ -511,21 +548,26 @@ mod private {
         }
     }
 
-    impl<'a> ValueNew<'a, borrow::ByteString<'a>, borrow::List<'a>, borrow::Dictionary<'a>>
-        for borrow::Value<'a>
+    impl<'a, const STRICT: bool>
+        ValueNew<
+            'a,
+            borrow::ByteString<'a>,
+            borrow::List<'a, STRICT>,
+            borrow::Dictionary<'a, STRICT>,
+        > for borrow::Value<'a, STRICT>
     {
         fn new_byte_string(bytes: &'a [u8]) -> borrow::ByteString<'a> {
             bytes
         }
 
-        fn new_list(list: Vec<Self>, raw_value: &'a [u8]) -> borrow::List<'a> {
+        fn new_list(list: Vec<Self>, raw_value: &'a [u8]) -> borrow::List<'a, STRICT> {
             borrow::List { list, raw_value }
         }
 
         fn new_dictionary(
             dict: BTreeMap<borrow::ByteString<'a>, Self>,
             raw_value: &'a [u8],
-        ) -> borrow::Dictionary<'a> {
+        ) -> borrow::Dictionary<'a, STRICT> {
             borrow::Dictionary { dict, raw_value }
         }
     }
@@ -615,6 +657,8 @@ mod test_harness {
 
 #[cfg(test)]
 mod tests {
+    use std::assert_matches::assert_matches;
+
     use super::*;
 
     fn new_owned_bytes(bytes: &[u8]) -> own::ByteString {
@@ -691,9 +735,48 @@ mod tests {
     }
 
     #[test]
+    fn decode_lenient() {
+        fn test(data: &[u8], expect: borrow::Value) {
+            let mut buffer = data;
+            assert_matches!(
+                borrow::Value::<true>::decode(&mut buffer),
+                Err(Error::NotStrictlyIncreasingDictionaryKey { .. }),
+            );
+
+            let mut buffer = data;
+            let value = borrow::Value::<false>::decode(&mut buffer).unwrap();
+            assert_eq!(value.to_strict(), expect);
+            assert_eq!(buffer, b"");
+        }
+
+        let expect = borrow::Value::from(BTreeMap::from([(
+            b"a".as_slice(),
+            borrow::Value::new_byte_string(b"c"),
+        )]));
+        test(b"d1:a1:b1:a1:ce", expect.clone());
+        test(
+            b"d1:ad1:ad1:a1:b1:a1:ceee",
+            BTreeMap::from([(
+                b"a".as_slice(),
+                BTreeMap::from([(b"a".as_slice(), expect.clone())]).into(),
+            )])
+            .into(),
+        );
+        test(b"lld1:a1:b1:a1:ceee", vec![vec![expect].into()].into());
+
+        let data = b"i42ehello world".as_slice();
+        assert_matches!(
+            borrow::Value::<true>::try_from(data),
+            Err(Error::UnexpectedTrailingData { .. }),
+        );
+        let value = borrow::Value::<false>::try_from(data).unwrap();
+        assert_eq!(value.to_strict(), 42.into());
+    }
+
+    #[test]
     fn decode_err() {
         fn test(mut buffer: &[u8], error: Error) {
-            assert_eq!(borrow::Value::decode(&mut buffer), Err(error));
+            assert_eq!(borrow::Value::<true>::decode(&mut buffer), Err(error));
         }
 
         test(b"", Error::Incomplete);
@@ -745,7 +828,7 @@ mod tests {
         test(b"x", Error::InvalidValueType { value_type: b'x' });
 
         assert_eq!(
-            borrow::Value::try_from(b"defoobar".as_slice()),
+            borrow::Value::<true>::try_from(b"defoobar".as_slice()),
             Err(Error::UnexpectedTrailingData {
                 value: BTreeMap::new().into(),
                 trailing_data: "foobar".to_string(),
@@ -781,14 +864,14 @@ mod tests {
 
     #[test]
     fn raw_value() {
-        fn as_list<'a>(value: &'a borrow::Value<'a>) -> &'a borrow::List<'a> {
+        fn as_list<'a>(value: &'a borrow::Value<'a>) -> &'a borrow::List<'a, true> {
             match value {
                 borrow::Value::List(list) => list,
                 _ => panic!("expect list: {:?}", value),
             }
         }
 
-        fn as_dict<'a>(value: &'a borrow::Value<'a>) -> &'a borrow::Dictionary<'a> {
+        fn as_dict<'a>(value: &'a borrow::Value<'a>) -> &'a borrow::Dictionary<'a, true> {
             match value {
                 borrow::Value::Dictionary(dict) => dict,
                 _ => panic!("expect dictionary: {:?}", value),

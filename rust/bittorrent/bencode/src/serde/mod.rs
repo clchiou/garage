@@ -2,7 +2,7 @@ mod de;
 mod error;
 mod ser;
 
-pub use de::{from_bytes, Deserializer};
+pub use de::{from_bytes, from_bytes_lenient, from_bytes_lenient_two_pass, Deserializer};
 pub use error::{Error, Result};
 pub use ser::{to_bytes, Serializer};
 
@@ -19,6 +19,7 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::assert_matches::assert_matches;
     use std::collections::BTreeMap;
     use std::fmt;
 
@@ -217,14 +218,14 @@ mod tests {
 
     #[test]
     fn raw_value() {
-        fn as_list<'a>(value: &'a borrow::Value<'a>) -> &'a borrow::List<'a> {
+        fn as_list<'a>(value: &'a borrow::Value<'a>) -> &'a borrow::List<'a, true> {
             match value {
                 borrow::Value::List(list) => list,
                 _ => panic!("expect list: {:?}", value),
             }
         }
 
-        fn as_dict<'a>(value: &'a borrow::Value<'a>) -> &'a borrow::Dictionary<'a> {
+        fn as_dict<'a>(value: &'a borrow::Value<'a>) -> &'a borrow::Dictionary<'a, true> {
             match value {
                 borrow::Value::Dictionary(dict) => dict,
                 _ => panic!("expect dictionary: {:?}", value),
@@ -248,5 +249,56 @@ mod tests {
         assert_eq!(dict.raw_value(), b"d1:cdee");
         let dict = &as_dict(dict)[b"c".as_slice()];
         assert_eq!(dict.raw_value(), b"de");
+    }
+
+    #[test]
+    fn lenient() {
+        fn test(data: &[u8], expect: borrow::Value) {
+            assert_matches!(
+                from_bytes::<borrow::Value>(data),
+                Err(Error::Decode {
+                    source: crate::Error::NotStrictlyIncreasingDictionaryKey { .. },
+                }),
+            );
+
+            // Wrong combinations.
+            assert_matches!(
+                from_bytes::<borrow::Value<false>>(data),
+                Err(Error::Decode {
+                    source: crate::Error::NotStrictlyIncreasingDictionaryKey { .. },
+                }),
+            );
+            assert_matches!(
+                from_bytes_lenient::<borrow::Value>(data),
+                Err(Error::Custom { .. }),
+            );
+
+            let value = from_bytes_lenient::<borrow::Value<false>>(data).unwrap();
+            assert_eq!(value.to_strict(), expect);
+        }
+
+        let expect = borrow::Value::from(BTreeMap::from([(
+            b"a".as_slice(),
+            borrow::Value::new_byte_string(b"c"),
+        )]));
+        test(b"d1:a1:b1:a1:ce", expect.clone());
+        test(
+            b"d1:ad1:ad1:a1:b1:a1:ceee",
+            BTreeMap::from([(
+                b"a".as_slice(),
+                BTreeMap::from([(b"a".as_slice(), expect.clone())]).into(),
+            )])
+            .into(),
+        );
+        test(b"lld1:a1:b1:a1:ceee", vec![vec![expect].into()].into());
+
+        let data = b"i42ehello world".as_slice();
+        assert_matches!(
+            from_bytes::<u8>(data),
+            Err(Error::Decode {
+                source: crate::Error::UnexpectedTrailingData { .. },
+            }),
+        );
+        assert_eq!(from_bytes_lenient::<u8>(data), Ok(42));
     }
 }

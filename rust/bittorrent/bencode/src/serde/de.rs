@@ -6,8 +6,8 @@ use std::str;
 
 use serde::{
     de::{
-        self, DeserializeSeed, EnumAccess, IntoDeserializer, MapAccess, SeqAccess, VariantAccess,
-        Visitor,
+        self, DeserializeSeed, EnumAccess, Error as _, IntoDeserializer, MapAccess, SeqAccess,
+        VariantAccess, Visitor,
     },
     Deserialize,
 };
@@ -34,8 +34,8 @@ const BORROWED_VALUE_VISITOR: &str = "$bittorrent_bencode::serde::private::Borro
 const RAW_VALUE_VISITOR: &str = "$bittorrent_bencode::serde::private::RawValueVisitor";
 
 struct OwnedValueVisitor;
-struct BorrowedValueVisitor;
-struct RawValueVisitor;
+struct BorrowedValueVisitor<const STRICT: bool>;
+struct RawValueVisitor<const STRICT: bool>;
 
 impl<'de> Deserialize<'de> for own::Value {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
@@ -46,7 +46,7 @@ impl<'de> Deserialize<'de> for own::Value {
     }
 }
 
-impl<'de: 'a, 'a> Deserialize<'de> for Value<'a> {
+impl<'de: 'a, 'a, const STRICT: bool> Deserialize<'de> for Value<'a, STRICT> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: de::Deserializer<'de>,
@@ -101,8 +101,8 @@ impl<'de> Visitor<'de> for OwnedValueVisitor {
     }
 }
 
-impl<'de> Visitor<'de> for BorrowedValueVisitor {
-    type Value = Value<'de>;
+impl<'de, const STRICT: bool> Visitor<'de> for BorrowedValueVisitor<STRICT> {
+    type Value = Value<'de, STRICT>;
 
     fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("any valid Bencode value")
@@ -130,8 +130,8 @@ impl<'de> Visitor<'de> for BorrowedValueVisitor {
     }
 }
 
-impl<'de> Visitor<'de> for RawValueVisitor {
-    type Value = Value<'de>;
+impl<'de, const STRICT: bool> Visitor<'de> for RawValueVisitor<STRICT> {
+    type Value = Value<'de, STRICT>;
 
     fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("any valid Bencode raw value")
@@ -149,10 +149,12 @@ impl<'de> Visitor<'de> for RawValueVisitor {
 // Deserializer
 //
 
-pub struct Deserializer<'de>(&'de [u8]);
+pub struct Deserializer<'de, const STRICT: bool = true>(&'de [u8]);
 
-struct ListIter<'de, 'a>(slice::Iter<'a, Value<'de>>);
-struct DictIter<'de, 'a>(Peekable<btree_map::Iter<'a, ByteString<'de>, Value<'de>>>);
+struct ListIter<'de, 'a, const STRICT: bool>(slice::Iter<'a, Value<'de, STRICT>>);
+struct DictIter<'de, 'a, const STRICT: bool>(
+    Peekable<btree_map::Iter<'a, ByteString<'de>, Value<'de, STRICT>>>,
+);
 
 pub fn from_bytes<'de, T>(buffer: &'de [u8]) -> Result<T, Error>
 where
@@ -161,12 +163,42 @@ where
     T::deserialize(Deserializer::from_bytes(buffer))
 }
 
+pub fn from_bytes_lenient<'de, T>(buffer: &'de [u8]) -> Result<T, Error>
+where
+    T: Deserialize<'de>,
+{
+    T::deserialize(Deserializer::from_bytes_lenient(buffer))
+}
+
+type TwoPassDict<'de, const STRICT: bool> = BTreeMap<&'de [u8], Value<'de, STRICT>>;
+
+pub fn from_bytes_lenient_two_pass<'de, T, E>(buffer: &'de [u8]) -> Result<T, Error>
+where
+    T: TryFrom<TwoPassDict<'de, true>, Error = E>,
+    E: fmt::Display,
+{
+    from_bytes_lenient::<TwoPassDict<false>>(buffer)?
+        .into_iter()
+        .map(|(key, value)| (key, value.to_strict()))
+        .collect::<TwoPassDict<true>>()
+        .try_into()
+        .map_err(Error::custom)
+}
+
 impl<'de> Deserializer<'de> {
     pub fn from_bytes(buffer: &'de [u8]) -> Self {
         Self(buffer)
     }
+}
 
-    fn to_value(&self) -> Result<Value<'de>, Error> {
+impl<'de> Deserializer<'de, false> {
+    pub fn from_bytes_lenient(buffer: &'de [u8]) -> Self {
+        Self(buffer)
+    }
+}
+
+impl<'de, const STRICT: bool> Deserializer<'de, STRICT> {
+    fn to_value(&self) -> Result<Value<'de, STRICT>, Error> {
         Value::try_from(self.0).context(DecodeSnafu)
     }
 }
@@ -184,32 +216,32 @@ macro_rules! forward_to_value {
 // We provide all possible implementations (`&Self`, `&mut Self`, and `Self`) that `Either` may
 // require.
 
-impl<'de, 'a> de::Deserializer<'de> for &'a Deserializer<'de> {
+impl<'de, 'a, const STRICT: bool> de::Deserializer<'de> for &'a Deserializer<'de, STRICT> {
     type Error = Error;
 
     deserialize_for_each!(forward_to_value);
 }
 
-impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
+impl<'de, 'a, const STRICT: bool> de::Deserializer<'de> for &'a mut Deserializer<'de, STRICT> {
     type Error = Error;
 
     deserialize_for_each!(forward_to_value);
 }
 
-impl<'de> de::Deserializer<'de> for Deserializer<'de> {
+impl<'de, const STRICT: bool> de::Deserializer<'de> for Deserializer<'de, STRICT> {
     type Error = Error;
 
     deserialize_for_each!(forward_to_value);
 }
 
-impl<'de, 'a> ListIter<'de, 'a> {
-    fn new(list: &'a List<'de>) -> Self {
+impl<'de, 'a, const STRICT: bool> ListIter<'de, 'a, STRICT> {
+    fn new(list: &'a List<'de, STRICT>) -> Self {
         Self(list.iter())
     }
 }
 
-impl<'de, 'a> DictIter<'de, 'a> {
-    fn new(dict: &'a Dictionary<'de>) -> Self {
+impl<'de, 'a, const STRICT: bool> DictIter<'de, 'a, STRICT> {
+    fn new(dict: &'a Dictionary<'de, STRICT>) -> Self {
         Self(dict.iter().peekable())
     }
 }
@@ -260,7 +292,7 @@ fn to_str(value: &[u8]) -> Result<&str, Error> {
     })
 }
 
-impl<'de, 'a> de::Deserializer<'de> for &'a Value<'de> {
+impl<'de, 'a, const STRICT: bool> de::Deserializer<'de> for &'a Value<'de, STRICT> {
     type Error = Error;
 
     deserialize!(any(self, visitor) {
@@ -383,7 +415,7 @@ impl<'de, 'a> de::Deserializer<'de> for &'a Value<'de> {
     deserialize!(ignored_any => any);
 }
 
-impl<'de, 'a> SeqAccess<'de> for ListIter<'de, 'a> {
+impl<'de, 'a, const STRICT: bool> SeqAccess<'de> for ListIter<'de, 'a, STRICT> {
     type Error = Error;
 
     fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, Self::Error>
@@ -401,7 +433,7 @@ impl<'de, 'a> SeqAccess<'de> for ListIter<'de, 'a> {
     }
 }
 
-impl<'de, 'a> MapAccess<'de> for DictIter<'de, 'a> {
+impl<'de, 'a, const STRICT: bool> MapAccess<'de> for DictIter<'de, 'a, STRICT> {
     type Error = Error;
 
     fn next_key_seed<K>(&mut self, key_seed: K) -> Result<Option<K::Value>, Self::Error>
@@ -410,7 +442,7 @@ impl<'de, 'a> MapAccess<'de> for DictIter<'de, 'a> {
     {
         self.0
             .peek()
-            .map(|(key, _)| key_seed.deserialize(&Value::ByteString(key)))
+            .map(|(key, _)| key_seed.deserialize(&Value::<STRICT>::ByteString(key)))
             .transpose()
     }
 
@@ -437,7 +469,7 @@ impl<'de, 'a> MapAccess<'de> for DictIter<'de, 'a> {
             .next()
             .map(|(key, value)| {
                 Ok((
-                    key_seed.deserialize(&Value::ByteString(key))?,
+                    key_seed.deserialize(&Value::<STRICT>::ByteString(key))?,
                     value_seed.deserialize(value)?,
                 ))
             })
@@ -449,9 +481,9 @@ impl<'de, 'a> MapAccess<'de> for DictIter<'de, 'a> {
     }
 }
 
-impl<'de, 'a> EnumAccess<'de> for DictIter<'de, 'a> {
+impl<'de, 'a, const STRICT: bool> EnumAccess<'de> for DictIter<'de, 'a, STRICT> {
     type Error = Error;
-    type Variant = &'a Value<'de>;
+    type Variant = &'a Value<'de, STRICT>;
 
     fn variant_seed<V>(mut self, seed: V) -> Result<(V::Value, Self::Variant), Self::Error>
     where
@@ -459,11 +491,11 @@ impl<'de, 'a> EnumAccess<'de> for DictIter<'de, 'a> {
     {
         let (key, value) = self.0.next().unwrap();
         assert_eq!(self.0.next(), None);
-        Ok((seed.deserialize(&Value::ByteString(key))?, value))
+        Ok((seed.deserialize(&Value::<STRICT>::ByteString(key))?, value))
     }
 }
 
-impl<'de, 'a> VariantAccess<'de> for &'a Value<'de> {
+impl<'de, 'a, const STRICT: bool> VariantAccess<'de> for &'a Value<'de, STRICT> {
     type Error = Error;
 
     fn unit_variant(self) -> Result<(), Self::Error> {
