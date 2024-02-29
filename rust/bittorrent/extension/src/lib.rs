@@ -184,11 +184,29 @@ impl<'a> TryFrom<&'a [u8]> for Message<'a> {
     }
 }
 
+// Unfortunately, some implementations do not adhere to BEP 3.  Let us try a lenient decoder; if it
+// still does not work, return the original error.
+macro_rules! decode_lenient {
+    ($decode:path, $buffer:ident, $error:ident $(,)?) => {
+        $decode($buffer)
+            .inspect(|_| {
+                tracing::debug!(
+                    buffer = $buffer.escape_ascii().to_string(),
+                    error = ?$error,
+                    "extension message strict decode error",
+                );
+            })
+            .map_err(|_| $error)
+    };
+}
+
 impl<'a> TryFrom<&'a [u8]> for Handshake<'a> {
     type Error = serde_bencode::Error;
 
     fn try_from(buffer: &'a [u8]) -> Result<Self, Self::Error> {
-        serde_bencode::from_bytes(buffer)
+        serde_bencode::from_bytes(buffer).or_else(|error| {
+            decode_lenient!(serde_bencode::from_bytes_lenient_two_pass, buffer, error)
+        })
     }
 }
 
@@ -204,7 +222,7 @@ impl<'a> TryFrom<&'a [u8]> for Metadata<'a> {
     type Error = serde_bencode::Error;
 
     fn try_from(buffer: &'a [u8]) -> Result<Self, Self::Error> {
-        Self::decode(buffer)
+        Self::decode(buffer).or_else(|error| decode_lenient!(Self::decode_lenient, buffer, error))
     }
 }
 
@@ -220,7 +238,9 @@ impl<'a> TryFrom<&'a [u8]> for PeerExchange<'a> {
     type Error = serde_bencode::Error;
 
     fn try_from(buffer: &'a [u8]) -> Result<Self, Self::Error> {
-        serde_bencode::from_bytes(buffer)
+        serde_bencode::from_bytes(buffer).or_else(|error| {
+            decode_lenient!(serde_bencode::from_bytes_lenient_two_pass, buffer, error)
+        })
     }
 }
 

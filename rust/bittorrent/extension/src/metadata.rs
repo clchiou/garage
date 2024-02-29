@@ -77,6 +77,12 @@ impl<'a> Metadata<'a> {
         Self::try_from((header, buffer)).map_err(serde_bencode::Error::custom)
     }
 
+    pub fn decode_lenient(mut buffer: &'a [u8]) -> Result<Self, serde_bencode::Error> {
+        let header = borrow::Value::<false>::decode(&mut buffer)
+            .map_err(|source| serde_bencode::Error::Decode { source })?;
+        Self::try_from((header.to_strict(), buffer)).map_err(serde_bencode::Error::custom)
+    }
+
     pub fn encode(&self, buffer: &mut impl BufMut) {
         self.serialize(serde_bencode::Serializer)
             .unwrap()
