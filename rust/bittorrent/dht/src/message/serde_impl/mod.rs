@@ -19,8 +19,6 @@ use crate::message::{
     Error, Message, Payload,
 };
 
-use self::convert::*;
-
 const TXID: &[u8] = b"t";
 const MESSAGE_TYPE: &[u8] = b"y";
 const VERSION: &[u8] = b"v";
@@ -34,7 +32,7 @@ impl<'a> TryFrom<BTreeMap<&'a [u8], borrow::Value<'a>>> for Message<'a> {
 
     fn try_from(mut dict: BTreeMap<&'a [u8], borrow::Value<'a>>) -> Result<Self, Self::Error> {
         Ok(Self {
-            txid: dict.must_remove(TXID).and_then(to_txid)?,
+            txid: dict.must_remove(TXID).and_then(to_bytes::<Error>)?,
             payload: Payload::try_from(&mut dict)?,
             version: dict.remove(VERSION).map(to_bytes::<Error>).transpose()?,
             extra: dict,

@@ -44,8 +44,6 @@ pub(crate) enum Error {
     //
     // `Message` and `Payload` errors.
     //
-    #[snafu(display("expect txid size == {TXID_SIZE}: {txid:?}"))]
-    ExpectTxidSize { txid: Vec<u8> },
     #[snafu(display("unknown message type: {message_type:?}"))]
     UnknownMessageType { message_type: Vec<u8> },
 

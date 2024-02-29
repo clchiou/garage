@@ -7,9 +7,7 @@ use bittorrent_bencode::{
     dict,
 };
 
-use crate::message::{
-    Error, ExpectIdSizeSnafu, ExpectInfoHashSizeSnafu, ExpectTxidSizeSnafu, TXID_SIZE,
-};
+use crate::message::{Error, ExpectIdSizeSnafu, ExpectInfoHashSizeSnafu};
 
 impl From<convert::Error> for Error {
     fn from(error: convert::Error) -> Self {
@@ -29,18 +27,6 @@ impl From<dict::Error> for Error {
             dict::Error::MissingDictionaryKey { key } => Error::MissingDictionaryKey { key },
         }
     }
-}
-
-pub(super) fn to_txid(value: borrow::Value) -> Result<&'_ [u8], Error> {
-    to_bytes(value).and_then(|txid| {
-        ensure!(
-            txid.len() == TXID_SIZE,
-            ExpectTxidSizeSnafu {
-                txid: txid.to_vec(),
-            },
-        );
-        Ok(txid)
-    })
 }
 
 pub(super) fn to_id(value: borrow::Value) -> Result<&'_ [u8], Error> {
@@ -68,22 +54,6 @@ pub(super) fn to_info_hash(value: borrow::Value) -> Result<&'_ [u8], Error> {
 #[cfg(test)]
 mod tests {
     use super::{super::test_harness::*, *};
-
-    #[test]
-    fn txid() {
-        assert_eq!(
-            to_txid(new_bytes(b"x")),
-            Err(Error::ExpectTxidSize {
-                txid: b"x".to_vec(),
-            }),
-        );
-        assert_eq!(
-            to_txid(new_bytes(b"xyz")),
-            Err(Error::ExpectTxidSize {
-                txid: b"xyz".to_vec(),
-            }),
-        );
-    }
 
     #[test]
     fn id() {
