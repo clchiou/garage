@@ -75,7 +75,7 @@ impl Actor {
     async fn run(mut self) {
         loop {
             tokio::select! {
-                _ = self.cancel.wait() => break,
+                () = self.cancel.wait() => break,
                 peer_endpoint = self.probe_recv.recv() => {
                     let Some(peer_endpoint) = peer_endpoint else { break };
                     self.probe(peer_endpoint).await;

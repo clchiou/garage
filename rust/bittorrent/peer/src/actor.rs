@@ -95,7 +95,7 @@ where
         self.send_keep_alive_interval.reset();
         loop {
             tokio::select! {
-                _ = self.cancel.wait() => break,
+                () = self.cancel.wait() => break,
 
                 message = self.socket.recv() => {
                     self.handle_recv(message?).await?;
@@ -142,6 +142,7 @@ where
                     }
                 }
 
+                // We have no use for the returned deadline.
                 _ = self.recv_keep_alive_interval.tick() => {
                     return Err(Error::new(ErrorKind::TimedOut, KeepAliveTimeout));
                 }

@@ -94,6 +94,8 @@ impl Actor<Mutex<State>> {
                 }
                 // TODO: `SendWindow` cannot notify us asynchronously of `is_completed` changes. To
                 // work around this limitation, we continuously poll it when idle.
+                //
+                // We have no use for the returned deadline.
                 _ = recv_idle_interval.tick() => {
                     if self.is_completed() {
                         return Ok(None);

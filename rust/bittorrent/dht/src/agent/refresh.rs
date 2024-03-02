@@ -70,7 +70,7 @@ impl NodeRefresher {
         let mut have_removed_nodes = false;
         loop {
             let Some(join_result) = tokio::select! {
-                _ = cancel.wait() => {
+                () = cancel.wait() => {
                     tracing::debug!("dht node refresher is cancelled");
                     return Ok(());
                 }
@@ -127,7 +127,7 @@ impl KBucketRefresher {
                 .lookup_nodes(id.clone())
                 .instrument(tracing::info_span!("dht/refresh", ?id));
             let nodes = tokio::select! {
-                _ = cancel.wait() => {
+                () = cancel.wait() => {
                     tracing::debug!("dht kbucket refresher is cancelled");
                     return Ok(());
                 }

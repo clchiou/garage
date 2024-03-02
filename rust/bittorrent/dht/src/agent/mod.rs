@@ -106,7 +106,7 @@ impl Actor {
         let mut kbucket_refresh_interval = time::interval(self.kbucket_refresh_period);
         loop {
             tokio::select! {
-                _ = self.cancel.wait() => break,
+                () = self.cancel.wait() => break,
 
                 request = self.state.reqrep.accept() => {
                     let Some(request) = request else { break };
@@ -120,6 +120,7 @@ impl Actor {
                     // We can call `unwrap` because `kbucket_full_recv` is never closed.
                     self.spawn_node_refresher(full.unwrap());
                 }
+                // We prefer the actual current time over the deadline returned by `tick`.
                 _ = kbucket_refresh_interval.tick() => {
                     self.spawn_kbucket_refresher(Instant::now());
                 }

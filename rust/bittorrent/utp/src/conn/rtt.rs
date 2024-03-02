@@ -64,8 +64,8 @@ impl Actor<Mutex<State>> {
         loop {
             let rtt_timeout = self.state.must_lock().send_window.rtt.timeout;
             tokio::select! {
-                _ = time::sleep(rtt_timeout) => self.handle_rtt_timeout().await?,
-                _ = self.notifiers.rtt_timer.notified() => {}
+                () = time::sleep(rtt_timeout) => self.handle_rtt_timeout().await?,
+                () = self.notifiers.rtt_timer.notified() => {}
             }
         }
     }

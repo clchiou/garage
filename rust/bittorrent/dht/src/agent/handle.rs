@@ -71,7 +71,7 @@ impl Handler {
         };
 
         tokio::select! {
-            _ = self.cancel.wait() => {
+            () = self.cancel.wait() => {
                 tracing::debug!("dht handler is cancelled");
                 Ok(())
             }

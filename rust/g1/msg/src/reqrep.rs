@@ -266,7 +266,7 @@ where
             }
 
             tokio::select! {
-                _ = self.cancel.wait() => break,
+                () = self.cancel.wait() => break,
 
                 incoming = self.incoming.next() => {
                     match incoming {

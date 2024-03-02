@@ -102,7 +102,7 @@ impl Actor {
                     self.handle_response(message.unwrap()).await?;
                 }
 
-                _ = {
+                () = {
                     let now = Instant::now();
                     let idle_deadline = now + IDLE_TIMEOUT;
                     let deadline = cmp::min(

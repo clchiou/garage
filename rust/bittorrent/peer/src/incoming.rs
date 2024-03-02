@@ -52,7 +52,7 @@ impl Queue {
         let guard = JoinGuard::spawn(move |cancel| async move {
             tokio::select! {
                 response = response_recv => Some((desc, response)),
-                _ = cancel.wait() => None,
+                () = cancel.wait() => None,
             }
         });
         let cancel = guard.cancel_handle();

@@ -102,7 +102,7 @@ impl Actor<InitState> {
         let cancel = this.cancel.clone();
 
         let handshake_result = tokio::select! {
-            _ = cancel.wait() => return Ok(()), // Should we send a reset?
+            () = cancel.wait() => return Ok(()), // Should we send a reset?
             handshake_result = this.handshake(&mut incoming_recv) => handshake_result,
         };
 
@@ -129,7 +129,7 @@ impl Actor<InitState> {
         let (this, _) = this.into_state(Mutex::new(state));
 
         tokio::select! {
-            _ = cancel.wait() => Ok(()),
+            () = cancel.wait() => Ok(()),
             result = async {
                 tokio::try_join!(this.recv(incoming_recv), this.send(stream_outgoing_recv))
                     .map(|((), ())| ())

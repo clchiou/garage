@@ -83,7 +83,7 @@ impl Actor {
     pub(crate) async fn run(mut self) -> Result<(), Error> {
         loop {
             tokio::select! {
-                _ = self.cancel.wait() => break,
+                () = self.cancel.wait() => break,
 
                 peer_endpoint = self.connect_recv.recv() => {
                     let Some((peer_endpoint, peer_id)) = peer_endpoint else { break };

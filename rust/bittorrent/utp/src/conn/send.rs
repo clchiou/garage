@@ -61,11 +61,11 @@ impl Actor<Mutex<State>> {
                     let send_timeout = self.state.must_lock().send_window.rtt.timeout
                         * (1 + *crate::resend_limit()).try_into().unwrap();
                     tokio::select! {
-                        _ = time::sleep_until(now + send_timeout) => {
+                        () = time::sleep_until(now + send_timeout) => {
                             tracing::debug!("send timeout");
                             was_timeout = true;
                         }
-                        _ = self.notifiers.send.notified() => {}
+                        () = self.notifiers.send.notified() => {}
                     }
                 }
             }

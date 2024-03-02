@@ -215,8 +215,8 @@ impl Cancel {
         let this = self.clone();
         tokio::spawn(async move {
             tokio::select! {
-                _ = source => this.set(),
-                _ = this.wait() => {}
+                () = source => this.set(),
+                () = this.wait() => {}
             }
         });
     }
@@ -289,8 +289,8 @@ impl<E> JoinAny<E> {
     /// Returns when any `JoinGuard::join` returns.
     pub async fn join(&mut self) {
         tokio::select! {
-            _ = self.0.join() => {}
-            _ = self.1.join() => {}
+            () = self.0.join() => {}
+            () = self.1.join() => {}
         }
     }
 

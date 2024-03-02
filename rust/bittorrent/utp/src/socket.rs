@@ -210,7 +210,7 @@ where
         let result = try {
             loop {
                 tokio::select! {
-                    _ = self.cancel.wait() => break,
+                    () = self.cancel.wait() => break,
 
                     connect = self.connect_recv.recv() => {
                         let Some((peer_endpoint, result_send)) = connect else {
