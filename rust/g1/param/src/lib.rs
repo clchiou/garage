@@ -1,5 +1,9 @@
 //! Static Parameter
 
+#![feature(min_specialization)]
+
+mod parse;
+
 use std::any::Any;
 use std::collections::{BTreeMap, HashMap};
 use std::error;
@@ -7,6 +11,8 @@ use std::fmt;
 
 use serde::Deserialize;
 use serde_json::value::RawValue;
+
+use crate::parse::Parse;
 
 //
 // Implementer's notes: The `Parameter` type must not be generic, and therefore everything about
@@ -135,11 +141,11 @@ impl Parameter {
     }
 
     /// Parses the value and then upcasts it to the `Value` type.
-    pub fn parse_then_upcast<'a, T>(&self, value: &'a str) -> Result<Value, Error>
+    pub fn parse_then_upcast<T>(&self, value: &str) -> Result<Value, Error>
     where
-        T: Deserialize<'a> + 'static,
+        T: Parse + 'static,
     {
-        Ok(Box::new(serde_json::from_str::<T>(value)?))
+        Ok(Box::new(T::parse(value)?))
     }
 
     /// Downcasts a parameter value.
