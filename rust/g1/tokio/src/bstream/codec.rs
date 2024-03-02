@@ -122,13 +122,14 @@ type SinkOutput<Stream, Error> = (Stream, Result<(), Error>);
 
 macro_rules! poll {
     ($this:ident, $get_future:ident, $context:ident $(,)?) => {
-        match $this.$get_future().as_mut().poll($context) {
-            Poll::Ready((state, result)) => {
+        $this
+            .$get_future()
+            .as_mut()
+            .poll($context)
+            .map(|(state, result)| {
                 $this.reset(state);
-                Poll::Ready(result)
-            }
-            Poll::Pending => Poll::Pending,
-        }
+                result
+            })
     };
 }
 

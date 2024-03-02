@@ -66,13 +66,10 @@ impl DelayWindow {
     }
 
     pub(super) fn push(&mut self, now: Timestamp, delay: u32) {
-        let delay = match self.to_internal(delay) {
-            Some(delay) => delay,
-            None => {
-                self.shift(1 << u32::BITS);
-                self.to_internal(delay).unwrap()
-            }
-        };
+        let delay = self.to_internal(delay).unwrap_or_else(|| {
+            self.shift(1 << u32::BITS);
+            self.to_internal(delay).unwrap()
+        });
         self.delays.push_back((now, delay));
         self.min_delay = Some(cmp::min(delay, self.min_delay.unwrap_or(delay)));
         self.clear(now);

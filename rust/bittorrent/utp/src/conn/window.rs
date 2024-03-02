@@ -375,9 +375,8 @@ impl SendWindow {
         const NUM_DUPLICATED_ACKS: usize = 3;
         const NUM_ACKS_PAST: usize = 3;
 
-        let i = match self.search(seq) {
-            Some(i) => i,
-            None => return false,
+        let Some(i) = self.search(seq) else {
+            return false;
         };
 
         if self.inflights[i].num_acks > 0 {

@@ -102,16 +102,12 @@ where
                 }
 
                 value = self.conn_state.self_choking.updated() => {
-                    match value {
-                        Ok(value) => self.handle_self_choking(value).await?,
-                        Err(_) => break,
-                    }
+                    let Ok(value) = value else { break };
+                    self.handle_self_choking(value).await?;
                 }
                 value = self.conn_state.self_interested.updated() => {
-                    match value {
-                        Ok(value) => self.handle_self_interested(value).await?,
-                        Err(_) => break,
-                    }
+                    let Ok(value) = value else { break };
+                    self.handle_self_interested(value).await?;
                 }
 
                 incoming = self.incomings.dequeue() => {
@@ -123,23 +119,17 @@ where
                     self.handle_expired(desc);
                 }
                 desc = self.outgoings.new_recv.recv() => {
-                    match desc {
-                        Some(desc) => self.handle_new(desc).await?,
-                        None => break,
-                    }
+                    let Some(desc) = desc else { break };
+                    self.handle_new(desc).await?;
                 }
                 desc = self.outgoings.cancel_recv.recv() => {
-                    match desc {
-                        Some(desc) => self.handle_cancel(desc).await?,
-                        None => break,
-                    }
+                    let Some(desc) = desc else { break };
+                    self.handle_cancel(desc).await?;
                 }
 
                 message = self.message_recv.recv() => {
-                    match message {
-                        Some(message) => self.send(message).await?,
-                        None => break,
-                    }
+                    let Some(message) = message else { break };
+                    self.send(message).await?;
                 }
 
                 // We have no use for the returned deadline.

@@ -218,9 +218,8 @@ where
     P: Copy + Ord,
     Q: Copy + Ord,
 {
-    let mut entry = match graph.entry(p) {
-        Entry::Occupied(entry) => entry,
-        Entry::Vacant(_) => return None,
+    let Entry::Occupied(mut entry) = graph.entry(p) else {
+        return None;
     };
     let qs = entry.get_mut();
     if !qs.remove(&q) {

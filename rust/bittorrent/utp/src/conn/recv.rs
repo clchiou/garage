@@ -27,12 +27,11 @@ impl Actor<Mutex<State>> {
         };
 
         while !self.is_completed() {
-            let (packet, recv_at) = match self
+            let Some((packet, recv_at)) = self
                 .recv_packet(&mut incoming_recv, recv_state.grace_period)
                 .await?
-            {
-                Some(incoming) => incoming,
-                None => break,
+            else {
+                break;
             };
 
             let packet_type = packet.header.packet_type();

@@ -154,9 +154,8 @@ impl Scheduler {
     }
 
     fn schedule_piece(&mut self, piece: PieceIndex, now: Instant) {
-        let peers = match self.peer_pieces.inverse_get(piece) {
-            Some(peers) => peers,
-            None => return,
+        let Some(peers) = self.peer_pieces.inverse_get(piece) else {
+            return;
         };
         let peers = self.sort_peers(
             peers
@@ -377,9 +376,8 @@ impl Scheduler {
     }
 
     pub(crate) fn notify_verified(&mut self, piece: PieceIndex) {
-        let i = match self.position(piece) {
-            Some(i) => i,
-            None => return,
+        let Some(i) = self.position(piece) else {
+            return;
         };
 
         self.schedule.remove(i);

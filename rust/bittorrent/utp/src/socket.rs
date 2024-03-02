@@ -320,31 +320,30 @@ where
     }
 
     fn accept(&mut self, peer_endpoint: SocketAddr) -> bool {
-        match self.spawn(peer_endpoint, Handshake::new_accept) {
-            Some((stream, connected_recv)) => {
-                let accept_send = self.accept_send.clone();
-                let probe_send = self.prober.probe_send.clone();
-                tokio::spawn(async move {
-                    if matches!(connected_recv.await, Ok(Ok(()))) {
-                        if matches!(
-                            probe_send.try_send(peer_endpoint),
-                            Err(mpsc::error::TrySendError::Full(_)),
-                        ) {
-                            tracing::warn!(?peer_endpoint, "path mtu prober queue is full");
-                        }
-                        if matches!(
-                            accept_send.try_send(stream),
-                            Err(mpmc::error::TrySendError::Full(_)),
-                        ) {
-                            tracing::warn!(?peer_endpoint, "utp accept queue is full");
-                        }
-                        // Dropping `stream` causes connection actor to exit.
-                    }
-                });
-                true
+        let Some((stream, connected_recv)) = self.spawn(peer_endpoint, Handshake::new_accept)
+        else {
+            return false;
+        };
+        let accept_send = self.accept_send.clone();
+        let probe_send = self.prober.probe_send.clone();
+        tokio::spawn(async move {
+            if matches!(connected_recv.await, Ok(Ok(()))) {
+                if matches!(
+                    probe_send.try_send(peer_endpoint),
+                    Err(mpsc::error::TrySendError::Full(_)),
+                ) {
+                    tracing::warn!(?peer_endpoint, "path mtu prober queue is full");
+                }
+                if matches!(
+                    accept_send.try_send(stream),
+                    Err(mpmc::error::TrySendError::Full(_)),
+                ) {
+                    tracing::warn!(?peer_endpoint, "utp accept queue is full");
+                }
+                // Dropping `stream` causes connection actor to exit.
             }
-            None => false,
-        }
+        });
+        true
     }
 
     fn incoming_send(&mut self, peer_endpoint: SocketAddr, incoming: Incoming) {

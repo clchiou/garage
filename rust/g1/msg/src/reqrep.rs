@@ -311,10 +311,12 @@ where
         match self.reqrep.entry(endpoint) {
             Entry::Occupied(entry) => {
                 match entry.get() {
-                    State::Request(_) => match entry.remove() {
-                        State::Request(result_send) => result_send.send_and_forget(Ok(message)),
-                        _ => std::unreachable!(),
-                    },
+                    State::Request(_) => {
+                        let State::Request(result_send) = entry.remove() else {
+                            std::unreachable!()
+                        };
+                        result_send.send_and_forget(Ok(message));
+                    }
                     State::Response(_) => {
                         // The peer violates the request-response flow.  For now, we ignore the new
                         // request.
@@ -358,10 +360,10 @@ where
         }
 
         if let Err(error) = self.outgoing.send(message).await {
-            match self.reqrep.remove(&endpoint) {
-                Some(State::Request(result_send)) => result_send.send_and_forget(Err(error)),
-                _ => std::panic!("expect reqrep request entry: {:?}", endpoint),
-            }
+            let Some(State::Request(result_send)) = self.reqrep.remove(&endpoint) else {
+                std::panic!("expect reqrep request entry: {:?}", endpoint);
+            };
+            result_send.send_and_forget(Err(error));
         }
     }
 
@@ -396,10 +398,10 @@ where
     }
 
     fn remove_response(&mut self, endpoint: &E) -> ResultSend<()> {
-        match self.reqrep.remove(endpoint) {
-            Some(State::Response(result_send)) => result_send,
-            _ => std::panic!("expect reqrep response entry: {:?}", endpoint),
-        }
+        let Some(State::Response(result_send)) = self.reqrep.remove(endpoint) else {
+            std::panic!("expect reqrep response entry: {:?}", endpoint);
+        };
+        result_send
     }
 }
 

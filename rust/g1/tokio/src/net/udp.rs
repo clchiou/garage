@@ -279,32 +279,27 @@ fn poll_send_to(
     context: &mut Context<'_>,
     send_item: &mut Option<(SocketAddr, Bytes)>,
 ) -> Poll<Result<(), Error>> {
-    match send_item {
-        Some((peer, payload)) => {
-            let poll = socket
-                .poll_send_to(context, payload, *peer)
-                .map(|result| match result {
-                    Ok(size) => {
-                        if size == payload.len() {
-                            Ok(())
-                        } else {
-                            Err(Error::other(format!(
-                                "only a partial payload is sent: {} actual={} expect={}",
-                                peer,
-                                size,
-                                payload.len(),
-                            )))
-                        }
-                    }
-                    Err(error) => Err(error),
-                });
-            if poll.is_ready() {
-                *send_item = None;
+    let Some((peer, payload)) = send_item else {
+        return Poll::Ready(Ok(()));
+    };
+    let poll = socket.poll_send_to(context, payload, *peer).map(|result| {
+        result.and_then(|size| {
+            if size == payload.len() {
+                Ok(())
+            } else {
+                Err(Error::other(format!(
+                    "only a partial payload is sent: {} actual={} expect={}",
+                    peer,
+                    size,
+                    payload.len(),
+                )))
             }
-            poll
-        }
-        None => Poll::Ready(Ok(())),
+        })
+    });
+    if poll.is_ready() {
+        *send_item = None;
     }
+    poll
 }
 
 impl Sink<(SocketAddr, Bytes)> for UdpSocket {

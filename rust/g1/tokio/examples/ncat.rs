@@ -95,9 +95,8 @@ impl NetCat {
 
         if self.listen {
             let message = socket.recv().await?;
-            let mut payload = match message {
-                Message::Piece(_, payload) => payload,
-                _ => return Err(Error::other(format!("expect piece: {:?}", message))),
+            let Message::Piece(_, mut payload) = message else {
+                return Err(Error::other(format!("expect piece: {:?}", message)));
             };
             io::stdout().write_all_buf(&mut payload).await?;
         } else {

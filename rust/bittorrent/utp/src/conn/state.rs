@@ -113,9 +113,8 @@ impl State {
     }
 
     pub(super) fn make_resend_data_packet(&mut self, seq: u16) -> Result<Option<Packet>, Error> {
-        let inflight = match self.send_window.get_mut(seq) {
-            Some(inflight) => inflight,
-            None => return Ok(None),
+        let Some(inflight) = self.send_window.get_mut(seq) else {
+            return Ok(None);
         };
         ensure!(
             inflight.num_resends < *crate::resend_limit(),

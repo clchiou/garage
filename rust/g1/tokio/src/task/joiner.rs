@@ -29,12 +29,10 @@ where
 
     pub async fn join_next(&mut self) -> Option<Result<T, JoinError>> {
         while self.tasks.len() < self.concurrency {
-            match self.futures.next() {
-                Some(future) => {
-                    self.tasks.spawn(future);
-                }
-                None => break,
-            }
+            let Some(future) = self.futures.next() else {
+                break;
+            };
+            self.tasks.spawn(future);
         }
         self.tasks.join_next().await
     }
