@@ -4,7 +4,6 @@ use std::any::Any;
 use std::collections::{BTreeMap, HashMap};
 use std::error;
 use std::fmt;
-use std::sync::Once;
 
 use serde::Deserialize;
 use serde_json::value::RawValue;
@@ -33,16 +32,9 @@ macro_rules! define {
                 parse,
                 validate,
                 set,
-                load_default,
             );
 
-            // The parameter value is not dropped when `MaybeUninit` is being dropped, but that is
-            // fine because, according to the [language reference], a static variable is not
-            // dropped at the end of the program anyway.
-            //
-            // [language reference]: https://doc.rust-lang.org/reference/items/static-items.html
-            static mut PARAMETER_VALUE: ::std::mem::MaybeUninit<$type> =
-                ::std::mem::MaybeUninit::uninit();
+            static PARAMETER_VALUE: ::std::sync::OnceLock<$type> = ::std::sync::OnceLock::new();
 
             fn parse(value: &str) -> ::std::result::Result<
                 ::std::boxed::Box<dyn ::std::any::Any>,
@@ -70,18 +62,11 @@ macro_rules! define {
                 ::std::result::Result::Ok(())
             }
 
-            unsafe fn set(value: ::std::boxed::Box<dyn ::std::any::Any>) {
-                PARAMETER_VALUE.write(PARAMETER.downcast::<$type>(value).unwrap());
+            fn set(value: ::std::boxed::Box<dyn ::std::any::Any>) -> bool {
+                PARAMETER_VALUE.set(PARAMETER.downcast::<$type>(value).unwrap()).is_ok()
             }
 
-            unsafe fn load_default() {
-                PARAMETER_VALUE.write($default);
-            }
-
-            PARAMETER.load_default_if_unset();
-            unsafe {
-                PARAMETER_VALUE.assume_init_ref()
-            }
+            PARAMETER_VALUE.get_or_init(|| $default)
         }
     };
 }
@@ -96,13 +81,10 @@ pub struct Parameter {
     type_name: &'static str,
     default: &'static str,
 
-    init_once: Once,
-
     // Callback functions.
     parse: ParseFn,
     validate: ValidateFn,
     set: SetFn,
-    load_default: LoadDefaultFn,
 }
 
 pub type Value = Box<dyn Any>;
@@ -110,8 +92,7 @@ pub type Error = Box<dyn error::Error>;
 
 pub type ParseFn = fn(value: &str) -> Result<Value, Error>;
 pub type ValidateFn = fn(value: &Value) -> Result<(), Error>;
-pub type SetFn = unsafe fn(value: Value);
-pub type LoadDefaultFn = unsafe fn();
+pub type SetFn = fn(value: Value) -> bool;
 
 #[derive(Debug)]
 pub struct FormatDefFull<'a>(&'a Parameter);
@@ -141,18 +122,15 @@ impl Parameter {
         parse: ParseFn,
         validate: ValidateFn,
         set: SetFn,
-        load_default: LoadDefaultFn,
     ) -> Self {
         Self {
             module_path,
             name,
             type_name,
             default,
-            init_once: Once::new(),
             parse,
             validate,
             set,
-            load_default,
         }
     }
 
@@ -162,13 +140,6 @@ impl Parameter {
         T: Deserialize<'a> + 'static,
     {
         Ok(Box::new(serde_json::from_str::<T>(value)?))
-    }
-
-    /// Stores the default parameter value statically if no value was stored.
-    pub fn load_default_if_unset(&self) {
-        self.init_once.call_once(|| unsafe {
-            (self.load_default)();
-        });
     }
 
     /// Downcasts a parameter value.
@@ -209,14 +180,7 @@ impl Parameter {
     ///
     /// It is an error to call this method multiple times.
     fn set(&self, value: Value) -> Result<(), Error> {
-        let mut initialized = false;
-        unsafe {
-            self.init_once.call_once(|| {
-                (self.set)(value);
-                initialized = true;
-            });
-        }
-        if initialized {
+        if (self.set)(value) {
             Ok(())
         } else {
             Err(self.make_set_error())
