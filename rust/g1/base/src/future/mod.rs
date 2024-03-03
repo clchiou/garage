@@ -1,3 +1,5 @@
+mod ready_array;
 mod ready_queue;
 
-pub use ready_queue::ReadyQueue;
+pub use self::ready_array::ReadyArray;
+pub use self::ready_queue::ReadyQueue;
