@@ -82,19 +82,19 @@ impl Actors {
     }
 
     pub async fn join_any(&mut self) {
-        macro_rules! join {
-            ($guard:ident $(,)?) => {
-                OptionFuture::from(self.$guard.as_mut().map(|guard| guard.join()))
+        macro_rules! call {
+            ($guard:ident, $func:ident $(,)?) => {
+                OptionFuture::from(self.$guard.as_mut().map(|guard| guard.$func()))
             };
         }
         tokio::select! {
             () = self.txrx_guard.join() => {}
             () = self.manager_guard.join() => {}
-            Some(()) = join!(dht_guard_ipv4) => {}
-            Some(()) = join!(dht_guard_ipv6) => {}
-            Some(()) = join!(tracker_guard) => {}
-            Some(()) = join!(utp_socket_ipv4) => {}
-            Some(()) = join!(utp_socket_ipv6) => {}
+            Some(()) = call!(dht_guard_ipv4, joinable) => {}
+            Some(()) = call!(dht_guard_ipv6, joinable) => {}
+            Some(()) = call!(tracker_guard, join) => {}
+            Some(()) = call!(utp_socket_ipv4, join) => {}
+            Some(()) = call!(utp_socket_ipv6, join) => {}
             () = self.tasks.joinable() => {}
         }
     }

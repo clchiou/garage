@@ -255,51 +255,6 @@ impl From<ShutdownError> for io::Error {
     }
 }
 
-/// Joins `JoinGuard` together in a "join-any-shutdown-all" manner.
-///
-/// I am not sure about the details yet; for example, how do we merge errors?
-#[derive(Debug)]
-pub struct JoinAny<E>(JoinGuard<Result<(), E>>, JoinGuard<Result<(), E>>);
-
-impl<E> JoinAny<E> {
-    pub fn new(guard0: JoinGuard<Result<(), E>>, guard1: JoinGuard<Result<(), E>>) -> Self {
-        Self(guard0, guard1)
-    }
-
-    pub fn add_parent(&self, parent: Cancel) {
-        self.0.add_parent(parent.clone());
-        self.1.add_parent(parent);
-    }
-
-    pub fn add_timeout(&self, timeout: Duration) {
-        self.0.add_timeout(timeout);
-        self.1.add_timeout(timeout);
-    }
-
-    pub fn add_deadline(&self, deadline: Instant) {
-        self.0.add_deadline(deadline);
-        self.1.add_deadline(deadline);
-    }
-
-    pub fn cancel(&self) {
-        self.0.cancel();
-        self.1.cancel();
-    }
-
-    /// Returns when any `JoinGuard::join` returns.
-    pub async fn join(&mut self) {
-        tokio::select! {
-            () = self.0.join() => {}
-            () = self.1.join() => {}
-        }
-    }
-
-    /// Shuts down all `JoinGuard`.
-    pub async fn shutdown(&mut self) -> Result<Result<(), E>, ShutdownError> {
-        merge(tokio::join!(self.0.shutdown(), self.1.shutdown()))
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::future;

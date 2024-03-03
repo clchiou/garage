@@ -5,7 +5,7 @@ use std::sync::Arc;
 use bytes::Bytes;
 use futures::{sink::Sink, stream::Stream};
 
-use g1_tokio::task::JoinAny;
+use g1_tokio::task::JoinArray;
 
 use bittorrent_base::InfoHash;
 
@@ -22,7 +22,7 @@ pub struct Dht {
     agent: Arc<Agent>,
 }
 
-pub type DhtGuard = JoinAny<Error>;
+pub type DhtGuard = JoinArray<Result<(), Error>, 2>;
 
 impl Dht {
     pub fn spawn<Incoming, Outgoing>(
@@ -43,7 +43,7 @@ impl Dht {
                 self_endpoint,
                 agent,
             },
-            JoinAny::new(reqrep_guard, agent_guard),
+            DhtGuard::new([reqrep_guard, agent_guard]),
         )
     }
 

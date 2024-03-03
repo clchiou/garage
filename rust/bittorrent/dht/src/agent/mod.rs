@@ -101,7 +101,7 @@ impl Actor {
         }
     }
 
-    // It returns `Result<(), Error>` to maintain compatibility with `JoinAny`.
+    // It returns `Result<(), Error>` to maintain compatibility with `JoinArray::shutdown`.
     async fn run(mut self) -> Result<(), Error> {
         let mut kbucket_refresh_interval = time::interval(self.kbucket_refresh_period);
         loop {

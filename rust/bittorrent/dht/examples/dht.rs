@@ -55,7 +55,7 @@ impl Program {
             Command::Serve => {
                 tokio::select! {
                     () = signal::ctrl_c().map(Result::unwrap) => eprintln!("ctrl-c received!"),
-                    () = dht_guard.join() => {}
+                    () = dht_guard.joinable() => {}
                 }
             }
         }
