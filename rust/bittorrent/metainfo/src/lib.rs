@@ -11,7 +11,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_bytes::Bytes;
 use sha1::{Digest, Sha1};
-use snafu::Snafu;
+use snafu::prelude::*;
 
 use g1_base::{
     cmp::PartialEqExt,
