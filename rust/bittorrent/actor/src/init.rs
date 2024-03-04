@@ -372,12 +372,12 @@ impl Init {
 
     pub(crate) async fn init_dht_ipv4(&mut self) -> Result<Option<Dht>, Error> {
         let manager = self.init_manager().await?;
-        Ok(subinit!(self.net_ipv4, init_dht(manager)))
+        Ok(subinit!(self.net_ipv4, init_dht(manager)).flatten())
     }
 
     pub(crate) async fn init_dht_ipv6(&mut self) -> Result<Option<Dht>, Error> {
         let manager = self.init_manager().await?;
-        Ok(subinit!(self.net_ipv6, init_dht(manager)))
+        Ok(subinit!(self.net_ipv6, init_dht(manager)).flatten())
     }
 
     //
@@ -489,9 +489,9 @@ impl NetInit {
     // DHT
     //
 
-    async fn init_dht(&mut self, manager: Manager) -> Result<Dht, Error> {
+    async fn init_dht(&mut self, manager: Manager) -> Result<Option<Dht>, Error> {
         self.init_dht_guard(manager).await?;
-        Ok(self.dht.clone().unwrap())
+        Ok(self.dht.clone())
     }
 
     async fn init_dht_guard(&mut self, manager: Manager) -> Result<(), Error> {
