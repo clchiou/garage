@@ -81,8 +81,11 @@ pub(crate) struct Guards {
 #[derive(DebugExt)]
 struct NetInit {
     info_hash: InfoHash,
-    self_endpoint: SocketAddr,
+    self_endpoint_to_bind: SocketAddr,
+    self_endpoint: Option<SocketAddr>,
     self_features: Features,
+
+    tcp_listener: Option<TcpListener>,
 
     dht: Option<Dht>,
     dht_guard: Option<DhtGuard>,
@@ -163,19 +166,6 @@ impl Init {
 
             tasks,
         }
-    }
-
-    fn self_endpoint_ipv4(&self) -> Option<SocketAddr> {
-        self.net_ipv4.as_ref().map(|net| net.self_endpoint)
-    }
-
-    fn self_endpoint_ipv6(&self) -> Option<SocketAddr> {
-        self.net_ipv6.as_ref().map(|net| net.self_endpoint)
-    }
-
-    fn port_ipv4(&self) -> Option<u16> {
-        self.self_endpoint_ipv4()
-            .map(|self_endpoint| self_endpoint.port())
     }
 
     pub(crate) async fn into_guards(mut self) -> Result<Guards, Error> {
@@ -343,15 +333,17 @@ impl Init {
             return Ok(());
         }
 
+        let self_endpoint_ipv4 = subinit!(self.net_ipv4, init_self_endpoint());
+        let self_endpoint_ipv6 = subinit!(self.net_ipv6, init_self_endpoint());
         tracing::info!(
-            self_endpoint_ipv4 = ?self.self_endpoint_ipv4(),
-            self_endpoint_ipv6 = ?self.self_endpoint_ipv6(),
+            ?self_endpoint_ipv4,
+            ?self_endpoint_ipv6,
             "init peer manager",
         );
         let (manager, recvs, manager_guard) = Manager::spawn(
             self.info_hash.clone(),
-            subinit!(self.net_ipv4, new_tcp_listener()),
-            subinit!(self.net_ipv6, new_tcp_listener()),
+            subinit!(self.net_ipv4, init_once_tcp_listener()),
+            subinit!(self.net_ipv6, init_once_tcp_listener()),
             subinit!(self.net_ipv4, init_utp_socket()),
             subinit!(self.net_ipv6, init_utp_socket()),
         );
@@ -405,13 +397,14 @@ impl Init {
             std::unreachable!()
         };
 
+        // TODO: Support IPv6.
+        let port_ipv4 = subinit!(self.net_ipv4, init_self_endpoint())
+            .unwrap()
+            .port();
+
         tracing::info!("init tracker");
-        let (tracker, tracker_guard) = Tracker::spawn(
-            metainfo.deref(),
-            self.info_hash.clone(),
-            self.port_ipv4().unwrap(),
-            torrent,
-        );
+        let (tracker, tracker_guard) =
+            Tracker::spawn(metainfo.deref(), self.info_hash.clone(), port_ipv4, torrent);
 
         {
             let tracker = tracker.clone();
@@ -450,8 +443,11 @@ impl NetInit {
     ) -> Self {
         Self {
             info_hash,
-            self_endpoint,
+            self_endpoint_to_bind: self_endpoint,
+            self_endpoint: None,
             self_features,
+
+            tcp_listener: None,
 
             dht: None,
             dht_guard: None,
@@ -470,19 +466,41 @@ impl NetInit {
     }
 
     //
-    // TcpListener
+    // TCP
     //
 
-    async fn new_tcp_listener(&self) -> Result<TcpListener, Error> {
-        let socket = if self.self_endpoint.is_ipv4() {
+    async fn init_self_endpoint(&mut self) -> Result<SocketAddr, Error> {
+        self.init_tcp().await?;
+        Ok(self.self_endpoint.unwrap())
+    }
+
+    async fn init_once_tcp_listener(&mut self) -> Result<TcpListener, Error> {
+        self.init_tcp().await?;
+        Ok(self.tcp_listener.take().unwrap())
+    }
+
+    async fn init_tcp(&mut self) -> Result<(), Error> {
+        if self.self_endpoint.is_some() {
+            return Ok(());
+        }
+
+        let socket = if self.self_endpoint_to_bind.is_ipv4() {
             TcpSocket::new_v4()
         } else {
-            assert!(self.self_endpoint.is_ipv6());
+            assert!(self.self_endpoint_to_bind.is_ipv6());
             TcpSocket::new_v6()
         }?;
         socket.set_reuseport(true)?;
-        socket.bind(self.self_endpoint)?;
-        socket.listen(*crate::tcp_listen_backlog())
+        socket.bind(self.self_endpoint_to_bind)?;
+        let tcp_listener = socket.listen(*crate::tcp_listen_backlog())?;
+        let self_endpoint = tcp_listener.local_addr()?;
+        if self.self_endpoint_to_bind != self_endpoint {
+            tracing::info!(?self_endpoint, "bind to ephemeral port");
+        }
+
+        self.self_endpoint = Some(self_endpoint);
+        self.tcp_listener = Some(tcp_listener);
+        Ok(())
     }
 
     //
@@ -499,9 +517,11 @@ impl NetInit {
             return Ok(());
         }
 
-        tracing::info!(self_endpoint = ?self.self_endpoint, "init dht");
+        let self_endpoint = self.init_self_endpoint().await?;
+
+        tracing::info!(?self_endpoint, "init dht");
         let (dht, dht_guard) = Dht::spawn(
-            self.self_endpoint,
+            self_endpoint,
             self.init_once_dht_stream().await?,
             self.init_once_dht_sink().await?,
         );
@@ -564,8 +584,9 @@ impl NetInit {
 
     async fn init_udp_socket(&mut self) -> Result<Arc<UdpSocket>, Error> {
         if self.udp_socket.is_none() {
+            let self_endpoint = self.init_self_endpoint().await?;
             // TODO: Do we need to call `set_reuseport(true)` on UDP sockets?
-            self.udp_socket = Some(Arc::new(UdpSocket::bind(self.self_endpoint).await?));
+            self.udp_socket = Some(Arc::new(UdpSocket::bind(self_endpoint).await?));
         }
         Ok(self.udp_socket.clone().unwrap())
     }
