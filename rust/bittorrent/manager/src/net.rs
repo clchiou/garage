@@ -7,7 +7,6 @@ use tokio::{
     time,
 };
 
-use g1_base::iter;
 use g1_tokio::{io::DynStream, net::tcp::TcpStream};
 
 use bittorrent_base::{Features, InfoHash, PeerId};
@@ -53,9 +52,7 @@ impl Connector {
 
     pub(crate) fn new(
         info_hash: InfoHash,
-        peer_id: Option<PeerId>,
         peer_endpoint: Endpoint,
-        prefs: Option<Vec<Preference>>,
         utp_connector_ipv4: Option<UtpConnector>,
         utp_connector_ipv6: Option<UtpConnector>,
     ) -> Self {
@@ -63,23 +60,18 @@ impl Connector {
             info_hash,
             bittorrent_base::self_id().clone(),
             Features::load(),
-            peer_id,
             peer_endpoint,
-            prefs.unwrap_or_else(|| Vec::from(Self::DEFAULT_PREFS)),
             *crate::connect_timeout(),
             utp_connector_ipv4,
             utp_connector_ipv6,
         )
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn with_param(
         info_hash: InfoHash,
         self_id: PeerId,
         self_features: Features,
-        peer_id: Option<PeerId>,
         peer_endpoint: Endpoint,
-        prefs: Vec<Preference>,
         connect_timeout: Duration,
         utp_connector_ipv4: Option<UtpConnector>,
         utp_connector_ipv6: Option<UtpConnector>,
@@ -88,9 +80,9 @@ impl Connector {
             info_hash,
             self_id,
             self_features,
-            peer_id,
+            peer_id: None,
             peer_endpoint,
-            prefs,
+            prefs: Vec::from(Self::DEFAULT_PREFS),
             connect_timeout,
             utp_connector_ipv4,
             utp_connector_ipv6,
@@ -101,21 +93,30 @@ impl Connector {
         self.peer_id = peer_id;
     }
 
-    pub(crate) fn set_preferences(&mut self, prefs: Vec<Preference>) {
-        self.prefs = prefs;
-    }
-
     pub(crate) async fn connect(&mut self) -> Result<Socket, Error> {
         for (i, pref) in self.prefs.iter().copied().enumerate() {
-            match self.connect_by_pref(pref).await {
+            match self.try_connect(pref).await {
                 Ok(socket) => {
                     let (transport, cipher) = pref;
+                    let peer_id = socket.peer_id();
                     tracing::debug!(
                         ?transport,
                         ?cipher,
+                        ?peer_id,
                         peer_endpoint = ?self.peer_endpoint,
                         "connect",
                     );
+                    if let Some(expect) = self.peer_id.as_ref() {
+                        if &peer_id != expect {
+                            // TODO: Should we close the connection as specified in BEP 3?
+                            tracing::warn!(
+                                ?peer_id,
+                                ?expect,
+                                peer_endpoint = ?self.peer_endpoint,
+                                "unexpected peer_id",
+                            );
+                        }
+                    }
                     if i != 0 {
                         let pref = self.prefs.remove(i);
                         self.prefs.insert(0, pref);
@@ -145,7 +146,7 @@ impl Connector {
         .into())
     }
 
-    async fn connect_by_pref(&self, (transport, cipher): Preference) -> Result<Socket, Error> {
+    async fn try_connect(&self, (transport, cipher): Preference) -> Result<Socket, Error> {
         let stream = time::timeout(self.connect_timeout, async {
             match transport {
                 Transport::Tcp => self.tcp_connect().await,
@@ -247,7 +248,7 @@ impl Listener {
         }
     }
 
-    pub(crate) async fn accept(&self) -> Result<(Socket, Endpoint, Vec<Preference>), Error> {
+    pub(crate) async fn accept(&self) -> Result<(Socket, Endpoint, Option<Endpoint>), Error> {
         macro_rules! accept {
             ($listener:ident $(,)?) => {
                 OptionFuture::from(self.$listener.as_ref().map(|listener| listener.accept()))
@@ -259,8 +260,8 @@ impl Listener {
                 let (stream, peer_endpoint) = $stream?;
                 let stream = TcpStream::from(stream);
                 let stream = bittorrent_mse::accept(stream, self.info_hash.as_ref()).await?;
-                let prefs = list_prefs(&[Transport::Tcp, Transport::Utp], &stream);
-                (stream.into(), peer_endpoint, prefs)
+                let cipher = get_cipher(&stream);
+                (stream.into(), peer_endpoint, Transport::Tcp, cipher)
             }};
         }
 
@@ -269,12 +270,12 @@ impl Listener {
                 let stream = $stream?;
                 let peer_endpoint = stream.peer_endpoint();
                 let stream = bittorrent_mse::accept(stream, self.info_hash.as_ref()).await?;
-                let prefs = list_prefs(&[Transport::Utp, Transport::Tcp], &stream);
-                (stream.into(), peer_endpoint, prefs)
+                let cipher = get_cipher(&stream);
+                (stream.into(), peer_endpoint, Transport::Utp, cipher)
             }};
         }
 
-        let (stream, peer_endpoint, prefs) = tokio::select! {
+        let (stream, peer_endpoint, transport, cipher) = tokio::select! {
             Some(stream) = accept!(tcp_listener_ipv4) => tcp_accept!(stream),
             Some(stream) = accept!(tcp_listener_ipv6) => tcp_accept!(stream),
             Some(stream) = accept!(utp_listener_ipv4) => utp_accept!(stream),
@@ -290,18 +291,19 @@ impl Listener {
             None,
         )
         .await?;
+        tracing::debug!(?transport, ?cipher, peer_id = ?socket.peer_id(), ?peer_endpoint, "accept");
 
-        tracing::debug!(transport = ?prefs[0].0, cipher = ?prefs[0].1, ?peer_endpoint, "accept");
-        Ok((socket, peer_endpoint, prefs))
+        // TODO: I assume that the peer's uTP connecting endpoint is also the peer's uTP and TCP
+        // listening endpoint.  Can we make the same assumption for a TCP connecting endpoint?
+        let peer_listening_endpoint = (transport == Transport::Utp).then_some(peer_endpoint);
+
+        Ok((socket, peer_endpoint, peer_listening_endpoint))
     }
 }
 
-fn list_prefs<Stream>(transports: &[Transport], stream: &MseStream<Stream>) -> Vec<Preference> {
-    let ciphers = match stream {
-        MseStream::Rc4(_) => &[Cipher::Mse, Cipher::Plaintext],
-        MseStream::Plaintext(_) => &[Cipher::Plaintext, Cipher::Mse],
-    };
-    iter::product(transports, ciphers)
-        .map(|(t, c)| (*t, *c))
-        .collect()
+fn get_cipher<Stream>(stream: &MseStream<Stream>) -> Cipher {
+    match stream {
+        MseStream::Rc4(_) => Cipher::Mse,
+        MseStream::Plaintext(_) => Cipher::Plaintext,
+    }
 }

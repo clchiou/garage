@@ -16,7 +16,7 @@ use bittorrent_utp::UtpConnector;
 
 use crate::{
     net::{Connector, Listener},
-    Endpoint, Preference, Socket, Update,
+    Endpoint, Socket, Update,
 };
 
 #[derive(DebugExt)]
@@ -94,8 +94,7 @@ impl Actor {
                 }
 
                 accept = self.listener.accept() => {
-                    let (socket, peer_endpoint, prefs) = accept?;
-                    self.handle_accept(socket, peer_endpoint, prefs).await;
+                    self.handle_accept(accept?).await;
                 }
 
                 guard = self.tasks.join_next() => {
@@ -159,13 +158,16 @@ impl Actor {
         self.handle_peer_start(peer_endpoint, guard).await;
     }
 
-    async fn handle_accept(&self, socket: Socket, peer_endpoint: Endpoint, prefs: Vec<Preference>) {
+    async fn handle_accept(
+        &self,
+        (socket, peer_endpoint, peer_listening_endpoint): (Socket, Endpoint, Option<Endpoint>),
+    ) {
         let guard = {
             let mut peers = self.peers.must_lock();
-            match peers.update_connector(peer_endpoint, socket.peer_id(), prefs) {
-                Ok(()) => peers.spawn(peer_endpoint, socket),
-                Err(ConnectorInUse) => Err(socket),
+            if let Some(peer_listening_endpoint) = peer_listening_endpoint {
+                peers.insert_connector(peer_listening_endpoint);
             }
+            peers.spawn(peer_endpoint, socket)
         };
         self.handle_peer_start(peer_endpoint, guard).await;
     }
@@ -228,21 +230,34 @@ impl Peers {
         self.connectors.keys().cloned().collect()
     }
 
+    fn insert_connector(&mut self, peer_endpoint: Endpoint) -> bool {
+        if self.connectors.contains_key(&peer_endpoint) {
+            return false;
+        }
+        assert!(self
+            .connectors
+            .insert(peer_endpoint, Some(self.new_connector(peer_endpoint)))
+            .is_none());
+        true
+    }
+
     fn borrow_connector(&mut self, peer_endpoint: Endpoint) -> Result<Connector, ConnectorInUse> {
         match self.connectors.entry(peer_endpoint) {
             Entry::Occupied(entry) => entry.into_mut().take().ok_or(ConnectorInUse),
             Entry::Vacant(entry) => {
                 let _ = entry.insert(None);
-                Ok(Connector::new(
-                    self.info_hash.clone(),
-                    None,
-                    peer_endpoint,
-                    None,
-                    self.utp_connector_ipv4.clone(),
-                    self.utp_connector_ipv6.clone(),
-                ))
+                Ok(self.new_connector(peer_endpoint))
             }
         }
+    }
+
+    fn new_connector(&self, peer_endpoint: Endpoint) -> Connector {
+        Connector::new(
+            self.info_hash.clone(),
+            peer_endpoint,
+            self.utp_connector_ipv4.clone(),
+            self.utp_connector_ipv6.clone(),
+        )
     }
 
     fn return_connector(&mut self, peer_endpoint: Endpoint, connector: Connector) {
@@ -252,35 +267,6 @@ impl Peers {
                 Some(_) => std::panic!("peer connector entry was returned: {:?}", peer_endpoint),
             },
             None => std::panic!("peer connector entry does not exist: {:?}", peer_endpoint),
-        }
-    }
-
-    fn update_connector(
-        &mut self,
-        peer_endpoint: Endpoint,
-        peer_id: PeerId,
-        prefs: Vec<Preference>,
-    ) -> Result<(), ConnectorInUse> {
-        match self.connectors.entry(peer_endpoint) {
-            Entry::Occupied(entry) => match entry.into_mut() {
-                Some(connector) => {
-                    connector.set_peer_id(Some(peer_id));
-                    connector.set_preferences(prefs);
-                    Ok(())
-                }
-                None => Err(ConnectorInUse),
-            },
-            Entry::Vacant(entry) => {
-                let _ = entry.insert(Some(Connector::new(
-                    self.info_hash.clone(),
-                    Some(peer_id),
-                    peer_endpoint,
-                    Some(prefs),
-                    self.utp_connector_ipv4.clone(),
-                    self.utp_connector_ipv6.clone(),
-                )));
-                Ok(())
-            }
         }
     }
 
