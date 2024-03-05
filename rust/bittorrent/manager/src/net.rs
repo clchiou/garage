@@ -15,6 +15,8 @@ use bittorrent_utp::{UtpConnector, UtpListener};
 
 use crate::{error, Cipher, Endpoint, Preference, Socket, Transport};
 
+type Prefs = [Preference; 4];
+
 #[derive(Debug)]
 pub(crate) struct Connector {
     info_hash: InfoHash,
@@ -23,7 +25,7 @@ pub(crate) struct Connector {
     peer_id: Option<PeerId>,
     peer_endpoint: Endpoint,
 
-    prefs: Vec<Preference>,
+    prefs: Prefs,
 
     connect_timeout: Duration,
     utp_connector_ipv4: Option<UtpConnector>,
@@ -43,7 +45,7 @@ pub(crate) struct Listener {
 }
 
 impl Connector {
-    const DEFAULT_PREFS: &'static [Preference] = &[
+    const DEFAULT_PREFS: Prefs = [
         (Transport::Tcp, Cipher::Mse),
         (Transport::Utp, Cipher::Mse),
         (Transport::Tcp, Cipher::Plaintext),
@@ -82,7 +84,7 @@ impl Connector {
             self_features,
             peer_id: None,
             peer_endpoint,
-            prefs: Vec::from(Self::DEFAULT_PREFS),
+            prefs: Self::DEFAULT_PREFS,
             connect_timeout,
             utp_connector_ipv4,
             utp_connector_ipv6,
@@ -117,10 +119,7 @@ impl Connector {
                             );
                         }
                     }
-                    if i != 0 {
-                        let pref = self.prefs.remove(i);
-                        self.prefs.insert(0, pref);
-                    }
+                    self.prefs[0..=i].rotate_right(1);
                     return Ok(socket);
                 }
                 Err(error) => {
