@@ -1,4 +1,5 @@
 use std::collections::{btree_map::Entry, BTreeMap, HashMap};
+use std::future::Future;
 use std::io::Error;
 use std::sync::{Arc, Mutex};
 
@@ -28,6 +29,8 @@ pub(crate) struct Actor {
     connected_futures: ReadyQueue<(Endpoint, Connector, Result<Socket, Error>)>,
 
     listener: Listener,
+    #[debug(with = InsertPlaceholder)]
+    accepted_futures: ReadyQueue<(Endpoint, Option<Endpoint>, Result<Socket, Error>)>,
 
     #[debug(with = InsertPlaceholder)]
     socket_shutdown: ReadyQueue<()>,
@@ -76,6 +79,7 @@ impl Actor {
             connect_recv,
             connected_futures: ReadyQueue::new(),
             listener,
+            accepted_futures: ReadyQueue::new(),
             socket_shutdown: ReadyQueue::new(),
             peers,
             tasks: JoinQueue::with_cancel(cancel),
@@ -99,6 +103,9 @@ impl Actor {
 
                 accept = self.listener.accept() => {
                     self.handle_accept(accept?);
+                }
+                accepted = self.accepted_futures.pop_ready() => {
+                    self.handle_accepted(accepted.unwrap());
                 }
 
                 _ = self.socket_shutdown.pop_ready() => {}
@@ -166,8 +173,34 @@ impl Actor {
 
     fn handle_accept(
         &self,
-        (socket, peer_endpoint, peer_listening_endpoint): (Socket, Endpoint, Option<Endpoint>),
+        (peer_endpoint, peer_listening_endpoint, socket): (
+            Endpoint,
+            Option<Endpoint>,
+            impl Future<Output = Result<Socket, Error>> + Send + 'static,
+        ),
     ) {
+        assert!(self
+            .accepted_futures
+            .push(async move { (peer_endpoint, peer_listening_endpoint, socket.await) })
+            .is_ok());
+    }
+
+    fn handle_accepted(
+        &self,
+        (peer_endpoint, peer_listening_endpoint, socket): (
+            Endpoint,
+            Option<Endpoint>,
+            Result<Socket, Error>,
+        ),
+    ) {
+        let socket = match socket {
+            Ok(socket) => socket,
+            Err(error) => {
+                tracing::warn!(?peer_endpoint, ?error, "peer socket accept error");
+                return;
+            }
+        };
+
         let guard = {
             let mut peers = self.peers.must_lock();
             if let Some(peer_listening_endpoint) = peer_listening_endpoint {

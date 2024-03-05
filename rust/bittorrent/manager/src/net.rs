@@ -1,13 +1,19 @@
+use std::future::Future;
 use std::io::{Error, ErrorKind};
 use std::time::Duration;
 
-use futures::future::OptionFuture;
+use futures::future::{BoxFuture, OptionFuture};
 use tokio::{
     net::{TcpListener, TcpSocket},
     time,
 };
+use tracing::{field, Instrument, Span};
 
-use g1_tokio::{io::DynStream, net::tcp::TcpStream};
+use g1_tokio::{
+    bstream::{StreamRecv, StreamSend},
+    io::DynStream,
+    net::tcp::TcpStream,
+};
 
 use bittorrent_base::{Features, InfoHash, PeerId};
 use bittorrent_mse::MseStream;
@@ -203,6 +209,8 @@ impl Connector {
 }
 
 impl Listener {
+    const CIPHER: &'static str = "cipher";
+
     pub(crate) fn new(
         info_hash: InfoHash,
         tcp_listener_ipv4: Option<TcpListener>,
@@ -247,62 +255,103 @@ impl Listener {
         }
     }
 
-    pub(crate) async fn accept(&self) -> Result<(Socket, Endpoint, Option<Endpoint>), Error> {
+    pub(crate) async fn accept(
+        &self,
+    ) -> Result<
+        (
+            Endpoint,
+            Option<Endpoint>,
+            impl Future<Output = Result<Socket, Error>> + Send + 'static,
+        ),
+        Error,
+    > {
         macro_rules! accept {
             ($listener:ident $(,)?) => {
                 OptionFuture::from(self.$listener.as_ref().map(|listener| listener.accept()))
             };
         }
 
-        macro_rules! tcp_accept {
+        macro_rules! tcp_handshake {
             ($stream:ident $(,)?) => {{
                 let (stream, peer_endpoint) = $stream?;
-                let stream = TcpStream::from(stream);
-                let stream = bittorrent_mse::accept(stream, self.info_hash.as_ref()).await?;
-                let cipher = get_cipher(&stream);
-                (stream.into(), peer_endpoint, Transport::Tcp, cipher)
+                (
+                    Transport::Tcp,
+                    peer_endpoint,
+                    Box::pin(Self::handshake(
+                        self.info_hash.clone(),
+                        self.self_id.clone(),
+                        self.self_features,
+                        TcpStream::from(stream),
+                    )),
+                )
             }};
         }
 
-        macro_rules! utp_accept {
+        macro_rules! utp_handshake {
             ($stream:ident $(,)?) => {{
                 let stream = $stream?;
-                let peer_endpoint = stream.peer_endpoint();
-                let stream = bittorrent_mse::accept(stream, self.info_hash.as_ref()).await?;
-                let cipher = get_cipher(&stream);
-                (stream.into(), peer_endpoint, Transport::Utp, cipher)
+                (
+                    Transport::Utp,
+                    stream.peer_endpoint(),
+                    Box::pin(Self::handshake(
+                        self.info_hash.clone(),
+                        self.self_id.clone(),
+                        self.self_features,
+                        stream,
+                    )),
+                )
             }};
         }
 
-        let (stream, peer_endpoint, transport, cipher) = tokio::select! {
-            Some(stream) = accept!(tcp_listener_ipv4) => tcp_accept!(stream),
-            Some(stream) = accept!(tcp_listener_ipv6) => tcp_accept!(stream),
-            Some(stream) = accept!(utp_listener_ipv4) => utp_accept!(stream),
-            Some(stream) = accept!(utp_listener_ipv6) => utp_accept!(stream),
+        let (transport, peer_endpoint, handshake): (
+            _,
+            _,
+            BoxFuture<'static, Result<Socket, Error>>,
+        ) = tokio::select! {
+            Some(stream) = accept!(tcp_listener_ipv4) => tcp_handshake!(stream),
+            Some(stream) = accept!(tcp_listener_ipv6) => tcp_handshake!(stream),
+            Some(stream) = accept!(utp_listener_ipv4) => utp_handshake!(stream),
+            Some(stream) = accept!(utp_listener_ipv6) => utp_handshake!(stream),
         };
-
-        let socket = Socket::accept(
-            stream,
-            self.info_hash.clone(),
-            self.self_id.clone(),
-            self.self_features,
-            // TODO: Should we look up the peer id if we have connected to this peer before?
-            None,
-        )
-        .await?;
-        tracing::debug!(?transport, ?cipher, peer_id = ?socket.peer_id(), ?peer_endpoint, "accept");
 
         // TODO: I assume that the peer's uTP connecting endpoint is also the peer's uTP and TCP
         // listening endpoint.  Can we make the same assumption for a TCP connecting endpoint?
         let peer_listening_endpoint = (transport == Transport::Utp).then_some(peer_endpoint);
 
-        Ok((socket, peer_endpoint, peer_listening_endpoint))
+        Ok((
+            peer_endpoint,
+            peer_listening_endpoint,
+            handshake.instrument(tracing::info_span!(
+                "accept",
+                ?transport,
+                { Listener::CIPHER } = field::Empty,
+                ?peer_endpoint,
+            )),
+        ))
     }
-}
 
-fn get_cipher<Stream>(stream: &MseStream<Stream>) -> Cipher {
-    match stream {
-        MseStream::Rc4(_) => Cipher::Mse,
-        MseStream::Plaintext(_) => Cipher::Plaintext,
+    async fn handshake<Stream>(
+        info_hash: InfoHash,
+        self_id: PeerId,
+        self_features: Features,
+        stream: Stream,
+    ) -> Result<Socket, Error>
+    where
+        Stream: StreamRecv<Error = Error> + StreamSend<Error = Error> + Send + 'static,
+    {
+        let stream = bittorrent_mse::accept(stream, info_hash.as_ref()).await?;
+
+        let cipher = match stream {
+            MseStream::Rc4(_) => Cipher::Mse,
+            MseStream::Plaintext(_) => Cipher::Plaintext,
+        };
+        Span::current().record(Self::CIPHER, field::debug(&cipher));
+
+        // TODO: Should we look up the peer id if we have connected to this peer before?
+        let peer_id = None;
+
+        Socket::accept(stream.into(), info_hash, self_id, self_features, peer_id)
+            .await
+            .inspect(|socket| tracing::debug!(peer_id = ?socket.peer_id()))
     }
 }
