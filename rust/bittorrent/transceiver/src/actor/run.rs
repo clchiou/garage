@@ -25,7 +25,7 @@ impl Actor {
         }
 
         let seed_at_start = self.scheduler.is_completed();
-        let mut was_idle = false;
+        let mut was_idle = true;
         let _ = self.update_send.send(Update::Start);
         loop {
             // TODO: Implement seeding.
