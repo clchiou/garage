@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::net::IpAddr;
 use std::sync::{
     atomic::{AtomicU64, Ordering},
     Arc,
@@ -20,8 +21,13 @@ pub(crate) struct TorrentInner {
 #[derive(Debug)]
 pub(crate) struct Accumulator(AtomicU64);
 
+/// Records the peer stats.
+///
+/// TODO: Peers may have multiple endpoints.  Their TCP listening and connecting endpoints are
+/// different.  Their uTP endpoints might be on another port than TCP endpoints.  At the moment, we
+/// employ a very simple heuristic to map endpoints to peers, namely, by the endpoint's IP address.
 #[derive(Debug)]
-pub(crate) struct Stats(HashMap<Endpoint, Stat>);
+pub(crate) struct Stats(HashMap<IpAddr, Stat>);
 
 #[derive(Debug)]
 pub(crate) struct Stat {
@@ -78,11 +84,11 @@ impl Stats {
     }
 
     pub(crate) fn get(&self, peer: Endpoint) -> &Stat {
-        self.0.get(&peer).unwrap_or(&Stat::ZERO)
+        self.0.get(&peer.ip()).unwrap_or(&Stat::ZERO)
     }
 
     pub(crate) fn get_mut(&mut self, peer: Endpoint) -> &mut Stat {
-        self.0.entry(peer).or_insert_with(Stat::new)
+        self.0.entry(peer.ip()).or_insert_with(Stat::new)
     }
 }
 
