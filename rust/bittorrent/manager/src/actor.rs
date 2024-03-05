@@ -29,6 +29,9 @@ pub(crate) struct Actor {
 
     listener: Listener,
 
+    #[debug(with = InsertPlaceholder)]
+    socket_shutdown: ReadyQueue<()>,
+
     peers: Arc<Mutex<Peers>>,
     tasks: JoinQueue<Result<(), Error>>,
 
@@ -73,6 +76,7 @@ impl Actor {
             connect_recv,
             connected_futures: ReadyQueue::new(),
             listener,
+            socket_shutdown: ReadyQueue::new(),
             peers,
             tasks: JoinQueue::with_cancel(cancel),
             update_send,
@@ -90,12 +94,14 @@ impl Actor {
                     self.handle_connect(peer_endpoint, peer_id);
                 }
                 connected = self.connected_futures.pop_ready() => {
-                    self.handle_connected(connected.unwrap()).await;
+                    self.handle_connected(connected.unwrap());
                 }
 
                 accept = self.listener.accept() => {
-                    self.handle_accept(accept?).await;
+                    self.handle_accept(accept?);
                 }
+
+                _ = self.socket_shutdown.pop_ready() => {}
 
                 guard = self.tasks.join_next() => {
                     let Some(guard) = guard else { break };
@@ -139,7 +145,7 @@ impl Actor {
             .is_ok());
     }
 
-    async fn handle_connected(
+    fn handle_connected(
         &self,
         (peer_endpoint, connector, socket): (Endpoint, Connector, Result<Socket, Error>),
     ) {
@@ -155,10 +161,10 @@ impl Actor {
                 }
             }
         };
-        self.handle_peer_start(peer_endpoint, guard).await;
+        self.handle_peer_start(peer_endpoint, guard);
     }
 
-    async fn handle_accept(
+    fn handle_accept(
         &self,
         (socket, peer_endpoint, peer_listening_endpoint): (Socket, Endpoint, Option<Endpoint>),
     ) {
@@ -169,10 +175,10 @@ impl Actor {
             }
             peers.spawn(peer_endpoint, socket)
         };
-        self.handle_peer_start(peer_endpoint, guard).await;
+        self.handle_peer_start(peer_endpoint, guard);
     }
 
-    async fn handle_peer_start(&self, peer_endpoint: Endpoint, guard: Result<PeerGuard, Socket>) {
+    fn handle_peer_start(&self, peer_endpoint: Endpoint, guard: Result<PeerGuard, Socket>) {
         match guard {
             Ok(guard) => match self.tasks.push(guard) {
                 Ok(()) => self.send_update(peer_endpoint, Update::Start),
@@ -182,9 +188,14 @@ impl Actor {
             },
             Err(mut socket) => {
                 tracing::error!(?peer_endpoint, "new socket conflicts with current peer");
-                if let Err(error) = socket.shutdown().await {
-                    tracing::warn!(?peer_endpoint, ?error, "peer socket shutdown error");
-                }
+                assert!(self
+                    .socket_shutdown
+                    .push(async move {
+                        if let Err(error) = socket.shutdown().await {
+                            tracing::warn!(?peer_endpoint, ?error, "peer socket shutdown error");
+                        }
+                    })
+                    .is_ok());
             }
         }
     }
