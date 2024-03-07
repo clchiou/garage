@@ -200,7 +200,9 @@ impl<T, Fut> Queue<T, Fut> {
     ///
     /// This is called only when `push_pending` returns `Err`.
     pub(super) fn resume_polling_after_yield(&mut self, future: Fut) {
-        self.polling.push_front(future);
+        // A future may yield voluntarily, for example, when it is compute-bound.  In such cases,
+        // we should push it to the end of `polling`.
+        self.polling.push_back(future);
     }
 
     /// ready -> output
@@ -657,7 +659,7 @@ mod tests {
         test.queue.resume_polling_after_yield(101);
         test.queue.resume_polling_after_yield(102);
         test.assert(false, (2, 0, 0, 0), ([true; 2], [true; 2]), (0, 0));
-        assert_eq!(test.queue.polling, [102, 101]);
+        assert_eq!(test.queue.polling, [101, 102]);
     }
 
     #[test]

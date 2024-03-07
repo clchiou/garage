@@ -82,6 +82,9 @@ where
                 }
                 Poll::Pending => {
                     if once_waker.0.must_lock().is_none() {
+                        // A future may yield voluntarily, for example, when it is compute-bound.
+                        // In such cases, we should push it to the end.
+                        self.futures[i..self.num_pending].rotate_left(1);
                         // `poll` returns `Pending` but also calls `wake`, signaling that we have
                         // depleted our cooperative [budget] and should yield.
                         //
@@ -223,6 +226,76 @@ mod tests {
         tokio::select! {
             () = time::sleep(Duration::from_millis(10)) => {}
             _ = array.pop_ready() => std::panic!(),
+        }
+    }
+
+    #[test]
+    fn test_yield() {
+        struct Mock(i8);
+
+        impl Future for Mock {
+            type Output = i8;
+
+            fn poll(self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<Self::Output> {
+                let x = self.as_ref().0;
+                if x > 0 {
+                    Poll::Ready(x)
+                } else {
+                    if x == 0 {
+                        context.waker().wake_by_ref();
+                    }
+                    Poll::Pending
+                }
+            }
+        }
+
+        fn assert<const N: usize>(array: &ReadyArray<Mock, N>, expect: [i8; N]) {
+            let actual: Vec<_> = array.futures.iter().map(|x| x.0).collect();
+            assert_eq!(actual, expect);
+        }
+
+        let waker = Waker::noop();
+        let mut context = Context::from_waker(&waker);
+
+        let mut array = ReadyArray::<Mock, 3>::new([Mock(0), Mock(1), Mock(2)]);
+        assert(&array, [0, 1, 2]);
+        assert_eq!(array.num_pending, 3);
+
+        assert_eq!(array.poll_futures(&mut context), Poll::Pending);
+        assert(&array, [1, 2, 0]);
+        assert_eq!(array.num_pending, 3);
+
+        assert_eq!(array.poll_futures(&mut context), Poll::Pending);
+        assert(&array, [2, 0, 1]);
+        assert_eq!(array.num_pending, 2);
+
+        for _ in 0..3 {
+            assert_eq!(array.poll_futures(&mut context), Poll::Pending);
+            assert(&array, [0, 2, 1]);
+            assert_eq!(array.num_pending, 1);
+        }
+
+        let mut array =
+            ReadyArray::<Mock, 6>::new([Mock(-1), Mock(-2), Mock(0), Mock(0), Mock(3), Mock(4)]);
+        assert(&array, [-1, -2, 0, 0, 3, 4]);
+        assert_eq!(array.num_pending, 6);
+
+        assert_eq!(array.poll_futures(&mut context), Poll::Pending);
+        assert(&array, [-1, -2, 0, 3, 4, 0]);
+        assert_eq!(array.num_pending, 6);
+
+        assert_eq!(array.poll_futures(&mut context), Poll::Pending);
+        assert(&array, [-1, -2, 3, 4, 0, 0]);
+        assert_eq!(array.num_pending, 6);
+
+        assert_eq!(array.poll_futures(&mut context), Poll::Pending);
+        assert(&array, [-1, -2, 4, 0, 0, 3]);
+        assert_eq!(array.num_pending, 5);
+
+        for _ in 0..3 {
+            assert_eq!(array.poll_futures(&mut context), Poll::Pending);
+            assert(&array, [-1, -2, 0, 0, 4, 3]);
+            assert_eq!(array.num_pending, 4);
         }
     }
 }
