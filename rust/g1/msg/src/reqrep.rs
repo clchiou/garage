@@ -270,7 +270,7 @@ where
 
                 incoming = self.incoming.next() => {
                     match incoming {
-                        Some(Ok(message)) => self.handle_incoming(message).await,
+                        Some(Ok(message)) => self.handle_incoming(message),
                         Some(Err(error)) => tracing::warn!(?error, "reqrep incoming error"),
                         None => break,
                     }
@@ -306,39 +306,42 @@ where
     // calling `send_and_forget`.
     //
 
-    async fn handle_incoming(&mut self, message: M) {
-        let endpoint = message.endpoint().clone();
-        match self.reqrep.entry(endpoint) {
-            Entry::Occupied(entry) => {
-                match entry.get() {
-                    State::Request(_) => {
-                        let State::Request(result_send) = entry.remove() else {
-                            std::unreachable!()
-                        };
-                        result_send.send_and_forget(Ok(message));
-                    }
-                    State::Response(_) => {
-                        // The peer violates the request-response flow.  For now, we ignore the new
-                        // request.
-                        tracing::warn!(
-                            endpoint = ?message.endpoint(),
-                            "drop the request because a prior response has not yet been sent",
-                        );
-                    }
+    fn handle_incoming(&mut self, message: M) {
+        match self.reqrep.entry(message.endpoint().clone()) {
+            Entry::Occupied(entry) => match entry.get() {
+                State::Request(_) => {
+                    let State::Request(result_send) = entry.remove() else {
+                        std::unreachable!()
+                    };
+                    result_send.send_and_forget(Ok(message));
                 }
-            }
+                State::Response(_) => {
+                    tracing::warn!(
+                        endpoint = ?message.endpoint(),
+                        "prior request-response; drop request",
+                    );
+                }
+            },
             Entry::Vacant(entry) => {
                 let (result_send, result_recv) = oneshot::channel();
-                entry.insert(State::Response(result_send));
-                if let Err(mpmc::error::SendError((message, _))) =
-                    self.accept_send.send((message, result_recv)).await
-                {
-                    let endpoint = message.endpoint();
-                    tracing::warn!(
-                        ?endpoint,
-                        "drop the request becaues the accept queue is closed",
-                    );
-                    assert!(self.reqrep.remove(endpoint).is_some())
+                match self.accept_send.try_send((message, result_recv)) {
+                    Ok(()) => {
+                        entry.insert(State::Response(result_send));
+                    }
+                    Err(error) => match error {
+                        mpmc::error::TrySendError::Full((message, _)) => {
+                            tracing::warn!(
+                                endpoint = ?message.endpoint(),
+                                "accept queue full; drop request",
+                            );
+                        }
+                        mpmc::error::TrySendError::Closed((message, _)) => {
+                            tracing::warn!(
+                                endpoint = ?message.endpoint(),
+                                "accept queue closed; drop request",
+                            );
+                        }
+                    },
                 }
             }
         }
@@ -787,7 +790,7 @@ mod tests {
         actor.handle_request((msg("x", "ping"), result_send)).await;
         assert_actor(&actor, &["x"], &[]);
 
-        actor.handle_incoming(msg("x", "pong")).await;
+        actor.handle_incoming(msg("x", "pong"));
         assert_actor(&actor, &[], &[]);
         assert_matches!(result_recv.await, Ok(Ok(m)) if m == msg("x", "pong"));
 
@@ -802,16 +805,16 @@ mod tests {
         let (mut actor, mut mock_actor) = Actor::new_mock();
         assert_actor(&actor, &[], &[]);
 
-        actor.handle_incoming(msg("x", "ping")).await;
+        actor.handle_incoming(msg("x", "ping"));
         assert_actor(&actor, &[], &["x"]);
-        actor.handle_incoming(msg("x", "spam")).await;
+        actor.handle_incoming(msg("x", "spam"));
         assert_actor(&actor, &[], &["x"]);
 
-        actor.handle_incoming(msg("y", "foo")).await;
+        actor.handle_incoming(msg("y", "foo"));
         assert_actor(&actor, &[], &["x", "y"]);
 
         mock_actor.accept_recv.close();
-        actor.handle_incoming(msg("z", "spam")).await;
+        actor.handle_incoming(msg("z", "spam"));
         assert_actor(&actor, &[], &["x", "y"]);
 
         drop(actor);
@@ -869,7 +872,7 @@ mod tests {
         let (mut actor, mut mock_actor) = Actor::new_mock();
         assert_actor(&actor, &[], &[]);
 
-        actor.handle_incoming(msg("x", "ping")).await;
+        actor.handle_incoming(msg("x", "ping"));
         assert_actor(&actor, &[], &["x"]);
 
         let (message, result_recv) = mock_actor.accept_recv.recv().await.unwrap();
@@ -889,7 +892,7 @@ mod tests {
         let (mut actor, mut mock_actor) = Actor::new_mock();
         assert_actor(&actor, &[], &[]);
 
-        actor.handle_incoming(msg("x", "ping")).await;
+        actor.handle_incoming(msg("x", "ping"));
         assert_actor(&actor, &[], &["x"]);
 
         let (message, result_recv) = mock_actor.accept_recv.recv().await.unwrap();
