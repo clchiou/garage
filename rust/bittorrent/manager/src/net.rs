@@ -2,7 +2,7 @@ use std::future::Future;
 use std::io::{Error, ErrorKind};
 use std::time::Duration;
 
-use futures::future::{BoxFuture, OptionFuture};
+use futures::future::{BoxFuture, FutureExt, OptionFuture};
 use tokio::{
     net::{TcpListener, TcpSocket},
     time,
@@ -102,47 +102,44 @@ impl Connector {
     }
 
     pub(crate) async fn connect(&mut self) -> Result<Socket, Error> {
-        for (i, pref) in self.prefs.iter().copied().enumerate() {
-            match self.try_connect(pref).await {
-                Ok(socket) => {
-                    let (transport, cipher) = pref;
-                    let peer_id = socket.peer_id();
-                    tracing::debug!(
-                        ?transport,
-                        ?cipher,
-                        ?peer_id,
-                        peer_endpoint = ?self.peer_endpoint,
-                        "connect",
-                    );
-                    if let Some(expect) = self.peer_id.as_ref() {
-                        if &peer_id != expect {
-                            // TODO: Should we close the connection as specified in BEP 3?
-                            tracing::warn!(
-                                ?peer_id,
-                                ?expect,
-                                peer_endpoint = ?self.peer_endpoint,
-                                "unexpected peer_id",
-                            );
+        for (i, (transport, cipher)) in self.prefs.iter().copied().enumerate() {
+            let result = self
+                .try_connect(transport, cipher)
+                .inspect(|result| {
+                    match result {
+                        Ok(socket) => {
+                            let peer_id = socket.peer_id();
+                            tracing::debug!(?peer_id);
+                            if let Some(expect) = self.peer_id.as_ref() {
+                                if &peer_id != expect {
+                                    // TODO: Should we close the connection as specified in BEP 3?
+                                    tracing::warn!(?peer_id, ?expect, "unexpected peer_id");
+                                }
+                            }
                         }
+                        Err(error) => match error.kind() {
+                            ErrorKind::TimedOut => {
+                                tracing::debug!(?error, "peer connect timeout");
+                            }
+                            ErrorKind::ConnectionRefused => {
+                                tracing::debug!(?error, "peer connect refused");
+                            }
+                            _ => {
+                                tracing::warn!(?error, "peer connect error");
+                            }
+                        },
                     }
-                    self.prefs[0..=i].rotate_right(1);
-                    return Ok(socket);
-                }
-                Err(error) => {
-                    if error.kind() == ErrorKind::TimedOut {
-                        tracing::debug!(
-                            peer_endpoint = ?self.peer_endpoint,
-                            ?error,
-                            "peer connect timeout",
-                        );
-                    } else {
-                        tracing::warn!(
-                            peer_endpoint = ?self.peer_endpoint,
-                            ?error,
-                            "peer connect error",
-                        );
-                    }
-                }
+                })
+                .instrument(tracing::info_span!(
+                    "mgr/connect",
+                    ?transport,
+                    ?cipher,
+                    peer_endpoint = ?self.peer_endpoint,
+                ))
+                .await;
+            if result.is_ok() {
+                self.prefs[0..=i].rotate_right(1);
+                return result;
             }
         }
         Err(error::Error::Unreachable {
@@ -151,7 +148,7 @@ impl Connector {
         .into())
     }
 
-    async fn try_connect(&self, (transport, cipher): Preference) -> Result<Socket, Error> {
+    async fn try_connect(&self, transport: Transport, cipher: Cipher) -> Result<Socket, Error> {
         let stream = time::timeout(self.connect_timeout, async {
             match transport {
                 Transport::Tcp => self.tcp_connect().await,
@@ -209,8 +206,6 @@ impl Connector {
 }
 
 impl Listener {
-    const CIPHER: &'static str = "cipher";
-
     pub(crate) fn new(
         info_hash: InfoHash,
         tcp_listener_ipv4: Option<TcpListener>,
@@ -318,15 +313,16 @@ impl Listener {
         // listening endpoint.  Can we make the same assumption for a TCP connecting endpoint?
         let peer_listening_endpoint = (transport == Transport::Utp).then_some(peer_endpoint);
 
+        let span = tracing::info_span!(
+            "mgr/accept",
+            ?transport,
+            cipher = field::Empty,
+            ?peer_endpoint,
+        );
         Ok((
             peer_endpoint,
             peer_listening_endpoint,
-            handshake.instrument(tracing::info_span!(
-                "accept",
-                ?transport,
-                { Listener::CIPHER } = field::Empty,
-                ?peer_endpoint,
-            )),
+            handshake.instrument(span),
         ))
     }
 
@@ -345,7 +341,7 @@ impl Listener {
             MseStream::Rc4(_) => Cipher::Mse,
             MseStream::Plaintext(_) => Cipher::Plaintext,
         };
-        Span::current().record(Self::CIPHER, field::debug(&cipher));
+        Span::current().record("cipher", field::debug(&cipher));
 
         // TODO: Should we look up the peer id if we have connected to this peer before?
         let peer_id = None;

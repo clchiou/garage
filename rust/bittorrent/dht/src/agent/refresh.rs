@@ -47,6 +47,9 @@ impl NodeRefresher {
     // When a bucket is full, BEP 5 specifies that questionable nodes are pinged twice, and then a
     // bad node is removed to save space for the new node.  For the sake of simplicity, we deviate
     // from BEP 5: Every node in the bucket is pinged, and it is only pinged once.
+    #[tracing::instrument(
+        name = "dht/refresh", fields(candidate = ?self.candidate.contact_info), skip_all,
+    )]
     pub(super) async fn run(self) -> Result<(), Error> {
         let Self {
             cancel,

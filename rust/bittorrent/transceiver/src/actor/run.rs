@@ -117,13 +117,14 @@ impl Actor {
 
             for peer_endpoint in self.scheduler.take_updated() {
                 if let Some(peer) = self.manager.get(peer_endpoint) {
-                    self.send_requests(&peer);
+                    tracing::info_span!("txrx", ?peer_endpoint)
+                        .in_scope(|| self.send_requests(&peer));
                 }
             }
 
             if self.scheduler.is_idle() {
                 if !was_idle {
-                    tracing::info!("download becomes idle");
+                    tracing::info!("download idle");
                     let _ = self.update_send.send(Update::Idle);
                 }
                 was_idle = true;

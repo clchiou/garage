@@ -11,6 +11,7 @@ use bittorrent_peer::ResponseSend;
 use super::Actor;
 
 impl Actor {
+    #[tracing::instrument(name = "txrx/up", fields(?peer_endpoint), skip_all)]
     pub(super) fn handle_interested(&self, peer_endpoint: Endpoint) {
         let Some(peer) = self.manager.get(peer_endpoint) else {
             return;
@@ -18,6 +19,7 @@ impl Actor {
         peer.set_self_choking(self.should_choke_peer(peer_endpoint, 0));
     }
 
+    #[tracing::instrument(name = "txrx/up", fields(?peer_endpoint), skip_all)]
     pub(super) async fn handle_request(
         &mut self,
         (peer_endpoint, block, response_send): (Endpoint, BlockDesc, ResponseSend),
@@ -36,7 +38,7 @@ impl Actor {
             return Ok(());
         }
 
-        tracing::debug!(?peer_endpoint, ?block, "->peer");
+        tracing::debug!(?block, "->peer");
         let mut buffer = BytesMut::with_capacity(size.try_into().unwrap());
         self.storage.read(block, &mut buffer).await?;
         let _ = response_send.send(buffer.freeze());

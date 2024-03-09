@@ -125,17 +125,18 @@ impl Actor {
         Ok(())
     }
 
+    #[tracing::instrument(name = "mgr/connect", skip(self))]
     fn handle_connect(&self, peer_endpoint: Endpoint, peer_id: Option<PeerId>) {
         let mut connector = {
             let mut peers = self.peers.must_lock();
             if peers.contains(peer_endpoint) {
-                tracing::debug!(?peer_endpoint, "peer is currently running");
+                tracing::debug!("peer is currently running");
                 return;
             }
             match peers.borrow_connector(peer_endpoint) {
                 Ok(connector) => connector,
                 Err(ConnectorInUse) => {
-                    tracing::debug!(?peer_endpoint, "we are currently connecting to peer");
+                    tracing::debug!("we are currently connecting to peer");
                     return;
                 }
             }
@@ -152,6 +153,7 @@ impl Actor {
             .is_ok());
     }
 
+    #[tracing::instrument(name = "mgr/connect", fields(?peer_endpoint), skip_all)]
     fn handle_connected(
         &self,
         (peer_endpoint, connector, socket): (Endpoint, Connector, Result<Socket, Error>),
@@ -163,7 +165,7 @@ impl Actor {
                 Ok(socket) => peers.spawn(peer_endpoint, socket),
                 Err(error) => {
                     // Log it at debug level since its cause has already been logged by `connect`.
-                    tracing::debug!(?peer_endpoint, ?error, "peer socket connect error");
+                    tracing::debug!(?error, "peer socket connect error");
                     return;
                 }
             }
@@ -185,6 +187,7 @@ impl Actor {
             .is_ok());
     }
 
+    #[tracing::instrument(name = "mgr/accept", fields(?peer_endpoint), skip_all)]
     fn handle_accepted(
         &self,
         (peer_endpoint, peer_listening_endpoint, socket): (
@@ -196,7 +199,7 @@ impl Actor {
         let socket = match socket {
             Ok(socket) => socket,
             Err(error) => {
-                tracing::warn!(?peer_endpoint, ?error, "peer socket accept error");
+                tracing::warn!(?error, "peer socket accept error");
                 return;
             }
         };
@@ -211,6 +214,7 @@ impl Actor {
         self.handle_peer_start(peer_endpoint, guard);
     }
 
+    // Instrumented by callers.
     fn handle_peer_start(&self, peer_endpoint: Endpoint, guard: Result<PeerGuard, Socket>) {
         match guard {
             Ok(guard) => match self.tasks.push(guard) {
@@ -220,12 +224,12 @@ impl Actor {
                 }
             },
             Err(mut socket) => {
-                tracing::error!(?peer_endpoint, "new socket conflicts with current peer");
+                tracing::error!("new socket conflicts with current peer");
                 assert!(self
                     .socket_shutdown
                     .push(async move {
                         if let Err(error) = socket.shutdown().await {
-                            tracing::warn!(?peer_endpoint, ?error, "peer socket shutdown error");
+                            tracing::warn!(?error, "peer socket shutdown error");
                         }
                     })
                     .is_ok());
@@ -235,11 +239,15 @@ impl Actor {
 
     fn handle_peer_stop(&self, mut guard: PeerGuard) {
         let peer_endpoint = self.peers.must_lock().remove_by_id(guard.id());
+
+        let span = tracing::info_span!("mgr/peer_stop", ?peer_endpoint);
+        let _enter = span.enter();
+
         self.send_update(peer_endpoint, Update::Stop);
         match guard.take_result() {
             Ok(Ok(())) => {}
-            Ok(Err(error)) => tracing::warn!(?peer_endpoint, ?error, "peer error"),
-            Err(error) => tracing::warn!(?peer_endpoint, ?error, "peer task error"),
+            Ok(Err(error)) => tracing::warn!(?error, "peer error"),
+            Err(error) => tracing::warn!(?error, "peer task error"),
         }
     }
 

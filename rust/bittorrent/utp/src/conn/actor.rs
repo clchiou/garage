@@ -8,7 +8,6 @@ use tokio::{
     sync::{mpsc, watch, Notify},
     time,
 };
-use tracing::Instrument;
 
 use g1_base::sync::MutexExt;
 use g1_tokio::task::{Cancel, JoinGuard};
@@ -81,7 +80,6 @@ impl Connection {
                     stream_incoming_send,
                 )
                 .run()
-                .instrument(tracing::info_span!("utp/conn", ?peer_endpoint))
             }),
             UtpStream::new(recv, send),
         )
@@ -89,6 +87,7 @@ impl Connection {
 }
 
 impl Actor<InitState> {
+    #[tracing::instrument(name = "utp", fields(peer_endpoint = ?self.peer_endpoint), skip_all)]
     async fn run(self) -> Result<(), Error> {
         let (this, init) = self.into_state(());
         let InitState {

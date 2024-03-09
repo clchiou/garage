@@ -12,6 +12,7 @@ use bittorrent_peer::{Full, Peer, Possession};
 use super::{Actor, Update};
 
 impl Actor {
+    #[tracing::instrument(name = "txrx/down", fields(?peer_endpoint), skip_all)]
     pub(super) fn handle_possession(
         &mut self,
         (peer_endpoint, possession): (Endpoint, Possession),
@@ -20,24 +21,30 @@ impl Actor {
             return;
         };
         if let Err(error) = self.scheduler.notify_possession(peer_endpoint, possession) {
-            tracing::warn!(?peer_endpoint, ?error, "close peer due to invalid message");
+            tracing::warn!(?error, "close peer due to invalid message");
             peer.cancel();
             return;
         }
         self.send_requests(&peer);
     }
 
+    #[tracing::instrument(name = "txrx/down", fields(?peer_endpoint), skip_all)]
     pub(super) fn handle_suggest(&mut self, (peer_endpoint, piece): (Endpoint, PieceIndex)) {
         // For now, `handle_suggest` and `handle_allowed_fast` are the same.
-        self.handle_allowed_fast((peer_endpoint, piece))
+        self.do_handle_allowed_fast(peer_endpoint, piece)
     }
 
+    #[tracing::instrument(name = "txrx/down", fields(?peer_endpoint), skip_all)]
     pub(super) fn handle_allowed_fast(&mut self, (peer_endpoint, piece): (Endpoint, PieceIndex)) {
+        self.do_handle_allowed_fast(peer_endpoint, piece)
+    }
+
+    fn do_handle_allowed_fast(&mut self, peer_endpoint: Endpoint, piece: PieceIndex) {
         let Some(peer) = self.manager.get(peer_endpoint) else {
             return;
         };
         let Some(piece) = self.dim.check_piece_index(piece) else {
-            tracing::warn!(?peer_endpoint, ?piece, "close peer due to invalid piece");
+            tracing::warn!(?piece, "close peer due to invalid piece");
             peer.cancel();
             return;
         };
@@ -45,6 +52,7 @@ impl Actor {
         self.send_requests(&peer);
     }
 
+    #[tracing::instrument(name = "txrx/down", fields(?peer_endpoint), skip_all)]
     pub(super) async fn handle_block(
         &mut self,
         (peer_endpoint, (block, buffer)): (Endpoint, (BlockDesc, Bytes)),
@@ -60,6 +68,7 @@ impl Actor {
         Ok(())
     }
 
+    #[tracing::instrument(name = "txrx/down", fields(?peer_endpoint), skip_all)]
     pub(super) async fn handle_response(
         &mut self,
         (peer_endpoint, request, response): (Endpoint, BlockDesc, Result<Bytes, RecvError>),
@@ -71,7 +80,7 @@ impl Actor {
         match response {
             Ok(buffer) => self.recv_block(peer_endpoint, request, buffer).await?,
             Err(_) => {
-                tracing::debug!(?peer_endpoint, ?request, "peer-> error");
+                tracing::debug!(?request, "peer-> error");
                 let piece = request.0 .0;
                 self.scheduler.notify_response_error(peer_endpoint, piece);
                 if let Some(queue) = self.queues.get_mut(piece) {
@@ -109,7 +118,7 @@ impl Actor {
             while let Some(request) = queue.pop_request() {
                 match peer.request(request) {
                     Ok(Some(response_recv)) => {
-                        tracing::debug!(?peer_endpoint, ?request, "->peer");
+                        tracing::debug!(?request, "->peer");
                         assert!(self
                             .responses
                             .push(async move { (peer_endpoint, request, response_recv.await) })
@@ -132,7 +141,7 @@ impl Actor {
         block: BlockDesc,
         mut buffer: Bytes,
     ) -> Result<(), Error> {
-        tracing::debug!(?peer_endpoint, ?block, "peer->");
+        tracing::debug!(?block, "peer->");
         let piece = block.0 .0;
 
         // Skip this block if we already have it.

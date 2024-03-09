@@ -172,8 +172,8 @@ impl UtpListener {
 
 impl<UdpStream, UdpSink> Actor<UdpStream, UdpSink>
 where
-    UdpStream: Stream<Item = Result<(SocketAddr, Bytes), Error>> + Unpin,
-    UdpSink: Sink<(SocketAddr, Bytes), Error = Error> + Unpin,
+    UdpStream: Stream<Item = Result<(SocketAddr, Bytes), Error>> + Unpin + 'static,
+    UdpSink: Sink<(SocketAddr, Bytes), Error = Error> + Unpin + 'static,
 {
     fn new(
         cancel: Cancel,
@@ -218,11 +218,11 @@ where
                             // the actor should exit.
                             break;
                         };
-                        self.connect(peer_endpoint, result_send);
+                        self.handle_connect(peer_endpoint, result_send);
                     }
                     guard = self.tasks.join_next() => {
-                        let Some(guard) = guard else { break };
-                        let peer_endpoint = handle_conn_result(&mut self.peer_endpoints, guard);
+                        let peer_endpoint =
+                            handle_conn_result(&mut self.peer_endpoints, guard.unwrap());
                         self.remove(peer_endpoint);
                     }
                     incoming = self.stream.try_next() => {
@@ -230,7 +230,7 @@ where
                         let (peer_endpoint, payload) = incoming?.ok_or_else(|| {
                             Error::new(ErrorKind::UnexpectedEof, error::Error::Closed)
                         })?;
-                        self.incoming_send(peer_endpoint, (payload, recv_at));
+                        self.handle_incoming(peer_endpoint, (payload, recv_at));
                     }
                     outgoing = self.outgoing_recv.recv() => {
                         let (peer_endpoint, mut packet) = outgoing.unwrap();
@@ -280,13 +280,12 @@ where
         result
     }
 
-    fn connect(
+    #[tracing::instrument("utp/connect", fields(?peer_endpoint), skip_all)]
+    fn handle_connect(
         &mut self,
         peer_endpoint: SocketAddr,
         result_send: oneshot::Sender<Result<UtpStream, Error>>,
     ) {
-        // Unfortunately, the borrow checker disallows the use of `HashMap::entry` because we call
-        // methods (which also borrow `self`) while holding the entry.
         if self.stubs.contains_key(&peer_endpoint) {
             let _ = result_send.send(Err(Error::new(
                 ErrorKind::AddrInUse,
@@ -294,73 +293,92 @@ where
             )));
             return;
         }
-        if let Some((stream, connected_recv)) = self.spawn(peer_endpoint, Handshake::new_connect) {
-            let probe_send = self.prober.probe_send.clone();
-            tokio::spawn(async move {
-                let result = match connected_recv.await {
-                    Ok(Ok(())) => {
-                        if matches!(
-                            probe_send.try_send(peer_endpoint),
-                            Err(mpsc::error::TrySendError::Full(_)),
-                        ) {
-                            tracing::warn!(?peer_endpoint, "path mtu prober queue is full");
-                        }
-                        Ok(stream)
-                    }
-                    Ok(Err(error)) => Err(error),
-                    Err(_) => Err(Error::new(
-                        ErrorKind::ConnectionAborted,
-                        error::Error::Handshake { peer_endpoint },
-                    )),
-                };
-                let _ = result_send.send(result);
-            });
-        }
-        // Dropping `result_send` causes `UtpSocket::connect` to return a `BrokenPipe` error.
+        let (stream, connected_recv) = self.spawn(peer_endpoint, Handshake::new_connect);
+        tokio::spawn(Self::handle_connected(
+            peer_endpoint,
+            stream,
+            connected_recv,
+            self.prober.probe_send.clone(),
+            result_send,
+        ));
     }
 
-    fn accept(&mut self, peer_endpoint: SocketAddr) -> bool {
-        let Some((stream, connected_recv)) = self.spawn(peer_endpoint, Handshake::new_accept)
-        else {
-            return false;
-        };
-        let accept_send = self.accept_send.clone();
-        let probe_send = self.prober.probe_send.clone();
-        tokio::spawn(async move {
-            if matches!(connected_recv.await, Ok(Ok(()))) {
+    #[tracing::instrument("utp/connect", fields(?peer_endpoint), skip_all)]
+    async fn handle_connected(
+        peer_endpoint: SocketAddr,
+        stream: UtpStream,
+        connected_recv: ConnectedRecv,
+        probe_send: mpsc::Sender<SocketAddr>,
+        result_send: oneshot::Sender<Result<UtpStream, Error>>,
+    ) {
+        let result = match connected_recv.await {
+            Ok(Ok(())) => {
                 if matches!(
                     probe_send.try_send(peer_endpoint),
                     Err(mpsc::error::TrySendError::Full(_)),
                 ) {
-                    tracing::warn!(?peer_endpoint, "path mtu prober queue is full");
+                    tracing::warn!("path mtu prober queue is full");
                 }
-                if matches!(
-                    accept_send.try_send(stream),
-                    Err(mpmc::error::TrySendError::Full(_)),
-                ) {
-                    tracing::warn!(?peer_endpoint, "utp accept queue is full");
-                }
-                // Dropping `stream` causes connection actor to exit.
+                Ok(stream)
             }
-        });
-        true
+            Ok(Err(error)) => Err(error),
+            Err(_) => Err(Error::new(
+                ErrorKind::ConnectionAborted,
+                error::Error::Handshake { peer_endpoint },
+            )),
+        };
+        let _ = result_send.send(result);
     }
 
-    fn incoming_send(&mut self, peer_endpoint: SocketAddr, incoming: Incoming) {
-        // We cannot use `HashMap::entry` for the same reason as above.
-        if !self.stubs.contains_key(&peer_endpoint) && !self.accept(peer_endpoint) {
-            let (payload, _) = incoming;
-            tracing::debug!(
-                ?peer_endpoint,
-                ?payload,
-                "drop incoming packet because utp socket is shutting down",
-            );
-            return;
+    #[tracing::instrument("utp/accept", fields(?peer_endpoint), skip_all)]
+    fn handle_accept(&mut self, peer_endpoint: SocketAddr) {
+        let (stream, connected_recv) = self.spawn(peer_endpoint, Handshake::new_accept);
+        tokio::spawn(Self::handle_accepted(
+            peer_endpoint,
+            stream,
+            connected_recv,
+            self.prober.probe_send.clone(),
+            self.accept_send.clone(),
+        ));
+    }
+
+    #[tracing::instrument("utp/accept", fields(?peer_endpoint), skip_all)]
+    async fn handle_accepted(
+        peer_endpoint: SocketAddr,
+        stream: UtpStream,
+        connected_recv: ConnectedRecv,
+        probe_send: mpsc::Sender<SocketAddr>,
+        accept_send: AcceptSend,
+    ) {
+        if matches!(connected_recv.await, Ok(Ok(()))) {
+            if matches!(
+                probe_send.try_send(peer_endpoint),
+                Err(mpsc::error::TrySendError::Full(_)),
+            ) {
+                tracing::warn!("path mtu prober queue is full");
+            }
+            if matches!(
+                accept_send.try_send(stream),
+                Err(mpmc::error::TrySendError::Full(_)),
+            ) {
+                tracing::warn!("utp accept queue is full");
+            }
+            // Dropping `stream` causes connection actor to exit.
         }
+    }
+
+    fn handle_incoming(&mut self, peer_endpoint: SocketAddr, incoming: Incoming) {
+        if !self.stubs.contains_key(&peer_endpoint) {
+            self.handle_accept(peer_endpoint);
+        }
+
+        let span = tracing::info_span!("utp/incoming", ?peer_endpoint);
+        let _guard = span.enter();
+
         let stub = self.stubs.get(&peer_endpoint).unwrap();
         if let Err(error) = stub.incoming_send.try_send(incoming) {
             if matches!(error, mpsc::error::TrySendError::Full(_)) {
-                tracing::warn!(?peer_endpoint, "utp connection incoming queue is full");
+                tracing::warn!("utp connection incoming queue is full");
             }
             self.remove(peer_endpoint);
         }
@@ -370,7 +388,7 @@ where
         &mut self,
         peer_endpoint: SocketAddr,
         new_handshake: fn() -> Handshake,
-    ) -> Option<(UtpStream, ConnectedRecv)> {
+    ) -> (UtpStream, ConnectedRecv) {
         let (connected_send, connected_recv) = oneshot::channel();
         let (stub, guard, stream) = conn::Connection::spawn(
             new_handshake(),
@@ -380,10 +398,10 @@ where
             self.outgoing_send.clone(),
         );
         let id = guard.id();
-        self.tasks.push(guard).ok()?;
+        self.tasks.push(guard).unwrap();
         assert!(self.peer_endpoints.insert(id, peer_endpoint).is_none());
         assert!(self.stubs.insert(peer_endpoint, stub).is_none());
-        Some((stream, connected_recv))
+        (stream, connected_recv)
     }
 
     fn remove(&mut self, peer_endpoint: SocketAddr) {

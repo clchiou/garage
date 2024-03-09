@@ -333,13 +333,7 @@ impl Init {
             return Ok(());
         }
 
-        let self_endpoint_ipv4 = subinit!(self.net_ipv4, init_self_endpoint());
-        let self_endpoint_ipv6 = subinit!(self.net_ipv6, init_self_endpoint());
-        tracing::info!(
-            ?self_endpoint_ipv4,
-            ?self_endpoint_ipv6,
-            "init peer manager",
-        );
+        tracing::info!("init peer manager");
         let (manager, recvs, manager_guard) = Manager::spawn(
             self.info_hash.clone(),
             subinit!(self.net_ipv4, init_once_tcp_listener()),

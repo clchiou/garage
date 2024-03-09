@@ -39,7 +39,7 @@ impl Manager {
         utp_socket_ipv4: Option<&UtpSocket>,
         utp_socket_ipv6: Option<&UtpSocket>,
     ) -> (Self, Recvs, ManagerGuard) {
-        tracing::info!(self_id = ?bittorrent_base::self_id().clone());
+        tracing::info!(self_id = ?bittorrent_base::self_id());
 
         let (connect_send, connect_recv) = mpsc::unbounded_channel();
 

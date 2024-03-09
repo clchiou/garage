@@ -15,7 +15,6 @@ use std::time::{Duration, Instant};
 
 use bitvec::prelude::*;
 use tokio::{sync::mpsc, time};
-use tracing::Instrument;
 
 use g1_base::sync::MutexExt;
 use g1_tokio::task::{Cancel, JoinGuard, JoinQueue};
@@ -66,6 +65,7 @@ struct Actor {
 
 impl Agent {
     pub(crate) fn spawn(self_id: NodeId, reqrep: ReqRep) -> (Arc<Self>, AgentGuard) {
+        tracing::info!(?self_id);
         let this = Arc::new(Self::new(self_id, reqrep));
         let state = this.clone();
         let guard = JoinGuard::spawn(move |cancel| Actor::new(cancel, state).run());
@@ -135,8 +135,7 @@ impl Actor {
 
     fn spawn_handler(&self, ((endpoint, request), response_send): (Incoming, Sender)) {
         self.push_task(JoinGuard::spawn(move |cancel| {
-            let socket_addr = endpoint.0;
-            let handler = Handler::new(
+            Handler::new(
                 cancel,
                 self.state.clone(),
                 self.token_src.clone(),
@@ -144,20 +143,14 @@ impl Actor {
                 endpoint,
                 request,
                 response_send,
-            );
-            handler
-                .run()
-                .instrument(tracing::info_span!("dht/peer", peer_endpoint = ?socket_addr))
+            )
+            .run()
         }));
     }
 
     fn spawn_node_refresher(&self, (incumbents, candidate): KBucketFull) {
         self.push_task(JoinGuard::spawn(move |cancel| {
-            let contact_info = candidate.contact_info.clone();
-            let refresher = NodeRefresher::new(cancel, self.state.clone(), incumbents, candidate);
-            refresher
-                .run()
-                .instrument(tracing::info_span!("dht/refresh", candidate = ?contact_info))
+            NodeRefresher::new(cancel, self.state.clone(), incumbents, candidate).run()
         }));
     }
 

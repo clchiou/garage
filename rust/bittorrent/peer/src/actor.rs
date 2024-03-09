@@ -90,6 +90,7 @@ where
         }
     }
 
+    #[tracing::instrument(name = "peer", fields(peer_endpoint = ?self.peer_endpoint), skip(self))]
     pub(crate) async fn run(mut self) -> Result<(), Error> {
         self.recv_keep_alive_interval.reset();
         self.send_keep_alive_interval.reset();

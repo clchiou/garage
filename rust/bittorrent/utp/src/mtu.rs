@@ -84,12 +84,10 @@ impl Actor {
         }
     }
 
+    #[tracing::instrument(name = "utp/mtu", skip(self))]
     async fn probe(&self, peer_endpoint: SocketAddr) {
         if peer_endpoint.is_ipv6() {
-            tracing::warn!(
-                ?peer_endpoint,
-                "probing ipv6 path mtu is not supported at the moment",
-            );
+            tracing::warn!("probing ipv6 path mtu is not supported at the moment");
             return;
         }
 
@@ -100,16 +98,15 @@ impl Actor {
             }
             Err(error) => {
                 if error.kind() == ErrorKind::TimedOut {
-                    tracing::debug!(?peer_endpoint, ?error, "path mtu probe timeout");
+                    tracing::debug!(?error, "path mtu probe timeout");
                 } else {
-                    tracing::warn!(?peer_endpoint, ?error, "path mtu probe error");
+                    tracing::warn!(?error, "path mtu probe error");
                 }
             }
         }
     }
 }
 
-#[tracing::instrument(name = "utp/mtu", skip(socket))]
 async fn probe(socket: &IcmpSocket, peer_endpoint: SocketAddr) -> Result<usize, Error> {
     let address = match peer_endpoint.ip() {
         IpAddr::V4(address) => address,

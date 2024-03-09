@@ -143,6 +143,9 @@ impl<'a> Trackerless<'a> {
     ) -> Result<(), Error> {
         match peer_update {
             Ok((peer_endpoint, peer_update)) => {
+                let span = tracing::info_span!("trackerless", ?peer_endpoint);
+                let _guard = span.enter();
+
                 match peer_update {
                     Update::Start => {
                         let Some(peer) = self.manager.get(peer_endpoint) else {
@@ -170,10 +173,13 @@ impl<'a> Trackerless<'a> {
     ) -> Result<(), Error> {
         let (peer_endpoint, message) = extension.context(ExtensionChannelClosedSnafu)?;
 
+        let span = tracing::info_span!("trackerless", ?peer_endpoint);
+        let _guard = span.enter();
+
         macro_rules! ensure_peer {
             ($predicate:expr, $log:expr $(,)?) => {
                 if !$predicate {
-                    tracing::warn!(?peer_endpoint, ?message, $log);
+                    tracing::warn!(?message, $log);
                     return Ok(());
                 }
             };
@@ -242,11 +248,7 @@ impl<'a> Trackerless<'a> {
             }
             Metadata::Data(data) => {
                 if self.remove_inflight(data.piece) {
-                    tracing::info!(
-                        peer_endpoint = ?peer.peer_endpoint(),
-                        piece = data.piece,
-                        "receive metadata piece",
-                    );
+                    tracing::info!(piece = data.piece, "receive metadata piece");
                     self.info[Metadata::byte_range(data.piece, self.metadata_size.unwrap())]
                         .copy_from_slice(data.payload);
 
@@ -295,11 +297,7 @@ impl<'a> Trackerless<'a> {
         assert!(peer.peer_extensions().metadata);
 
         if let Metadata::Request(request) = &metadata {
-            tracing::info!(
-                peer_endpoint = ?peer.peer_endpoint(),
-                piece = request.piece,
-                "request metadata piece",
-            );
+            tracing::info!(piece = request.piece, "request metadata piece");
         }
 
         // TODO: We do not have a builder API for message owners.  As a workaround, we employ an

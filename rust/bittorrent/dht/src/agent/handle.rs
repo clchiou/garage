@@ -52,6 +52,7 @@ impl Handler {
         }
     }
 
+    #[tracing::instrument(name = "dht", fields(peer_endpoint = ?self.endpoint.0), skip_all)]
     pub(super) async fn run(self) -> Result<(), Error> {
         let request = self.request.deref();
         if !request.extra.is_empty() {

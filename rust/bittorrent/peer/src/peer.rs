@@ -2,7 +2,6 @@ use std::io::Error;
 use std::sync::{Arc, Mutex};
 
 use tokio::sync::mpsc::{self, UnboundedSender};
-use tracing::Instrument;
 
 use g1_base::sync::MutexExt;
 use g1_tokio::{
@@ -91,7 +90,6 @@ impl Peer {
                     sends,
                 )
                 .run()
-                .instrument(tracing::info_span!("peer", ?peer_endpoint))
             })
         };
         (

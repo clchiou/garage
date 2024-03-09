@@ -3,11 +3,7 @@ mod macros {
     macro_rules! ensure_block {
         ($self:ident, $peer:ident, $block:ident $(,)?) => {{
             let Some(block) = $self.dim.check_block_desc($block) else {
-                tracing::warn!(
-                    peer_endpoint = ?$peer.peer_endpoint(),
-                    ?$block,
-                    "close peer due to invalid block",
-                );
+                tracing::warn!(?$block, "invalid block");
                 $peer.cancel();
                 return Ok(());
             };

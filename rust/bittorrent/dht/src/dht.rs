@@ -34,10 +34,8 @@ impl Dht {
         Incoming: Stream<Item = Result<(SocketAddr, Bytes), Error>> + Send + Unpin + 'static,
         Outgoing: Sink<(SocketAddr, Bytes), Error = Error> + Send + Unpin + 'static,
     {
-        let self_id = crate::self_id().clone();
-        tracing::info!(?self_id);
         let (reqrep, reqrep_guard) = reqrep::spawn(incoming, outgoing);
-        let (agent, agent_guard) = Agent::spawn(self_id, reqrep);
+        let (agent, agent_guard) = Agent::spawn(crate::self_id().clone(), reqrep);
         (
             Self {
                 self_endpoint,

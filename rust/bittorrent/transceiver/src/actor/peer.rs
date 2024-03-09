@@ -9,6 +9,7 @@ use bittorrent_peer::{Peer, Possession};
 use super::{extension::ToMessage, Actor};
 
 impl Actor {
+    #[tracing::instrument(name = "txrx/peer", skip(self))]
     pub(super) fn handle_peer_update(&mut self, (peer_endpoint, update): (Endpoint, Update)) {
         match update {
             Update::Start => {

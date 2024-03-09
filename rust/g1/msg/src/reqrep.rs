@@ -306,6 +306,7 @@ where
     // calling `send_and_forget`.
     //
 
+    #[tracing::instrument(name = "reqrep", fields(endpoint = ?message.endpoint()), skip_all)]
     fn handle_incoming(&mut self, message: M) {
         match self.reqrep.entry(message.endpoint().clone()) {
             Entry::Occupied(entry) => match entry.get() {
@@ -316,10 +317,7 @@ where
                     result_send.send_and_forget(Ok(message));
                 }
                 State::Response(_) => {
-                    tracing::warn!(
-                        endpoint = ?message.endpoint(),
-                        "prior request-response; drop request",
-                    );
+                    tracing::warn!("prior request-response; drop request");
                 }
             },
             Entry::Vacant(entry) => {
@@ -329,17 +327,11 @@ where
                         entry.insert(State::Response(result_send));
                     }
                     Err(error) => match error {
-                        mpmc::error::TrySendError::Full((message, _)) => {
-                            tracing::warn!(
-                                endpoint = ?message.endpoint(),
-                                "accept queue full; drop request",
-                            );
+                        mpmc::error::TrySendError::Full(_) => {
+                            tracing::warn!("accept queue full; drop request");
                         }
-                        mpmc::error::TrySendError::Closed((message, _)) => {
-                            tracing::warn!(
-                                endpoint = ?message.endpoint(),
-                                "accept queue closed; drop request",
-                            );
+                        mpmc::error::TrySendError::Closed(_) => {
+                            tracing::warn!("accept queue closed; drop request");
                         }
                     },
                 }

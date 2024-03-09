@@ -3,7 +3,7 @@
 // wording is a bit ambiguous to me.  How can we ensure compliance with BEP 5?
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
-use std::io::Error;
+use std::io::{Error, ErrorKind};
 use std::mem;
 use std::net::SocketAddr;
 
@@ -114,7 +114,11 @@ impl Lookup {
                         assert_eq!(good_nodes.insert(candidate_distance, candidate), None);
                     }
                     Err(error) => {
-                        tracing::warn!(?candidate, ?error, "{} error", L::KRPC_METHOD_NAME);
+                        if error.kind() == ErrorKind::TimedOut {
+                            tracing::debug!(?candidate, ?error, "{} timeout", L::KRPC_METHOD_NAME);
+                        } else {
+                            tracing::warn!(?candidate, ?error, "{} error", L::KRPC_METHOD_NAME);
+                        }
                         let _ = self.state.routing.must_lock().remove(&candidate);
                     }
                 }
@@ -149,7 +153,11 @@ impl Lookup {
                     match nodes {
                         Ok(nodes) => nodes,
                         Err(error) => {
-                            tracing::warn!(bootstrap, ?error, "bootstrap error");
+                            if error.kind() == ErrorKind::TimedOut {
+                                tracing::debug!(bootstrap, ?error, "bootstrap timeout");
+                            } else {
+                                tracing::warn!(bootstrap, ?error, "bootstrap error");
+                            }
                             Vec::new()
                         }
                     }

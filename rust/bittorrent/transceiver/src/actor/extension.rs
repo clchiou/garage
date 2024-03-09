@@ -9,6 +9,7 @@ use bittorrent_peer::{ExtensionMessageOwner, Peer};
 use super::Actor;
 
 impl Actor {
+    #[tracing::instrument(name = "txrx/ext", fields(?peer_endpoint), skip_all)]
     pub(super) fn handle_extension(
         &mut self,
         (peer_endpoint, message): (Endpoint, ExtensionMessageOwner),
@@ -20,7 +21,7 @@ impl Actor {
         macro_rules! ensure_peer {
             ($predicate:expr, $log:expr $(,)?) => {
                 if !$predicate {
-                    tracing::warn!(?peer_endpoint, ?message, $log);
+                    tracing::warn!(?message, $log);
                     peer.cancel();
                     return;
                 }
@@ -56,11 +57,7 @@ impl Actor {
                 let metadata_size = self.raw_info.len();
 
                 if request.piece >= Metadata::num_pieces(metadata_size) {
-                    tracing::warn!(
-                        peer_endpoint = ?peer.peer_endpoint(),
-                        ?request,
-                        "close peer due to invalid metadata piece",
-                    );
+                    tracing::warn!(?request, "close peer due to invalid metadata piece");
                     peer.cancel();
                     return;
                 }
@@ -92,12 +89,7 @@ impl Actor {
                 }
             }
             Err(error) => {
-                tracing::warn!(
-                    peer_endpoint = ?peer.peer_endpoint(),
-                    ?peer_exchange,
-                    ?error,
-                    "close peer due to invalid pex message",
-                );
+                tracing::warn!(?peer_exchange, ?error, "invalid pex message");
                 peer.cancel();
             }
         }
