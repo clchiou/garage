@@ -11,6 +11,7 @@ mod param;
 use std::array::TryFromSliceError;
 use std::borrow::Borrow;
 use std::cmp::{self, Ordering};
+use std::fmt;
 use std::iter;
 use std::sync::Arc;
 
@@ -146,7 +147,8 @@ pub struct PieceIndex(pub usize);
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct BlockOffset(pub PieceIndex, pub u64);
 
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+// TODO: Should we also provide a compact debug format for `PieceIndex` and `BlockOffset`?
+#[derive(Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct BlockDesc(pub BlockOffset, pub u64);
 
 impl From<usize> for PieceIndex {
@@ -219,6 +221,12 @@ impl From<(usize, u64, u64)> for BlockDesc {
 impl From<(BlockOffset, u64)> for BlockDesc {
     fn from((offset, size): (BlockOffset, u64)) -> Self {
         Self(offset, size)
+    }
+}
+
+impl fmt::Debug for BlockDesc {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "[{} {}+{}]", self.0 .0 .0, self.0 .1, self.1)
     }
 }
 
