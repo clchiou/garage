@@ -27,7 +27,7 @@ pub struct JoinGuard<T> {
     cancel: Cancel,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Cancel(Arc<Flag>);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -181,15 +181,9 @@ impl<T> Drop for JoinGuard<T> {
     }
 }
 
-impl Default for Cancel {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl Cancel {
     pub fn new() -> Self {
-        Self(Arc::new(Flag::new()))
+        Default::default()
     }
 
     /// Adds a parent to `self`.

@@ -4,24 +4,15 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use tokio::sync::Notify;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Flag {
     flag: AtomicBool,
     notify: Notify,
 }
 
-impl Default for Flag {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl Flag {
     pub fn new() -> Self {
-        Self {
-            flag: AtomicBool::new(false),
-            notify: Notify::new(),
-        }
+        Default::default()
     }
 
     pub fn is_set(&self) -> bool {

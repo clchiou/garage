@@ -82,22 +82,14 @@ pub fn decode(id: u8, buffer: Bytes) -> Result<MessageOwner<Bytes>, serde_bencod
 }
 
 /// Maps our extension ids to a peer's extension ids.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct ExtensionIdMap {
     map: [u8; NUM_EXTENSIONS - 1],
 }
 
-impl Default for ExtensionIdMap {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl ExtensionIdMap {
     pub fn new() -> Self {
-        Self {
-            map: Default::default(),
-        }
+        Default::default()
     }
 
     pub fn update(&mut self, peer_handshake: &Handshake) {
