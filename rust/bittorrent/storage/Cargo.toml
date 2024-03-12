@@ -4,26 +4,26 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-async-trait = "0.1.73"
-bitvec = "1.0.1"
-bytes = "1.4.0"
-libc = "0.2.147"
-sha1 = { version = "0.10.5", features = ["asm"] }
-snafu = "0.7.4"
-tokio = { version = "1.28.2", features = ["full"] }
+async-trait.workspace = true
+bitvec.workspace = true
+bytes.workspace = true
+libc.workspace = true
+sha1.workspace = true
+snafu.workspace = true
+tokio.workspace = true
 
-g1_tokio = { path = "../../g1/tokio" }
+g1_tokio.workspace = true
 
-bittorrent_base = { path = "../base" }
-bittorrent_metainfo = { path = "../metainfo" }
+bittorrent_base.workspace = true
+bittorrent_metainfo.workspace = true
 
 [dev-dependencies]
-hex-literal = "0.4.1"
-tempfile = "3.8.0"
+hex-literal.workspace = true
+tempfile.workspace = true
 
-bittorrent_metainfo = { path = "../metainfo", features = ["test_harness"] }
+bittorrent_metainfo = { workspace = true, features = ["test_harness"] }
 
 # examples/verify
-clap = { version = "4.3.1", features = ["derive"] }
-g1_cli = { path = "../../g1/cli", features = ["param", "tracing"] }
-bittorrent_bencode = { path = "../bencode", features = ["serde"] }
+clap.workspace = true
+g1_cli = { workspace = true, features = ["param", "tracing"] }
+bittorrent_bencode = { workspace = true, features = ["serde"] }

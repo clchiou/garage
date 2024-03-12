@@ -4,35 +4,35 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-async-trait = "0.1.68"
-bytes = "1.4.0"
-futures = "0.3.28"
-tokio = { version = "1.28.2", features = ["full", "tracing"] }
+async-trait.workspace = true
+bytes.workspace = true
+futures.workspace = true
+tokio = { workspace = true, features = ["tracing"] }
 
-g1_base = { path = "../base" }
+g1_base.workspace = true
 
 # feature: icmp
-libc = { version = "0.2.147", optional = true }
-nix = { version ="0.26.2", features = ["uio"], optional = true }
-g1_nix = { path = "../nix", optional = true }
+libc = { workspace = true, optional = true }
+nix = { workspace = true, features = ["uio"], optional = true }
+g1_nix = { workspace = true, optional = true }
 
 [dev-dependencies]
-scopeguard = "1.2.0"
+scopeguard.workspace = true
 
 # examples
-clap = { version = "4.3.1", features = ["derive"] }
-g1_cli = { path = "../cli", features = ["param", "tracing"] }
+clap.workspace = true
+g1_cli = { workspace = true, features = ["param", "tracing"] }
 
 # examples/ncat
-bittorrent_base = { path = "../../bittorrent/base", features = ["param"] }
-bittorrent_mse = { path = "../../bittorrent/mse" }
-bittorrent_peer = { path = "../../bittorrent/peer" }
-bittorrent_socket = { path = "../../bittorrent/socket" }
-bittorrent_utp = { path = "../../bittorrent/utp" }
+bittorrent_base = { workspace = true, features = ["param"] }
+bittorrent_mse.workspace = true
+bittorrent_peer.workspace = true
+bittorrent_socket.workspace = true
+bittorrent_utp.workspace = true
 
 # examples/path-mtu
-rand = "0.8.5"
-tracing = "0.1.37"
+rand.workspace = true
+tracing.workspace = true
 
 [[example]]
 name = "path-mtu"

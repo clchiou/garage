@@ -4,26 +4,26 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-g1_base = { path = "../../g1/base" }
+g1_base.workspace = true
 
 # feature: compact
-bytes = { version = "1.4.0", optional = true }
+bytes = { workspace = true, optional = true }
 
 # feature: param
-linkme = { version = "0.3.10", optional = true }
-rand = { version = "0.8.5", optional = true }
-serde = { version = "1.0.163", features = ["derive"], optional = true }
-g1_param = { path = "../../g1/param", optional = true }
+linkme = { workspace = true, optional = true }
+rand = { workspace = true, optional = true }
+serde = { workspace = true, features = ["derive"], optional = true }
+g1_param = { workspace = true, optional = true }
 
 # feature: parse
-lazy-regex = { version = "3.1.0", optional = true }
-regex = { version = "1.10.3", optional = true } # Override the version set by lazy-regex.
+lazy-regex = { workspace = true, optional = true }
+regex = { workspace = true, optional = true } # Override the version set by lazy-regex.
 
 # feature: compact, parse
-snafu = { version = "0.7.4", optional = true }
+snafu = { workspace = true, optional = true }
 
 [dev-dependencies]
-hex-literal = "0.4.1"
+hex-literal.workspace = true
 
 [features]
 compact = ["dep:bytes", "dep:snafu"]

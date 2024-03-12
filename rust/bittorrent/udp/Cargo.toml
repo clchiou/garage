@@ -4,8 +4,8 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-bytes = "1.4.0"
-linkme = "0.3.10" # Required by g1_param.
+bytes.workspace = true
+linkme.workspace = true # Required by g1_param.
 
-g1_futures = { path = "../../g1/futures" }
-g1_param = { path = "../../g1/param" }
+g1_futures.workspace = true
+g1_param.workspace = true

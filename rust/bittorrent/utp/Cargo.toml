@@ -4,23 +4,23 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-async-trait = "0.1.68"
-bitvec = "1.0.1"
-bytes = "1.4.0"
-futures = "0.3.28"
-libc = "0.2.147"
-linkme = "0.3.10" # Required by g1_param.
-rand = "0.8.5"
-snafu = "0.7.4"
-tokio = { version = "1.28.2", features = ["full"] }
-tracing = "0.1.37"
+async-trait.workspace = true
+bitvec.workspace = true
+bytes.workspace = true
+futures.workspace = true
+libc.workspace = true
+linkme.workspace = true # Required by g1_param.
+rand.workspace = true
+snafu.workspace = true
+tokio.workspace = true
+tracing.workspace = true
 
-g1_base = { path = "../../g1/base" }
-g1_bytes = { path = "../../g1/bytes" }
-g1_param = { path = "../../g1/param" }
-g1_tokio = { path = "../../g1/tokio", features = ["icmp"] }
+g1_base.workspace = true
+g1_bytes.workspace = true
+g1_param.workspace = true
+g1_tokio = { workspace = true, features = ["icmp"] }
 
-bittorrent_base = { path = "../base", features = ["param"] }
+bittorrent_base = { workspace = true, features = ["param"] }
 
 [dev-dependencies]
-hex-literal = "0.4.1"
+hex-literal.workspace = true

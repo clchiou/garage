@@ -4,14 +4,14 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-clap = { version = "4.3.1", features = ["derive"] }
+clap.workspace = true
 
 # feature: param
-g1_param = { path = "../param", optional = true }
+g1_param = { workspace = true, optional = true }
 
 # feature: tracing
-console-subscriber = { version = "0.1.10", optional = true }
-tracing-subscriber = { version = "0.3.17", features = ["env-filter"], optional = true }
+console-subscriber = { workspace = true, optional = true }
+tracing-subscriber = { workspace = true, optional = true }
 
 [features]
 param = ["dep:g1_param"]

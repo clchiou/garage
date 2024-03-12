@@ -4,5 +4,5 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-paste = "1.0.12"
-serde = "1.0.163"
+paste.workspace = true
+serde.workspace = true

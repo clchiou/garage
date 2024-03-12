@@ -33,3 +33,71 @@ resolver = "2"
 [workspace.package]
 version = "0.0.0"
 edition = "2021"
+
+[workspace.dependencies]
+async-trait = "0.1.68"
+bitvec = "1.0.1"
+bytes = "1.4.0"
+chrono = "0.4.26"
+cipher = "0.4.4"
+clap = { version = "4.3.1", features = ["derive"] }
+crypto-bigint = { version = "0.5.2", features = ["generic-array", "zeroize"] }
+console-subscriber = "0.1.10"
+futures = "0.3.28"
+hashbrown = "0.14.3"
+heck = "0.4.1"
+hex-literal = "0.4.1"
+lazy-regex = "3.1.0"
+libc = "0.2.147"
+linkme = "0.3.10"
+nix = "0.26.2"
+paste = "1.0.12"
+percent-encoding = "2.3.0"
+proc-macro2 = "1.0.59"
+quote = "1.0.28"
+rand = "0.8.5"
+reqwest = "0.11.20"
+rc4 = "0.1.0"
+regex = "1.10.3"
+scopeguard = "1.2.0"
+serde = "1.0.163"
+serde-transcode = "1.1.1"
+serde_bytes = "0.11.9"
+serde_json = "1.0.96"
+sha1 = { version = "0.10.5", features = ["asm"] }
+snafu = "0.7.4"
+syn = { version = "2.0.18", features = ["full"] }
+tempfile = "3.8.0"
+tokio = { version = "1.28.2", features = ["full"] }
+tracing = "0.1.37"
+tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
+trybuild = "1.0.80"
+
+bittorrent_actor = { path = "bittorrent/actor" }
+bittorrent_base = { path = "bittorrent/base" }
+bittorrent_bencode = { path = "bittorrent/bencode" }
+bittorrent_dht = { path = "bittorrent/dht" }
+bittorrent_extension = { path = "bittorrent/extension" }
+bittorrent_manager = { path = "bittorrent/manager" }
+bittorrent_metainfo = { path = "bittorrent/metainfo" }
+bittorrent_mse = { path = "bittorrent/mse" }
+bittorrent_peer = { path = "bittorrent/peer" }
+bittorrent_socket = { path = "bittorrent/socket" }
+bittorrent_storage = { path = "bittorrent/storage" }
+bittorrent_tracker = { path = "bittorrent/tracker" }
+bittorrent_trackerless = { path = "bittorrent/trackerless" }
+bittorrent_transceiver = { path = "bittorrent/transceiver" }
+bittorrent_udp = { path = "bittorrent/udp" }
+bittorrent_utp = { path = "bittorrent/utp" }
+
+g1_base = { path = "g1/base" }
+g1_base_derive = { path = "g1/base_derive" }
+g1_bytes = { path = "g1/bytes" }
+g1_bytes_derive = { path = "g1/bytes_derive" }
+g1_cli = { path = "g1/cli" }
+g1_futures = { path = "g1/futures" }
+g1_msg = { path = "g1/msg" }
+g1_nix = { path = "g1/nix" }
+g1_param = { path = "g1/param" }
+g1_serde = { path = "g1/serde" }
+g1_tokio = { path = "g1/tokio" }

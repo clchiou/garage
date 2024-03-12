@@ -4,23 +4,23 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-bytes = "1.4.0"
-linkme = "0.3.10" # Required by g1_param.
-snafu = "0.7.4"
-tokio = { version = "1.28.2", features = ["full"] }
-tracing = "0.1.37"
+bytes.workspace = true
+linkme.workspace = true # Required by g1_param.
+snafu.workspace = true
+tokio.workspace = true
+tracing.workspace = true
 
-g1_base = { path = "../../g1/base" }
-g1_param = { path = "../../g1/param" }
-g1_tokio = { path = "../../g1/tokio" }
+g1_base.workspace = true
+g1_param.workspace = true
+g1_tokio.workspace = true
 
-bittorrent_base = { path = "../base", features = ["param"] }
-bittorrent_extension = { path = "../extension" }
-bittorrent_socket = { path = "../socket" }
+bittorrent_base = { workspace = true, features = ["param"] }
+bittorrent_extension.workspace = true
+bittorrent_socket.workspace = true
 
 [dev-dependencies]
-hex-literal = "0.4.1"
+hex-literal.workspace = true
 
-g1_tokio = { path = "../../g1/tokio", features = ["test_harness"] }
+g1_tokio = { workspace = true, features = ["test_harness"] }
 
-bittorrent_socket = { path = "../socket", features = ["test_harness"] }
+bittorrent_socket = { workspace = true, features = ["test_harness"] }

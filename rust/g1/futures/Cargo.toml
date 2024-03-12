@@ -4,10 +4,10 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-futures = "0.3.28"
-tracing = "0.1.37"
+futures.workspace = true
+tracing.workspace = true
 
-g1_base = { path = "../base" }
+g1_base.workspace = true
 
 [dev-dependencies]
-tokio = { version = "1.28.2", features = ["full"] }
+tokio.workspace = true

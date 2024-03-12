@@ -4,24 +4,24 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-chrono = "0.4.26"
-serde = { version = "1.0.163", features = ["derive"] }
-serde_bytes = "0.11.9"
-sha1 = { version = "0.10.5", features = ["asm"] }
-snafu = "0.7.4"
+chrono.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_bytes.workspace = true
+sha1.workspace = true
+snafu.workspace = true
 
-g1_base = { path = "../../g1/base" }
+g1_base.workspace = true
 
-bittorrent_base = { path = "../base" }
-bittorrent_bencode = { path = "../bencode", features = ["serde"] }
+bittorrent_base.workspace = true
+bittorrent_bencode = { workspace = true, features = ["serde"] }
 
 [dev-dependencies]
-bytes = "1.4.0"
+bytes.workspace = true
 
-bittorrent_bencode = { path = "../bencode", features = ["serde", "test_harness"] }
+bittorrent_bencode = { workspace = true, features = ["serde", "test_harness"] }
 
 # examples/metainfo
-clap = { version = "4.3.1", features = ["derive"] }
+clap.workspace = true
 
 [features]
 test_harness = []

@@ -4,26 +4,26 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-bytes = "1.4.0"
-snafu = "0.7.4"
+bytes.workspace = true
+snafu.workspace = true
 
-g1_base = { path = "../../g1/base" }
-g1_bytes = { path = "../../g1/bytes" }
+g1_base.workspace = true
+g1_bytes.workspace = true
 
 # feature: serde
-paste = { version = "1.0.12", optional = true }
-serde = { version = "1.0.163", optional = true }
-serde_bytes = "0.11.9"
-g1_serde = { path = "../../g1/serde", optional = true }
+paste = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }
+serde_bytes.workspace = true
+g1_serde = { workspace = true, optional = true }
 
 [dev-dependencies]
-serde = { version = "1.0.163", features = ["derive"] }
+serde = { workspace = true, features = ["derive"] }
 
 # examples/bencode
-clap = { version = "4.3.1", features = ["derive"] }
-serde-transcode = "1.1.1"
-serde_json = "1.0.96"
-g1_serde = { path = "../../g1/serde" }
+clap.workspace = true
+serde-transcode.workspace = true
+serde_json.workspace = true
+g1_serde.workspace = true
 
 [features]
 serde = ["dep:paste", "dep:serde", "dep:g1_serde"]

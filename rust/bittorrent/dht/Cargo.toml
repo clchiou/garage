@@ -4,33 +4,33 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-async-trait = "0.1.73"
-bitvec = "1.0.1"
-bytes = "1.4.0"
-futures = "0.3.28"
-linkme = "0.3.10" # Required by g1_param.
-rand = "0.8.5"
-serde = { version = "1.0.163", features = ["derive"] }
-serde_bytes = "0.11.9"
-sha1 = { version = "0.10.5", features = ["asm"] }
-snafu = "0.7.4"
-tokio = { version = "1.28.2", features = ["full"] }
-tracing = "0.1.37"
+async-trait.workspace = true
+bitvec.workspace = true
+bytes.workspace = true
+futures.workspace = true
+linkme.workspace = true # Required by g1_param.
+rand.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_bytes.workspace = true
+sha1.workspace = true
+snafu.workspace = true
+tokio.workspace = true
+tracing.workspace = true
 
-g1_base = { path = "../../g1/base" }
-g1_msg = { path = "../../g1/msg" }
-g1_param = { path = "../../g1/param" }
-g1_tokio = { path = "../../g1/tokio" }
+g1_base.workspace = true
+g1_msg.workspace = true
+g1_param.workspace = true
+g1_tokio.workspace = true
 
-bittorrent_base = { path = "../base", features = ["compact"] }
-bittorrent_bencode = { path = "../bencode", features = ["serde"] }
+bittorrent_base = { workspace = true, features = ["compact"] }
+bittorrent_bencode = { workspace = true, features = ["serde"] }
 
 [dev-dependencies]
-hex-literal = "0.4.1"
+hex-literal.workspace = true
 
-bittorrent_bencode = { path = "../bencode", features = ["serde", "test_harness"] }
+bittorrent_bencode = { workspace = true, features = ["serde", "test_harness"] }
 
 # examples/dht
-clap = { version = "4.3.1", features = ["derive"] }
-g1_cli = { path = "../../g1/cli", features = ["param", "tracing"] }
-bittorrent_base = { path = "../base", features = ["compact", "parse"] }
+clap.workspace = true
+g1_cli = { workspace = true, features = ["param", "tracing"] }
+bittorrent_base = { workspace = true, features = ["compact", "parse"] }

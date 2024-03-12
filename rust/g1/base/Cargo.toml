@@ -4,14 +4,14 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-g1_base_derive = { path = "../base_derive" }
+g1_base_derive.workspace = true
 
 # feature: collections_ext
-hashbrown = { version = "0.14.3", optional = true }
+hashbrown = { workspace = true, optional = true }
 
 [dev-dependencies]
-tokio = { version = "1.28.2", features = ["full"] }
-trybuild = "1.0.80"
+tokio.workspace = true
+trybuild.workspace = true
 
 [features]
 collections_ext = ["dep:hashbrown"]
