@@ -27,6 +27,7 @@ members = [
     "g1/param",
     "g1/serde",
     "g1/tokio",
+    "g1/zmq",
 ]
 resolver = "2"
 
@@ -72,6 +73,7 @@ tokio = { version = "1.28.2", features = ["full"] }
 tracing = "0.1.37"
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 trybuild = "1.0.80"
+zmq = { git = "https://github.com/clchiou/rust-zmq.git", branch = "patch" }
 
 bittorrent_actor = { path = "bittorrent/actor" }
 bittorrent_base = { path = "bittorrent/base" }
@@ -101,3 +103,4 @@ g1_nix = { path = "g1/nix" }
 g1_param = { path = "g1/param" }
 g1_serde = { path = "g1/serde" }
 g1_tokio = { path = "g1/tokio" }
+g1_zmq = { path = "g1/zmq" }

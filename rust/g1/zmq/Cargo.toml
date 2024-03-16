@@ -1,0 +1,15 @@
+[package]
+name = "g1_zmq"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+futures.workspace = true
+tokio.workspace = true
+zmq.workspace = true
+
+g1_base.workspace = true
+
+[dev-dependencies]
+clap.workspace = true
