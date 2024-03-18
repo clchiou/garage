@@ -260,6 +260,29 @@ impl<T> VecList<T> {
         value
     }
 
+    pub fn move_front(&mut self, cursor: Cursor) {
+        assert!(!self.is_null(cursor));
+        let used = self.used.unwrap();
+        if cursor.0 == used {
+            // Nothing to do here.
+        } else {
+            list_remove(&mut self.nodes, cursor.0);
+            list_insert_prev(&mut self.nodes, used, cursor.0);
+            self.used = Some(self.nodes[used].prev);
+        }
+    }
+
+    pub fn move_back(&mut self, cursor: Cursor) {
+        assert!(!self.is_null(cursor));
+        let used = self.used.unwrap();
+        if cursor.0 == used {
+            self.used = Some(self.nodes[used].next);
+        } else {
+            list_remove(&mut self.nodes, cursor.0);
+            list_insert_prev(&mut self.nodes, used, cursor.0);
+        }
+    }
+
     pub fn clear(&mut self) {
         self.nodes.clear();
         self.len = 0;
@@ -632,6 +655,62 @@ mod tests {
         list.assert_list(&[103], 3);
         assert_eq!(list.remove(Cursor(3)), 103);
         list.assert_list(&[], 0);
+    }
+
+    #[test]
+    fn move_front() {
+        fn test<const N: usize>(testdata: [usize; N]) {
+            for i in 0..N {
+                let mut expect = testdata;
+                let mut list = VecList::from(testdata);
+                let mut p = list.cursor_front().unwrap();
+                for _ in 0..i {
+                    p = list.next(p).unwrap();
+                }
+
+                list.assert_list(&expect, 0);
+                assert_eq!(list[p], expect[i]);
+
+                list.move_front(p);
+                expect[..=i].rotate_right(1);
+
+                list.assert_list(&expect, 0);
+                assert_eq!(list[p], expect[0]);
+            }
+        }
+
+        test([100]);
+        test([100, 101]);
+        test([100, 101, 102]);
+        test([100, 101, 102, 103]);
+    }
+
+    #[test]
+    fn move_back() {
+        fn test<const N: usize>(testdata: [usize; N]) {
+            for i in 0..N {
+                let mut expect = testdata;
+                let mut list = VecList::from(testdata);
+                let mut p = list.cursor_front().unwrap();
+                for _ in 0..i {
+                    p = list.next(p).unwrap();
+                }
+
+                list.assert_list(&expect, 0);
+                assert_eq!(list[p], expect[i]);
+
+                list.move_back(p);
+                expect[i..].rotate_left(1);
+
+                list.assert_list(&expect, 0);
+                assert_eq!(list[p], expect[N - 1]);
+            }
+        }
+
+        test([100]);
+        test([100, 101]);
+        test([100, 101, 102]);
+        test([100, 101, 102, 103]);
     }
 
     #[test]
