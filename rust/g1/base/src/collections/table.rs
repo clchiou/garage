@@ -94,7 +94,7 @@ impl<R, C, V> Eq for HashBasedTable<R, C, V>
 where
     R: Eq + Hash,
     C: Eq + Hash,
-    V: PartialEq,
+    V: Eq,
 {
 }
 

@@ -77,8 +77,8 @@ where
 
 impl<K, V> PartialEq for NaiveBTreeBiGraph<K, V>
 where
-    K: Eq,
-    V: Eq,
+    K: PartialEq,
+    V: PartialEq,
 {
     fn eq(&self, other: &Self) -> bool {
         self.graph == other.graph
