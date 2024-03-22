@@ -13,7 +13,7 @@ use self::{
     queue::Queue,
 };
 
-type BoxFuture<T> = Pin<Box<dyn Future<Output = T> + Send + 'static>>;
+pub type BoxFuture<T> = Pin<Box<dyn Future<Output = T> + Send + 'static>>;
 
 /// Polls an indefinite number of futures.
 #[derive(Debug)]

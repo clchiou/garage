@@ -23,4 +23,4 @@ pub use self::vec_list::VecList;
 
 // Default to stdlib's default hash builder, not hashbrown's.
 #[cfg(feature = "collections_ext")]
-type DefaultHashBuilder = std::collections::hash_map::RandomState;
+pub type DefaultHashBuilder = std::collections::hash_map::RandomState;
