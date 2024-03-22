@@ -9,7 +9,7 @@
 //! or a reused node.
 
 use std::fmt::{self, Debug};
-use std::iter;
+use std::iter::FusedIterator;
 use std::ops::{Index, IndexMut};
 
 #[derive(Clone)]
@@ -30,6 +30,22 @@ pub struct VecList<T> {
 /// * It does not go circles.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct Cursor(usize);
+
+#[derive(Debug)]
+pub struct Iter<'a, T> {
+    list: &'a VecList<T>,
+    start: Option<Cursor>,
+    end: Option<Cursor>,
+    len: usize,
+}
+
+#[derive(Debug)]
+pub struct IterMut<'a, T> {
+    list: &'a mut VecList<T>,
+    start: Option<Cursor>,
+    end: Option<Cursor>,
+    len: usize,
+}
 
 #[derive(Clone, Debug)]
 struct Node<T> {
@@ -127,16 +143,13 @@ impl<T> VecList<T> {
         self.len
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = &T> {
-        let mut cursor = self.cursor_front();
-        iter::from_fn(move || {
-            let this = cursor?;
-            cursor = self.next(this);
-            Some(self.get_impl(this))
-        })
+    pub fn iter(&self) -> Iter<'_, T> {
+        Iter::new(self)
     }
 
-    // TODO: Implement an `iter_mut` that satisfies the borrow checker.
+    pub fn iter_mut(&mut self) -> IterMut<'_, T> {
+        IterMut::new(self)
+    }
 
     pub fn cursor_front(&self) -> Option<Cursor> {
         Some(Cursor(self.used?))
@@ -381,6 +394,130 @@ impl<T> IndexMut<Cursor> for VecList<T> {
     }
 }
 
+macro_rules! iter_new {
+    ($list:ident $(,)?) => {{
+        let start = $list.cursor_front();
+        let end = $list.cursor_back();
+        let len = $list.len();
+        Self {
+            $list,
+            start,
+            end,
+            len,
+        }
+    }};
+}
+
+macro_rules! iter_next {
+    ($self:ident $(,)?) => {{
+        let this = $self.start?;
+        if $self.start == $self.end {
+            $self.start = None;
+            $self.end = None;
+        } else {
+            $self.start = $self.list.next(this);
+        }
+        $self.len -= 1;
+        this
+    }};
+}
+
+macro_rules! iter_next_back {
+    ($self:ident $(,)?) => {{
+        let this = $self.end?;
+        if $self.start == $self.end {
+            $self.start = None;
+            $self.end = None;
+        } else {
+            $self.end = $self.list.prev(this);
+        }
+        $self.len -= 1;
+        this
+    }};
+}
+
+macro_rules! iter_get {
+    ($self:ident, $this:ident $(,)?) => {
+        Some($self.list.get_impl($this))
+    };
+}
+
+macro_rules! iter_get_mut {
+    ($self:ident, $this:ident $(,)?) => {
+        // TODO: Can we prove its correctness?  Can we implement it without using `unsafe`?
+        Some(unsafe { &mut *($self.list.get_mut_impl($this) as *mut T) })
+    };
+}
+
+impl<'a, T> Iter<'a, T> {
+    fn new(list: &'a VecList<T>) -> Self {
+        iter_new!(list)
+    }
+}
+
+impl<'a, T> IterMut<'a, T> {
+    fn new(list: &'a mut VecList<T>) -> Self {
+        iter_new!(list)
+    }
+}
+
+impl<'a, T> Clone for Iter<'a, T> {
+    fn clone(&self) -> Self {
+        Self {
+            list: self.list,
+            start: self.start,
+            end: self.end,
+            len: self.len,
+        }
+    }
+}
+
+impl<'a, T> Iterator for Iter<'a, T> {
+    type Item = &'a T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let this = iter_next!(self);
+        iter_get!(self, this)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.len, Some(self.len))
+    }
+}
+
+impl<'a, T> Iterator for IterMut<'a, T> {
+    type Item = &'a mut T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let this = iter_next!(self);
+        iter_get_mut!(self, this)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.len, Some(self.len))
+    }
+}
+
+impl<'a, T> DoubleEndedIterator for Iter<'a, T> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        let this = iter_next_back!(self);
+        iter_get!(self, this)
+    }
+}
+
+impl<'a, T> DoubleEndedIterator for IterMut<'a, T> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        let this = iter_next_back!(self);
+        iter_get_mut!(self, this)
+    }
+}
+
+impl<'a, T> ExactSizeIterator for Iter<'a, T> {}
+impl<'a, T> ExactSizeIterator for IterMut<'a, T> {}
+
+impl<'a, T> FusedIterator for Iter<'a, T> {}
+impl<'a, T> FusedIterator for IterMut<'a, T> {}
+
 impl<T> Node<T> {
     fn new(value: T) -> Self {
         Self {
@@ -542,6 +679,88 @@ mod tests {
 
         assert_ne!(VecList::from([100]), VecList::new());
         assert_ne!(VecList::from([100, 101]), VecList::from([101, 100]));
+    }
+
+    #[test]
+    fn iter() {
+        // We resort to macros because Rust does not support generics over mutability.
+
+        macro_rules! assert_iter_eq {
+            ($testdata:expr, $expect:expr $(,)?) => {
+                // We cannot call `copied` on `testdata` because `copied` hard-codes `&T`.
+                // (`&mut T` does not implement `Copy`).
+                assert_eq!(
+                    $testdata.map(|x| *x).collect::<Vec<_>>(),
+                    $expect.copied().collect::<Vec<_>>(),
+                )
+            };
+        }
+
+        macro_rules! test {
+            ($testdata:expr, $expect:expr $(,)?) => {
+                assert_iter_eq!($testdata, $expect);
+
+                let mut iter = $testdata;
+                for n in (1..=$expect.len()).rev() {
+                    assert_eq!(iter.size_hint(), (n, Some(n)));
+                    assert_eq!(iter.len(), n);
+                    assert!(iter.next().is_some());
+                }
+                for _ in 0..3 {
+                    assert_eq!(iter.size_hint(), (0, Some(0)));
+                    assert_eq!(iter.len(), 0);
+                    assert!(iter.next().is_none());
+                }
+
+                // Test interleaving.
+                let mut testdata_iter = $testdata;
+                let mut expect_iter = $expect;
+                assert_eq!(testdata_iter.size_hint(), expect_iter.size_hint());
+                assert_eq!(testdata_iter.len(), expect_iter.len());
+                loop {
+                    let x = testdata_iter.next();
+                    let y = expect_iter.next();
+                    assert_eq!(testdata_iter.size_hint(), expect_iter.size_hint());
+                    assert_eq!(testdata_iter.len(), expect_iter.len());
+                    if y.is_none() {
+                        break;
+                    }
+                    assert_eq!(*x.unwrap(), *y.unwrap());
+
+                    let x = testdata_iter.next_back();
+                    let y = expect_iter.next_back();
+                    assert_eq!(testdata_iter.size_hint(), expect_iter.size_hint());
+                    assert_eq!(testdata_iter.len(), expect_iter.len());
+                    if y.is_none() {
+                        break;
+                    }
+                    assert_eq!(*x.unwrap(), *y.unwrap());
+                }
+                for _ in 0..3 {
+                    assert_eq!(testdata_iter.size_hint(), (0, Some(0)));
+                    assert_eq!(testdata_iter.len(), 0);
+                    assert!(testdata_iter.next().is_none());
+                }
+            };
+        }
+
+        for expect in [
+            [].as_slice(),
+            &[100],
+            &[100, 101],
+            &[100, 101, 102],
+            &[100, 101, 102, 103],
+        ] {
+            let mut testdata = VecList::from_iter(expect.iter().copied());
+            test!(testdata.iter(), expect.iter());
+            test!(testdata.iter().rev(), expect.iter().rev());
+            test!(testdata.iter_mut(), expect.iter());
+            test!(testdata.iter_mut().rev(), expect.iter().rev());
+
+            let iter = testdata.iter();
+            assert_iter_eq!(iter.clone(), expect.iter());
+            assert_iter_eq!(iter, expect.iter());
+        }
     }
 
     #[test]
