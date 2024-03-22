@@ -429,7 +429,7 @@ impl<'de, 'a, const STRICT: bool> SeqAccess<'de> for ListIter<'de, 'a, STRICT> {
     }
 
     fn size_hint(&self) -> Option<usize> {
-        Some(self.0.len())
+        self.0.size_hint().1
     }
 }
 
