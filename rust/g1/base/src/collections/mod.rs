@@ -7,6 +7,8 @@ pub mod vec_list;
 
 #[cfg(feature = "collections_ext")]
 mod bimap;
+#[cfg(feature = "collections_ext")]
+mod ordered;
 mod table;
 
 use std::iter::FusedIterator;
@@ -20,6 +22,8 @@ pub use self::bimap::HashBiMap;
 pub use self::cursor_set::HashCursorSet;
 #[cfg(feature = "collections_ext")]
 pub use self::index_map::HashIndexMap;
+#[cfg(feature = "collections_ext")]
+pub use self::ordered::HashOrderedMap;
 pub use self::table::HashBasedTable;
 pub use self::vec_list::VecList;
 

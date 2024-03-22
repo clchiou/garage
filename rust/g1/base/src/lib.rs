@@ -17,6 +17,7 @@
 #![feature(specialization)]
 #![feature(trait_alias)]
 #![cfg_attr(feature = "collections_ext", feature(try_blocks))]
+#![cfg_attr(feature = "collections_ext", feature(type_alias_impl_trait))]
 #![cfg_attr(test, feature(assert_matches))]
 #![cfg_attr(test, feature(noop_waker))]
 
