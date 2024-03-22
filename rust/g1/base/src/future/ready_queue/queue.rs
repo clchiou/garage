@@ -105,7 +105,7 @@ impl<T, Fut> Queue<T, Fut> {
 
         let mut p = self.pending.cursor_front();
         while let Some(cursor) = p {
-            p = self.pending.move_next(cursor);
+            p = self.pending.next(cursor);
             if self.pending[cursor].1.is_some() {
                 futures.push(self.pending.remove(cursor).1.unwrap());
             }
@@ -241,7 +241,7 @@ impl Wakers {
             if let Some(waker) = self.take_waker(cursor) {
                 waker.wake();
             }
-            self.0.move_next(cursor)
+            self.0.next(cursor)
         });
     }
 
@@ -254,7 +254,7 @@ impl Wakers {
                     succeed = true;
                     None
                 }
-                None => self.0.move_next(cursor),
+                None => self.0.next(cursor),
             }
         });
         succeed

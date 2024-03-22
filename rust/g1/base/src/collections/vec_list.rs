@@ -131,7 +131,7 @@ impl<T> VecList<T> {
         let mut cursor = self.cursor_front();
         iter::from_fn(move || {
             let this = cursor?;
-            cursor = self.move_next(this);
+            cursor = self.next(this);
             Some(self.get_impl(this))
         })
     }
@@ -278,7 +278,7 @@ impl<T> VecList<T> {
             .unwrap_or(true)
     }
 
-    pub fn move_prev(&self, cursor: Cursor) -> Option<Cursor> {
+    pub fn prev(&self, cursor: Cursor) -> Option<Cursor> {
         if cursor.0 == self.used? {
             None
         } else {
@@ -287,7 +287,7 @@ impl<T> VecList<T> {
         }
     }
 
-    pub fn move_next(&self, cursor: Cursor) -> Option<Cursor> {
+    pub fn next(&self, cursor: Cursor) -> Option<Cursor> {
         if cursor.0 == self.nodes[self.used?].prev {
             None
         } else {
@@ -665,31 +665,31 @@ mod tests {
     }
 
     #[test]
-    fn test_move() {
+    fn prev_and_next() {
         let list = VecList::<usize>::new();
         assert_eq!(list.is_null(Cursor(0)), true);
-        assert_eq!(list.move_prev(Cursor(0)), None);
-        assert_eq!(list.move_next(Cursor(0)), None);
+        assert_eq!(list.prev(Cursor(0)), None);
+        assert_eq!(list.next(Cursor(0)), None);
 
         let list = VecList::from([100]);
         assert_eq!(list.is_null(Cursor(0)), false);
-        assert_eq!(list.move_prev(Cursor(0)), None);
-        assert_eq!(list.move_next(Cursor(0)), None);
+        assert_eq!(list.prev(Cursor(0)), None);
+        assert_eq!(list.next(Cursor(0)), None);
 
         let list = VecList::from([100, 101]);
         assert_eq!(list.is_null(Cursor(0)), false);
-        assert_eq!(list.move_prev(Cursor(0)), None);
-        assert_eq!(list.move_next(Cursor(0)), Some(Cursor(1)));
+        assert_eq!(list.prev(Cursor(0)), None);
+        assert_eq!(list.next(Cursor(0)), Some(Cursor(1)));
         assert_eq!(list.is_null(Cursor(1)), false);
-        assert_eq!(list.move_prev(Cursor(1)), Some(Cursor(0)));
-        assert_eq!(list.move_next(Cursor(1)), None);
+        assert_eq!(list.prev(Cursor(1)), Some(Cursor(0)));
+        assert_eq!(list.next(Cursor(1)), None);
 
         let mut list = VecList::from([100, 101, 102]);
-        assert_eq!(list.move_prev(Cursor(1)), Some(Cursor(0)));
-        assert_eq!(list.move_next(Cursor(1)), Some(Cursor(2)));
+        assert_eq!(list.prev(Cursor(1)), Some(Cursor(0)));
+        assert_eq!(list.next(Cursor(1)), Some(Cursor(2)));
         assert_eq!(list.remove(Cursor(1)), 101);
-        assert_eq!(list.move_prev(Cursor(1)), None);
-        assert_eq!(list.move_next(Cursor(1)), None);
+        assert_eq!(list.prev(Cursor(1)), None);
+        assert_eq!(list.next(Cursor(1)), None);
     }
 
     #[test]

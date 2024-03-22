@@ -347,7 +347,7 @@ mod test_harness {
             let mut p = self.entries.cursor_front();
             while let Some(cursor) = p {
                 cursors.push(usize::from(cursor));
-                p = self.entries.move_next(cursor);
+                p = self.entries.next(cursor);
             }
             cursors.sort();
 
