@@ -1,0 +1,22 @@
+[package]
+name = "ddcache_storage"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+bytes.workspace = true
+fasthash.workspace = true
+lazy-regex.workspace = true
+regex.workspace = true # Override the version set by lazy-regex.
+tokio.workspace = true
+xattr.workspace = true
+
+g1_base = { workspace = true, features = ["collections_ext"] }
+
+[dev-dependencies]
+tempfile.workspace = true
+
+# examples/ddcache-io
+clap.workspace = true
+g1_cli = { workspace = true, features = ["param", "tracing"] }
+g1_tokio.workspace = true
