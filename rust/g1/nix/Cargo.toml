@@ -6,7 +6,7 @@ edition.workspace = true
 [dependencies]
 bytes.workspace = true
 libc.workspace = true
-nix.workspace = true
+nix = { workspace = true, features = ["socket"] }
 
 [dev-dependencies]
 hex-literal.workspace = true

@@ -1,6 +1,6 @@
-use std::io::{Error, IoSlice, IoSliceMut, RawOsError};
+use std::io::{Error, IoSlice, IoSliceMut};
 use std::net::{Ipv4Addr, SocketAddrV4};
-use std::os::fd::RawFd;
+use std::os::fd::{AsFd, AsRawFd, RawFd};
 
 use libc::sockaddr_in;
 use nix::{
@@ -19,10 +19,6 @@ pub use libc::sock_extended_err;
 
 pub use g1_nix::sys::socket::{IcmpEchoHeader, IpPmtudisc};
 
-fn to_error(errno: Errno) -> Error {
-    Error::from_raw_os_error(errno as RawOsError)
-}
-
 // TODO: Support IPv6.
 #[derive(Debug)]
 pub struct IcmpSocket {
@@ -34,23 +30,18 @@ impl IcmpSocket {
         let fd = icmp_socket(
             AddressFamily::Inet,
             SockFlag::SOCK_CLOEXEC | SockFlag::SOCK_NONBLOCK,
-        )
-        .map_err(to_error)?;
+        )?;
         Ok(Self {
             fd: AsyncFd::new(fd).inspect_err(|_| close(fd).unwrap())?,
         })
     }
 
-    fn fd(&self) -> RawFd {
-        *self.fd.get_ref()
-    }
-
     pub fn set_mtu_discover(&self, pmtudisc: IpPmtudisc) -> Result<(), Error> {
-        setsockopt(self.fd(), IpMtuDiscover, &pmtudisc).map_err(to_error)
+        setsockopt(&self.fd, IpMtuDiscover, &pmtudisc).map_err(Error::from)
     }
 
     pub fn set_recverr(&self, recv_err: bool) -> Result<(), Error> {
-        setsockopt(self.fd(), Ipv4RecvErr, &recv_err).map_err(to_error)
+        setsockopt(&self.fd, Ipv4RecvErr, &recv_err).map_err(Error::from)
     }
 
     pub async fn recv_from(&self, buffer: &mut [u8]) -> Result<(usize, Ipv4Addr), Error> {
@@ -60,9 +51,9 @@ impl IcmpSocket {
                 Ok((num_bytes_recv, peer_endpoint)) => {
                     let peer_endpoint = peer_endpoint.unwrap();
                     assert_eq!(peer_endpoint.port(), 0);
-                    Ok((num_bytes_recv, Ipv4Addr::from(peer_endpoint.ip())))
+                    Ok((num_bytes_recv, peer_endpoint.ip()))
                 }
-                Err(errno) => Err(to_error(errno)),
+                Err(errno) => Err(errno.into()),
             }) {
                 Ok(result) => return result,
                 Err(_) => continue, // `readmsg` returns `WouldBlock`.
@@ -83,7 +74,7 @@ impl IcmpSocket {
         let mut io_slices = [IoSliceMut::new(buffer)];
         let mut cmsg_buffer = nix::cmsg_space!(sock_extended_err, Option<sockaddr_in>);
         let message = match recvmsg::<SockaddrIn>(
-            self.fd(),
+            self.fd.as_fd().as_raw_fd(),
             &mut io_slices,
             Some(&mut cmsg_buffer),
             MsgFlags::MSG_ERRQUEUE,
@@ -98,7 +89,7 @@ impl IcmpSocket {
 
         let peer_endpoint = message.address.map(|peer_endpoint| {
             assert_eq!(peer_endpoint.port(), 0);
-            Ipv4Addr::from(peer_endpoint.ip())
+            peer_endpoint.ip()
         });
 
         let mut cmsgs = message.cmsgs();
@@ -124,7 +115,7 @@ impl IcmpSocket {
         loop {
             let mut guard = self.fd.writable().await?;
             match guard.try_io(|fd| {
-                sendmsg(*fd.get_ref(), &iov, &[], flags, Some(&peer_endpoint)).map_err(to_error)
+                sendmsg(*fd.get_ref(), &iov, &[], flags, Some(&peer_endpoint)).map_err(Error::from)
             }) {
                 Ok(result) => return result,
                 Err(_) => continue, // `sendmsg` returns `WouldBlock`.
@@ -135,6 +126,6 @@ impl IcmpSocket {
 
 impl Drop for IcmpSocket {
     fn drop(&mut self) {
-        close(self.fd()).unwrap();
+        close(self.fd.as_fd().as_raw_fd()).unwrap();
     }
 }

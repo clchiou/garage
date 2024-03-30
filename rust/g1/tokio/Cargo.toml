@@ -13,7 +13,7 @@ g1_base.workspace = true
 
 # feature: icmp
 libc = { workspace = true, optional = true }
-nix = { workspace = true, features = ["uio"], optional = true }
+nix = { workspace = true, features = ["net", "uio"], optional = true }
 g1_nix = { workspace = true, optional = true }
 
 [dev-dependencies]
