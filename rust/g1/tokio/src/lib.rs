@@ -6,5 +6,6 @@
 pub mod bstream;
 pub mod io;
 pub mod net;
+pub mod os;
 pub mod sync;
 pub mod task;

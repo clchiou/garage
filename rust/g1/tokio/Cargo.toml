@@ -34,6 +34,10 @@ bittorrent_utp.workspace = true
 rand.workspace = true
 tracing.workspace = true
 
+[target.'cfg(target_os = "linux")'.dependencies]
+nix = { workspace = true, features = ["zerocopy"] }
+g1_nix.workspace = true
+
 [[example]]
 name = "path-mtu"
 required-features = ["icmp"]
