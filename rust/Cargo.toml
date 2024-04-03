@@ -20,6 +20,7 @@ members = [
     "g1/base_derive",
     "g1/bytes",
     "g1/bytes_derive",
+    "g1/capnp",
     "g1/cli",
     "g1/futures",
     "g1/msg",
@@ -39,6 +40,8 @@ edition = "2021"
 async-trait = "0.1.68"
 bitvec = "1.0.1"
 bytes = "1.4.0"
+capnp = "0.19.3"
+capnpc = "0.19.0"
 chrono = "0.4.26"
 cipher = "0.4.4"
 clap = { version = "4.3.1", features = ["derive"] }
@@ -96,6 +99,7 @@ g1_base = { path = "g1/base" }
 g1_base_derive = { path = "g1/base_derive" }
 g1_bytes = { path = "g1/bytes" }
 g1_bytes_derive = { path = "g1/bytes_derive" }
+g1_capnp = { path = "g1/capnp" }
 g1_cli = { path = "g1/cli" }
 g1_futures = { path = "g1/futures" }
 g1_msg = { path = "g1/msg" }

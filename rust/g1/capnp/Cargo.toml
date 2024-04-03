@@ -1,0 +1,12 @@
+[package]
+name = "g1_capnp"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+capnp = { workspace = true, features = ["unaligned"] }
+
+g1_base.workspace = true
+
+[build-dependencies]
+capnpc.workspace = true
