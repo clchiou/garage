@@ -1,7 +1,26 @@
 use std::sync::Mutex;
-use std::task::{Context, Waker};
+use std::task::{Context, Poll, Waker};
 
 use crate::sync::MutexExt;
+
+pub trait PollExt<T> {
+    // Why does the stdlib not provide this?
+    fn inspect<F>(self, f: F) -> Self
+    where
+        F: FnOnce(&T);
+}
+
+impl<T> PollExt<T> for Poll<T> {
+    fn inspect<F>(self, f: F) -> Self
+    where
+        F: FnOnce(&T),
+    {
+        if let Poll::Ready(x) = &self {
+            f(x);
+        }
+        self
+    }
+}
 
 /// Stores the most recent `Waker` of a task.
 #[derive(Debug, Default)]
