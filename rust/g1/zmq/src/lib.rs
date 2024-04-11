@@ -4,6 +4,7 @@ pub mod sink;
 pub mod stream;
 
 pub mod duplex;
+pub mod envelope;
 
 use std::io::Error;
 use std::os::fd::RawFd;
