@@ -16,7 +16,9 @@ members = [
     "bittorrent/transceiver",
     "bittorrent/udp",
     "bittorrent/utp",
+    "ddcache/bin/ddcached",
     "ddcache/proto",
+    "ddcache/server",
     "ddcache/storage",
     "g1/base",
     "g1/base_derive",
@@ -101,6 +103,7 @@ bittorrent_udp = { path = "bittorrent/udp" }
 bittorrent_utp = { path = "bittorrent/utp" }
 
 ddcache_proto = { path = "ddcache/proto" }
+ddcache_server = { path = "ddcache/server" }
 ddcache_storage = { path = "ddcache/storage" }
 
 g1_base = { path = "g1/base" }

@@ -1,0 +1,14 @@
+[package]
+name = "ddcached"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+clap.workspace = true
+futures.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+g1_cli = { workspace = true, features = ["param", "tracing"] }
+
+ddcache_server.workspace = true
