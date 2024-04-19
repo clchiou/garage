@@ -1,0 +1,27 @@
+[package]
+name = "ddcache_client"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+bytes.workspace = true
+capnp.workspace = true
+fasthash.workspace = true
+futures.workspace = true
+linkme.workspace = true # Required by g1_param.
+rand.workspace = true
+snafu.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+zmq.workspace = true
+
+g1_base.workspace = true
+g1_param.workspace = true
+g1_tokio.workspace = true
+g1_zmq.workspace = true
+
+ddcache_proto.workspace = true
+
+[dev-dependencies]
+clap.workspace = true
+g1_cli = { workspace = true, features = ["param", "tracing"] }
