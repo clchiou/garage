@@ -68,8 +68,7 @@ macro_rules! define_owner {
 
             /// Unwraps this container and returns the buffer.
             $vis fn into_buffer(this: Self) -> Buffer {
-                let Self { buffer, borrower } = this;
-                drop(borrower);
+                let Self { buffer, .. } = this;
                 ::std::pin::Pin::into_inner(buffer)
             }
         }
