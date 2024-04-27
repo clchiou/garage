@@ -1,0 +1,24 @@
+[package]
+name = "etcd_client"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+futures.workspace = true
+linkme.workspace = true # Required by g1_param.
+reqwest = { workspace = true, features = ["stream"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+serde_with = { workspace = true, features = ["base64"] }
+snafu.workspace = true
+tracing.workspace = true
+url = { workspace = true, features = ["serde"] } # Override the version set by reqwest.
+
+g1_base.workspace = true
+g1_param.workspace = true
+
+[dev-dependencies]
+base64.workspace = true
+clap.workspace = true
+tokio.workspace = true
+g1_cli = { workspace = true, features = ["param", "tracing"] }
