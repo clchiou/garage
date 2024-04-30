@@ -130,6 +130,12 @@ impl Default for Client {
     }
 }
 
+impl AsRef<Client> for Client {
+    fn as_ref(&self) -> &Client {
+        self
+    }
+}
+
 impl Client {
     pub fn new() -> Self {
         ClientBuilder::new().build()
