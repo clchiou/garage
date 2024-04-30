@@ -11,6 +11,7 @@ linkme.workspace = true # Required by g1_param.
 rand.workspace = true
 tokio.workspace = true
 tracing.workspace = true
+uuid = { workspace = true, features = ["fast-rng", "serde", "v4"] }
 zmq.workspace = true
 
 g1_base.workspace = true

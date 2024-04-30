@@ -11,11 +11,16 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
+use uuid::Uuid;
+
 use g1_tokio::task::{JoinArray, JoinGuard};
 
+use ddcache_proto::service::{self, Service};
 use ddcache_proto::{BlobEndpoint, Endpoint};
 
 use crate::state::State;
+
+g1_param::define!(self_id: Uuid = Uuid::new_v4());
 
 // TODO: Add the default IPv6 address.
 g1_param::define!(endpoints: Vec<String> = vec!["tcp://0.0.0.0:0".into()]);
@@ -41,7 +46,7 @@ pub struct Server {
     endpoints: Arc<[Endpoint]>,
 }
 
-pub type ServerGuard = JoinArray<Result<(), Error>, 2>;
+pub type ServerGuard = JoinArray<Result<(), Error>, 3>;
 
 type Guard = JoinGuard<Result<(), Error>>;
 
@@ -51,11 +56,13 @@ impl Server {
         let (blob_endpoints, blob_actor_guard) = blob_server::Actor::spawn(state.clone())?;
         let (endpoints, actor_guard) =
             server::Actor::spawn(storage_dir, blob_endpoints, state).await?;
+        let publisher_guard =
+            service::pubsub().spawn(*crate::self_id(), Service::from(endpoints.as_slice()));
         Ok((
             Self {
                 endpoints: endpoints.into(),
             },
-            ServerGuard::new([actor_guard, blob_actor_guard]),
+            ServerGuard::new([actor_guard, blob_actor_guard, publisher_guard]),
         ))
     }
 
