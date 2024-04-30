@@ -13,8 +13,10 @@ rand.workspace = true
 snafu.workspace = true
 tokio.workspace = true
 tracing.workspace = true
+uuid.workspace = true
 zmq.workspace = true
 
+etcd_pubsub.workspace = true
 g1_base.workspace = true
 g1_param.workspace = true
 g1_tokio.workspace = true

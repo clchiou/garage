@@ -77,9 +77,12 @@ impl Program {
     }
 
     async fn connect(&self) -> Result<(Client, ClientGuard), Error> {
-        let (client, guard) = Client::spawn();
+        let (mut client, guard) = Client::spawn();
         for endpoint in self.endpoint.iter().cloned() {
             client.connect(endpoint).await.map_err(Error::other)?;
+        }
+        if self.endpoint.is_empty() && !client.service_ready().await {
+            return Err(Error::other("service unavailable"));
         }
         Ok((client, guard))
     }
