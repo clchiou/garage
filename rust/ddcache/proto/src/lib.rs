@@ -3,6 +3,7 @@ pub mod ddcache_capnp {
 }
 
 pub mod envelope;
+pub mod service;
 
 use std::net::SocketAddr;
 use std::sync::Arc;
