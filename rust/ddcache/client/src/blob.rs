@@ -9,7 +9,7 @@ use tokio::time;
 
 use g1_tokio::os::{SendFile, Splice};
 
-use ddcache_proto::{BlobEndpoint, Token};
+use ddcache_rpc::{BlobEndpoint, Token};
 
 use crate::error::{Error, IoSnafu, PartialIoSnafu};
 

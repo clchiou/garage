@@ -9,7 +9,7 @@ use tokio::task::Id;
 use g1_base::iter::IteratorExt;
 use g1_tokio::task::JoinQueue;
 
-use ddcache_proto::Endpoint;
+use ddcache_rpc::Endpoint;
 
 use crate::error::{DisconnectedSnafu, Error, NotConnectedSnafu};
 use crate::shard::Shard;

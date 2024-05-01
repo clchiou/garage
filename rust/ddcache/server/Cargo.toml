@@ -20,5 +20,5 @@ g1_param.workspace = true
 g1_tokio.workspace = true
 g1_zmq.workspace = true
 
-ddcache_proto.workspace = true
+ddcache_rpc.workspace = true
 ddcache_storage.workspace = true

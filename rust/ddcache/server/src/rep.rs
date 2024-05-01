@@ -6,7 +6,7 @@ use capnp::serialize;
 
 use g1_zmq::envelope::Frame;
 
-use ddcache_proto::{BlobEndpoint, ResponseBuilder, Token};
+use ddcache_rpc::{BlobEndpoint, ResponseBuilder, Token};
 
 pub(crate) fn read_response(
     metadata: Option<Bytes>,
@@ -93,7 +93,7 @@ mod tests {
 
     use capnp::Error;
 
-    use ddcache_proto::{ResponseOwner, ResponseResult};
+    use ddcache_rpc::{ResponseOwner, ResponseResult};
 
     use super::*;
 

@@ -23,9 +23,9 @@ use g1_zmq::duplex::Duplex;
 use g1_zmq::envelope::{Envelope, Frame, Multipart};
 use g1_zmq::Socket;
 
-use ddcache_proto::ddcache_capnp::request;
-use ddcache_proto::envelope;
-use ddcache_proto::{BlobEndpoint, Endpoint};
+use ddcache_rpc::envelope;
+use ddcache_rpc::rpc_capnp::request;
+use ddcache_rpc::{BlobEndpoint, Endpoint};
 use ddcache_storage::Storage;
 
 use crate::rep;

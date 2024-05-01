@@ -6,7 +6,7 @@ fn main() {
     CompilerCommand::new()
         .import_path("schema")
         .src_prefix("schema")
-        .file("schema/ddcache.capnp")
+        .file("schema/ddcache/rpc.capnp")
         .run()
         .expect("capnp compile");
 }

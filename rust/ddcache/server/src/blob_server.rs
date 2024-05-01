@@ -12,7 +12,7 @@ use tracing::Instrument;
 use g1_tokio::os::{SendFile, Splice};
 use g1_tokio::task::{Cancel, JoinQueue};
 
-use ddcache_proto::BlobEndpoint;
+use ddcache_rpc::BlobEndpoint;
 
 use crate::state::{Io, State};
 use crate::Guard;

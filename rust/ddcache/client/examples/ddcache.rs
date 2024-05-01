@@ -8,7 +8,7 @@ use clap::{Args, Parser, Subcommand};
 use g1_cli::{param::ParametersConfig, tracing::TracingConfig};
 
 use ddcache_client::{Client, ClientGuard};
-use ddcache_proto::{Endpoint, Token};
+use ddcache_rpc::{Endpoint, Token};
 
 #[derive(Debug, Parser)]
 struct Program {

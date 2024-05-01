@@ -1,5 +1,5 @@
 [package]
-name = "ddcache_proto"
+name = "ddcache_rpc"
 version.workspace = true
 edition.workspace = true
 

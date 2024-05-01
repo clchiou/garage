@@ -18,8 +18,8 @@ use g1_base::future::ReadyQueue;
 use g1_base::sync::MutexExt;
 use g1_tokio::task::{Cancel, JoinGuard, JoinQueue};
 
-use ddcache_proto::service::{self, Event, Subscriber};
-use ddcache_proto::{Endpoint, Token};
+use ddcache_rpc::service::{self, Event, Subscriber};
+use ddcache_rpc::{Endpoint, Token};
 
 use crate::error::Error;
 use crate::route::RouteMap;

@@ -7,7 +7,7 @@ use tokio::time::Instant;
 
 use g1_base::sync::MutexExt;
 
-use ddcache_proto::Token;
+use ddcache_rpc::Token;
 use ddcache_storage::{ReadGuard, WriteGuard};
 
 #[derive(Debug)]

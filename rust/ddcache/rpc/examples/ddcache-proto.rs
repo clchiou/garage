@@ -19,8 +19,8 @@ use g1_cli::{param::ParametersConfig, tracing::TracingConfig};
 use g1_tokio::os::Splice;
 use g1_zmq::Socket;
 
-use ddcache_proto::ddcache_capnp::{endpoint, request, response};
-use ddcache_proto::{
+use ddcache_rpc::rpc_capnp::{endpoint, request, response};
+use ddcache_rpc::{
     BlobEndpoint, Endpoint, RequestOwner, ResponseBuilder, ResponseOwner, ResponseResult, Token,
 };
 

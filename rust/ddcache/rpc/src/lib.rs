@@ -1,5 +1,5 @@
-pub mod ddcache_capnp {
-    include!(concat!(env!("OUT_DIR"), "/ddcache_capnp.rs"));
+pub mod rpc_capnp {
+    include!(concat!(env!("OUT_DIR"), "/ddcache/rpc_capnp.rs"));
 }
 
 pub mod envelope;
@@ -11,7 +11,7 @@ use std::sync::Arc;
 use g1_capnp::{owner::Owner, result_capnp::result};
 use g1_zmq::envelope::Frame;
 
-use crate::ddcache_capnp::{endpoint, error, request, response};
+use crate::rpc_capnp::{endpoint, error, request, response};
 
 pub type Endpoint = Arc<str>;
 pub type BlobEndpoint = SocketAddr;

@@ -15,8 +15,8 @@ use uuid::Uuid;
 
 use g1_tokio::task::{JoinArray, JoinGuard};
 
-use ddcache_proto::service::{self, Service};
-use ddcache_proto::{BlobEndpoint, Endpoint};
+use ddcache_rpc::service::{self, Service};
+use ddcache_rpc::{BlobEndpoint, Endpoint};
 
 use crate::state::State;
 

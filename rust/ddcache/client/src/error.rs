@@ -2,8 +2,8 @@ use std::io;
 
 use snafu::prelude::*;
 
-use ddcache_proto::ddcache_capnp::error;
-use ddcache_proto::Endpoint;
+use ddcache_rpc::rpc_capnp::error;
+use ddcache_rpc::Endpoint;
 
 #[derive(Debug, Snafu)]
 #[snafu(visibility(pub(crate)))]

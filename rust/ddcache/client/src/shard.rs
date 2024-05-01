@@ -19,9 +19,9 @@ use g1_zmq::duplex::Duplex;
 use g1_zmq::envelope::{Envelope, Frame, Multipart};
 use g1_zmq::Socket;
 
-use ddcache_proto::ddcache_capnp::{request, response};
-use ddcache_proto::envelope;
-use ddcache_proto::{BlobEndpoint, Endpoint, Token};
+use ddcache_rpc::envelope;
+use ddcache_rpc::rpc_capnp::{request, response};
+use ddcache_rpc::{BlobEndpoint, Endpoint, Token};
 
 use crate::blob::RemoteBlob;
 use crate::error::{ConnectSnafu, DecodeSnafu, Error, UnexpectedResponseSnafu};
