@@ -312,11 +312,11 @@ impl Actor {
             Ok(request::Read(Err(error)))
             | Ok(request::ReadMetadata(Err(error)))
             | Ok(request::Write(Err(error))) => {
-                tracing::warn!(?request, ?error, "decode error");
+                tracing::warn!(?request, %error, "decode error");
                 push_response!(request.map(|_| rep::invalid_request_error()));
             }
             Err(error) => {
-                tracing::warn!(?request, ?error, "unknown request type");
+                tracing::warn!(?request, %error, "unknown request type");
                 push_response!(request.map(|_| rep::invalid_request_error()));
             }
         }
@@ -328,7 +328,7 @@ impl Actor {
         match guard.take_result() {
             Ok(result) => result,
             Err(error) => {
-                tracing::warn!(?error, "handler task error");
+                tracing::warn!(%error, "handler task error");
                 Ok(())
             }
         }
@@ -348,7 +348,7 @@ macro_rules! check_result {
     ($self:ident, $result:expr $(,)?) => {
         $result
             .inspect_err(|error| {
-                tracing::warn!(request = ?$self.request(), ?error, "decode error");
+                tracing::warn!(request = ?$self.request(), %error, "decode error");
             })
             .map_err(|_| rep::invalid_request_error())?
     };

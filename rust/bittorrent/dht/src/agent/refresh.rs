@@ -87,7 +87,7 @@ impl NodeRefresher {
             if let Err(error) = result {
                 tracing::info!(
                     ?incumbent,
-                    ?error,
+                    %error,
                     "ping node error; remove from routing table",
                 );
                 if state.routing.must_lock().remove(&incumbent).is_some() {

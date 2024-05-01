@@ -21,7 +21,7 @@ impl Actor {
             return;
         };
         if let Err(error) = self.scheduler.notify_possession(peer_endpoint, possession) {
-            tracing::warn!(?error, "close peer due to invalid message");
+            tracing::warn!(%error, "close peer due to invalid message");
             peer.cancel();
             return;
         }

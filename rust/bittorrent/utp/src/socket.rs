@@ -267,12 +267,12 @@ where
             },
             async move {
                 if let Err(error) = prober_task.shutdown().await {
-                    tracing::warn!(?error, "path mtu prober task error");
+                    tracing::warn!(%error, "path mtu prober task error");
                 }
             },
             async move {
                 if let Err(error) = sink.close().await {
-                    tracing::warn!(?error, "udp sink close error");
+                    tracing::warn!(%error, "udp sink close error");
                 }
             }
         );
@@ -420,10 +420,10 @@ fn handle_conn_result(
             if error == conn::Error::ConnectTimeout {
                 tracing::debug!(?peer_endpoint, "utp connect timeout");
             } else {
-                tracing::warn!(?peer_endpoint, ?error, "utp connection error");
+                tracing::warn!(?peer_endpoint, %error, "utp connection error");
             }
         }
-        Err(error) => tracing::warn!(?peer_endpoint, ?error, "utp connection shutdown error"),
+        Err(error) => tracing::warn!(?peer_endpoint, %error, "utp connection shutdown error"),
     }
     peer_endpoint
 }

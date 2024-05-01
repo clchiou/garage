@@ -94,7 +94,7 @@ pub(crate) async fn recruit_from_tracker(tracker: Tracker, manager: Manager) {
                 match net::lookup_host_first((domain_name.as_str(), port)).await {
                     Ok(endpoint) => endpoint,
                     Err(error) => {
-                        tracing::warn!(?id, ?endpoint, ?error, "peer endpoint resolution error");
+                        tracing::warn!(?id, ?endpoint, %error, "peer endpoint resolution error");
                         continue;
                     }
                 }

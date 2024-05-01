@@ -48,7 +48,7 @@ macro_rules! gen_handshake {
                 Ok(pair) => pair,
                 Err(error) => {
                     if let Err(error) = stream.shutdown().await {
-                        tracing::warn!(?error, "peer stream shutdown error");
+                        tracing::warn!(%error, "peer stream shutdown error");
                     }
                     return Err(error);
                 }

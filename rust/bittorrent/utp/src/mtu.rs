@@ -98,9 +98,9 @@ impl Actor {
             }
             Err(error) => {
                 if error.kind() == ErrorKind::TimedOut {
-                    tracing::debug!(?error, "path mtu probe timeout");
+                    tracing::debug!(%error, "path mtu probe timeout");
                 } else {
-                    tracing::warn!(?error, "path mtu probe error");
+                    tracing::warn!(%error, "path mtu probe error");
                 }
             }
         }

@@ -242,7 +242,7 @@ where
                 ) {
                     return Err(error::Error::AnnounceUrlsFailed.into());
                 }
-                tracing::warn!(?error, "tracker error");
+                tracing::warn!(%error, "tracker error");
                 return Ok(()); // For now, we ignore all other types of error.
             }
         };

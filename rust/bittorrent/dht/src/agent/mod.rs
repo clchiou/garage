@@ -177,7 +177,7 @@ impl Actor {
 
     fn log_task_result(mut guard: JoinGuard<Result<(), Error>>) {
         if let Err(error) = guard.take_result().map_err(Error::from).flatten() {
-            tracing::warn!(?error, "node agent task error");
+            tracing::warn!(%error, "node agent task error");
         }
     }
 }

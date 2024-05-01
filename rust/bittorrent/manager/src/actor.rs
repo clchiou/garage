@@ -165,7 +165,7 @@ impl Actor {
                 Ok(socket) => peers.spawn(peer_endpoint, socket),
                 Err(error) => {
                     // Log it at debug level since its cause has already been logged by `connect`.
-                    tracing::debug!(?error, "peer socket connect error");
+                    tracing::debug!(%error, "peer socket connect error");
                     return;
                 }
             }
@@ -199,7 +199,7 @@ impl Actor {
         let socket = match socket {
             Ok(socket) => socket,
             Err(error) => {
-                tracing::warn!(?error, "peer socket accept error");
+                tracing::warn!(%error, "peer socket accept error");
                 return;
             }
         };
@@ -229,7 +229,7 @@ impl Actor {
                     .socket_shutdown
                     .push(async move {
                         if let Err(error) = socket.shutdown().await {
-                            tracing::warn!(?error, "peer socket shutdown error");
+                            tracing::warn!(%error, "peer socket shutdown error");
                         }
                     })
                     .is_ok());
@@ -246,8 +246,8 @@ impl Actor {
         self.send_update(peer_endpoint, Update::Stop);
         match guard.take_result() {
             Ok(Ok(())) => {}
-            Ok(Err(error)) => tracing::warn!(?error, "peer error"),
-            Err(error) => tracing::warn!(?error, "peer task error"),
+            Ok(Err(error)) => tracing::warn!(%error, "peer error"),
+            Err(error) => tracing::warn!(%error, "peer task error"),
         }
     }
 

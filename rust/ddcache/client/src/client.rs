@@ -59,7 +59,7 @@ struct Actor {
 macro_rules! le_push {
     ($message:tt, $last_error:ident, $endpoint:expr, $error:expr) => {
         if let Some((endpoint, error)) = $last_error.replace(($endpoint, $error)) {
-            tracing::warn!(%endpoint, ?error, $message);
+            tracing::warn!(%endpoint, %error, $message);
         }
     };
 }
@@ -68,7 +68,7 @@ macro_rules! le_finish {
     ($message:tt, $last_error:ident, $succeed:expr) => {
         if let Some((endpoint, error)) = $last_error {
             if $succeed {
-                tracing::warn!(%endpoint, ?error, $message);
+                tracing::warn!(%endpoint, %error, $message);
             } else {
                 return Err(error);
             }
@@ -357,7 +357,7 @@ where
             match response {
                 Ok(Some(_)) => std::panic!("expect Ok(None) or Err"),
                 Ok(None) => {}
-                Err(error) => tracing::debug!(endpoint = %shard.endpoint(), ?error, "cancel"),
+                Err(error) => tracing::debug!(endpoint = %shard.endpoint(), %error, "cancel"),
             }
         }
     });
@@ -386,7 +386,7 @@ impl Actor {
     fn connect_many(&self, routes: &mut MutexGuard<RouteMap>, id: Uuid, endpoints: Vec<String>) {
         for endpoint in endpoints.into_iter().map(Endpoint::from) {
             if let Err(error) = routes.connect(&self.tasks, endpoint.clone()) {
-                tracing::warn!(%id, %endpoint, ?error, "connect");
+                tracing::warn!(%id, %endpoint, %error, "connect");
             }
         }
     }
@@ -398,7 +398,7 @@ impl Actor {
             .inspect_err(|error| {
                 // Log it at the error level because we expect that `Client` will need a subscriber
                 // in most use cases.
-                tracing::error!(?error, "init subscriber");
+                tracing::error!(%error, "init subscriber");
             })
             .ok();
         let _ = self
@@ -412,7 +412,7 @@ impl Actor {
                 Some(event) = OptionFuture::from(subscriber.as_mut().map(|s| s.next())) => {
                     match event {
                         Some(Ok(event)) => self.handle_subscribe(event),
-                        Some(Err(error)) => tracing::warn!(?error, "subscriber event"),
+                        Some(Err(error)) => tracing::warn!(%error, "subscriber event"),
                         None => {
                             tracing::warn!("subscriber stop unexpectedly");
                             break;
@@ -498,14 +498,14 @@ impl Actor {
             Ok(Ok(())) => return Ok(()),
             Ok(Err(error)) => {
                 if reconnect_on_error {
-                    tracing::warn!(?error, "shard error");
+                    tracing::warn!(%error, "shard error");
                 } else {
                     return Err(error);
                 }
             }
             Err(error) => {
                 if reconnect_on_error {
-                    tracing::warn!(?error, "shard task error");
+                    tracing::warn!(%error, "shard task error");
                 } else {
                     return Err(error.into());
                 }
@@ -517,7 +517,7 @@ impl Actor {
             .connect(&self.tasks, shard.endpoint())
             .map_err(|error| match error {
                 Error::Connect { source } => source,
-                _ => std::unreachable!("expect Error::Connect: error={:?}", error),
+                _ => std::unreachable!("expect Error::Connect: {}", error),
             })
     }
 }

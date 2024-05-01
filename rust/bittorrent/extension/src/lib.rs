@@ -184,7 +184,7 @@ macro_rules! decode_lenient {
             .inspect(|_| {
                 tracing::debug!(
                     buffer = $buffer.escape_ascii().to_string(),
-                    error = ?$error,
+                    error = %$error,
                     "extension message strict decode error",
                 );
             })

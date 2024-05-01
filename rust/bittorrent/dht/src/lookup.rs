@@ -115,9 +115,9 @@ impl Lookup {
                     }
                     Err(error) => {
                         if error.kind() == ErrorKind::TimedOut {
-                            tracing::debug!(?candidate, ?error, "{} timeout", L::KRPC_METHOD_NAME);
+                            tracing::debug!(?candidate, %error, "{} timeout", L::KRPC_METHOD_NAME);
                         } else {
-                            tracing::warn!(?candidate, ?error, "{} error", L::KRPC_METHOD_NAME);
+                            tracing::warn!(?candidate, %error, "{} error", L::KRPC_METHOD_NAME);
                         }
                         let _ = self.state.routing.must_lock().remove(&candidate);
                     }
@@ -154,9 +154,9 @@ impl Lookup {
                         Ok(nodes) => nodes,
                         Err(error) => {
                             if error.kind() == ErrorKind::TimedOut {
-                                tracing::debug!(bootstrap, ?error, "bootstrap timeout");
+                                tracing::debug!(bootstrap, %error, "bootstrap timeout");
                             } else {
-                                tracing::warn!(bootstrap, ?error, "bootstrap error");
+                                tracing::warn!(bootstrap, %error, "bootstrap error");
                             }
                             Vec::new()
                         }

@@ -116,7 +116,7 @@ impl Actor {
         match guard.take_result() {
             Ok(result) => result,
             Err(error) => {
-                tracing::warn!(?error, "blob handler task error");
+                tracing::warn!(%error, "blob handler task error");
                 Ok(())
             }
         }

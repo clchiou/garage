@@ -85,20 +85,20 @@ impl Program {
             async {
                 match dht_guard.shutdown().await {
                     Ok(Ok(())) => {}
-                    Ok(Err(error)) => tracing::warn!(?error, "dht error"),
-                    Err(error) => tracing::warn!(?error, "dht shutdown error"),
+                    Ok(Err(error)) => tracing::warn!(%error, "dht error"),
+                    Err(error) => tracing::warn!(%error, "dht shutdown error"),
                 }
             },
             async {
                 if let Err(error) = utp_socket.shutdown().await {
-                    tracing::warn!(?error, "utp socket error");
+                    tracing::warn!(%error, "utp socket error");
                 }
             },
             async {
                 match manager_guard.shutdown().await {
                     Ok(Ok(())) => {}
-                    Ok(Err(error)) => tracing::warn!(?error, "peer manager error"),
-                    Err(error) => tracing::warn!(?error, "peer manager shutdown error"),
+                    Ok(Err(error)) => tracing::warn!(%error, "peer manager error"),
+                    Err(error) => tracing::warn!(%error, "peer manager shutdown error"),
                 }
             },
         );

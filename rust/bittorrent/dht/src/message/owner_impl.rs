@@ -13,7 +13,7 @@ impl<'a> TryFrom<&'a [u8]> for Message<'a> {
                 .inspect(|_| {
                     tracing::debug!(
                         buffer = buffer.escape_ascii().to_string(),
-                        ?error,
+                        %error,
                         "dht message strict decode error",
                     );
                 })

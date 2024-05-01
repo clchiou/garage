@@ -271,7 +271,7 @@ where
                 incoming = self.incoming.next() => {
                     match incoming {
                         Some(Ok(message)) => self.handle_incoming(message),
-                        Some(Err(error)) => tracing::warn!(?error, "reqrep incoming error"),
+                        Some(Err(error)) => tracing::warn!(%error, "reqrep incoming error"),
                         None => break,
                     }
                 }

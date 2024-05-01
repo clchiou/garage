@@ -22,9 +22,9 @@ impl Actor {
         dht_endpoint.set_port(port);
         if let Err(error) = dht.ping(dht_endpoint).await {
             if error.kind() == ErrorKind::TimedOut {
-                tracing::debug!(?error, "dht ping timeout");
+                tracing::debug!(%error, "dht ping timeout");
             } else {
-                tracing::warn!(?error, "dht ping error");
+                tracing::warn!(%error, "dht ping error");
             }
         }
     }

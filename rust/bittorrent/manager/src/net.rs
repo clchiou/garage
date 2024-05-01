@@ -119,13 +119,13 @@ impl Connector {
                         }
                         Err(error) => match error.kind() {
                             ErrorKind::TimedOut => {
-                                tracing::debug!(?error, "peer connect timeout");
+                                tracing::debug!(%error, "peer connect timeout");
                             }
                             ErrorKind::ConnectionRefused => {
-                                tracing::debug!(?error, "peer connect refused");
+                                tracing::debug!(%error, "peer connect refused");
                             }
                             _ => {
-                                tracing::warn!(?error, "peer connect error");
+                                tracing::warn!(%error, "peer connect error");
                             }
                         },
                     }

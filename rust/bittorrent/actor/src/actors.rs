@@ -121,7 +121,7 @@ impl Actors {
             if result.is_err() {
                 match first_error_result {
                     Ok(()) => first_error_result = result,
-                    Err(_) => tracing::warn!(error = ?result.unwrap_err(), "actor error"),
+                    Err(_) => tracing::warn!(error = %result.unwrap_err(), "actor error"),
                 }
             }
         }

@@ -89,7 +89,7 @@ impl Actor {
                 }
             }
             Err(error) => {
-                tracing::warn!(?peer_exchange, ?error, "invalid pex message");
+                tracing::warn!(?peer_exchange, %error, "invalid pex message");
                 peer.cancel();
             }
         }
