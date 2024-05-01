@@ -227,9 +227,9 @@ impl Actor {
                         tracing::warn!(?frames, "invalid frame sequence");
                         // TODO: What else could we do?
                     }
-                    envelope::Error::Decode { envelope } => {
-                        tracing::warn!(?envelope, "decode error");
-                        push_response!(envelope.map(|_| rep::invalid_request_error()));
+                    envelope::Error::Decode { source, envelope } => {
+                        tracing::warn!(error = %source, ?envelope, "decode error");
+                        push_response!(envelope.map(|()| rep::invalid_request_error()));
                     }
                     envelope::Error::ExpectOneDataFrame { envelope } => {
                         tracing::warn!(?envelope, "expect exactly one data frame");

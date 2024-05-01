@@ -14,7 +14,7 @@ pub enum Error {
     Custom {
         message: String,
     },
-    #[snafu(display("decode error: {source:?}"))]
+    #[snafu(display("decode error: {source}"))]
     Decode {
         source: crate::Error,
     },

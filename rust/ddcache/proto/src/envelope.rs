@@ -8,8 +8,11 @@ use crate::{RequestOwner, ResponseOwner, ResponseResult, ResponseResultOwner};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
-    #[snafu(display("decode error: {envelope:?}"))]
-    Decode { envelope: Envelope<capnp::Error> },
+    #[snafu(display("decode error: {source}: {envelope:?}"))]
+    Decode {
+        source: capnp::Error,
+        envelope: Envelope<()>,
+    },
     #[snafu(display("expect exactly one data frame: {envelope:?}"))]
     ExpectOneDataFrame { envelope: Envelope },
     #[snafu(display("invalid frame sequence: {frames:?}"))]
@@ -20,7 +23,16 @@ pub fn decode_request(frames: Multipart) -> Result<Envelope<RequestOwner>, Error
     decode(frames)?
         .map(RequestOwner::try_from)
         .unzip()
-        .map_err(|envelope| Error::Decode { envelope })
+        .map_err(|envelope| {
+            let mut source = None;
+            let envelope = envelope.map(|error| {
+                source = Some(error);
+            });
+            Error::Decode {
+                source: source.unwrap(),
+                envelope,
+            }
+        })
 }
 
 pub fn decode(frames: Multipart) -> Result<Envelope<Frame>, Error> {

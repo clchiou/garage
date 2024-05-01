@@ -14,7 +14,7 @@ pub enum Error {
     //
     // Shard errors.
     //
-    #[snafu(display("connect error: {source:?}"))]
+    #[snafu(display("connect error: {source}"))]
     Connect { source: io::Error },
     #[snafu(display("disconnected: {endpoint}"))]
     Disconnected { endpoint: Endpoint },
@@ -26,7 +26,7 @@ pub enum Error {
     //
     // Decode response errors.
     //
-    #[snafu(display("decode error: {source:?}"))]
+    #[snafu(display("decode error: {source}"))]
     Decode { source: capnp::Error },
     #[snafu(display("unexpected response"))]
     UnexpectedResponse,
@@ -52,7 +52,7 @@ pub enum Error {
     //
     #[snafu(display("blob request timeout"))]
     BlobRequestTimeout,
-    #[snafu(display("blob io error: {source:?}"))]
+    #[snafu(display("blob io error: {source}"))]
     Io { source: io::Error },
     #[snafu(display("expect read/write {expect} bytes: {size}"))]
     PartialIo { size: usize, expect: usize },

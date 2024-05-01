@@ -21,11 +21,11 @@ pub enum Error {
         expect: InfoHash,
     },
 
-    #[snafu(display("decode error: {source:?}"))]
+    #[snafu(display("decode error: {source}"))]
     Decode {
         source: serde_bencode::Error,
     },
-    #[snafu(display("extension error: {source:?}"))]
+    #[snafu(display("extension error: {source}"))]
     Extension {
         source: bittorrent_extension::Error,
     },

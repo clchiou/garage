@@ -25,11 +25,11 @@ pub use etcd_client::Error;
 
 #[derive(Debug, Snafu)]
 pub enum SubscriberError {
-    #[snafu(display("decode error: {source:?}"))]
+    #[snafu(display("decode error: {source}"))]
     Decode { source: serde_json::Error },
     #[snafu(display("parse id error: {key:?}"))]
     ParseId { key: Key },
-    #[snafu(display("request error: {source:?}"))]
+    #[snafu(display("request error: {source}"))]
     Request { source: Error },
 }
 

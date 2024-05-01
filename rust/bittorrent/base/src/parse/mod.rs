@@ -9,7 +9,7 @@ use g1_base::str::Hex;
 use crate::{InfoHash, MagnetUri};
 
 #[derive(Clone, Debug, Eq, PartialEq, Snafu)]
-#[snafu(display("{error:?} {uri:?}"))]
+#[snafu(display("{error} {uri:?}"))]
 pub struct ParseMagnetUriError {
     #[snafu(source)]
     error: magnet_uri::Error,

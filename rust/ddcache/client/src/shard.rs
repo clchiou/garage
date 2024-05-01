@@ -29,7 +29,7 @@ use crate::error::{ConnectSnafu, DecodeSnafu, Error, UnexpectedResponseSnafu};
 /// Protocol-specific errors.
 #[derive(Debug, Snafu)]
 enum ProtoError {
-    #[snafu(display("invalid response: {source:?}"))]
+    #[snafu(display("invalid response: {source}"))]
     InvalidResponse { source: envelope::Error },
     #[snafu(display("invalid routing id: {response:?}"))]
     InvalidRoutingId { response: Envelope<Frame> },

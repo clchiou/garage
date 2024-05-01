@@ -42,6 +42,7 @@ pub(crate) enum Error {
         seq: u16,
     },
 
+    #[snafu(display("invalid packet: {source}"))]
     InvalidPacket {
         source: packet::Error,
     },

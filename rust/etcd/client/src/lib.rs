@@ -31,11 +31,11 @@ g1_param::define!(auth: Option<Auth> = None);
 
 #[derive(Debug, Snafu)]
 pub enum Error {
-    #[snafu(display("response decode error: {source:?}"))]
+    #[snafu(display("response decode error: {source}"))]
     Decode { source: serde_json::Error },
     #[snafu(display("grpc error: {status}"))]
     Grpc { status: StatusCode },
-    #[snafu(display("http error: {source:?}"))]
+    #[snafu(display("http error: {source}"))]
     Http { source: reqwest::Error },
     #[snafu(display("invalid token: {token:?}"))]
     InvalidToken { token: String },
