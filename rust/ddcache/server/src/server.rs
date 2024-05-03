@@ -18,7 +18,7 @@ use tracing::Instrument;
 use zmq::{Context, ROUTER};
 
 use g1_capnp::owner::Owner;
-use g1_tokio::task::{Cancel, JoinQueue};
+use g1_tokio::task::{Cancel, JoinGuard, JoinQueue};
 use g1_zmq::duplex::Duplex;
 use g1_zmq::envelope::{Envelope, Frame, Multipart};
 use g1_zmq::Socket;
@@ -41,7 +41,7 @@ pub(crate) struct Actor {
     max_metadata_size: usize,
     max_blob_size: usize,
 
-    tasks: JoinQueue<Result<(), Error>>,
+    tasks: JoinQueue<()>,
     concurrency: Arc<Semaphore>,
 
     blob_endpoints: Arc<[BlobEndpoint]>,
@@ -175,7 +175,7 @@ impl Actor {
 
                 guard = self.tasks.join_next() => {
                     let Some(guard) = guard else { break };
-                    self.handle_task(guard)?;
+                    self.handle_task(guard);
                     // We check and spawn an evict task regardless of whether `guard` is write, and
                     // we do so even before the client completes writing to the blob.  While this
                     // may seem a bit unusual, it should not pose any issues in practice.
@@ -184,7 +184,7 @@ impl Actor {
 
                 Some(()) = OptionFuture::from(evict_task.as_mut().map(|guard| guard.join())) => {
                     let guard = evict_task.take().unwrap();
-                    self.handle_task(guard)?;
+                    self.handle_evict_task(guard)?;
                 }
 
                 _ = log_stats_interval.tick() => tracing::info!(stats = ?self.stats),
@@ -194,13 +194,13 @@ impl Actor {
 
         self.tasks.cancel();
         while let Some(guard) = self.tasks.join_next().await {
-            self.handle_task(guard)?;
+            self.handle_task(guard);
         }
 
         if let Some(mut guard) = evict_task {
             guard.cancel();
             guard.join().await;
-            self.handle_task(guard)?;
+            self.handle_evict_task(guard)?;
         }
 
         Ok(())
@@ -265,7 +265,7 @@ impl Actor {
                 let request = request.map(|data| data.map(|_| read));
                 let response_send = response_send.clone();
                 self.tasks
-                    .push(Guard::spawn(move |cancel| {
+                    .push(JoinGuard::spawn(move |cancel| {
                         Handler::new(self, request, response_send, permit)
                             .run_read(cancel)
                             .instrument(tracing::info_span!("ddcache/read"))
@@ -279,7 +279,7 @@ impl Actor {
                 let request = request.map(|data| data.map(|_| read_metadata));
                 let response_send = response_send.clone();
                 self.tasks
-                    .push(Guard::spawn(move |cancel| {
+                    .push(JoinGuard::spawn(move |cancel| {
                         Handler::new(self, request, response_send, permit)
                             .run_read_metadata(cancel)
                             .instrument(tracing::info_span!("ddcache/read-metadata"))
@@ -290,16 +290,13 @@ impl Actor {
             Ok(request::Write(Ok(write))) => {
                 let permit = try_acquire!();
 
-                // `handler.write()` is not async, but for simplicity, we pretend it is.
                 let request = request.map(|data| data.map(|_| write));
                 let response_send = response_send.clone();
-                self.tasks
-                    .push(Guard::spawn(move |_| {
-                        let handler = Handler::new(self, request, response_send, permit);
-                        async move { handler.write() }
-                            .instrument(tracing::info_span!("ddcache/write"))
-                    }))
-                    .unwrap();
+                {
+                    let span = tracing::info_span!("ddcache/write");
+                    let _enter = span.enter();
+                    Handler::new(self, request, response_send, permit).write();
+                }
             }
 
             Ok(request::Cancel(token)) => {
@@ -324,13 +321,10 @@ impl Actor {
         true
     }
 
-    fn handle_task(&self, mut guard: Guard) -> Result<(), Error> {
+    fn handle_task(&self, mut guard: JoinGuard<()>) {
         match guard.take_result() {
-            Ok(result) => result,
-            Err(error) => {
-                tracing::warn!(%error, "handler task error");
-                Ok(())
-            }
+            Ok(()) => {}
+            Err(error) => tracing::warn!(%error, "handler task error"),
         }
     }
 
@@ -340,6 +334,16 @@ impl Actor {
                 evict(cancel, self.storage.clone(), self.storage_size_lwm)
                     .instrument(tracing::info_span!("ddcache/evict"))
             }));
+        }
+    }
+
+    fn handle_evict_task(&self, mut guard: Guard) -> Result<(), Error> {
+        match guard.take_result() {
+            Ok(result) => result,
+            Err(error) => {
+                tracing::warn!(%error, "evict task error");
+                Ok(())
+            }
         }
     }
 }
@@ -432,32 +436,32 @@ where
 }
 
 impl Handler<request::read::Reader<'static>> {
-    async fn run_read(self, cancel: Cancel) -> Result<(), Error> {
+    async fn run_read(self, cancel: Cancel) {
         tokio::select! {
-            () = cancel.wait() => Ok(()),
-            result = self.read() => result,
+            () = cancel.wait() => {}
+            () = self.read() => {}
         }
     }
 
-    async fn read(mut self) -> Result<(), Error> {
+    async fn read(mut self) {
         // TODO: Pick a blob endpoint matching the client endpoint.
         let Some(endpoint) = self.blob_endpoints.first().copied() else {
             self.push_response(rep::ok_none_response());
-            return Ok(());
+            return;
         };
 
         let key = match self.check_key(self.request().get_key()) {
             Ok(key) => key,
             Err(response) => {
                 self.push_response(response);
-                return Ok(());
+                return;
             }
         };
 
         let Some(reader) = self.storage.read(key).await else {
             self.stats.read_miss.fetch_add(1, Ordering::SeqCst);
             self.push_response(rep::ok_none_response());
-            return Ok(());
+            return;
         };
         self.stats.read_hit.fetch_add(1, Ordering::SeqCst);
 
@@ -470,32 +474,30 @@ impl Handler<request::read::Reader<'static>> {
         let token = self.state.insert_reader((reader, permit));
         tracing::debug!(token);
         self.push_response(rep::read_response(metadata, size, endpoint, token));
-
-        Ok(())
     }
 }
 
 impl Handler<request::read_metadata::Reader<'static>> {
-    async fn run_read_metadata(self, cancel: Cancel) -> Result<(), Error> {
+    async fn run_read_metadata(self, cancel: Cancel) {
         tokio::select! {
-            () = cancel.wait() => Ok(()),
-            result = self.read_metadata() => result,
+            () = cancel.wait() => {}
+            () = self.read_metadata() => {}
         }
     }
 
-    async fn read_metadata(mut self) -> Result<(), Error> {
+    async fn read_metadata(mut self) {
         let key = match self.check_key(self.request().get_key()) {
             Ok(key) => key,
             Err(response) => {
                 self.push_response(response);
-                return Ok(());
+                return;
             }
         };
 
         let Some(reader) = self.storage.read(key).await else {
             self.stats.read_miss.fetch_add(1, Ordering::SeqCst);
             self.push_response(rep::ok_none_response());
-            return Ok(());
+            return;
         };
         self.stats.read_hit.fetch_add(1, Ordering::SeqCst);
 
@@ -503,17 +505,15 @@ impl Handler<request::read_metadata::Reader<'static>> {
             reader.metadata(),
             reader.size(),
         ));
-
-        Ok(())
     }
 }
 
 impl Handler<request::write::Reader<'static>> {
-    fn write(mut self) -> Result<(), Error> {
+    fn write(mut self) {
         // TODO: Pick a blob endpoint matching the client endpoint.
         let Some(endpoint) = self.blob_endpoints.first().copied() else {
             self.push_response(rep::ok_none_response());
-            return Ok(());
+            return;
         };
 
         let (key, metadata, size) = match try {
@@ -527,7 +527,7 @@ impl Handler<request::write::Reader<'static>> {
             Ok(tuple) => tuple,
             Err(response) => {
                 self.push_response(response);
-                return Ok(());
+                return;
             }
         };
 
@@ -537,7 +537,7 @@ impl Handler<request::write::Reader<'static>> {
         let Some(mut writer) = self.storage.try_write(key, /* truncate */ true) else {
             self.stats.write_lock_fail.fetch_add(1, Ordering::SeqCst);
             self.push_response(rep::ok_none_response());
-            return Ok(());
+            return;
         };
         self.stats.write_lock_succeed.fetch_add(1, Ordering::SeqCst);
 
@@ -549,8 +549,6 @@ impl Handler<request::write::Reader<'static>> {
         let token = self.state.insert_writer((writer, size, permit));
         tracing::debug!(token);
         self.push_response(rep::write_response(endpoint, token));
-
-        Ok(())
     }
 }
 
