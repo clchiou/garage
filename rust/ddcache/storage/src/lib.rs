@@ -137,13 +137,17 @@ impl Storage {
                     return Ok(WriteGuard::new(guard, path, truncate));
                 }
                 Err(collision) => {
+                    tracing::debug!(?key, ?collision);
                     // We can probably remove the entry by key hash, but the difference is
                     // insignificant.
                     self.remove(collision).await?;
                 }
             }
         }
-        std::panic!("storage cannot replace blob: {:?}", key);
+        Err(Error::other(format!(
+            "cannot resolve hash collision by replacement: {:?}",
+            key,
+        )))
     }
 
     pub fn try_write(&self, key: Bytes, truncate: bool) -> Option<WriteGuard> {
