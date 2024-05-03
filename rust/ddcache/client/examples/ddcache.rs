@@ -100,20 +100,20 @@ impl Program {
             .write(true)
             .truncate(true)
             .open(&read.file)?;
-        let blob_info = client
+        let metadata = client
             .read(read.key.clone(), &mut file, None)
             .await
             .map_err(Error::other)?;
-        eprintln!("read: blob={:?}", blob_info);
+        eprintln!("read: blob={:?}", metadata);
         Ok(())
     }
 
     async fn read_metadata(client: Client, read_metadata: &ReadMetadata) -> Result<(), Error> {
-        let blob_info = client
+        let metadata = client
             .read_metadata(read_metadata.key.clone())
             .await
             .map_err(Error::other)?;
-        eprintln!("read_metadata: blob={:?}", blob_info);
+        eprintln!("read_metadata: blob={:?}", metadata);
         Ok(())
     }
 

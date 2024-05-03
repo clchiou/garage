@@ -8,7 +8,7 @@ mod shard;
 
 use std::time::Duration;
 
-pub use crate::client::{BlobInfo, Client, ClientGuard};
+pub use crate::client::{BlobMetadata, Client, ClientGuard};
 pub use crate::error::Error;
 
 g1_param::define!(num_replicas: usize = 2);

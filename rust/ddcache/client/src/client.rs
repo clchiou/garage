@@ -40,7 +40,7 @@ pub struct Client {
 pub type ClientGuard = JoinGuard<Result<(), io::Error>>;
 
 #[derive(Clone, Debug)]
-pub struct BlobInfo {
+pub struct BlobMetadata {
     pub metadata: Option<Bytes>,
     pub size: usize,
 }
@@ -135,7 +135,7 @@ impl Client {
         key: Bytes,
         output: &mut F,
         size: Option<usize>,
-    ) -> Result<Option<BlobInfo>, Error>
+    ) -> Result<Option<BlobMetadata>, Error>
     where
         F: AsFd + Send,
     {
@@ -176,7 +176,7 @@ impl Client {
             };
 
             let size = cmp::min(response.size, size.unwrap_or(usize::MAX));
-            metadata = Some(BlobInfo {
+            metadata = Some(BlobMetadata {
                 metadata: response.metadata,
                 size,
             });
@@ -194,7 +194,7 @@ impl Client {
         Ok(metadata)
     }
 
-    pub async fn read_metadata(&self, key: Bytes) -> Result<Option<BlobInfo>, Error> {
+    pub async fn read_metadata(&self, key: Bytes) -> Result<Option<BlobMetadata>, Error> {
         let queue = ReadyQueue::new();
         for shard in self.find(&key)? {
             let key = key.clone();
@@ -220,7 +220,7 @@ impl Client {
                 }
             };
 
-            metadata = Some(BlobInfo {
+            metadata = Some(BlobMetadata {
                 metadata: response.metadata,
                 size: response.size,
             });
