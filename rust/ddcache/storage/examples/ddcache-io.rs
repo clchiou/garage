@@ -84,7 +84,7 @@ impl Program {
                     eprintln!("read: key not found: key={:?}", key);
                     return Ok(());
                 };
-                eprintln!("read: metadata={:?}", reader.read_metadata()?);
+                eprintln!("read: metadata={:?}", reader.metadata());
                 let size = usize::try_from(reader.size()).unwrap();
                 reader.file().splice(&mut file, size).await?;
             }

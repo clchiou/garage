@@ -13,7 +13,7 @@ use tokio::task;
 use g1_base::collections::HashOrderedMap;
 use g1_base::sync::MutexExt;
 
-use crate::blob;
+use crate::blob::BlobMetadata;
 use crate::hash::KeyHash;
 
 //
@@ -37,7 +37,9 @@ pub(crate) struct BlobMapBuilder {
 }
 
 #[derive(Debug)]
-pub(crate) struct ReadGuard(OwnedRwLockReadGuard<State>);
+pub(crate) struct ReadGuard {
+    guard: OwnedRwLockReadGuard<State>,
+}
 
 #[derive(Debug)]
 pub(crate) struct WriteGuard {
@@ -53,16 +55,17 @@ pub(crate) struct RemoveGuard {
     hash: KeyHash,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 struct Entry {
+    // Duplicate the key here so that we can compare it without locking the state.
     key: Bytes,
     state: Arc<RwLock<State>>,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 enum State {
-    New,
-    Present(u64),
+    New(BlobMetadata),
+    Present(BlobMetadata),
     Removing,
 }
 
@@ -74,21 +77,19 @@ impl BlobMapBuilder {
         }
     }
 
-    pub(crate) fn insert(&mut self, blob: &Path) -> Result<bool, Error> {
-        let size = blob.metadata()?.len();
-        let Some(key) = blob::read_key_blocking(blob)? else {
-            return Ok(false);
-        };
+    pub(crate) fn insert(&mut self, blob: &Path) -> Result<(), Error> {
+        let blob_metadata = BlobMetadata::read(blob)?;
         let hash = KeyHash::from_path(blob);
-        if KeyHash::new(&key) != hash {
-            return Ok(false);
+        if KeyHash::new(&blob_metadata.key) != hash {
+            return Err(Error::other(format!(
+                "expect hash(key) == {}: {:?}",
+                blob.display(),
+                blob_metadata,
+            )));
         }
-        assert!(self
-            .map
-            .insert(hash, Entry::new(key, State::Present(size)))
-            .is_none());
-        self.size += size;
-        Ok(true)
+        self.size += blob_metadata.size;
+        assert!(self.map.insert(hash, blob_metadata.into()).is_none());
+        Ok(())
     }
 
     pub(crate) fn build(self) -> BlobMap {
@@ -124,7 +125,7 @@ impl BlobMap {
             .state
             .clone();
         let guard = state.read_owned().await;
-        matches!(*guard, State::Present(_)).then(|| (hash, ReadGuard::new(guard)))
+        guard.is_present().then(|| (hash, ReadGuard::new(guard)))
     }
 
     pub(crate) async fn write(&self, key: Bytes) -> Result<(KeyHash, WriteGuard), Bytes> {
@@ -137,7 +138,7 @@ impl BlobMap {
             };
             let guard = state.write_owned().await;
             match *guard {
-                State::New => std::unreachable!(),
+                State::New(_) => std::unreachable!(),
                 State::Present(_) => return Ok(self.new_write_guard(hash, guard)),
                 State::Removing => task::yield_now().await,
             }
@@ -152,7 +153,7 @@ impl BlobMap {
             Err(state) => {
                 let guard = state.try_write_owned().ok()?;
                 match *guard {
-                    State::New => std::unreachable!(),
+                    State::New(_) => std::unreachable!(),
                     State::Present(_) => Some(self.new_write_guard(hash, guard)),
                     State::Removing => None,
                 }
@@ -178,7 +179,7 @@ impl BlobMap {
             None => {
                 // Cancel Safety: For a newly inserted entry, we must protect it with a
                 // `WriteGuard` immediately.
-                let entry = Entry::new(key, State::New);
+                let entry = Entry::new(key);
                 let guard = entry.state.clone().try_write_owned().unwrap();
                 assert!(map.insert(hash, entry).is_none());
                 Ok(Ok(self.new_write_guard(hash, guard)))
@@ -218,7 +219,8 @@ impl BlobMap {
         hash: KeyHash,
         guard: OwnedRwLockWriteGuard<State>,
     ) -> Option<(KeyHash, RemoveGuard)> {
-        matches!(*guard, State::Present(_))
+        guard
+            .is_present()
             .then(|| (hash, RemoveGuard::new(guard, self.0.clone(), hash)))
     }
 }
@@ -226,17 +228,21 @@ impl BlobMap {
 impl ReadGuard {
     fn new(guard: OwnedRwLockReadGuard<State>) -> Self {
         assert_matches!(*guard, State::Present(_));
-        Self(guard)
+        Self { guard }
+    }
+
+    pub(crate) fn metadata(&self) -> Option<Bytes> {
+        self.guard.blob_metadata().metadata.clone()
     }
 
     pub(crate) fn size(&self) -> u64 {
-        self.0.size()
+        self.guard.blob_metadata().size
     }
 }
 
 impl WriteGuard {
     fn new(guard: OwnedRwLockWriteGuard<State>, inner: Arc<Inner>, hash: KeyHash) -> Self {
-        assert_matches!(*guard, State::New | State::Present(_));
+        assert_matches!(*guard, State::New(_) | State::Present(_));
         Self {
             guard: Some(guard),
             inner,
@@ -244,13 +250,27 @@ impl WriteGuard {
         }
     }
 
-    pub(crate) fn is_new(&self) -> bool {
-        matches!(**self.guard.as_ref().unwrap(), State::New)
+    fn state(&self) -> &State {
+        self.guard.as_ref().unwrap()
     }
 
-    pub(crate) fn commit(mut self, new_size: u64) {
+    pub(crate) fn is_new(&self) -> bool {
+        self.state().is_new()
+    }
+
+    pub(crate) fn blob_metadata(&self) -> BlobMetadata {
+        self.state().blob_metadata().clone()
+    }
+
+    pub(crate) fn commit(mut self, new_metadata: BlobMetadata) {
         let mut guard = self.guard.take().unwrap();
-        let old_size = guard.size();
+        let old_metadata = guard.blob_metadata();
+
+        // You cannot change the key.
+        assert_eq!(old_metadata.key, new_metadata.key);
+
+        let new_size = new_metadata.size;
+        let old_size = old_metadata.size;
         if new_size >= old_size {
             self.inner
                 .size
@@ -260,27 +280,36 @@ impl WriteGuard {
                 .size
                 .fetch_sub(old_size - new_size, Ordering::SeqCst);
         }
-        *guard = State::Present(new_size);
-    }
 
+        *guard = State::Present(new_metadata);
+    }
+}
+
+macro_rules! map_remove {
+    ($self:ident, $guard:ident) => {{
+        // Change the map entry state to the sentinel value.
+        *$guard = State::Removing;
+        drop($guard);
+        // Remove the entry after the guard is dropped.
+        assert!($self.inner.map.must_lock().remove(&$self.hash).is_some());
+    }};
+}
+
+impl WriteGuard {
     pub(crate) fn commit_remove(mut self) {
         let mut guard = self.guard.take().unwrap();
-        self.inner.size.fetch_sub(guard.size(), Ordering::SeqCst);
-        *guard = State::Removing;
-        drop(guard);
-        // Lock the map after the guard is dropped.
-        assert!(self.inner.map.must_lock().remove(&self.hash).is_some());
+        self.inner
+            .size
+            .fetch_sub(guard.blob_metadata().size, Ordering::SeqCst);
+        map_remove!(self, guard);
     }
 }
 
 impl Drop for WriteGuard {
     fn drop(&mut self) {
         if let Some(mut guard) = self.guard.take() {
-            if matches!(*guard, State::New) {
-                *guard = State::Removing;
-                drop(guard);
-                // Lock the map after the guard is dropped.
-                assert!(self.inner.map.must_lock().remove(&self.hash).is_some());
+            if guard.is_new() {
+                map_remove!(self, guard);
             }
         }
     }
@@ -292,19 +321,27 @@ impl RemoveGuard {
         Self { guard, inner, hash }
     }
 
-    pub(crate) fn commit(mut self) {
+    pub(crate) fn commit(self) {
         self.inner
             .size
-            .fetch_sub(self.guard.size(), Ordering::SeqCst);
-        *self.guard = State::Removing;
-        drop(self.guard);
-        // Lock the map after the guard is dropped.
-        assert!(self.inner.map.must_lock().remove(&self.hash).is_some());
+            .fetch_sub(self.guard.blob_metadata().size, Ordering::SeqCst);
+        let mut guard = self.guard;
+        map_remove!(self, guard);
+    }
+}
+
+impl From<BlobMetadata> for Entry {
+    fn from(blob_metadata: BlobMetadata) -> Self {
+        Self::new_impl(blob_metadata.key.clone(), State::Present(blob_metadata))
     }
 }
 
 impl Entry {
-    fn new(key: Bytes, state: State) -> Self {
+    fn new(key: Bytes) -> Self {
+        Self::new_impl(key.clone(), State::New(BlobMetadata::new(key)))
+    }
+
+    fn new_impl(key: Bytes, state: State) -> Self {
         Self {
             key,
             state: Arc::new(RwLock::new(state)),
@@ -313,11 +350,18 @@ impl Entry {
 }
 
 impl State {
-    fn size(self) -> u64 {
+    fn is_new(&self) -> bool {
+        matches!(self, State::New(_))
+    }
+
+    fn is_present(&self) -> bool {
+        matches!(self, State::Present(_))
+    }
+
+    fn blob_metadata(&self) -> &BlobMetadata {
         match self {
-            Self::New => 0,
-            Self::Present(size) => size,
-            Self::Removing => std::panic!(),
+            Self::New(blob_metadata) | Self::Present(blob_metadata) => blob_metadata,
+            Self::Removing => std::panic!("expect State::New or State::Present"),
         }
     }
 }
@@ -333,12 +377,7 @@ mod test_harness {
         ) -> Self {
             let map = entries
                 .into_iter()
-                .map(|(key, state)| {
-                    (
-                        KeyHash::new(key),
-                        Entry::new(Bytes::from_static(key), state),
-                    )
-                })
+                .map(|(key, state)| (KeyHash::new(key), Entry::new_mock(key, state)))
                 .collect();
             Self::new(map, size)
         }
@@ -352,8 +391,9 @@ mod test_harness {
                     (
                         *hash,
                         entry.key.clone(),
-                        *unsafe { &mut *(Arc::as_ptr(&entry.state) as *mut RwLock<State>) }
-                            .get_mut(),
+                        unsafe { &mut *(Arc::as_ptr(&entry.state) as *mut RwLock<State>) }
+                            .get_mut()
+                            .clone(),
                     )
                 })
                 .collect()
@@ -364,7 +404,7 @@ mod test_harness {
             self.0
                 .map
                 .must_lock()
-                .insert(hash, Entry::new(Bytes::from_static(key), state));
+                .insert(hash, Entry::new_mock(key, state));
         }
 
         pub(super) fn assert_eq<const N: usize>(
@@ -394,14 +434,35 @@ mod test_harness {
             assert_eq!(self.size(), size);
         }
     }
+
+    impl Entry {
+        pub(super) fn new_mock(key: &'static [u8], state: State) -> Self {
+            Self::new_impl(key.into(), state)
+        }
+    }
+
+    impl State {
+        pub(super) const fn new_mock(size: u64, key: &'static [u8]) -> Self {
+            let blob_metadata = BlobMetadata::new_mock(key, None, size);
+            if size == 0 {
+                Self::New(blob_metadata)
+            } else {
+                Self::Present(blob_metadata)
+            }
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    const N: (&'static [u8], State) = (b"new", State::New);
-    const P: (&'static [u8], State) = (b"present", State::Present(10));
+    const fn e(key: &'static [u8], size: u64) -> (&'static [u8], State) {
+        (key, State::new_mock(size, key))
+    }
+
+    const N: (&'static [u8], State) = e(b"new", 0);
+    const P: (&'static [u8], State) = e(b"present", 10);
     const R: (&'static [u8], State) = (b"removing", State::Removing);
 
     fn b(bytes: &'static str) -> Bytes {
@@ -452,7 +513,7 @@ mod tests {
         {
             let entry = map.write(b("foo")).await;
             assert_matches!(entry, Ok((hash, ref guard)) if hash == h("foo") && guard.is_new());
-            map.assert_eq([R, P, (b"foo", State::New)], 20);
+            map.assert_eq([R, P, e(b"foo", 0)], 20);
 
             drop(entry);
             map.assert_eq([R, P], 20);
@@ -461,7 +522,7 @@ mod tests {
         {
             let entry = map.write(b("foo")).await;
             assert_matches!(entry, Ok((hash, ref guard)) if hash == h("foo") && guard.is_new());
-            map.assert_eq([R, P, (b"foo", State::New)], 20);
+            map.assert_eq([R, P, e(b"foo", 0)], 20);
 
             entry.unwrap().1.commit_remove();
             map.assert_eq([R, P], 20);
@@ -470,16 +531,17 @@ mod tests {
         {
             let entry = map.write(b("foo")).await;
             assert_matches!(entry, Ok((hash, ref guard)) if hash == h("foo") && guard.is_new());
-            map.assert_eq([R, P, (b"foo", State::New)], 20);
+            map.assert_eq([R, P, e(b"foo", 0)], 20);
 
-            entry.unwrap().1.commit(100);
-            map.assert_eq([R, P, (b"foo", State::Present(100))], 120);
+            let blob_metadata = BlobMetadata::new_mock(b"foo", None, 100);
+            entry.unwrap().1.commit(blob_metadata);
+            map.assert_eq([R, P, e(b"foo", 100)], 120);
         }
 
         {
             let entry = map.write(b("foo")).await;
             assert_matches!(entry, Ok((hash, ref guard)) if hash == h("foo") && !guard.is_new());
-            map.assert_eq([R, P, (b"foo", State::Present(100))], 120);
+            map.assert_eq([R, P, e(b"foo", 100)], 120);
 
             entry.unwrap().1.commit_remove();
             map.assert_eq([R, P], 20);
@@ -515,7 +577,7 @@ mod tests {
         {
             let entry = map.try_write(b("foo"));
             assert_matches!(entry, Some((hash, ref guard)) if hash == h("foo") && guard.is_new());
-            map.assert_eq([R, P, (b"foo", State::New)], 20);
+            map.assert_eq([R, P, e(b"foo", 0)], 20);
 
             assert_matches!(map.try_write(b("foo")), None);
 
@@ -564,33 +626,33 @@ mod tests {
         {
             let entries = [
                 N,
-                (b"foo", State::Present(1)),
-                (b"new-2", State::New),
-                (b"bar", State::Present(2)),
-                (b"new-3", State::New),
+                e(b"foo", 1),
+                e(b"new-2", 0),
+                e(b"bar", 2),
+                e(b"new-3", 0),
             ];
-            let map = BlobMap::new_mock(entries, 20);
-            map.assert_eq(entries, 20);
+            let map = BlobMap::new_mock(entries.clone(), 20);
+            map.assert_eq(entries.clone(), 20);
 
             let e0 = map.try_remove_front();
             assert_matches!(e0, Some((hash, _)) if hash == h("foo"));
-            map.assert_eq(entries, 20);
+            map.assert_eq(entries.clone(), 20);
 
             let e1 = map.try_remove_front();
             assert_matches!(e1, Some((hash, _)) if hash == h("bar"));
-            map.assert_eq(entries, 20);
+            map.assert_eq(entries.clone(), 20);
 
             assert_matches!(map.try_remove_front(), None);
-            map.assert_eq(entries, 20);
+            map.assert_eq(entries.clone(), 20);
         }
 
         let mut entries = [N, P, R];
         for _ in 0..entries.len() * 3 {
-            let map = BlobMap::new_mock(entries, 20);
-            map.assert_eq(entries, 20);
+            let map = BlobMap::new_mock(entries.clone(), 20);
+            map.assert_eq(entries.clone(), 20);
 
             assert_matches!(map.try_remove_front(), Some((hash, _)) if hash == h("present"));
-            map.assert_eq(entries, 20);
+            map.assert_eq(entries.clone(), 20);
 
             entries.rotate_right(1);
         }
@@ -608,20 +670,21 @@ mod tests {
 
     #[tokio::test]
     async fn collision() {
+        const STATE: State = State::new_mock(10, b"bar");
         let map = BlobMap::new_mock([], 20);
-        map.insert_mock(h("foo"), b"bar", State::Present(10));
-        map.assert_eq_with_hash([(h("foo"), b"bar", State::Present(10))], 20);
+        map.insert_mock(h("foo"), b"bar", STATE);
+        map.assert_eq_with_hash([(h("foo"), b"bar", STATE)], 20);
 
         assert_matches!(map.read(b("foo")).await, None);
-        map.assert_eq_with_hash([(h("foo"), b"bar", State::Present(10))], 20);
+        map.assert_eq_with_hash([(h("foo"), b"bar", STATE)], 20);
 
         assert_matches!(map.write(b("foo")).await, Err(collision) if collision == b("bar"));
-        map.assert_eq_with_hash([(h("foo"), b"bar", State::Present(10))], 20);
+        map.assert_eq_with_hash([(h("foo"), b"bar", STATE)], 20);
 
         assert_matches!(map.try_write(b("foo")), None);
-        map.assert_eq_with_hash([(h("foo"), b"bar", State::Present(10))], 20);
+        map.assert_eq_with_hash([(h("foo"), b"bar", STATE)], 20);
 
         assert_matches!(map.remove(b("foo")).await, None);
-        map.assert_eq_with_hash([(h("foo"), b"bar", State::Present(10))], 20);
+        map.assert_eq_with_hash([(h("foo"), b"bar", STATE)], 20);
     }
 }

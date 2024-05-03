@@ -5,13 +5,18 @@ edition.workspace = true
 
 [dependencies]
 bytes.workspace = true
+capnp = { workspace = true, features = ["unaligned"] }
 fasthash.workspace = true
 lazy-regex.workspace = true
 regex.workspace = true # Override the version set by lazy-regex.
 tokio.workspace = true
+tracing.workspace = true
 xattr.workspace = true
 
 g1_base = { workspace = true, features = ["collections_ext"] }
+
+[build-dependencies]
+capnpc.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

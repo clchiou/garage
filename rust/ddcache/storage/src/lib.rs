@@ -1,10 +1,13 @@
 #![feature(assert_matches)]
-#![feature(raw_os_error_ty)]
 #![feature(try_blocks)]
 
 mod blob;
 mod hash;
 mod map;
+
+mod storage_capnp {
+    include!(concat!(env!("OUT_DIR"), "/ddcache/storage_capnp.rs"));
+}
 
 use std::fs::{self, File, OpenOptions};
 use std::io::{Error, ErrorKind};
@@ -14,6 +17,7 @@ use std::sync::Arc;
 use bytes::Bytes;
 use tokio::task;
 
+use crate::blob::BlobMetadata;
 use crate::map::{BlobMap, BlobMapBuilder};
 
 //
@@ -36,7 +40,6 @@ pub struct Storage {
 #[derive(Debug)]
 pub struct ReadGuard {
     guard: map::ReadGuard,
-    path: PathBuf,
     file: File,
 }
 
@@ -44,10 +47,9 @@ pub struct ReadGuard {
 pub struct WriteGuard {
     guard: Option<map::WriteGuard>,
     path: PathBuf,
-    key: Bytes,
     truncate: bool,
+    blob_metadata: Option<BlobMetadata>,
     file: Option<File>, // Use the blocking version of `File` in `Drop::drop`.
-    metadata: Option<Option<Bytes>>,
 }
 
 impl Storage {
@@ -59,25 +61,36 @@ impl Storage {
             .unwrap()
     }
 
+    // TODO: We scan the directory and store metadata in memory.  Essentially, we are trading a
+    // smaller memory footprint for the ease of implementation and efficiency of `evict`.  We
+    // should revisit this tradeoff under production load.
     fn open_blocking(dir: Arc<Path>) -> Result<Self, Error> {
         let mut map = BlobMapBuilder::new();
         for blob_dir in dir.read_dir()? {
-            let Some(blob_dir) = hash::match_blob_dir(&blob_dir?)? else {
+            let blob_dir = blob_dir?;
+            let Some(blob_dir) = hash::match_blob_dir(&blob_dir)? else {
+                tracing::debug!(
+                    blob_dir = %blob_dir.path().display(),
+                    "skip unrecognizable blob dir",
+                );
                 continue;
             };
             let mut n = 0;
             for blob in blob_dir.read_dir()? {
                 n += 1;
-                let Some(blob) = hash::match_blob(&blob?)? else {
+                let blob = blob?;
+                let Some(blob) = hash::match_blob(&blob)? else {
+                    tracing::debug!(blob = %blob.path().display(), "skip unrecognizable blob");
                     continue;
                 };
-                if !map.insert(&blob)? {
-                    // Should we log an error here?
+                if let Err(error) = map.insert(&blob) {
+                    tracing::warn!(blob = %blob.display(), %error, "invalid blob");
                     fs::remove_file(&blob)?;
                     n -= 1;
                 }
             }
             if n == 0 {
+                tracing::debug!(blob_dir = %blob_dir.display(), "remove empty blob dir");
                 fs::remove_dir(blob_dir)?;
             }
         }
@@ -112,11 +125,10 @@ impl Storage {
         let Some((hash, guard)) = self.map.read(key).await else {
             return Ok(None);
         };
-        let path = hash.to_path(&self.dir);
         OpenOptions::new()
             .read(true)
-            .open(&path)
-            .map(|file| Some(ReadGuard { guard, path, file }))
+            .open(hash.to_path(&self.dir))
+            .map(|file| Some(ReadGuard { guard, file }))
     }
 
     pub async fn write(&self, key: Bytes, truncate: bool) -> Result<WriteGuard, Error> {
@@ -125,7 +137,7 @@ impl Storage {
             match self.map.write(key.clone()).await {
                 Ok((hash, guard)) => {
                     let path = hash.to_path(&self.dir);
-                    return Ok(WriteGuard::new(guard, path, key, truncate));
+                    return Ok(WriteGuard::new(guard, path, truncate));
                 }
                 Err(collision) => {
                     // We can probably remove the entry by key hash, but the difference is
@@ -138,11 +150,11 @@ impl Storage {
     }
 
     pub fn try_write(&self, key: Bytes, truncate: bool) -> Result<Option<WriteGuard>, Error> {
-        let Some((hash, guard)) = self.map.try_write(key.clone()) else {
+        let Some((hash, guard)) = self.map.try_write(key) else {
             return Ok(None);
         };
         let path = hash.to_path(&self.dir);
-        Ok(Some(WriteGuard::new(guard, path, key, truncate)))
+        Ok(Some(WriteGuard::new(guard, path, truncate)))
     }
 
     pub async fn remove(&self, key: Bytes) -> Result<bool, Error> {
@@ -161,11 +173,9 @@ impl Storage {
         Self::do_remove(path, guard)
     }
 
+    // We will remove empty directories in `open`.
     fn do_remove(path: PathBuf, guard: map::RemoveGuard) -> Result<bool, Error> {
-        // We will remove empty directories in `open`.
-        //
-        // We assume that the file is unchanged on error, and roll back the map changes implicitly
-        // in `RemoveGuard::drop`.
+        // We assume that the file is unchanged on error and does not update the map.
         fs::remove_file(path)?;
         guard.commit();
         Ok(true)
@@ -177,8 +187,8 @@ impl ReadGuard {
         self.guard.size()
     }
 
-    pub fn read_metadata(&self) -> Result<Option<Bytes>, Error> {
-        blob::read_metadata(&self.path)
+    pub fn metadata(&self) -> Option<Bytes> {
+        self.guard.metadata()
     }
 
     pub fn file(&mut self) -> &mut File {
@@ -187,15 +197,23 @@ impl ReadGuard {
 }
 
 impl WriteGuard {
-    fn new(guard: map::WriteGuard, path: PathBuf, key: Bytes, truncate: bool) -> Self {
+    fn new(guard: map::WriteGuard, path: PathBuf, truncate: bool) -> Self {
         Self {
             guard: Some(guard),
             path,
-            key,
             truncate,
+            blob_metadata: None,
             file: None,
-            metadata: None,
         }
+    }
+
+    fn blob_metadata(&mut self) -> &mut BlobMetadata {
+        self.blob_metadata
+            .get_or_insert_with(|| self.guard.as_ref().unwrap().blob_metadata())
+    }
+
+    pub fn set_metadata(&mut self, metadata: Option<Bytes>) {
+        self.blob_metadata().metadata = metadata;
     }
 
     // TODO: Should we convert `open` to async with `spawn_blocking`?
@@ -220,11 +238,6 @@ impl WriteGuard {
             .write(true)
             .truncate(self.truncate)
             .open(&self.path)?;
-        if is_new {
-            blob::write_key_blocking(&self.path, self.key.clone()).inspect_err(|_| {
-                fs::remove_file(&self.path).unwrap();
-            })?
-        }
 
         // No errors after this point.
 
@@ -232,27 +245,23 @@ impl WriteGuard {
         Ok(())
     }
 
-    pub fn set_metadata(&mut self, metadata: Option<Bytes>) {
-        self.metadata = Some(metadata);
-    }
-
     pub fn file(&mut self) -> &mut File {
         self.file.as_mut().unwrap()
     }
 
     pub fn commit(mut self) -> Result<(), Error> {
-        let size = self.file().metadata()?.len();
+        let mut blob_metadata = self
+            .blob_metadata
+            .take()
+            .unwrap_or_else(|| self.guard.as_ref().unwrap().blob_metadata());
+        blob_metadata.size = self.file().metadata()?.len();
 
-        if let Some(metadata) = self.metadata.take() {
-            match metadata {
-                Some(metadata) => blob::write_metadata(&self.path, metadata)?,
-                None => blob::remove_metadata(&self.path)?,
-            }
-        }
+        // On `write` error, the blob will be removed by `drop` below.
+        blob_metadata.write(&self.path)?;
 
         // No errors after this point.
 
-        self.guard.take().unwrap().commit(size);
+        self.guard.take().unwrap().commit(blob_metadata);
         Ok(())
     }
 }
@@ -353,7 +362,7 @@ mod tests {
 
         fs::create_dir(blob_dir_1)?;
         fs::write(&blob_1, b"Hello, World!")?;
-        blob::write_key_blocking(&blob_1, b("foo"))?;
+        BlobMetadata::new(b("foo")).write(&blob_1)?;
 
         fs::create_dir(blob_dir_2)?;
         fs::write(&blob_2, b"Spam eggs")?;
@@ -384,7 +393,8 @@ mod tests {
 
         fs::create_dir(blob_dir_2)?;
         fs::write(&blob_2, b"Spam eggs")?;
-        blob::write_key_blocking(&blob_2, b("foo"))?; // Mismatched blob key.
+        // Write mismatched blob key.
+        BlobMetadata::new(b("foo")).write(&blob_2)?;
         assert_eq!(try_exists()?, (false, false, true, true, true));
 
         drop(Storage::open(tempdir.path()).await?);
@@ -462,7 +472,7 @@ mod tests {
             ];
             for guard in &mut guards {
                 assert_eq!(guard.size(), 13);
-                assert_eq!(guard.read_metadata()?, Some(b("Spam eggs")));
+                assert_eq!(guard.metadata(), Some(b("Spam eggs")));
                 assert_eq!(guard.read()?, b("Hello, World!"));
             }
         }
@@ -483,7 +493,7 @@ mod tests {
             ];
             for guard in &mut guards {
                 assert_eq!(guard.size(), 13);
-                assert_eq!(guard.read_metadata()?, None);
+                assert_eq!(guard.metadata(), None);
                 assert_eq!(guard.read()?, b("Hello, World!"));
             }
         }
@@ -509,7 +519,7 @@ mod tests {
         assert_dir(tempdir.path(), [(b"foo", b"Hello, World!")]);
         {
             let mut guard = storage.read(b("foo")).await?.unwrap();
-            assert_eq!(guard.read_metadata()?, Some(b("Spam eggs")));
+            assert_eq!(guard.metadata(), Some(b("Spam eggs")));
             assert_eq!(guard.read()?, b("Hello, World!"));
         }
 
@@ -519,7 +529,7 @@ mod tests {
         assert_dir(tempdir.path(), [(b"foo", b"Hello, World!")]);
         {
             let mut guard = storage.read(b("foo")).await?.unwrap();
-            assert_eq!(guard.read_metadata()?, Some(b("Spam eggs")));
+            assert_eq!(guard.metadata(), Some(b("Spam eggs")));
             assert_eq!(guard.read()?, b("Hello, World!"));
         }
 
@@ -533,7 +543,7 @@ mod tests {
         assert_dir(tempdir.path(), [(b"foo", b"Hello, World!")]);
         {
             let mut guard = storage.read(b("foo")).await?.unwrap();
-            assert_eq!(guard.read_metadata()?, Some(b("Spam eggs")));
+            assert_eq!(guard.metadata(), Some(b("Spam eggs")));
             assert_eq!(guard.read()?, b("Hello, World!"));
         }
 
@@ -547,7 +557,7 @@ mod tests {
         assert_dir(tempdir.path(), [(b"foo", b"")]);
         {
             let mut guard = storage.read(b("foo")).await?.unwrap();
-            assert_eq!(guard.read_metadata()?, Some(b("Spam eggs")));
+            assert_eq!(guard.metadata(), Some(b("Spam eggs")));
             assert_eq!(guard.read()?, b(""));
         }
 

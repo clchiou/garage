@@ -461,7 +461,7 @@ impl Handler<request::read::Reader<'static>> {
         };
         self.stats.read_hit.fetch_add(1, Ordering::SeqCst);
 
-        let metadata = reader.read_metadata()?;
+        let metadata = reader.metadata();
         let size = reader.size();
 
         // No errors after this point.
@@ -500,7 +500,7 @@ impl Handler<request::read_metadata::Reader<'static>> {
         self.stats.read_hit.fetch_add(1, Ordering::SeqCst);
 
         self.push_response(rep::read_metadata_response(
-            reader.read_metadata()?,
+            reader.metadata(),
             reader.size(),
         ));
 
