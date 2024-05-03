@@ -454,7 +454,7 @@ impl Handler<request::read::Reader<'static>> {
             }
         };
 
-        let Some(reader) = self.storage.read(key).await? else {
+        let Some(reader) = self.storage.read(key).await else {
             self.stats.read_miss.fetch_add(1, Ordering::SeqCst);
             self.push_response(rep::ok_none_response());
             return Ok(());
@@ -492,7 +492,7 @@ impl Handler<request::read_metadata::Reader<'static>> {
             }
         };
 
-        let Some(reader) = self.storage.read(key).await? else {
+        let Some(reader) = self.storage.read(key).await else {
             self.stats.read_miss.fetch_add(1, Ordering::SeqCst);
             self.push_response(rep::ok_none_response());
             return Ok(());

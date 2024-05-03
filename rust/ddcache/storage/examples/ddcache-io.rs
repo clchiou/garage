@@ -80,13 +80,13 @@ impl Program {
                     .write(true)
                     .truncate(true)
                     .open(file)?;
-                let Some(mut reader) = storage.read(key.clone()).await? else {
+                let Some(reader) = storage.read(key.clone()).await else {
                     eprintln!("read: key not found: key={:?}", key);
                     return Ok(());
                 };
                 eprintln!("read: metadata={:?}", reader.metadata());
                 let size = usize::try_from(reader.size()).unwrap();
-                reader.file().splice(&mut file, size).await?;
+                reader.open()?.splice(&mut file, size).await?;
             }
             Command::Write(Write {
                 key,

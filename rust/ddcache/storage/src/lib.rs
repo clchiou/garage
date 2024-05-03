@@ -40,7 +40,7 @@ pub struct Storage {
 #[derive(Debug)]
 pub struct ReadGuard {
     guard: map::ReadGuard,
-    file: File,
+    path: PathBuf,
 }
 
 #[derive(Debug)]
@@ -121,14 +121,11 @@ impl Storage {
         Ok(self.size())
     }
 
-    pub async fn read(&self, key: Bytes) -> Result<Option<ReadGuard>, Error> {
-        let Some((hash, guard)) = self.map.read(key).await else {
-            return Ok(None);
-        };
-        OpenOptions::new()
-            .read(true)
-            .open(hash.to_path(&self.dir))
-            .map(|file| Some(ReadGuard { guard, file }))
+    pub async fn read(&self, key: Bytes) -> Option<ReadGuard> {
+        self.map.read(key).await.map(|(hash, guard)| ReadGuard {
+            guard,
+            path: hash.to_path(&self.dir),
+        })
     }
 
     pub async fn write(&self, key: Bytes, truncate: bool) -> Result<WriteGuard, Error> {
@@ -191,8 +188,8 @@ impl ReadGuard {
         self.guard.metadata()
     }
 
-    pub fn file(&mut self) -> &mut File {
-        &mut self.file
+    pub fn open(&self) -> Result<File, Error> {
+        OpenOptions::new().read(true).open(&self.path)
     }
 }
 
@@ -281,15 +278,14 @@ impl Drop for WriteGuard {
 
 #[cfg(test)]
 mod test_harness {
-    use std::io::{Read, Seek, Write};
+    use std::io::{Read, Write};
 
     use super::*;
 
     impl ReadGuard {
         pub(super) fn read(&mut self) -> Result<Bytes, Error> {
             let mut buf = Vec::new();
-            self.file.rewind()?;
-            self.file.read_to_end(&mut buf)?;
+            self.open()?.read_to_end(&mut buf)?;
             Ok(buf.into())
         }
     }
@@ -377,7 +373,7 @@ mod tests {
         assert_eq!(try_exists()?, (true, true, false, false, true));
 
         {
-            let mut guard = storage.read(b("foo")).await?.unwrap();
+            let mut guard = storage.read(b("foo")).await.unwrap();
             assert_eq!(guard.size(), 13);
             assert_eq!(guard.read()?, b("Hello, World!"));
         }
@@ -433,9 +429,9 @@ mod tests {
 
         assert_eq!(storage.evict(9).await?, 9);
         assert_dir(tempdir.path(), [(b"bar", b"spam eggs")]);
-        assert_matches!(storage.read(b("foo")).await?, None);
+        assert_matches!(storage.read(b("foo")).await, None);
 
-        let guard = storage.read(b("bar")).await?.unwrap();
+        let guard = storage.read(b("bar")).await.unwrap();
         assert_eq!(storage.evict(0).await?, 9);
         assert_dir(tempdir.path(), [(b"bar", b"spam eggs")]);
 
@@ -453,7 +449,7 @@ mod tests {
         assert_eq!(storage.size(), 0);
         assert_dir(tempdir.path(), []);
 
-        assert_matches!(storage.read(b("foo")).await?, None);
+        assert_matches!(storage.read(b("foo")).await, None);
 
         {
             let mut guard = storage.write(b("foo"), true).await?;
@@ -467,8 +463,8 @@ mod tests {
 
         {
             let mut guards = [
-                storage.read(b("foo")).await?.unwrap(),
-                storage.read(b("foo")).await?.unwrap(),
+                storage.read(b("foo")).await.unwrap(),
+                storage.read(b("foo")).await.unwrap(),
             ];
             for guard in &mut guards {
                 assert_eq!(guard.size(), 13);
@@ -488,8 +484,8 @@ mod tests {
 
         {
             let mut guards = [
-                storage.read(b("foo")).await?.unwrap(),
-                storage.read(b("foo")).await?.unwrap(),
+                storage.read(b("foo")).await.unwrap(),
+                storage.read(b("foo")).await.unwrap(),
             ];
             for guard in &mut guards {
                 assert_eq!(guard.size(), 13);
@@ -518,7 +514,7 @@ mod tests {
         assert_eq!(storage.size(), 13);
         assert_dir(tempdir.path(), [(b"foo", b"Hello, World!")]);
         {
-            let mut guard = storage.read(b("foo")).await?.unwrap();
+            let mut guard = storage.read(b("foo")).await.unwrap();
             assert_eq!(guard.metadata(), Some(b("Spam eggs")));
             assert_eq!(guard.read()?, b("Hello, World!"));
         }
@@ -528,7 +524,7 @@ mod tests {
         assert_eq!(storage.size(), 13);
         assert_dir(tempdir.path(), [(b"foo", b"Hello, World!")]);
         {
-            let mut guard = storage.read(b("foo")).await?.unwrap();
+            let mut guard = storage.read(b("foo")).await.unwrap();
             assert_eq!(guard.metadata(), Some(b("Spam eggs")));
             assert_eq!(guard.read()?, b("Hello, World!"));
         }
@@ -542,7 +538,7 @@ mod tests {
         assert_eq!(storage.size(), 13);
         assert_dir(tempdir.path(), [(b"foo", b"Hello, World!")]);
         {
-            let mut guard = storage.read(b("foo")).await?.unwrap();
+            let mut guard = storage.read(b("foo")).await.unwrap();
             assert_eq!(guard.metadata(), Some(b("Spam eggs")));
             assert_eq!(guard.read()?, b("Hello, World!"));
         }
@@ -556,7 +552,7 @@ mod tests {
         assert_eq!(storage.size(), 0);
         assert_dir(tempdir.path(), [(b"foo", b"")]);
         {
-            let mut guard = storage.read(b("foo")).await?.unwrap();
+            let mut guard = storage.read(b("foo")).await.unwrap();
             assert_eq!(guard.metadata(), Some(b("Spam eggs")));
             assert_eq!(guard.read()?, b(""));
         }
@@ -568,7 +564,7 @@ mod tests {
         }
         assert_eq!(storage.size(), 0);
         assert_dir(tempdir.path(), []);
-        assert_matches!(storage.read(b("foo")).await?, None);
+        assert_matches!(storage.read(b("foo")).await, None);
 
         Ok(())
     }
@@ -593,7 +589,7 @@ mod tests {
         assert_dir(tempdir.path(), [(b"foo", b"Hello, World!")]);
 
         {
-            let _guard = storage.read(b("foo")).await?.unwrap();
+            let _guard = storage.read(b("foo")).await.unwrap();
             assert_matches!(storage.try_write(b("foo"), true)?, None);
         }
         assert_eq!(storage.size(), 13);
@@ -630,7 +626,7 @@ mod tests {
         assert_eq!(storage.remove(b("foo")).await?, true);
         assert_eq!(storage.size(), 2);
         assert_dir(tempdir.path(), [(b"bar", b"yz")]);
-        assert_matches!(storage.read(b("foo")).await?, None);
+        assert_matches!(storage.read(b("foo")).await, None);
 
         Ok(())
     }
@@ -660,12 +656,12 @@ mod tests {
         assert_eq!(storage.size(), 3);
         assert_dir(tempdir.path(), [(b"foo", b"x"), (b"bar", b"yz")]);
 
-        let guard = storage.read(b("foo")).await?.unwrap();
+        let guard = storage.read(b("foo")).await.unwrap();
 
         assert_eq!(storage.try_remove_front()?, true);
         assert_eq!(storage.size(), 1);
         assert_dir(tempdir.path(), [(b"foo", b"x")]);
-        assert_matches!(storage.read(b("bar")).await?, None);
+        assert_matches!(storage.read(b("bar")).await, None);
 
         assert_eq!(storage.try_remove_front()?, false);
         assert_eq!(storage.size(), 1);
@@ -676,7 +672,7 @@ mod tests {
         assert_eq!(storage.try_remove_front()?, true);
         assert_eq!(storage.size(), 0);
         assert_dir(tempdir.path(), []);
-        assert_matches!(storage.read(b("foo")).await?, None);
+        assert_matches!(storage.read(b("foo")).await, None);
 
         Ok(())
     }

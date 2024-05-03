@@ -185,11 +185,12 @@ async fn txrx_blob(
     let mut stream = stream.into_std()?;
 
     match io {
-        Io::Reader((mut reader, _permit)) => {
+        Io::Reader((reader, _permit)) => {
+            let mut file = reader.open()?;
             let expect = usize::try_from(reader.size()).unwrap();
 
             let start = Instant::now();
-            let size = time::timeout(timeout, stream.sendfile(reader.file(), None, expect))
+            let size = time::timeout(timeout, stream.sendfile(&mut file, None, expect))
                 .await
                 .map_err(|_| Error::new(ErrorKind::TimedOut, "send blob timeout"))??;
             let duration = start.elapsed();
