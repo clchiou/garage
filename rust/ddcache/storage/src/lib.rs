@@ -146,12 +146,10 @@ impl Storage {
         std::panic!("storage cannot replace blob: {:?}", key);
     }
 
-    pub fn try_write(&self, key: Bytes, truncate: bool) -> Result<Option<WriteGuard>, Error> {
-        let Some((hash, guard)) = self.map.try_write(key) else {
-            return Ok(None);
-        };
-        let path = hash.to_path(&self.dir);
-        Ok(Some(WriteGuard::new(guard, path, truncate)))
+    pub fn try_write(&self, key: Bytes, truncate: bool) -> Option<WriteGuard> {
+        self.map
+            .try_write(key)
+            .map(|(hash, guard)| WriteGuard::new(guard, hash.to_path(&self.dir), truncate))
     }
 
     pub async fn remove(&self, key: Bytes) -> Result<bool, Error> {
@@ -577,11 +575,11 @@ mod tests {
         assert_dir(tempdir.path(), []);
 
         {
-            let mut guard = storage.try_write(b("foo"), true)?.unwrap();
+            let mut guard = storage.try_write(b("foo"), true).unwrap();
             guard.open()?;
             guard.write(b"Hello, World!")?;
 
-            assert_matches!(storage.try_write(b("foo"), true)?, None);
+            assert_matches!(storage.try_write(b("foo"), true), None);
 
             guard.commit()?;
         }
@@ -590,7 +588,7 @@ mod tests {
 
         {
             let _guard = storage.read(b("foo")).await.unwrap();
-            assert_matches!(storage.try_write(b("foo"), true)?, None);
+            assert_matches!(storage.try_write(b("foo"), true), None);
         }
         assert_eq!(storage.size(), 13);
         assert_dir(tempdir.path(), [(b"foo", b"Hello, World!")]);

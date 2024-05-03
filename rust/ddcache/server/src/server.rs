@@ -534,7 +534,7 @@ impl Handler<request::write::Reader<'static>> {
         // TODO: Call `try_write` here because I believe that, as a cache, it is not very critical
         // to always update an entry.  Perhaps we should expose the interface to the client to
         // force an update?
-        let Some(mut writer) = self.storage.try_write(key, /* truncate */ true)? else {
+        let Some(mut writer) = self.storage.try_write(key, /* truncate */ true) else {
             self.stats.write_lock_fail.fetch_add(1, Ordering::SeqCst);
             self.push_response(rep::ok_none_response());
             return Ok(());
