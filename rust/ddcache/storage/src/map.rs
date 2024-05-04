@@ -109,6 +109,24 @@ impl BlobMap {
         self.0.size.load(Ordering::SeqCst)
     }
 
+    fn get(&self, key: &Bytes, hash: KeyHash) -> Option<Arc<RwLock<State>>> {
+        self.0
+            .map
+            .must_lock()
+            .get(&hash)
+            .filter(|entry| entry.key == key)
+            .map(|entry| entry.state.clone())
+    }
+
+    fn get_back(&self, key: &Bytes, hash: KeyHash) -> Option<Arc<RwLock<State>>> {
+        self.0
+            .map
+            .must_lock()
+            .get_mut_back(&hash)
+            .filter(|entry| entry.key == key)
+            .map(|entry| entry.state.clone())
+    }
+
     //
     // Implementer's Notes: We move the entry to the back even when a hash collision occurs.  While
     // not perfect, this should not be an issue in practice.
@@ -116,16 +134,10 @@ impl BlobMap {
 
     pub(crate) async fn read(&self, key: Bytes) -> Option<(KeyHash, ReadGuard)> {
         let hash = KeyHash::new(&key);
-        let state = self
-            .0
-            .map
-            .must_lock()
-            .get_mut_back(&hash)
-            .filter(|entry| entry.key == key)?
-            .state
-            .clone();
-        let guard = state.read_owned().await;
-        guard.is_present().then(|| (hash, ReadGuard::new(guard)))
+        let guard = self.get_back(&key, hash)?.read_owned().await;
+        guard
+            .ensure_present()
+            .then(|| (hash, ReadGuard::new(guard)))
     }
 
     pub(crate) async fn write(&self, key: Bytes) -> Result<(KeyHash, WriteGuard), Bytes> {
@@ -152,11 +164,9 @@ impl BlobMap {
             Ok(guard) => Some(guard),
             Err(state) => {
                 let guard = state.try_write_owned().ok()?;
-                match *guard {
-                    State::New(_) => std::unreachable!(),
-                    State::Present(_) => Some(self.new_write_guard(hash, guard)),
-                    State::Removing => None,
-                }
+                guard
+                    .ensure_present()
+                    .then(|| self.new_write_guard(hash, guard))
             }
         }
     }
@@ -197,31 +207,27 @@ impl BlobMap {
 
     pub(crate) async fn remove(&self, key: Bytes) -> Option<(KeyHash, RemoveGuard)> {
         let hash = KeyHash::new(&key);
-        let state = self
-            .0
-            .map
-            .must_lock()
-            .get(&hash)
-            .filter(|entry| entry.key == key)?
-            .state
-            .clone();
-        self.make_remove_guard(hash, state.write_owned().await)
+        let guard = self.get(&key, hash)?.write_owned().await;
+        guard
+            .ensure_present()
+            .then(|| self.new_remove_guard(hash, guard))
     }
 
     pub(crate) fn try_remove_front(&self) -> Option<(KeyHash, RemoveGuard)> {
         self.0.map.must_lock().iter().find_map(|(hash, entry)| {
-            self.make_remove_guard(*hash, entry.state.clone().try_write_owned().ok()?)
+            let guard = entry.state.clone().try_write_owned().ok()?;
+            guard
+                .ensure_present()
+                .then(|| self.new_remove_guard(*hash, guard))
         })
     }
 
-    fn make_remove_guard(
+    fn new_remove_guard(
         &self,
         hash: KeyHash,
         guard: OwnedRwLockWriteGuard<State>,
-    ) -> Option<(KeyHash, RemoveGuard)> {
-        guard
-            .is_present()
-            .then(|| (hash, RemoveGuard::new(guard, self.0.clone(), hash)))
+    ) -> (KeyHash, RemoveGuard) {
+        (hash, RemoveGuard::new(guard, self.0.clone(), hash))
     }
 }
 
@@ -354,8 +360,13 @@ impl State {
         matches!(self, State::New(_))
     }
 
-    fn is_present(&self) -> bool {
-        matches!(self, State::Present(_))
+    fn ensure_present(&self) -> bool {
+        // `State::New` is always locked by a write lock, making it "invisible" to other locks.
+        match self {
+            State::New(_) => std::panic!("expect State::Present of State::Removing"),
+            State::Present(_) => true,
+            State::Removing => false,
+        }
     }
 
     fn blob_metadata(&self) -> &BlobMetadata {
@@ -484,13 +495,20 @@ mod tests {
         );
         map.assert_eq([N, R, P], 20);
 
-        assert_matches!(map.read(b("new")).await, None);
-        map.assert_eq([R, P, N], 20);
         assert_matches!(map.read(b("removing")).await, None);
-        map.assert_eq([P, N, R], 20);
+        map.assert_eq([N, P, R], 20);
 
         assert_matches!(map.read(b("no-such-key")).await, None);
-        map.assert_eq([P, N, R], 20);
+        map.assert_eq([N, P, R], 20);
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "expect State::Present of State::Removing")]
+    async fn read_panic() {
+        let map = BlobMap::new_mock([N, P, R], 20);
+        map.assert_eq([N, P, R], 20);
+
+        let _ = map.read(b("new")).await;
     }
 
     #[tokio::test]
@@ -594,8 +612,6 @@ mod tests {
         let map = BlobMap::new_mock([N, P, R], 20);
         map.assert_eq([N, P, R], 20);
 
-        assert_matches!(map.remove(b("new")).await, None);
-        map.assert_eq([N, P, R], 20);
         assert_matches!(map.remove(b("removing")).await, None);
         map.assert_eq([N, P, R], 20);
 
@@ -621,16 +637,19 @@ mod tests {
         }
     }
 
+    #[tokio::test]
+    #[should_panic(expected = "expect State::Present of State::Removing")]
+    async fn remove_panic() {
+        let map = BlobMap::new_mock([N, P, R], 20);
+        map.assert_eq([N, P, R], 20);
+
+        let _ = map.remove(b("new")).await;
+    }
+
     #[test]
     fn try_remove_front() {
         {
-            let entries = [
-                N,
-                e(b"foo", 1),
-                e(b"new-2", 0),
-                e(b"bar", 2),
-                e(b"new-3", 0),
-            ];
+            let entries = [e(b"foo", 1), R, e(b"bar", 2)];
             let map = BlobMap::new_mock(entries.clone(), 20);
             map.assert_eq(entries.clone(), 20);
 
@@ -646,7 +665,7 @@ mod tests {
             map.assert_eq(entries.clone(), 20);
         }
 
-        let mut entries = [N, P, R];
+        let mut entries = [P, R];
         for _ in 0..entries.len() * 3 {
             let map = BlobMap::new_mock(entries.clone(), 20);
             map.assert_eq(entries.clone(), 20);
@@ -657,15 +676,24 @@ mod tests {
             entries.rotate_right(1);
         }
 
-        let map = BlobMap::new_mock([N, R], 20);
-        map.assert_eq([N, R], 20);
+        let map = BlobMap::new_mock([R], 20);
+        map.assert_eq([R], 20);
         assert_matches!(map.try_remove_front(), None);
-        map.assert_eq([N, R], 20);
+        map.assert_eq([R], 20);
 
         let map = BlobMap::new_mock([], 20);
         map.assert_eq([], 20);
         assert_matches!(map.try_remove_front(), None);
         map.assert_eq([], 20);
+    }
+
+    #[test]
+    #[should_panic(expected = "expect State::Present of State::Removing")]
+    fn try_remove_front_panic() {
+        let map = BlobMap::new_mock([N, P, R], 20);
+        map.assert_eq([N, P, R], 20);
+
+        let _ = map.try_remove_front();
     }
 
     #[tokio::test]
