@@ -118,10 +118,9 @@ impl Program {
                 let mut file = OpenOptions::new().read(true).open(file)?;
                 let size = usize::try_from(file.metadata()?.len()).unwrap();
                 let mut writer = storage.write(key.clone(), /* truncate */ true).await?;
-                writer.open()?;
                 writer.set_metadata(metadata.clone());
                 writer.set_expire_at(*expire_at);
-                file.splice(writer.file(), size).await?;
+                file.splice(writer.open()?, size).await?;
                 writer.commit()?;
             }
             Command::Remove(Remove { key }) => {

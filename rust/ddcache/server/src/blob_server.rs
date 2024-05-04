@@ -205,10 +205,10 @@ async fn txrx_blob(
             tracing::debug!(token, size, ?duration, "send blob");
         }
         Io::Writer((mut writer, expect, _permit)) => {
-            writer.open()?;
+            let file = writer.open()?;
 
             let start = Instant::now();
-            let size = time::timeout(timeout, stream.splice(writer.file(), expect))
+            let size = time::timeout(timeout, stream.splice(file, expect))
                 .await
                 .map_err(|_| Error::new(ErrorKind::TimedOut, "recv blob timeout"))??;
             let duration = start.elapsed();

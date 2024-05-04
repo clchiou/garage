@@ -299,27 +299,48 @@ impl WriteGuard {
         }
     }
 
-    fn new_metadata(&mut self) -> &mut BlobMetadata {
+    fn new_metadata(&self) -> &BlobMetadata {
+        self.new_metadata
+            .as_ref()
+            .unwrap_or_else(|| self.guard.as_ref().unwrap().blob_metadata())
+    }
+
+    fn new_metadata_mut(&mut self) -> &mut BlobMetadata {
         self.new_metadata
             .get_or_insert_with(|| self.guard.as_ref().unwrap().blob_metadata().clone())
     }
 
+    pub fn metadata(&self) -> Option<Bytes> {
+        self.new_metadata().metadata.clone()
+    }
+
+    pub fn size(&self) -> u64 {
+        self.new_metadata().size
+    }
+
+    pub fn expire_at(&self) -> Option<Timestamp> {
+        self.new_metadata().expire_at
+    }
+
     pub fn set_metadata(&mut self, metadata: Option<Bytes>) {
-        self.new_metadata().metadata = metadata;
+        self.new_metadata_mut().metadata = metadata;
     }
 
     pub fn set_expire_at(&mut self, expire_at: Option<Timestamp>) {
-        self.new_metadata().expire_at = expire_at;
+        self.new_metadata_mut().expire_at = expire_at;
     }
 
     // TODO: Should we convert `open` to async with `spawn_blocking`?
-    pub fn open(&mut self) -> Result<(), Error> {
+    pub fn open(&mut self) -> Result<&mut File, Error> {
+        self.ensure_file(self.truncate)?;
+        Ok(self.file.as_mut().unwrap())
+    }
+
+    fn ensure_file(&mut self, truncate: bool) -> Result<(), Error> {
         if self.file.is_some() {
             return Ok(());
         }
-
         let is_new = self.guard.as_ref().unwrap().is_new();
-
         if is_new {
             // TODO: Is there an atomic `create_dir_if_not_exist`?
             if let Err(error) = fs::create_dir(self.path.parent().unwrap()) {
@@ -328,34 +349,29 @@ impl WriteGuard {
                 }
             }
         }
-
-        let file = OpenOptions::new()
-            .create_new(is_new)
-            .write(true)
-            .truncate(self.truncate)
-            .open(&self.path)?;
-
-        // No errors after this point.
-
-        self.file = Some(file);
+        self.file = Some(
+            OpenOptions::new()
+                .create_new(is_new)
+                .write(true)
+                .truncate(truncate)
+                .open(&self.path)?,
+        );
         Ok(())
     }
 
-    pub fn file(&mut self) -> &mut File {
-        self.file.as_mut().unwrap()
-    }
-
+    // On commit error, the blob will be removed by `drop` below.
     pub fn commit(mut self) -> Result<(), Error> {
-        let mut new_metadata = self
-            .new_metadata
-            .take()
-            .unwrap_or_else(|| self.guard.as_ref().unwrap().blob_metadata().clone());
-        new_metadata.size = self.file().metadata()?.len();
+        self.new_metadata_mut();
+        self.ensure_file(false)?;
 
-        // On `write` error, the blob will be removed by `drop` below.
+        let new_metadata = self.new_metadata.as_mut().unwrap();
+        new_metadata.size = self.file.as_ref().unwrap().metadata()?.len();
         new_metadata.write(&self.path)?;
 
         // No errors after this point.
+
+        let new_metadata = self.new_metadata.take().unwrap();
+        self.file = None;
 
         if let Some(expire_at) = new_metadata.expire_at {
             self.expire_queue.push(expire_at, new_metadata.key.clone());
@@ -365,15 +381,13 @@ impl WriteGuard {
     }
 }
 
-// TODO: I am not sure if this is a good design, but if the caller opened the writer without
-// committing, I will assume an error has occurred and remove the blob.
+// TODO: I am not sure if this is a good design, but if the caller made changes to the writer
+// without committing, I will assume an error has occurred and remove the blob.
 impl Drop for WriteGuard {
     fn drop(&mut self) {
-        if self.file.is_some() {
-            if let Some(guard) = self.guard.take() {
-                fs::remove_file(&self.path).unwrap();
-                guard.commit_remove();
-            }
+        if self.new_metadata.is_some() || self.file.is_some() {
+            fs::remove_file(&self.path).unwrap();
+            self.guard.take().unwrap().commit_remove();
         }
     }
 }
@@ -580,26 +594,34 @@ mod tests {
         for key in [b("k1"), b("k2"), b("k3")] {
             let mut guard = storage.write(key, true).await?;
             guard.open()?;
-            guard.write(b"")?;
+            guard.write(b"x")?;
             guard.commit()?;
         }
-        assert_dir(tempdir.path(), [(b"k1", b""), (b"k2", b""), (b"k3", b"")]);
+        assert_dir(
+            tempdir.path(),
+            [(b"k1", b"x"), (b"k2", b"x"), (b"k3", b"x")],
+        );
         assert_eq!(storage.next_expire_at(), None);
 
         storage.expire(t2).await?;
-        assert_dir(tempdir.path(), [(b"k1", b""), (b"k2", b""), (b"k3", b"")]);
+        assert_dir(
+            tempdir.path(),
+            [(b"k1", b"x"), (b"k2", b"x"), (b"k3", b"x")],
+        );
 
         for (key, expire_at) in [(b("k1"), t1), (b("k2"), t2), (b("k3"), t3)] {
             let mut guard = storage.write(key, true).await?;
             guard.set_expire_at(Some(expire_at));
-            guard.open()?;
             guard.commit()?;
         }
-        assert_dir(tempdir.path(), [(b"k1", b""), (b"k2", b""), (b"k3", b"")]);
+        assert_dir(
+            tempdir.path(),
+            [(b"k1", b"x"), (b"k2", b"x"), (b"k3", b"x")],
+        );
         assert_eq!(storage.next_expire_at(), Some(t1));
 
         storage.expire(t2).await?;
-        assert_dir(tempdir.path(), [(b"k3", b"")]);
+        assert_dir(tempdir.path(), [(b"k3", b"x")]);
         assert_eq!(storage.next_expire_at(), Some(t3));
 
         Ok(())
@@ -639,7 +661,6 @@ mod tests {
         {
             let mut guard = storage.write(b("foo"), false).await?;
             guard.set_metadata(None);
-            guard.open()?;
             guard.commit()?;
         }
         assert_eq!(storage.size(), 13);
@@ -682,7 +703,7 @@ mod tests {
             assert_eq!(guard.read()?, b("Hello, World!"));
         }
 
-        // No open.
+        // No open nor set blob metadata.
         drop(storage.write(b("foo"), false).await?);
         assert_eq!(storage.size(), 13);
         assert_dir(tempdir.path(), [(b"foo", b"Hello, World!")]);
@@ -695,14 +716,14 @@ mod tests {
         // No write.
         {
             let mut guard = storage.write(b("foo"), false).await?;
-            guard.open()?;
+            guard.set_metadata(Some(b("Something else")));
             guard.commit()?;
         }
         assert_eq!(storage.size(), 13);
         assert_dir(tempdir.path(), [(b"foo", b"Hello, World!")]);
         {
             let mut guard = storage.read(b("foo")).await.unwrap();
-            assert_eq!(guard.metadata(), Some(b("Spam eggs")));
+            assert_eq!(guard.metadata(), Some(b("Something else")));
             assert_eq!(guard.read()?, b("Hello, World!"));
         }
 
@@ -716,7 +737,7 @@ mod tests {
         assert_dir(tempdir.path(), [(b"foo", b"")]);
         {
             let mut guard = storage.read(b("foo")).await.unwrap();
-            assert_eq!(guard.metadata(), Some(b("Spam eggs")));
+            assert_eq!(guard.metadata(), Some(b("Something else")));
             assert_eq!(guard.read()?, b(""));
         }
 
