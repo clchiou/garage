@@ -1,4 +1,5 @@
 use std::assert_matches::assert_matches;
+use std::cmp::Reverse;
 use std::io::Error;
 use std::path::Path;
 use std::sync::{
@@ -15,6 +16,7 @@ use g1_base::sync::MutexExt;
 
 use crate::blob::BlobMetadata;
 use crate::hash::KeyHash;
+use crate::RawExpireQueue;
 
 //
 // Implementer's Notes: To ensure cancel safety, `BlobMap` should return guard types that maintain
@@ -34,6 +36,7 @@ struct Inner {
 pub(crate) struct BlobMapBuilder {
     map: HashOrderedMap<KeyHash, Entry>,
     size: u64,
+    expire_queue: RawExpireQueue,
 }
 
 #[derive(Debug)]
@@ -74,6 +77,7 @@ impl BlobMapBuilder {
         Self {
             map: HashOrderedMap::new(),
             size: 0,
+            expire_queue: RawExpireQueue::new(),
         }
     }
 
@@ -87,13 +91,20 @@ impl BlobMapBuilder {
                 blob_metadata,
             )));
         }
+
+        if let Some(expire_at) = blob_metadata.expire_at {
+            self.expire_queue
+                .push(Reverse((expire_at, blob_metadata.key.clone())));
+        }
+
         self.size += blob_metadata.size;
         assert!(self.map.insert(hash, blob_metadata.into()).is_none());
+
         Ok(())
     }
 
-    pub(crate) fn build(self) -> BlobMap {
-        BlobMap::new(self.map, self.size)
+    pub(crate) fn build(self) -> (BlobMap, RawExpireQueue) {
+        (BlobMap::new(self.map, self.size), self.expire_queue)
     }
 }
 
@@ -237,12 +248,8 @@ impl ReadGuard {
         Self { guard }
     }
 
-    pub(crate) fn metadata(&self) -> Option<Bytes> {
-        self.guard.blob_metadata().metadata.clone()
-    }
-
-    pub(crate) fn size(&self) -> u64 {
-        self.guard.blob_metadata().size
+    pub(crate) fn blob_metadata(&self) -> &BlobMetadata {
+        self.guard.blob_metadata()
     }
 }
 
@@ -264,8 +271,8 @@ impl WriteGuard {
         self.state().is_new()
     }
 
-    pub(crate) fn blob_metadata(&self) -> BlobMetadata {
-        self.state().blob_metadata().clone()
+    pub(crate) fn blob_metadata(&self) -> &BlobMetadata {
+        self.state().blob_metadata()
     }
 
     pub(crate) fn commit(mut self, new_metadata: BlobMetadata) {
@@ -325,6 +332,10 @@ impl RemoveGuard {
     fn new(guard: OwnedRwLockWriteGuard<State>, inner: Arc<Inner>, hash: KeyHash) -> Self {
         assert_matches!(*guard, State::Present(_));
         Self { guard, inner, hash }
+    }
+
+    pub(crate) fn blob_metadata(&self) -> &BlobMetadata {
+        self.guard.blob_metadata()
     }
 
     pub(crate) fn commit(self) {
@@ -491,7 +502,7 @@ mod tests {
 
         assert_matches!(
             map.read(b("present")).await,
-            Some((hash, guard)) if hash == h("present") && guard.size() == 10,
+            Some((hash, guard)) if hash == h("present") && guard.blob_metadata().size == 10,
         );
         map.assert_eq([N, R, P], 20);
 

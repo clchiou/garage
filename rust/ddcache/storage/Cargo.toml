@@ -6,6 +6,7 @@ edition.workspace = true
 [dependencies]
 bytes.workspace = true
 capnp = { workspace = true, features = ["unaligned"] }
+chrono.workspace = true
 fasthash.workspace = true
 lazy-regex.workspace = true
 regex.workspace = true # Override the version set by lazy-regex.

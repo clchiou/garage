@@ -4,9 +4,11 @@ use std::path::Path;
 use bytes::Bytes;
 use capnp::message;
 use capnp::serialize;
+use chrono::{TimeZone, Utc};
 use xattr::{self, SUPPORTED_PLATFORM};
 
 use crate::storage_capnp::blob_metadata;
+use crate::Timestamp;
 
 // Given our use case, it seems more efficient to use a shareable type `Bytes` than a `capnp`
 // reader.
@@ -15,6 +17,7 @@ pub(crate) struct BlobMetadata {
     pub(crate) key: Bytes,
     pub(crate) metadata: Option<Bytes>,
     pub(crate) size: u64,
+    pub(crate) expire_at: Option<Timestamp>,
 }
 
 // We store blob metadata in an extended attribute.
@@ -49,10 +52,21 @@ impl BlobMetadata {
             let metadata = blob_metadata.get_metadata()?;
             let metadata = (!metadata.is_empty()).then(|| Bytes::copy_from_slice(metadata));
 
+            let expire_at = blob_metadata.get_expire_at();
+            let expire_at = (expire_at != 0)
+                .then(|| {
+                    i64::try_from(expire_at)
+                        .ok()
+                        .and_then(|t| Utc.timestamp_opt(t, 0).single())
+                        .ok_or_else(|| Error::other(format!("invalid timestamp: {}", expire_at)))
+                })
+                .transpose()?;
+
             Self {
                 key,
                 metadata,
                 size,
+                expire_at,
             }
         };
         blob_metadata.map_err(Error::other)
@@ -64,7 +78,12 @@ impl BlobMetadata {
             key,
             metadata: None,
             size: 0,
+            expire_at: None,
         }
+    }
+
+    pub(crate) fn is_expired(&self, now: Timestamp) -> bool {
+        self.expire_at.map_or(false, |expire_at| expire_at <= now)
     }
 
     pub(crate) fn encode(&self) -> Bytes {
@@ -74,6 +93,10 @@ impl BlobMetadata {
         if let Some(metadata) = self.metadata.as_ref() {
             blob_metadata.set_metadata(metadata);
         }
+        blob_metadata.set_expire_at(
+            self.expire_at
+                .map_or(0, |t| t.timestamp().try_into().unwrap()),
+        );
         serialize::write_message_to_words(&builder).into()
     }
 
@@ -100,6 +123,7 @@ mod test_harness {
                     None => None,
                 },
                 size,
+                expire_at: None,
             }
         }
     }
@@ -135,7 +159,36 @@ mod tests {
         assert_eq!(blob_metadata.size, 7);
         assert_eq!(blob_metadata.key, b"hello".as_slice());
         assert_eq!(blob_metadata.metadata, None);
+        assert_eq!(blob_metadata.expire_at, None);
 
         Ok(())
+    }
+
+    #[test]
+    fn expire_at() {
+        let t1 = Utc.timestamp_opt(1, 0).single().unwrap();
+        let t2 = Utc.timestamp_opt(2, 0).single().unwrap();
+        let t3 = Utc.timestamp_opt(3, 0).single().unwrap();
+
+        let mut metadata = BlobMetadata::new(Bytes::from_static(b"hello"));
+        assert_eq!(metadata.expire_at, None);
+        assert_eq!(metadata.is_expired(t1), false);
+        assert_eq!(metadata.is_expired(t2), false);
+        assert_eq!(metadata.is_expired(t3), false);
+
+        metadata.expire_at = Some(t1);
+        assert_eq!(metadata.is_expired(t1), true);
+        assert_eq!(metadata.is_expired(t2), true);
+        assert_eq!(metadata.is_expired(t3), true);
+
+        metadata.expire_at = Some(t2);
+        assert_eq!(metadata.is_expired(t1), false);
+        assert_eq!(metadata.is_expired(t2), true);
+        assert_eq!(metadata.is_expired(t3), true);
+
+        metadata.expire_at = Some(t3);
+        assert_eq!(metadata.is_expired(t1), false);
+        assert_eq!(metadata.is_expired(t2), false);
+        assert_eq!(metadata.is_expired(t3), true);
     }
 }

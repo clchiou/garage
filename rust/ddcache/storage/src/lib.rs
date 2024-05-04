@@ -9,15 +9,21 @@ mod storage_capnp {
     include!(concat!(env!("OUT_DIR"), "/ddcache/storage_capnp.rs"));
 }
 
+use std::cmp::Reverse;
+use std::collections::BinaryHeap;
 use std::fs::{self, File, OpenOptions};
 use std::io::{Error, ErrorKind};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use bytes::Bytes;
+use chrono::{DateTime, Utc};
 use tokio::task;
 
+use g1_base::sync::MutexExt;
+
 use crate::blob::BlobMetadata;
+use crate::hash::KeyHash;
 use crate::map::{BlobMap, BlobMapBuilder};
 
 //
@@ -35,7 +41,13 @@ use crate::map::{BlobMap, BlobMapBuilder};
 pub struct Storage {
     dir: Arc<Path>,
     map: BlobMap,
+    expire_queue: ExpireQueue,
 }
+
+#[derive(Clone, Debug)]
+struct ExpireQueue(Arc<Mutex<RawExpireQueue>>);
+
+pub(crate) type RawExpireQueue = BinaryHeap<Reverse<(Timestamp, Bytes)>>;
 
 #[derive(Debug)]
 pub struct ReadGuard {
@@ -48,9 +60,18 @@ pub struct WriteGuard {
     guard: Option<map::WriteGuard>,
     path: PathBuf,
     truncate: bool,
-    blob_metadata: Option<BlobMetadata>,
+    new_metadata: Option<BlobMetadata>,
     file: Option<File>, // Use the blocking version of `File` in `Drop::drop`.
+    expire_queue: ExpireQueue,
 }
+
+#[derive(Debug)]
+struct ExpireGuard {
+    expire_queue: ExpireQueue,
+    rollback: Option<(Timestamp, Bytes)>,
+}
+
+pub type Timestamp = DateTime<Utc>;
 
 impl Storage {
     pub async fn open(dir: &Path) -> Result<Self, Error> {
@@ -94,9 +115,11 @@ impl Storage {
                 fs::remove_dir(blob_dir)?;
             }
         }
+        let (map, expire_queue) = map.build();
         Ok(Self {
             dir,
-            map: map.build(),
+            map,
+            expire_queue: expire_queue.into(),
         })
     }
 
@@ -121,6 +144,21 @@ impl Storage {
         Ok(self.size())
     }
 
+    pub fn next_expire_at(&self) -> Option<Timestamp> {
+        self.expire_queue.peek()
+    }
+
+    pub async fn expire(&self, now: Timestamp) -> Result<(), Error> {
+        while let Some((expire_at, key)) = self.expire_queue.pop(now) {
+            let guard = ExpireGuard::new(self.expire_queue.clone(), expire_at, key.clone());
+            if self.remove_expire(key.clone(), now).await? {
+                tracing::info!(?key, %expire_at, "expire");
+            }
+            guard.commit();
+        }
+        Ok(())
+    }
+
     pub async fn read(&self, key: Bytes) -> Option<ReadGuard> {
         self.map.read(key).await.map(|(hash, guard)| ReadGuard {
             guard,
@@ -133,8 +171,7 @@ impl Storage {
         for _ in 0..NUM_TRIES {
             match self.map.write(key.clone()).await {
                 Ok((hash, guard)) => {
-                    let path = hash.to_path(&self.dir);
-                    return Ok(WriteGuard::new(guard, path, truncate));
+                    return Ok(self.new_write_guard(hash, guard, truncate));
                 }
                 Err(collision) => {
                     tracing::debug!(?key, ?collision);
@@ -153,13 +190,33 @@ impl Storage {
     pub fn try_write(&self, key: Bytes, truncate: bool) -> Option<WriteGuard> {
         self.map
             .try_write(key)
-            .map(|(hash, guard)| WriteGuard::new(guard, hash.to_path(&self.dir), truncate))
+            .map(|(hash, guard)| self.new_write_guard(hash, guard, truncate))
+    }
+
+    fn new_write_guard(&self, hash: KeyHash, guard: map::WriteGuard, truncate: bool) -> WriteGuard {
+        WriteGuard::new(
+            guard,
+            hash.to_path(&self.dir),
+            truncate,
+            self.expire_queue.clone(),
+        )
     }
 
     pub async fn remove(&self, key: Bytes) -> Result<bool, Error> {
         let Some((hash, guard)) = self.map.remove(key).await else {
             return Ok(false);
         };
+        let path = hash.to_path(&self.dir);
+        Self::do_remove(path, guard)
+    }
+
+    pub async fn remove_expire(&self, key: Bytes, now: Timestamp) -> Result<bool, Error> {
+        let Some((hash, guard)) = self.map.remove(key).await else {
+            return Ok(false);
+        };
+        if !guard.blob_metadata().is_expired(now) {
+            return Ok(false);
+        }
         let path = hash.to_path(&self.dir);
         Self::do_remove(path, guard)
     }
@@ -181,13 +238,43 @@ impl Storage {
     }
 }
 
-impl ReadGuard {
-    pub fn size(&self) -> u64 {
-        self.guard.size()
+impl From<RawExpireQueue> for ExpireQueue {
+    fn from(queue: RawExpireQueue) -> Self {
+        Self(Arc::new(Mutex::new(queue)))
+    }
+}
+
+impl ExpireQueue {
+    fn peek(&self) -> Option<Timestamp> {
+        self.0.must_lock().peek().map(|Reverse((t, _))| *t)
     }
 
+    fn push(&self, expire_at: Timestamp, key: Bytes) {
+        self.0.must_lock().push(Reverse((expire_at, key)));
+    }
+
+    fn pop(&self, now: Timestamp) -> Option<(Timestamp, Bytes)> {
+        let mut queue = self.0.must_lock();
+        let Reverse((expire_at, _)) = queue.peek()?;
+        if expire_at <= &now {
+            Some(queue.pop().unwrap().0)
+        } else {
+            None
+        }
+    }
+}
+
+impl ReadGuard {
     pub fn metadata(&self) -> Option<Bytes> {
-        self.guard.metadata()
+        self.guard.blob_metadata().metadata.clone()
+    }
+
+    pub fn size(&self) -> u64 {
+        self.guard.blob_metadata().size
+    }
+
+    pub fn expire_at(&self) -> Option<Timestamp> {
+        self.guard.blob_metadata().expire_at
     }
 
     pub fn open(&self) -> Result<File, Error> {
@@ -196,23 +283,33 @@ impl ReadGuard {
 }
 
 impl WriteGuard {
-    fn new(guard: map::WriteGuard, path: PathBuf, truncate: bool) -> Self {
+    fn new(
+        guard: map::WriteGuard,
+        path: PathBuf,
+        truncate: bool,
+        expire_queue: ExpireQueue,
+    ) -> Self {
         Self {
             guard: Some(guard),
             path,
             truncate,
-            blob_metadata: None,
+            new_metadata: None,
             file: None,
+            expire_queue,
         }
     }
 
-    fn blob_metadata(&mut self) -> &mut BlobMetadata {
-        self.blob_metadata
-            .get_or_insert_with(|| self.guard.as_ref().unwrap().blob_metadata())
+    fn new_metadata(&mut self) -> &mut BlobMetadata {
+        self.new_metadata
+            .get_or_insert_with(|| self.guard.as_ref().unwrap().blob_metadata().clone())
     }
 
     pub fn set_metadata(&mut self, metadata: Option<Bytes>) {
-        self.blob_metadata().metadata = metadata;
+        self.new_metadata().metadata = metadata;
+    }
+
+    pub fn set_expire_at(&mut self, expire_at: Option<Timestamp>) {
+        self.new_metadata().expire_at = expire_at;
     }
 
     // TODO: Should we convert `open` to async with `spawn_blocking`?
@@ -249,18 +346,21 @@ impl WriteGuard {
     }
 
     pub fn commit(mut self) -> Result<(), Error> {
-        let mut blob_metadata = self
-            .blob_metadata
+        let mut new_metadata = self
+            .new_metadata
             .take()
-            .unwrap_or_else(|| self.guard.as_ref().unwrap().blob_metadata());
-        blob_metadata.size = self.file().metadata()?.len();
+            .unwrap_or_else(|| self.guard.as_ref().unwrap().blob_metadata().clone());
+        new_metadata.size = self.file().metadata()?.len();
 
         // On `write` error, the blob will be removed by `drop` below.
-        blob_metadata.write(&self.path)?;
+        new_metadata.write(&self.path)?;
 
         // No errors after this point.
 
-        self.guard.take().unwrap().commit(blob_metadata);
+        if let Some(expire_at) = new_metadata.expire_at {
+            self.expire_queue.push(expire_at, new_metadata.key.clone());
+        }
+        self.guard.take().unwrap().commit(new_metadata);
         Ok(())
     }
 }
@@ -274,6 +374,27 @@ impl Drop for WriteGuard {
                 fs::remove_file(&self.path).unwrap();
                 guard.commit_remove();
             }
+        }
+    }
+}
+
+impl ExpireGuard {
+    fn new(expire_queue: ExpireQueue, expire_at: Timestamp, key: Bytes) -> Self {
+        Self {
+            expire_queue,
+            rollback: Some((expire_at, key)),
+        }
+    }
+
+    fn commit(mut self) {
+        self.rollback = None;
+    }
+}
+
+impl Drop for ExpireGuard {
+    fn drop(&mut self) {
+        if let Some((expire_at, key)) = self.rollback.take() {
+            self.expire_queue.push(expire_at, key);
         }
     }
 }
@@ -305,6 +426,7 @@ mod tests {
     use std::collections::HashMap;
     use std::fs;
 
+    use chrono::TimeZone;
     use tempfile;
 
     use crate::hash::KeyHash;
@@ -440,6 +562,45 @@ mod tests {
         drop(guard);
         assert_eq!(storage.evict(0).await?, 0);
         assert_dir(tempdir.path(), []);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn expire() -> Result<(), Error> {
+        let t1 = Utc.timestamp_opt(1, 0).single().unwrap();
+        let t2 = Utc.timestamp_opt(2, 0).single().unwrap();
+        let t3 = Utc.timestamp_opt(3, 0).single().unwrap();
+
+        let tempdir = tempfile::tempdir()?;
+        let storage = Storage::open(tempdir.path()).await?;
+        assert_eq!(storage.size(), 0);
+        assert_dir(tempdir.path(), []);
+
+        for key in [b("k1"), b("k2"), b("k3")] {
+            let mut guard = storage.write(key, true).await?;
+            guard.open()?;
+            guard.write(b"")?;
+            guard.commit()?;
+        }
+        assert_dir(tempdir.path(), [(b"k1", b""), (b"k2", b""), (b"k3", b"")]);
+        assert_eq!(storage.next_expire_at(), None);
+
+        storage.expire(t2).await?;
+        assert_dir(tempdir.path(), [(b"k1", b""), (b"k2", b""), (b"k3", b"")]);
+
+        for (key, expire_at) in [(b("k1"), t1), (b("k2"), t2), (b("k3"), t3)] {
+            let mut guard = storage.write(key, true).await?;
+            guard.set_expire_at(Some(expire_at));
+            guard.open()?;
+            guard.commit()?;
+        }
+        assert_dir(tempdir.path(), [(b"k1", b""), (b"k2", b""), (b"k3", b"")]);
+        assert_eq!(storage.next_expire_at(), Some(t1));
+
+        storage.expire(t2).await?;
+        assert_dir(tempdir.path(), [(b"k3", b"")]);
+        assert_eq!(storage.next_expire_at(), Some(t3));
 
         Ok(())
     }
