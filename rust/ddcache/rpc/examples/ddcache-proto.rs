@@ -14,14 +14,13 @@ use tokio::net::TcpStream;
 use tokio::time;
 use zmq::{Context, Message, REP, REQ};
 
-use g1_capnp::owner::Owner;
 use g1_cli::{param::ParametersConfig, tracing::TracingConfig};
 use g1_tokio::os::Splice;
 use g1_zmq::Socket;
 
-use ddcache_rpc::rpc_capnp::{endpoint, request, response};
 use ddcache_rpc::{
-    BlobEndpoint, Endpoint, RequestOwner, ResponseBuilder, ResponseOwner, ResponseResult, Token,
+    Endpoint, Request, RequestOwner, Response, ResponseBuilder, ResponseOwner, ResponseResult,
+    Timestamp, Token,
 };
 
 #[derive(Debug, Parser)]
@@ -44,12 +43,18 @@ struct Program {
 
 #[derive(Debug, Subcommand)]
 enum Command {
-    Ping,
+    Cancel(Cancel),
     Read(Read),
     ReadMetadata(ReadMetadata),
     Write(Write),
-    Cancel(Cancel),
+    WriteMetadata(WriteMetadata),
+    Remove(Remove),
     Dummy,
+}
+
+#[derive(Args, Debug)]
+struct Cancel {
+    token: Token,
 }
 
 #[derive(Args, Debug)]
@@ -68,36 +73,53 @@ struct Write {
     key: Bytes,
     #[arg(long)]
     metadata: Option<Bytes>,
+    #[arg(long)]
+    expire_at: Option<Timestamp>,
     file: PathBuf,
 }
 
 #[derive(Args, Debug)]
-struct Cancel {
-    token: Token,
+struct WriteMetadata {
+    key: Bytes,
+    #[arg(long)]
+    metadata: Option<Option<Bytes>>,
+    #[arg(long)]
+    expire_at: Option<Option<Timestamp>>,
+}
+
+#[derive(Args, Debug)]
+struct Remove {
+    key: Bytes,
 }
 
 impl Program {
     async fn execute(&self) -> Result<(), Error> {
         match &self.command {
-            Command::Ping => self.ping().await?,
+            Command::Cancel(cancel) => self.cancel(cancel).await?,
             Command::Read(read) => self.read(read).await?,
             Command::ReadMetadata(read_metadata) => self.read_metadata(read_metadata).await?,
             Command::Write(write) => self.write(write).await?,
-            Command::Cancel(cancel) => self.cancel(cancel).await?,
+            Command::WriteMetadata(write_metadata) => self.write_metadata(write_metadata).await?,
+            Command::Remove(remove) => self.remove(remove).await?,
             Command::Dummy => self.dummy().await?,
         }
         Ok(())
     }
 
-    async fn ping(&self) -> Result<(), Error> {
+    fn make_socket(&self) -> Result<Socket, Error> {
+        let socket = Socket::try_from(Context::new().socket(REQ)?)?;
+        socket.connect(&self.endpoint)?;
+        Ok(socket)
+    }
+
+    async fn cancel(&self, cancel: &Cancel) -> Result<(), Error> {
         let socket = self.make_socket()?;
 
-        let request = make_request(|mut request| request.set_ping(()));
+        let request = encode(Request::Cancel(cancel.token));
         socket.send(request, 0).await?;
 
-        let response = socket.recv_msg(0).await?;
-        let response = ResponseOwner::try_from(response).map_err(Error::other)?;
-        eprintln!("ping: {:?}", &*response);
+        let response = decode(socket.recv_msg(0).await?)?;
+        eprintln!("cancel: {:?}", response);
 
         Ok(())
     }
@@ -105,25 +127,19 @@ impl Program {
     async fn read(&self, read: &Read) -> Result<(), Error> {
         let socket = self.make_socket()?;
 
-        let request = make_request(|request| request.init_read().set_key(&read.key));
+        let request = encode(Request::Read {
+            key: read.key.clone(),
+        });
         socket.send(request, 0).await?;
 
         let response = decode(socket.recv_msg(0).await?)?;
-        eprintln!("read: {:?}", &*response);
-        let Some(response) = response.transpose() else {
-            return Ok(());
+        eprintln!("read: {:?}", response);
+
+        let (metadata, blob) = match response {
+            Some(Response::Read { metadata, blob }) => (metadata, blob),
+            Some(_) => return Err(Error::other("wrong response")),
+            None => return Ok(()),
         };
-        let Ok(response::Read(Ok(response))) = response.which() else {
-            return Err(Error::other("wrong response"));
-        };
-
-        let metadata = response.get_metadata().map_err(Error::other)?;
-        eprintln!("read: metadata=\"{}\"", metadata.escape_ascii());
-
-        let size = response.get_size();
-
-        let endpoint = decode_endpoint(response.get_endpoint())?;
-        let token = response.get_token();
 
         if self.delay > 0 {
             time::sleep(Duration::from_secs(self.delay)).await;
@@ -135,11 +151,9 @@ impl Program {
             .truncate(true)
             .open(&read.file)?;
 
-        let mut blob_socket = TcpStream::connect(endpoint).await?;
-        blob_socket.write_u64(token).await?;
-        let size = blob_socket
-            .splice(&mut file, size.try_into().unwrap())
-            .await?;
+        let mut blob_socket = TcpStream::connect(blob.endpoint).await?;
+        blob_socket.write_u64(blob.token).await?;
+        let size = blob_socket.splice(&mut file, metadata.size).await?;
         eprintln!("read: size={}", size);
 
         Ok(())
@@ -148,74 +162,80 @@ impl Program {
     async fn read_metadata(&self, read_metadata: &ReadMetadata) -> Result<(), Error> {
         let socket = self.make_socket()?;
 
-        let request =
-            make_request(|request| request.init_read_metadata().set_key(&read_metadata.key));
+        let request = encode(Request::ReadMetadata {
+            key: read_metadata.key.clone(),
+        });
         socket.send(request, 0).await?;
 
         let response = decode(socket.recv_msg(0).await?)?;
-        eprintln!("read_metadata: {:?}", &*response);
+        eprintln!("read_metadata: {:?}", response);
 
         Ok(())
     }
 
     async fn write(&self, write: &Write) -> Result<(), Error> {
         let mut file = OpenOptions::new().read(true).open(&write.file)?;
-        let size = file.metadata()?.len();
+        let size = usize::try_from(file.metadata()?.len()).unwrap();
 
         let socket = self.make_socket()?;
 
-        let request = make_request(|request| {
-            let mut request = request.init_write();
-            request.set_key(&write.key);
-            if let Some(metadata) = &write.metadata {
-                request.set_metadata(metadata);
-            }
-            request.set_size(size.try_into().unwrap());
+        let request = encode(Request::Write {
+            key: write.key.clone(),
+            metadata: write.metadata.clone(),
+            size,
+            expire_at: write.expire_at,
         });
         socket.send(request, 0).await?;
 
         let response = decode(socket.recv_msg(0).await?)?;
-        eprintln!("write: {:?}", &*response);
-        let Some(response) = response.transpose() else {
-            return Ok(());
-        };
-        let Ok(response::Write(Ok(response))) = response.which() else {
-            return Err(Error::other("wrong response"));
-        };
+        eprintln!("write: {:?}", response);
 
-        let endpoint = decode_endpoint(response.get_endpoint())?;
-        let token = response.get_token();
+        let blob = match response {
+            Some(Response::Write { blob }) => blob,
+            Some(_) => return Err(Error::other("wrong response")),
+            None => return Ok(()),
+        };
 
         if self.delay > 0 {
             time::sleep(Duration::from_secs(self.delay)).await;
         }
 
-        let mut blob_socket = TcpStream::connect(endpoint).await?;
-        blob_socket.write_u64(token).await?;
-        let size = file
-            .splice(&mut blob_socket, size.try_into().unwrap())
-            .await?;
+        let mut blob_socket = TcpStream::connect(blob.endpoint).await?;
+        blob_socket.write_u64(blob.token).await?;
+        let size = file.splice(&mut blob_socket, size).await?;
         eprintln!("write: size={}", size);
 
         Ok(())
     }
 
-    async fn cancel(&self, cancel: &Cancel) -> Result<(), Error> {
+    async fn write_metadata(&self, write_metadata: &WriteMetadata) -> Result<(), Error> {
         let socket = self.make_socket()?;
 
-        let request = make_request(|mut request| request.set_cancel(cancel.token));
+        let request = encode(Request::WriteMetadata {
+            key: write_metadata.key.clone(),
+            metadata: write_metadata.metadata.clone(),
+            expire_at: write_metadata.expire_at.clone(),
+        });
         socket.send(request, 0).await?;
 
         let response = decode(socket.recv_msg(0).await?)?;
-        eprintln!("cancel: {:?}", &*response);
+        eprintln!("write_metadata: {:?}", response);
 
         Ok(())
     }
 
-    fn make_socket(&self) -> Result<Socket, Error> {
-        let socket = Socket::try_from(Context::new().socket(REQ)?)?;
-        socket.connect(&self.endpoint)?;
-        Ok(socket)
+    async fn remove(&self, remove: &Remove) -> Result<(), Error> {
+        let socket = self.make_socket()?;
+
+        let request = encode(Request::Remove {
+            key: remove.key.clone(),
+        });
+        socket.send(request, 0).await?;
+
+        let response = decode(socket.recv_msg(0).await?)?;
+        eprintln!("remove: {:?}", response);
+
+        Ok(())
     }
 
     async fn dummy(&self) -> Result<(), Error> {
@@ -230,38 +250,30 @@ impl Program {
             response
                 .init_root::<ResponseBuilder>()
                 .init_err()
-                .set_none(());
+                .set_server(());
             let response = serialize::write_message_to_words(&response);
             socket.send(response, 0).await?;
         }
     }
 }
 
-fn make_request<F>(init: F) -> Message
-where
-    F: FnOnce(request::Builder),
-{
-    let mut request = message::Builder::new_default();
-    init(request.init_root::<request::Builder>());
-    serialize::write_message_to_words(&request).into()
+fn encode(request: Request) -> Message {
+    Vec::<u8>::from(request).into()
 }
 
-fn decode(response: Message) -> Result<Owner<Message, Option<response::Reader<'static>>>, Error> {
+fn decode(response: Message) -> Result<Option<Response>, Error> {
     let response = ResponseOwner::try_from(response)
         .map_err(Error::other)?
         .map(ResponseResult::try_from);
     // It is safe to `transpose` because `E` is `capnp::Error`.
-    unsafe { response.transpose() }
+    let response = unsafe { response.transpose() }
         .map_err(Error::other)?
         .unzip()
-        .map_err(|error| Error::other(format!("{:?}", error.as_ref())))
-}
-
-fn decode_endpoint(
-    endpoint: Result<endpoint::Reader, capnp::Error>,
-) -> Result<BlobEndpoint, Error> {
-    let endpoint: Result<_, capnp::Error> = try { BlobEndpoint::try_from(endpoint?)? };
-    endpoint.map_err(Error::other)
+        .map_err(|error| Error::other(format!("{:?}", error.as_ref())))?;
+    (*response)
+        .map(Response::try_from)
+        .transpose()
+        .map_err(Error::other)
 }
 
 #[tokio::main]

@@ -4,7 +4,9 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+bytes.workspace = true
 capnp.workspace = true
+chrono.workspace = true
 serde = { workspace = true, features = ["derive"] }
 snafu.workspace = true
 
