@@ -9,15 +9,12 @@ use tokio::time;
 
 use g1_tokio::os::{SendFile, Splice};
 
-use ddcache_rpc::{BlobEndpoint, Token};
+use ddcache_rpc::{BlobRequest, Token};
 
 use crate::error::{Error, IoSnafu, PartialIoSnafu};
 
 #[derive(Debug)]
-pub(crate) struct RemoteBlob {
-    blob_endpoint: BlobEndpoint,
-    token: Token,
-}
+pub(crate) struct RemoteBlob(BlobRequest);
 
 macro_rules! io {
     ($expect:ident, $io:expr $(,)?) => {
@@ -38,21 +35,24 @@ macro_rules! io {
     };
 }
 
+impl From<BlobRequest> for RemoteBlob {
+    fn from(blob: BlobRequest) -> Self {
+        Self::new(blob)
+    }
+}
+
 impl RemoteBlob {
-    pub(crate) fn new(blob_endpoint: BlobEndpoint, token: Token) -> Self {
-        Self {
-            blob_endpoint,
-            token,
-        }
+    pub(crate) fn new(blob: BlobRequest) -> Self {
+        Self(blob)
     }
 
     pub(crate) fn token(&self) -> Token {
-        self.token
+        self.0.token
     }
 
     async fn connect(&self) -> Result<TcpStream, io::Error> {
-        let mut stream = AsyncTcpStream::connect(self.blob_endpoint).await?;
-        stream.write_u64(self.token).await?;
+        let mut stream = AsyncTcpStream::connect(self.0.endpoint).await?;
+        stream.write_u64(self.0.token).await?;
         // Unregister `stream` from the tokio reactor; otherwise, `sendfile` will return `EEXIST`
         // when it attempts to register `stream` with the reactor via `AsyncFd`.
         stream.into_std()

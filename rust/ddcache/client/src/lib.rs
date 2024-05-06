@@ -8,7 +8,9 @@ mod shard;
 
 use std::time::Duration;
 
-pub use crate::client::{BlobMetadata, Client, ClientGuard};
+pub use ddcache_rpc::{BlobMetadata, Timestamp};
+
+pub use crate::client::{Client, ClientGuard};
 pub use crate::error::Error;
 
 g1_param::define!(num_replicas: usize = 2);

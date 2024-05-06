@@ -19,7 +19,7 @@ use g1_base::sync::MutexExt;
 use g1_tokio::task::{Cancel, JoinGuard, JoinQueue};
 
 use ddcache_rpc::service::{self, Event, Subscriber};
-use ddcache_rpc::{Endpoint, Token};
+use ddcache_rpc::{BlobMetadata, Endpoint, Timestamp, Token};
 
 use crate::error::Error;
 use crate::route::RouteMap;
@@ -38,12 +38,6 @@ pub struct Client {
 }
 
 pub type ClientGuard = JoinGuard<Result<(), io::Error>>;
-
-#[derive(Clone, Debug)]
-pub struct BlobMetadata {
-    pub metadata: Option<Bytes>,
-    pub size: usize,
-}
 
 #[derive(Debug)]
 struct Actor {
@@ -118,6 +112,10 @@ impl Client {
         self.routes.must_lock().get(endpoint)
     }
 
+    fn all(&self) -> Result<Vec<Shard>, Error> {
+        self.routes.must_lock().all()
+    }
+
     fn find(&self, key: &[u8]) -> Result<Vec<Shard>, Error> {
         self.routes.must_lock().find(key, self.num_replicas)
     }
@@ -126,8 +124,8 @@ impl Client {
     // TODO: Should we disconnect from (or reconnect to) the shard on error?
     //
 
-    pub async fn ping(&self, endpoint: Endpoint) -> Result<(), Error> {
-        self.get(endpoint)?.ping().await
+    pub async fn cancel(&self, endpoint: Endpoint, token: Token) -> Result<(), Error> {
+        self.get(endpoint)?.cancel(token).await
     }
 
     pub async fn read<F>(
@@ -146,7 +144,7 @@ impl Client {
             let first = first.clone();
             assert!(queue
                 .push(async move {
-                    let response = shard.read(&key).await;
+                    let response = shard.read(key).await;
                     if !matches!(response, Ok(Some(_))) || first.swap(false, Ordering::SeqCst) {
                         return (shard, response);
                     }
@@ -175,11 +173,11 @@ impl Client {
                 }
             };
 
-            let size = cmp::min(response.size, size.unwrap_or(usize::MAX));
-            metadata = Some(BlobMetadata {
-                metadata: response.metadata,
-                size,
-            });
+            let size = cmp::min(
+                response.metadata.as_ref().unwrap().size,
+                size.unwrap_or(usize::MAX),
+            );
+            metadata = Some(response.metadata.unwrap());
 
             match response.blob.unwrap().read(output, size).await {
                 Ok(()) => succeed = true,
@@ -200,7 +198,7 @@ impl Client {
             let key = key.clone();
             assert!(queue
                 .push(async move {
-                    let response = shard.read_metadata(&key).await;
+                    let response = shard.read_metadata(key).await;
                     (shard, response)
                 })
                 .is_ok());
@@ -219,12 +217,7 @@ impl Client {
                     continue;
                 }
             };
-
-            metadata = Some(BlobMetadata {
-                metadata: response.metadata,
-                size: response.size,
-            });
-
+            metadata = Some(response.metadata.unwrap());
             break;
         }
 
@@ -238,6 +231,7 @@ impl Client {
         metadata: Option<Bytes>,
         input: &mut F,
         size: usize,
+        expire_at: Option<Timestamp>,
     ) -> Result<bool, Error>
     where
         F: AsFd + Send,
@@ -250,7 +244,7 @@ impl Client {
             let first = first.clone();
             assert!(queue
                 .push(async move {
-                    let response = shard.write(&key, metadata.as_deref(), size).await;
+                    let response = shard.write(key, metadata, size, expire_at).await;
                     if !matches!(response, Ok(Some(_))) || first.swap(false, Ordering::SeqCst) {
                         return (shard, response);
                     }
@@ -298,6 +292,7 @@ impl Client {
         metadata: Option<Bytes>,
         input: &mut File,
         size: usize,
+        expire_at: Option<Timestamp>,
     ) -> Result<bool, Error> {
         let queue = ReadyQueue::new();
         let fd = input.as_raw_fd();
@@ -306,7 +301,7 @@ impl Client {
             let metadata = metadata.clone();
             assert!(queue
                 .push(async move {
-                    let response = match shard.write(&key, metadata.as_deref(), size).await {
+                    let response = match shard.write(key, metadata, size, expire_at).await {
                         Ok(Some(response)) => response,
                         Ok(None) => return (shard, Ok(false)),
                         Err(error) => return (shard, Err(error)),
@@ -342,8 +337,77 @@ impl Client {
         Ok(succeed)
     }
 
-    pub async fn cancel(&self, endpoint: Endpoint, token: Token) -> Result<(), Error> {
-        self.get(endpoint)?.cancel(token).await
+    // Since a `write_metadata` request cannot be canceled, providing a `write_metadata_any`
+    // function does not seem to offer much value.
+    pub async fn write_metadata(
+        &self,
+        key: Bytes,
+        metadata: Option<Option<Bytes>>,
+        expire_at: Option<Option<Timestamp>>,
+    ) -> Result<bool, Error> {
+        let queue = ReadyQueue::new();
+        for shard in self.find(&key)? {
+            let key = key.clone();
+            let metadata = metadata.clone();
+            assert!(queue
+                .push(async move {
+                    let response = shard.write_metadata(key, metadata, expire_at).await;
+                    (shard, response)
+                })
+                .is_ok());
+        }
+        queue.close();
+
+        let mut succeed = false;
+        let mut last_error = None;
+
+        while let Some((shard, response)) = queue.pop_ready().await {
+            match response {
+                Ok(Some(response)) => {
+                    tracing::debug!(endpoint = %shard.endpoint(), ?response, "write_metadata");
+                    succeed = true;
+                }
+                Ok(None) => {}
+                Err(error) => le_push!("write_metadata", last_error, shard.endpoint(), error),
+            }
+        }
+
+        le_finish!("write_metadata", last_error, succeed);
+        Ok(succeed)
+    }
+
+    /// Removes the blob from **all** shards (not just those required by the rendezvous hashing
+    /// algorithm) to prevent the scenario where a blob is "accidentally" replicated to additional
+    /// shards and later re-replicated.
+    pub async fn remove(&self, key: Bytes) -> Result<bool, Error> {
+        let queue = ReadyQueue::new();
+        for shard in self.all()? {
+            let key = key.clone();
+            assert!(queue
+                .push(async move {
+                    let response = shard.remove(key).await;
+                    (shard, response)
+                })
+                .is_ok());
+        }
+        queue.close();
+
+        let mut succeed = false;
+        let mut last_error = None;
+
+        while let Some((shard, response)) = queue.pop_ready().await {
+            match response {
+                Ok(Some(response)) => {
+                    tracing::debug!(endpoint = %shard.endpoint(), ?response, "remove");
+                    succeed = true;
+                }
+                Ok(None) => {}
+                Err(error) => le_push!("remove", last_error, shard.endpoint(), error),
+            }
+        }
+
+        le_finish!("remove", last_error, succeed);
+        Ok(succeed)
     }
 }
 

@@ -3,8 +3,6 @@ use std::io;
 use std::time::Duration;
 
 use bytes::Bytes;
-use capnp::message;
-use capnp::serialize;
 use futures::future::OptionFuture;
 use futures::sink::SinkExt;
 use futures::stream::TryStreamExt;
@@ -20,8 +18,8 @@ use g1_zmq::envelope::{Envelope, Frame, Multipart};
 use g1_zmq::Socket;
 
 use ddcache_rpc::envelope;
-use ddcache_rpc::rpc_capnp::{request, response};
-use ddcache_rpc::{BlobEndpoint, Endpoint, Token};
+use ddcache_rpc::rpc_capnp::response;
+use ddcache_rpc::{BlobMetadata, Endpoint, Timestamp, Token};
 
 use crate::blob::RemoteBlob;
 use crate::error::{ConnectSnafu, DecodeSnafu, Error, UnexpectedResponseSnafu};
@@ -35,68 +33,15 @@ enum ProtoError {
     InvalidRoutingId { response: Envelope<Frame> },
 }
 
-impl From<ProtoError> for io::Error {
-    fn from(error: ProtoError) -> Self {
-        io::Error::other(error)
-    }
-}
-
-type Request = (Frame, ResponseSend);
+type Request = (ddcache_rpc::Request, ResponseSend);
 type RequestRecv = mpsc::Receiver<Request>;
 type RequestSend = mpsc::Sender<Request>;
 
 // It is a bit sloppy, but we use this type for both reading and writing to reduce boilerplate.
 #[derive(Debug)]
 pub(crate) struct Response {
+    pub(crate) metadata: Option<BlobMetadata>,
     pub(crate) blob: Option<RemoteBlob>,
-    pub(crate) metadata: Option<Bytes>,
-    pub(crate) size: usize,
-}
-
-// Rust's orphan rule prevents us from implementing `TryFrom` for `Option<Response>`.
-impl Response {
-    fn try_from<'a>(response: &'a response::Reader<'a>) -> Result<Option<Self>, capnp::Error> {
-        Ok(match response.which()? {
-            response::Ping(()) => None,
-
-            response::Read(read) => {
-                let read = read?;
-                let metadata = read.get_metadata()?;
-                let endpoint = BlobEndpoint::try_from(read.get_endpoint()?)?;
-                Some(Self {
-                    blob: Some(RemoteBlob::new(endpoint, read.get_token())),
-                    metadata: read
-                        .has_metadata()
-                        .then_some(Bytes::copy_from_slice(metadata)),
-                    size: read.get_size().try_into().unwrap(),
-                })
-            }
-
-            response::ReadMetadata(read_metadata) => {
-                let read_metadata = read_metadata?;
-                let metadata = read_metadata.get_metadata()?;
-                Some(Self {
-                    blob: None,
-                    metadata: read_metadata
-                        .has_metadata()
-                        .then_some(Bytes::copy_from_slice(metadata)),
-                    size: read_metadata.get_size().try_into().unwrap(),
-                })
-            }
-
-            response::Write(write) => {
-                let write = write?;
-                let endpoint = BlobEndpoint::try_from(write.get_endpoint()?)?;
-                Some(Self {
-                    blob: Some(RemoteBlob::new(endpoint, write.get_token())),
-                    metadata: None,
-                    size: 0,
-                })
-            }
-
-            response::Cancel(()) => None,
-        })
-    }
 }
 
 type ResponseResult = Result<Option<Response>, Error>;
@@ -170,65 +115,63 @@ impl Shard {
         self.endpoint.clone()
     }
 
-    pub(crate) async fn ping(&self) -> Result<(), Error> {
-        let response = self.request(|mut request| request.set_ping(())).await?;
+    pub(crate) async fn cancel(&self, token: Token) -> Result<(), Error> {
+        let response = self.request(ddcache_rpc::Request::Cancel(token)).await?;
         ensure!(response.is_none(), UnexpectedResponseSnafu);
         Ok(())
     }
 
-    pub(crate) async fn read(&self, key: &[u8]) -> ResponseResult {
-        self.request(|request| request.init_read().set_key(key))
-            .await
+    pub(crate) async fn read(&self, key: Bytes) -> ResponseResult {
+        self.request(ddcache_rpc::Request::Read { key }).await
     }
 
-    pub(crate) async fn read_metadata(&self, key: &[u8]) -> ResponseResult {
-        self.request(|request| request.init_read_metadata().set_key(key))
+    pub(crate) async fn read_metadata(&self, key: Bytes) -> ResponseResult {
+        self.request(ddcache_rpc::Request::ReadMetadata { key })
             .await
     }
 
     pub(crate) async fn write(
         &self,
-        key: &[u8],
-        metadata: Option<&[u8]>,
+        key: Bytes,
+        metadata: Option<Bytes>,
         size: usize,
+        expire_at: Option<Timestamp>,
     ) -> ResponseResult {
-        self.request(|request| {
-            let mut request = request.init_write();
-            request.set_key(key);
-            if let Some(metadata) = metadata {
-                request.set_metadata(metadata);
-            }
-            request.set_size(size.try_into().unwrap());
+        self.request(ddcache_rpc::Request::Write {
+            key,
+            metadata,
+            size,
+            expire_at,
         })
         .await
     }
 
-    pub(crate) async fn cancel(&self, token: Token) -> Result<(), Error> {
-        let response = self
-            .request(|mut request| request.set_cancel(token))
-            .await?;
-        ensure!(response.is_none(), UnexpectedResponseSnafu);
-        Ok(())
+    pub(crate) async fn write_metadata(
+        &self,
+        key: Bytes,
+        metadata: Option<Option<Bytes>>,
+        expire_at: Option<Option<Timestamp>>,
+    ) -> ResponseResult {
+        self.request(ddcache_rpc::Request::WriteMetadata {
+            key,
+            metadata,
+            expire_at,
+        })
+        .await
     }
 
-    async fn request<F>(&self, init: F) -> ResponseResult
-    where
-        F: FnOnce(request::Builder),
-    {
-        let mut request = message::Builder::new_default();
-        init(request.init_root::<request::Builder>());
-        tracing::debug!(request = ?request.get_root_as_reader::<request::Reader>().unwrap());
-        let request = Frame::from(serialize::write_message_to_words(&request));
+    pub(crate) async fn remove(&self, key: Bytes) -> ResponseResult {
+        self.request(ddcache_rpc::Request::Remove { key }).await
+    }
 
+    async fn request(&self, request: ddcache_rpc::Request) -> ResponseResult {
         let (response_send, response_recv) = oneshot::channel();
-
         self.request_send
             .send((request, response_send))
             .await
             .map_err(|_| Error::Disconnected {
                 endpoint: self.endpoint.clone(),
             })?;
-
         response_recv.await.map_err(|_| Error::Disconnected {
             endpoint: self.endpoint.clone(),
         })?
@@ -283,10 +226,11 @@ impl Actor {
     }
 
     async fn handle_request(&mut self, (request, response_send): Request) -> Result<(), io::Error> {
+        tracing::debug!(?request);
         let routing_id = self.response_sends.insert(response_send);
         let request = Envelope::new(
             vec![Frame::from(routing_id.to_be_bytes().as_slice())],
-            request,
+            Frame::from(Vec::<u8>::from(request)),
         );
         self.duplex.send(request.into()).await
     }
@@ -301,19 +245,21 @@ impl Actor {
         );
         let routing_id = RoutingId::from_be_bytes((*routing_id[0]).try_into().unwrap());
 
+        let response = self.decode(response);
+        tracing::debug!(?response);
+
         let Some(response_send) = self.response_sends.remove(routing_id) else {
             tracing::debug!(routing_id, "response_send not found");
             return Ok(());
         };
 
-        let _ = response_send.send(self.decode_response(response));
-
+        let _ = response_send.send(response);
         Ok(())
     }
 
-    fn decode_response(&self, response: Envelope<Frame>) -> ResponseResult {
+    fn decode(&self, response: Envelope<Frame>) -> ResponseResult {
         let result: Result<_, capnp::Error> = try {
-            match &**envelope::decode_response(response)?.data() {
+            match **envelope::decode_response(response)?.data() {
                 Ok(Some(response)) => Ok(Response::try_from(response)?),
                 Ok(None) => Ok(None),
                 Err(error) => Err(Error::try_from(error)?),
@@ -371,5 +317,40 @@ impl ResponseSends {
 
     fn remove(&mut self, routing_id: RoutingId) -> Option<ResponseSend> {
         self.map.remove(&routing_id)
+    }
+}
+
+impl From<ProtoError> for io::Error {
+    fn from(error: ProtoError) -> Self {
+        io::Error::other(error)
+    }
+}
+
+// Rust's orphan rule prevents us from implementing `TryFrom` for `Option<Response>`.
+impl Response {
+    fn try_from(response: response::Reader) -> Result<Option<Self>, capnp::Error> {
+        Ok(match ddcache_rpc::Response::try_from(response)? {
+            ddcache_rpc::Response::Cancel => None,
+            ddcache_rpc::Response::Read { metadata, blob } => Some(Self {
+                metadata: Some(metadata),
+                blob: Some(blob.into()),
+            }),
+            ddcache_rpc::Response::ReadMetadata { metadata } => Some(Self {
+                metadata: Some(metadata),
+                blob: None,
+            }),
+            ddcache_rpc::Response::Write { blob } => Some(Self {
+                metadata: None,
+                blob: Some(blob.into()),
+            }),
+            ddcache_rpc::Response::WriteMetadata { metadata } => Some(Self {
+                metadata: Some(metadata),
+                blob: None,
+            }),
+            ddcache_rpc::Response::Remove { metadata } => Some(Self {
+                metadata: Some(metadata),
+                blob: None,
+            }),
+        })
     }
 }

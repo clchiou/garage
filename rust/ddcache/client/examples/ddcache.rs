@@ -8,7 +8,7 @@ use clap::{Args, Parser, Subcommand};
 use g1_cli::{param::ParametersConfig, tracing::TracingConfig};
 
 use ddcache_client::{Client, ClientGuard};
-use ddcache_rpc::{Endpoint, Token};
+use ddcache_rpc::{Endpoint, Timestamp, Token};
 
 #[derive(Debug, Parser)]
 struct Program {
@@ -27,11 +27,17 @@ struct Program {
 
 #[derive(Debug, Subcommand)]
 enum Command {
-    Ping,
+    Cancel(Cancel),
     Read(Read),
     ReadMetadata(ReadMetadata),
     Write(Write),
-    Cancel(Cancel),
+    WriteMetadata(WriteMetadata),
+    Remove(Remove),
+}
+
+#[derive(Args, Debug)]
+struct Cancel {
+    token: Token,
 }
 
 #[derive(Args, Debug)]
@@ -53,25 +59,39 @@ struct Write {
     key: Bytes,
     #[arg(long)]
     metadata: Option<Bytes>,
+    #[arg(long)]
+    expire_at: Option<Timestamp>,
     file: PathBuf,
 }
 
 #[derive(Args, Debug)]
-struct Cancel {
-    token: Token,
+struct WriteMetadata {
+    key: Bytes,
+    #[arg(long)]
+    metadata: Option<Option<Bytes>>,
+    #[arg(long)]
+    expire_at: Option<Option<Timestamp>>,
+}
+
+#[derive(Args, Debug)]
+struct Remove {
+    key: Bytes,
 }
 
 impl Program {
     async fn execute(&self) -> Result<(), Error> {
         let (client, mut guard) = self.connect().await?;
         match &self.command {
-            Command::Ping => self.ping(client).await?,
+            Command::Cancel(cancel) => self.cancel(client, cancel).await?,
             Command::Read(read) => Self::read(client, read).await?,
             Command::ReadMetadata(read_metadata) => {
                 Self::read_metadata(client, read_metadata).await?
             }
             Command::Write(write) => Self::write(client, write).await?,
-            Command::Cancel(cancel) => self.cancel(client, cancel).await?,
+            Command::WriteMetadata(write_metadata) => {
+                Self::write_metadata(client, write_metadata).await?
+            }
+            Command::Remove(remove) => Self::remove(client, remove).await?,
         }
         guard.shutdown().await?.map_err(Error::other)
     }
@@ -87,9 +107,12 @@ impl Program {
         Ok((client, guard))
     }
 
-    async fn ping(&self, client: Client) -> Result<(), Error> {
+    async fn cancel(&self, client: Client, cancel: &Cancel) -> Result<(), Error> {
         for endpoint in self.endpoint.iter().cloned() {
-            client.ping(endpoint).await.map_err(Error::other)?;
+            client
+                .cancel(endpoint, cancel.token)
+                .await
+                .map_err(Error::other)?;
         }
         Ok(())
     }
@@ -122,11 +145,23 @@ impl Program {
         let size = usize::try_from(file.metadata()?.len()).unwrap();
         let written = if write.write_any {
             client
-                .write_any(write.key.clone(), write.metadata.clone(), &mut file, size)
+                .write_any(
+                    write.key.clone(),
+                    write.metadata.clone(),
+                    &mut file,
+                    size,
+                    write.expire_at,
+                )
                 .await
         } else {
             client
-                .write_all(write.key.clone(), write.metadata.clone(), &mut file, size)
+                .write_all(
+                    write.key.clone(),
+                    write.metadata.clone(),
+                    &mut file,
+                    size,
+                    write.expire_at,
+                )
                 .await
         }
         .map_err(Error::other)?;
@@ -134,13 +169,25 @@ impl Program {
         Ok(())
     }
 
-    async fn cancel(&self, client: Client, cancel: &Cancel) -> Result<(), Error> {
-        for endpoint in self.endpoint.iter().cloned() {
-            client
-                .cancel(endpoint, cancel.token)
-                .await
-                .map_err(Error::other)?;
-        }
+    async fn write_metadata(client: Client, write_metadata: &WriteMetadata) -> Result<(), Error> {
+        let written = client
+            .write_metadata(
+                write_metadata.key.clone(),
+                write_metadata.metadata.clone(),
+                write_metadata.expire_at,
+            )
+            .await
+            .map_err(Error::other)?;
+        eprintln!("write_metadata: {}", written);
+        Ok(())
+    }
+
+    async fn remove(client: Client, remove: &Remove) -> Result<(), Error> {
+        let removed = client
+            .remove(remove.key.clone())
+            .await
+            .map_err(Error::other)?;
+        eprintln!("remove: {}", removed);
         Ok(())
     }
 }

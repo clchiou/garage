@@ -58,6 +58,12 @@ impl RouteMap {
             .context(DisconnectedSnafu { endpoint })
     }
 
+    pub(crate) fn all(&self) -> Result<Vec<Shard>, Error> {
+        let shards: Vec<_> = self.shards.values().cloned().collect();
+        ensure!(!shards.is_empty(), NotConnectedSnafu);
+        Ok(shards)
+    }
+
     /// Finds shards via the Rendezvous Hashing algorithm.
     pub(crate) fn find(&self, key: &[u8], num_replicas: usize) -> Result<Vec<Shard>, Error> {
         let mut shards = self

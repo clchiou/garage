@@ -34,10 +34,11 @@ pub enum Error {
     //
     // Protocol errors.
     //
-    #[snafu(display("error was not set"))]
-    Unset,
+    #[snafu(display("server error"))]
+    Server,
     #[snafu(display("shard unavailable"))]
     Unavailable,
+
     #[snafu(display("invalid request"))]
     InvalidRequest,
     #[snafu(display("expect key size <= {max}"))]
@@ -58,12 +59,12 @@ pub enum Error {
     PartialIo { size: usize, expect: usize },
 }
 
-impl<'a> TryFrom<&'a error::Reader<'a>> for Error {
+impl TryFrom<error::Reader<'_>> for Error {
     type Error = capnp::Error;
 
-    fn try_from(error: &'a error::Reader<'a>) -> Result<Self, Self::Error> {
+    fn try_from(error: error::Reader<'_>) -> Result<Self, Self::Error> {
         Ok(match error.which()? {
-            error::None(()) => Error::Unset,
+            error::Server(()) => Error::Server,
             error::Unavailable(()) => Error::Unavailable,
             error::InvalidRequest(()) => Error::InvalidRequest,
             error::MaxKeySizeExceeded(max) => Error::MaxKeySizeExceeded { max },
