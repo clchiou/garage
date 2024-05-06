@@ -299,6 +299,10 @@ impl WriteGuard {
         }
     }
 
+    pub fn is_new(&self) -> bool {
+        self.guard.as_ref().unwrap().is_new()
+    }
+
     fn new_metadata(&self) -> &BlobMetadata {
         self.new_metadata
             .as_ref()
