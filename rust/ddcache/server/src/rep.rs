@@ -6,47 +6,77 @@ use capnp::serialize;
 
 use g1_zmq::envelope::Frame;
 
-use ddcache_rpc::{BlobEndpoint, ResponseBuilder, Token};
+use ddcache_rpc::{
+    BlobEndpoint, BlobMetadata, BlobRequest, Response, ResponseBuilder, Timestamp, Token,
+};
 
 pub(crate) fn read_response(
     metadata: Option<Bytes>,
-    size: u64,
+    size: usize,
+    expire_at: Option<Timestamp>,
     endpoint: BlobEndpoint,
     token: Token,
 ) -> Frame {
-    let mut message = message::Builder::new_default();
-    let mut read = message.init_root::<ResponseBuilder>().init_ok().init_read();
-    if let Some(metadata) = metadata {
-        read.set_metadata(&metadata);
-    }
-    read.set_size(size.try_into().unwrap());
-    read.reborrow().init_endpoint().set(endpoint);
-    read.set_token(token);
-    serialize::write_message_to_words(&message).into()
+    encode(Response::Read {
+        metadata: BlobMetadata {
+            metadata,
+            size,
+            expire_at,
+        },
+        blob: BlobRequest { endpoint, token },
+    })
 }
 
-pub(crate) fn read_metadata_response(metadata: Option<Bytes>, size: u64) -> Frame {
-    let mut message = message::Builder::new_default();
-    let mut read = message
-        .init_root::<ResponseBuilder>()
-        .init_ok()
-        .init_read_metadata();
-    if let Some(metadata) = metadata {
-        read.set_metadata(&metadata);
-    }
-    read.set_size(size.try_into().unwrap());
-    serialize::write_message_to_words(&message).into()
+pub(crate) fn read_metadata_response(
+    metadata: Option<Bytes>,
+    size: usize,
+    expire_at: Option<Timestamp>,
+) -> Frame {
+    encode(Response::ReadMetadata {
+        metadata: BlobMetadata {
+            metadata,
+            size,
+            expire_at,
+        },
+    })
 }
 
 pub(crate) fn write_response(endpoint: BlobEndpoint, token: Token) -> Frame {
-    let mut message = message::Builder::new_default();
-    let mut write = message
-        .init_root::<ResponseBuilder>()
-        .init_ok()
-        .init_write();
-    write.reborrow().init_endpoint().set(endpoint);
-    write.set_token(token);
-    serialize::write_message_to_words(&message).into()
+    encode(Response::Write {
+        blob: BlobRequest { endpoint, token },
+    })
+}
+
+pub(crate) fn write_metadata_response(
+    metadata: Option<Bytes>,
+    size: usize,
+    expire_at: Option<Timestamp>,
+) -> Frame {
+    encode(Response::WriteMetadata {
+        metadata: BlobMetadata {
+            metadata,
+            size,
+            expire_at,
+        },
+    })
+}
+
+pub(crate) fn remove_response(
+    metadata: Option<Bytes>,
+    size: usize,
+    expire_at: Option<Timestamp>,
+) -> Frame {
+    encode(Response::Remove {
+        metadata: BlobMetadata {
+            metadata,
+            size,
+            expire_at,
+        },
+    })
+}
+
+fn encode(response: Response) -> Frame {
+    Vec::<u8>::from(response).into()
 }
 
 macro_rules! make_const_response {
@@ -64,11 +94,14 @@ macro_rules! make_const_response {
     };
 }
 
-make_const_response!(ping_response => .init_ok().set_ping(()));
-make_const_response!(cancel_response => .init_ok().set_cancel(()));
 make_const_response!(ok_none_response => /* Do nothing. */);
 
+make_const_response!(cancel_response => .init_ok().set_cancel(()));
+
+make_const_response!(server_error => .init_err().set_server(()));
+
 make_const_response!(unavailable_error => .init_err().set_unavailable(()));
+
 make_const_response!(invalid_request_error => .init_err().set_invalid_request(()));
 make_const_response!(
     max_key_size_exceeded_error =>

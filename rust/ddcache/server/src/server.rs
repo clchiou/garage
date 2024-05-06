@@ -1,4 +1,3 @@
-use std::fmt;
 use std::io::Error;
 use std::path::Path;
 use std::sync::{
@@ -17,16 +16,14 @@ use tokio::time::{self, Instant};
 use tracing::Instrument;
 use zmq::{Context, ROUTER};
 
-use g1_capnp::owner::Owner;
 use g1_tokio::task::{Cancel, JoinGuard, JoinQueue};
 use g1_zmq::duplex::Duplex;
 use g1_zmq::envelope::{Envelope, Frame, Multipart};
 use g1_zmq::Socket;
 
 use ddcache_rpc::envelope;
-use ddcache_rpc::rpc_capnp::request;
-use ddcache_rpc::{BlobEndpoint, Endpoint};
-use ddcache_storage::Storage;
+use ddcache_rpc::{BlobEndpoint, Endpoint, Request, Timestamp, TimestampExt, Token};
+use ddcache_storage::{ReadGuard, Storage, WriteGuard};
 
 use crate::rep;
 use crate::state::State;
@@ -51,16 +48,16 @@ pub(crate) struct Actor {
     storage_size_lwm: u64,
     storage_size_hwm: u64,
 
+    evict_task: Option<Guard>,
+    expire_task: Option<Guard>,
+
     stats: Arc<Stats>,
 }
 
 #[derive(Debug)]
-struct Handler<R> {
-    request: Option<Envelope<Owner<Frame, R>>>,
+struct Handler {
+    response_envelope: Envelope<()>,
     response_send: UnboundedSender<Envelope<Frame>>,
-    max_key_size: usize,
-    max_metadata_size: usize,
-    max_blob_size: usize,
 
     blob_endpoints: Arc<[BlobEndpoint]>,
 
@@ -130,6 +127,9 @@ impl Actor {
             storage_size_lwm: *crate::storage_size_lwm(),
             storage_size_hwm: *crate::storage_size_hwm(),
 
+            evict_task: None,
+            expire_task: None,
+
             stats: Arc::new(Default::default()),
         }
     }
@@ -139,8 +139,6 @@ impl Actor {
 
         let mut deadline = None;
         tokio::pin! { let timeout = OptionFuture::from(None); }
-
-        let mut evict_task: Option<Guard> = None;
 
         let mut log_stats_interval = time::interval(Duration::from_secs(600));
 
@@ -156,9 +154,7 @@ impl Actor {
 
                 request = self.duplex.try_next() => {
                     let Some(request) = request? else { break };
-                    if !self.handle_request(request, &response_send) {
-                        break;
-                    }
+                    self.handle_request(request, &response_send);
                 }
                 response = response_recv.recv() => {
                     let Some(response) = response else { break };
@@ -179,12 +175,34 @@ impl Actor {
                     // We check and spawn an evict task regardless of whether `guard` is write, and
                     // we do so even before the client completes writing to the blob.  While this
                     // may seem a bit unusual, it should not pose any issues in practice.
-                    self.check_then_spawn_evict(&mut evict_task);
+                    self.check_then_spawn_evict();
                 }
 
-                Some(()) = OptionFuture::from(evict_task.as_mut().map(|guard| guard.join())) => {
-                    let guard = evict_task.take().unwrap();
-                    self.handle_evict_task(guard)?;
+                Some(()) = {
+                    OptionFuture::from(self.evict_task.as_mut().map(|guard| guard.join()))
+                } => {
+                    let guard = self.evict_task.take().unwrap();
+                    self.handle_cleanup_task(guard)?;
+                }
+
+                Some(()) = {
+                    OptionFuture::from(
+                        if self.expire_task.is_none() {
+                            self.storage.next_expire_at()
+                        } else {
+                            None
+                        }
+                        .map(|t| (t - Timestamp::now()).to_std().unwrap_or_default())
+                        .map(time::sleep),
+                    )
+                } => {
+                    self.spawn_expire();
+                }
+                Some(()) = {
+                    OptionFuture::from(self.expire_task.as_mut().map(|guard| guard.join()))
+                } => {
+                    let guard = self.expire_task.take().unwrap();
+                    self.handle_cleanup_task(guard)?;
                 }
 
                 _ = log_stats_interval.tick() => tracing::info!(stats = ?self.stats),
@@ -197,30 +215,23 @@ impl Actor {
             self.handle_task(guard);
         }
 
-        if let Some(mut guard) = evict_task {
+        for mut guard in self
+            .evict_task
+            .take()
+            .into_iter()
+            .chain(self.expire_task.take().into_iter())
+        {
             guard.cancel();
             guard.join().await;
-            self.handle_evict_task(guard)?;
+            self.handle_cleanup_task(guard)?;
         }
 
         Ok(())
     }
 
-    fn handle_request(
-        &self,
-        request: Multipart,
-        response_send: &UnboundedSender<Envelope<Frame>>,
-    ) -> bool {
-        macro_rules! push_response {
-            ($response:expr $(,)?) => {
-                if response_send.send($response).is_err() {
-                    return false;
-                }
-            };
-        }
-
-        let request = match envelope::decode_request(request) {
-            Ok(request) => request,
+    fn handle_request(&self, request: Multipart, response_send: &UnboundedSender<Envelope<Frame>>) {
+        let envelope = match envelope::decode_request(request) {
+            Ok(envelope) => envelope,
             Err(error) => {
                 match error {
                     envelope::Error::InvalidFrameSequence { frames } => {
@@ -228,97 +239,153 @@ impl Actor {
                         // TODO: What else could we do?
                     }
                     envelope::Error::Decode { source, envelope } => {
-                        tracing::warn!(error = %source, ?envelope, "decode error");
-                        push_response!(envelope.map(|()| rep::invalid_request_error()));
+                        tracing::warn!(?envelope, error = %source, "decode error");
+                        let _ = response_send.send(envelope.map(|()| rep::invalid_request_error()));
                     }
                     envelope::Error::ExpectOneDataFrame { envelope } => {
                         tracing::warn!(?envelope, "expect exactly one data frame");
-                        push_response!(envelope.map(|_| rep::invalid_request_error()));
+                        let _ = response_send.send(envelope.map(|_| rep::invalid_request_error()));
                     }
                 }
-                return true;
+                return;
+            }
+        };
+        tracing::debug!(request = ?&**envelope.data());
+
+        let request = match Request::try_from(**envelope.data()) {
+            Ok(request) => request,
+            Err(error) => {
+                tracing::warn!(request = ?&**envelope.data(), %error, "decode error");
+                let _ = response_send.send(envelope.map(|_| rep::invalid_request_error()));
+                return;
             }
         };
 
-        macro_rules! try_acquire {
-            () => {
-                match self.concurrency.clone().try_acquire_owned() {
-                    Ok(permit) => permit,
-                    Err(_) => {
-                        push_response!(request.map(|_| rep::unavailable_error()));
-                        return true;
-                    }
+        let Ok(permit) = self.concurrency.clone().try_acquire_owned() else {
+            let _ = response_send.send(envelope.map(|_| rep::unavailable_error()));
+            return;
+        };
+        let handler = Handler::new(self, envelope.map(|_| ()), response_send.clone(), permit);
+
+        let max_key_size = self.max_key_size;
+        let max_metadata_size = self.max_metadata_size;
+        let max_blob_size = self.max_blob_size;
+
+        macro_rules! check_key {
+            ($key:ident $(,)?) => {
+                if $key.len() > max_key_size {
+                    tracing::warn!(key = %$key.escape_ascii(), max_key_size, "max size exceeded");
+                    handler.send_response(rep::max_key_size_exceeded_error());
+                    return;
                 }
             };
         }
 
-        tracing::debug!(request = ?&**request.data());
-        match request.data().which() {
-            // TODO: We do not `try_acquire` the semaphore for `ping` requests, so theoretically we
-            // could experience denial of service due to `ping` requests, but that is probably not
-            // an issue in practice.
-            Ok(request::Ping(())) => push_response!(request.map(|_| rep::ping_response())),
-
-            Ok(request::Read(Ok(read))) => {
-                let permit = try_acquire!();
-
-                let request = request.map(|data| data.map(|_| read));
-                let response_send = response_send.clone();
-                self.tasks
-                    .push(JoinGuard::spawn(move |cancel| {
-                        Handler::new(self, request, response_send, permit)
-                            .run_read(cancel)
-                            .instrument(tracing::info_span!("ddcache/read"))
-                    }))
-                    .unwrap();
-            }
-
-            Ok(request::ReadMetadata(Ok(read_metadata))) => {
-                let permit = try_acquire!();
-
-                let request = request.map(|data| data.map(|_| read_metadata));
-                let response_send = response_send.clone();
-                self.tasks
-                    .push(JoinGuard::spawn(move |cancel| {
-                        Handler::new(self, request, response_send, permit)
-                            .run_read_metadata(cancel)
-                            .instrument(tracing::info_span!("ddcache/read-metadata"))
-                    }))
-                    .unwrap();
-            }
-
-            Ok(request::Write(Ok(write))) => {
-                let permit = try_acquire!();
-
-                let request = request.map(|data| data.map(|_| write));
-                let response_send = response_send.clone();
-                {
-                    let span = tracing::info_span!("ddcache/write");
-                    let _enter = span.enter();
-                    Handler::new(self, request, response_send, permit).write();
+        macro_rules! check_metadata {
+            ($metadata:expr $(,)?) => {{
+                let metadata = $metadata;
+                if metadata.len() > max_metadata_size {
+                    tracing::warn!(
+                        metadata = %metadata.escape_ascii(),
+                        max_metadata_size,
+                        "max size exceeded",
+                    );
+                    handler.send_response(rep::max_metadata_size_exceeded_error());
+                    return;
                 }
-            }
-
-            Ok(request::Cancel(token)) => {
-                if self.state.remove(token).is_some() {
-                    tracing::debug!(token, "cancel");
-                }
-                push_response!(request.map(|_| rep::cancel_response()));
-            }
-
-            Ok(request::Read(Err(error)))
-            | Ok(request::ReadMetadata(Err(error)))
-            | Ok(request::Write(Err(error))) => {
-                tracing::warn!(?request, %error, "decode error");
-                push_response!(request.map(|_| rep::invalid_request_error()));
-            }
-            Err(error) => {
-                tracing::warn!(?request, %error, "unknown request type");
-                push_response!(request.map(|_| rep::invalid_request_error()));
-            }
+            }};
         }
 
-        true
+        macro_rules! check_size {
+            ($size:ident $(,)?) => {
+                if $size > max_blob_size {
+                    tracing::warn!($size, max_blob_size, "max size exceeded");
+                    handler.send_response(rep::max_blob_size_exceeded_error());
+                    return;
+                }
+            };
+        }
+
+        match request {
+            Request::Cancel(token) => {
+                let span = tracing::info_span!("ddcache/cancel");
+                let _enter = span.enter();
+                handler.cancel(token);
+            }
+
+            Request::Read { key } => {
+                self.tasks
+                    .push(JoinGuard::spawn(move |cancel| {
+                        async move {
+                            check_key!(key);
+                            tokio::select! {
+                                () = cancel.wait() => {}
+                                () = handler.read(key) => {}
+                            }
+                        }
+                        .instrument(tracing::info_span!("ddcache/read"))
+                    }))
+                    .unwrap();
+            }
+
+            Request::ReadMetadata { key } => {
+                self.tasks
+                    .push(JoinGuard::spawn(move |cancel| {
+                        async move {
+                            check_key!(key);
+                            tokio::select! {
+                                () = cancel.wait() => {}
+                                () = handler.read_metadata(key) => {}
+                            }
+                        }
+                        .instrument(tracing::info_span!("ddcache/read-metadata"))
+                    }))
+                    .unwrap();
+            }
+
+            Request::Write {
+                key,
+                metadata,
+                size,
+                expire_at,
+            } => {
+                let span = tracing::info_span!("ddcache/write");
+                let _enter = span.enter();
+                check_key!(key);
+                check_metadata!(metadata.as_deref().unwrap_or(&[]));
+                check_size!(size);
+                handler.write(key, metadata, size, expire_at);
+            }
+
+            Request::WriteMetadata {
+                key,
+                metadata,
+                expire_at,
+            } => {
+                let span = tracing::info_span!("ddcache/write-metadata");
+                let _enter = span.enter();
+                check_key!(key);
+                check_metadata!(metadata
+                    .as_ref()
+                    .map_or(&[] as &[u8], |x| x.as_deref().unwrap_or(&[])));
+                handler.write_metadata(key, metadata, expire_at);
+            }
+
+            Request::Remove { key } => {
+                self.tasks
+                    .push(JoinGuard::spawn(move |cancel| {
+                        async move {
+                            check_key!(key);
+                            tokio::select! {
+                                () = cancel.wait() => {}
+                                () = handler.remove(key) => {}
+                            }
+                        }
+                        .instrument(tracing::info_span!("ddcache/remove"))
+                    }))
+                    .unwrap();
+            }
+        }
     }
 
     fn handle_task(&self, mut guard: JoinGuard<()>) {
@@ -328,61 +395,43 @@ impl Actor {
         }
     }
 
-    fn check_then_spawn_evict(&self, evict_task: &mut Option<Guard>) {
-        if evict_task.is_none() && self.storage.size() > self.storage_size_hwm {
-            *evict_task = Some(Guard::spawn(move |cancel| {
+    fn check_then_spawn_evict(&mut self) {
+        if self.evict_task.is_none() && self.storage.size() > self.storage_size_hwm {
+            self.evict_task = Some(Guard::spawn(|cancel| {
                 evict(cancel, self.storage.clone(), self.storage_size_lwm)
                     .instrument(tracing::info_span!("ddcache/evict"))
             }));
         }
     }
 
-    fn handle_evict_task(&self, mut guard: Guard) -> Result<(), Error> {
+    fn spawn_expire(&mut self) {
+        assert!(self.expire_task.is_none());
+        self.expire_task = Some(Guard::spawn(|cancel| {
+            expire(cancel, self.storage.clone()).instrument(tracing::info_span!("ddcache/expire"))
+        }));
+    }
+
+    fn handle_cleanup_task(&self, mut guard: Guard) -> Result<(), Error> {
         match guard.take_result() {
             Ok(result) => result,
             Err(error) => {
-                tracing::warn!(%error, "evict task error");
+                tracing::warn!(%error, "cleanup task error");
                 Ok(())
             }
         }
     }
 }
 
-macro_rules! check_result {
-    ($self:ident, $result:expr $(,)?) => {
-        $result
-            .inspect_err(|error| {
-                tracing::warn!(request = ?$self.request(), %error, "decode error");
-            })
-            .map_err(|_| rep::invalid_request_error())?
-    };
-}
-
-macro_rules! check_max {
-    ($self:ident, $size:expr, $max_size:ident, $error:ident $(,)?) => {
-        if $size > $self.$max_size {
-            tracing::warn!(request = ?$self.request(), "max size exceeded");
-            return Err(rep::$error());
-        }
-    };
-}
-
-impl<R> Handler<R>
-where
-    R: fmt::Debug,
-{
+impl Handler {
     fn new(
         server: &Actor,
-        request: Envelope<Owner<Frame, R>>,
+        response_envelope: Envelope<()>,
         response_send: UnboundedSender<Envelope<Frame>>,
         permit: OwnedSemaphorePermit,
     ) -> Self {
         Self {
-            request: Some(request),
+            response_envelope,
             response_send,
-            max_key_size: server.max_key_size,
-            max_metadata_size: server.max_metadata_size,
-            max_blob_size: server.max_blob_size,
 
             blob_endpoints: server.blob_endpoints.clone(),
 
@@ -395,160 +444,170 @@ where
         }
     }
 
-    fn request(&self) -> &R {
-        self.request.as_ref().unwrap().data()
-    }
-
-    fn check_key(&self, key: Result<&[u8], capnp::Error>) -> Result<Bytes, Frame> {
-        let key = check_result!(self, key);
-        if key.is_empty() {
-            tracing::warn!(request = ?self.request(), "empty key");
-            return Err(rep::invalid_request_error());
-        }
-        check_max!(self, key.len(), max_key_size, max_key_size_exceeded_error);
-        Ok(Bytes::copy_from_slice(key))
-    }
-
-    fn check_metadata(
-        &self,
-        metadata: Result<&[u8], capnp::Error>,
-    ) -> Result<Option<Bytes>, Frame> {
-        let metadata = check_result!(self, metadata);
-        check_max!(
-            self,
-            metadata.len(),
-            max_metadata_size,
-            max_metadata_size_exceeded_error,
-        );
-        Ok((!metadata.is_empty()).then(|| Bytes::copy_from_slice(metadata)))
-    }
-
-    fn check_size(&self, size: u32) -> Result<usize, Frame> {
-        let size = usize::try_from(size).unwrap();
-        check_max!(self, size, max_blob_size, max_blob_size_exceeded_error);
-        Ok(size)
-    }
-
-    fn push_response(&mut self, response: Frame) {
-        let response = self.request.take().unwrap().map(|_| response);
-        let _ = self.response_send.send(response);
+    fn send_response(self, response: Frame) {
+        let _ = self
+            .response_send
+            .send(self.response_envelope.map(|()| response));
     }
 }
 
-impl Handler<request::read::Reader<'static>> {
-    async fn run_read(self, cancel: Cancel) {
-        tokio::select! {
-            () = cancel.wait() => {}
-            () = self.read() => {}
+impl Handler {
+    fn cancel(self, token: Token) {
+        if self.state.remove(token).is_some() {
+            tracing::debug!(token, "cancel");
         }
+        self.send_response(rep::cancel_response());
     }
+}
 
-    async fn read(mut self) {
+impl Handler {
+    async fn read(mut self, key: Bytes) {
         // TODO: Pick a blob endpoint matching the client endpoint.
         let Some(endpoint) = self.blob_endpoints.first().copied() else {
-            self.push_response(rep::ok_none_response());
+            self.send_response(rep::ok_none_response());
             return;
         };
 
-        let key = match self.check_key(self.request().get_key()) {
-            Ok(key) => key,
-            Err(response) => {
-                self.push_response(response);
-                return;
-            }
-        };
-
-        let Some(reader) = self.storage.read(key).await else {
-            self.stats.read_miss.fetch_add(1, Ordering::SeqCst);
-            self.push_response(rep::ok_none_response());
+        let Some(reader) = self.read_lock(key).await else {
+            self.send_response(rep::ok_none_response());
             return;
         };
-        self.stats.read_hit.fetch_add(1, Ordering::SeqCst);
 
         let metadata = reader.metadata();
         let size = reader.size();
+        let expire_at = reader.expire_at();
 
         // No errors after this point.
 
         let permit = self.permit.take().unwrap();
         let token = self.state.insert_reader((reader, permit));
         tracing::debug!(token);
-        self.push_response(rep::read_response(metadata, size, endpoint, token));
-    }
-}
-
-impl Handler<request::read_metadata::Reader<'static>> {
-    async fn run_read_metadata(self, cancel: Cancel) {
-        tokio::select! {
-            () = cancel.wait() => {}
-            () = self.read_metadata() => {}
-        }
-    }
-
-    async fn read_metadata(mut self) {
-        let key = match self.check_key(self.request().get_key()) {
-            Ok(key) => key,
-            Err(response) => {
-                self.push_response(response);
-                return;
-            }
-        };
-
-        let Some(reader) = self.storage.read(key).await else {
-            self.stats.read_miss.fetch_add(1, Ordering::SeqCst);
-            self.push_response(rep::ok_none_response());
-            return;
-        };
-        self.stats.read_hit.fetch_add(1, Ordering::SeqCst);
-
-        self.push_response(rep::read_metadata_response(
-            reader.metadata(),
-            reader.size(),
+        self.send_response(rep::read_response(
+            metadata,
+            size.try_into().unwrap(),
+            expire_at,
+            endpoint,
+            token,
         ));
     }
+
+    async fn read_metadata(self, key: Bytes) {
+        let Some(reader) = self.read_lock(key).await else {
+            self.send_response(rep::ok_none_response());
+            return;
+        };
+
+        self.send_response(rep::read_metadata_response(
+            reader.metadata(),
+            reader.size().try_into().unwrap(),
+            reader.expire_at(),
+        ));
+    }
+
+    async fn read_lock(&self, key: Bytes) -> Option<ReadGuard> {
+        let reader = self.storage.read(key).await;
+        match reader {
+            Some(_) => self.stats.read_hit.fetch_add(1, Ordering::SeqCst),
+            None => self.stats.read_miss.fetch_add(1, Ordering::SeqCst),
+        };
+        reader
+    }
 }
 
-impl Handler<request::write::Reader<'static>> {
-    fn write(mut self) {
+impl Handler {
+    fn write(
+        mut self,
+        key: Bytes,
+        metadata: Option<Bytes>,
+        size: usize,
+        expire_at: Option<Timestamp>,
+    ) {
         // TODO: Pick a blob endpoint matching the client endpoint.
         let Some(endpoint) = self.blob_endpoints.first().copied() else {
-            self.push_response(rep::ok_none_response());
+            self.send_response(rep::ok_none_response());
             return;
         };
 
-        let (key, metadata, size) = match try {
-            let request = self.request();
-            (
-                self.check_key(request.get_key())?,
-                self.check_metadata(request.get_metadata())?,
-                self.check_size(request.get_size())?,
-            )
-        } {
-            Ok(tuple) => tuple,
-            Err(response) => {
-                self.push_response(response);
-                return;
-            }
-        };
-
-        // TODO: Call `try_write` here because I believe that, as a cache, it is not very critical
-        // to always update an entry.  Perhaps we should expose the interface to the client to
-        // force an update?
-        let Some(mut writer) = self.storage.try_write(key, /* truncate */ true) else {
-            self.stats.write_lock_fail.fetch_add(1, Ordering::SeqCst);
-            self.push_response(rep::ok_none_response());
+        let Some(mut writer) = self.try_write_lock(key, true) else {
+            self.send_response(rep::ok_none_response());
             return;
         };
-        self.stats.write_lock_succeed.fetch_add(1, Ordering::SeqCst);
 
         writer.set_metadata(metadata);
+        writer.set_expire_at(expire_at);
 
         // No errors after this point.
 
         let permit = self.permit.take().unwrap();
         let token = self.state.insert_writer((writer, size, permit));
         tracing::debug!(token);
-        self.push_response(rep::write_response(endpoint, token));
+        self.send_response(rep::write_response(endpoint, token));
+    }
+
+    fn write_metadata(
+        self,
+        key: Bytes,
+        new_metadata: Option<Option<Bytes>>,
+        new_expire_at: Option<Option<Timestamp>>,
+    ) {
+        let Some(mut writer) = self.try_write_lock(key.clone(), false) else {
+            self.send_response(rep::ok_none_response());
+            return;
+        };
+
+        // Do NOT create an empty file.  If creating an empty file is indeed your intention, please
+        // pass 0 as `size` to `write`.
+        if writer.is_new() {
+            self.send_response(rep::ok_none_response());
+            return;
+        }
+
+        let metadata = writer.metadata();
+        let size = writer.size();
+        let expire_at = writer.expire_at();
+
+        if let Some(new_metadata) = new_metadata {
+            writer.set_metadata(new_metadata);
+        }
+        if let Some(new_expire_at) = new_expire_at {
+            writer.set_expire_at(new_expire_at);
+        }
+
+        self.send_response(match writer.commit() {
+            Ok(()) => rep::write_metadata_response(metadata, size.try_into().unwrap(), expire_at),
+            Err(error) => {
+                tracing::warn!(key = %key.escape_ascii(), %error, "writer commit error");
+                rep::server_error()
+            }
+        });
+    }
+
+    // TODO: Call `try_write` here because I believe that, as a cache, it is not very critical to
+    // always update an entry.  Perhaps we should expose the interface to the client to force an
+    // update?
+    fn try_write_lock(&self, key: Bytes, truncate: bool) -> Option<WriteGuard> {
+        let writer = self.storage.try_write(key, truncate);
+        match writer {
+            Some(_) => self.stats.write_lock_succeed.fetch_add(1, Ordering::SeqCst),
+            None => self.stats.write_lock_fail.fetch_add(1, Ordering::SeqCst),
+        };
+        writer
+    }
+}
+
+impl Handler {
+    async fn remove(self, key: Bytes) {
+        let response = match self.storage.remove(key.clone()).await {
+            Ok(Some((metadata, size, expire_at))) => {
+                rep::remove_response(metadata, size.try_into().unwrap(), expire_at)
+            }
+            Ok(None) => rep::ok_none_response(),
+            Err(error) => {
+                tracing::warn!(key = %key.escape_ascii(), %error, "remove error");
+                rep::server_error()
+            }
+        };
+        self.send_response(response);
     }
 }
 
@@ -561,5 +620,18 @@ async fn evict(cancel: Cancel, storage: Storage, target_size: u64) -> Result<(),
     };
     let duration = start.elapsed();
     tracing::info!(old_size, new_size, ?duration, "evict");
+    Ok(())
+}
+
+async fn expire(cancel: Cancel, storage: Storage) -> Result<(), Error> {
+    let old_size = storage.size();
+    let start = Instant::now();
+    tokio::select! {
+        () = cancel.wait() => return Ok(()),
+        result = storage.expire(Timestamp::now()) => result?,
+    }
+    let duration = start.elapsed();
+    let new_size = storage.size();
+    tracing::info!(old_size, new_size, ?duration, "expire");
     Ok(())
 }
