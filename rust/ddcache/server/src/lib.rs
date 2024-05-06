@@ -23,8 +23,8 @@ use crate::state::State;
 g1_param::define!(self_id: Uuid = Uuid::new_v4());
 
 // TODO: Add the default IPv6 address.
-g1_param::define!(endpoints: Vec<String> = vec!["tcp://0.0.0.0:0".into()]);
-g1_param::define!(blob_endpoints: Vec<BlobEndpoint> = vec!["0.0.0.0:0".parse().unwrap()]);
+g1_param::define!(endpoints: Vec<String> = vec!["tcp://127.0.0.1:0".into()]);
+g1_param::define!(blob_endpoints: Vec<BlobEndpoint> = vec!["127.0.0.1:0".parse().unwrap()]);
 
 // lwm/hwm = low/high water mark
 g1_param::define!(storage_size_lwm: u64 = 768 * 1024 * 1024);
