@@ -11,6 +11,10 @@ struct Endpoint {
 }
 
 struct Request {
+  #
+  # Client-Server Protocol
+  #
+
   struct Read {
     key @0 :Data;
   }
@@ -42,6 +46,25 @@ struct Request {
     key @0 :Data;
   }
 
+  #
+  # Peer Protocol
+  #
+  # TODO: I am not sure if this is a good idea, but for now, we are not splitting the peer protocol
+  # into a standalone struct.
+
+  # Similar to `Read`, except that it does not update the cache entry's recency.
+  struct Pull {
+    key @0 :Data;
+  }
+
+  # Similar to `Write`, except that the receiving peer may decline it if the peer has the entry.
+  struct Push {
+    key @0 :Data;
+    metadata @1 :Data;
+    size @2 :UInt32;
+    expireAt @3 :Timestamp;
+  }
+
   union {
     cancel @0 :Token;
     read @1 :Read;
@@ -49,6 +72,9 @@ struct Request {
     write @3 :Write;
     writeMetadata @4 :WriteMetadata;
     remove @5 :Remove;
+
+    pull @6 :Pull;
+    push @7 :Push;
   }
 }
 
@@ -74,6 +100,15 @@ struct Response {
     metadata @0 :Metadata;
   }
 
+  struct Pull {
+    metadata @0 :Metadata;
+    blob @1 :BlobRequest;
+  }
+
+  struct Push {
+    blob @0 :BlobRequest;
+  }
+
   struct Metadata {
     metadata @0 :Data;
     size @1 :UInt32;
@@ -92,6 +127,9 @@ struct Response {
     write @3 :Write;
     writeMetadata @4 :WriteMetadata;
     remove @5 :Remove;
+
+    pull @6 :Pull;
+    push @7 :Push;
   }
 }
 

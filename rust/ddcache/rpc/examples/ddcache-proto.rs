@@ -49,6 +49,10 @@ enum Command {
     Write(Write),
     WriteMetadata(WriteMetadata),
     Remove(Remove),
+
+    Pull(Pull),
+    Push(Push),
+
     Dummy,
 }
 
@@ -92,6 +96,22 @@ struct Remove {
     key: Bytes,
 }
 
+#[derive(Args, Debug)]
+struct Pull {
+    key: Bytes,
+    file: PathBuf,
+}
+
+#[derive(Args, Debug)]
+struct Push {
+    key: Bytes,
+    #[arg(long)]
+    metadata: Option<Bytes>,
+    #[arg(long)]
+    expire_at: Option<Timestamp>,
+    file: PathBuf,
+}
+
 impl Program {
     async fn execute(&self) -> Result<(), Error> {
         match &self.command {
@@ -101,6 +121,10 @@ impl Program {
             Command::Write(write) => self.write(write).await?,
             Command::WriteMetadata(write_metadata) => self.write_metadata(write_metadata).await?,
             Command::Remove(remove) => self.remove(remove).await?,
+
+            Command::Pull(pull) => self.pull(pull).await?,
+            Command::Push(push) => self.push(push).await?,
+
             Command::Dummy => self.dummy().await?,
         }
         Ok(())
@@ -234,6 +258,76 @@ impl Program {
 
         let response = decode(socket.recv_msg(0).await?)?;
         eprintln!("remove: {:?}", response);
+
+        Ok(())
+    }
+
+    async fn pull(&self, pull: &Pull) -> Result<(), Error> {
+        let socket = self.make_socket()?;
+
+        let request = encode(Request::Pull {
+            key: pull.key.clone(),
+        });
+        socket.send(request, 0).await?;
+
+        let response = decode(socket.recv_msg(0).await?)?;
+        eprintln!("pull: {:?}", response);
+
+        let (metadata, blob) = match response {
+            Some(Response::Pull { metadata, blob }) => (metadata, blob),
+            Some(_) => return Err(Error::other("wrong response")),
+            None => return Ok(()),
+        };
+
+        if self.delay > 0 {
+            time::sleep(Duration::from_secs(self.delay)).await;
+        }
+
+        let mut file = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(&pull.file)?;
+
+        let mut blob_socket = TcpStream::connect(blob.endpoint).await?;
+        blob_socket.write_u64(blob.token).await?;
+        let size = blob_socket.splice(&mut file, metadata.size).await?;
+        eprintln!("pull: size={}", size);
+
+        Ok(())
+    }
+
+    async fn push(&self, push: &Push) -> Result<(), Error> {
+        let mut file = OpenOptions::new().read(true).open(&push.file)?;
+        let size = usize::try_from(file.metadata()?.len()).unwrap();
+
+        let socket = self.make_socket()?;
+
+        let request = encode(Request::Push {
+            key: push.key.clone(),
+            metadata: push.metadata.clone(),
+            size,
+            expire_at: push.expire_at,
+        });
+        socket.send(request, 0).await?;
+
+        let response = decode(socket.recv_msg(0).await?)?;
+        eprintln!("push: {:?}", response);
+
+        let blob = match response {
+            Some(Response::Push { blob }) => blob,
+            Some(_) => return Err(Error::other("wrong response")),
+            None => return Ok(()),
+        };
+
+        if self.delay > 0 {
+            time::sleep(Duration::from_secs(self.delay)).await;
+        }
+
+        let mut blob_socket = TcpStream::connect(blob.endpoint).await?;
+        blob_socket.write_u64(blob.token).await?;
+        let size = file.splice(&mut blob_socket, size).await?;
+        eprintln!("push: size={}", size);
 
         Ok(())
     }

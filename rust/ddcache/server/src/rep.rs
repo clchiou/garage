@@ -75,6 +75,29 @@ pub(crate) fn remove_response(
     })
 }
 
+pub(crate) fn pull_response(
+    metadata: Option<Bytes>,
+    size: usize,
+    expire_at: Option<Timestamp>,
+    endpoint: BlobEndpoint,
+    token: Token,
+) -> Frame {
+    encode(Response::Pull {
+        metadata: BlobMetadata {
+            metadata,
+            size,
+            expire_at,
+        },
+        blob: BlobRequest { endpoint, token },
+    })
+}
+
+pub(crate) fn push_response(endpoint: BlobEndpoint, token: Token) -> Frame {
+    encode(Response::Push {
+        blob: BlobRequest { endpoint, token },
+    })
+}
+
 fn encode(response: Response) -> Frame {
     Vec::<u8>::from(response).into()
 }

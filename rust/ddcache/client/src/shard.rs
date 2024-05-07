@@ -164,6 +164,26 @@ impl Shard {
         self.request(ddcache_rpc::Request::Remove { key }).await
     }
 
+    pub(crate) async fn pull(&self, key: Bytes) -> ResponseResult {
+        self.request(ddcache_rpc::Request::Pull { key }).await
+    }
+
+    pub(crate) async fn push(
+        &self,
+        key: Bytes,
+        metadata: Option<Bytes>,
+        size: usize,
+        expire_at: Option<Timestamp>,
+    ) -> ResponseResult {
+        self.request(ddcache_rpc::Request::Push {
+            key,
+            metadata,
+            size,
+            expire_at,
+        })
+        .await
+    }
+
     async fn request(&self, request: ddcache_rpc::Request) -> ResponseResult {
         let (response_send, response_recv) = oneshot::channel();
         self.request_send
@@ -350,6 +370,14 @@ impl Response {
             ddcache_rpc::Response::Remove { metadata } => Some(Self {
                 metadata: Some(metadata),
                 blob: None,
+            }),
+            ddcache_rpc::Response::Pull { metadata, blob } => Some(Self {
+                metadata: Some(metadata),
+                blob: Some(blob.into()),
+            }),
+            ddcache_rpc::Response::Push { blob } => Some(Self {
+                metadata: None,
+                blob: Some(blob.into()),
             }),
         })
     }

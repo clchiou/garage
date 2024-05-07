@@ -39,6 +39,9 @@ pub type ResponseResult<'a> = Result<Option<response::Reader<'a>>, error::Reader
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Request {
+    //
+    // Client-Server Protocol
+    //
     Cancel(Token),
     Read {
         key: Bytes,
@@ -60,6 +63,19 @@ pub enum Request {
     Remove {
         key: Bytes,
     },
+
+    //
+    // Peer Protocol
+    //
+    Pull {
+        key: Bytes,
+    },
+    Push {
+        key: Bytes,
+        metadata: Option<Bytes>,
+        size: usize,
+        expire_at: Option<Timestamp>,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -80,6 +96,14 @@ pub enum Response {
     },
     Remove {
         metadata: BlobMetadata,
+    },
+
+    Pull {
+        metadata: BlobMetadata,
+        blob: BlobRequest,
+    },
+    Push {
+        blob: BlobRequest,
     },
 }
 
@@ -192,6 +216,20 @@ impl<'a> TryFrom<request::Reader<'a>> for Request {
             request::Remove(request) => Self::Remove {
                 key: to_key(request?.get_key()?)?,
             },
+
+            request::Pull(request) => Self::Pull {
+                key: to_key(request?.get_key()?)?,
+            },
+
+            request::Push(request) => {
+                let request = request?;
+                Self::Push {
+                    key: to_key(request.get_key()?)?,
+                    metadata: to_metadata(request.get_metadata()?),
+                    size: to_size(request.get_size()),
+                    expire_at: to_expire_at(request.get_expire_at())?,
+                }
+            }
         })
     }
 }
@@ -258,6 +296,25 @@ impl<'a> request::Builder<'a> {
                 assert!(!key.is_empty());
                 this.init_remove().set_key(key);
             }
+
+            Request::Pull { key } => {
+                assert!(!key.is_empty());
+                this.init_pull().set_key(key);
+            }
+
+            Request::Push {
+                key,
+                metadata,
+                size,
+                expire_at,
+            } => {
+                assert!(!key.is_empty());
+                let mut this = this.init_push();
+                this.set_key(key);
+                this.set_metadata(metadata.as_deref().unwrap_or(&[]));
+                this.set_size((*size).try_into().unwrap());
+                this.set_expire_at(Timestamp::encode(*expire_at));
+            }
         }
     }
 }
@@ -291,6 +348,18 @@ impl<'a> TryFrom<response::Reader<'a>> for Response {
 
             response::Remove(response) => Self::Remove {
                 metadata: response?.get_metadata()?.try_into()?,
+            },
+
+            response::Pull(response) => {
+                let response = response?;
+                Self::Pull {
+                    metadata: response.get_metadata()?.try_into()?,
+                    blob: response.get_blob()?.try_into()?,
+                }
+            }
+
+            response::Push(response) => Self::Push {
+                blob: response?.get_blob()?.try_into()?,
             },
         })
     }
@@ -331,6 +400,14 @@ impl<'a> response::Builder<'a> {
             }
 
             Response::Remove { metadata } => this.init_remove().init_metadata().set(metadata),
+
+            Response::Pull { metadata, blob } => {
+                let mut this = this.init_pull();
+                this.reborrow().init_metadata().set(metadata);
+                this.reborrow().init_blob().set(blob);
+            }
+
+            Response::Push { blob } => this.init_push().init_blob().set(blob),
         }
     }
 }

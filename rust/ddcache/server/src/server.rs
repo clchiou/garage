@@ -385,6 +385,35 @@ impl Actor {
                     }))
                     .unwrap();
             }
+
+            Request::Pull { key } => {
+                self.tasks
+                    .push(JoinGuard::spawn(move |cancel| {
+                        async move {
+                            check_key!(key);
+                            tokio::select! {
+                                () = cancel.wait() => {}
+                                () = handler.pull(key) => {}
+                            }
+                        }
+                        .instrument(tracing::info_span!("ddcache/pull"))
+                    }))
+                    .unwrap();
+            }
+
+            Request::Push {
+                key,
+                metadata,
+                size,
+                expire_at,
+            } => {
+                let span = tracing::info_span!("ddcache/push");
+                let _enter = span.enter();
+                check_key!(key);
+                check_metadata!(metadata.as_deref().unwrap_or(&[]));
+                check_size!(size);
+                handler.push(key, metadata, size, expire_at);
+            }
         }
     }
 
@@ -608,6 +637,69 @@ impl Handler {
             }
         };
         self.send_response(response);
+    }
+}
+
+impl Handler {
+    async fn pull(mut self, key: Bytes) {
+        // TODO: Pick a blob endpoint matching the peer endpoint.
+        let Some(endpoint) = self.blob_endpoints.first().copied() else {
+            self.send_response(rep::ok_none_response());
+            return;
+        };
+
+        // Do not update the blob's recency.
+        let Some(reader) = self.storage.peek(key).await else {
+            self.send_response(rep::ok_none_response());
+            return;
+        };
+
+        let metadata = reader.metadata();
+        let size = reader.size();
+        let expire_at = reader.expire_at();
+
+        // No errors after this point.
+
+        let permit = self.permit.take().unwrap();
+        let token = self.state.insert_reader((reader, permit));
+        tracing::debug!(token);
+        self.send_response(rep::pull_response(
+            metadata,
+            size.try_into().unwrap(),
+            expire_at,
+            endpoint,
+            token,
+        ));
+    }
+
+    fn push(
+        mut self,
+        key: Bytes,
+        metadata: Option<Bytes>,
+        size: usize,
+        expire_at: Option<Timestamp>,
+    ) {
+        // TODO: Pick a blob endpoint matching the peer endpoint.
+        let Some(endpoint) = self.blob_endpoints.first().copied() else {
+            self.send_response(rep::ok_none_response());
+            return;
+        };
+
+        // Decline the push request if we have the blob.
+        let Some(mut writer) = self.storage.write_new(key) else {
+            self.send_response(rep::ok_none_response());
+            return;
+        };
+
+        writer.set_metadata(metadata);
+        writer.set_expire_at(expire_at);
+
+        // No errors after this point.
+
+        let permit = self.permit.take().unwrap();
+        let token = self.state.insert_writer((writer, size, permit));
+        tracing::debug!(token);
+        self.send_response(rep::push_response(endpoint, token));
     }
 }
 
