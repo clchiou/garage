@@ -124,7 +124,7 @@ impl Program {
                 writer.commit()?;
             }
             Command::Remove(Remove { key }) => {
-                eprintln!("remove: {}", storage.remove(key.clone()).await?);
+                eprintln!("remove: {:?}", storage.remove(key.clone()).await?);
             }
         }
         Ok(())

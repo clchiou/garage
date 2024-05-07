@@ -71,6 +71,8 @@ struct ExpireGuard {
     rollback: Option<(Timestamp, Bytes)>,
 }
 
+pub type RemovedBlobMetadata = (Option<Bytes>, u64, Option<Timestamp>);
+
 pub type Timestamp = DateTime<Utc>;
 
 impl Storage {
@@ -137,7 +139,7 @@ impl Storage {
 
     fn evict_blocking(&self, target_size: u64) -> Result<u64, Error> {
         while self.size() > target_size {
-            if !self.try_remove_front()? {
+            if self.try_remove_front()?.is_none() {
                 break;
             }
         }
@@ -151,7 +153,7 @@ impl Storage {
     pub async fn expire(&self, now: Timestamp) -> Result<(), Error> {
         while let Some((expire_at, key)) = self.expire_queue.pop(now) {
             let guard = ExpireGuard::new(self.expire_queue.clone(), expire_at, key.clone());
-            if self.remove_expire(key.clone(), now).await? {
+            if self.remove_expire(key.clone(), now).await?.is_some() {
                 tracing::info!(?key, %expire_at, "expire");
             }
             guard.commit();
@@ -202,39 +204,52 @@ impl Storage {
         )
     }
 
-    pub async fn remove(&self, key: Bytes) -> Result<bool, Error> {
+    pub async fn remove(&self, key: Bytes) -> Result<Option<RemovedBlobMetadata>, Error> {
         let Some((hash, guard)) = self.map.remove(key).await else {
-            return Ok(false);
+            return Ok(None);
         };
         let path = hash.to_path(&self.dir);
         Self::do_remove(path, guard)
     }
 
-    pub async fn remove_expire(&self, key: Bytes, now: Timestamp) -> Result<bool, Error> {
+    pub async fn remove_expire(
+        &self,
+        key: Bytes,
+        now: Timestamp,
+    ) -> Result<Option<RemovedBlobMetadata>, Error> {
         let Some((hash, guard)) = self.map.remove(key).await else {
-            return Ok(false);
+            return Ok(None);
         };
         if !guard.blob_metadata().is_expired(now) {
-            return Ok(false);
+            return Ok(None);
         }
         let path = hash.to_path(&self.dir);
         Self::do_remove(path, guard)
     }
 
-    pub fn try_remove_front(&self) -> Result<bool, Error> {
+    pub fn try_remove_front(&self) -> Result<Option<RemovedBlobMetadata>, Error> {
         let Some((hash, guard)) = self.map.try_remove_front() else {
-            return Ok(false);
+            return Ok(None);
         };
         let path = hash.to_path(&self.dir);
         Self::do_remove(path, guard)
     }
 
     // We will remove empty directories in `open`.
-    fn do_remove(path: PathBuf, guard: map::RemoveGuard) -> Result<bool, Error> {
+    fn do_remove(
+        path: PathBuf,
+        guard: map::RemoveGuard,
+    ) -> Result<Option<RemovedBlobMetadata>, Error> {
         // We assume that the file is unchanged on error and does not update the map.
         fs::remove_file(path)?;
+        let blob_metadata = guard.blob_metadata();
+        let blob_metadata = (
+            blob_metadata.metadata.clone(),
+            blob_metadata.size,
+            blob_metadata.expire_at,
+        );
         guard.commit();
-        Ok(true)
+        Ok(Some(blob_metadata))
     }
 }
 
@@ -793,7 +808,7 @@ mod tests {
         assert_eq!(storage.size(), 0);
         assert_dir(tempdir.path(), []);
 
-        assert_eq!(storage.remove(b("foo")).await?, false);
+        assert_matches!(storage.remove(b("foo")).await?, None);
 
         {
             let mut guard = storage.write(b("foo"), true).await?;
@@ -811,7 +826,7 @@ mod tests {
         assert_eq!(storage.size(), 3);
         assert_dir(tempdir.path(), [(b"foo", b"x"), (b"bar", b"yz")]);
 
-        assert_eq!(storage.remove(b("foo")).await?, true);
+        assert_matches!(storage.remove(b("foo")).await?, Some(_));
         assert_eq!(storage.size(), 2);
         assert_dir(tempdir.path(), [(b"bar", b"yz")]);
         assert_matches!(storage.read(b("foo")).await, None);
@@ -826,7 +841,7 @@ mod tests {
         assert_eq!(storage.size(), 0);
         assert_dir(tempdir.path(), []);
 
-        assert_eq!(storage.try_remove_front()?, false);
+        assert_matches!(storage.try_remove_front()?, None);
 
         {
             let mut guard = storage.write(b("foo"), true).await?;
@@ -846,18 +861,18 @@ mod tests {
 
         let guard = storage.read(b("foo")).await.unwrap();
 
-        assert_eq!(storage.try_remove_front()?, true);
+        assert_matches!(storage.try_remove_front()?, Some(_));
         assert_eq!(storage.size(), 1);
         assert_dir(tempdir.path(), [(b"foo", b"x")]);
         assert_matches!(storage.read(b("bar")).await, None);
 
-        assert_eq!(storage.try_remove_front()?, false);
+        assert_matches!(storage.try_remove_front()?, None);
         assert_eq!(storage.size(), 1);
         assert_dir(tempdir.path(), [(b"foo", b"x")]);
 
         drop(guard);
 
-        assert_eq!(storage.try_remove_front()?, true);
+        assert_matches!(storage.try_remove_front()?, Some(_));
         assert_eq!(storage.size(), 0);
         assert_dir(tempdir.path(), []);
         assert_matches!(storage.read(b("foo")).await, None);
