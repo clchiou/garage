@@ -116,6 +116,15 @@ impl BlobMap {
         }))
     }
 
+    pub(crate) fn keys(&self) -> Vec<Bytes> {
+        self.0
+            .map
+            .must_lock()
+            .values()
+            .map(|entry| entry.key.clone())
+            .collect()
+    }
+
     pub(crate) fn size(&self) -> u64 {
         self.0.size.load(Ordering::SeqCst)
     }
@@ -144,8 +153,19 @@ impl BlobMap {
     //
 
     pub(crate) async fn read(&self, key: Bytes) -> Option<(KeyHash, ReadGuard)> {
+        self.do_read(key, |k, h| self.get_back(k, h)).await
+    }
+
+    pub(crate) async fn peek(&self, key: Bytes) -> Option<(KeyHash, ReadGuard)> {
+        self.do_read(key, |k, h| self.get(k, h)).await
+    }
+
+    async fn do_read<F>(&self, key: Bytes, get_entry: F) -> Option<(KeyHash, ReadGuard)>
+    where
+        F: FnOnce(&Bytes, KeyHash) -> Option<Arc<RwLock<State>>>,
+    {
         let hash = KeyHash::new(&key);
-        let guard = self.get_back(&key, hash)?.read_owned().await;
+        let guard = get_entry(&key, hash)?.read_owned().await;
         guard
             .ensure_present()
             .then(|| (hash, ReadGuard::new(guard)))
@@ -167,6 +187,20 @@ impl BlobMap {
             }
         }
         std::panic!("map is stuck in removing entry: {:?} {:?}", key, hash);
+    }
+
+    pub(crate) fn write_new(&self, key: Bytes) -> Option<(KeyHash, WriteGuard)> {
+        let hash = KeyHash::new(&key);
+        let mut map = self.0.map.must_lock();
+        if map.contains_key(&hash) {
+            return None;
+        }
+        // Cancel Safety: For a newly inserted entry, we must protect it with a `WriteGuard`
+        // immediately.
+        let entry = Entry::new(key);
+        let guard = entry.state.clone().try_write_owned().unwrap();
+        assert!(map.insert(hash, entry).is_none());
+        Some(self.new_write_guard(hash, guard))
     }
 
     pub(crate) fn try_write(&self, key: Bytes) -> Option<(KeyHash, WriteGuard)> {
@@ -523,6 +557,16 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn peek() {
+        let map = BlobMap::new_mock([e(b"k1", 1), e(b"k2", 2), e(b"k3", 3)], 6);
+        map.assert_eq([e(b"k1", 1), e(b"k2", 2), e(b"k3", 3)], 6);
+        for key in ["k1", "k2", "k3"] {
+            assert_matches!(map.peek(b(key)).await, Some((hash, _)) if hash == h(key));
+            map.assert_eq([e(b"k1", 1), e(b"k2", 2), e(b"k3", 3)], 6);
+        }
+    }
+
+    #[tokio::test]
     async fn write() {
         let map = BlobMap::new_mock([P, R], 20);
         map.assert_eq([P, R], 20);
@@ -584,6 +628,26 @@ mod tests {
         map.assert_eq([P, R], 20);
 
         let _ = map.write(b("removing")).await;
+    }
+
+    #[test]
+    fn write_new() {
+        let map = BlobMap::new_mock([P, R], 20);
+        map.assert_eq([P, R], 20);
+
+        assert_matches!(map.write_new(b("present")), None);
+        map.assert_eq([P, R], 20);
+
+        {
+            let entry = map.write_new(b("foo"));
+            assert_matches!(entry, Some((hash, ref guard)) if hash == h("foo") && guard.is_new());
+            map.assert_eq([P, R, e(b"foo", 0)], 20);
+
+            assert_matches!(map.write_new(b("foo")), None);
+
+            drop(entry);
+            map.assert_eq([P, R], 20);
+        }
     }
 
     #[test]

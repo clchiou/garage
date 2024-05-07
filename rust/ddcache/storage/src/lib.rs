@@ -125,6 +125,10 @@ impl Storage {
         })
     }
 
+    pub fn keys(&self) -> Vec<Bytes> {
+        self.map.keys()
+    }
+
     pub fn size(&self) -> u64 {
         self.map.size()
     }
@@ -168,6 +172,14 @@ impl Storage {
         })
     }
 
+    /// Similar to `read`, except that it does not update a cache entry's recency.
+    pub async fn peek(&self, key: Bytes) -> Option<ReadGuard> {
+        self.map.peek(key).await.map(|(hash, guard)| ReadGuard {
+            guard,
+            path: hash.to_path(&self.dir),
+        })
+    }
+
     pub async fn write(&self, key: Bytes, truncate: bool) -> Result<WriteGuard, Error> {
         const NUM_TRIES: usize = 8;
         for _ in 0..NUM_TRIES {
@@ -187,6 +199,12 @@ impl Storage {
             "cannot resolve hash collision by replacement: {:?}",
             key,
         )))
+    }
+
+    pub fn write_new(&self, key: Bytes) -> Option<WriteGuard> {
+        self.map
+            .write_new(key)
+            .map(|(hash, guard)| self.new_write_guard(hash, guard, true))
     }
 
     pub fn try_write(&self, key: Bytes, truncate: bool) -> Option<WriteGuard> {
