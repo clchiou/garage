@@ -1,14 +1,13 @@
 use std::collections::{hash_map::Entry, HashMap};
-use std::hash::Hasher;
 use std::io;
 
-use fasthash::{CityHasher, FastHasher};
 use snafu::prelude::*;
 use tokio::task::Id;
 
 use g1_base::iter::IteratorExt;
 use g1_tokio::task::JoinQueue;
 
+use ddcache_rpc::service;
 use ddcache_rpc::Endpoint;
 
 use crate::error::{DisconnectedSnafu, Error, NotConnectedSnafu};
@@ -70,10 +69,7 @@ impl RouteMap {
             .shards
             .values()
             .cloned()
-            .collect_then_sort_by_key(|shard| {
-                // Invert bits so that the vector is sorted in descending order.
-                !rendezvous_hash(key, shard)
-            });
+            .collect_then_sort_by_key(service::rendezvous_sorting_by_key(key, Shard::endpoint));
         ensure!(!shards.is_empty(), NotConnectedSnafu);
         shards.truncate(num_replicas);
         Ok(shards)
@@ -83,11 +79,4 @@ impl RouteMap {
         let endpoint = self.endpoints.remove(&id)?;
         Some(self.shards.remove(&endpoint).unwrap())
     }
-}
-
-fn rendezvous_hash(key: &[u8], shard: &Shard) -> u64 {
-    let mut hasher = CityHasher::new();
-    hasher.write(key);
-    hasher.write(shard.endpoint().as_bytes());
-    hasher.finish()
 }

@@ -18,6 +18,9 @@ use g1_zmq::envelope::Frame;
 
 use crate::rpc_capnp::{endpoint, error, request, response};
 
+// TODO: Should we store this value in etcd instead?
+g1_param::define!(pub num_replicas: usize = 2);
+
 pub type Endpoint = Arc<str>;
 pub type BlobEndpoint = SocketAddr;
 

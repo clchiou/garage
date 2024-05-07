@@ -6,7 +6,6 @@ edition.workspace = true
 [dependencies]
 bytes.workspace = true
 capnp.workspace = true
-fasthash.workspace = true
 futures.workspace = true
 linkme.workspace = true # Required by g1_param.
 rand.workspace = true

@@ -15,7 +15,7 @@ use uuid::Uuid;
 
 use g1_tokio::task::{JoinArray, JoinGuard};
 
-use ddcache_rpc::service::{self, Service};
+use ddcache_rpc::service;
 use ddcache_rpc::{BlobEndpoint, Endpoint};
 
 use crate::state::State;
@@ -57,7 +57,7 @@ impl Server {
         let (endpoints, actor_guard) =
             server::Actor::spawn(storage_dir, blob_endpoints, state).await?;
         let publisher_guard =
-            service::pubsub().spawn(*crate::self_id(), Service::from(endpoints.as_slice()));
+            service::pubsub().spawn(*crate::self_id(), endpoints.as_slice().into());
         Ok((
             Self {
                 endpoints: endpoints.into(),

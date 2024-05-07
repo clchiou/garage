@@ -80,7 +80,7 @@ impl Client {
                 service_ready_recv,
                 connect_send,
                 routes: routes.clone(),
-                num_replicas: *crate::num_replicas(),
+                num_replicas: *ddcache_rpc::num_replicas(),
             },
             ClientGuard::spawn(move |cancel| {
                 Actor::new(cancel, service_ready_send, connect_recv, routes).run()
@@ -509,12 +509,12 @@ impl Actor {
 
         let subscriber = pubsub.subscribe().await?;
 
-        let services = pubsub.scan().await?;
+        let servers = pubsub.scan().await?;
         {
             let mut routes = self.routes.must_lock();
-            for (id, service) in services {
-                tracing::info!(%id, ?service, "init");
-                self.connect_many(&mut routes, id, service.endpoints);
+            for (id, server) in servers {
+                tracing::info!(%id, ?server, "init");
+                self.connect_many(&mut routes, id, server.endpoints);
             }
         }
 
@@ -524,12 +524,12 @@ impl Actor {
     fn handle_subscribe(&self, event: Event) {
         let mut routes = self.routes.must_lock();
         match event {
-            Event::Create((id, service)) => {
-                tracing::info!(%id, ?service, "new service");
-                self.connect_many(&mut routes, id, service.endpoints);
+            Event::Create((id, server)) => {
+                tracing::info!(%id, ?server, "new server");
+                self.connect_many(&mut routes, id, server.endpoints);
             }
             Event::Update { id, new, old } => {
-                tracing::info!(%id, ?new, ?old, "update service");
+                tracing::info!(%id, ?new, ?old, "update server");
                 for endpoint in old.endpoints {
                     if !new.endpoints.contains(&endpoint) {
                         routes.disconnect(endpoint.into());
@@ -537,9 +537,9 @@ impl Actor {
                 }
                 self.connect_many(&mut routes, id, new.endpoints);
             }
-            Event::Delete((id, service)) => {
-                tracing::info!(%id, ?service, "remove service");
-                for endpoint in service.endpoints {
+            Event::Delete((id, server)) => {
+                tracing::info!(%id, ?server, "remove server");
+                for endpoint in server.endpoints {
                     routes.disconnect(endpoint.into());
                 }
             }
