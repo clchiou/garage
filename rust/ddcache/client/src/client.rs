@@ -10,6 +10,7 @@ use std::sync::{
 use bytes::Bytes;
 use futures::future::OptionFuture;
 use futures::stream::StreamExt;
+use snafu::prelude::*;
 use tokio::sync::{mpsc, oneshot, watch};
 use uuid::Uuid;
 
@@ -18,12 +19,12 @@ use g1_base::future::ReadyQueue;
 use g1_base::sync::MutexExt;
 use g1_tokio::task::{Cancel, JoinGuard, JoinQueue};
 
+use ddcache_client_raw::{RawClient, RawClientGuard};
 use ddcache_rpc::service::{self, Event, Subscriber};
 use ddcache_rpc::{BlobMetadata, Endpoint, Timestamp, Token};
 
-use crate::error::Error;
+use crate::error::{Error, ProtocolSnafu};
 use crate::route::RouteMap;
-use crate::shard::{Shard, ShardGuard};
 
 type Connect = (Endpoint, oneshot::Sender<Result<(), Error>>);
 type ConnectRecv = mpsc::Receiver<Connect>;
@@ -52,7 +53,10 @@ struct Actor {
 
 macro_rules! le_push {
     ($message:tt, $last_error:ident, $endpoint:expr, $error:expr) => {
-        if let Some((endpoint, error)) = $last_error.replace(($endpoint, $error)) {
+        if let Some((endpoint, error)) = $last_error.replace((
+            $endpoint,
+            Error::Protocol { source: $error },
+        )) {
             tracing::warn!(%endpoint, %error, $message);
         }
     };
@@ -108,15 +112,15 @@ impl Client {
         self.routes.must_lock().disconnect(endpoint);
     }
 
-    fn get(&self, endpoint: Endpoint) -> Result<Shard, Error> {
+    fn get(&self, endpoint: Endpoint) -> Result<RawClient, Error> {
         self.routes.must_lock().get(endpoint)
     }
 
-    fn all(&self) -> Result<Vec<Shard>, Error> {
+    fn all(&self) -> Result<Vec<RawClient>, Error> {
         self.routes.must_lock().all()
     }
 
-    fn find(&self, key: &[u8]) -> Result<Vec<Shard>, Error> {
+    fn find(&self, key: &[u8]) -> Result<Vec<RawClient>, Error> {
         self.routes.must_lock().find(key, self.num_replicas)
     }
 
@@ -125,7 +129,10 @@ impl Client {
     //
 
     pub async fn cancel(&self, endpoint: Endpoint, token: Token) -> Result<(), Error> {
-        self.get(endpoint)?.cancel(token).await
+        self.get(endpoint)?
+            .cancel(token)
+            .await
+            .context(ProtocolSnafu)
     }
 
     pub async fn read<F>(
@@ -411,14 +418,14 @@ impl Client {
     }
 }
 
-fn join_cancels<T>(queue: ReadyQueue<(Shard, Result<Option<T>, Error>)>)
+fn join_cancels<T>(queue: ReadyQueue<(RawClient, Result<Option<T>, ddcache_client_raw::Error>)>)
 where
     T: Send + 'static,
 {
     // Do not block on joining the `shard.cancel()` futures.
     tokio::spawn(async move {
         while let Some((shard, response)) = queue.pop_ready().await {
-            match response {
+            match response.context(ProtocolSnafu) {
                 Ok(Some(_)) => std::panic!("expect Ok(None) or Err"),
                 Ok(None) => {}
                 Err(error) => tracing::debug!(endpoint = %shard.endpoint(), %error, "cancel"),
@@ -552,7 +559,7 @@ impl Actor {
 
     fn handle_task(
         &self,
-        mut guard: ShardGuard,
+        mut guard: RawClientGuard,
         reconnect_on_error: bool,
     ) -> Result<(), io::Error> {
         let mut routes = self.routes.must_lock();
@@ -580,7 +587,9 @@ impl Actor {
         routes
             .connect(&self.tasks, shard.endpoint())
             .map_err(|error| match error {
-                Error::Connect { source } => source,
+                Error::Protocol {
+                    source: ddcache_client_raw::Error::Connect { source },
+                } => source,
                 _ => std::unreachable!("expect Error::Connect: {}", error),
             })
     }

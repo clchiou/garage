@@ -14,7 +14,7 @@ use ddcache_rpc::{BlobRequest, Token};
 use crate::error::{Error, IoSnafu, PartialIoSnafu};
 
 #[derive(Debug)]
-pub(crate) struct RemoteBlob(BlobRequest);
+pub struct RemoteBlob(BlobRequest);
 
 macro_rules! io {
     ($expect:ident, $io:expr $(,)?) => {
@@ -46,7 +46,7 @@ impl RemoteBlob {
         Self(blob)
     }
 
-    pub(crate) fn token(&self) -> Token {
+    pub fn token(&self) -> Token {
         self.0.token
     }
 
@@ -58,14 +58,14 @@ impl RemoteBlob {
         stream.into_std()
     }
 
-    pub(crate) async fn read<F>(self, output: &mut F, expect: usize) -> Result<(), Error>
+    pub async fn read<F>(self, output: &mut F, expect: usize) -> Result<(), Error>
     where
         F: AsFd + Send,
     {
         io!(expect, self.connect().await?.splice(output, expect).await?)
     }
 
-    pub(crate) async fn write<F>(self, input: &mut F, expect: usize) -> Result<(), Error>
+    pub async fn write<F>(self, input: &mut F, expect: usize) -> Result<(), Error>
     where
         F: AsFd + Send,
     {
@@ -76,7 +76,7 @@ impl RemoteBlob {
         )
     }
 
-    pub(crate) async fn write_file<F>(
+    pub async fn write_file<F>(
         self,
         input: &mut F,
         offset: Option<i64>,
