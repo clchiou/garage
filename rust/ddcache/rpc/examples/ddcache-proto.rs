@@ -131,13 +131,13 @@ impl Program {
     }
 
     fn make_socket(&self) -> Result<Socket, Error> {
-        let socket = Socket::try_from(Context::new().socket(REQ)?)?;
+        let mut socket = Socket::try_from(Context::new().socket(REQ)?)?;
         socket.connect(&self.endpoint)?;
         Ok(socket)
     }
 
     async fn cancel(&self, cancel: &Cancel) -> Result<(), Error> {
-        let socket = self.make_socket()?;
+        let mut socket = self.make_socket()?;
 
         let request = encode(Request::Cancel(cancel.token));
         socket.send(request, 0).await?;
@@ -149,7 +149,7 @@ impl Program {
     }
 
     async fn read(&self, read: &Read) -> Result<(), Error> {
-        let socket = self.make_socket()?;
+        let mut socket = self.make_socket()?;
 
         let request = encode(Request::Read {
             key: read.key.clone(),
@@ -184,7 +184,7 @@ impl Program {
     }
 
     async fn read_metadata(&self, read_metadata: &ReadMetadata) -> Result<(), Error> {
-        let socket = self.make_socket()?;
+        let mut socket = self.make_socket()?;
 
         let request = encode(Request::ReadMetadata {
             key: read_metadata.key.clone(),
@@ -201,7 +201,7 @@ impl Program {
         let mut file = OpenOptions::new().read(true).open(&write.file)?;
         let size = usize::try_from(file.metadata()?.len()).unwrap();
 
-        let socket = self.make_socket()?;
+        let mut socket = self.make_socket()?;
 
         let request = encode(Request::Write {
             key: write.key.clone(),
@@ -233,7 +233,7 @@ impl Program {
     }
 
     async fn write_metadata(&self, write_metadata: &WriteMetadata) -> Result<(), Error> {
-        let socket = self.make_socket()?;
+        let mut socket = self.make_socket()?;
 
         let request = encode(Request::WriteMetadata {
             key: write_metadata.key.clone(),
@@ -249,7 +249,7 @@ impl Program {
     }
 
     async fn remove(&self, remove: &Remove) -> Result<(), Error> {
-        let socket = self.make_socket()?;
+        let mut socket = self.make_socket()?;
 
         let request = encode(Request::Remove {
             key: remove.key.clone(),
@@ -263,7 +263,7 @@ impl Program {
     }
 
     async fn pull(&self, pull: &Pull) -> Result<(), Error> {
-        let socket = self.make_socket()?;
+        let mut socket = self.make_socket()?;
 
         let request = encode(Request::Pull {
             key: pull.key.clone(),
@@ -301,7 +301,7 @@ impl Program {
         let mut file = OpenOptions::new().read(true).open(&push.file)?;
         let size = usize::try_from(file.metadata()?.len()).unwrap();
 
-        let socket = self.make_socket()?;
+        let mut socket = self.make_socket()?;
 
         let request = encode(Request::Push {
             key: push.key.clone(),
@@ -333,7 +333,7 @@ impl Program {
     }
 
     async fn dummy(&self) -> Result<(), Error> {
-        let socket = Socket::try_from(Context::new().socket(REP)?)?;
+        let mut socket = Socket::try_from(Context::new().socket(REP)?)?;
         socket.bind(&self.endpoint)?;
         loop {
             let request = socket.recv_msg(0).await?;

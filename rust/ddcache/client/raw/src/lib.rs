@@ -46,7 +46,7 @@ impl RawClient {
         let (request_send, request_recv) = mpsc::channel(16);
 
         let socket: Result<Socket, io::Error> = try {
-            let socket = Socket::try_from(Context::new().socket(DEALER)?)?;
+            let mut socket = Socket::try_from(Context::new().socket(DEALER)?)?;
             socket.set_linger(0)?; // Do NOT block the program exit!
             socket.connect(&endpoint)?;
             socket

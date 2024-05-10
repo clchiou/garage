@@ -85,7 +85,7 @@ impl Actor {
     ) -> Result<(Vec<Endpoint>, Guard), Error> {
         let storage = Storage::open(storage_dir).await?;
 
-        let socket = Socket::try_from(Context::new().socket(ROUTER)?)?;
+        let mut socket = Socket::try_from(Context::new().socket(ROUTER)?)?;
         socket.set_linger(0)?; // Do NOT block the program exit!
         let mut endpoints = Vec::with_capacity(crate::endpoints().len());
         for endpoint in crate::endpoints() {
