@@ -1,7 +1,7 @@
 #![feature(try_blocks)]
 
 use std::fs::OpenOptions;
-use std::io::Error;
+use std::io;
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -9,19 +9,14 @@ use bytes::Bytes;
 use capnp::message;
 use capnp::serialize;
 use clap::{Args, Parser, Subcommand};
-use tokio::io::AsyncWriteExt;
-use tokio::net::TcpStream;
 use tokio::time;
-use zmq::{Context, Message, REP, REQ};
+use zmq::{Context, REP};
 
 use g1_cli::{param::ParametersConfig, tracing::TracingConfig};
-use g1_tokio::os::Splice;
 use g1_zmq::Socket;
 
-use ddcache_rpc::{
-    Endpoint, Request, RequestOwner, Response, ResponseBuilder, ResponseOwner, ResponseResult,
-    Timestamp, Token,
-};
+use ddcache_client_raw::{Error, RawNaiveClient};
+use ddcache_rpc::{Endpoint, RequestOwner, ResponseBuilder, Timestamp, Token};
 
 #[derive(Debug, Parser)]
 struct Program {
@@ -125,219 +120,151 @@ impl Program {
             Command::Pull(pull) => self.pull(pull).await?,
             Command::Push(push) => self.push(push).await?,
 
-            Command::Dummy => self.dummy().await?,
+            Command::Dummy => self.dummy().await.unwrap(),
         }
         Ok(())
     }
 
-    fn make_socket(&self) -> Result<Socket, Error> {
-        let mut socket = Socket::try_from(Context::new().socket(REQ)?)?;
-        socket.connect(&self.endpoint)?;
-        Ok(socket)
-    }
-
     async fn cancel(&self, cancel: &Cancel) -> Result<(), Error> {
-        let mut socket = self.make_socket()?;
-
-        let request = encode(Request::Cancel(cancel.token));
-        socket.send(request, 0).await?;
-
-        let response = decode(socket.recv_msg(0).await?)?;
+        let response = RawNaiveClient::connect(self.endpoint.clone())?
+            .cancel(cancel.token)
+            .await?;
         eprintln!("cancel: {:?}", response);
-
         Ok(())
     }
 
     async fn read(&self, read: &Read) -> Result<(), Error> {
-        let mut socket = self.make_socket()?;
-
-        let request = encode(Request::Read {
-            key: read.key.clone(),
-        });
-        socket.send(request, 0).await?;
-
-        let response = decode(socket.recv_msg(0).await?)?;
+        let response = RawNaiveClient::connect(self.endpoint.clone())?
+            .read(read.key.clone())
+            .await?;
         eprintln!("read: {:?}", response);
-
-        let (metadata, blob) = match response {
-            Some(Response::Read { metadata, blob }) => (metadata, blob),
-            Some(_) => return Err(Error::other("wrong response")),
-            None => return Ok(()),
-        };
 
         if self.delay > 0 {
             time::sleep(Duration::from_secs(self.delay)).await;
         }
 
-        let mut file = OpenOptions::new()
+        let mut output = OpenOptions::new()
             .create(true)
             .write(true)
             .truncate(true)
-            .open(&read.file)?;
+            .open(&read.file)
+            .unwrap();
 
-        let mut blob_socket = TcpStream::connect(blob.endpoint).await?;
-        blob_socket.write_u64(blob.token).await?;
-        let size = blob_socket.splice(&mut file, metadata.size).await?;
-        eprintln!("read: size={}", size);
-
-        Ok(())
+        let response = response.unwrap();
+        let metadata = response.metadata.unwrap();
+        let blob = response.blob.unwrap();
+        blob.read(&mut output, metadata.size).await
     }
 
     async fn read_metadata(&self, read_metadata: &ReadMetadata) -> Result<(), Error> {
-        let mut socket = self.make_socket()?;
-
-        let request = encode(Request::ReadMetadata {
-            key: read_metadata.key.clone(),
-        });
-        socket.send(request, 0).await?;
-
-        let response = decode(socket.recv_msg(0).await?)?;
+        let response = RawNaiveClient::connect(self.endpoint.clone())?
+            .read_metadata(read_metadata.key.clone())
+            .await?;
         eprintln!("read_metadata: {:?}", response);
-
         Ok(())
     }
 
     async fn write(&self, write: &Write) -> Result<(), Error> {
-        let mut file = OpenOptions::new().read(true).open(&write.file)?;
-        let size = usize::try_from(file.metadata()?.len()).unwrap();
+        let mut input = OpenOptions::new().read(true).open(&write.file).unwrap();
+        let size = usize::try_from(input.metadata().unwrap().len()).unwrap();
 
-        let mut socket = self.make_socket()?;
-
-        let request = encode(Request::Write {
-            key: write.key.clone(),
-            metadata: write.metadata.clone(),
-            size,
-            expire_at: write.expire_at,
-        });
-        socket.send(request, 0).await?;
-
-        let response = decode(socket.recv_msg(0).await?)?;
+        let response = RawNaiveClient::connect(self.endpoint.clone())?
+            .write(
+                write.key.clone(),
+                write.metadata.clone(),
+                size,
+                write.expire_at,
+            )
+            .await?;
         eprintln!("write: {:?}", response);
-
-        let blob = match response {
-            Some(Response::Write { blob }) => blob,
-            Some(_) => return Err(Error::other("wrong response")),
-            None => return Ok(()),
-        };
 
         if self.delay > 0 {
             time::sleep(Duration::from_secs(self.delay)).await;
         }
 
-        let mut blob_socket = TcpStream::connect(blob.endpoint).await?;
-        blob_socket.write_u64(blob.token).await?;
-        let size = file.splice(&mut blob_socket, size).await?;
-        eprintln!("write: size={}", size);
-
-        Ok(())
+        response
+            .unwrap()
+            .blob
+            .unwrap()
+            .write_file(&mut input, None, size)
+            .await
     }
 
     async fn write_metadata(&self, write_metadata: &WriteMetadata) -> Result<(), Error> {
-        let mut socket = self.make_socket()?;
-
-        let request = encode(Request::WriteMetadata {
-            key: write_metadata.key.clone(),
-            metadata: write_metadata.metadata.clone(),
-            expire_at: write_metadata.expire_at.clone(),
-        });
-        socket.send(request, 0).await?;
-
-        let response = decode(socket.recv_msg(0).await?)?;
+        let response = RawNaiveClient::connect(self.endpoint.clone())?
+            .write_metadata(
+                write_metadata.key.clone(),
+                write_metadata.metadata.clone(),
+                write_metadata.expire_at.clone(),
+            )
+            .await?;
         eprintln!("write_metadata: {:?}", response);
-
         Ok(())
     }
 
     async fn remove(&self, remove: &Remove) -> Result<(), Error> {
-        let mut socket = self.make_socket()?;
-
-        let request = encode(Request::Remove {
-            key: remove.key.clone(),
-        });
-        socket.send(request, 0).await?;
-
-        let response = decode(socket.recv_msg(0).await?)?;
+        let response = RawNaiveClient::connect(self.endpoint.clone())?
+            .remove(remove.key.clone())
+            .await?;
         eprintln!("remove: {:?}", response);
-
         Ok(())
     }
 
     async fn pull(&self, pull: &Pull) -> Result<(), Error> {
-        let mut socket = self.make_socket()?;
-
-        let request = encode(Request::Pull {
-            key: pull.key.clone(),
-        });
-        socket.send(request, 0).await?;
-
-        let response = decode(socket.recv_msg(0).await?)?;
+        let response = RawNaiveClient::connect(self.endpoint.clone())?
+            .pull(pull.key.clone())
+            .await?;
         eprintln!("pull: {:?}", response);
-
-        let (metadata, blob) = match response {
-            Some(Response::Pull { metadata, blob }) => (metadata, blob),
-            Some(_) => return Err(Error::other("wrong response")),
-            None => return Ok(()),
-        };
 
         if self.delay > 0 {
             time::sleep(Duration::from_secs(self.delay)).await;
         }
 
-        let mut file = OpenOptions::new()
+        let mut output = OpenOptions::new()
             .create(true)
             .write(true)
             .truncate(true)
-            .open(&pull.file)?;
+            .open(&pull.file)
+            .unwrap();
 
-        let mut blob_socket = TcpStream::connect(blob.endpoint).await?;
-        blob_socket.write_u64(blob.token).await?;
-        let size = blob_socket.splice(&mut file, metadata.size).await?;
-        eprintln!("pull: size={}", size);
-
-        Ok(())
+        let response = response.unwrap();
+        let metadata = response.metadata.unwrap();
+        let blob = response.blob.unwrap();
+        blob.read(&mut output, metadata.size).await
     }
 
     async fn push(&self, push: &Push) -> Result<(), Error> {
-        let mut file = OpenOptions::new().read(true).open(&push.file)?;
-        let size = usize::try_from(file.metadata()?.len()).unwrap();
+        let mut input = OpenOptions::new().read(true).open(&push.file).unwrap();
+        let size = usize::try_from(input.metadata().unwrap().len()).unwrap();
 
-        let mut socket = self.make_socket()?;
-
-        let request = encode(Request::Push {
-            key: push.key.clone(),
-            metadata: push.metadata.clone(),
-            size,
-            expire_at: push.expire_at,
-        });
-        socket.send(request, 0).await?;
-
-        let response = decode(socket.recv_msg(0).await?)?;
+        let response = RawNaiveClient::connect(self.endpoint.clone())?
+            .push(
+                push.key.clone(),
+                push.metadata.clone(),
+                size,
+                push.expire_at,
+            )
+            .await?;
         eprintln!("push: {:?}", response);
-
-        let blob = match response {
-            Some(Response::Push { blob }) => blob,
-            Some(_) => return Err(Error::other("wrong response")),
-            None => return Ok(()),
-        };
 
         if self.delay > 0 {
             time::sleep(Duration::from_secs(self.delay)).await;
         }
 
-        let mut blob_socket = TcpStream::connect(blob.endpoint).await?;
-        blob_socket.write_u64(blob.token).await?;
-        let size = file.splice(&mut blob_socket, size).await?;
-        eprintln!("push: size={}", size);
-
-        Ok(())
+        response
+            .unwrap()
+            .blob
+            .unwrap()
+            .write_file(&mut input, None, size)
+            .await
     }
 
-    async fn dummy(&self) -> Result<(), Error> {
+    async fn dummy(&self) -> Result<(), io::Error> {
         let mut socket = Socket::try_from(Context::new().socket(REP)?)?;
         socket.bind(&self.endpoint)?;
         loop {
             let request = socket.recv_msg(0).await?;
-            let request = RequestOwner::try_from(request).map_err(Error::other)?;
+            let request = RequestOwner::try_from(request).map_err(io::Error::other)?;
             eprintln!("request: {:?}", &*request);
 
             let mut response = message::Builder::new_default();
@@ -349,25 +276,6 @@ impl Program {
             socket.send(response, 0).await?;
         }
     }
-}
-
-fn encode(request: Request) -> Message {
-    Vec::<u8>::from(request).into()
-}
-
-fn decode(response: Message) -> Result<Option<Response>, Error> {
-    let response = ResponseOwner::try_from(response)
-        .map_err(Error::other)?
-        .map(ResponseResult::try_from);
-    // It is safe to `transpose` because `E` is `capnp::Error`.
-    let response = unsafe { response.transpose() }
-        .map_err(Error::other)?
-        .unzip()
-        .map_err(|error| Error::other(format!("{:?}", error.as_ref())))?;
-    (*response)
-        .map(Response::try_from)
-        .transpose()
-        .map_err(Error::other)
 }
 
 #[tokio::main]

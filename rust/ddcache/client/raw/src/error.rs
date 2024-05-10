@@ -21,6 +21,10 @@ pub enum Error {
     #[snafu(display("request timeout"))]
     RequestTimeout,
 
+    // For `RawNaiveClient::request`.
+    #[snafu(display("request error: {source}"))]
+    Request { source: io::Error },
+
     //
     // Decode response errors.
     //

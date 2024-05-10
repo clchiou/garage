@@ -23,9 +23,9 @@ capnpc.workspace = true
 
 [dev-dependencies]
 # examples/ddcache-proto
-bytes.workspace = true
 clap.workspace = true
 tokio.workspace = true
 zmq.workspace = true
 g1_cli = { workspace = true, features = ["param", "tracing"] }
-g1_tokio.workspace = true
+
+ddcache_client_raw.workspace = true
