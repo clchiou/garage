@@ -1,3 +1,5 @@
+#![feature(type_alias_impl_trait)]
+
 pub mod duplex;
 pub mod envelope;
 
@@ -6,7 +8,7 @@ use std::os::fd::RawFd;
 use std::string::FromUtf8Error;
 
 use tokio::io::unix::AsyncFd;
-use zmq::{Mechanism, Message, PollEvents, SocketType, DONTWAIT, SNDMORE};
+use zmq::{Mechanism, Message, PollEvents, SocketType, DONTWAIT};
 
 use g1_base::fmt::{DebugExt, InsertPlaceholder};
 
@@ -76,17 +78,6 @@ impl Socket {
             .map(|bytes| String::from_utf8(bytes).map_err(FromUtf8Error::into_bytes))
     }
 
-    // NOTE: This is not cancel safe.
-    pub async fn recv_multipart_unsafe(&self, flags: i32) -> Result<Multipart, Error> {
-        let mut parts = Vec::new();
-        loop {
-            parts.push(self.recv_msg(flags).await?);
-            if !self.get_rcvmore()? {
-                return Ok(parts);
-            }
-        }
-    }
-
     pub async fn send<T>(&self, data: T, flags: i32) -> Result<(), Error>
     where
         T: Into<Message>,
@@ -106,20 +97,6 @@ impl Socket {
                 return result;
             }
         }
-    }
-
-    // NOTE: This is not cancel safe.
-    pub async fn send_multipart_unsafe<I, T>(&self, iter: I, flags: i32) -> Result<(), Error>
-    where
-        I: IntoIterator<Item = T>,
-        T: Into<Message>,
-    {
-        let mut iter = iter.into_iter().peekable();
-        while let Some(part) = iter.next() {
-            let sndmore = if iter.peek().is_some() { SNDMORE } else { 0 };
-            self.send(part.into(), flags | sndmore).await?;
-        }
-        Ok(())
     }
 }
 
