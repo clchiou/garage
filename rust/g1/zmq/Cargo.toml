@@ -11,4 +11,7 @@ zmq.workspace = true
 g1_base.workspace = true
 
 [dev-dependencies]
+trybuild.workspace = true
+
+# examples
 clap.workspace = true

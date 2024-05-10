@@ -26,7 +26,7 @@ impl Program {
     }
 
     async fn ping(&self) -> Result<(), Error> {
-        let socket: Socket = Context::new().socket(DEALER)?.try_into()?;
+        let mut socket: Socket = Context::new().socket(DEALER)?.try_into()?;
         socket.connect(&self.endpoint)?;
         let mut duplex = Duplex::from(socket);
 
@@ -47,7 +47,7 @@ impl Program {
     }
 
     async fn pong(&self) -> Result<(), Error> {
-        let socket: Socket = Context::new().socket(ROUTER)?.try_into()?;
+        let mut socket: Socket = Context::new().socket(ROUTER)?.try_into()?;
         socket.bind(&self.endpoint)?;
         let mut duplex = Duplex::from(socket);
 

@@ -19,21 +19,21 @@ struct Program {
 
 impl Program {
     async fn execute(&self) -> Result<(), Error> {
-        let socket = self.make_socket()?;
+        let mut socket = self.make_socket()?;
         eprintln!("start ping-pong");
         if self.ping {
-            self.send(&socket, "ping").await?;
-            self.recv(&socket).await?;
+            self.send(&mut socket, "ping").await?;
+            self.recv(&mut socket).await?;
         } else {
-            self.recv(&socket).await?;
-            self.send(&socket, "pong").await?;
+            self.recv(&mut socket).await?;
+            self.send(&mut socket, "pong").await?;
         }
         eprintln!("stop ping-pong");
         Ok(())
     }
 
     fn make_socket(&self) -> Result<Socket, Error> {
-        let socket: Socket = Context::new()
+        let mut socket: Socket = Context::new()
             .socket(if self.ping { REQ } else { REP })?
             .try_into()?;
         if self.immediate {
@@ -47,7 +47,7 @@ impl Program {
         Ok(socket)
     }
 
-    async fn send(&self, socket: &Socket, message: &str) -> Result<(), Error> {
+    async fn send(&self, socket: &mut Socket, message: &str) -> Result<(), Error> {
         if self.multipart {
             let mut parts = message.bytes().peekable();
             while let Some(part) = parts.next() {
@@ -62,7 +62,7 @@ impl Program {
         Ok(())
     }
 
-    async fn recv(&self, socket: &Socket) -> Result<(), Error> {
+    async fn recv(&self, socket: &mut Socket) -> Result<(), Error> {
         let mut message = Message::new();
         if self.multipart {
             loop {

@@ -24,18 +24,11 @@ pub struct Duplex {
     send_multipart: Option<SendMultipart<'static>>,
 }
 
-// While `Socket` is not `Sync`, it seems reasonable to assert that `Duplex` is indeed both `Send`
-// and `Sync`, given that `Duplex` owns `Socket`, and `Stream` and `Sink` take `&mut self`.
-//
-// TODO: How can we prove that this is actually safe?
-unsafe impl Send for Duplex {}
-unsafe impl Sync for Duplex {}
-
 type RecvMultipart<'a> = Pin<Box<impl Future<Output = Result<Multipart, Error>> + 'a>>;
 type SendMultipart<'a> = Pin<Box<impl Future<Output = Result<(), Error>> + 'a>>;
 
 // NOTE: This is not cancel safe.
-fn recv_multipart(socket: &Socket, flags: i32) -> RecvMultipart {
+fn recv_multipart(socket: &mut Socket, flags: i32) -> RecvMultipart {
     Box::pin(async move {
         let mut parts = Vec::new();
         loop {
@@ -48,7 +41,7 @@ fn recv_multipart(socket: &Socket, flags: i32) -> RecvMultipart {
 }
 
 // NOTE: This is not cancel safe.
-fn send_multipart(socket: &Socket, multipart: Multipart, flags: i32) -> SendMultipart {
+fn send_multipart(socket: &mut Socket, multipart: Multipart, flags: i32) -> SendMultipart {
     Box::pin(async move {
         let mut iter = multipart.into_iter().peekable();
         while let Some(part) = iter.next() {
@@ -93,8 +86,8 @@ impl stream::Stream for Duplex {
         this.recv_multipart
             .get_or_insert_with(|| {
                 // TODO: How can we prove that this is actually safe?
-                let socket = &this.socket as *const Socket;
-                recv_multipart(unsafe { &*socket }, 0)
+                let socket = &mut this.socket as *mut Socket;
+                recv_multipart(unsafe { &mut *socket }, 0)
             })
             .as_mut()
             .poll(context)
@@ -120,8 +113,8 @@ impl sink::Sink<Multipart> for Duplex {
             "expect poll_ready called beforehand",
         );
         // TODO: How can we prove that this is actually safe?
-        let socket = &this.socket as *const Socket;
-        this.send_multipart = Some(send_multipart(unsafe { &*socket }, multipart, 0));
+        let socket = &mut this.socket as *mut Socket;
+        this.send_multipart = Some(send_multipart(unsafe { &mut *socket }, multipart, 0));
         Ok(())
     }
 
@@ -167,11 +160,11 @@ mod tests {
         let context = Context::new();
         let endpoint = format!("inproc://{}", std::module_path!());
 
-        let rep = Socket::try_from(context.socket(REP)?)?;
+        let mut rep = Socket::try_from(context.socket(REP)?)?;
         rep.bind(&endpoint)?;
         let mut rep = Duplex::new(rep);
 
-        let req = Socket::try_from(context.socket(REQ)?)?;
+        let mut req = Socket::try_from(context.socket(REQ)?)?;
         req.connect(&endpoint)?;
         let mut req = Duplex::new(req);
 

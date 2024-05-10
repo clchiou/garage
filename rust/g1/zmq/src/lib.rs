@@ -4,7 +4,7 @@ pub mod duplex;
 pub mod envelope;
 
 use std::io::Error;
-use std::os::fd::RawFd;
+use std::os::fd::{AsRawFd, RawFd};
 use std::string::FromUtf8Error;
 
 use tokio::io::unix::AsyncFd;
@@ -13,7 +13,18 @@ use zmq::{Mechanism, Message, PollEvents, SocketType, DONTWAIT};
 use g1_base::fmt::{DebugExt, InsertPlaceholder};
 
 #[derive(DebugExt)]
-pub struct Socket(#[debug(with = InsertPlaceholder)] AsyncFd<zmq::Socket>);
+pub struct Socket {
+    #[debug(with = InsertPlaceholder)]
+    socket: zmq::Socket,
+    #[debug(with = InsertPlaceholder)]
+    fd: AsyncFd<RawFd>,
+}
+
+// While `zmq::Socket` is not `Sync`, it seems correct to assert that our `Socket` is indeed
+// `Sync`, considering that our `Socket` owns `zmq::Socket` and only exposes `&mut Self`.
+//
+// TODO: Can we prove this?
+unsafe impl Sync for Socket {}
 
 pub type Multipart = Vec<Message>;
 
@@ -21,90 +32,104 @@ impl TryFrom<zmq::Socket> for Socket {
     type Error = Error;
 
     fn try_from(socket: zmq::Socket) -> Result<Self, Self::Error> {
-        AsyncFd::new(socket).map(Self)
+        Self::new(socket)
     }
 }
 
-macro_rules! recv {
-    ($self:expr => $do_io:expr) => {{
+macro_rules! io {
+    ($self:ident, $poll:ident, $io:expr $(,)?) => {
         loop {
-            let mut guard = $self.0.readable().await?;
-            // We could check for `!(POLLIN | POLLERR)`, but it is better to opt for `is_empty` for
-            // foolproofness.
-            if guard.get_inner().get_events()?.is_empty() {
+            let mut guard = $self.fd.$poll().await?;
+
+            // We check `is_empty` rather than `!(POLLIN | POLLERR)` when reading, or
+            // `!(POLLOUT | POLLERR)` when writing, because it turns out that `get_events` returns
+            // `POLLIN` rather than `POLLERR` for certain errors during writing.
+            if $self.socket.get_events()?.is_empty() {
                 guard.clear_ready();
                 continue;
             }
-            if let Ok(result) = guard.try_io($do_io) {
-                return result;
+
+            if let Ok(result) = guard.try_io(|_| $io) {
+                break result;
             }
         }
-    }};
+    };
 }
 
 impl Socket {
-    pub fn get_ref(&self) -> &zmq::Socket {
-        self.0.get_ref()
+    pub fn new(socket: zmq::Socket) -> Result<Self, Error> {
+        let fd = AsyncFd::new(socket.as_raw_fd())?;
+        Ok(Self { socket, fd })
+    }
+
+    /// Returns a shared reference to the inner `zmq::Socket`.
+    ///
+    /// # Safety
+    ///
+    /// Most of the basic ZeroMQ [socket types], such as `ZMQ_REQ`, are not thread-safe.
+    ///
+    /// [socket types]: https://libzmq.readthedocs.io/en/latest/zmq_socket.html
+    pub unsafe fn get_ref(&self) -> &zmq::Socket {
+        &self.socket
     }
 
     pub fn get_mut(&mut self) -> &mut zmq::Socket {
-        self.0.get_mut()
+        &mut self.socket
     }
 
     pub fn into_inner(self) -> zmq::Socket {
-        self.0.into_inner()
+        self.socket
     }
 
-    pub async fn recv(&self, message: &mut Message, flags: i32) -> Result<(), Error> {
-        recv!(self => |socket| Ok(socket.get_ref().recv(message, flags | DONTWAIT)?));
+    pub async fn recv(&mut self, message: &mut Message, flags: i32) -> Result<(), Error> {
+        io!(
+            self,
+            readable,
+            Ok(self.socket.recv(message, flags | DONTWAIT)?),
+        )
     }
 
-    pub async fn recv_into(&self, bytes: &mut [u8], flags: i32) -> Result<usize, Error> {
-        recv!(self => |socket| Ok(socket.get_ref().recv_into(bytes, flags | DONTWAIT)?));
+    pub async fn recv_into(&mut self, bytes: &mut [u8], flags: i32) -> Result<usize, Error> {
+        io!(
+            self,
+            readable,
+            Ok(self.socket.recv_into(bytes, flags | DONTWAIT)?),
+        )
     }
 
-    pub async fn recv_msg(&self, flags: i32) -> Result<Message, Error> {
+    pub async fn recv_msg(&mut self, flags: i32) -> Result<Message, Error> {
         let mut message = Message::new();
         self.recv(&mut message, flags).await.map(|()| message)
     }
 
-    pub async fn recv_bytes(&self, flags: i32) -> Result<Vec<u8>, Error> {
+    pub async fn recv_bytes(&mut self, flags: i32) -> Result<Vec<u8>, Error> {
         self.recv_msg(flags).await.map(|message| message.to_vec())
     }
 
-    pub async fn recv_string(&self, flags: i32) -> Result<Result<String, Vec<u8>>, Error> {
+    pub async fn recv_string(&mut self, flags: i32) -> Result<Result<String, Vec<u8>>, Error> {
         self.recv_bytes(flags)
             .await
             .map(|bytes| String::from_utf8(bytes).map_err(FromUtf8Error::into_bytes))
     }
 
-    pub async fn send<T>(&self, data: T, flags: i32) -> Result<(), Error>
+    pub async fn send<T>(&mut self, data: T, flags: i32) -> Result<(), Error>
     where
         T: Into<Message>,
     {
         let mut message = data.into();
-        loop {
-            let mut guard = self.0.writable().await?;
-            // NOTE: We check `is_empty` rather than `!(POLLOUT | POLLERR)` because it turns out
-            // that `get_events` returns `POLLIN` rather than `POLLERR` for certain errors.
-            if guard.get_inner().get_events()?.is_empty() {
-                guard.clear_ready();
-                continue;
-            }
-            if let Ok(result) =
-                guard.try_io(|socket| Ok(socket.get_ref().send(&mut message, flags | DONTWAIT)?))
-            {
-                return result;
-            }
-        }
+        io!(
+            self,
+            writable,
+            Ok(self.socket.send(&mut message, flags | DONTWAIT)?),
+        )
     }
 }
 
 macro_rules! forward {
     ($($name:ident($($arg:ident: $arg_type:ty),* $(,)?) -> $ret_type:ty);* $(;)?) => {
         $(
-            pub fn $name(&self, $($arg : $arg_type),*) -> $ret_type {
-                self.get_ref().$name($($arg),*)
+            pub fn $name(&mut self, $($arg : $arg_type),*) -> $ret_type {
+                self.socket.$name($($arg),*)
             }
         )*
     };
