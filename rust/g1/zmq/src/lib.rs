@@ -5,7 +5,6 @@ use std::io::Error;
 use std::os::fd::RawFd;
 use std::string::FromUtf8Error;
 
-use async_trait::async_trait;
 use tokio::io::unix::AsyncFd;
 use zmq::{Mechanism, Message, PollEvents, SocketType, DONTWAIT, SNDMORE};
 
@@ -15,14 +14,6 @@ use g1_base::fmt::{DebugExt, InsertPlaceholder};
 pub struct Socket(#[debug(with = InsertPlaceholder)] AsyncFd<zmq::Socket>);
 
 pub type Multipart = Vec<Message>;
-
-/// Async version of `zmq::Sendable`.
-#[async_trait(?Send)]
-pub trait Sendable {
-    // Specify `?Send` above to remove the `Send` trait bound here because `&Socket` is not `Send`
-    // (as `Socket` is not `Sync`).
-    async fn send(self, socket: &Socket, flags: i32) -> Result<(), Error>;
-}
 
 impl TryFrom<zmq::Socket> for Socket {
     type Error = Error;
@@ -49,33 +40,6 @@ macro_rules! recv {
     }};
 }
 
-// TODO: How do we implement `Sendable` for `&mut Message`?
-#[async_trait(?Send)]
-impl<T> Sendable for T
-where
-    T: Into<Message>,
-{
-    async fn send(self, socket: &Socket, flags: i32) -> Result<(), Error> {
-        let mut message = self.into();
-        loop {
-            let mut guard = socket.0.writable().await?;
-            // NOTE: We check `is_empty` rather than `!(POLLOUT | POLLERR)` because it turns out
-            // that `get_events` returns `POLLIN` rather than `POLLERR` for certain errors.
-            if guard.get_inner().get_events()?.is_empty() {
-                guard.clear_ready();
-                continue;
-            }
-            if let Ok(result) =
-                guard.try_io(|socket| Ok(socket.get_ref().send(&mut message, flags | DONTWAIT)?))
-            {
-                return result;
-            }
-        }
-    }
-}
-
-// TODO: Expose `self.0.readable` and `self.0.writable` to users so that they can implement
-// `Sendable`.
 impl Socket {
     pub fn get_ref(&self) -> &zmq::Socket {
         self.0.get_ref()
@@ -125,9 +89,23 @@ impl Socket {
 
     pub async fn send<T>(&self, data: T, flags: i32) -> Result<(), Error>
     where
-        T: Sendable,
+        T: Into<Message>,
     {
-        data.send(self, flags).await
+        let mut message = data.into();
+        loop {
+            let mut guard = self.0.writable().await?;
+            // NOTE: We check `is_empty` rather than `!(POLLOUT | POLLERR)` because it turns out
+            // that `get_events` returns `POLLIN` rather than `POLLERR` for certain errors.
+            if guard.get_inner().get_events()?.is_empty() {
+                guard.clear_ready();
+                continue;
+            }
+            if let Ok(result) =
+                guard.try_io(|socket| Ok(socket.get_ref().send(&mut message, flags | DONTWAIT)?))
+            {
+                return result;
+            }
+        }
     }
 
     // NOTE: This is not cancel safe.
