@@ -1,8 +1,3 @@
-#[macro_use]
-pub mod sink;
-#[macro_use]
-pub mod stream;
-
 pub mod duplex;
 pub mod envelope;
 
@@ -272,12 +267,5 @@ impl Socket {
         _ set_curve_serverkey &[u8];
         _ set_gssapi_principal &str;
         _ set_gssapi_service_principal &str;
-    }
-}
-
-// TODO: We implement this solely for `Duplex`.  Should we rewrite `Duplex` to remove this?
-impl AsRef<Socket> for Socket {
-    fn as_ref(&self) -> &Socket {
-        self
     }
 }

@@ -9,8 +9,6 @@ use futures::stream;
 use g1_base::fmt::{DebugExt, InsertPlaceholder};
 use g1_base::task::PollExt;
 
-use crate::sink::SendMultipart;
-use crate::stream::RecvMultipart;
 use crate::{Multipart, Socket};
 
 /// Multipart message stream and sink that is somewhat cancel safe.
@@ -22,6 +20,13 @@ pub struct Duplex {
     #[debug(with = InsertPlaceholder)]
     send_multipart: Option<SendMultipart>,
 }
+
+// TODO: I would like to declare them as `impl Future<...>`, but `feature(type_alias_impl_trait)`
+// cannot handle our complex use case yet.
+//
+// NOTE: We omit `Send` because `Socket` is not `Sync`.
+type RecvMultipart = Pin<Box<dyn Future<Output = Result<Multipart, Error>> + 'static>>;
+type SendMultipart = Pin<Box<dyn Future<Output = Result<(), Error>> + 'static>>;
 
 // While `Socket` is not `Sync`, it seems reasonable to assert that `Duplex` is indeed both `Send`
 // and `Sync`, given that `Duplex` owns `Socket`, and `Stream` and `Sink` take `&mut self`.
@@ -57,11 +62,66 @@ impl Duplex {
 }
 
 impl stream::Stream for Duplex {
-    impl_stream!();
+    type Item = Result<Multipart, Error>;
+
+    fn poll_next(self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let this = self.get_mut();
+        Pin::new(this.recv_multipart.get_or_insert_with(|| {
+            // TODO: How can we prove that this is actually safe?
+            let socket = &this.socket as *const Socket;
+            Box::pin(unsafe { &*socket }.recv_multipart_unsafe(0))
+        }))
+        .poll(context)
+        .inspect(|_| {
+            this.recv_multipart = None;
+        })
+        .map(Some)
+    }
 }
 
 impl sink::Sink<Multipart> for Duplex {
-    impl_sink!();
+    type Error = Error;
+
+    fn poll_ready(
+        self: Pin<&mut Self>,
+        context: &mut Context<'_>,
+    ) -> Poll<Result<(), Self::Error>> {
+        self.poll_flush(context)
+    }
+
+    fn start_send(self: Pin<&mut Self>, multipart: Multipart) -> Result<(), Self::Error> {
+        let this = self.get_mut();
+        assert!(
+            this.send_multipart.is_none(),
+            "expect poll_ready called beforehand",
+        );
+        // TODO: How can we prove that this is actually safe?
+        let socket = &this.socket as *const Socket;
+        this.send_multipart = Some(Box::pin(
+            unsafe { &*socket }.send_multipart_unsafe(multipart, 0),
+        ));
+        Ok(())
+    }
+
+    fn poll_flush(
+        self: Pin<&mut Self>,
+        context: &mut Context<'_>,
+    ) -> Poll<Result<(), Self::Error>> {
+        let this = self.get_mut();
+        let Some(send_multipart) = this.send_multipart.as_mut() else {
+            return Poll::Ready(Ok(()));
+        };
+        Pin::new(send_multipart).poll(context).inspect(|_| {
+            this.send_multipart = None;
+        })
+    }
+
+    fn poll_close(
+        self: Pin<&mut Self>,
+        context: &mut Context<'_>,
+    ) -> Poll<Result<(), Self::Error>> {
+        self.poll_flush(context)
+    }
 }
 
 #[cfg(test)]
