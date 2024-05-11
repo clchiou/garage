@@ -126,7 +126,8 @@ impl Program {
     }
 
     async fn cancel(&self, cancel: &Cancel) -> Result<(), Error> {
-        let response = RawNaiveClient::connect(self.endpoint.clone())?
+        let response = RawNaiveClient::connect(self.endpoint.clone())
+            .unwrap()
             .cancel(cancel.token)
             .await?;
         eprintln!("cancel: {:?}", response);
@@ -134,7 +135,8 @@ impl Program {
     }
 
     async fn read(&self, read: &Read) -> Result<(), Error> {
-        let response = RawNaiveClient::connect(self.endpoint.clone())?
+        let response = RawNaiveClient::connect(self.endpoint.clone())
+            .unwrap()
             .read(read.key.clone())
             .await?;
         eprintln!("read: {:?}", response);
@@ -157,7 +159,8 @@ impl Program {
     }
 
     async fn read_metadata(&self, read_metadata: &ReadMetadata) -> Result<(), Error> {
-        let response = RawNaiveClient::connect(self.endpoint.clone())?
+        let response = RawNaiveClient::connect(self.endpoint.clone())
+            .unwrap()
             .read_metadata(read_metadata.key.clone())
             .await?;
         eprintln!("read_metadata: {:?}", response);
@@ -168,7 +171,8 @@ impl Program {
         let mut input = OpenOptions::new().read(true).open(&write.file).unwrap();
         let size = usize::try_from(input.metadata().unwrap().len()).unwrap();
 
-        let response = RawNaiveClient::connect(self.endpoint.clone())?
+        let response = RawNaiveClient::connect(self.endpoint.clone())
+            .unwrap()
             .write(
                 write.key.clone(),
                 write.metadata.clone(),
@@ -191,7 +195,8 @@ impl Program {
     }
 
     async fn write_metadata(&self, write_metadata: &WriteMetadata) -> Result<(), Error> {
-        let response = RawNaiveClient::connect(self.endpoint.clone())?
+        let response = RawNaiveClient::connect(self.endpoint.clone())
+            .unwrap()
             .write_metadata(
                 write_metadata.key.clone(),
                 write_metadata.metadata.clone(),
@@ -203,7 +208,8 @@ impl Program {
     }
 
     async fn remove(&self, remove: &Remove) -> Result<(), Error> {
-        let response = RawNaiveClient::connect(self.endpoint.clone())?
+        let response = RawNaiveClient::connect(self.endpoint.clone())
+            .unwrap()
             .remove(remove.key.clone())
             .await?;
         eprintln!("remove: {:?}", response);
@@ -211,7 +217,8 @@ impl Program {
     }
 
     async fn pull(&self, pull: &Pull) -> Result<(), Error> {
-        let response = RawNaiveClient::connect(self.endpoint.clone())?
+        let response = RawNaiveClient::connect(self.endpoint.clone())
+            .unwrap()
             .pull(pull.key.clone())
             .await?;
         eprintln!("pull: {:?}", response);
@@ -237,7 +244,8 @@ impl Program {
         let mut input = OpenOptions::new().read(true).open(&push.file).unwrap();
         let size = usize::try_from(input.metadata().unwrap().len()).unwrap();
 
-        let response = RawNaiveClient::connect(self.endpoint.clone())?
+        let response = RawNaiveClient::connect(self.endpoint.clone())
+            .unwrap()
             .push(
                 push.key.clone(),
                 push.metadata.clone(),

@@ -16,14 +16,10 @@ pub enum Error {
     //
     // Network or server errors.
     //
-    #[snafu(display("connect error: {source}"))]
-    Connect { source: io::Error },
-    #[snafu(display("request timeout"))]
-    RequestTimeout,
-
-    // For `RawNaiveClient::request`.
     #[snafu(display("request error: {source}"))]
     Request { source: io::Error },
+    #[snafu(display("request timeout"))]
+    RequestTimeout,
 
     //
     // Decode response errors.
@@ -76,18 +72,11 @@ impl TryFrom<error::Reader<'_>> for Error {
     }
 }
 
-/// Protocol-specific errors.
 #[derive(Debug, Snafu)]
 #[snafu(visibility(pub(crate)))]
-pub(crate) enum ProtoError {
+pub(crate) enum ResponseError {
     #[snafu(display("invalid response: {source}"))]
     InvalidResponse { source: envelope::Error },
     #[snafu(display("invalid routing id: {response:?}"))]
     InvalidRoutingId { response: Envelope<Frame> },
-}
-
-impl From<ProtoError> for io::Error {
-    fn from(error: ProtoError) -> Self {
-        io::Error::other(error)
-    }
 }

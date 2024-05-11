@@ -4,36 +4,29 @@ use std::io;
 use std::os::fd::{AsFd, AsRawFd, BorrowedFd};
 use std::sync::{
     atomic::{AtomicBool, Ordering},
-    Arc, Mutex, MutexGuard,
+    Arc, Mutex,
 };
 
 use bytes::Bytes;
-use futures::future::OptionFuture;
 use futures::stream::StreamExt;
 use snafu::prelude::*;
-use tokio::sync::{mpsc, oneshot, watch};
 use uuid::Uuid;
 
-use etcd_pubsub::SubscriberError;
 use g1_base::future::ReadyQueue;
 use g1_base::sync::MutexExt;
+use g1_tokio::sync::oneway::Flag;
 use g1_tokio::task::{Cancel, JoinGuard, JoinQueue};
 
 use ddcache_client_raw::{RawClient, RawClientGuard};
-use ddcache_rpc::service::{self, Event, Subscriber};
-use ddcache_rpc::{BlobMetadata, Endpoint, Timestamp, Token};
+use ddcache_rpc::service::{self, Event, PubSub, Subscriber};
+use ddcache_rpc::{BlobMetadata, Timestamp};
 
 use crate::error::{Error, ProtocolSnafu};
 use crate::route::RouteMap;
 
-type Connect = (Endpoint, oneshot::Sender<Result<(), Error>>);
-type ConnectRecv = mpsc::Receiver<Connect>;
-type ConnectSend = mpsc::Sender<Connect>;
-
 #[derive(Clone, Debug)]
 pub struct Client {
-    service_ready_recv: watch::Receiver<Option<bool>>,
-    connect_send: ConnectSend,
+    service_ready: Arc<Flag>,
     routes: Arc<Mutex<RouteMap>>,
     num_replicas: usize,
 }
@@ -43,8 +36,8 @@ pub type ClientGuard = JoinGuard<Result<(), io::Error>>;
 #[derive(Debug)]
 struct Actor {
     cancel: Cancel,
-    service_ready_send: watch::Sender<Option<bool>>,
-    connect_recv: ConnectRecv,
+    service_ready: Arc<Flag>,
+    pubsub: PubSub,
     routes: Arc<Mutex<RouteMap>>,
     tasks: JoinQueue<Result<(), io::Error>>,
 }
@@ -52,21 +45,18 @@ struct Actor {
 // le = last error
 
 macro_rules! le_push {
-    ($message:tt, $last_error:ident, $endpoint:expr, $error:expr) => {
-        if let Some((endpoint, error)) = $last_error.replace((
-            $endpoint,
-            Error::Protocol { source: $error },
-        )) {
-            tracing::warn!(%endpoint, %error, $message);
+    ($message:tt, $last_error:ident, $id:expr, $error:expr) => {
+        if let Some((id, error)) = $last_error.replace(($id, Error::Protocol { source: $error })) {
+            tracing::warn!(%id, %error, $message);
         }
     };
 }
 
 macro_rules! le_finish {
     ($message:tt, $last_error:ident, $succeed:expr) => {
-        if let Some((endpoint, error)) = $last_error {
+        if let Some((id, error)) = $last_error {
             if $succeed {
-                tracing::warn!(%endpoint, %error, $message);
+                tracing::warn!(%id, %error, $message);
             } else {
                 return Err(error);
             }
@@ -76,63 +66,28 @@ macro_rules! le_finish {
 
 impl Client {
     pub fn spawn() -> (Self, ClientGuard) {
-        let (service_ready_send, service_ready_recv) = watch::channel(None);
-        let (connect_send, connect_recv) = mpsc::channel(16);
+        let service_ready = Arc::new(Flag::new());
         let routes = Arc::new(Mutex::new(RouteMap::new()));
         (
             Self {
-                service_ready_recv,
-                connect_send,
+                service_ready: service_ready.clone(),
                 routes: routes.clone(),
                 num_replicas: *ddcache_rpc::num_replicas(),
             },
-            ClientGuard::spawn(move |cancel| {
-                Actor::new(cancel, service_ready_send, connect_recv, routes).run()
-            }),
+            ClientGuard::spawn(move |cancel| Actor::new(cancel, service_ready, routes).run()),
         )
     }
 
-    pub async fn service_ready(&mut self) -> bool {
-        self.service_ready_recv
-            .wait_for(|x| x.is_some())
-            .await
-            .map_or(false, |x| (*x).unwrap())
+    pub async fn service_ready(&self) {
+        self.service_ready.wait().await
     }
 
-    pub async fn connect(&self, endpoint: Endpoint) -> Result<(), Error> {
-        let (result_send, result_recv) = oneshot::channel();
-        self.connect_send
-            .send((endpoint, result_send))
-            .await
-            .map_err(|_| Error::Stopped)?;
-        result_recv.await.map_err(|_| Error::Stopped)?
-    }
-
-    pub fn disconnect(&self, endpoint: Endpoint) {
-        self.routes.must_lock().disconnect(endpoint);
-    }
-
-    fn get(&self, endpoint: Endpoint) -> Result<RawClient, Error> {
-        self.routes.must_lock().get(endpoint)
-    }
-
-    fn all(&self) -> Result<Vec<RawClient>, Error> {
+    fn all(&self) -> Result<Vec<(Uuid, RawClient)>, Error> {
         self.routes.must_lock().all()
     }
 
-    fn find(&self, key: &[u8]) -> Result<Vec<RawClient>, Error> {
+    fn find(&self, key: &[u8]) -> Result<Vec<(Uuid, RawClient)>, Error> {
         self.routes.must_lock().find(key, self.num_replicas)
-    }
-
-    //
-    // TODO: Should we disconnect from (or reconnect to) the shard on error?
-    //
-
-    pub async fn cancel(&self, endpoint: Endpoint, token: Token) -> Result<(), Error> {
-        self.get(endpoint)?
-            .cancel(token)
-            .await
-            .context(ProtocolSnafu)
     }
 
     pub async fn read<F>(
@@ -146,21 +101,21 @@ impl Client {
     {
         let queue = ReadyQueue::new();
         let first = Arc::new(AtomicBool::new(true));
-        for shard in self.find(&key)? {
+        for (id, shard) in self.find(&key)? {
             let key = key.clone();
             let first = first.clone();
             assert!(queue
                 .push(async move {
                     let response = shard.read(key).await;
                     if !matches!(response, Ok(Some(_))) || first.swap(false, Ordering::SeqCst) {
-                        return (shard, response);
+                        return (id, response);
                     }
 
                     let response = shard
                         .cancel(response.unwrap().unwrap().blob.unwrap().token())
                         .await
                         .map(|()| None);
-                    (shard, response)
+                    (id, response)
                 })
                 .is_ok());
         }
@@ -170,12 +125,12 @@ impl Client {
         let mut last_error = None;
         let mut metadata = None;
 
-        while let Some((shard, response)) = queue.pop_ready().await {
+        while let Some((id, response)) = queue.pop_ready().await {
             let response = match response {
                 Ok(Some(response)) => response,
                 Ok(None) => continue,
                 Err(error) => {
-                    le_push!("read", last_error, shard.endpoint(), error);
+                    le_push!("read", last_error, id, error);
                     continue;
                 }
             };
@@ -188,7 +143,7 @@ impl Client {
 
             match response.blob.unwrap().read(output, size).await {
                 Ok(()) => succeed = true,
-                Err(error) => le_push!("read", last_error, shard.endpoint(), error),
+                Err(error) => le_push!("read", last_error, id, error),
             }
 
             join_cancels(queue);
@@ -201,12 +156,12 @@ impl Client {
 
     pub async fn read_metadata(&self, key: Bytes) -> Result<Option<BlobMetadata>, Error> {
         let queue = ReadyQueue::new();
-        for shard in self.find(&key)? {
+        for (id, shard) in self.find(&key)? {
             let key = key.clone();
             assert!(queue
                 .push(async move {
                     let response = shard.read_metadata(key).await;
-                    (shard, response)
+                    (id, response)
                 })
                 .is_ok());
         }
@@ -215,12 +170,12 @@ impl Client {
         let mut metadata = None;
         let mut last_error = None;
 
-        while let Some((shard, response)) = queue.pop_ready().await {
+        while let Some((id, response)) = queue.pop_ready().await {
             let response = match response {
                 Ok(Some(response)) => response,
                 Ok(None) => continue,
                 Err(error) => {
-                    le_push!("read_metadata", last_error, shard.endpoint(), error);
+                    le_push!("read_metadata", last_error, id, error);
                     continue;
                 }
             };
@@ -245,7 +200,7 @@ impl Client {
     {
         let queue = ReadyQueue::new();
         let first = Arc::new(AtomicBool::new(true));
-        for shard in self.find(&key)? {
+        for (id, shard) in self.find(&key)? {
             let key = key.clone();
             let metadata = metadata.clone();
             let first = first.clone();
@@ -253,14 +208,14 @@ impl Client {
                 .push(async move {
                     let response = shard.write(key, metadata, size, expire_at).await;
                     if !matches!(response, Ok(Some(_))) || first.swap(false, Ordering::SeqCst) {
-                        return (shard, response);
+                        return (id, response);
                     }
 
                     let response = shard
                         .cancel(response.unwrap().unwrap().blob.unwrap().token())
                         .await
                         .map(|()| None);
-                    (shard, response)
+                    (id, response)
                 })
                 .is_ok());
         }
@@ -269,19 +224,19 @@ impl Client {
         let mut succeed = false;
         let mut last_error = None;
 
-        while let Some((shard, response)) = queue.pop_ready().await {
+        while let Some((id, response)) = queue.pop_ready().await {
             let response = match response {
                 Ok(Some(response)) => response,
                 Ok(None) => continue,
                 Err(error) => {
-                    le_push!("write_any", last_error, shard.endpoint(), error);
+                    le_push!("write_any", last_error, id, error);
                     continue;
                 }
             };
 
             match response.blob.unwrap().write(input, size).await {
                 Ok(()) => succeed = true,
-                Err(error) => le_push!("write_any", last_error, shard.endpoint(), error),
+                Err(error) => le_push!("write_any", last_error, id, error),
             }
 
             join_cancels(queue);
@@ -303,15 +258,15 @@ impl Client {
     ) -> Result<bool, Error> {
         let queue = ReadyQueue::new();
         let fd = input.as_raw_fd();
-        for shard in self.find(&key)? {
+        for (id, shard) in self.find(&key)? {
             let key = key.clone();
             let metadata = metadata.clone();
             assert!(queue
                 .push(async move {
                     let response = match shard.write(key, metadata, size, expire_at).await {
                         Ok(Some(response)) => response,
-                        Ok(None) => return (shard, Ok(false)),
-                        Err(error) => return (shard, Err(error)),
+                        Ok(None) => return (id, Ok(false)),
+                        Err(error) => return (id, Err(error)),
                     };
 
                     let mut input = unsafe { BorrowedFd::borrow_raw(fd) };
@@ -321,8 +276,8 @@ impl Client {
                         .write_file(&mut input, Some(0), size)
                         .await
                     {
-                        Ok(()) => (shard, Ok(true)),
-                        Err(error) => (shard, Err(error)),
+                        Ok(()) => (id, Ok(true)),
+                        Err(error) => (id, Err(error)),
                     }
                 })
                 .is_ok());
@@ -332,11 +287,11 @@ impl Client {
         let mut succeed = false;
         let mut last_error = None;
 
-        while let Some((shard, response)) = queue.pop_ready().await {
+        while let Some((id, response)) = queue.pop_ready().await {
             match response {
                 Ok(true) => succeed = true,
                 Ok(false) => {}
-                Err(error) => le_push!("write_all", last_error, shard.endpoint(), error),
+                Err(error) => le_push!("write_all", last_error, id, error),
             }
         }
 
@@ -353,13 +308,13 @@ impl Client {
         expire_at: Option<Option<Timestamp>>,
     ) -> Result<bool, Error> {
         let queue = ReadyQueue::new();
-        for shard in self.find(&key)? {
+        for (id, shard) in self.find(&key)? {
             let key = key.clone();
             let metadata = metadata.clone();
             assert!(queue
                 .push(async move {
                     let response = shard.write_metadata(key, metadata, expire_at).await;
-                    (shard, response)
+                    (id, response)
                 })
                 .is_ok());
         }
@@ -368,14 +323,14 @@ impl Client {
         let mut succeed = false;
         let mut last_error = None;
 
-        while let Some((shard, response)) = queue.pop_ready().await {
+        while let Some((id, response)) = queue.pop_ready().await {
             match response {
                 Ok(Some(response)) => {
-                    tracing::debug!(endpoint = %shard.endpoint(), ?response, "write_metadata");
+                    tracing::debug!(%id, ?response, "write_metadata");
                     succeed = true;
                 }
                 Ok(None) => {}
-                Err(error) => le_push!("write_metadata", last_error, shard.endpoint(), error),
+                Err(error) => le_push!("write_metadata", last_error, id, error),
             }
         }
 
@@ -388,12 +343,12 @@ impl Client {
     /// shards and later re-replicated.
     pub async fn remove(&self, key: Bytes) -> Result<bool, Error> {
         let queue = ReadyQueue::new();
-        for shard in self.all()? {
+        for (id, shard) in self.all()? {
             let key = key.clone();
             assert!(queue
                 .push(async move {
                     let response = shard.remove(key).await;
-                    (shard, response)
+                    (id, response)
                 })
                 .is_ok());
         }
@@ -402,14 +357,14 @@ impl Client {
         let mut succeed = false;
         let mut last_error = None;
 
-        while let Some((shard, response)) = queue.pop_ready().await {
+        while let Some((id, response)) = queue.pop_ready().await {
             match response {
                 Ok(Some(response)) => {
-                    tracing::debug!(endpoint = %shard.endpoint(), ?response, "remove");
+                    tracing::debug!(%id, ?response, "remove");
                     succeed = true;
                 }
                 Ok(None) => {}
-                Err(error) => le_push!("remove", last_error, shard.endpoint(), error),
+                Err(error) => le_push!("remove", last_error, id, error),
             }
         }
 
@@ -418,110 +373,80 @@ impl Client {
     }
 }
 
-fn join_cancels<T>(queue: ReadyQueue<(RawClient, Result<Option<T>, ddcache_client_raw::Error>)>)
+fn join_cancels<T>(queue: ReadyQueue<(Uuid, Result<Option<T>, ddcache_client_raw::Error>)>)
 where
     T: Send + 'static,
 {
     // Do not block on joining the `shard.cancel()` futures.
     tokio::spawn(async move {
-        while let Some((shard, response)) = queue.pop_ready().await {
+        while let Some((id, response)) = queue.pop_ready().await {
             match response.context(ProtocolSnafu) {
                 Ok(Some(_)) => std::panic!("expect Ok(None) or Err"),
                 Ok(None) => {}
-                Err(error) => tracing::debug!(endpoint = %shard.endpoint(), %error, "cancel"),
+                Err(error) => tracing::debug!(%id, %error, "cancel"),
             }
         }
     });
 }
 
 impl Actor {
-    fn new(
-        cancel: Cancel,
-        service_ready_send: watch::Sender<Option<bool>>,
-        connect_recv: ConnectRecv,
-        routes: Arc<Mutex<RouteMap>>,
-    ) -> Self {
+    fn new(cancel: Cancel, service_ready: Arc<Flag>, routes: Arc<Mutex<RouteMap>>) -> Self {
         Self {
             cancel,
-            service_ready_send,
-            connect_recv,
+            service_ready,
+            pubsub: service::pubsub(),
             routes,
             tasks: JoinQueue::new(),
         }
     }
 
-    fn connect(&self, endpoint: Endpoint) -> Result<(), Error> {
-        self.routes.must_lock().connect(&self.tasks, endpoint)
-    }
-
-    fn connect_many(&self, routes: &mut MutexGuard<RouteMap>, id: Uuid, endpoints: Vec<String>) {
-        for endpoint in endpoints.into_iter().map(Endpoint::from) {
-            if let Err(error) = routes.connect(&self.tasks, endpoint.clone()) {
-                tracing::warn!(%id, %endpoint, %error, "connect");
-            }
-        }
-    }
-
-    async fn run(mut self) -> Result<(), io::Error> {
-        let mut subscriber = self
-            .init_subscriber()
-            .await
-            .inspect_err(|error| {
-                // Log it at the error level because we expect that `Client` will need a subscriber
-                // in most use cases.
-                tracing::error!(%error, "init subscriber");
-            })
-            .ok();
-        let _ = self
-            .service_ready_send
-            .send_replace(Some(subscriber.is_some()));
+    async fn run(self) -> Result<(), io::Error> {
+        let mut subscriber = self.init_subscriber().await?;
+        self.service_ready.set();
 
         loop {
             tokio::select! {
                 () = self.cancel.wait() => break,
 
-                Some(event) = OptionFuture::from(subscriber.as_mut().map(|s| s.next())) => {
+                event = subscriber.next() => {
                     match event {
                         Some(Ok(event)) => self.handle_subscribe(event),
-                        Some(Err(error)) => tracing::warn!(%error, "subscriber event"),
+                        Some(Err(error)) => {
+                            tracing::warn!(%error, "subscriber");
+                            // TODO: Wait for a backoff period before resubscribing.
+                            subscriber = self.init_subscriber().await?;
+                        }
                         None => {
                             tracing::warn!("subscriber stop unexpectedly");
-                            break;
+                            // TODO: Wait for a backoff period before resubscribing.
+                            subscriber = self.init_subscriber().await?;
                         }
                     }
                 }
 
-                connect = self.connect_recv.recv() => {
-                    let Some(connect) = connect else { break };
-                    self.handle_connect(connect);
-                }
-
                 guard = self.tasks.join_next() => {
                     let Some(guard) = guard else { break };
-                    self.handle_task(guard, true)?;
+                    self.handle_task(guard);
                 }
             }
         }
 
         self.tasks.cancel();
         while let Some(guard) = self.tasks.join_next().await {
-            self.handle_task(guard, false)?;
+            self.handle_task(guard);
         }
 
         Ok(())
     }
 
-    async fn init_subscriber(&self) -> Result<Subscriber, SubscriberError> {
-        let pubsub = service::pubsub();
+    async fn init_subscriber(&self) -> Result<Subscriber, io::Error> {
+        let subscriber = self.pubsub.subscribe().await.map_err(io::Error::other)?;
 
-        let subscriber = pubsub.subscribe().await?;
-
-        let servers = pubsub.scan().await?;
+        let servers = self.pubsub.scan().await.map_err(io::Error::other)?;
         {
             let mut routes = self.routes.must_lock();
             for (id, server) in servers {
-                tracing::info!(%id, ?server, "init");
-                self.connect_many(&mut routes, id, server.endpoints);
+                routes.connect(&self.tasks, id, server);
             }
         }
 
@@ -531,66 +456,20 @@ impl Actor {
     fn handle_subscribe(&self, event: Event) {
         let mut routes = self.routes.must_lock();
         match event {
-            Event::Create((id, server)) => {
-                tracing::info!(%id, ?server, "new server");
-                self.connect_many(&mut routes, id, server.endpoints);
-            }
-            Event::Update { id, new, old } => {
-                tracing::info!(%id, ?new, ?old, "update server");
-                for endpoint in old.endpoints {
-                    if !new.endpoints.contains(&endpoint) {
-                        routes.disconnect(endpoint.into());
-                    }
-                }
-                self.connect_many(&mut routes, id, new.endpoints);
-            }
-            Event::Delete((id, server)) => {
-                tracing::info!(%id, ?server, "remove server");
-                for endpoint in server.endpoints {
-                    routes.disconnect(endpoint.into());
-                }
-            }
+            Event::Create((id, server))
+            | Event::Update {
+                id, new: server, ..
+            } => routes.connect(&self.tasks, id, server),
+            Event::Delete((id, _)) => routes.disconnect(id),
         }
     }
 
-    fn handle_connect(&self, (endpoint, result_send): Connect) {
-        let _ = result_send.send(self.connect(endpoint));
-    }
-
-    fn handle_task(
-        &self,
-        mut guard: RawClientGuard,
-        reconnect_on_error: bool,
-    ) -> Result<(), io::Error> {
-        let mut routes = self.routes.must_lock();
-        let shard = routes.remove(guard.id()).unwrap();
-
+    fn handle_task(&self, mut guard: RawClientGuard) {
+        let (id, _) = self.routes.must_lock().remove(guard.id()).unwrap();
         match guard.take_result() {
-            Ok(Ok(())) => return Ok(()),
-            Ok(Err(error)) => {
-                if reconnect_on_error {
-                    tracing::warn!(%error, "shard error");
-                } else {
-                    return Err(error);
-                }
-            }
-            Err(error) => {
-                if reconnect_on_error {
-                    tracing::warn!(%error, "shard task error");
-                } else {
-                    return Err(error.into());
-                }
-            }
+            Ok(Ok(())) => {}
+            Ok(Err(error)) => tracing::warn!(%id, %error, "shard error"),
+            Err(error) => tracing::warn!(%id, %error, "shard task error"),
         }
-        assert!(reconnect_on_error);
-
-        routes
-            .connect(&self.tasks, shard.endpoint())
-            .map_err(|error| match error {
-                Error::Protocol {
-                    source: ddcache_client_raw::Error::Connect { source },
-                } => source,
-                _ => std::unreachable!("expect Error::Connect: {}", error),
-            })
     }
 }

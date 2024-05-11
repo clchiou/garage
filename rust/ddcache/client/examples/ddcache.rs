@@ -7,8 +7,8 @@ use clap::{Args, Parser, Subcommand};
 
 use g1_cli::{param::ParametersConfig, tracing::TracingConfig};
 
-use ddcache_client::{Client, ClientGuard};
-use ddcache_rpc::{Endpoint, Timestamp, Token};
+use ddcache_client::Client;
+use ddcache_rpc::Timestamp;
 
 #[derive(Debug, Parser)]
 struct Program {
@@ -17,27 +17,17 @@ struct Program {
     #[command(flatten)]
     parameters: ParametersConfig,
 
-    // For some reason, global arguments cannot be required.
-    #[arg(long)]
-    endpoint: Vec<Endpoint>,
-
     #[command(subcommand)]
     command: Command,
 }
 
 #[derive(Debug, Subcommand)]
 enum Command {
-    Cancel(Cancel),
     Read(Read),
     ReadMetadata(ReadMetadata),
     Write(Write),
     WriteMetadata(WriteMetadata),
     Remove(Remove),
-}
-
-#[derive(Args, Debug)]
-struct Cancel {
-    token: Token,
 }
 
 #[derive(Args, Debug)]
@@ -80,9 +70,14 @@ struct Remove {
 
 impl Program {
     async fn execute(&self) -> Result<(), Error> {
-        let (client, mut guard) = self.connect().await?;
+        let (client, mut guard) = Client::spawn();
+
+        tokio::select! {
+            () = client.service_ready() => {}
+            () = guard.join() => return Err(Error::other("service unavailable")),
+        }
+
         match &self.command {
-            Command::Cancel(cancel) => self.cancel(client, cancel).await?,
             Command::Read(read) => Self::read(client, read).await?,
             Command::ReadMetadata(read_metadata) => {
                 Self::read_metadata(client, read_metadata).await?
@@ -93,28 +88,8 @@ impl Program {
             }
             Command::Remove(remove) => Self::remove(client, remove).await?,
         }
+
         guard.shutdown().await?.map_err(Error::other)
-    }
-
-    async fn connect(&self) -> Result<(Client, ClientGuard), Error> {
-        let (mut client, guard) = Client::spawn();
-        for endpoint in self.endpoint.iter().cloned() {
-            client.connect(endpoint).await.map_err(Error::other)?;
-        }
-        if self.endpoint.is_empty() && !client.service_ready().await {
-            return Err(Error::other("service unavailable"));
-        }
-        Ok((client, guard))
-    }
-
-    async fn cancel(&self, client: Client, cancel: &Cancel) -> Result<(), Error> {
-        for endpoint in self.endpoint.iter().cloned() {
-            client
-                .cancel(endpoint, cancel.token)
-                .await
-                .map_err(Error::other)?;
-        }
-        Ok(())
     }
 
     async fn read(client: Client, read: &Read) -> Result<(), Error> {

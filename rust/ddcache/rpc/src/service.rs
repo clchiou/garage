@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use fasthash::{CityHasher, FastHasher};
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use etcd_client::Client;
 
@@ -37,14 +38,14 @@ impl<'a> From<&'a [Endpoint]> for Server {
 // Sort in descending order.
 pub fn rendezvous_sorting_by_key<'a, T>(
     key: &'a [u8],
-    mut endpoint: impl FnMut(&T) -> Endpoint + 'a,
+    mut server_id: impl FnMut(&T) -> Uuid + 'a,
 ) -> impl FnMut(&T) -> Reverse<u64> + 'a {
-    move |server| Reverse(rendezvous_hash(key, endpoint(server)))
+    move |server| Reverse(rendezvous_hash(key, server_id(server)))
 }
 
-pub fn rendezvous_hash(key: &[u8], endpoint: Endpoint) -> u64 {
+pub fn rendezvous_hash(key: &[u8], server_id: Uuid) -> u64 {
     let mut hasher = CityHasher::new();
     hasher.write(key);
-    hasher.write(endpoint.as_bytes());
+    hasher.write(server_id.as_bytes());
     hasher.finish()
 }

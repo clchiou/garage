@@ -6,22 +6,26 @@ mod error;
 mod response;
 
 use std::io;
+use std::sync::Arc;
 use std::time::Duration;
 
 use bytes::Bytes;
 use capnp::serialize;
 use snafu::prelude::*;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{mpsc, oneshot, watch};
 use tracing::Instrument;
-use zmq::{Context, DEALER, REQ};
+use uuid::Uuid;
+use zmq::{Context, REQ};
 
+use g1_tokio::sync::watch::Update;
 use g1_tokio::task::{Cancel, JoinGuard};
 use g1_zmq::Socket;
 
+use ddcache_rpc::service::Server;
 use ddcache_rpc::{Endpoint, ResponseReader, Timestamp, Token};
 
-use crate::actor::{Actor, RequestSend};
-use crate::error::{ConnectSnafu, DecodeSnafu, RequestSnafu, UnexpectedResponseSnafu};
+use crate::actor::{Actor, RequestSend, ServerSend};
+use crate::error::{DecodeSnafu, RequestSnafu, UnexpectedResponseSnafu};
 use crate::response::ResponseResult;
 
 g1_param::define!(request_timeout: Duration = Duration::from_secs(2));
@@ -33,7 +37,8 @@ pub use crate::response::Response;
 
 #[derive(Clone, Debug)]
 pub struct RawClient {
-    endpoint: Endpoint,
+    // TODO: Remove `Arc` after we upgrade `tokio` to v1.37.0.
+    server_send: Arc<ServerSend>,
     request_send: RequestSend,
     cancel: Cancel,
 }
@@ -117,44 +122,30 @@ macro_rules! define_methods {
 }
 
 impl RawClient {
-    pub fn connect(endpoint: Endpoint) -> Result<(Self, RawClientGuard), Error> {
-        tracing::info!(%endpoint, "connect");
-
+    pub fn connect(id: Uuid, server: Server) -> (Self, RawClientGuard) {
+        let (server_send, server_recv) = watch::channel(server);
         let (request_send, request_recv) = mpsc::channel(16);
-
-        let socket: Result<Socket, io::Error> = try {
-            let mut socket = Socket::try_from(Context::new().socket(DEALER)?)?;
-            socket.set_linger(0)?; // Do NOT block the program exit!
-            socket.connect(&endpoint)?;
-            socket
-        };
-        let socket = socket.context(ConnectSnafu)?;
-
-        let guard = {
-            let endpoint = endpoint.clone();
-            RawClientGuard::spawn(move |cancel| {
-                Actor::new(cancel, request_recv, socket.into())
-                    .run()
-                    .instrument(tracing::info_span!("ddcache/raw", %endpoint))
-            })
-        };
-
-        Ok((
+        let guard = RawClientGuard::spawn(move |cancel| {
+            Actor::new(cancel, server_recv, request_recv)
+                .run()
+                .instrument(tracing::info_span!("ddcache/raw", %id))
+        });
+        (
             Self {
-                endpoint,
+                server_send: Arc::new(server_send),
                 request_send,
                 cancel: guard.cancel_handle(),
             },
             guard,
-        ))
+        )
+    }
+
+    pub fn update(&self, server: Server) {
+        self.server_send.update(server);
     }
 
     pub fn disconnect(&self) {
         self.cancel.set();
-    }
-
-    pub fn endpoint(&self) -> Endpoint {
-        self.endpoint.clone()
     }
 
     async fn request(&self, request: ddcache_rpc::Request) -> ResponseResult {
@@ -182,15 +173,12 @@ impl From<RawNaiveClient> for Socket {
 }
 
 impl RawNaiveClient {
-    pub fn connect(endpoint: Endpoint) -> Result<Self, Error> {
+    pub fn connect(endpoint: Endpoint) -> Result<Self, io::Error> {
         tracing::info!(%endpoint, "connect");
-        let socket: Result<Socket, io::Error> = try {
-            let mut socket = Socket::try_from(Context::new().socket(REQ)?)?;
-            socket.set_linger(0)?; // Do NOT block the program exit!
-            socket.connect(&endpoint)?;
-            socket
-        };
-        Ok(Self::with_socket(socket.context(ConnectSnafu)?))
+        let mut socket = Socket::try_from(Context::new().socket(REQ)?)?;
+        socket.set_linger(0)?; // Do NOT block the program exit!
+        socket.connect(&endpoint)?;
+        Ok(Self::with_socket(socket))
     }
 
     pub fn with_socket(socket: Socket) -> Self {
