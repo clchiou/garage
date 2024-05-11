@@ -1,10 +1,11 @@
 use std::io;
+use std::time::Duration;
 
 use futures::future::OptionFuture;
 use futures::sink::SinkExt;
 use futures::stream::StreamExt;
 use snafu::prelude::*;
-use tokio::sync::{mpsc, watch};
+use tokio::sync::{mpsc, oneshot, watch};
 use tokio::time::{self, Instant};
 use zmq::{Context, DEALER};
 
@@ -56,6 +57,10 @@ impl Actor {
         let mut deadline = None;
         tokio::pin! { let timeout = OptionFuture::from(None); }
 
+        let mut idle_interval = time::interval(Duration::from_secs(120));
+        let mut keepalive_response_recv = None;
+
+        idle_interval.reset();
         loop {
             let next_deadline = self.response_sends.next_deadline();
             if deadline != next_deadline {
@@ -78,6 +83,8 @@ impl Actor {
                     // Block the actor loop on `duplex.send` because it is probably desirable to
                     // derive back pressure from this point.
                     self.handle_request(request, &mut duplex).await;
+
+                    idle_interval.reset();
                 }
 
                 response = duplex.next() => {
@@ -98,6 +105,21 @@ impl Actor {
                     deadline = None;
                     timeout.set(None.into());
                 }
+
+                _ = idle_interval.tick() => {
+                    tracing::info!("idle timeout");
+                    keepalive_response_recv = Some(self.send_keepalive(&mut duplex).await);
+                }
+                Some(response) = OptionFuture::from(keepalive_response_recv.as_mut()) => {
+                    match response.unwrap() {
+                        Ok(Some(response)) => {
+                            tracing::warn!(?response, "unexpected keepalive response");
+                        }
+                        Ok(None) => {}
+                        Err(error) => tracing::warn!(%error, "keepalive"),
+                    }
+                    keepalive_response_recv = None;
+                }
             }
         }
 
@@ -116,6 +138,14 @@ impl Actor {
         socket.connect(&server.endpoints[0])?;
 
         Ok(socket.into())
+    }
+
+    async fn send_keepalive(&mut self, duplex: &mut Duplex) -> oneshot::Receiver<ResponseResult> {
+        // Send `cancel(0)` as keep-alive messages.
+        let (response_send, response_recv) = oneshot::channel();
+        self.handle_request((ddcache_rpc::Request::Cancel(0), response_send), duplex)
+            .await;
+        response_recv
     }
 
     async fn handle_request(&mut self, (request, response_send): Request, duplex: &mut Duplex) {
