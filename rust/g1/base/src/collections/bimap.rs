@@ -4,26 +4,27 @@ use std::borrow::Borrow;
 use std::fmt::{self, Debug};
 use std::hash::{BuildHasher, Hash};
 
-use super::{
-    index_map::{HashIndexMap, KeyAsHash, ValueAsHash},
-    vec_list::{Cursor, VecList},
-    DefaultHashBuilder,
-};
+use super::{bitable::HashBasedBiTable, DefaultHashBuilder};
 
 #[derive(Clone)]
-pub struct HashBiMap<K, V, KS = DefaultHashBuilder, VS = DefaultHashBuilder> {
-    key_map: HashIndexMap<Cursor, KeyAsHash, (K, V), K, KS>,
-    value_map: HashIndexMap<Cursor, ValueAsHash, (K, V), V, VS>,
-    entries: VecList<(K, V)>,
+pub struct HashBiMap<K, V, KS = DefaultHashBuilder, VS = DefaultHashBuilder>(
+    HashBasedBiTable<K, V, (), KS, VS>,
+);
+
+fn to_0<'a, T>((t, ()): (&'a T, &())) -> &'a T {
+    t
+}
+
+fn into_0<T>((t, ()): (T, ())) -> T {
+    t
 }
 
 impl<K, V, KS, VS> HashBiMap<K, V, KS, VS> {
     pub fn with_hasher(key_hash_builder: KS, value_hash_builder: VS) -> Self {
-        Self {
-            key_map: HashIndexMap::with_hasher(key_hash_builder),
-            value_map: HashIndexMap::with_hasher(value_hash_builder),
-            entries: VecList::new(),
-        }
+        Self(HashBasedBiTable::with_hasher(
+            key_hash_builder,
+            value_hash_builder,
+        ))
     }
 
     pub fn with_capacity_and_hasher(
@@ -31,11 +32,11 @@ impl<K, V, KS, VS> HashBiMap<K, V, KS, VS> {
         key_hash_builder: KS,
         value_hash_builder: VS,
     ) -> Self {
-        Self {
-            key_map: HashIndexMap::with_capacity_and_hasher(capacity, key_hash_builder),
-            value_map: HashIndexMap::with_capacity_and_hasher(capacity, value_hash_builder),
-            entries: VecList::with_capacity(capacity),
-        }
+        Self(HashBasedBiTable::with_capacity_and_hasher(
+            capacity,
+            key_hash_builder,
+            value_hash_builder,
+        ))
     }
 }
 
@@ -140,33 +141,31 @@ where
 
 impl<K, V, KS, VS> HashBiMap<K, V, KS, VS> {
     pub fn capacity(&self) -> usize {
-        self.entries.capacity()
+        self.0.capacity()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.entries.is_empty()
+        self.0.is_empty()
     }
 
     pub fn len(&self) -> usize {
-        self.entries.len()
+        self.0.len()
     }
 
     pub fn keys(&self) -> impl Iterator<Item = &K> {
-        self.entries.iter().map(|(k, _)| k)
+        self.0.rows()
     }
 
     pub fn values(&self) -> impl Iterator<Item = &V> {
-        self.entries.iter().map(|(_, v)| v)
+        self.0.columns()
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (&K, &V)> {
-        self.entries.iter().map(|(k, v)| (k, v))
+        self.0.iter().map(|(k, v, _)| (k, v))
     }
 
     pub fn clear(&mut self) {
-        self.key_map.clear();
-        self.value_map.clear();
-        self.entries.clear();
+        self.0.clear();
     }
 }
 
@@ -182,7 +181,7 @@ where
         K: Borrow<Q>,
         Q: Eq + Hash + ?Sized,
     {
-        self.key_map.get(&self.entries, key).is_some()
+        self.0.contains_row(key)
     }
 
     pub fn contains_value<Q>(&self, value: &Q) -> bool
@@ -190,7 +189,7 @@ where
         V: Borrow<Q>,
         Q: Eq + Hash + ?Sized,
     {
-        self.value_map.get(&self.entries, value).is_some()
+        self.0.contains_column(value)
     }
 
     pub fn contains<KQ, VQ>(&self, key: &KQ, value: &VQ) -> bool
@@ -200,10 +199,7 @@ where
         V: Borrow<VQ>,
         VQ: Eq + Hash + ?Sized,
     {
-        let contains: Option<bool> = try {
-            self.key_map.get(&self.entries, key)? == self.value_map.get(&self.entries, value)?
-        };
-        contains.unwrap_or(false)
+        self.0.contains(key, value)
     }
 
     pub fn get<Q>(&self, key: &Q) -> Option<&V>
@@ -211,9 +207,7 @@ where
         K: Borrow<Q>,
         Q: Eq + Hash + ?Sized,
     {
-        self.key_map
-            .get(&self.entries, key)
-            .map(|p| &self.entries[p].1)
+        self.0.get_row(key).map(to_0)
     }
 
     pub fn inverse_get<Q>(&self, value: &Q) -> Option<&K>
@@ -221,47 +215,16 @@ where
         V: Borrow<Q>,
         Q: Eq + Hash + ?Sized,
     {
-        self.value_map
-            .get(&self.entries, value)
-            .map(|p| &self.entries[p].0)
+        self.0.get_column(value).map(to_0)
     }
 
     // TODO: Provide an `entry` method equivalent to `HashMap::entry`.
 
     pub fn insert(&mut self, key: K, value: V) -> (Option<V>, Option<K>) {
-        // TODO: "remove-then-insert" is a simple (and perhaps the only correct) implementation.
-        // Is it possible to find a more efficient implementation?
-
-        let p = self.key_map.remove(&self.entries, &key);
-        let q = self.value_map.remove(&self.entries, &value);
-        let old_vk = match (p, q) {
-            (Some(p), Some(q)) if p == q => {
-                let (k, v) = self.entries.remove(p);
-                (Some(v), Some(k))
-            }
-            _ => (
-                p.map(|p| {
-                    self.value_map.remove(&self.entries, &self.entries[p].1);
-                    self.entries.remove(p).1
-                }),
-                q.map(|q| {
-                    self.key_map.remove(&self.entries, &self.entries[q].0);
-                    self.entries.remove(q).0
-                }),
-            ),
-        };
-
-        let r = self.entries.push_back((key, value));
-        assert_eq!(
-            self.key_map.insert(&self.entries, &self.entries[r].0, r),
-            None,
-        );
-        assert_eq!(
-            self.value_map.insert(&self.entries, &self.entries[r].1, r),
-            None,
-        );
-
-        old_vk
+        match self.0.insert(key, value, ()) {
+            Ok((k, v, ())) => (Some(v), Some(k)),
+            Err((v, k)) => (v.map(into_0), k.map(into_0)),
+        }
     }
 
     pub fn remove_key<Q>(&mut self, key: &Q) -> Option<V>
@@ -269,9 +232,7 @@ where
         K: Borrow<Q>,
         Q: Eq + Hash + ?Sized,
     {
-        let p = self.key_map.remove(&self.entries, key)?;
-        self.value_map.remove(&self.entries, &self.entries[p].1);
-        Some(self.entries.remove(p).1)
+        self.0.remove_row(key).map(into_0)
     }
 
     pub fn remove_value<Q>(&mut self, value: &Q) -> Option<K>
@@ -279,9 +240,7 @@ where
         V: Borrow<Q>,
         Q: Eq + Hash + ?Sized,
     {
-        let q = self.value_map.remove(&self.entries, value)?;
-        self.key_map.remove(&self.entries, &self.entries[q].0);
-        Some(self.entries.remove(q).0)
+        self.0.remove_column(value).map(into_0)
     }
 
     pub fn remove<KQ, VQ>(&mut self, key: &KQ, value: &VQ) -> bool
@@ -291,19 +250,7 @@ where
         V: Borrow<VQ>,
         VQ: Eq + Hash + ?Sized,
     {
-        let remove: Option<bool> = try {
-            let k = self.key_map.find_entry(&self.entries, key)?;
-            let v = self.value_map.find_entry(&self.entries, value)?;
-            if k.get() == v.get() {
-                self.entries.remove(*k.get());
-                k.remove();
-                v.remove();
-                true
-            } else {
-                false
-            }
-        };
-        remove.unwrap_or(false)
+        self.0.remove(key, value).is_some()
     }
 }
 
@@ -338,36 +285,12 @@ mod test_harness {
                 assert_eq!(self.get(k), Some(v));
                 assert_eq!(self.inverse_get(v), Some(k));
             }
-
-            self.assert_cursors();
-        }
-
-        pub fn assert_cursors(&self) {
-            let mut cursors = Vec::new();
-            let mut p = self.entries.cursor_front();
-            while let Some(cursor) = p {
-                cursors.push(usize::from(cursor));
-                p = self.entries.next(cursor);
-            }
-            cursors.sort();
-
-            assert_eq!(
-                self.key_map.iter().map(usize::from).collect_then_sort(),
-                cursors,
-            );
-
-            assert_eq!(
-                self.value_map.iter().map(usize::from).collect_then_sort(),
-                cursors,
-            );
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::iter;
-
     use super::*;
 
     #[test]
@@ -466,20 +389,6 @@ mod tests {
         map.assert_map(&[('a', 100), ('b', 101)]);
         assert_eq!(map.insert('a', 101), (Some(100), Some('b')));
         map.assert_map(&[('a', 101)]);
-
-        let mut map = HashBiMap::new();
-        map.assert_cursors();
-        for (k, v) in iter::zip(
-            ('a'..='e').into_iter().cycle(),
-            (101..=107).into_iter().cycle(),
-        )
-        .take(70)
-        {
-            map.insert(k, v);
-            map.assert_cursors();
-            map.insert(k, v);
-            map.assert_cursors();
-        }
     }
 
     #[test]
