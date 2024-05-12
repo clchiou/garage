@@ -115,7 +115,7 @@ impl<R, C, V> HashBasedTable<R, C, V> {
         self.table.values().map(|cs| cs.len()).sum()
     }
 
-    pub fn row_keys(&self) -> impl Iterator<Item = &R> {
+    pub fn rows(&self) -> impl Iterator<Item = &R> {
         self.table.keys()
     }
 
@@ -149,14 +149,14 @@ where
     C: Eq + Hash,
 {
     pub fn num_columns(&self) -> usize {
-        self.column_key_set().len()
+        self.column_set().len()
     }
 
-    pub fn column_keys(&self) -> impl Iterator<Item = &C> {
-        self.column_key_set().into_iter()
+    pub fn columns(&self) -> impl Iterator<Item = &C> {
+        self.column_set().into_iter()
     }
 
-    pub fn column_key_set(&self) -> HashSet<&C> {
+    pub fn column_set(&self) -> HashSet<&C> {
         self.table.values().flat_map(|cs| cs.keys()).collect()
     }
 }
@@ -344,8 +344,8 @@ mod tests {
     type Table = HashBasedTable<String, usize, String>;
 
     fn assert_table<const N: usize>(table: &mut Table, expect: [(&str, usize, &str); N]) {
-        let row_keys: HashSet<_> = expect.iter().map(|(r, _, _)| r.to_string()).collect();
-        let column_keys: HashSet<_> = expect.iter().map(|(_, c, _)| *c).collect();
+        let rows: HashSet<_> = expect.iter().map(|(r, _, _)| r.to_string()).collect();
+        let columns: HashSet<_> = expect.iter().map(|(_, c, _)| *c).collect();
         let values = expect
             .iter()
             .map(|(_, _, v)| v.to_string())
@@ -357,15 +357,12 @@ mod tests {
 
         assert_eq!(table.is_empty(), expect.len() == 0);
 
-        assert_eq!(table.num_rows(), row_keys.len());
-        assert_eq!(table.num_columns(), column_keys.len());
+        assert_eq!(table.num_rows(), rows.len());
+        assert_eq!(table.num_columns(), columns.len());
         assert_eq!(table.num_values(), expect.len());
 
-        assert_eq!(table.row_keys().cloned().collect::<HashSet<_>>(), row_keys);
-        assert_eq!(
-            table.column_keys().cloned().collect::<HashSet<_>>(),
-            column_keys,
-        );
+        assert_eq!(table.rows().cloned().collect::<HashSet<_>>(), rows);
+        assert_eq!(table.columns().cloned().collect::<HashSet<_>>(), columns);
         assert_eq!(table.values().cloned().collect_then_sort(), values);
         assert_eq!(
             table.values_mut().map(|v| v.clone()).collect_then_sort(),

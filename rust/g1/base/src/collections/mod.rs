@@ -8,6 +8,8 @@ pub mod vec_list;
 #[cfg(feature = "collections_ext")]
 mod bimap;
 #[cfg(feature = "collections_ext")]
+mod bitable;
+#[cfg(feature = "collections_ext")]
 mod ordered;
 mod table;
 
@@ -18,6 +20,8 @@ pub use self::bigraph::HashBiGraph;
 pub use self::bigraph::{NaiveBTreeBiGraph, NaiveHashBiGraph};
 #[cfg(feature = "collections_ext")]
 pub use self::bimap::HashBiMap;
+#[cfg(feature = "collections_ext")]
+pub use self::bitable::HashBasedBiTable;
 #[cfg(feature = "collections_ext")]
 pub use self::cursor_set::HashCursorSet;
 #[cfg(feature = "collections_ext")]
