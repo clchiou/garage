@@ -19,6 +19,7 @@ members = [
     "ddcache/bin/ddcached",
     "ddcache/client",
     "ddcache/client/raw",
+    "ddcache/client/service",
     "ddcache/rpc",
     "ddcache/server",
     "ddcache/storage",
@@ -112,6 +113,7 @@ bittorrent_utp = { path = "bittorrent/utp" }
 
 ddcache_client = { path = "ddcache/client" }
 ddcache_client_raw = { path = "ddcache/client/raw" }
+ddcache_client_service = { path = "ddcache/client/service" }
 ddcache_rpc = { path = "ddcache/rpc" }
 ddcache_server = { path = "ddcache/server" }
 ddcache_storage = { path = "ddcache/storage" }
