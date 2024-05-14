@@ -5,19 +5,17 @@ edition.workspace = true
 
 [dependencies]
 bytes.workspace = true
-futures.workspace = true
 snafu.workspace = true
-tokio.workspace = true
 tracing.workspace = true
 uuid.workspace = true
 
 etcd_pubsub.workspace = true
-g1_base.workspace = true
-g1_tokio.workspace = true
 
 ddcache_client_raw.workspace = true
+ddcache_client_service.workspace = true
 ddcache_rpc.workspace = true
 
 [dev-dependencies]
 clap.workspace = true
+tokio.workspace = true
 g1_cli = { workspace = true, features = ["param", "tracing"] }

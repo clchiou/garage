@@ -1,6 +1,7 @@
+#![feature(try_blocks)]
+
 mod client;
 mod error;
-mod route;
 
 pub use ddcache_rpc::{BlobMetadata, Timestamp};
 

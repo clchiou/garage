@@ -1,13 +1,17 @@
 use std::fs::OpenOptions;
 use std::io::Error;
 use std::path::PathBuf;
+use std::time::Duration;
 
 use bytes::Bytes;
 use clap::{Args, Parser, Subcommand};
 
+use tokio::time;
+
 use g1_cli::{param::ParametersConfig, tracing::TracingConfig};
 
 use ddcache_client::Client;
+use ddcache_rpc::service;
 use ddcache_rpc::Timestamp;
 
 #[derive(Debug, Parser)]
@@ -70,24 +74,28 @@ struct Remove {
 
 impl Program {
     async fn execute(&self) -> Result<(), Error> {
-        let (client, mut guard) = Client::spawn();
+        let (client, mut guard) = Client::spawn(service::pubsub())
+            .await
+            .map_err(Error::other)?;
 
-        tokio::select! {
-            () = client.service_ready() => {}
-            () = guard.join() => return Err(Error::other("service unavailable")),
+        {
+            let client = client.clone();
+            match &self.command {
+                Command::Read(read) => Self::read(client, read).await?,
+                Command::ReadMetadata(read_metadata) => {
+                    Self::read_metadata(client, read_metadata).await?
+                }
+                Command::Write(write) => Self::write(client, write).await?,
+                Command::WriteMetadata(write_metadata) => {
+                    Self::write_metadata(client, write_metadata).await?
+                }
+                Command::Remove(remove) => Self::remove(client, remove).await?,
+            }
         }
 
-        match &self.command {
-            Command::Read(read) => Self::read(client, read).await?,
-            Command::ReadMetadata(read_metadata) => {
-                Self::read_metadata(client, read_metadata).await?
-            }
-            Command::Write(write) => Self::write(client, write).await?,
-            Command::WriteMetadata(write_metadata) => {
-                Self::write_metadata(client, write_metadata).await?
-            }
-            Command::Remove(remove) => Self::remove(client, remove).await?,
-        }
+        // Give background tasks some time to finish.
+        time::sleep(Duration::from_millis(50)).await;
+        drop(client);
 
         guard.shutdown().await?.map_err(Error::other)
     }
