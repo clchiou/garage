@@ -1,5 +1,7 @@
 #![feature(try_blocks)]
 
+pub mod concurrent;
+
 mod actor;
 mod blob;
 mod error;
