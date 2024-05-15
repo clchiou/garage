@@ -401,28 +401,31 @@ impl WriteGuard {
         self.new_metadata_mut();
         self.ensure_file(false)?;
 
-        let new_metadata = self.new_metadata.as_mut().unwrap();
+        let mut new_metadata = self.new_metadata.take().unwrap();
         new_metadata.size = self.file.as_ref().unwrap().metadata()?.len();
+
         new_metadata.write(&self.path)?;
 
         // No errors after this point.
-
-        let new_metadata = self.new_metadata.take().unwrap();
-        self.file = None;
 
         if let Some(expire_at) = new_metadata.expire_at {
             self.expire_queue.push(expire_at, new_metadata.key.clone());
         }
         self.guard.take().unwrap().commit(new_metadata);
+
+        self.file = None;
         Ok(())
     }
 }
 
-// TODO: I am not sure if this is a good design, but if the caller made changes to the writer
-// without committing, I will assume an error has occurred and remove the blob.
+// TODO: I am not sure if this is a good design, but if the caller opened the writer without
+// committing, I will assume an error has occurred and remove the blob.
+//
+// NOTE: This starts to smell like a bad design, but we only consider file-opening, not metadata
+// changes.
 impl Drop for WriteGuard {
     fn drop(&mut self) {
-        if self.new_metadata.is_some() || self.file.is_some() {
+        if self.file.is_some() {
             fs::remove_file(&self.path).unwrap();
             self.guard.take().unwrap().commit_remove();
         }
@@ -742,6 +745,19 @@ mod tests {
 
         // No open nor set blob metadata.
         drop(storage.write(b("foo"), false).await?);
+        assert_eq!(storage.size(), 13);
+        assert_dir(tempdir.path(), [(b"foo", b"Hello, World!")]);
+        {
+            let mut guard = storage.read(b("foo")).await.unwrap();
+            assert_eq!(guard.metadata(), Some(b("Spam eggs")));
+            assert_eq!(guard.read()?, b("Hello, World!"));
+        }
+
+        // Set blob metadata only.
+        {
+            let mut guard = storage.write(b("foo"), false).await?;
+            guard.set_metadata(Some(b("Something else")));
+        }
         assert_eq!(storage.size(), 13);
         assert_dir(tempdir.path(), [(b"foo", b"Hello, World!")]);
         {
