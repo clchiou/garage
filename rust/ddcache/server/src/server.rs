@@ -1,5 +1,4 @@
 use std::io::Error;
-use std::path::Path;
 use std::sync::{
     atomic::{AtomicU64, Ordering},
     Arc,
@@ -14,15 +13,15 @@ use tokio::sync::mpsc::{self, UnboundedSender};
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tokio::time::{self, Instant};
 use tracing::Instrument;
-use zmq::{Context, ROUTER};
 
 use g1_tokio::task::{Cancel, JoinGuard, JoinQueue};
 use g1_zmq::duplex::Duplex;
 use g1_zmq::envelope::{Envelope, Frame, Multipart};
 use g1_zmq::Socket;
 
+use ddcache_peer::Peer;
 use ddcache_rpc::envelope;
-use ddcache_rpc::{BlobEndpoint, Endpoint, Request, Timestamp, TimestampExt, Token};
+use ddcache_rpc::{BlobEndpoint, Request, Timestamp, TimestampExt, Token};
 use ddcache_storage::{ReadGuard, Storage, WriteGuard};
 
 use crate::rep;
@@ -48,6 +47,8 @@ pub(crate) struct Actor {
     storage_size_lwm: u64,
     storage_size_hwm: u64,
 
+    peer: Peer,
+
     evict_task: Option<Guard>,
     expire_task: Option<Guard>,
 
@@ -64,6 +65,8 @@ struct Handler {
     state: Arc<State>,
     storage: Storage,
 
+    peer: Peer,
+
     permit: Option<OwnedSemaphorePermit>,
 
     stats: Arc<Stats>,
@@ -78,28 +81,24 @@ struct Stats {
 }
 
 impl Actor {
-    pub(crate) async fn spawn(
-        storage_dir: &Path,
+    pub(crate) fn spawn(
+        socket: Socket,
         blob_endpoints: Vec<BlobEndpoint>,
         state: Arc<State>,
-    ) -> Result<(Vec<Endpoint>, Guard), Error> {
-        let storage = Storage::open(storage_dir).await?;
-
-        let mut socket = Socket::try_from(Context::new().socket(ROUTER)?)?;
-        socket.set_linger(0)?; // Do NOT block the program exit!
-        let mut endpoints = Vec::with_capacity(crate::endpoints().len());
-        for endpoint in crate::endpoints() {
-            socket.bind(endpoint)?;
-            endpoints.push(socket.get_last_endpoint().unwrap().unwrap().into());
-        }
-        tracing::info!(?endpoints, "bind");
-
-        Ok((
-            endpoints,
-            Guard::spawn(move |cancel| {
-                Self::new(cancel, socket.into(), blob_endpoints.into(), state, storage).run()
-            }),
-        ))
+        storage: Storage,
+        peer: Peer,
+    ) -> Guard {
+        Guard::spawn(move |cancel| {
+            Self::new(
+                cancel,
+                socket.into(),
+                blob_endpoints.into(),
+                state,
+                storage,
+                peer,
+            )
+            .run()
+        })
     }
 
     fn new(
@@ -108,6 +107,7 @@ impl Actor {
         blob_endpoints: Arc<[BlobEndpoint]>,
         state: Arc<State>,
         storage: Storage,
+        peer: Peer,
     ) -> Self {
         Self {
             cancel: cancel.clone(),
@@ -126,6 +126,8 @@ impl Actor {
             storage,
             storage_size_lwm: *crate::storage_size_lwm(),
             storage_size_hwm: *crate::storage_size_hwm(),
+
+            peer,
 
             evict_task: None,
             expire_task: None,
@@ -467,6 +469,8 @@ impl Handler {
             state: server.state.clone(),
             storage: server.storage.clone(),
 
+            peer: server.peer.clone(),
+
             permit: Some(permit),
 
             stats: server.stats.clone(),
@@ -497,7 +501,8 @@ impl Handler {
             return;
         };
 
-        let Some(reader) = self.read_lock(key).await else {
+        let Some(reader) = self.read_lock(key.clone()).await else {
+            self.peer.try_pull(key);
             self.send_response(rep::ok_none_response());
             return;
         };
@@ -521,7 +526,8 @@ impl Handler {
     }
 
     async fn read_metadata(self, key: Bytes) {
-        let Some(reader) = self.read_lock(key).await else {
+        let Some(reader) = self.read_lock(key.clone()).await else {
+            self.peer.try_pull(key);
             self.send_response(rep::ok_none_response());
             return;
         };

@@ -12,11 +12,15 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use uuid::Uuid;
+use zmq::{Context, ROUTER};
 
 use g1_tokio::task::{JoinArray, JoinGuard};
+use g1_zmq::Socket;
 
+use ddcache_peer::Peer;
 use ddcache_rpc::service;
 use ddcache_rpc::{BlobEndpoint, Endpoint};
+use ddcache_storage::Storage;
 
 use crate::state::State;
 
@@ -46,27 +50,59 @@ pub struct Server {
     endpoints: Arc<[Endpoint]>,
 }
 
-pub type ServerGuard = JoinArray<Result<(), Error>, 3>;
+pub type ServerGuard = JoinArray<Result<(), Error>, 4>;
 
 type Guard = JoinGuard<Result<(), Error>>;
 
 impl Server {
     pub async fn spawn(storage_dir: &Path) -> Result<(Self, ServerGuard), Error> {
+        let storage = Storage::open(storage_dir).await?;
+
+        let self_id = *crate::self_id();
         let state = Arc::new(State::new());
-        let (blob_endpoints, blob_actor_guard) = blob_server::Actor::spawn(state.clone())?;
-        let (endpoints, actor_guard) =
-            server::Actor::spawn(storage_dir, blob_endpoints, state).await?;
-        let publisher_guard =
-            service::pubsub().spawn(*crate::self_id(), endpoints.as_slice().into());
+        let pubsub = service::pubsub();
+
+        let (socket, endpoints) = bind()?;
+        let (blob_endpoints, blob_guard) = blob_server::Actor::spawn(state.clone())?;
+
+        let publisher_guard = pubsub.clone().spawn(self_id, endpoints.as_slice().into());
+
+        let (peer, mut peer_guard) = Peer::spawn(self_id, pubsub, storage.clone())
+            .await
+            .map_err(Error::other)?;
+        let peer_guard = Guard::spawn(move |cancel| async move {
+            tokio::select! {
+                () = cancel.wait() => {}
+                () = peer_guard.joinable() => {}
+            }
+            peer_guard.shutdown().await?.map_err(Error::other)
+        });
+
+        let guard = server::Actor::spawn(socket, blob_endpoints, state, storage, peer);
+
         Ok((
             Self {
                 endpoints: endpoints.into(),
             },
-            ServerGuard::new([actor_guard, blob_actor_guard, publisher_guard]),
+            ServerGuard::new([guard, blob_guard, publisher_guard, peer_guard]),
         ))
     }
 
     pub fn endpoints(&self) -> &[Endpoint] {
         &self.endpoints
     }
+}
+
+fn bind() -> Result<(Socket, Vec<Endpoint>), Error> {
+    let mut socket = Socket::try_from(Context::new().socket(ROUTER)?)?;
+    socket.set_linger(0)?; // Do NOT block the program exit!
+
+    let mut endpoints = Vec::with_capacity(crate::endpoints().len());
+    for endpoint in crate::endpoints() {
+        socket.bind(endpoint)?;
+        endpoints.push(socket.get_last_endpoint().unwrap().unwrap().into());
+    }
+    tracing::info!(?endpoints, "bind");
+
+    Ok((socket, endpoints))
 }
