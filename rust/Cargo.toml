@@ -24,6 +24,7 @@ members = [
     "ddcache/rpc",
     "ddcache/server",
     "ddcache/storage",
+    "dkvcache/storage",
     "etcd/client",
     "etcd/pubsub",
     "g1/base",
@@ -58,6 +59,7 @@ cipher = "0.4.4"
 clap = { version = "4.3.1", features = ["derive"] }
 crypto-bigint = { version = "0.5.2", features = ["generic-array", "zeroize"] }
 console-subscriber = "0.1.10"
+const_format = "0.2.32"
 # The latest version of fasthash on crates.io is v0.4.0, but it is somewhat outdated.
 fasthash = { git = "https://github.com/flier/rust-fasthash.git", rev = "ef0c52b4157af9a1a7d19b2a37658b6c26a6bea6" }
 futures = "0.3.28"
@@ -76,6 +78,7 @@ rand = "0.8.5"
 reqwest = "0.11.20"
 rc4 = "0.1.0"
 regex = "1.10.3"
+rusqlite = { version = "0.31.0", features = ["bundled"] }
 scopeguard = "1.2.0"
 serde = "1.0.163"
 serde-transcode = "1.1.1"
@@ -119,6 +122,8 @@ ddcache_peer = { path = "ddcache/peer" }
 ddcache_rpc = { path = "ddcache/rpc" }
 ddcache_server = { path = "ddcache/server" }
 ddcache_storage = { path = "ddcache/storage" }
+
+dkvcache_storage = { path = "dkvcache/storage" }
 
 etcd_client = { path = "etcd/client" }
 etcd_pubsub = { path = "etcd/pubsub" }

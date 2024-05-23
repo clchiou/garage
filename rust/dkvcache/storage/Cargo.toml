@@ -1,0 +1,19 @@
+[package]
+name = "dkvcache_storage"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+bytes.workspace = true
+chrono.workspace = true
+const_format.workspace = true
+linkme.workspace = true # Required by g1_param.
+rusqlite.workspace = true
+scopeguard.workspace = true
+tracing.workspace = true
+
+g1_base.workspace = true
+g1_param.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
