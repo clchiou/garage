@@ -24,6 +24,7 @@ members = [
     "ddcache/rpc",
     "ddcache/server",
     "ddcache/storage",
+    "dkvcache/client/raw",
     "dkvcache/rpc",
     "dkvcache/storage",
     "etcd/client",
@@ -124,6 +125,7 @@ ddcache_rpc = { path = "ddcache/rpc" }
 ddcache_server = { path = "ddcache/server" }
 ddcache_storage = { path = "ddcache/storage" }
 
+dkvcache_client_raw = { path = "dkvcache/client/raw" }
 dkvcache_rpc = { path = "dkvcache/rpc" }
 dkvcache_storage = { path = "dkvcache/storage" }
 
