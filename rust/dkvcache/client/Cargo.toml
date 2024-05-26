@@ -1,0 +1,20 @@
+[package]
+name = "dkvcache_client"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+bytes.workspace = true
+snafu.workspace = true
+uuid.workspace = true
+
+etcd_pubsub.workspace = true
+
+dkvcache_client_raw.workspace = true
+dkvcache_client_service.workspace = true
+dkvcache_rpc.workspace = true
+
+[dev-dependencies]
+clap.workspace = true
+tokio.workspace = true
+g1_cli = { workspace = true, features = ["param", "tracing"] }
