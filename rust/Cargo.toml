@@ -24,11 +24,13 @@ members = [
     "ddcache/rpc",
     "ddcache/server",
     "ddcache/storage",
+    "dkvcache/bin/dkvcached",
     "dkvcache/client",
     "dkvcache/client/raw",
     "dkvcache/client/service",
     "dkvcache/peer",
     "dkvcache/rpc",
+    "dkvcache/server",
     "dkvcache/storage",
     "etcd/client",
     "etcd/pubsub",
@@ -133,6 +135,7 @@ dkvcache_client_raw = { path = "dkvcache/client/raw" }
 dkvcache_client_service = { path = "dkvcache/client/service" }
 dkvcache_peer = { path = "dkvcache/peer" }
 dkvcache_rpc = { path = "dkvcache/rpc" }
+dkvcache_server = { path = "dkvcache/server" }
 dkvcache_storage = { path = "dkvcache/storage" }
 
 etcd_client = { path = "etcd/client" }

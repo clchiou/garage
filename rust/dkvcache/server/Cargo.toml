@@ -1,0 +1,21 @@
+[package]
+name = "dkvcache_server"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+bytes.workspace = true
+futures.workspace = true
+linkme.workspace = true # Required by g1_param.
+tokio.workspace = true
+tracing.workspace = true
+uuid = { workspace = true, features = ["fast-rng", "serde", "v4"] }
+zmq.workspace = true
+
+g1_param.workspace = true
+g1_tokio.workspace = true
+g1_zmq.workspace = true
+
+dkvcache_peer.workspace = true
+dkvcache_rpc.workspace = true
+dkvcache_storage.workspace = true
