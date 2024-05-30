@@ -10,7 +10,7 @@ pub struct ParametersConfig {
     #[arg(
         long,
         global = true,
-        help = "Set a parameter value `name=value` or load values from a JSON file `@path`"
+        help = "Set a parameter value `name=value` or load values from a YAML file `@path`"
     )]
     parameter: Vec<String>,
 }

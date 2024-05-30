@@ -4,12 +4,12 @@ use lazy_regex::regex;
 
 use crate::Error;
 
-pub fn opt_duration(d: Option<&str>) -> Result<Option<Duration>, Error> {
+pub fn opt_duration(d: Option<String>) -> Result<Option<Duration>, Error> {
     d.map(duration).transpose()
 }
 
-pub fn duration(d: &str) -> Result<Duration, Error> {
-    parse_duration(d).ok_or_else(|| format!("invalid duration: {d:?}").into())
+pub fn duration(d: String) -> Result<Duration, Error> {
+    parse_duration(&d).ok_or_else(|| format!("invalid duration: {d:?}").into())
 }
 
 fn parse_duration(duration: &str) -> Option<Duration> {

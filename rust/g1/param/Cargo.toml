@@ -8,7 +8,7 @@ lazy-regex.workspace = true
 linkme.workspace = true
 regex.workspace = true # Override the version set by lazy-regex.
 serde = { workspace = true, features = ["derive"] }
-serde_json = { workspace = true, features = ["raw_value"] }
+serde_yaml.workspace = true
 
 [dev-dependencies]
 clap.workspace = true

@@ -7,8 +7,8 @@ use std::collections::{BTreeMap, HashMap};
 use std::error;
 use std::fmt;
 
+use serde::de::DeserializeOwned;
 use serde::Deserialize;
-use serde_json::value::RawValue;
 
 //
 // Implementer's notes: The `Parameter` type must not be generic, and therefore everything about
@@ -32,14 +32,17 @@ macro_rules! define {
                 ::std::stringify!($name),
                 ::std::stringify!($type),
                 ::std::stringify!($default),
-                parse,
+                parse_str,
+                parse_raw,
                 validate,
                 set,
             );
 
             static PARAMETER_VALUE: ::std::sync::OnceLock<$type> = ::std::sync::OnceLock::new();
 
-            $crate::define!(@parse $type, $($parse),*);
+            $crate::define!(@parse_str $type, $($parse),*);
+
+            $crate::define!(@parse_raw $type, $($parse),*);
 
             fn validate(
                 value: &::std::boxed::Box<dyn ::std::any::Any>,
@@ -68,16 +71,29 @@ macro_rules! define {
         }
     };
 
-    (@parse $type:ty $(,)?) => {
-        $crate::define!(@parse $type, |x: $type| ::std::result::Result::Ok(x))
+    (@parse_str $type:ty $(,)?) => {
+        $crate::define!(@parse_str $type, |x: $type| ::std::result::Result::Ok(x))
     };
 
-    (@parse $type:ty, $parse:expr $(,)?) => {
-        fn parse(value: &str) -> ::std::result::Result<
+    (@parse_str $type:ty, $parse:expr $(,)?) => {
+        fn parse_str(value: &str) -> ::std::result::Result<
             ::std::boxed::Box<dyn ::std::any::Any>,
             ::std::boxed::Box<dyn ::std::error::Error>,
         > {
-            PARAMETER.parse_then_upcast::<$type, _, _>($parse, value)
+            PARAMETER.parse_str_then_upcast::<$type, _, _>($parse, value)
+        }
+    };
+
+    (@parse_raw $type:ty $(,)?) => {
+        $crate::define!(@parse_raw $type, |x: $type| ::std::result::Result::Ok(x))
+    };
+
+    (@parse_raw $type:ty, $parse:expr $(,)?) => {
+        fn parse_raw(value: $crate::RawValue) -> ::std::result::Result<
+            ::std::boxed::Box<dyn ::std::any::Any>,
+            ::std::boxed::Box<dyn ::std::error::Error>,
+        > {
+            PARAMETER.parse_raw_then_upcast::<$type, _, _>($parse, value)
         }
     };
 }
@@ -93,7 +109,8 @@ pub struct Parameter {
     default: &'static str,
 
     // Callback functions.
-    parse: ParseFn,
+    parse_str: ParseStrFn,
+    parse_raw: ParseRawFn,
     validate: ValidateFn,
     set: SetFn,
 }
@@ -101,9 +118,12 @@ pub struct Parameter {
 pub type Value = Box<dyn Any>;
 pub type Error = Box<dyn error::Error>;
 
-pub type ParseFn = fn(value: &str) -> Result<Value, Error>;
+pub type ParseStrFn = fn(value: &str) -> Result<Value, Error>;
+pub type ParseRawFn = fn(value: RawValue) -> Result<Value, Error>;
 pub type ValidateFn = fn(value: &Value) -> Result<(), Error>;
 pub type SetFn = fn(value: Value) -> bool;
+
+pub use serde_yaml::Value as RawValue;
 
 #[derive(Debug)]
 pub struct FormatDefFull<'a>(&'a Parameter);
@@ -119,7 +139,7 @@ pub struct Parameters<'a> {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct ParameterValues<'a>(#[serde(borrow)] HashMap<&'a str, HashMap<&'a str, &'a RawValue>>);
+pub struct ParameterValues<'a>(#[serde(borrow)] HashMap<&'a str, HashMap<&'a str, RawValue>>);
 
 // This `impl` block contains all the methods of `Parameter` that are called by the `define!` macro
 // body.  Since the `define!` macro can be invoked in any module, these methods need to be `pub`.
@@ -130,7 +150,8 @@ impl Parameter {
         name: &'static str,
         type_name: &'static str,
         default: &'static str,
-        parse: ParseFn,
+        parse_str: ParseStrFn,
+        parse_raw: ParseRawFn,
         validate: ValidateFn,
         set: SetFn,
     ) -> Self {
@@ -139,20 +160,34 @@ impl Parameter {
             name,
             type_name,
             default,
-            parse,
+            parse_str,
+            parse_raw,
             validate,
             set,
         }
     }
 
     /// Parses the value and then upcasts it to the `Value` type.
-    pub fn parse_then_upcast<'a, T, U, F>(&self, parse: F, value: &'a str) -> Result<Value, Error>
+    pub fn parse_str_then_upcast<'a, T, U, F>(
+        &self,
+        parse: F,
+        value: &'a str,
+    ) -> Result<Value, Error>
     where
         T: 'static,
         U: Deserialize<'a>,
         F: Fn(U) -> Result<T, Error>,
     {
-        Ok(Box::new(parse(serde_json::from_str::<U>(value)?)?))
+        Ok(Box::new(parse(serde_yaml::from_str::<U>(value)?)?))
+    }
+
+    pub fn parse_raw_then_upcast<T, U, F>(&self, parse: F, value: RawValue) -> Result<Value, Error>
+    where
+        T: 'static,
+        U: DeserializeOwned,
+        F: Fn(U) -> Result<T, Error>,
+    {
+        Ok(Box::new(parse(serde_yaml::from_value::<U>(value)?)?))
     }
 
     /// Downcasts a parameter value.
@@ -181,8 +216,12 @@ impl Parameter {
 
 // This `impl` block contains methods of `Parameter` that are called by the `Parameters`.
 impl Parameter {
-    fn parse(&self, value: &str) -> Result<Value, Error> {
-        (self.parse)(value)
+    fn parse_str(&self, value: &str) -> Result<Value, Error> {
+        (self.parse_str)(value)
+    }
+
+    fn parse_raw(&self, value: RawValue) -> Result<Value, Error> {
+        (self.parse_raw)(value)
     }
 
     fn validate(&self, value: &Value) -> Result<(), Error> {
@@ -271,7 +310,7 @@ impl<'a> Parameters<'a> {
     pub fn parse_values_then_set(&mut self, values: ParameterValues) -> Result<(), Error> {
         for (module_path, module_values) in values.0 {
             for (name, value) in module_values {
-                self.parse_then_set(module_path, name, value.get())?;
+                self.set_with(module_path, name, |parameter| parameter.parse_raw(value))?;
             }
         }
         Ok(())
@@ -284,7 +323,7 @@ impl<'a> Parameters<'a> {
         name: &str,
         value: &str,
     ) -> Result<bool, Error> {
-        self.set_with(module_path, name, |parameter| parameter.parse(value))
+        self.set_with(module_path, name, |parameter| parameter.parse_str(value))
     }
 
     /// Stores the parameter value temporarily in the `Parameters`.
@@ -324,7 +363,7 @@ impl<'a> Parameters<'a> {
 
 impl<'a> ParameterValues<'a> {
     pub fn load(values: &'a str) -> Result<Self, Error> {
-        Ok(serde_json::from_str(values)?)
+        Ok(serde_yaml::from_str(values)?)
     }
 }
 
