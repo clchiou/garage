@@ -18,6 +18,7 @@ use bittorrent_tracker::{
 };
 
 #[derive(Debug, Parser)]
+#[command(after_help = ParametersConfig::render())]
 struct Program {
     #[command(flatten)]
     tracing: TracingConfig,

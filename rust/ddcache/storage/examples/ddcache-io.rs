@@ -13,6 +13,7 @@ use g1_tokio::os::Splice;
 use ddcache_storage::{Storage, Timestamp};
 
 #[derive(Debug, Parser)]
+#[command(after_help = ParametersConfig::render())]
 struct Program {
     #[command(flatten)]
     tracing: TracingConfig,

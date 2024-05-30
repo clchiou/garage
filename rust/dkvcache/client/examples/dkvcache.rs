@@ -13,6 +13,7 @@ use dkvcache_rpc::service;
 use dkvcache_rpc::Timestamp;
 
 #[derive(Debug, Parser)]
+#[command(after_help = ParametersConfig::render())]
 struct Program {
     #[command(flatten)]
     tracing: TracingConfig,

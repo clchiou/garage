@@ -8,6 +8,7 @@ use g1_cli::{param::ParametersConfig, tracing::TracingConfig};
 use g1_tokio::net::icmp::{IcmpEchoHeader, IcmpSocket, IpPmtudisc};
 
 #[derive(Debug, Parser)]
+#[command(after_help = ParametersConfig::render())]
 struct PathMtu {
     #[command(flatten)]
     tracing: TracingConfig,

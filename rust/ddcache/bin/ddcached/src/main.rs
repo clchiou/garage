@@ -10,6 +10,7 @@ use g1_cli::{param::ParametersConfig, tracing::TracingConfig};
 use ddcache_server::Server;
 
 #[derive(Debug, Parser)]
+#[command(after_help = ParametersConfig::render())]
 struct Ddcached {
     #[command(flatten)]
     tracing: TracingConfig,

@@ -11,6 +11,7 @@ use bittorrent_metainfo::Metainfo;
 use bittorrent_storage::{file, single, Storage};
 
 #[derive(Debug, Parser)]
+#[command(after_help = ParametersConfig::render())]
 struct Program {
     #[command(flatten)]
     tracing: TracingConfig,

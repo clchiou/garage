@@ -27,6 +27,7 @@ use bittorrent_socket::{Message, Socket};
 use bittorrent_utp::UtpSocket;
 
 #[derive(Debug, Parser)]
+#[command(after_help = ParametersConfig::render())]
 struct NetCat {
     #[command(flatten)]
     tracing: TracingConfig,

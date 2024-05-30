@@ -16,6 +16,7 @@ use bittorrent_base::InfoHash;
 use bittorrent_dht::{Dht, NodeId};
 
 #[derive(Debug, Parser)]
+#[command(after_help = ParametersConfig::render())]
 struct Program {
     #[command(flatten)]
     tracing: TracingConfig,

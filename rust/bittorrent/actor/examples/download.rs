@@ -15,6 +15,7 @@ use bittorrent_base::{InfoHash, MagnetUri};
 use bittorrent_metainfo::{InfoOwner, MetainfoOwner};
 
 #[derive(Debug, Parser)]
+#[command(after_help = ParametersConfig::render())]
 struct Program {
     #[command(flatten)]
     tracing: TracingConfig,

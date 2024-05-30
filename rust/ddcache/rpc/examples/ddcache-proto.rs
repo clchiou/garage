@@ -19,6 +19,7 @@ use ddcache_client_raw::{Error, RawNaiveClient};
 use ddcache_rpc::{Endpoint, RequestOwner, ResponseBuilder, Timestamp, Token};
 
 #[derive(Debug, Parser)]
+#[command(after_help = ParametersConfig::render())]
 struct Program {
     #[command(flatten)]
     tracing: TracingConfig,

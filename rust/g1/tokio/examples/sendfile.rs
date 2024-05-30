@@ -13,6 +13,7 @@ use g1_cli::{param::ParametersConfig, tracing::TracingConfig};
 use g1_tokio::os::{SendFile, Splice};
 
 #[derive(Debug, Parser)]
+#[command(after_help = ParametersConfig::render())]
 struct Program {
     #[command(flatten)]
     tracing: TracingConfig,

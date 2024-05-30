@@ -30,6 +30,7 @@ type Fanin = sink::Fanin<OwnedUdpSink>;
 
 /// Fetches the info blob through the metadata protocol extension.
 #[derive(Debug, Parser)]
+#[command(after_help = ParametersConfig::render())]
 struct Program {
     #[command(flatten)]
     tracing: TracingConfig,

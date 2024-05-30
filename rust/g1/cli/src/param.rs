@@ -1,6 +1,5 @@
+use std::fmt::{self, Write};
 use std::fs;
-use std::io::{self, Write};
-use std::process;
 
 use clap::Args;
 
@@ -14,24 +13,28 @@ pub struct ParametersConfig {
         help = "Set a parameter value or load values from a JSON file"
     )]
     parameter: Vec<String>,
-
-    #[arg(long, global = true, help = "Print parameter definitions and exit")]
-    parameter_help: bool,
 }
 
 impl ParametersConfig {
+    pub fn render() -> String {
+        Self::try_render().expect("parameter render error")
+    }
+
+    pub fn try_render() -> Result<String, fmt::Error> {
+        // Sadly, we have no access to `clap::Command::get_styles` here for styling the output.
+        let mut output = String::new();
+        writeln!(&mut output, "Parameters:")?;
+        for parameter in Parameters::load().iter() {
+            writeln!(&mut output, "  {}", parameter.format_def_full())?;
+        }
+        Ok(output)
+    }
+
     pub fn init(&self) {
         self.try_init().expect("parameter value loading error");
     }
 
     pub fn try_init(&self) -> Result<(), Error> {
-        if self.parameter_help {
-            for parameter in Parameters::load().iter() {
-                println!("{}", parameter.format_def_full());
-            }
-            safe_exit(0);
-        }
-
         let mut parameters = Parameters::load();
         for path_or_value in &self.parameter {
             if let Some(path) = path_or_value.strip_prefix('@') {
@@ -46,10 +49,4 @@ impl ParametersConfig {
         }
         parameters.commit()
     }
-}
-
-fn safe_exit(code: i32) -> ! {
-    let _ = io::stdout().flush();
-    let _ = io::stderr().flush();
-    process::exit(code)
 }

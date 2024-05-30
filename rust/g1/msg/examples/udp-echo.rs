@@ -12,6 +12,7 @@ use g1_msg::reqrep::ReqRep;
 use g1_tokio::net::udp::UdpSocket;
 
 #[derive(Debug, Parser)]
+#[command(after_help = ParametersConfig::render())]
 struct UdpEcho {
     #[command(flatten)]
     tracing: TracingConfig,

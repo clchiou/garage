@@ -13,6 +13,7 @@ use etcd_client::request;
 use etcd_client::{Auth, Client, ClientBuilder, Error, Event};
 
 #[derive(Debug, Parser)]
+#[command(after_help = ParametersConfig::render())]
 struct Program {
     #[command(flatten)]
     tracing: TracingConfig,
