@@ -1,8 +1,6 @@
 //! Static Parameter
 
-#![feature(min_specialization)]
-
-mod parse;
+pub mod parse;
 
 use std::any::Any;
 use std::collections::{BTreeMap, HashMap};
@@ -11,8 +9,6 @@ use std::fmt;
 
 use serde::Deserialize;
 use serde_json::value::RawValue;
-
-use crate::parse::Parse;
 
 //
 // Implementer's notes: The `Parameter` type must not be generic, and therefore everything about
@@ -25,6 +21,7 @@ use crate::parse::Parse;
 macro_rules! define {
     (
         $(#[$meta:meta])* $v:vis $name:ident: $type:ty = $default:expr
+        $(; parse = $parse:expr)?
         $(; validate = $validate:expr)* $(;)?
     ) => {
         $(#[$meta])*
@@ -42,12 +39,7 @@ macro_rules! define {
 
             static PARAMETER_VALUE: ::std::sync::OnceLock<$type> = ::std::sync::OnceLock::new();
 
-            fn parse(value: &str) -> ::std::result::Result<
-                ::std::boxed::Box<dyn ::std::any::Any>,
-                ::std::boxed::Box<dyn ::std::error::Error>,
-            > {
-                PARAMETER.parse_then_upcast::<$type>(value)
-            }
+            $crate::define!(@parse $type, $($parse),*);
 
             fn validate(
                 value: &::std::boxed::Box<dyn ::std::any::Any>,
@@ -73,6 +65,19 @@ macro_rules! define {
             }
 
             PARAMETER_VALUE.get_or_init(|| $default)
+        }
+    };
+
+    (@parse $type:ty $(,)?) => {
+        $crate::define!(@parse $type, |x: $type| ::std::result::Result::Ok(x))
+    };
+
+    (@parse $type:ty, $parse:expr $(,)?) => {
+        fn parse(value: &str) -> ::std::result::Result<
+            ::std::boxed::Box<dyn ::std::any::Any>,
+            ::std::boxed::Box<dyn ::std::error::Error>,
+        > {
+            PARAMETER.parse_then_upcast::<$type, _, _>($parse, value)
         }
     };
 }
@@ -141,11 +146,13 @@ impl Parameter {
     }
 
     /// Parses the value and then upcasts it to the `Value` type.
-    pub fn parse_then_upcast<T>(&self, value: &str) -> Result<Value, Error>
+    pub fn parse_then_upcast<'a, T, U, F>(&self, parse: F, value: &'a str) -> Result<Value, Error>
     where
-        T: Parse + 'static,
+        T: 'static,
+        U: Deserialize<'a>,
+        F: Fn(U) -> Result<T, Error>,
     {
-        Ok(Box::new(T::parse(value)?))
+        Ok(Box::new(parse(serde_json::from_str::<U>(value)?)?))
     }
 
     /// Downcasts a parameter value.

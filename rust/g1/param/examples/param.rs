@@ -12,7 +12,7 @@ g1_param::define!(
     greet: String = "Hello, world!".to_string()
 );
 g1_param::define!(x: u32 = 42; validate = |x: &u32| *x > 0; validate = is_even);
-g1_param::define!(d: Duration = Duration::from_secs(1));
+g1_param::define!(d: Option<Duration> = None; parse = g1_param::parse::opt_duration);
 g1_param::define!(n: Option<SocketAddr> = None);
 
 fn is_even(x: &u32) -> bool {

@@ -1,34 +1,15 @@
 use std::time::Duration;
 
 use lazy_regex::regex;
-use serde::Deserialize;
 
 use crate::Error;
 
-pub trait Parse
-where
-    Self: Sized,
-{
-    fn parse(value: &str) -> Result<Self, Error>;
+pub fn opt_duration(d: Option<&str>) -> Result<Option<Duration>, Error> {
+    d.map(duration).transpose()
 }
 
-impl<T> Parse for T
-where
-    T: for<'a> Deserialize<'a>,
-{
-    default fn parse(value: &str) -> Result<Self, Error> {
-        serde_json::from_str::<Self>(value).map_err(Error::from)
-    }
-}
-
-// TODO: This is less useful than I expected.  For example, it does not parse `Option<Duration>`.
-// How do we improve this?
-impl Parse for Duration {
-    fn parse(value: &str) -> Result<Self, Error> {
-        serde_json::from_str::<Self>(value)
-            .or_else(|error| parse_duration(value).ok_or(error))
-            .map_err(Error::from)
-    }
+pub fn duration(d: &str) -> Result<Duration, Error> {
+    parse_duration(d).ok_or_else(|| format!("invalid duration: {d:?}").into())
 }
 
 fn parse_duration(duration: &str) -> Option<Duration> {
