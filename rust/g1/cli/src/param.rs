@@ -10,7 +10,7 @@ pub struct ParametersConfig {
     #[arg(
         long,
         global = true,
-        help = "Set a parameter value or load values from a JSON file"
+        help = "Set a parameter value `name=value` or load values from a JSON file `@path`"
     )]
     parameter: Vec<String>,
 }
@@ -37,13 +37,18 @@ impl ParametersConfig {
     pub fn try_init(&self) -> Result<(), Error> {
         let mut parameters = Parameters::load();
         for path_or_value in &self.parameter {
-            if let Some(path) = path_or_value.strip_prefix('@') {
-                let values = fs::read_to_string(path)?;
-                parameters.parse_values_then_set(ParameterValues::load(&values)?)?;
-            } else {
-                let (module_path, name, value) = g1_param::parse_assignment(path_or_value)?;
-                if !parameters.parse_then_set(module_path, name, value)? {
-                    return Err(format!("undefined parameter: {}::{}", module_path, name).into());
+            match path_or_value.strip_prefix('@') {
+                Some(path) => {
+                    let values = fs::read_to_string(path)?;
+                    parameters.parse_values_then_set(ParameterValues::load(&values)?)?;
+                }
+                None => {
+                    let (module_path, name, value) = g1_param::parse_assignment(path_or_value)?;
+                    if !parameters.parse_then_set(module_path, name, value)? {
+                        return Err(
+                            format!("undefined parameter: {}::{}", module_path, name).into()
+                        );
+                    }
                 }
             }
         }
