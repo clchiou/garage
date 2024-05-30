@@ -22,30 +22,43 @@ g1_param::define!(recv_window_size: usize = 65536);
 g1_param::define!(send_window_size_limit: usize = 65536);
 g1_param::define!(packet_size: usize = 150);
 
-g1_param::define!(connect_timeout: Duration = Duration::from_secs(2));
-g1_param::define!(accept_timeout: Duration = Duration::from_secs(2));
+g1_param::define!(
+    connect_timeout: Duration = Duration::from_secs(2);
+    parse = g1_param::parse::duration;
+);
+g1_param::define!(
+    accept_timeout: Duration = Duration::from_secs(2);
+    parse = g1_param::parse::duration;
+);
 
-g1_param::define!(congestion_control_target: Duration = Duration::from_millis(100));
+g1_param::define!(
+    congestion_control_target: Duration = Duration::from_millis(100);
+    parse = g1_param::parse::duration;
+);
 g1_param::define!(max_congestion_window_increase_per_rtt: usize = 3000);
 
 g1_param::define!(
     /// Upper bound of the RTT timeout.
     // BEP 29 does not specify this, but it would be nice to have one.
-    max_rtt_timeout: Duration = Duration::from_secs(8)
+    max_rtt_timeout: Duration = Duration::from_secs(8);
+    parse = g1_param::parse::duration;
 );
 
 g1_param::define!(
     /// Timeout for receiving any packet.
-    recv_idle_timeout: Duration = Duration::from_secs(1)
+    recv_idle_timeout: Duration = Duration::from_secs(1);
+    parse = g1_param::parse::duration;
 );
 g1_param::define!(
     /// Timeout for appending a payload to the stream's incoming queue.
-    recv_buffer_timeout: Duration = Duration::from_secs(1)
+    recv_buffer_timeout: Duration = Duration::from_secs(1);
+    parse = g1_param::parse::duration;
 );
 g1_param::define!(
     /// Timeout for when the remaining data packets arrive after the stream receives the finish
     /// packet.
-    recv_grace_period: Duration = Duration::from_secs(4)
+    recv_grace_period: Duration = Duration::from_secs(4);
+    parse = g1_param::parse::duration;
 );
 
 g1_param::define!(
@@ -55,4 +68,7 @@ g1_param::define!(
 
 g1_param::define!(path_mtu_queue_size: usize = 64);
 g1_param::define!(path_mtu_max_probe_size: usize = 2400);
-g1_param::define!(path_mtu_icmp_reply_timeout: Duration = Duration::from_secs(2));
+g1_param::define!(
+    path_mtu_icmp_reply_timeout: Duration = Duration::from_secs(2);
+    parse = g1_param::parse::duration;
+);

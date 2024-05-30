@@ -29,7 +29,10 @@ g1_param::define!(request_queue_size: usize = 64);
 g1_param::define!(accept_queue_size: usize = 64);
 g1_param::define!(response_queue_size: usize = 64);
 
-g1_param::define!(request_timeout: Duration = Duration::from_secs(2));
+g1_param::define!(
+    request_timeout: Duration = Duration::from_secs(2);
+    parse = g1_param::parse::duration;
+);
 
 pub mod error {
     use snafu::prelude::*;

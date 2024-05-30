@@ -17,7 +17,10 @@ use bittorrent_base::{Features, InfoHash, PeerId};
 
 pub use message::Message;
 
-g1_param::define!(handshake_timeout: Duration = Duration::from_secs(8));
+g1_param::define!(
+    handshake_timeout: Duration = Duration::from_secs(8);
+    parse = g1_param::parse::duration;
+);
 
 #[derive(Debug)]
 pub struct Socket<Stream> {

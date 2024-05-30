@@ -11,7 +11,10 @@ use g1_tokio::io::DynStream;
 
 g1_param::define!(update_queue_size: usize = 256);
 
-g1_param::define!(connect_timeout: Duration = Duration::from_secs(4));
+g1_param::define!(
+    connect_timeout: Duration = Duration::from_secs(4);
+    parse = g1_param::parse::duration;
+);
 
 pub use crate::manager::{Manager, ManagerGuard};
 

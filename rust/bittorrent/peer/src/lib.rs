@@ -15,12 +15,21 @@ use snafu::prelude::*;
 
 use bittorrent_base::PieceIndex;
 
-g1_param::define!(request_timeout: Duration = Duration::from_secs(16));
+g1_param::define!(
+    request_timeout: Duration = Duration::from_secs(16);
+    parse = g1_param::parse::duration;
+);
 
-g1_param::define!(recv_keep_alive_timeout: Duration = Duration::from_secs(120));
+g1_param::define!(
+    recv_keep_alive_timeout: Duration = Duration::from_secs(120);
+    parse = g1_param::parse::duration;
+);
 // This is slightly shorter than `recv_keep_alive_timeout` because we aim to send a `KeepAlive`
 // message before the peer times out.
-g1_param::define!(send_keep_alive_timeout: Duration = Duration::from_secs(100));
+g1_param::define!(
+    send_keep_alive_timeout: Duration = Duration::from_secs(100);
+    parse = g1_param::parse::duration;
+);
 
 g1_param::define!(interested_queue_size: usize = 256);
 g1_param::define!(request_queue_size: usize = 256);

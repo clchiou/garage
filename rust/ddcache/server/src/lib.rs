@@ -40,8 +40,14 @@ g1_param::define!(max_key_size: usize = 128);
 g1_param::define!(max_metadata_size: usize = 128);
 g1_param::define!(max_blob_size: usize = 32 * 1024 * 1024);
 
-g1_param::define!(blob_lease_timeout: Duration = Duration::from_secs(2));
-g1_param::define!(blob_request_timeout: Duration = Duration::from_secs(8));
+g1_param::define!(
+    blob_lease_timeout: Duration = Duration::from_secs(2);
+    parse = g1_param::parse::duration;
+);
+g1_param::define!(
+    blob_request_timeout: Duration = Duration::from_secs(8);
+    parse = g1_param::parse::duration;
+);
 
 g1_param::define!(tcp_listen_backlog: u32 = 256);
 

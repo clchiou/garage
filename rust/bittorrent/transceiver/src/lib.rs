@@ -26,6 +26,9 @@ g1_param::define!(endgame_max_replicates: usize = 4);
 g1_param::define!(max_assignments: usize = 2);
 g1_param::define!(max_replicates: usize = 1);
 
-g1_param::define!(backoff_base: Duration = Duration::from_secs(30));
+g1_param::define!(
+    backoff_base: Duration = Duration::from_secs(30);
+    parse = g1_param::parse::duration;
+);
 
 g1_param::define!(update_queue_size: usize = 32);

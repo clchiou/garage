@@ -22,9 +22,15 @@ use dkvcache_rpc::{Request, Response, Timestamp};
 use crate::actor::{Actor, RequestSend, ServerSend};
 use crate::error::UnexpectedResponseSnafu;
 
-g1_param::define!(request_timeout: Duration = Duration::from_secs(2));
+g1_param::define!(
+    request_timeout: Duration = Duration::from_secs(2);
+    parse = g1_param::parse::duration;
+);
 
-g1_param::define!(idle_timeout: Duration = Duration::from_secs(120));
+g1_param::define!(
+    idle_timeout: Duration = Duration::from_secs(120);
+    parse = g1_param::parse::duration;
+);
 
 pub use crate::error::Error;
 

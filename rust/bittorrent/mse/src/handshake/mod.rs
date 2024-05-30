@@ -14,8 +14,14 @@ use g1_tokio::bstream::{StreamRecv, StreamSend};
 
 use crate::{cipher::MseRc4, MseStream};
 
-g1_param::define!(timeout: Duration = Duration::from_secs(60));
-g1_param::define!(recv_public_key_timeout: Duration = Duration::from_secs(30));
+g1_param::define!(
+    timeout: Duration = Duration::from_secs(60);
+    parse = g1_param::parse::duration;
+);
+g1_param::define!(
+    recv_public_key_timeout: Duration = Duration::from_secs(30);
+    parse = g1_param::parse::duration;
+);
 
 pub async fn connect<Stream>(stream: Stream, info_hash: &[u8]) -> Result<MseStream<Stream>, Error>
 where

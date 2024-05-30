@@ -20,9 +20,15 @@ g1_param::define!(self_endpoint_ipv6: Option<SocketAddr> = None); // TODO: Enabl
 
 g1_param::define!(tcp_listen_backlog: u32 = 256);
 
-g1_param::define!(fetch_info_timeout: Duration = Duration::from_secs(60));
+g1_param::define!(
+    fetch_info_timeout: Duration = Duration::from_secs(60);
+    parse = g1_param::parse::duration;
+);
 
-g1_param::define!(dht_lookup_peers_period: Duration = Duration::from_secs(600));
+g1_param::define!(
+    dht_lookup_peers_period: Duration = Duration::from_secs(600);
+    parse = g1_param::parse::duration;
+);
 
 // Useful for testing.
 g1_param::define!(peer_endpoints: Vec<SocketAddr> = Vec::new());

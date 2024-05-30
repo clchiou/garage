@@ -30,8 +30,14 @@ use crate::actor::{Actor, RequestSend, ServerSend};
 use crate::error::{DecodeSnafu, RequestSnafu, UnexpectedResponseSnafu};
 use crate::response::ResponseResult;
 
-g1_param::define!(request_timeout: Duration = Duration::from_secs(2));
-g1_param::define!(blob_request_timeout: Duration = Duration::from_secs(8));
+g1_param::define!(
+    request_timeout: Duration = Duration::from_secs(2);
+    parse = g1_param::parse::duration;
+);
+g1_param::define!(
+    blob_request_timeout: Duration = Duration::from_secs(8);
+    parse = g1_param::parse::duration;
+);
 
 pub use crate::blob::RemoteBlob;
 pub use crate::error::Error;
