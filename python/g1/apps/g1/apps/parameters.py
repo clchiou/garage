@@ -348,8 +348,18 @@ def load_parameters(
     if yaml:
         loaders['yaml'] = yaml.safe_load
     for file_format, path in args.parameter_file or ():
-        config_forest = loaders[file_format.lower()](Path(path).read_text())
-        load_config_forest(config_forest, root_namespaces)
+        file_format = file_format.lower()
+        loader = loaders[file_format]
+        path = Path(path)
+        if path.is_dir():
+            paths = sorted(
+                p for p in path.glob('*.%s' % file_format) if p.is_file()
+            )
+        else:
+            paths = [path]
+        for p in paths:
+            config_forest = loader(p.read_bytes())
+            load_config_forest(config_forest, root_namespaces)
 
     for name, value_str in args.parameter or ():
         parameter = parameter_table[name]
