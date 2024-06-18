@@ -16,6 +16,7 @@ url = { workspace = true, features = ["serde"] } # Override the version set by r
 
 g1_base.workspace = true
 g1_param.workspace = true
+g1_url.workspace = true
 
 [dev-dependencies]
 base64.workspace = true

@@ -99,13 +99,13 @@ impl Default for ClientBuilder {
 impl ClientBuilder {
     pub fn new() -> Self {
         Self {
-            endpoint: ensure_trailing_slash(endpoint().clone()),
+            endpoint: g1_url::ensure_trailing_slash(endpoint().clone()),
             auth: auth().clone(),
         }
     }
 
     pub fn endpoint(mut self, endpoint: Url) -> Self {
-        self.endpoint = ensure_trailing_slash(endpoint);
+        self.endpoint = g1_url::ensure_trailing_slash(endpoint);
         self
     }
 
@@ -478,17 +478,6 @@ impl From<response::KeyValue> for KeyValue {
     }
 }
 
-// We need this due to the idiosyncrasy of `Url::join`.
-fn ensure_trailing_slash(mut url: Url) -> Url {
-    let path = url.path();
-    if path != "/" && !path.ends_with('/') {
-        let mut path = path.to_string();
-        path.push('/');
-        url.set_path(&path);
-    }
-    url
-}
-
 fn to_auth_header(token: &str) -> Result<HeaderValue, Error> {
     HeaderValue::from_str(token).map_err(|_| Error::InvalidToken {
         token: token.to_string(),
@@ -585,22 +574,6 @@ fn to_events(responses: TryBoxStream<response::Watch>) -> TryBoxStream<Event> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_ensure_trailing_slash() {
-        fn test(url: &str, expect: &str) {
-            assert_eq!(
-                ensure_trailing_slash(Url::parse(url).unwrap()).path(),
-                expect,
-            );
-        }
-
-        test("http://127.0.0.1:8000", "/");
-        test("http://127.0.0.1:8000/", "/");
-        test("http://127.0.0.1:8000/a", "/a/");
-        test("http://127.0.0.1:8000/a/", "/a/");
-        test("http://127.0.0.1:8000/foo/bar", "/foo/bar/");
-    }
 
     #[test]
     fn test_to_key_pair() {

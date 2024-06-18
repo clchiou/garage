@@ -1,0 +1,7 @@
+[package]
+name = "g1_url"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+url.workspace = true
