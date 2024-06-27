@@ -1,0 +1,21 @@
+[package]
+name = "g1_reqwest"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+regex.workspace = true
+# TDOO: Add "zstd" to features when upgrading reqwest to version 0.12.4+.
+reqwest = { workspace = true, features = ["brotli", "deflate", "gzip", "socks"] }
+serde = { workspace = true, features = ["derive"] }
+url = { workspace = true, features = ["serde"] } # Override the version set by reqwest.
+
+# For now, we are only using `g1_param::parse`, so we do not need to add `linkme` to the
+# dependencies.
+g1_param.workspace = true
+
+[dev-dependencies]
+clap.workspace = true
+linkme.workspace = true # Required by g1_param.
+tokio.workspace = true
+g1_cli = { workspace = true, features = ["param", "tracing"] }

@@ -44,6 +44,7 @@ members = [
     "g1/msg",
     "g1/nix",
     "g1/param",
+    "g1/reqwest",
     "g1/serde",
     "g1/tokio",
     "g1/url",
@@ -154,6 +155,7 @@ g1_futures = { path = "g1/futures" }
 g1_msg = { path = "g1/msg" }
 g1_nix = { path = "g1/nix" }
 g1_param = { path = "g1/param" }
+g1_reqwest = { path = "g1/reqwest" }
 g1_serde = { path = "g1/serde" }
 g1_tokio = { path = "g1/tokio" }
 g1_url = { path = "g1/url" }
