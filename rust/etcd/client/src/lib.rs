@@ -1,8 +1,5 @@
 //! Rudimentary etcd client.
 
-#![feature(box_into_inner)]
-#![feature(io_error_downcast)]
-
 pub mod request;
 pub mod response;
 
@@ -216,11 +213,7 @@ impl Client {
                 let size = reader
                     .read_until(b'\n', &mut response)
                     .await
-                    // TODO: Remove `Box::into_inner` when upgrading to Rust 1.77, which [changed]
-                    // `Error::downcast` from returning `Box<E>` to simply `E`.
-                    //
-                    // [changed]: https://github.com/rust-lang/rust/commit/baa2cf5ea610d10be1e3cb13f7da4f2d752aa69a
-                    .map_err(|error| Box::into_inner(error.downcast::<Error>().unwrap()))?;
+                    .map_err(|error| error.downcast::<Error>().expect("downcast"))?;
                 if size == 0 {
                     return Ok(None);
                 }

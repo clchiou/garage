@@ -46,3 +46,6 @@ required-features = ["icmp"]
 [features]
 icmp = ["dep:libc", "dep:nix", "dep:g1_nix"]
 test_harness = []
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tokio_unstable)'] }

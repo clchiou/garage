@@ -72,13 +72,13 @@ impl NodeRefresher {
 
         let mut have_removed_nodes = false;
         loop {
-            let Some(join_result) = tokio::select! {
+            let Some(join_result) = (tokio::select! {
                 () = cancel.wait() => {
                     tracing::debug!("dht node refresher is cancelled");
                     return Ok(());
                 }
                 join_result = tasks.join_next() => join_result,
-            } else {
+            }) else {
                 break;
             };
 

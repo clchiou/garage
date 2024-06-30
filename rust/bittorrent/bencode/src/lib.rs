@@ -346,7 +346,7 @@ where
             Self::ByteString(bytes) => Self::encode_byte_string(bytes, buffer),
             Self::Integer(int) => {
                 buffer.put_u8(b'i');
-                buffer.put_display(int).unwrap();
+                buffer.put_display(int);
                 buffer.put_u8(b'e');
             }
             Self::List(list) => {
@@ -370,7 +370,7 @@ where
         Buffer: BufMut,
     {
         let slice = bytes.as_ref();
-        buffer.put_display(&slice.len()).unwrap();
+        buffer.put_display(&slice.len());
         buffer.put_u8(b':');
         buffer.put_slice(slice);
     }

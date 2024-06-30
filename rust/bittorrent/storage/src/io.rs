@@ -52,6 +52,7 @@ pub(crate) async fn open(path: &Path, size: u64) -> Result<File, Error> {
         .read(true)
         .write(true)
         .create(true)
+        .truncate(false)
         .open(path)
         .await?;
     if size > 0 {

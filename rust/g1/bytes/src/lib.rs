@@ -1,9 +1,7 @@
 //! Extends the `bytes` crate.
 
-#![cfg_attr(test, feature(assert_matches))]
-
 use std::fmt;
-use std::io::{self, Write};
+use std::io::Write;
 use std::mem;
 
 use bytes::{Buf, BufMut};
@@ -220,16 +218,13 @@ impl BufSliceExt for &[u8] {
 
 pub trait BufMutExt: BufMut {
     /// Formats a value using `fmt::Debug` and writes the output to the buffer.
-    ///
-    /// It returns an error when `fmt::Debug` encounters an error, which is then wrapped in an
-    /// `std::io::Error`.  The buffer write operation, on the other hand, is infallible.
-    fn put_debug<T: fmt::Debug>(&mut self, value: &T) -> Result<(), io::Error> {
-        write!(self.writer(), "{:?}", value)
+    fn put_debug<T: fmt::Debug>(&mut self, value: &T) {
+        write!(self.writer(), "{:?}", value).expect("buffer write should be infallible");
     }
 
     /// It is similar to `put_debug` except that it uses `fmt::Display`.
-    fn put_display<T: fmt::Display>(&mut self, value: &T) -> Result<(), io::Error> {
-        write!(self.writer(), "{}", value)
+    fn put_display<T: fmt::Display>(&mut self, value: &T) {
+        write!(self.writer(), "{}", value).expect("buffer write should be infallible");
     }
 }
 
@@ -237,8 +232,6 @@ impl<T> BufMutExt for T where T: BufMut {}
 
 #[cfg(test)]
 mod tests {
-    use std::assert_matches::assert_matches;
-
     use super::*;
 
     fn some(bytes: &[u8]) -> Option<&[u8]> {
@@ -469,18 +462,37 @@ mod tests {
     #[test]
     fn put_debug() {
         let mut buffer = Vec::new();
-        assert_matches!(buffer.put_debug(&"hello world"), Ok(()));
+        buffer.put_debug(&"hello world");
         assert_eq!(&buffer, b"\"hello world\"");
-
-        assert_matches!(buffer.put_debug(&FmtError), Err(_));
     }
 
     #[test]
     fn put_display() {
         let mut buffer = Vec::new();
-        assert_matches!(buffer.put_display(&"hello world"), Ok(()));
+        buffer.put_display(&"hello world");
         assert_eq!(&buffer, b"hello world");
+    }
 
-        assert_matches!(buffer.put_display(&FmtError), Err(_));
+    // After [commit], `write!` panics in case of formatting errors instead of returning an `io`
+    // error.
+    //
+    // [commit] https://github.com/rust-lang/rust/commit/e00f27b7be9084e548f7197325c2f343e8ad27b9
+    #[test]
+    #[should_panic(
+        expected = "a formatting trait implementation returned an error when the underlying stream did not"
+    )]
+    fn put_debug_panic() {
+        let mut buffer = Vec::new();
+        buffer.put_debug(&FmtError);
+    }
+
+    // Ditto.
+    #[test]
+    #[should_panic(
+        expected = "a formatting trait implementation returned an error when the underlying stream did not"
+    )]
+    fn put_display_panic() {
+        let mut buffer = Vec::new();
+        buffer.put_display(&FmtError);
     }
 }

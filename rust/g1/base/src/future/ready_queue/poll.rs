@@ -72,7 +72,7 @@ where
             let future_waker = Waker::from(Arc::new(future_waker));
             let mut future_context = Context::from_waker(&future_waker);
 
-            Mutex::unlock(queue);
+            drop(queue);
             let poll_output = Pin::new(&mut future).poll(&mut future_context);
             queue = this.queue.must_lock();
 

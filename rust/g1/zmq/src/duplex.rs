@@ -24,8 +24,10 @@ pub struct Duplex {
     send_multipart: Option<SendMultipart<'static>>,
 }
 
-type RecvMultipart<'a> = Pin<Box<impl Future<Output = Result<Multipart, Error>> + 'a>>;
-type SendMultipart<'a> = Pin<Box<impl Future<Output = Result<(), Error>> + 'a>>;
+// TODO: I do not know why `impl Future ...` no longer compiles after upgrading to Rust 1.81.  To
+// work around this issue, I replace it with trait objects for now.
+type RecvMultipart<'a> = Pin<Box<dyn Future<Output = Result<Multipart, Error>> + Send + Sync + 'a>>;
+type SendMultipart<'a> = Pin<Box<dyn Future<Output = Result<(), Error>> + Send + Sync + 'a>>;
 
 // NOTE: This is not cancel safe.
 fn recv_multipart(socket: &mut Socket, flags: i32) -> RecvMultipart {

@@ -265,9 +265,8 @@ mod tests {
                     .await
                     .unwrap_err()
                     .downcast::<error::Error>()
-                    .unwrap()
-                    .as_ref(),
-                &error::Error::ExpectResynchronize {
+                    .unwrap(),
+                error::Error::ExpectResynchronize {
                     size: expect_size,
                     expect: upper_bound,
                 },

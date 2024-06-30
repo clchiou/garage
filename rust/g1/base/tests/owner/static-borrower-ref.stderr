@@ -4,9 +4,9 @@ error[E0597]: `x` does not live long enough
 16 |     let x = Owner::try_from(Vec::new()).unwrap();
    |         - binding `x` declared here
 17 |     static_borrow_ref(x.deref());
-   |     ------------------^---------
-   |     |                 |
-   |     |                 borrowed value does not live long enough
-   |     argument requires that `x` is borrowed for `'static`
+   |                       ^--------
+   |                       |
+   |                       borrowed value does not live long enough
+   |                       argument requires that `x` is borrowed for `'static`
 18 | }
    | - `x` dropped here while still borrowed

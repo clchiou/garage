@@ -1,6 +1,3 @@
-#![cfg_attr(test, feature(box_into_inner))]
-#![cfg_attr(test, feature(io_error_downcast))]
-
 pub mod error;
 
 mod handshake;

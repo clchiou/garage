@@ -1,7 +1,5 @@
 //! Message Stream Encryption (MSE)
 
-#![cfg_attr(test, feature(io_error_downcast))]
-
 pub mod error;
 
 mod cipher;

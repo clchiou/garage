@@ -196,14 +196,6 @@ impl<'a> Request<'a> {
     }
 }
 
-impl<'a> ToString for Request<'a> {
-    fn to_string(&self) -> String {
-        let mut query = String::new();
-        self.append_url_query_to(&mut query);
-        query
-    }
-}
-
 #[cfg(test)]
 mod test_harness {
     use super::*;
@@ -238,6 +230,12 @@ mod test_harness {
                 key: None,
                 tracker_id: None,
             }
+        }
+
+        pub(crate) fn to_string(&self) -> String {
+            let mut query = String::new();
+            self.append_url_query_to(&mut query);
+            query
         }
     }
 }

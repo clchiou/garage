@@ -440,6 +440,8 @@ mod test_harness {
 
     pub type Outgoing = impl Sink<Message, Error = Error> + Unpin;
 
+    // TODO: Make use of all mocked fields.
+    #[allow(dead_code)]
     pub struct MockActor {
         pub cancel: Cancel,
         pub incoming_send: futures_mpsc::UnboundedSender<Result<Message, Error>>,
@@ -527,7 +529,7 @@ mod tests {
     {
         let error = result.unwrap_err();
         assert_eq!(error.kind(), kind);
-        assert_matches!(error.downcast::<E>(), Ok(e) if e.as_ref() == &inner);
+        assert_matches!(error.downcast::<E>(), Ok(e) if e == inner);
     }
 
     fn assert_actor<M, N, I, O>(

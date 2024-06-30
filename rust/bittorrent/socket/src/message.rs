@@ -412,9 +412,8 @@ mod tests {
                     .await
                     .unwrap_err()
                     .downcast::<error::Error>()
-                    .unwrap()
-                    .as_ref(),
-                &expect,
+                    .unwrap(),
+                expect,
             );
         }
 

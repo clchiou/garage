@@ -251,7 +251,7 @@ mod tests {
                         Some(peer_id.clone()),
                     )
                     .await
-                    .map_err(|error| Box::into_inner(error.downcast::<error::Error>().unwrap()));
+                    .map_err(|error| error.downcast::<error::Error>().unwrap());
                     assert_eq!(
                         result,
                         expect_result
