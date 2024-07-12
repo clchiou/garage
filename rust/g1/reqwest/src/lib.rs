@@ -24,9 +24,10 @@ pub struct ClientBuilder {
     pub pool_idle_timeout: Option<Duration>,
     pub pool_max_idle_per_host: Option<usize>,
 
-    // TDOO: Add `read_timeout` when upgrading reqwest to version 0.12.4+.
     #[serde(deserialize_with = "de::opt_duration")]
     pub connect_timeout: Option<Duration>,
+    #[serde(deserialize_with = "de::opt_duration")]
+    pub read_timeout: Option<Duration>,
     #[serde(deserialize_with = "de::opt_duration")]
     pub timeout: Option<Duration>,
 
@@ -34,10 +35,10 @@ pub struct ClientBuilder {
 
     pub danger_accept_invalid_certs: Option<bool>,
 
-    // TDOO: Add `zstd` when upgrading reqwest to version 0.12.4+.
     pub brotli: Option<bool>,
     pub deflate: Option<bool>,
     pub gzip: Option<bool>,
+    pub zstd: Option<bool>,
 
     // `default_headers` can be overridden by more specific fields, such as `user_agent`.
     #[serde(deserialize_with = "de::opt_header_map")]
@@ -71,6 +72,7 @@ impl ClientBuilder {
         set!(pool_max_idle_per_host);
 
         set!(connect_timeout);
+        set!(read_timeout);
         set!(timeout);
 
         for proxy in self.proxy {
@@ -82,6 +84,7 @@ impl ClientBuilder {
         set!(brotli);
         set!(deflate);
         set!(gzip);
+        set!(zstd);
 
         set!(default_headers);
         set!(user_agent);
