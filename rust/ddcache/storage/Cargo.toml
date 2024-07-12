@@ -9,7 +9,6 @@ capnp = { workspace = true, features = ["unaligned"] }
 chrono.workspace = true
 fasthash.workspace = true
 lazy-regex.workspace = true
-regex.workspace = true # Override the version set by lazy-regex.
 tokio.workspace = true
 tracing.workspace = true
 xattr.workspace = true

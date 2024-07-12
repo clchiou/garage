@@ -6,7 +6,6 @@ edition.workspace = true
 [dependencies]
 lazy-regex.workspace = true
 linkme.workspace = true
-regex.workspace = true # Override the version set by lazy-regex.
 serde = { workspace = true, features = ["derive"] }
 serde_yaml.workspace = true
 

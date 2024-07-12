@@ -17,7 +17,6 @@ g1_param = { workspace = true, optional = true }
 
 # feature: parse
 lazy-regex = { workspace = true, optional = true }
-regex = { workspace = true, optional = true } # Override the version set by lazy-regex.
 
 # feature: compact, parse
 snafu = { workspace = true, optional = true }
@@ -28,4 +27,4 @@ hex-literal.workspace = true
 [features]
 compact = ["dep:bytes", "dep:snafu"]
 param = ["dep:linkme", "dep:rand", "dep:serde", "dep:g1_param"]
-parse = ["dep:lazy-regex", "dep:regex", "dep:snafu"]
+parse = ["dep:lazy-regex", "dep:snafu"]
