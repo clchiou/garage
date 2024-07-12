@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use tokio::io::AsyncReadExt;
-use tokio::net::{TcpListener, TcpSocket, TcpStream};
+use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc::{self, Receiver, Sender};
 use tokio::time::{self, Instant};
 use tracing::Instrument;
@@ -35,12 +35,11 @@ struct Acceptor {
 
 impl Actor {
     pub(crate) fn spawn(state: Arc<State>) -> Result<(Vec<BlobEndpoint>, Guard), Error> {
-        let mut endpoints = Vec::with_capacity(crate::blob_endpoints().len());
-        let (accept_send, accept_recv) =
-            mpsc::channel((*crate::tcp_listen_backlog()).try_into().unwrap());
+        let mut endpoints = Vec::with_capacity(crate::blob_servers().len());
+        let (accept_send, accept_recv) = mpsc::channel(64);
         let tasks = JoinQueue::new();
-        for endpoint in crate::blob_endpoints() {
-            let (listener, endpoint) = new_listener(*endpoint)?;
+        for builder in crate::blob_servers() {
+            let (listener, endpoint) = builder.build()?;
             endpoints.push(endpoint);
             tasks
                 .push(Guard::spawn(|cancel| {
@@ -121,20 +120,6 @@ impl Actor {
             }
         }
     }
-}
-
-fn new_listener(endpoint: BlobEndpoint) -> Result<(TcpListener, BlobEndpoint), Error> {
-    let socket = if endpoint.is_ipv4() {
-        TcpSocket::new_v4()
-    } else {
-        assert!(endpoint.is_ipv6());
-        TcpSocket::new_v6()
-    }?;
-    socket.set_reuseport(true)?;
-    socket.bind(endpoint)?;
-    let listener = socket.listen(*crate::tcp_listen_backlog())?;
-    let endpoint = listener.local_addr()?;
-    Ok((listener, endpoint))
 }
 
 impl Acceptor {

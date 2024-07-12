@@ -14,12 +14,13 @@ use std::time::Duration;
 use uuid::Uuid;
 use zmq::{Context, ROUTER};
 
+use g1_tokio::net::tcp::TcpListenerBuilder;
 use g1_tokio::task::{JoinArray, JoinGuard};
 use g1_zmq::Socket;
 
 use ddcache_peer::Peer;
 use ddcache_rpc::service;
-use ddcache_rpc::{BlobEndpoint, Endpoint};
+use ddcache_rpc::Endpoint;
 use ddcache_storage::Storage;
 
 use crate::state::State;
@@ -28,7 +29,12 @@ g1_param::define!(self_id: Uuid = Uuid::new_v4());
 
 // TODO: Add the default IPv6 address.
 g1_param::define!(endpoints: Vec<String> = vec!["tcp://127.0.0.1:0".into()]);
-g1_param::define!(blob_endpoints: Vec<BlobEndpoint> = vec!["127.0.0.1:0".parse().unwrap()]);
+g1_param::define!(blob_servers: Vec<TcpListenerBuilder> = vec![
+    TcpListenerBuilder {
+        endpoint: "127.0.0.1:0".parse().expect("endpoint"),
+        ..Default::default()
+    },
+]);
 
 // lwm/hwm = low/high water mark
 g1_param::define!(storage_size_lwm: u64 = 768 * 1024 * 1024);
@@ -48,8 +54,6 @@ g1_param::define!(
     blob_request_timeout: Duration = Duration::from_secs(8);
     parse = g1_param::parse::duration;
 );
-
-g1_param::define!(tcp_listen_backlog: u32 = 256);
 
 #[derive(Clone, Debug)]
 pub struct Server {

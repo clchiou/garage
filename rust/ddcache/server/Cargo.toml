@@ -16,7 +16,7 @@ zmq.workspace = true
 
 g1_base.workspace = true
 g1_param.workspace = true
-g1_tokio.workspace = true
+g1_tokio = { workspace = true, features = ["param"] }
 g1_zmq.workspace = true
 
 ddcache_peer.workspace = true
