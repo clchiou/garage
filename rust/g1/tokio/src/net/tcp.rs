@@ -4,6 +4,9 @@ use tokio::net;
 use crate::bstream::{StreamIntoSplit, StreamSplit};
 use crate::io::{RecvStream, SendStream, Stream};
 
+#[cfg(feature = "param")]
+pub use self::param::TcpListenerBuilder;
+
 pub type TcpStream = Stream<net::TcpStream>;
 
 pub type RecvHalf<'a> = RecvStream<net::tcp::ReadHalf<'a>, &'a mut BytesMut>;
@@ -59,6 +62,60 @@ impl StreamIntoSplit for TcpStream {
                 Self::OwnedRecvHalf::new(read_half, recv.buffer),
                 Self::OwnedSendHalf::new(write_half, send.buffer),
             )),
+        }
+    }
+}
+
+#[cfg(feature = "param")]
+mod param {
+    use std::io::Error;
+    use std::net::SocketAddr;
+
+    use serde::Deserialize;
+    use tokio::net::{TcpListener, TcpSocket};
+
+    #[derive(Clone, Debug, Deserialize)]
+    #[serde(default)]
+    pub struct TcpListenerBuilder {
+        pub endpoint: SocketAddr,
+        pub reuseaddr: Option<bool>,
+        pub reuseport: Option<bool>,
+        pub backlog: u32,
+    }
+
+    impl Default for TcpListenerBuilder {
+        fn default() -> Self {
+            Self {
+                endpoint: "0.0.0.0:0".parse().expect("endpoint"),
+                reuseaddr: None,
+                reuseport: Some(true),
+                backlog: 1024,
+            }
+        }
+    }
+
+    impl TcpListenerBuilder {
+        pub fn build(&self) -> Result<(TcpListener, SocketAddr), Error> {
+            let socket = if self.endpoint.is_ipv4() {
+                TcpSocket::new_v4()
+            } else {
+                assert!(self.endpoint.is_ipv6());
+                TcpSocket::new_v6()
+            }?;
+
+            if let Some(reuseaddr) = self.reuseaddr {
+                socket.set_reuseaddr(reuseaddr)?;
+            }
+            if let Some(reuseport) = self.reuseport {
+                socket.set_reuseport(reuseport)?;
+            }
+
+            socket.bind(self.endpoint)?;
+
+            let listener = socket.listen(self.backlog)?;
+            let endpoint = listener.local_addr()?;
+
+            Ok((listener, endpoint))
         }
     }
 }

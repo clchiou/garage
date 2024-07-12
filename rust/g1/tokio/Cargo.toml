@@ -16,6 +16,9 @@ libc = { workspace = true, optional = true }
 nix = { workspace = true, features = ["net", "uio"], optional = true }
 g1_nix = { workspace = true, optional = true }
 
+# feature: param
+serde = { workspace = true, features = ["derive"], optional = true }
+
 [dev-dependencies]
 scopeguard.workspace = true
 tokio = { workspace = true, features = ["test-util", "tracing"] }
@@ -45,6 +48,7 @@ required-features = ["icmp"]
 
 [features]
 icmp = ["dep:libc", "dep:nix", "dep:g1_nix"]
+param = ["dep:serde"]
 test_harness = []
 
 [lints.rust]
