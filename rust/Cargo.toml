@@ -41,6 +41,7 @@ members = [
     "g1/capnp",
     "g1/cli",
     "g1/futures",
+    "g1/hyper",
     "g1/msg",
     "g1/nix",
     "g1/param",
@@ -75,6 +76,7 @@ futures = "0.3.28"
 hashbrown = "0.14.3"
 heck = "0.4.1"
 hex-literal = "0.4.1"
+hyper = "1.4.1"
 lazy-regex = "3.1.0"
 libc = "0.2.147"
 linkme = "0.3.10"
@@ -152,6 +154,7 @@ g1_bytes_derive = { path = "g1/bytes_derive" }
 g1_capnp = { path = "g1/capnp" }
 g1_cli = { path = "g1/cli" }
 g1_futures = { path = "g1/futures" }
+g1_hyper = { path = "g1/hyper" }
 g1_msg = { path = "g1/msg" }
 g1_nix = { path = "g1/nix" }
 g1_param = { path = "g1/param" }
