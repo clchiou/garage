@@ -12,7 +12,7 @@ serde_json.workspace = true
 serde_with = { workspace = true, features = ["base64"] }
 snafu.workspace = true
 tracing.workspace = true
-url = { workspace = true, features = ["serde"] } # Override the version set by reqwest.
+url = { workspace = true, features = ["serde"] } # Enable additional features for reqwest.
 
 g1_base.workspace = true
 g1_param.workspace = true

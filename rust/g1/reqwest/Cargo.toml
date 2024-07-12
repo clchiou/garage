@@ -7,7 +7,7 @@ edition.workspace = true
 regex.workspace = true
 reqwest = { workspace = true, features = ["brotli", "deflate", "gzip", "socks", "zstd"] }
 serde = { workspace = true, features = ["derive"] }
-url = { workspace = true, features = ["serde"] } # Override the version set by reqwest.
+url = { workspace = true, features = ["serde"] } # Enable additional features for reqwest.
 
 # For now, we are only using `g1_param::parse`, so we do not need to add `linkme` to the
 # dependencies.
