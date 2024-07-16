@@ -1,0 +1,23 @@
+[package]
+name = "g1_web"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+bytes.workspace = true
+http.workspace = true
+http-body.workspace = true
+http-body-util.workspace = true
+hyper = { workspace = true, features = ["http1", "server"] }
+tokio.workspace = true
+tracing.workspace = true
+
+g1_hyper.workspace = true
+g1_tokio.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+# examples
+clap.workspace = true
+g1_cli = { workspace = true, features = ["param", "tracing"] }
