@@ -34,21 +34,18 @@ impl TryFrom<zmq::Socket> for Socket {
     }
 }
 
+// Be cautious of [`ZMQ_FD`](https://libzmq.readthedocs.io/en/latest/zmq_getsockopt.html)
+// idiosyncrasies:
+// * It is edge-triggered.
+// * It only generates read notifications for `recv` and `send`.
 macro_rules! io {
-    ($self:ident, $poll:ident, $io:expr $(,)?) => {
+    ($self:ident . $method:ident ( $arg:expr, $flags:ident $(,)? )) => {
         loop {
-            let mut guard = $self.fd.$poll().await?;
-
-            // We check `is_empty` rather than `!(POLLIN | POLLERR)` when reading, or
-            // `!(POLLOUT | POLLERR)` when writing, because it turns out that `get_events` returns
-            // `POLLIN` rather than `POLLERR` for certain errors during writing.
-            if $self.socket.get_events()?.is_empty() {
-                guard.clear_ready();
-                continue;
-            }
-
-            if let Ok(result) = guard.try_io(|_| $io) {
-                break result;
+            match $self.socket.$method($arg, $flags | DONTWAIT) {
+                Err(zmq::Error::EAGAIN) if ($flags & DONTWAIT) == 0 => {
+                    $self.fd.readable().await?.clear_ready();
+                }
+                result => return result.map_err(Error::from),
             }
         }
     };
@@ -80,19 +77,11 @@ impl Socket {
     }
 
     pub async fn recv(&mut self, message: &mut Message, flags: i32) -> Result<(), Error> {
-        io!(
-            self,
-            readable,
-            Ok(self.socket.recv(message, flags | DONTWAIT)?),
-        )
+        io!(self.recv(message, flags))
     }
 
     pub async fn recv_into(&mut self, bytes: &mut [u8], flags: i32) -> Result<usize, Error> {
-        io!(
-            self,
-            readable,
-            Ok(self.socket.recv_into(bytes, flags | DONTWAIT)?),
-        )
+        io!(self.recv_into(bytes, flags))
     }
 
     pub async fn recv_msg(&mut self, flags: i32) -> Result<Message, Error> {
@@ -115,11 +104,7 @@ impl Socket {
         T: Into<Message>,
     {
         let mut message = data.into();
-        io!(
-            self,
-            writable,
-            Ok(self.socket.send(&mut message, flags | DONTWAIT)?),
-        )
+        io!(self.send(&mut message, flags))
     }
 }
 

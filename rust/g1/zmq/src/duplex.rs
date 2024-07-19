@@ -1,57 +1,21 @@
-use std::future::Future;
+use std::collections::VecDeque;
 use std::io::Error;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use futures::sink;
 use futures::stream;
-use zmq::SNDMORE;
-
-use g1_base::fmt::{DebugExt, InsertPlaceholder};
-use g1_base::task::PollExt;
+use zmq::{Message, DONTWAIT, SNDMORE};
 
 use crate::Socket;
 
 pub use crate::Multipart;
 
-/// Multipart message stream and sink that is somewhat cancel safe.
-#[derive(DebugExt)]
+/// Multipart message stream and sink that is cancel safe.
+#[derive(Debug)]
 pub struct Duplex {
     socket: Socket,
-    #[debug(with = InsertPlaceholder)]
-    recv_multipart: Option<RecvMultipart<'static>>,
-    #[debug(with = InsertPlaceholder)]
-    send_multipart: Option<SendMultipart<'static>>,
-}
-
-// TODO: I do not know why `impl Future ...` no longer compiles after upgrading to Rust 1.81.  To
-// work around this issue, I replace it with trait objects for now.
-type RecvMultipart<'a> = Pin<Box<dyn Future<Output = Result<Multipart, Error>> + Send + Sync + 'a>>;
-type SendMultipart<'a> = Pin<Box<dyn Future<Output = Result<(), Error>> + Send + Sync + 'a>>;
-
-// NOTE: This is not cancel safe.
-fn recv_multipart(socket: &mut Socket, flags: i32) -> RecvMultipart {
-    Box::pin(async move {
-        let mut parts = Vec::new();
-        loop {
-            parts.push(socket.recv_msg(flags).await?);
-            if !socket.get_rcvmore()? {
-                return Ok(parts);
-            }
-        }
-    })
-}
-
-// NOTE: This is not cancel safe.
-fn send_multipart(socket: &mut Socket, multipart: Multipart, flags: i32) -> SendMultipart {
-    Box::pin(async move {
-        let mut iter = multipart.into_iter().peekable();
-        while let Some(part) = iter.next() {
-            let sndmore = if iter.peek().is_some() { SNDMORE } else { 0 };
-            socket.send(part, flags | sndmore).await?;
-        }
-        Ok(())
-    })
+    send_buffer: Option<VecDeque<Message>>,
 }
 
 impl From<Socket> for Duplex {
@@ -70,8 +34,7 @@ impl Duplex {
     pub fn new(socket: Socket) -> Self {
         Self {
             socket,
-            recv_multipart: None,
-            send_multipart: None,
+            send_buffer: None,
         }
     }
 
@@ -85,16 +48,24 @@ impl stream::Stream for Duplex {
 
     fn poll_next(self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.get_mut();
-        this.recv_multipart
-            .get_or_insert_with(|| {
-                // TODO: How can we prove that this is actually safe?
-                let socket = &mut this.socket as *mut Socket;
-                recv_multipart(unsafe { &mut *socket }, 0)
-            })
-            .as_mut()
-            .poll(context)
-            .inspect(|_| this.recv_multipart = None)
-            .map(Some)
+        let mut multipart = loop {
+            match this.socket.socket.recv_msg(DONTWAIT) {
+                Ok(message) => break vec![message],
+                Err(zmq::Error::EAGAIN) => {
+                    match futures::ready!(this.socket.fd.poll_read_ready(context)) {
+                        Ok(mut guard) => guard.clear_ready(),
+                        Err(error) => return Poll::Ready(Some(Err(error))),
+                    }
+                }
+                Err(error) => return Poll::Ready(Some(Err(error.into()))),
+            }
+        };
+        // [ZeroMQ](https://libzmq.readthedocs.io/en/latest/zmq_recv.html) guarantees that
+        // multipart messages are atomic.
+        while this.socket.socket.get_rcvmore().expect("get_rcvmore") {
+            multipart.push(this.socket.socket.recv_msg(DONTWAIT).expect("recv_msg"));
+        }
+        Poll::Ready(Some(Ok(multipart)))
     }
 }
 
@@ -111,12 +82,10 @@ impl sink::Sink<Multipart> for Duplex {
     fn start_send(self: Pin<&mut Self>, multipart: Multipart) -> Result<(), Self::Error> {
         let this = self.get_mut();
         assert!(
-            this.send_multipart.is_none(),
+            this.send_buffer.is_none(),
             "expect poll_ready called beforehand",
         );
-        // TODO: How can we prove that this is actually safe?
-        let socket = &mut this.socket as *mut Socket;
-        this.send_multipart = Some(send_multipart(unsafe { &mut *socket }, multipart, 0));
+        this.send_buffer = Some(multipart.into());
         Ok(())
     }
 
@@ -125,13 +94,25 @@ impl sink::Sink<Multipart> for Duplex {
         context: &mut Context<'_>,
     ) -> Poll<Result<(), Self::Error>> {
         let this = self.get_mut();
-        let Some(send_multipart) = this.send_multipart.as_mut() else {
+        let Some(send_buffer) = this.send_buffer.as_mut() else {
             return Poll::Ready(Ok(()));
         };
-        send_multipart
-            .as_mut()
-            .poll(context)
-            .inspect(|_| this.send_multipart = None)
+        while let Some(mut message) = send_buffer.pop_front() {
+            let sndmore = if send_buffer.is_empty() { 0 } else { SNDMORE };
+            if let Err(error) = this.socket.socket.send(&mut message, sndmore | DONTWAIT) {
+                send_buffer.push_front(message);
+                if error == zmq::Error::EAGAIN {
+                    match futures::ready!(this.socket.fd.poll_read_ready(context)) {
+                        Ok(mut guard) => guard.clear_ready(),
+                        Err(error) => return Poll::Ready(Err(error)),
+                    }
+                } else {
+                    return Poll::Ready(Err(error.into()));
+                }
+            }
+        }
+        this.send_buffer = None;
+        Poll::Ready(Ok(()))
     }
 
     fn poll_close(
