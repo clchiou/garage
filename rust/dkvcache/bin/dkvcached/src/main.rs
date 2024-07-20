@@ -10,7 +10,7 @@ use g1_cli::{param::ParametersConfig, tracing::TracingConfig};
 use dkvcache_server::Server;
 
 #[derive(Debug, Parser)]
-#[command(after_help = ParametersConfig::render())]
+#[command(version = g1_cli::version!(), after_help = ParametersConfig::render())]
 struct Dkvcached {
     #[command(flatten)]
     tracing: TracingConfig,
