@@ -28,6 +28,7 @@ def cmd_init(args):
     repos.EnvsDir.init(args.release_repo)
     repos.PodDir.init(args.release_repo)
     repos.XarDir.init(args.release_repo)
+    repos.BinDir.init(args.release_repo)
     repos.BuilderImageDir.init(args.release_repo)
     repos.ImageDir.init(args.release_repo)
     repos.VolumeDir.init(args.release_repo)
@@ -56,10 +57,18 @@ def cmd_list(args):
             }
             for env in envs_dir.envs
         },
+        'bin-releases': {
+            env: {
+                str(bin_dir.label): bin_dir.version
+                for bin_dir in envs_dir.sort_bin_dirs(env)
+            }
+            for env in envs_dir.envs
+        },
     }
     for name, cls in (
         ('pods', repos.PodDir),
         ('xars', repos.XarDir),
+        ('bins', repos.BinDir),
         ('builder-images', repos.BuilderImageDir),
         ('images', repos.ImageDir),
         ('volumes', repos.VolumeDir),

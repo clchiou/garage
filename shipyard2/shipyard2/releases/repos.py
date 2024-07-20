@@ -1,6 +1,7 @@
 """Manage release repository (not source repository)."""
 
 __all__ = [
+    'BinDir',
     'BuilderImageDir',
     'EnvsDir',
     'ImageDir',
@@ -62,11 +63,18 @@ class EnvsDir:
     def _xar_top_path(self):
         return self.repo_path / shipyard2.RELEASE_XARS_DIR_NAME
 
+    @property
+    def _bin_top_path(self):
+        return self.repo_path / shipyard2.RELEASE_BINS_DIR_NAME
+
     def get_current_pod_versions(self):
         return self._get_current_versions(self.iter_pod_dirs)
 
     def get_current_xar_versions(self):
         return self._get_current_versions(self.iter_xar_dirs)
+
+    def get_current_bin_versions(self):
+        return self._get_current_versions(self.iter_bin_dirs)
 
     def _get_current_versions(self, iter_dir_objects):
         current_versions = collections.defaultdict(set)
@@ -80,6 +88,9 @@ class EnvsDir:
 
     def iter_xar_dirs(self, env):
         yield from self._iter_dirs(XarDir, self._xar_top_path, env)
+
+    def iter_bin_dirs(self, env):
+        yield from self._iter_dirs(BinDir, self._bin_top_path, env)
 
     def _iter_dirs(self, dir_object_type, target_top_path, env):
         ASSERT.in_(env, self.envs)
@@ -99,11 +110,17 @@ class EnvsDir:
     def sort_xar_dirs(self, env):
         return _sort_by_path(self.iter_xar_dirs(env))
 
+    def sort_bin_dirs(self, env):
+        return _sort_by_path(self.iter_bin_dirs(env))
+
     def release_pod(self, env, label, version):
         return self._release(PodDir, self._pod_top_path, env, label, version)
 
     def release_xar(self, env, label, version):
         return self._release(XarDir, self._xar_top_path, env, label, version)
+
+    def release_bin(self, env, label, version):
+        return self._release(BinDir, self._bin_top_path, env, label, version)
 
     def _release(self, dir_object_type, target_top_path, env, label, version):
         relpath = label.path / label.name
@@ -282,6 +299,24 @@ class XarDir(_Base):
             self.top_path.parent / shipyard2.RELEASE_IMAGES_DIR_NAME,
             link_path.resolve().parent,
         )
+
+
+class BinDir(_Base):
+
+    _TOP_DIR_NAME = shipyard2.RELEASE_BINS_DIR_NAME
+    _FILENAME = shipyard2.BIN_DIR_RELEASE_METADATA_FILENAME
+
+    def __init__(self, top_path, path):
+        ASSERT.predicate(path, Path.is_dir)
+        names = {
+            shipyard2.BIN_DIR_RELEASE_METADATA_FILENAME,
+            path.parent.name,
+        }
+        # For now, we cannot use "release.json" as a binary file name.
+        ASSERT.predicate(names, lambda ns: len(ns) == 2)
+        for name in names:
+            ASSERT.predicate(path / name, Path.is_file)
+        super().__init__(top_path, path)
 
 
 class BuilderImageDir(_Base):

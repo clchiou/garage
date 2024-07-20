@@ -89,6 +89,8 @@ def cmd_build(args):
             release = _get_envs_dir(args).release_pod
         elif _look_like_xar_rule(args.rule):
             release = _get_envs_dir(args).release_xar
+        elif _look_like_bin_rule(args.rule):
+            release = _get_envs_dir(args).release_bin
         else:
             ASSERT.predicate(args.rule, _look_like_image_rule)
             release = None
@@ -112,19 +114,23 @@ def _look_like_xar_rule(rule):
     return rule.path.parts[0] == shipyard2.RELEASE_XARS_DIR_NAME
 
 
+def _look_like_bin_rule(rule):
+    return rule.path.parts[0] == shipyard2.RELEASE_BINS_DIR_NAME
+
+
 def _look_like_image_rule(rule):
     return rule.path.parts[0] == shipyard2.RELEASE_IMAGES_DIR_NAME
 
 
 def _guess_label_from_rule(rule):
-    """Guess pod, xar, or image label from build rule.
+    """Guess pod, xar, bin, or image label from build rule.
 
     For example, //pod/foo:bar/build becomes //foo:bar.
     """
     name_parts = rule.name.parts
     ASSERT(
         len(name_parts) == 2 and name_parts[1] == 'build',
-        'expect pod, xar, or image build rule: {}',
+        'expect pod, xar, bin, or image build rule: {}',
         rule,
     )
     return foreman.Label.parse(
@@ -139,7 +145,7 @@ def _guess_label_from_rule(rule):
 @select_env_argument
 @argparses.argument(
     'type',
-    choices=('pods', 'xars'),
+    choices=('pods', 'xars', 'bins'),
     help='provide build artifact type',
 )
 @select_label_argument
@@ -149,9 +155,11 @@ def cmd_release(args):
     LOG.info('release: %s %s to %s', args.label, args.version, args.env)
     if args.type == 'pods':
         release = _get_envs_dir(args).release_pod
-    else:
-        ASSERT.equal(args.type, 'xars')
+    elif args.type == 'xars':
         release = _get_envs_dir(args).release_xar
+    else:
+        ASSERT.equal(args.type, 'bins')
+        release = _get_envs_dir(args).release_bin
     release(args.env, args.label, args.version)
     return 0
 
@@ -175,7 +183,7 @@ def cmd_unrelease(args):
 )
 @argparses.argument(
     'type',
-    choices=('pods', 'xars', 'builder-images', 'images', 'volumes'),
+    choices=('pods', 'xars', 'bins', 'builder-images', 'images', 'volumes'),
     help='provide build artifact type',
 )
 @select_label_argument
@@ -188,6 +196,9 @@ def cmd_remove(args):
     elif args.type == 'xars':
         dir_object_type = repos.XarDir
         current_versions = _get_envs_dir(args).get_current_xar_versions()
+    elif args.type == 'bins':
+        dir_object_type = repos.BinDir
+        current_versions = _get_envs_dir(args).get_current_bin_versions()
     elif args.type == 'builder-images':
         dir_object_type = repos.BuilderImageDir
         # Builder images are not referenced by pods and thus do not have

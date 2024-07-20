@@ -61,6 +61,12 @@ def cmd_cleanup(args):
         envs_dir.get_current_xar_versions(),
         repos.XarDir.group_dirs(args.release_repo),
     )
+    LOG.info('clean up bins')
+    _cleanup(
+        args.keep,
+        envs_dir.get_current_bin_versions(),
+        repos.BinDir.group_dirs(args.release_repo),
+    )
     if args.also_builder:
         LOG.info('clean up builder images')
         _cleanup(
