@@ -19,7 +19,11 @@ use g1_tokio::task::JoinGuard;
 
 use etcd_client::{Client, Key, KeyValue, Value};
 
-const TIME_TO_LIVE: Duration = Duration::from_secs(2);
+// TODO: Pick a sensible default value.
+g1_param::define!(
+    time_to_live: Duration = Duration::from_secs(10);
+    parse = g1_param::parse::duration;
+);
 
 pub use etcd_client::Error;
 
@@ -37,6 +41,7 @@ pub enum SubscriberError {
 pub struct PubSub<T, C = Client> {
     client: C,
     scheme: KeyScheme,
+    time_to_live: Duration,
     _data: PhantomData<T>,
 }
 
@@ -79,6 +84,7 @@ where
         Self {
             client,
             scheme: KeyScheme::new(prefix),
+            time_to_live: *time_to_live(),
             _data: PhantomData,
         }
     }
@@ -125,7 +131,7 @@ where
             .put(key.clone(), value.clone(), Some(lease_id))
             .await?;
 
-        let mut interval = time::interval(TIME_TO_LIVE / 2);
+        let mut interval = time::interval(self.time_to_live / 2);
         loop {
             interval.tick().await;
 
@@ -154,7 +160,7 @@ where
             Err(Error::LeaseIdNotFound { .. }) => {
                 self.client
                     .as_ref()
-                    .lease_grant(TIME_TO_LIVE, Some(lease_id))
+                    .lease_grant(self.time_to_live, Some(lease_id))
                     .await?;
                 Ok(true)
             }
