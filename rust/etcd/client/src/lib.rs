@@ -133,6 +133,28 @@ impl AsRef<Client> for Client {
     }
 }
 
+macro_rules! rpc {
+    ($self:ident, $rpc:expr $(,)?) => {{
+        let mut result = $rpc;
+        if let Err(Error::Grpc { status }) = &result {
+            if status == &StatusCode::UNAUTHORIZED {
+                match $self.force_authenticate().await {
+                    Ok(true) => {
+                        tracing::debug!("reauthenticate then retry");
+                        result = $rpc;
+                    }
+                    Ok(false) => tracing::debug!("cannot reauthenticate"),
+                    Err(error) => tracing::warn!(%error, "reauthenticate"),
+                }
+            } else if status.as_u16() >= 500 { // For now, we blindly retry on 5xx.
+                tracing::warn!(%status, "retry");
+                result = $rpc;
+            }
+        }
+        result
+    }};
+}
+
 impl Client {
     pub fn new() -> Self {
         ClientBuilder::new().build()
@@ -150,6 +172,15 @@ impl Client {
         };
         *self.auth_header.must_lock() = Some(auth_header);
         Ok(())
+    }
+
+    async fn force_authenticate(&self) -> Result<bool, Error> {
+        let Some(Auth::Authenticate(request)) = self.auth.as_ref() else {
+            return Ok(false);
+        };
+        let auth_header = to_auth_header(&self.request_with_headers(request, []).await?.token)?;
+        *self.auth_header.must_lock() = Some(auth_header);
+        Ok(true)
     }
 
     pub fn auth_token(&self) -> Option<String> {
@@ -171,7 +202,10 @@ impl Client {
         R: Request,
     {
         self.authenticate().await?;
-        self.request_with_headers(request, self.headers()).await
+        rpc!(
+            self,
+            self.request_with_headers(request, self.headers()).await,
+        )
     }
 
     async fn request_with_headers<R, H>(
@@ -199,9 +233,7 @@ impl Client {
     {
         self.authenticate().await?;
 
-        let reader = self
-            .send(request, self.headers())
-            .await?
+        let reader = rpc!(self, self.send(request, self.headers()).await)?
             .bytes_stream()
             .map_err(io::Error::other)
             .into_async_read();
