@@ -107,7 +107,7 @@ impl Actor {
                 }
 
                 _ = idle_interval.tick() => {
-                    tracing::info!("idle timeout");
+                    tracing::debug!("idle timeout");
                     keepalive_response_recv = Some(self.send_keepalive(&mut duplex).await);
                 }
                 Some(response) = OptionFuture::from(keepalive_response_recv.as_mut()) => {
