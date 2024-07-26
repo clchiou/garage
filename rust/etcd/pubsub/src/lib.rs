@@ -116,8 +116,8 @@ where
     pub async fn publish(&self, id: Uuid, data: &T) -> Result<!, Error> {
         tracing::info!(prefix = %self.scheme.prefix, %id, "publish");
 
-        let lease_id = Self::lease_id(id);
         let key = self.scheme.encode(id);
+        let lease_id = Self::lease_id(&key);
         let value = Self::encode(data);
         tracing::debug!(
             lease_id,
@@ -150,8 +150,8 @@ where
         }
     }
 
-    fn lease_id(id: Uuid) -> i64 {
-        i64::from_be_bytes(city::hash64(id.as_bytes()).to_be_bytes())
+    fn lease_id(key: &[u8]) -> i64 {
+        i64::from_be_bytes(city::hash64(key).to_be_bytes())
     }
 
     async fn lease(&self, lease_id: i64) -> Result<bool, Error> {
