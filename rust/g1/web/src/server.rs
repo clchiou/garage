@@ -2,9 +2,9 @@ use std::io::Error;
 use std::net::SocketAddr;
 
 use hyper::server::conn::http1::Builder;
+use hyper_util::rt::TokioIo;
 use tokio::net::{TcpListener, TcpStream};
 
-use g1_hyper::rt::TokioAdapter;
 use g1_tokio::task::{Cancel, JoinGuard, JoinQueue};
 
 use crate::service::{Service, ServiceContainer};
@@ -78,7 +78,7 @@ where
             .push(JoinGuard::spawn(move |cancel| {
                 // TODO: Consider supporting both HTTP/1 and HTTP/2.
                 Builder::new().serve_connection(
-                    TokioAdapter::new(stream),
+                    TokioIo::new(stream),
                     ServiceContainer::new(cancel, endpoint, self.service.clone()),
                 )
             }))

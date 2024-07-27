@@ -9,10 +9,10 @@ http.workspace = true
 http-body.workspace = true
 http-body-util.workspace = true
 hyper = { workspace = true, features = ["http1", "server"] }
+hyper-util = { workspace = true, features = ["tokio"] }
 tokio.workspace = true
 tracing.workspace = true
 
-g1_hyper.workspace = true
 g1_tokio.workspace = true
 
 [dev-dependencies]
