@@ -32,7 +32,7 @@ pub enum Error {
     Decode { source: serde_json::Error },
     #[snafu(display("grpc error: {status}"))]
     Grpc { status: StatusCode },
-    #[snafu(display("http error: {source}"))]
+    #[snafu(display("http error: {source} status={:?}", source.status()))]
     Http { source: reqwest::Error },
     #[snafu(display("invalid token: {token:?}"))]
     InvalidToken { token: String },
