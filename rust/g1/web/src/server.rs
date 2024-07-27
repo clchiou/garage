@@ -1,4 +1,5 @@
-use std::io::Error;
+use std::error::Error as _;
+use std::io::{Error, ErrorKind};
 use std::net::SocketAddr;
 
 use hyper::server::conn::http1::Builder;
@@ -88,8 +89,25 @@ where
     fn handle_task(&self, mut guard: JoinGuard<Result<(), hyper::Error>>) {
         match guard.take_result() {
             Ok(Ok(())) => {}
-            Ok(Err(error)) => tracing::warn!(%error, "service"),
+            Ok(Err(error)) => {
+                if is_probably_connection_close(&error) {
+                    // It seems that HAProxy frequently closes connections, triggering false alarms
+                    // that can be safely ignored.
+                    tracing::debug!(%error, "connection close");
+                } else {
+                    tracing::warn!(%error, "service");
+                }
+            }
             Err(error) => tracing::warn!(%error, "service task"),
         }
     }
+}
+
+// TODO: Unfortunately, `hyper` does not provide `Error::is_io` or `Error::is_shutdown` somehow.
+fn is_probably_connection_close(error: &hyper::Error) -> bool {
+    const KINDS: &[ErrorKind] = &[ErrorKind::ConnectionReset, ErrorKind::NotConnected];
+    error
+        .source()
+        .and_then(|source| source.downcast_ref::<Error>())
+        .map_or(false, |error| KINDS.contains(&error.kind()))
 }
