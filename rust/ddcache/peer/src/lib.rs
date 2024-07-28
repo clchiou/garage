@@ -247,12 +247,8 @@ impl Handler {
             .into_iter()
             .map(|(id, client)| (id, client.unwrap()));
 
-        let Some(mut writer) = self.storage.write_new(key.clone()) else {
-            return Ok(());
-        };
-
-        let result: Result<(), Error> = try {
-            let response = concurrent::request_any(servers, move |client| {
+        let result: Result<_, Error> = try {
+            let response = concurrent::request_any(servers, |client| {
                 let key = key.clone();
                 async move { client.pull(key).await }
             })
@@ -264,12 +260,20 @@ impl Handler {
             let metadata = metadata!(response)?;
             let blob = blob!(response)?;
 
+            let Some(mut writer) = self.storage.write_new(key) else {
+                if let Err(error) = client.cancel(blob.token()).await {
+                    tracing::warn!(%id, %error, "cancel");
+                }
+                return Ok(());
+            };
+
             writer.set_metadata(metadata.metadata);
             writer.set_expire_at(metadata.expire_at);
 
             let output = match writer.open() {
                 Ok(output) => output,
                 Err(error) => {
+                    drop(writer);
                     if let Err(error) = client.cancel(blob.token()).await {
                         tracing::warn!(%id, %error, "cancel");
                     }
@@ -278,10 +282,10 @@ impl Handler {
             };
 
             blob.read(output, metadata.size).await?;
-        };
-        result.context(RequestSnafu)?;
 
-        writer.commit().context(StorageSnafu)
+            writer
+        };
+        result.context(RequestSnafu)?.commit().context(StorageSnafu)
     }
 
     async fn push(&self, peer_id: Uuid) -> Result<(), HandlerError> {
