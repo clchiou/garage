@@ -7,6 +7,7 @@ edition.workspace = true
 fasthash.workspace = true
 futures.workspace = true
 linkme.workspace = true # Required by g1_param.
+reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 snafu.workspace = true

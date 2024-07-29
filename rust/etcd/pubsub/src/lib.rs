@@ -1,15 +1,18 @@
+#![feature(duration_constants)]
 #![feature(iterator_try_collect)]
 #![feature(never_type)]
 #![feature(slice_take)]
+#![feature(try_blocks)]
 
 use std::io::{self, Write};
 use std::marker::PhantomData;
 use std::str;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use fasthash::city;
 use futures::stream::{BoxStream, TryStreamExt};
+use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use snafu::prelude::*;
 use tokio::time;
@@ -125,47 +128,93 @@ where
             value = %unsafe { str::from_utf8_unchecked(&value) },
         );
 
-        self.lease(lease_id).await?;
-        self.client
-            .as_ref()
-            .put(key.clone(), value.clone(), Some(lease_id))
-            .await?;
+        #[derive(Debug)]
+        enum Action {
+            LeaseGrant,
+            Publish,
+            LeaseKeepAlive,
+        }
 
-        let mut interval = time::interval(self.time_to_live / 2);
+        // I observed that our etcd cluster is quite unstable, likely due to running on hardware
+        // that falls below the recommended specifications.  To mitigate this issue, we will retry
+        // requests for a longer period.
+        const TIMEOUT: Duration = Duration::from_secs(10);
+
+        let mut action = Action::LeaseGrant;
+        let mut retry_start_at: Option<Instant> = None;
         loop {
-            interval.tick().await;
+            let result = try {
+                match action {
+                    Action::LeaseGrant => {
+                        self.client
+                            .as_ref()
+                            .lease_grant(self.time_to_live, Some(lease_id))
+                            .await?;
+                        Action::Publish
+                    }
+                    Action::Publish => {
+                        self.client
+                            .as_ref()
+                            .put(key.clone(), value.clone(), Some(lease_id))
+                            .await?;
+                        Action::LeaseKeepAlive
+                    }
+                    Action::LeaseKeepAlive => {
+                        self.client.as_ref().lease_keep_alive(lease_id).await?;
+                        time::sleep(self.time_to_live / 2).await;
+                        Action::LeaseKeepAlive
+                    }
+                }
+            };
+            match (&action, result) {
+                (_, Ok(next_action)) => {
+                    action = next_action;
+                    retry_start_at = None;
+                }
 
-            if self.lease(lease_id).await? {
-                tracing::warn!(
-                    lease_id,
-                    key = %unsafe { str::from_utf8_unchecked(&key) },
-                    value = %unsafe { str::from_utf8_unchecked(&value) },
-                    "republish lost data",
-                );
-                self.client
-                    .as_ref()
-                    .put(key.clone(), value.clone(), Some(lease_id))
-                    .await?;
+                // Lease likely already exists.
+                (Action::LeaseGrant, Err(Error::Grpc { status: StatusCode::BAD_REQUEST })) => {
+                    action = Action::Publish;
+                    retry_start_at = None;
+                }
+
+                (_, Err(Error::LeaseIdNotFound { .. })) => {
+                    tracing::warn!(
+                        lease_id,
+                        key = %unsafe { str::from_utf8_unchecked(&key) },
+                        value = %unsafe { str::from_utf8_unchecked(&value) },
+                        "unexpected lease expire",
+                    );
+                    action = Action::LeaseGrant;
+                    retry_start_at = None;
+                }
+
+                // These errors are usually the result of the etcd cluster being too busy:
+                // * It is too busy to process our authentication request.
+                (_, Err(error @ Error::Grpc { status: StatusCode::UNAUTHORIZED }))
+                // * Our lease has expired by the time it is finally able to process our request.
+                | (_, Err(error @ Error::Grpc { status: StatusCode::NOT_FOUND }))
+                | (_, Err(error @ Error::Grpc { status: StatusCode::SERVICE_UNAVAILABLE })) => {
+                    if retry_start_at.map_or(false, |x| x.elapsed() > TIMEOUT) {
+                        tracing::warn!("retry timeout");
+                        return Err(error);
+                    }
+
+                    tracing::warn!(?action, %error, "retry due to etcd too busy");
+                    action = Action::LeaseGrant;
+
+                    // We use a constant backoff for now.
+                    time::sleep(Duration::SECOND).await;
+                    retry_start_at.get_or_insert_with(Instant::now);
+                }
+
+                (_, Err(error)) => return Err(error),
             }
         }
     }
 
     fn lease_id(key: &[u8]) -> i64 {
         i64::from_be_bytes(city::hash64(key).to_be_bytes())
-    }
-
-    async fn lease(&self, lease_id: i64) -> Result<bool, Error> {
-        match self.client.as_ref().lease_keep_alive(lease_id).await {
-            Ok(()) => Ok(false),
-            Err(Error::LeaseIdNotFound { .. }) => {
-                self.client
-                    .as_ref()
-                    .lease_grant(self.time_to_live, Some(lease_id))
-                    .await?;
-                Ok(true)
-            }
-            Err(error) => Err(error),
-        }
     }
 
     //
