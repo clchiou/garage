@@ -82,14 +82,14 @@ impl Actor {
 
                 guard = self.tasks.join_next() => {
                     let Some(guard) = guard else { break };
-                    self.handle_task(guard)?;
+                    self.handle_task(guard);
                 }
             }
         }
 
         self.tasks.cancel();
         while let Some(guard) = self.tasks.join_next().await {
-            self.handle_task(guard)?;
+            self.handle_task(guard);
         }
 
         Ok(())
@@ -111,13 +111,11 @@ impl Actor {
             .unwrap();
     }
 
-    fn handle_task(&self, mut guard: Guard) -> Result<(), Error> {
+    fn handle_task(&self, mut guard: Guard) {
         match guard.take_result() {
-            Ok(result) => result,
-            Err(error) => {
-                tracing::warn!(%error, "blob handler task error");
-                Ok(())
-            }
+            Ok(Ok(())) => {}
+            Ok(Err(error)) => tracing::warn!(%error, "blob handler"),
+            Err(error) => tracing::warn!(%error, "blob handler task"),
         }
     }
 }
