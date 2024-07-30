@@ -138,6 +138,14 @@ impl<T, Fut> Queue<T, Fut> {
     //
     // Future State Transition Methods
     //
+    // NOTE: Generally, the call sequence is either:
+    // * `Future::poll` returns `Pending` -> `push_pending` -> `resume_polling`.
+    // * `Future::poll` returns `Ready` -> `push_ready`.
+    //
+    // However, `resume_polling` could be called before `push_pending` (when yielding) or before
+    // `push_ready`.  I have observed the latter call sequence in production, but I do not
+    // understand why it occurs.  It might also be due to yielding.
+    //
 
     /// input -> polling
     pub(super) fn push_polling(&mut self, future: Fut) {
@@ -157,9 +165,13 @@ impl<T, Fut> Queue<T, Fut> {
     /// current -> ready
     pub(super) fn push_ready(&mut self, id: Id, value: T, future: Fut) {
         // Remove the reserved spot in `pending`.
-        let pending = self.get_pending_mut(id).unwrap();
-        assert!(pending.1.is_none());
-        self.pending.remove(id.0);
+        //
+        // If `get_pending_mut` returns `None`, it indicates that `resume_polling` was called.
+        // While this is unusual, it is fine.
+        if let Some(pending) = self.get_pending_mut(id) {
+            assert!(pending.1.is_none());
+            self.pending.remove(id.0);
+        }
 
         self.ready.push_back((value, future));
         self.ready_wakers.wake_all();
@@ -187,11 +199,12 @@ impl<T, Fut> Queue<T, Fut> {
             return;
         }
         // Remove the reserved spot in `pending`.
-        let (_, Some(future)) = self.pending.remove(id.0) else {
+        let (serial, Some(future)) = self.pending.remove(id.0) else {
             // `resume_polling` is called before `push_pending`, which indicates that this task
             // should yield.
             return;
         };
+        assert_eq!(serial, id.1);
         self.polling.push_back(future);
         self.wake_one();
     }
@@ -581,21 +594,25 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Option::unwrap()")]
-    fn push_ready_more_than_once() {
-        let mut test = Test::new([101]);
-        let (id, fut) = test.queue.next_polling().unwrap();
-        test.queue.push_ready(id, (), fut);
-        test.queue.push_ready(id, (), fut); // Panic!
-    }
-
-    #[test]
     #[should_panic(expected = "assertion failed: pending.1.is_none()")]
     fn push_ready_after_push_pending() {
         let mut test = Test::new([101]);
         let (id, fut) = test.queue.next_polling().unwrap();
         assert_eq!(test.queue.push_pending(id, fut), Ok(()));
         test.queue.push_ready(id, (), fut); // Panic!
+    }
+
+    #[test]
+    fn push_ready_after_resume_polling() {
+        let mut test = Test::new([101]);
+        let (id, fut) = test.queue.next_polling().unwrap();
+        test.assert(false, (0, 1, 0, 0), ([true; 2], [true; 2]), (0, 0));
+
+        test.queue.resume_polling(id);
+        test.assert(false, (0, 0, 0, 0), ([true; 2], [true; 2]), (0, 0));
+
+        test.queue.push_ready(id, (), fut);
+        test.assert(false, (0, 0, 0, 1), ([false; 2], [false, true]), (2, 1));
     }
 
     #[test]
