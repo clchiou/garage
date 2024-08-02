@@ -1,6 +1,7 @@
 #![feature(assert_matches)]
 
 use std::assert_matches::assert_matches;
+use std::collections::HashMap;
 use std::io;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -9,7 +10,7 @@ use futures::stream::StreamExt;
 use snafu::prelude::*;
 use tokio::sync::{broadcast, OwnedSemaphorePermit, Semaphore};
 use tokio::task;
-use tokio::time;
+use tokio::time::{self, Instant};
 use uuid::Uuid;
 
 use etcd_pubsub::SubscriberError;
@@ -18,6 +19,7 @@ use g1_base::fmt::{DebugExt, InsertPlaceholder};
 use g1_base::iter::IteratorExt;
 use g1_base::sync::MutexExt;
 use g1_tokio::task::{Cancel, JoinGuard, JoinQueue};
+use g1_tokio::time::queue::naive::FixedDelayQueue;
 
 use dkvcache_client_raw::{RawClient, RawClientGuard};
 use dkvcache_rpc::service::{self, Event, PubSub, Server, Subscriber};
@@ -64,6 +66,12 @@ struct Actor {
     #[debug(with = InsertPlaceholder)]
     subscriber: Subscriber,
     servers: Arc<ServerMap>,
+
+    // I observed that our etcd cluster is quite unstable, likely due to running on hardware that
+    // falls below the recommended specifications.  To mitigate this issue, we will only disconnect
+    // from a server when we have not seen it for a while.
+    last_seen: HashMap<Uuid, Instant>,
+    will_disconnect: FixedDelayQueue<Uuid>,
 }
 
 #[derive(Debug)]
@@ -74,6 +82,8 @@ struct ServerMap {
 }
 
 type ServerTable = HashBasedBiTable<Uuid, Option<task::Id>, Option<RawClient>>;
+
+const DISCONNECT_BEFORE: Duration = Duration::from_secs(20);
 
 impl Service {
     pub async fn prepare(
@@ -155,12 +165,18 @@ impl Actor {
         subscriber: Subscriber,
         servers: Arc<ServerMap>,
     ) -> Self {
+        let now = Instant::now();
+        let last_seen = HashMap::from_iter(servers.servers.must_lock().rows().map(|id| (*id, now)));
         Self {
             cancel,
             dropped,
             pubsub,
             subscriber,
             servers,
+
+            last_seen,
+            // TODO: Consider making this delay configurable.
+            will_disconnect: FixedDelayQueue::new(DISCONNECT_BEFORE),
         }
     }
 
@@ -186,6 +202,20 @@ impl Actor {
                     }
                 }
 
+                Some(id) = self.will_disconnect.pop() => {
+                    // Let us try updating `last_seen` one last time.
+                    self.update_last_seen(&self.pubsub.scan().await?);
+
+                    if self
+                        .last_seen
+                        .get(&id)
+                        .map_or(true, |last_seen| last_seen.elapsed() > DISCONNECT_BEFORE)
+                    {
+                        tracing::warn!(%id, "disconnect unseen server");
+                        self.servers.disconnect(id);
+                    }
+                }
+
                 guard = self.servers.tasks.join_next() => {
                     let Some(guard) = guard else { break };
                     self.servers.handle_task(guard);
@@ -208,7 +238,9 @@ impl Actor {
             match self.pubsub.subscribe().await {
                 Ok(subscriber) => {
                     self.subscriber = subscriber;
-                    self.servers.connect_many(self.pubsub.scan().await?);
+                    let servers = self.pubsub.scan().await?;
+                    self.update_last_seen(&servers);
+                    self.servers.connect_many(servers);
                     return Ok(());
                 }
                 Err(error) => {
@@ -225,14 +257,27 @@ impl Actor {
         std::unreachable!()
     }
 
-    fn handle_subscriber_event(&self, event: Event) {
+    fn handle_subscriber_event(&mut self, event: Event) {
         match event {
             Event::Create((id, server))
             | Event::Update {
                 id, new: server, ..
-            } => self.servers.connect(id, server),
-            Event::Delete((id, _)) => self.servers.disconnect(id),
+            } => {
+                self.last_seen.insert(id, Instant::now());
+                self.servers.connect(id, server);
+            }
+            Event::Delete((id, _)) => {
+                self.will_disconnect.push(id);
+            }
         }
+    }
+
+    fn update_last_seen(&mut self, servers: &[(Uuid, Server)]) {
+        let now = Instant::now();
+        self.last_seen
+            .extend(servers.iter().map(|(id, _)| (*id, now)));
+        self.last_seen
+            .retain(|_, last_seen| now - *last_seen <= DISCONNECT_BEFORE);
     }
 }
 
