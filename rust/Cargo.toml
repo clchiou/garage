@@ -41,6 +41,8 @@ members = [
     "g1/capnp",
     "g1/cli",
     "g1/futures",
+    "g1/html",
+    "g1/html/macros",
     "g1/msg",
     "g1/nix",
     "g1/param",
@@ -158,6 +160,8 @@ g1_bytes_derive = { path = "g1/bytes_derive" }
 g1_capnp = { path = "g1/capnp" }
 g1_cli = { path = "g1/cli" }
 g1_futures = { path = "g1/futures" }
+g1_html = { path = "g1/html" }
+g1_html_macros = { path = "g1/html/macros" }
 g1_msg = { path = "g1/msg" }
 g1_nix = { path = "g1/nix" }
 g1_param = { path = "g1/param" }
