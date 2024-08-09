@@ -30,7 +30,7 @@ pub(crate) fn match_blob_dir(blob_dir: &DirEntry) -> Result<Option<PathBuf>, Err
     }
     let path = blob_dir.path();
     Ok(try {
-        regex!(r"^[0-9a-f]{2}$") // Use only lowercase letters (see `to_hex` below).
+        regex!(r"(?-u)^[0-9a-f]{2}$") // Use only lowercase letters (see `to_hex` below).
             .is_match(path.file_name()?.to_str()?)
             .then_some(path)?
     })
@@ -43,7 +43,7 @@ pub(crate) fn match_blob(blob: &DirEntry) -> Result<Option<PathBuf>, Error> {
     }
     let path = blob.path();
     Ok(try {
-        regex!(r"^[0-9a-f]{30}$") // Use only lowercase letters (see `to_hex` below).
+        regex!(r"(?-u)^[0-9a-f]{30}$") // Use only lowercase letters (see `to_hex` below).
             .is_match(path.file_name()?.to_str()?)
             .then_some(path)?
     })

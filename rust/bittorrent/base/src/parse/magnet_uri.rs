@@ -17,18 +17,18 @@ pub enum Error {
 
 pub(super) fn parse(uri: &str) -> Result<impl Iterator<Item = (&str, &str)>, Error> {
     let query_regex = regex!(
-        r"(?ix)
+        r"(?ix-u)
         ^
         magnet:
         (?:
             \?
             (
-                (?: [^&=\#\s]* = [^&=\#\s]* )?
-                (?: & [^&=\#\s]* = [^&=\#\s]* )*
+                (?: [[:ascii:]--[&=\#[:space:]]]* = [[:ascii:]--[&=\#[:space:]]]* )?
+                (?: & [[:ascii:]--[&=\#[:space:]]]* = [[:ascii:]--[&=\#[:space:]]]* )*
                 &?
             )
         )?
-        (?: \# .* )?
+        (?: \# [[:ascii:]]* )?
         $
         "
     );
@@ -37,29 +37,31 @@ pub(super) fn parse(uri: &str) -> Result<impl Iterator<Item = (&str, &str)>, Err
         .context(InvalidMagnetUriSnafu)?
         .get(1)
         .map_or("", |m| m.as_str());
-    Ok(regex!(r"(?ix) ([^&=\#\s]*) = ([^&=\#\s]*)")
-        .captures_iter(query)
-        .map(|c| {
-            let (_, [name, value]) = c.extract();
-            (name, value)
-        }))
+    Ok(
+        regex!(r"(?ix-u) ([[:ascii:]--[&=\#[:space:]]]*) = ([[:ascii:]--[&=\#[:space:]]]*)")
+            .captures_iter(query)
+            .map(|c| {
+                let (_, [name, value]) = c.extract();
+                (name, value)
+            }),
+    )
 }
 
 pub(super) fn is_exact_topic(name: &str) -> Option<Option<usize>> {
-    regex!(r"(?ix) ^ xt (?: \. (\d+) )? $")
+    regex!(r"(?ix-u) ^ xt (?: \. (\d+) )? $")
         .captures(name)
         .map(|captures| captures.get(1).map(|count| count.as_str().parse().unwrap()))
 }
 
 pub(super) fn parse_urn(urn: &str) -> Result<(&str, &str), Error> {
     let urn_regex = regex!(
-        r"(?ix)
+        r"(?ix-u)
         ^
         urn:
         ( (?: - | [[:alnum:]] )+ )
         :
-        ( [^?\#\s]+ )
-        (?: [?\#] .* )?
+        ( [[:ascii:]--[?\#[:space:]]]+ )
+        (?: [?\#] [[:ascii:]]* )?
         $
         "
     );
@@ -84,9 +86,9 @@ pub(super) fn parse_protocol(protocol: &str) -> Result<(), Error> {
 }
 
 pub(super) fn parse_info_hash(info_hash: &str) -> Result<InfoHash, Error> {
-    if regex!(r"^[[:xdigit:]]{40}$").is_match(info_hash) {
+    if regex!(r"(?-u)^[[:xdigit:]]{40}$").is_match(info_hash) {
         Ok(info_hash.parse().unwrap())
-    } else if regex!(r"^[A-Z2-7]{32}$").is_match(info_hash) {
+    } else if regex!(r"(?-u)^[A-Z2-7]{32}$").is_match(info_hash) {
         // Support Base32 for backwards compatibility.
         Ok(InfoHash::new(decode_base32(info_hash)))
     } else {

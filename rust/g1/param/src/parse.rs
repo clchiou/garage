@@ -13,11 +13,11 @@ pub fn duration(d: String) -> Result<Duration, Error> {
 }
 
 fn parse_duration(duration: &str) -> Option<Duration> {
-    if !regex!(r"(?i)^\s*(?:\d+\s*(?:s|ms|us|ns)\s*)+$").is_match(duration) {
+    if !regex!(r"(?i-u)^\s*(?:\d+\s*(?:s|ms|us|ns)\s*)+$").is_match(duration) {
         return None;
     }
     let mut acc = Duration::ZERO;
-    for (_, [amount, unit]) in regex!(r"(?i)\s*(\d+)\s*(s|ms|us|ns)\s*")
+    for (_, [amount, unit]) in regex!(r"(?i-u)\s*(\d+)\s*(s|ms|us|ns)\s*")
         .captures_iter(duration)
         .map(|c| c.extract())
     {
@@ -68,5 +68,7 @@ mod tests {
         assert_eq!(parse_duration("-1s"), None);
 
         assert_eq!(parse_duration("1ps"), None);
+
+        assert_eq!(parse_duration("𝟙𝟘s"), None);
     }
 }

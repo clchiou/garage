@@ -154,14 +154,14 @@ fn parse_format(mut format: &str) -> Result<(Vec<&str>, Vec<Arg>), &str> {
         end += start;
 
         let (_, arg, field, spec) = lazy_regex::regex_captures!(
-            r"(?x)
+            r"(?x-u)
             ^
-            \s*
+            [[:space:]]*
             (?:
                 ( [[:digit:]]+ | [A-Za-z_][[:word:]]* )
                 ( (?: \. (?: [[:digit:]]+ | [A-Za-z_][[:word:]]* ) )* )
             )?
-            \s*
+            [[:space:]]*
             ( : r? )?
             $
             ",
