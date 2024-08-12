@@ -38,8 +38,18 @@ def define_package(
     rule_build = name_prefix + 'build'
 
     @foreman.rule(rule_build)
-    @foreman.rule.depend('//bases:build')
-    @foreman.rule.depend('//third-party/nodejs:build')
+    @foreman.rule.depend(
+        '//bases:build',
+        when=lambda ps: ps['//bases:inside-builder-pod'] is True,
+    )
+    @foreman.rule.depend(
+        '//third-party/nodejs:build',
+        when=lambda ps: ps['//bases:inside-builder-pod'] is True,
+    )
+    @foreman.rule.depend(
+        '//releases:build',
+        when=lambda ps: ps['//bases:inside-builder-pod'] is not True,
+    )
     def build(parameters):
         src_path = find_package(
             parameters,
