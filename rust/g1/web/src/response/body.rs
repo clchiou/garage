@@ -23,6 +23,10 @@ pub fn full(data: &'static [u8]) -> Body {
     Full::from(data).map_err(|_| std::unreachable!()).boxed()
 }
 
+pub fn bytes(data: Bytes) -> Body {
+    Full::new(data).map_err(|_| std::unreachable!()).boxed()
+}
+
 pub fn file(file: File) -> Result<Body, Error> {
     Ok(FileBody::new(file, BUFFER_SIZE)?.boxed())
 }
