@@ -19,6 +19,7 @@ use serde::Deserialize;
 use snafu::prelude::*;
 
 use g1_base::sync::MutexExt;
+use g1_url::UrlExt;
 
 use crate::private::{Request, StreamRequest};
 use crate::response::Status;
@@ -96,13 +97,13 @@ impl Default for ClientBuilder {
 impl ClientBuilder {
     pub fn new() -> Self {
         Self {
-            endpoint: g1_url::ensure_trailing_slash(endpoint().clone()),
+            endpoint: endpoint().clone().ensure_trailing_slash(),
             auth: auth().clone(),
         }
     }
 
     pub fn endpoint(mut self, endpoint: Url) -> Self {
-        self.endpoint = g1_url::ensure_trailing_slash(endpoint);
+        self.endpoint = endpoint.ensure_trailing_slash();
         self
     }
 

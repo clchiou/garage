@@ -1,12 +1,18 @@
 use url::Url;
 
-// We need this due to the idiosyncrasy of `Url::join`.
-pub fn ensure_trailing_slash(mut url: Url) -> Url {
-    let path = url.path();
-    if !path.ends_with('/') {
-        url.set_path(&std::format!("{path}/"));
+pub trait UrlExt {
+    // We need this due to the idiosyncrasy of `Url::join`.
+    fn ensure_trailing_slash(self) -> Self;
+}
+
+impl UrlExt for Url {
+    fn ensure_trailing_slash(mut self) -> Self {
+        let path = self.path();
+        if !path.ends_with('/') {
+            self.set_path(&std::format!("{path}/"));
+        }
+        self
     }
-    url
 }
 
 #[cfg(test)]
@@ -18,9 +24,9 @@ mod tests {
     }
 
     #[test]
-    fn test_ensure_trailing_slash() {
+    fn ensure_trailing_slash() {
         fn test(url: &str, expect: &str) {
-            assert_eq!(ensure_trailing_slash(u(url)).path(), expect);
+            assert_eq!(u(url).ensure_trailing_slash().path(), expect);
         }
 
         assert_eq!(u("http://127.0.0.1:8000").path(), "/");
