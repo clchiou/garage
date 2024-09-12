@@ -121,7 +121,7 @@ impl ArgValue {
 
 // This accepts an extended format [syntax] that supports limited field access expressions.
 // [syntax]: https://doc.rust-lang.org/std/fmt/#syntax
-fn parse_format(mut format: &str) -> Result<(Vec<&str>, Vec<Arg>), &str> {
+fn parse_format(mut format: &str) -> Result<(Vec<String>, Vec<Arg>), &str> {
     let mut literals = Vec::new();
     let mut args = Vec::new();
     let mut index = iter::successors(Some(0), |i| Some(i + 1));
@@ -189,6 +189,18 @@ fn parse_format(mut format: &str) -> Result<(Vec<&str>, Vec<Arg>), &str> {
     if !format.is_empty() {
         literals.push(format);
     }
+
+    let literals = literals
+        .into_iter()
+        .map(|literal| {
+            lazy_regex::regex_replace_all!(r"\{\{|\}\}", literal, |brace| match brace {
+                "{{" => "{",
+                "}}" => "}",
+                _ => std::panic!(),
+            })
+            .into_owned()
+        })
+        .collect();
 
     Ok((literals, args))
 }
@@ -286,6 +298,15 @@ mod tests {
     use quote::quote as q;
 
     use super::*;
+
+    macro_rules! vs {
+        ($($x:expr),+ $(,)?) => {
+            vec![$($x.to_string()),*]
+        };
+        () => {
+            vec![]
+        };
+    }
 
     macro_rules! arg {
         ($x:ident $a:literal $($f:literal)*) => {
@@ -396,81 +417,79 @@ mod tests {
 
     #[test]
     fn test_parse_format() {
-        assert_eq!(parse_format(""), Ok((vec![], vec![])));
-        assert_eq!(parse_format("abc"), Ok((vec!["abc"], vec![])));
-        assert_eq!(parse_format("{{}}"), Ok((vec!["{{}}"], vec![])));
-        assert_eq!(parse_format("   {{"), Ok((vec!["   {{"], vec![])));
-        assert_eq!(parse_format("   }}"), Ok((vec!["   }}"], vec![])));
-        assert_eq!(parse_format("abc{{def"), Ok((vec!["abc{{def"], vec![])));
-        assert_eq!(parse_format("abc}}def"), Ok((vec!["abc}}def"], vec![])));
-        assert_eq!(parse_format("x{{ y }}z"), Ok((vec!["x{{ y }}z"], vec![])));
+        assert_eq!(parse_format(""), Ok((vs![], vec![])));
+        assert_eq!(parse_format("abc"), Ok((vs!["abc"], vec![])));
+        assert_eq!(parse_format("{{}}"), Ok((vs!["{}"], vec![])));
+        assert_eq!(parse_format("{{}}{{{{}}}}"), Ok((vs!["{}{{}}"], vec![])));
+        assert_eq!(parse_format("   {{"), Ok((vs!["   {"], vec![])));
+        assert_eq!(parse_format("   }}"), Ok((vs!["   }"], vec![])));
+        assert_eq!(parse_format("abc{{def"), Ok((vs!["abc{def"], vec![])));
+        assert_eq!(parse_format("abc}}def"), Ok((vs!["abc}def"], vec![])));
+        assert_eq!(parse_format("x{{ y }}z"), Ok((vs!["x{ y }z"], vec![])));
 
-        assert_eq!(parse_format("{}"), Ok((vec![""], vec![arg!(i 0)])));
-        assert_eq!(parse_format("{   }"), Ok((vec![""], vec![arg!(i 0)])));
-        assert_eq!(parse_format("{   :}"), Ok((vec![""], vec![arg!(i 0)])));
-        assert_eq!(parse_format("{:r}"), Ok((vec![""], vec![arg!(I 0)])));
-        assert_eq!(parse_format("{   :r}"), Ok((vec![""], vec![arg!(I 0)])));
-        assert_eq!(
-            parse_format("{{{}}}"),
-            Ok((vec!["{{", "}}"], vec![arg!(i 0)]))
-        );
+        assert_eq!(parse_format("{}"), Ok((vs![""], vec![arg!(i 0)])));
+        assert_eq!(parse_format("{   }"), Ok((vs![""], vec![arg!(i 0)])));
+        assert_eq!(parse_format("{   :}"), Ok((vs![""], vec![arg!(i 0)])));
+        assert_eq!(parse_format("{:r}"), Ok((vs![""], vec![arg!(I 0)])));
+        assert_eq!(parse_format("{   :r}"), Ok((vs![""], vec![arg!(I 0)])));
+        assert_eq!(parse_format("{{{}}}"), Ok((vs!["{", "}"], vec![arg!(i 0)])));
         assert_eq!(
             parse_format("{}{:r}"),
-            Ok((vec!["", ""], vec![arg!(i 0), arg!(I 1)])),
+            Ok((vs!["", ""], vec![arg!(i 0), arg!(I 1)])),
         );
         assert_eq!(
             parse_format("a{}b{:r}c"),
-            Ok((vec!["a", "b", "c"], vec![arg!(i 0), arg!(I 1)])),
+            Ok((vs!["a", "b", "c"], vec![arg!(i 0), arg!(I 1)])),
         );
 
-        assert_eq!(parse_format("{0}"), Ok((vec![""], vec![arg!(i 0)])));
-        assert_eq!(parse_format("{ 0 }"), Ok((vec![""], vec![arg!(i 0)])));
-        assert_eq!(parse_format("{ 0 :}"), Ok((vec![""], vec![arg!(i 0)])));
-        assert_eq!(parse_format("{1:r}"), Ok((vec![""], vec![arg!(I 1)])));
-        assert_eq!(parse_format("{ 1 :r}"), Ok((vec![""], vec![arg!(I 1)])));
-        assert_eq!(parse_format("{012}"), Ok((vec![""], vec![arg!(i 12)])));
+        assert_eq!(parse_format("{0}"), Ok((vs![""], vec![arg!(i 0)])));
+        assert_eq!(parse_format("{ 0 }"), Ok((vs![""], vec![arg!(i 0)])));
+        assert_eq!(parse_format("{ 0 :}"), Ok((vs![""], vec![arg!(i 0)])));
+        assert_eq!(parse_format("{1:r}"), Ok((vs![""], vec![arg!(I 1)])));
+        assert_eq!(parse_format("{ 1 :r}"), Ok((vs![""], vec![arg!(I 1)])));
+        assert_eq!(parse_format("{012}"), Ok((vs![""], vec![arg!(i 12)])));
         assert_eq!(
             parse_format("{2}{1:r}"),
-            Ok((vec!["", ""], vec![arg!(i 2), arg!(I 1)])),
+            Ok((vs!["", ""], vec![arg!(i 2), arg!(I 1)])),
         );
         assert_eq!(
             parse_format("a{2}b{1 :r}c"),
-            Ok((vec!["a", "b", "c"], vec![arg!(i 2), arg!(I 1)])),
+            Ok((vs!["a", "b", "c"], vec![arg!(i 2), arg!(I 1)])),
         );
 
-        assert_eq!(parse_format("{x}"), Ok((vec![""], vec![arg!(n "x")])));
-        assert_eq!(parse_format("{ x :}"), Ok((vec![""], vec![arg!(n "x")])));
-        assert_eq!(parse_format("{ x :r}"), Ok((vec![""], vec![arg!(N "x")])));
-        assert_eq!(parse_format("{_}"), Ok((vec![""], vec![arg!(n "_")])));
+        assert_eq!(parse_format("{x}"), Ok((vs![""], vec![arg!(n "x")])));
+        assert_eq!(parse_format("{ x :}"), Ok((vs![""], vec![arg!(n "x")])));
+        assert_eq!(parse_format("{ x :r}"), Ok((vs![""], vec![arg!(N "x")])));
+        assert_eq!(parse_format("{_}"), Ok((vs![""], vec![arg!(n "_")])));
         assert_eq!(
             parse_format("{x.y.z}"),
-            Ok((vec![""], vec![arg!(n "x" "y" "z")])),
+            Ok((vs![""], vec![arg!(n "x" "y" "z")])),
         );
         assert_eq!(
             parse_format("{ x.y.z }"),
-            Ok((vec![""], vec![arg!(n "x" "y" "z")])),
+            Ok((vs![""], vec![arg!(n "x" "y" "z")])),
         );
         assert_eq!(
             parse_format("{ x.y.z :r}"),
-            Ok((vec![""], vec![arg!(N "x" "y" "z")])),
+            Ok((vs![""], vec![arg!(N "x" "y" "z")])),
         );
         assert_eq!(
             parse_format("{x}{y:r}"),
-            Ok((vec!["", ""], vec![arg!(n "x"), arg!(N "y")])),
+            Ok((vs!["", ""], vec![arg!(n "x"), arg!(N "y")])),
         );
         assert_eq!(
             parse_format("a{x}b{y :r}c"),
-            Ok((vec!["a", "b", "c"], vec![arg!(n "x"), arg!(N "y")])),
+            Ok((vs!["a", "b", "c"], vec![arg!(n "x"), arg!(N "y")])),
         );
 
         assert_eq!(
             parse_format("{{{ 2.x.1.y.0.z :}}}"),
-            Ok((vec!["{{", "}}"], vec![arg!(i 2 "x" "1" "y" "0" "z")])),
+            Ok((vs!["{", "}"], vec![arg!(i 2 "x" "1" "y" "0" "z")])),
         );
         assert_eq!(
             parse_format("{}{3}{x}{:r}{2:r}{a.b.c:r}"),
             Ok((
-                vec!["", "", "", "", "", ""],
+                vs!["", "", "", "", "", ""],
                 vec![
                     arg!(i 0),
                     arg!(i 3),
@@ -523,7 +542,7 @@ mod tests {
         test_ok(
             fa(q!("{{{}}}"), [p(q!(x))]),
             q!(::g1_html::FormatArgs::new(
-                &["{{", "}}"],
+                &["{", "}"],
                 &[(&(x), ::g1_html::FormatSpec::None)]
             )),
         );
