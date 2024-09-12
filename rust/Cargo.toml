@@ -35,6 +35,7 @@ members = [
     "etcd/client",
     "etcd/pubsub",
     "g1/base",
+    "g1/base64",
     "g1/base_derive",
     "g1/bytes",
     "g1/bytes_derive",
@@ -154,6 +155,7 @@ etcd_client = { path = "etcd/client" }
 etcd_pubsub = { path = "etcd/pubsub" }
 
 g1_base = { path = "g1/base" }
+g1_base64 = { path = "g1/base64" }
 g1_base_derive = { path = "g1/base_derive" }
 g1_bytes = { path = "g1/bytes" }
 g1_bytes_derive = { path = "g1/bytes_derive" }
