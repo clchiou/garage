@@ -4,6 +4,13 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+async-trait.workspace = true
+bytes.workspace = true
+futures.workspace = true
+http-body-util.workspace = true
 hyper.workspace = true
 lazy-regex.workspace = true
 url.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true

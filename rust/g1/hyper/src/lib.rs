@@ -1,5 +1,13 @@
+use std::cmp;
+use std::marker::Unpin;
+
+use async_trait::async_trait;
+use bytes::{BufMut, Bytes, BytesMut};
+use futures::stream::TryStreamExt;
+use http_body_util::BodyDataStream;
+use hyper::body::Body;
 use hyper::header::{HeaderValue, ACCEPT_LANGUAGE, CONTENT_LENGTH};
-use hyper::Request;
+use hyper::{Error, Request};
 use url::Url;
 
 pub trait RequestExt {
@@ -15,6 +23,17 @@ pub trait RequestExt {
     fn accept_language(&self) -> impl Iterator<Item = Result<(&str, f64), &HeaderValue>>;
 
     fn content_length(&self) -> Result<Option<u64>, &HeaderValue>;
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BodyLimitExceededError;
+
+#[async_trait]
+pub trait RequestBodyExt {
+    async fn read_body_to_end(
+        &mut self,
+        limit: usize,
+    ) -> Result<Result<Bytes, BodyLimitExceededError>, Error>;
 }
 
 //
@@ -51,6 +70,33 @@ impl<T> RequestExt for Request<T> {
                     .map_err(|_| value)
             })
             .transpose()
+    }
+}
+
+#[async_trait]
+impl<T> RequestBodyExt for Request<T>
+where
+    T: Body<Data = Bytes, Error = Error> + Send + Unpin,
+{
+    async fn read_body_to_end(
+        &mut self,
+        limit: usize,
+    ) -> Result<Result<Bytes, BodyLimitExceededError>, Error> {
+        let mut body = BytesMut::with_capacity(cmp::min(
+            self.content_length()
+                .ok()
+                .flatten()
+                .map_or(0, |x| x.try_into().unwrap_or(0)),
+            limit,
+        ));
+        let mut frames = BodyDataStream::new(self.body_mut());
+        while let Some(frame) = frames.try_next().await? {
+            if body.len() + frame.len() > limit {
+                return Ok(Err(BodyLimitExceededError));
+            }
+            body.put_slice(&frame);
+        }
+        Ok(Ok(body.into()))
     }
 }
 
@@ -126,6 +172,10 @@ where
 
 #[cfg(test)]
 mod tests {
+    use futures::stream;
+    use http_body_util::StreamBody;
+    use hyper::body::Frame;
+
     use super::*;
 
     fn u(url: &str) -> Url {
@@ -228,6 +278,37 @@ mod tests {
 
         test(&["18446744073709551615"], Ok(Some(18446744073709551615)));
         test(&["18446744073709551616"], Err("18446744073709551616"));
+    }
+
+    #[tokio::test]
+    async fn read_body_to_end() {
+        fn b(data: &'static [u8]) -> Bytes {
+            data.into()
+        }
+
+        async fn run(body: &'static [u8], limit: usize) -> Result<Bytes, BodyLimitExceededError> {
+            Request::get("/")
+                .header(CONTENT_LENGTH, u64::MAX)
+                .body(StreamBody::new(stream::iter(
+                    body.chunks(1).map(|chunk| Ok(Frame::data(chunk.into()))),
+                )))
+                .unwrap()
+                .read_body_to_end(limit)
+                .await
+                .unwrap()
+        }
+
+        assert_eq!(run(b"", 2).await, Ok(b(b"")));
+        assert_eq!(run(b"", 1).await, Ok(b(b"")));
+        assert_eq!(run(b"", 0).await, Ok(b(b"")));
+
+        assert_eq!(run(b"x", 2).await, Ok(b(b"x")));
+        assert_eq!(run(b"x", 1).await, Ok(b(b"x")));
+        assert_eq!(run(b"x", 0).await, Err(BodyLimitExceededError));
+
+        assert_eq!(run(b"Hello, World!", 14).await, Ok(b(b"Hello, World!")));
+        assert_eq!(run(b"Hello, World!", 13).await, Ok(b(b"Hello, World!")));
+        assert_eq!(run(b"Hello, World!", 12).await, Err(BodyLimitExceededError));
     }
 
     #[test]
