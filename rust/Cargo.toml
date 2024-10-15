@@ -50,6 +50,7 @@ members = [
     "g1/param",
     "g1/reqwest",
     "g1/serde",
+    "g1/serde_json",
     "g1/tokio",
     "g1/url",
     "g1/web",
@@ -171,6 +172,7 @@ g1_nix = { path = "g1/nix" }
 g1_param = { path = "g1/param" }
 g1_reqwest = { path = "g1/reqwest" }
 g1_serde = { path = "g1/serde" }
+g1_serde_json = { path = "g1/serde_json" }
 g1_tokio = { path = "g1/tokio" }
 g1_url = { path = "g1/url" }
 g1_web = { path = "g1/web" }
