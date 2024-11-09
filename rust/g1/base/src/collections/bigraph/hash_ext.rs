@@ -354,7 +354,7 @@ where
     }
 }
 
-impl<'a, C, T, S> Debug for SetView<'a, C, T, S>
+impl<C, T, S> Debug for SetView<'_, C, T, S>
 where
     C: CursorSet,
     T: Debug,
@@ -364,7 +364,7 @@ where
     }
 }
 
-impl<'a, C, T, S> PartialEq for SetView<'a, C, T, S>
+impl<C, T, S> PartialEq for SetView<'_, C, T, S>
 where
     C: CursorSet,
     T: Eq + Hash,
@@ -375,7 +375,7 @@ where
     }
 }
 
-impl<'a, C, T, S> SetView<'a, C, T, S>
+impl<C, T, S> SetView<'_, C, T, S>
 where
     C: CursorSet,
 {
@@ -395,7 +395,7 @@ where
     }
 }
 
-impl<'a, C, T, S> SetView<'a, C, T, S>
+impl<C, T, S> SetView<'_, C, T, S>
 where
     C: CursorSet,
     T: Eq + Hash,
@@ -432,7 +432,7 @@ impl CursorSet for HashSet<Cursor> {
     }
 }
 
-impl<'a> CursorSet for &'a HashSet<Cursor> {
+impl CursorSet for &HashSet<Cursor> {
     fn is_empty(&self) -> bool {
         (*self).is_empty()
     }

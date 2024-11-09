@@ -213,7 +213,7 @@ where
             .flat_map(|cs| cs.iter_mut())
     }
 
-    pub fn iter_column<'a, Q>(&'a self, column: &'a Q) -> impl Iterator<Item = (&R, &V)>
+    pub fn iter_column<'a, Q>(&'a self, column: &'a Q) -> impl Iterator<Item = (&'a R, &'a V)>
     where
         C: Borrow<Q>,
         Q: PartialEq<C> + ?Sized,
@@ -224,7 +224,10 @@ where
         })
     }
 
-    pub fn iter_column_mut<'a, Q>(&'a mut self, column: &'a Q) -> impl Iterator<Item = (&R, &mut V)>
+    pub fn iter_column_mut<'a, Q>(
+        &'a mut self,
+        column: &'a Q,
+    ) -> impl Iterator<Item = (&'a R, &'a mut V)>
     where
         C: Borrow<Q>,
         Q: PartialEq<C> + ?Sized,

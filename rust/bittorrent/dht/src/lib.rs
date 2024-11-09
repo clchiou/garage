@@ -6,7 +6,6 @@
 #![feature(try_blocks)]
 #![cfg_attr(test, feature(assert_matches))]
 #![cfg_attr(test, feature(generic_arg_infer))]
-#![cfg_attr(test, feature(is_sorted))]
 
 mod agent;
 mod dht;

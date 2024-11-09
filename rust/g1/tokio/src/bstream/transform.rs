@@ -210,10 +210,12 @@ where
     RecvTransform: Transform + Send,
     SendTransform: Transform + Send,
 {
-    type RecvHalf<'a> = Transformer<Stream::RecvHalf<'a>, &'a mut RecvTransform>
+    type RecvHalf<'a>
+        = Transformer<Stream::RecvHalf<'a>, &'a mut RecvTransform>
     where
         Self: 'a;
-    type SendHalf<'a> = Transformer<Stream::SendHalf<'a>, &'a mut SendTransform>
+    type SendHalf<'a>
+        = Transformer<Stream::SendHalf<'a>, &'a mut SendTransform>
     where
         Self: 'a;
 

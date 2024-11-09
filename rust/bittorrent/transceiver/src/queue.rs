@@ -55,13 +55,13 @@ impl Queues {
     }
 }
 
-impl<'a> QueueStub<'a> {
+impl QueueStub<'_> {
     pub(crate) fn remove(self) -> RecvStats {
         self.0.remove().recv_stats
     }
 }
 
-impl<'a> Deref for QueueStub<'a> {
+impl Deref for QueueStub<'_> {
     type Target = Queue;
 
     fn deref(&self) -> &Self::Target {
@@ -69,7 +69,7 @@ impl<'a> Deref for QueueStub<'a> {
     }
 }
 
-impl<'a> DerefMut for QueueStub<'a> {
+impl DerefMut for QueueStub<'_> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.0.get_mut()
     }

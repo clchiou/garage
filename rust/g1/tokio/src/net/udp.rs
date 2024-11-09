@@ -153,13 +153,13 @@ impl UdpSocket<Arc<net::UdpSocket>> {
     }
 }
 
-impl<'a> UdpStream<'a> {
+impl UdpStream<'_> {
     pub fn socket(&self) -> &net::UdpSocket {
         self.socket
     }
 }
 
-impl<'a> UdpSink<'a> {
+impl UdpSink<'_> {
     pub fn socket(&self) -> &net::UdpSocket {
         self.socket
     }
@@ -212,7 +212,7 @@ impl Stream for UdpSocket {
     gen_stream_impl!();
 }
 
-impl<'a> Stream for UdpStream<'a> {
+impl Stream for UdpStream<'_> {
     gen_stream_impl!();
 }
 
@@ -306,7 +306,7 @@ impl Sink<(SocketAddr, Bytes)> for UdpSocket {
     gen_sink_impl!();
 }
 
-impl<'a> Sink<(SocketAddr, Bytes)> for UdpSink<'a> {
+impl Sink<(SocketAddr, Bytes)> for UdpSink<'_> {
     gen_sink_impl!();
 }
 

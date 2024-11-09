@@ -46,7 +46,7 @@ pub enum Endpoint<'a> {
     DomainName(&'a str, u16),
 }
 
-impl<'a> From<SocketAddr> for PeerContactInfo<'a> {
+impl From<SocketAddr> for PeerContactInfo<'_> {
     fn from(endpoint: SocketAddr) -> Self {
         Self {
             id: None,

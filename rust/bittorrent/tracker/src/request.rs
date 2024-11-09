@@ -105,7 +105,7 @@ const NO_PEER_ID: bool = false;
 // TODO: What default value should we use?
 const NUM_WANT: Option<u16> = Some(64);
 
-impl<'a> Request<'a> {
+impl Request<'_> {
     /// Makes a request with sensible defaults.
     pub fn new(
         info_hash: InfoHash,

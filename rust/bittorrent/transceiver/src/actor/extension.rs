@@ -105,7 +105,7 @@ pub(super) trait ToMessage {
     fn to_message(&self) -> ExtensionMessageOwner;
 }
 
-impl<'a> ToMessage for Handshake<'a> {
+impl ToMessage for Handshake<'_> {
     fn to_message(&self) -> ExtensionMessageOwner {
         let mut buffer = BytesMut::new();
         self.encode(&mut buffer);
@@ -113,7 +113,7 @@ impl<'a> ToMessage for Handshake<'a> {
     }
 }
 
-impl<'a> ToMessage for Metadata<'a> {
+impl ToMessage for Metadata<'_> {
     fn to_message(&self) -> ExtensionMessageOwner {
         let mut buffer = BytesMut::new();
         self.encode(&mut buffer);

@@ -258,7 +258,7 @@ impl Parameter {
     }
 }
 
-impl<'a> fmt::Display for FormatDefFull<'a> {
+impl fmt::Display for FormatDefFull<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
@@ -268,7 +268,7 @@ impl<'a> fmt::Display for FormatDefFull<'a> {
     }
 }
 
-impl<'a> fmt::Display for FormatDef<'a> {
+impl fmt::Display for FormatDef<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,

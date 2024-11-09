@@ -32,7 +32,7 @@ pub enum Insanity {
     },
 }
 
-impl<'a> Metainfo<'a> {
+impl Metainfo<'_> {
     pub(crate) fn sanity_check(&self) -> Result<(), Error> {
         let symptoms: Vec<Insanity> = self
             .iter_symptoms()
@@ -75,7 +75,7 @@ impl<'a> Metainfo<'a> {
     }
 }
 
-impl<'a> Info<'a> {
+impl Info<'_> {
     pub(crate) fn sanity_check(&self) -> Result<(), Error> {
         let symptoms: Vec<Insanity> = self.iter_symptoms().collect();
         ensure!(symptoms.is_empty(), InsaneSnafu { symptoms });

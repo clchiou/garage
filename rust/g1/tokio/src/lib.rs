@@ -3,7 +3,6 @@
 #![cfg_attr(feature = "icmp", feature(raw_os_error_ty))]
 #![cfg_attr(test, feature(assert_matches))]
 #![cfg_attr(test, feature(binary_heap_into_iter_sorted))]
-#![cfg_attr(test, feature(is_sorted))]
 
 pub mod bstream;
 pub mod io;

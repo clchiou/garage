@@ -119,7 +119,7 @@ fn try_get_endian(input: &DeriveInput) -> Result<&'static str, Error> {
     endian.unwrap_or(Ok(DEFAULT_ENDIAN))
 }
 
-impl<'a, 'b, T> Generator<'a, 'b, T>
+impl<'a, T> Generator<'a, '_, T>
 where
     T: Target,
 {
@@ -176,7 +176,7 @@ where
     }
 }
 
-impl<'a, 'b> Generate for Generator<'a, 'b, BufExt> {
+impl Generate for Generator<'_, '_, BufExt> {
     fn gen(&self, fields: &Punctuated<Field, Comma>) -> Result<TokenStream, Error> {
         Ok(self.gen_impl(self.gen_get(fields)?, self.gen_try_get(fields)?))
     }
@@ -201,7 +201,7 @@ impl<'a, 'b> Generate for Generator<'a, 'b, BufExt> {
     }
 }
 
-impl<'a, 'b> Generator<'a, 'b, BufExt> {
+impl Generator<'_, '_, BufExt> {
     /// Generates a decoder for a struct.
     fn gen_impl(&self, get_body: TokenStream, try_get_body: TokenStream) -> TokenStream {
         let trait_name = quote::format_ident!("{}BufExt", self.camel_case);
@@ -262,7 +262,7 @@ impl<'a, 'b> Generator<'a, 'b, BufExt> {
     }
 }
 
-impl<'a, 'b> Generate for Generator<'a, 'b, BufPeekExt> {
+impl Generate for Generator<'_, '_, BufPeekExt> {
     fn gen(&self, fields: &Punctuated<Field, Comma>) -> Result<TokenStream, Error> {
         Ok(self.gen_impl(self.gen_peek(fields)?))
     }
@@ -281,7 +281,7 @@ impl<'a, 'b> Generate for Generator<'a, 'b, BufPeekExt> {
     }
 }
 
-impl<'a, 'b> Generator<'a, 'b, BufPeekExt> {
+impl Generator<'_, '_, BufPeekExt> {
     /// Generates a decoder for a struct.
     fn gen_impl(&self, peek_body: TokenStream) -> TokenStream {
         let trait_name = quote::format_ident!("{}BufPeekExt", self.camel_case);
@@ -330,7 +330,7 @@ impl<'a, 'b> Generator<'a, 'b, BufPeekExt> {
     }
 }
 
-impl<'a, 'b> Generate for Generator<'a, 'b, BufMutExt> {
+impl Generate for Generator<'_, '_, BufMutExt> {
     fn gen(&self, fields: &Punctuated<Field, Comma>) -> Result<TokenStream, Error> {
         Ok(self.gen_impl(self.gen_put(fields)?))
     }
@@ -348,7 +348,7 @@ impl<'a, 'b> Generate for Generator<'a, 'b, BufMutExt> {
     }
 }
 
-impl<'a, 'b> Generator<'a, 'b, BufMutExt> {
+impl Generator<'_, '_, BufMutExt> {
     /// Generates an encoder for a struct.
     fn gen_impl(&self, put_body: TokenStream) -> TokenStream {
         let trait_name = quote::format_ident!("{}BufMutExt", self.camel_case);

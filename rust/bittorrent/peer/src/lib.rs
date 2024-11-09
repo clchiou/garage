@@ -1,5 +1,4 @@
 #![cfg_attr(test, feature(assert_matches))]
-#![cfg_attr(test, feature(is_sorted))]
 
 mod actor;
 mod chan;

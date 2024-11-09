@@ -170,13 +170,13 @@ impl fmt::Debug for own::Dictionary {
     }
 }
 
-impl<'a, const STRICT: bool> fmt::Debug for borrow::List<'a, STRICT> {
+impl<const STRICT: bool> fmt::Debug for borrow::List<'_, STRICT> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.list.fmt(f)
     }
 }
 
-impl<'a, const STRICT: bool> fmt::Debug for borrow::Dictionary<'a, STRICT> {
+impl<const STRICT: bool> fmt::Debug for borrow::Dictionary<'_, STRICT> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_map()
             .entries(self.dict.iter().map(|(k, v)| (EscapeAscii(k), v)))
@@ -186,7 +186,7 @@ impl<'a, const STRICT: bool> fmt::Debug for borrow::Dictionary<'a, STRICT> {
 
 pub struct FormatDictionary<'a>(pub &'a BTreeMap<&'a [u8], borrow::Value<'a>>);
 
-impl<'a> fmt::Debug for FormatDictionary<'a> {
+impl fmt::Debug for FormatDictionary<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_map()
             .entries(self.0.iter().map(|(k, v)| (EscapeAscii(k), v)))

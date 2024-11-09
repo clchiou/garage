@@ -1,7 +1,9 @@
 pub mod owner;
 
 pub mod result_capnp {
-    #![allow(clippy::extra_unused_type_parameters)]
+    // TODO: Remove `clippy::needless_lifetimes` after [#522] has been fixed.
+    // [#522]: https://github.com/capnproto/capnproto-rust/issues/522
+    #![allow(clippy::extra_unused_type_parameters, clippy::needless_lifetimes)]
     include!(concat!(env!("OUT_DIR"), "/g1/result_capnp.rs"));
 }
 

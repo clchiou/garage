@@ -12,7 +12,7 @@ pub type DynStreamRecv<'stream> = Box<dyn StreamRecv<Error = Error> + Send + 'st
 pub type DynStreamSend<'stream> = Box<dyn StreamSend<Error = Error> + Send + 'stream>;
 
 #[async_trait]
-impl<'stream> StreamRecv for DynStream<'stream> {
+impl StreamRecv for DynStream<'_> {
     type Error = Error;
 
     async fn recv(&mut self) -> Result<usize, Self::Error> {
@@ -29,7 +29,7 @@ impl<'stream> StreamRecv for DynStream<'stream> {
 }
 
 #[async_trait]
-impl<'stream> StreamRecv for DynStreamRecv<'stream> {
+impl StreamRecv for DynStreamRecv<'_> {
     type Error = Error;
 
     async fn recv(&mut self) -> Result<usize, Self::Error> {
@@ -46,7 +46,7 @@ impl<'stream> StreamRecv for DynStreamRecv<'stream> {
 }
 
 #[async_trait]
-impl<'stream> StreamSend for DynStream<'stream> {
+impl StreamSend for DynStream<'_> {
     type Error = Error;
 
     fn buffer(&mut self) -> SendBuffer<'_> {
@@ -63,7 +63,7 @@ impl<'stream> StreamSend for DynStream<'stream> {
 }
 
 #[async_trait]
-impl<'stream> StreamSend for DynStreamSend<'stream> {
+impl StreamSend for DynStreamSend<'_> {
     type Error = Error;
 
     fn buffer(&mut self) -> SendBuffer<'_> {

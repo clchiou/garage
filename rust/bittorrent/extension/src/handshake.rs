@@ -34,7 +34,7 @@ pub struct Handshake<'a> {
     pub extra: BTreeMap<&'a [u8], borrow::Value<'a>>,
 }
 
-impl<'a> Handshake<'a> {
+impl Handshake<'_> {
     // TODO: How can we make this id value match the global `EXTENSIONS` array index?
     pub const ID: u8 = 0;
 

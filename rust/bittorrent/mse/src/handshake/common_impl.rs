@@ -61,7 +61,7 @@ impl<'a, Stream, Side> Handshake<'a, Stream, Side> {
     }
 }
 
-impl<'a, Stream, Side> Handshake<'a, Stream, Side>
+impl<Stream, Side> Handshake<'_, Stream, Side>
 where
     Stream: StreamRecv<Error = Error> + StreamSend<Error = Error> + Send,
     Side: HandshakeSide,
@@ -133,7 +133,7 @@ where
     }
 }
 
-impl<'a, Stream, Side> Handshake<'a, Stream, Side>
+impl<Stream, Side> Handshake<'_, Stream, Side>
 where
     Stream: StreamRecv<Error = Error> + Send,
 {

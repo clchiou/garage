@@ -21,7 +21,7 @@ use super::{
 // Send empty initial payload for now.
 const SELF_INITIAL_PAYLOAD: [u8; 0] = [];
 
-impl<'a, Stream> Handshake<'a, Stream, ConnectSide>
+impl<Stream> Handshake<'_, Stream, ConnectSide>
 where
     Stream: StreamRecv<Error = Error> + StreamSend<Error = Error> + Send,
 {

@@ -129,7 +129,7 @@ pub enum Error {
     Insane { symptoms: Vec<Insanity> },
 }
 
-impl<'a> Info<'a> {
+impl Info<'_> {
     pub fn compute_info_hash(&self) -> [u8; INFO_HASH_SIZE] {
         Sha1::digest(self.raw_info).into()
     }
@@ -203,7 +203,7 @@ mod test_harness {
 
 struct FormatPieces<'a>(&'a Vec<&'a [u8]>);
 
-impl<'a> fmt::Debug for FormatPieces<'a> {
+impl fmt::Debug for FormatPieces<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_list()
             .entries(self.0.iter().copied().map(Hex))

@@ -148,7 +148,7 @@ pub use crate::handshake::Handshake;
 pub use crate::metadata::{Data, Metadata, Reject, Request};
 pub use crate::pex::{PeerContactInfo, PeerExchange, PeerFlag};
 
-impl<'a> Message<'a> {
+impl Message<'_> {
     pub(crate) fn id(&self) -> u8 {
         match self {
             Self::Handshake(_) => Handshake::ID,

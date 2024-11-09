@@ -216,13 +216,13 @@ macro_rules! forward_to_value {
 // We provide all possible implementations (`&Self`, `&mut Self`, and `Self`) that `Either` may
 // require.
 
-impl<'de, 'a, const STRICT: bool> de::Deserializer<'de> for &'a Deserializer<'de, STRICT> {
+impl<'de, const STRICT: bool> de::Deserializer<'de> for &Deserializer<'de, STRICT> {
     type Error = Error;
 
     deserialize_for_each!(forward_to_value);
 }
 
-impl<'de, 'a, const STRICT: bool> de::Deserializer<'de> for &'a mut Deserializer<'de, STRICT> {
+impl<'de, const STRICT: bool> de::Deserializer<'de> for &mut Deserializer<'de, STRICT> {
     type Error = Error;
 
     deserialize_for_each!(forward_to_value);
@@ -292,7 +292,7 @@ fn to_str(value: &[u8]) -> Result<&str, Error> {
     })
 }
 
-impl<'de, 'a, const STRICT: bool> de::Deserializer<'de> for &'a Value<'de, STRICT> {
+impl<'de, const STRICT: bool> de::Deserializer<'de> for &Value<'de, STRICT> {
     type Error = Error;
 
     deserialize!(any(self, visitor) {
@@ -415,7 +415,7 @@ impl<'de, 'a, const STRICT: bool> de::Deserializer<'de> for &'a Value<'de, STRIC
     deserialize!(ignored_any => any);
 }
 
-impl<'de, 'a, const STRICT: bool> SeqAccess<'de> for ListIter<'de, 'a, STRICT> {
+impl<'de, const STRICT: bool> SeqAccess<'de> for ListIter<'de, '_, STRICT> {
     type Error = Error;
 
     fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, Self::Error>
@@ -433,7 +433,7 @@ impl<'de, 'a, const STRICT: bool> SeqAccess<'de> for ListIter<'de, 'a, STRICT> {
     }
 }
 
-impl<'de, 'a, const STRICT: bool> MapAccess<'de> for DictIter<'de, 'a, STRICT> {
+impl<'de, const STRICT: bool> MapAccess<'de> for DictIter<'de, '_, STRICT> {
     type Error = Error;
 
     fn next_key_seed<K>(&mut self, key_seed: K) -> Result<Option<K::Value>, Self::Error>
@@ -495,7 +495,7 @@ impl<'de, 'a, const STRICT: bool> EnumAccess<'de> for DictIter<'de, 'a, STRICT> 
     }
 }
 
-impl<'de, 'a, const STRICT: bool> VariantAccess<'de> for &'a Value<'de, STRICT> {
+impl<'de, const STRICT: bool> VariantAccess<'de> for &Value<'de, STRICT> {
     type Error = Error;
 
     fn unit_variant(self) -> Result<(), Self::Error> {

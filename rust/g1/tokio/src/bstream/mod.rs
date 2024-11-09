@@ -89,19 +89,19 @@ impl<'a> SendBuffer<'a> {
     }
 }
 
-impl<'a> AsRef<BytesMut> for SendBuffer<'a> {
+impl AsRef<BytesMut> for SendBuffer<'_> {
     fn as_ref(&self) -> &BytesMut {
         self.buffer
     }
 }
 
-impl<'a> AsMut<BytesMut> for SendBuffer<'a> {
+impl AsMut<BytesMut> for SendBuffer<'_> {
     fn as_mut(&mut self) -> &mut BytesMut {
         self.buffer
     }
 }
 
-impl<'a> Deref for SendBuffer<'a> {
+impl Deref for SendBuffer<'_> {
     type Target = BytesMut;
 
     fn deref(&self) -> &Self::Target {
@@ -109,13 +109,13 @@ impl<'a> Deref for SendBuffer<'a> {
     }
 }
 
-impl<'a> DerefMut for SendBuffer<'a> {
+impl DerefMut for SendBuffer<'_> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.buffer
     }
 }
 
-impl<'a> Drop for SendBuffer<'a> {
+impl Drop for SendBuffer<'_> {
     fn drop(&mut self) {
         for defer in self.defers.iter_mut().rev() {
             (defer)(self.buffer);

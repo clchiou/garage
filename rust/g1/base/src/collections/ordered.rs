@@ -17,11 +17,35 @@ pub struct HashOrderedMap<K, V, S = DefaultHashBuilder> {
     entries: VecList<(K, V)>,
 }
 
-pub type Keys<'a, K, V, S> = impl super::Iter<&'a K> where K: 'a, V: 'a;
-pub type Values<'a, K, V, S> = impl super::Iter<&'a V> where K: 'a, V: 'a;
-pub type ValuesMut<'a, K, V, S> = impl super::IterMut<&'a mut V> where K: 'a, V: 'a;
-pub type Iter<'a, K, V, S> = impl super::Iter<(&'a K, &'a V)> where K: 'a, V: 'a;
-pub type IterMut<'a, K, V, S> = impl super::IterMut<(&'a K, &'a mut V)> where K: 'a, V: 'a;
+pub type Keys<'a, K, V, S>
+    = impl super::Iter<&'a K>
+where
+    K: 'a,
+    V: 'a;
+
+pub type Values<'a, K, V, S>
+    = impl super::Iter<&'a V>
+where
+    K: 'a,
+    V: 'a;
+
+pub type ValuesMut<'a, K, V, S>
+    = impl super::IterMut<&'a mut V>
+where
+    K: 'a,
+    V: 'a;
+
+pub type Iter<'a, K, V, S>
+    = impl super::Iter<(&'a K, &'a V)>
+where
+    K: 'a,
+    V: 'a;
+
+pub type IterMut<'a, K, V, S>
+    = impl super::IterMut<(&'a K, &'a mut V)>
+where
+    K: 'a,
+    V: 'a;
 
 impl<K, V, S> HashOrderedMap<K, V, S> {
     pub fn with_hasher(hash_builder: S) -> Self {

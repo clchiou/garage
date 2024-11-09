@@ -1,4 +1,7 @@
 pub mod rpc_capnp {
+    // TODO: Remove `clippy::needless_lifetimes` after [#522] has been fixed.
+    // [#522]: https://github.com/capnproto/capnproto-rust/issues/522
+    #![allow(clippy::needless_lifetimes)]
     include!(concat!(env!("OUT_DIR"), "/ddcache/rpc_capnp.rs"));
 }
 
@@ -159,7 +162,7 @@ impl<'a> TryFrom<endpoint::Reader<'a>> for BlobEndpoint {
     }
 }
 
-impl<'a> endpoint::Builder<'a> {
+impl endpoint::Builder<'_> {
     pub fn set(&mut self, endpoint: &BlobEndpoint) {
         match endpoint {
             BlobEndpoint::V4(endpoint) => self.set_ipv4(u32::from_be_bytes(endpoint.ip().octets())),
@@ -242,7 +245,7 @@ impl From<Request> for Vec<u8> {
     }
 }
 
-impl<'a> request::Builder<'a> {
+impl request::Builder<'_> {
     pub fn set(&mut self, request: &Request) {
         let mut this = self.reborrow();
         match request {
@@ -377,7 +380,7 @@ impl From<Response> for Vec<u8> {
     }
 }
 
-impl<'a> response::Builder<'a> {
+impl response::Builder<'_> {
     pub fn set(&mut self, response: &Response) {
         let mut this = self.reborrow();
         match response {
@@ -424,7 +427,7 @@ impl<'a> TryFrom<response::metadata::Reader<'a>> for BlobMetadata {
     }
 }
 
-impl<'a> response::metadata::Builder<'a> {
+impl response::metadata::Builder<'_> {
     pub fn set(&mut self, metadata: &BlobMetadata) {
         self.set_metadata(metadata.metadata.as_deref().unwrap_or(&[]));
         self.set_size(metadata.size.try_into().unwrap());
@@ -443,7 +446,7 @@ impl<'a> TryFrom<response::blob_request::Reader<'a>> for BlobRequest {
     }
 }
 
-impl<'a> response::blob_request::Builder<'a> {
+impl response::blob_request::Builder<'_> {
     pub fn set(&mut self, blob: &BlobRequest) {
         self.reborrow().init_endpoint().set(&blob.endpoint);
         self.set_token(blob.token);

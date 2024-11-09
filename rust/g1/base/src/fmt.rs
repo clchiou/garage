@@ -78,19 +78,19 @@ where
     }
 }
 
-impl<'a, const N: usize> fmt::Debug for EscapeAscii<'a, [u8; N]> {
+impl<const N: usize> fmt::Debug for EscapeAscii<'_, [u8; N]> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         EscapeAscii(self.0.as_slice()).fmt(f)
     }
 }
 
-impl<'a> fmt::Debug for EscapeAscii<'a, &[u8]> {
+impl fmt::Debug for EscapeAscii<'_, &[u8]> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         EscapeAscii(*self.0).fmt(f)
     }
 }
 
-impl<'a> fmt::Debug for EscapeAscii<'a, [u8]> {
+impl fmt::Debug for EscapeAscii<'_, [u8]> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "\"{}\"", self.0.escape_ascii())
     }
@@ -168,19 +168,19 @@ where
     }
 }
 
-impl<'a, const N: usize> fmt::Debug for Hex<'a, [u8; N]> {
+impl<const N: usize> fmt::Debug for Hex<'_, [u8; N]> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         Hex(self.0.as_slice()).fmt(f)
     }
 }
 
-impl<'a> fmt::Debug for Hex<'a, &[u8]> {
+impl fmt::Debug for Hex<'_, &[u8]> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         Hex(*self.0).fmt(f)
     }
 }
 
-impl<'a> fmt::Debug for Hex<'a, [u8]> {
+impl fmt::Debug for Hex<'_, [u8]> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for byte in self.0 {
             write!(f, "{:02x}", byte)?;
@@ -196,7 +196,7 @@ pub struct InsertPlaceholder<'a, T: ?Sized>(pub &'a T);
 /// Inserts a placeholder for a value of a type that does not implement `std::fmt::Debug`.
 struct InsertPlaceholderBase<T>(pub T);
 
-impl<'a, T> fmt::Debug for InsertPlaceholder<'a, Option<T>> {
+impl<T> fmt::Debug for InsertPlaceholder<'_, Option<T>> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.0 {
             Some(some) => f
@@ -208,7 +208,7 @@ impl<'a, T> fmt::Debug for InsertPlaceholder<'a, Option<T>> {
     }
 }
 
-impl<'a, T, E> fmt::Debug for InsertPlaceholder<'a, Result<T, E>> {
+impl<T, E> fmt::Debug for InsertPlaceholder<'_, Result<T, E>> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.0 {
             Ok(ok) => f.debug_tuple("Ok").field(&InsertPlaceholder(ok)).finish(),
@@ -246,13 +246,13 @@ macro_rules! generate_tuple {
 
 generate_tuple!(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11);
 
-impl<'a, T> fmt::Debug for InsertPlaceholder<'a, Vec<T>> {
+impl<T> fmt::Debug for InsertPlaceholder<'_, Vec<T>> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         InsertPlaceholder(self.0.as_slice()).fmt(f)
     }
 }
 
-impl<'a, T, const N: usize> fmt::Debug for InsertPlaceholder<'a, [T; N]> {
+impl<T, const N: usize> fmt::Debug for InsertPlaceholder<'_, [T; N]> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         InsertPlaceholder(self.0.as_slice()).fmt(f)
     }
@@ -264,7 +264,7 @@ impl<'a, T> fmt::Debug for InsertPlaceholder<'a, &'a [T]> {
     }
 }
 
-impl<'a, T> fmt::Debug for InsertPlaceholder<'a, [T]> {
+impl<T> fmt::Debug for InsertPlaceholder<'_, [T]> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_list()
             .entries(self.0.iter().map(InsertPlaceholder))
@@ -272,7 +272,7 @@ impl<'a, T> fmt::Debug for InsertPlaceholder<'a, [T]> {
     }
 }
 
-impl<'a, T> fmt::Debug for InsertPlaceholder<'a, T> {
+impl<T> fmt::Debug for InsertPlaceholder<'_, T> {
     default fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         InsertPlaceholderBase(&self.0).fmt(f)
     }

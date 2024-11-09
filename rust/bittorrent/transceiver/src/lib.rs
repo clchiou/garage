@@ -1,4 +1,3 @@
-#![feature(entry_insert)]
 #![feature(try_blocks)]
 #![feature(type_alias_impl_trait)]
 #![cfg_attr(test, feature(duration_constants))]

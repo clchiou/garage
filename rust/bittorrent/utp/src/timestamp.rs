@@ -1,5 +1,4 @@
-use std::mem::MaybeUninit;
-use std::sync::Once;
+use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
 //
@@ -13,14 +12,8 @@ use std::time::{Duration, Instant};
 pub(crate) type Timestamp = Duration;
 
 pub(crate) fn now() -> Timestamp {
-    static mut TIMESTAMP_BASE: MaybeUninit<Instant> = MaybeUninit::uninit();
-    static TIMESTAMP_INIT: Once = Once::new();
-    unsafe {
-        TIMESTAMP_INIT.call_once(|| {
-            TIMESTAMP_BASE.write(Instant::now());
-        });
-        TIMESTAMP_BASE.assume_init_ref().elapsed()
-    }
+    static TIMESTAMP_BASE: OnceLock<Instant> = OnceLock::new();
+    TIMESTAMP_BASE.get_or_init(Instant::now).elapsed()
 }
 
 pub(crate) fn as_micros_u32(timestamp: Timestamp) -> u32 {

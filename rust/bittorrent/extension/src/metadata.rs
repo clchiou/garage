@@ -93,7 +93,7 @@ impl<'a> Metadata<'a> {
     }
 }
 
-impl<'a> Request<'a> {
+impl Request<'_> {
     pub fn new(piece: usize) -> Self {
         Self {
             piece,
@@ -114,7 +114,7 @@ impl<'a> Data<'a> {
     }
 }
 
-impl<'a> Reject<'a> {
+impl Reject<'_> {
     pub fn new(piece: usize) -> Self {
         Self {
             piece,

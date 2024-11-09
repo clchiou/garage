@@ -20,7 +20,7 @@ use super::{
     PADDING_SIZE_RANGE, VC,
 };
 
-impl<'a, Stream> Handshake<'a, Stream, AcceptSide>
+impl<Stream> Handshake<'_, Stream, AcceptSide>
 where
     Stream: StreamRecv<Error = Error> + StreamSend<Error = Error> + Send,
 {

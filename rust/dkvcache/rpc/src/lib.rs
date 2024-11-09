@@ -1,4 +1,7 @@
 pub mod rpc_capnp {
+    // TODO: Remove `clippy::needless_lifetimes` after [#522] has been fixed.
+    // [#522]: https://github.com/capnproto/capnproto-rust/issues/522
+    #![allow(clippy::needless_lifetimes)]
     include!(concat!(env!("OUT_DIR"), "/dkvcache/rpc_capnp.rs"));
 }
 
@@ -194,7 +197,7 @@ impl From<Request> for Vec<u8> {
     }
 }
 
-impl<'a> request::Builder<'a> {
+impl request::Builder<'_> {
     pub fn set(&mut self, request: &Request) {
         let mut this = self.reborrow();
         match request {
@@ -301,7 +304,7 @@ impl<'a> TryFrom<response::Reader<'a>> for Response {
     }
 }
 
-impl<'a> response::Builder<'a> {
+impl response::Builder<'_> {
     pub fn set(&mut self, response: &Response) {
         self.set_value(&response.value);
         self.set_expire_at(Timestamp::encode(response.expire_at));
@@ -322,7 +325,7 @@ impl<'a> TryFrom<error::Reader<'a>> for Error {
     }
 }
 
-impl<'a> error::Builder<'a> {
+impl error::Builder<'_> {
     pub fn set(&mut self, error: &Error) {
         match error {
             Error::Server => self.set_server(()),
