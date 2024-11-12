@@ -1,4 +1,4 @@
-use std::sync::OnceLock;
+use std::sync::LazyLock;
 
 use bytes::Bytes;
 use capnp::message;
@@ -105,14 +105,12 @@ fn encode(response: Response) -> Frame {
 macro_rules! make_const_response {
     ($name:ident => $($init:tt)*) => {
         pub(crate) fn $name() -> Frame {
-            static ONCE: OnceLock<Vec<u8>> = OnceLock::new();
-            ONCE.get_or_init(|| {
+            static RESPONSE: LazyLock<Vec<u8>> = LazyLock::new(|| {
                 let mut message = message::Builder::new_default();
                 message.init_root::<ResponseBuilder>()$($init)*;
                 serialize::write_message_to_words(&message)
-            })
-            .as_slice()
-            .into()
+            });
+            RESPONSE.as_slice().into()
         }
     };
 }

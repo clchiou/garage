@@ -1,4 +1,4 @@
-use std::sync::OnceLock;
+use std::sync::LazyLock;
 use std::time::{Duration, Instant};
 
 //
@@ -12,8 +12,8 @@ use std::time::{Duration, Instant};
 pub(crate) type Timestamp = Duration;
 
 pub(crate) fn now() -> Timestamp {
-    static TIMESTAMP_BASE: OnceLock<Instant> = OnceLock::new();
-    TIMESTAMP_BASE.get_or_init(Instant::now).elapsed()
+    static TIMESTAMP_BASE: LazyLock<Instant> = LazyLock::new(Instant::now);
+    TIMESTAMP_BASE.elapsed()
 }
 
 pub(crate) fn as_micros_u32(timestamp: Timestamp) -> u32 {
