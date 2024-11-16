@@ -20,6 +20,8 @@
 #![cfg_attr(test, feature(assert_matches))]
 #![cfg_attr(test, feature(noop_waker))]
 
+#[cfg(feature = "collections_ext")]
+pub mod cache;
 pub mod collections;
 pub mod every;
 pub mod fmt;
