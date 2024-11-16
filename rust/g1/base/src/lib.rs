@@ -21,6 +21,7 @@
 #![cfg_attr(test, feature(noop_waker))]
 
 pub mod collections;
+pub mod every;
 pub mod fmt;
 pub mod future;
 pub mod io;
