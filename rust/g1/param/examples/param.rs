@@ -37,9 +37,7 @@ fn main() -> Result<(), Error> {
 
     for assignment in cli.set.iter() {
         let (module_path, name, value) = g1_param::parse_assignment(assignment)?;
-        if !parameters.parse_then_set(module_path, name, value)? {
-            println!("parameter does not exist: {}::{}", module_path, name);
-        }
+        parameters.parse_then_set(module_path, name, value)?;
     }
     for path in cli.path.iter() {
         let values = fs::read_to_string(path)?;

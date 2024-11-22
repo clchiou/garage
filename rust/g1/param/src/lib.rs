@@ -322,29 +322,28 @@ impl<'a> Parameters<'a> {
         module_path: &str,
         name: &str,
         value: &str,
-    ) -> Result<bool, Error> {
+    ) -> Result<(), Error> {
         self.set_with(module_path, name, |parameter| parameter.parse_str(value))
     }
 
     /// Stores the parameter value temporarily in the `Parameters`.
-    pub fn set(&mut self, module_path: &str, name: &str, value: Value) -> Result<bool, Error> {
+    pub fn set(&mut self, module_path: &str, name: &str, value: Value) -> Result<(), Error> {
         self.set_with(module_path, name, |_| Ok(value))
     }
 
-    fn set_with<F>(&mut self, module_path: &str, name: &str, get_value: F) -> Result<bool, Error>
+    fn set_with<F>(&mut self, module_path: &str, name: &str, get_value: F) -> Result<(), Error>
     where
         F: FnOnce(&Parameter) -> Result<Value, Error>,
     {
-        match self.parameters.get(&(module_path, name)) {
-            Some(parameter) => {
-                let value = get_value(parameter)?;
-                parameter.validate(&value)?;
-                self.values
-                    .insert((parameter.module_path, parameter.name), value);
-                Ok(true)
-            }
-            None => Ok(false),
-        }
+        let parameter = self
+            .parameters
+            .get(&(module_path, name))
+            .ok_or_else(|| format!("parameter was not defined: {}::{}", module_path, name))?;
+        let value = get_value(parameter)?;
+        parameter.validate(&value)?;
+        self.values
+            .insert((parameter.module_path, parameter.name), value);
+        Ok(())
     }
 
     /// Commits all temporary values, storing them statically.

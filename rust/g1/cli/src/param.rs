@@ -44,11 +44,7 @@ impl ParametersConfig {
                 }
                 None => {
                     let (module_path, name, value) = g1_param::parse_assignment(path_or_value)?;
-                    if !parameters.parse_then_set(module_path, name, value)? {
-                        return Err(
-                            format!("undefined parameter: {}::{}", module_path, name).into()
-                        );
-                    }
+                    parameters.parse_then_set(module_path, name, value)?;
                 }
             }
         }

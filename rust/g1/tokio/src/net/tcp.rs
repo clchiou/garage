@@ -75,7 +75,7 @@ mod param {
     use tokio::net::{TcpListener, TcpSocket};
 
     #[derive(Clone, Debug, Deserialize)]
-    #[serde(default)]
+    #[serde(default, deny_unknown_fields)]
     pub struct TcpListenerBuilder {
         pub endpoint: SocketAddr,
         pub reuseaddr: Option<bool>,

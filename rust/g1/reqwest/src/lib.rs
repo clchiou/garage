@@ -18,7 +18,7 @@ use serde::Deserialize;
 //
 
 #[derive(Clone, Debug, Default, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct ClientBuilder {
     #[serde(deserialize_with = "de::opt_duration")]
     pub pool_idle_timeout: Option<Duration>,
@@ -48,6 +48,7 @@ pub struct ClientBuilder {
 }
 
 #[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ProxyBuilder {
     #[serde(deserialize_with = "de::regex")]
     pub host: Regex,

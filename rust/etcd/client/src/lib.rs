@@ -65,7 +65,7 @@ pub struct ClientBuilder {
 }
 
 #[derive(Clone, Debug, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(deny_unknown_fields, rename_all = "snake_case")]
 pub enum Auth {
     Authenticate(request::Authenticate),
     Authorize(String),
