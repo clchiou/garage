@@ -4,6 +4,8 @@
 //!
 //! [#626]: https://github.com/denoland/rusty_v8/issues/626
 
+pub mod stateless;
+
 use std::panic;
 use std::sync::mpsc::{self, Receiver, SyncSender};
 use std::thread::{self, JoinHandle};
