@@ -114,6 +114,14 @@ where
         self.evict(now);
     }
 
+    pub fn remove<Q>(&mut self, key: &Q) -> Option<V>
+    where
+        K: Borrow<Q>,
+        Q: Eq + Hash + ?Sized,
+    {
+        self.entries.remove(key).map(|e| e.value)
+    }
+
     fn evict(&mut self, now: Instant) {
         // When the cache is full, expired entries should be removed before eviction.
         while let Some(Reverse((deadline, key))) = self.possible_deadlines.peek() {
