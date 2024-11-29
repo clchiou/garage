@@ -10,8 +10,24 @@ zmq.workspace = true
 
 g1_base.workspace = true
 
+# feature: client
+bytes = { workspace = true, optional = true }
+rand = { workspace = true, optional = true }
+tracing = { workspace = true, optional = true }
+g1_tokio = { workspace = true, optional = true }
+
+# feature: param
+serde = { workspace = true, features = ["derive"], optional = true }
+# For now, we are only using `g1_param::parse`, so we do not need to add `linkme` to the
+# dependencies.
+g1_param = { workspace = true, optional = true }
+
 [dev-dependencies]
 trybuild.workspace = true
 
 # examples
 clap.workspace = true
+
+[features]
+client = ["dep:bytes", "dep:rand", "dep:tracing", "dep:g1_tokio"]
+param = ["dep:serde", "dep:g1_param"]

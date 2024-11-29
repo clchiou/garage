@@ -1,3 +1,5 @@
+#[cfg(feature = "client")]
+pub mod client;
 pub mod duplex;
 pub mod envelope;
 
@@ -9,6 +11,114 @@ use tokio::io::unix::AsyncFd;
 use zmq::{Mechanism, Message, PollEvents, SocketType, DONTWAIT};
 
 use g1_base::fmt::{DebugExt, InsertPlaceholder};
+
+#[cfg(feature = "param")]
+mod param {
+    use std::marker::PhantomData;
+
+    use serde::Deserialize;
+
+    pub trait SocketTypeParam {
+        const SOCKET_TYPE: zmq::SocketType;
+    }
+
+    macro_rules! socket_type_param {
+        ($name:ident, $variant:ident $(,)?) => {
+            #[derive(Clone, Debug)]
+            pub struct $name;
+
+            impl SocketTypeParam for $name {
+                const SOCKET_TYPE: zmq::SocketType = zmq::SocketType::$variant;
+            }
+        };
+    }
+
+    socket_type_param!(Pair, PAIR);
+    socket_type_param!(Pub, PUB);
+    socket_type_param!(Sub, SUB);
+    socket_type_param!(Req, REQ);
+    socket_type_param!(Rep, REP);
+    socket_type_param!(Dealer, DEALER);
+    socket_type_param!(Router, ROUTER);
+    socket_type_param!(Pull, PULL);
+    socket_type_param!(Push, PUSH);
+    socket_type_param!(Xpub, XPUB);
+    socket_type_param!(Xsub, XSUB);
+    socket_type_param!(Stream, STREAM);
+
+    #[derive(Clone, Debug, Deserialize)]
+    #[serde(default, deny_unknown_fields)]
+    pub struct SocketBuilder<T> {
+        pub linger: Option<i32>,
+
+        pub bind: Vec<String>,
+        pub connect: Vec<String>,
+
+        // Declare `pub` so that `SocketBuilder` can be initialized using `..Default::default()`.
+        pub _socket_type: PhantomData<T>,
+    }
+
+    impl<T> Default for SocketBuilder<T> {
+        fn default() -> Self {
+            Self {
+                linger: Some(0), // Do NOT block the program exit!
+
+                bind: Vec::new(),
+                connect: Vec::new(),
+
+                _socket_type: PhantomData,
+            }
+        }
+    }
+
+    impl<T> SocketBuilder<T> {
+        pub fn linger(&mut self, linger: Option<i32>) -> &mut Self {
+            self.linger = linger;
+            self
+        }
+
+        pub fn bind(&mut self, endpoint: String) -> &mut Self {
+            self.bind.push(endpoint);
+            self
+        }
+
+        pub fn connect(&mut self, endpoint: String) -> &mut Self {
+            self.connect.push(endpoint);
+            self
+        }
+    }
+
+    impl<T: SocketTypeParam> SocketBuilder<T> {
+        pub fn build(
+            &self,
+            context: &zmq::Context,
+        ) -> Result<(zmq::Socket, Vec<String>), zmq::Error> {
+            let socket = context.socket(T::SOCKET_TYPE)?;
+
+            if let Some(linger) = self.linger {
+                socket.set_linger(linger)?;
+            }
+
+            let mut bind_endpoints = Vec::with_capacity(self.bind.len());
+            for endpoint in &self.bind {
+                socket.bind(endpoint)?;
+                bind_endpoints.push(socket.get_last_endpoint()?.expect("endpoint"));
+            }
+
+            for endpoint in &self.connect {
+                socket.connect(endpoint)?;
+            }
+
+            Ok((socket, bind_endpoints))
+        }
+    }
+}
+
+#[cfg(feature = "param")]
+pub use self::param::{
+    Dealer, Pair, Pub, Pull, Push, Rep, Req, Router, SocketBuilder, SocketTypeParam, Stream, Sub,
+    Xpub, Xsub,
+};
 
 #[derive(DebugExt)]
 pub struct Socket {
