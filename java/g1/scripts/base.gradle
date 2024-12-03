@@ -22,6 +22,8 @@ ext {
 
     daggerVersion = '2.39.1'  // com.google.dagger:dagger and dagger-compiler
 
+    jeromqVersion = '0.6.0'  // org.zeromq:jeromq
+
     jnaVersion = '5.9.0'  // net.java.dev.jna:jna
 
     jooqVersion = '3.15.3'  // org.jooq:jooq

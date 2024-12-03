@@ -16,10 +16,13 @@ dependencies {
     annotationProcessor "com.google.dagger:dagger-compiler:${project.ext.daggerVersion}"
     implementation "com.google.dagger:dagger:${project.ext.daggerVersion}"
 
+    implementation "org.zeromq:jeromq:${project.ext.jeromqVersion}"
+
     implementation "org.apache.lucene:lucene-core:${project.ext.lucene8Version}"
 
     implementation project(':base')
     implementation project(':messaging')
+    implementation project(':msg')
     implementation project(':search')
     implementation project(':third-party:nng')
 }
