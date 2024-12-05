@@ -5,6 +5,7 @@
 rootProject.name = 'g1'
 
 include ':base'
+include ':etcd'
 include ':example'
 include ':messaging'
 include ':msg'

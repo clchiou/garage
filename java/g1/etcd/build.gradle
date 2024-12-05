@@ -1,0 +1,17 @@
+apply plugin: 'java-library'
+
+apply from: "${rootProject.projectDir}/scripts/base.gradle"
+
+dependencies {
+    implementation "com.google.guava:guava:${project.ext.guavaVersion}"
+    implementation "com.fasterxml.jackson.core:jackson-databind:${project.ext.jacksonVersion}"
+    implementation "org.slf4j:slf4j-api:${project.ext.slf4jVersion}"
+
+    annotationProcessor "com.google.dagger:dagger-compiler:${project.ext.daggerVersion}"
+    implementation "com.google.dagger:dagger:${project.ext.daggerVersion}"
+
+    // `ClientModule` currently exposes `io.etcd.jetcd.Client`.
+    api "io.etcd:jetcd-core:${project.ext.jetcdVersion}"
+
+    implementation project(':base')
+}

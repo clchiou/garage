@@ -13,6 +13,7 @@ ext {
     //
     args4jVersion = '2.33'  // args4j:args4j
     guavaVersion = '31.0.1-jre'  // com.google.guava:guava
+    jacksonVersion = '2.18.2'  // com.fasterxml.jackson.core:jackson-databind
     reflectionsVersion = '0.9.12'  // org.reflections:reflections
     // TODO: Upgrading to 2.0.0 when it is out of the alpha state.
     slf4jVersion = '2.0.0-alpha5'  // org.slf4j:slf4j-api and slf4j-simple
@@ -23,6 +24,8 @@ ext {
     daggerVersion = '2.39.1'  // com.google.dagger:dagger and dagger-compiler
 
     jeromqVersion = '0.6.0'  // org.zeromq:jeromq
+
+    jetcdVersion = '0.8.4'  // io.etcd:jetcd-core
 
     jnaVersion = '5.9.0'  // net.java.dev.jna:jna
 

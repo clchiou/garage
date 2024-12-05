@@ -21,6 +21,7 @@ dependencies {
     implementation "org.apache.lucene:lucene-core:${project.ext.lucene8Version}"
 
     implementation project(':base')
+    implementation project(':etcd')
     implementation project(':messaging')
     implementation project(':msg')
     implementation project(':search')
