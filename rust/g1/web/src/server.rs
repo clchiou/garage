@@ -78,10 +78,19 @@ where
         self.tasks
             .push(JoinGuard::spawn(move |cancel| {
                 // TODO: Consider supporting both HTTP/1 and HTTP/2.
-                Builder::new().serve_connection(
+                let conn = Builder::new().serve_connection(
                     TokioIo::new(stream),
-                    ServiceContainer::new(cancel, endpoint, self.service.clone()),
-                )
+                    ServiceContainer::new(cancel.clone(), endpoint, self.service.clone()),
+                );
+                async move {
+                    tokio::pin!(conn);
+                    tokio::select! {
+                        () = cancel.wait() => {}
+                        result = &mut conn => return result,
+                    }
+                    conn.as_mut().graceful_shutdown();
+                    (&mut conn).await
+                }
             }))
             .expect("service task");
     }
