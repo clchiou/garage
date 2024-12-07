@@ -48,7 +48,7 @@ def define_package(
     )
     @foreman.rule.depend(
         '//releases:build',
-        when=lambda ps: ps['//bases:inside-builder-pod'] is not True,
+        when=lambda ps: ps['//bases:inside-builder-pod'] is False,
     )
     def build(parameters):
         src_path = find_package(
