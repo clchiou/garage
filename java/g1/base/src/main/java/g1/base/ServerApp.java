@@ -62,6 +62,7 @@ public class ServerApp extends ConfiguredApp {
                     LOG.atError()
                         .addArgument(name)
                         .addArgument(service)
+                        .setCause(service.failureCause())
                         .log("{}: a service has failed: {}");
                     // This triggers the shutdown hook below.
                     System.exit(1);
