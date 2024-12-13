@@ -1,4 +1,5 @@
 pub mod owner;
+pub mod strict;
 
 pub mod result_capnp {
     // TODO: Remove `clippy::needless_lifetimes` after [#522] has been fixed.
