@@ -14,6 +14,7 @@ tracing.workspace = true
 g1_base.workspace = true
 g1_chrono.workspace = true
 g1_param.workspace = true
+g1_rusqlite.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

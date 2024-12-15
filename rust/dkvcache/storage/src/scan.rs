@@ -93,7 +93,7 @@ impl Scanner {
             return Ok(None);
         };
 
-        let conn = self.storage.0.connect()?;
+        let conn = self.storage.0.pool.connect()?;
         let mut stmt = conn.prepare_cached(query)?;
         let mut rows = match self.state {
             STATE_START => stmt.query([]),

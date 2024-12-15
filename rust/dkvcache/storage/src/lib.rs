@@ -1,20 +1,19 @@
-#![feature(type_alias_impl_trait)]
 #![cfg_attr(test, feature(iterator_try_collect))]
 
 mod scan;
 
 use std::mem;
 use std::ops::Deref;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use bytes::Bytes;
 use const_format::formatcp;
 use rusqlite::types::ValueRef;
 use rusqlite::{Connection, OptionalExtension, Row};
-use scopeguard::{Always, ScopeGuard};
 
 use g1_base::sync::MutexExt;
+use g1_rusqlite::{Apply, Create, Init, ReadWrite};
 
 use crate::scan::Scanner;
 
@@ -27,20 +26,20 @@ pub struct Storage(Arc<StorageImpl>);
 
 #[derive(Debug)]
 struct StorageImpl {
-    path: PathBuf,
-    pool: Mutex<Vec<Connection>>,
-    connection_pool_size: usize,
+    pool: Pool,
     len_cache: Mutex<usize>,
     next_expire_at_cache: Mutex<Option<Timestamp>>,
     // Buffer recency updates for `get` to prevent it from opening a transaction.
     recency_buffer: Mutex<Vec<(RowId, RawTimestamp)>>,
 }
 
-// We do not access `Connection` and its derivatives concurrently from multiple threads; therefore,
-// implementing `Sync` for `StorageImpl` is safe.
-unsafe impl Sync for StorageImpl {}
+type Pool = g1_rusqlite::Pool<Apply<ReadWrite, InitCacheCapacity>>;
 
-type ConnGuard<'a> = ScopeGuard<Connection, impl FnOnce(Connection) + 'a, Always>;
+#[derive(Debug)]
+struct InitCacheCapacity;
+
+#[derive(Debug)]
+struct CreateDatabase;
 
 type RowId = i64;
 
@@ -70,9 +69,7 @@ impl Storage {
     where
         P: AsRef<Path>,
     {
-        let this = Self(Arc::new(StorageImpl::new(path)));
-        this.0.init()?;
-        Ok(this)
+        Ok(Self(Arc::new(StorageImpl::open(path)?)))
     }
 
     pub fn is_empty(&self) -> bool {
@@ -127,6 +124,7 @@ impl Storage {
     pub fn get(&self, key: &[u8]) -> Result<Option<Entry>, Error> {
         let Some((entry, rowid)) = self
             .0
+            .pool
             .connect()?
             .prepare_cached(formatcp!(
                 "SELECT {VALUE}, {EXPIRE_AT}, {ROWID} FROM {DKVCACHE} WHERE {KEY} = ?1"
@@ -142,7 +140,7 @@ impl Storage {
 
     /// Similar to `get`, except that it does not update a cache entry's recency.
     pub fn peek(&self, key: &[u8]) -> Result<Option<Entry>, Error> {
-        Self::query_peek(self.0.connect()?, key)
+        Self::query_peek(self.0.pool.connect()?, key)
     }
 
     fn query_peek<C>(conn: C, key: &[u8]) -> Result<Option<Entry>, Error>
@@ -273,50 +271,41 @@ impl Drop for StorageImpl {
     }
 }
 
+impl Init for InitCacheCapacity {
+    fn init(conn: &Connection) -> Result<(), Error> {
+        // This should be enough to "cache" all queries.
+        conn.set_prepared_statement_cache_capacity(32);
+        Ok(())
+    }
+}
+
+impl Create for CreateDatabase {
+    fn create(conn: &Connection) -> Result<(), Error> {
+        conn.pragma_update(None, "journal_mode", "WAL")?;
+        conn.execute_batch(include_str!("../schema/dkvcache/storage.sql"))?;
+        Ok(())
+    }
+}
+
 impl StorageImpl {
-    fn new<P>(path: P) -> Self
+    fn open<P>(path: P) -> Result<Self, Error>
     where
         P: AsRef<Path>,
     {
-        let connection_pool_size = *connection_pool_size();
-        Self {
-            path: path.as_ref().to_path_buf(),
-            pool: Mutex::new(Vec::with_capacity(connection_pool_size)),
-            connection_pool_size,
-            // NOTE: You must call `init` to initialize `len_cache` and `next_expire_at_cache`.
-            len_cache: Mutex::new(0),
-            next_expire_at_cache: Mutex::new(None),
-            recency_buffer: Mutex::new(Vec::new()),
-        }
-    }
-
-    fn connect(&self) -> Result<ConnGuard, Error> {
-        let conn = match self.pool.must_lock().pop() {
-            Some(conn) => conn,
-            None => self.new_conn()?,
+        let pool = Pool::with_size::<CreateDatabase>(
+            path.as_ref().to_path_buf(),
+            *connection_pool_size(),
+        )?;
+        let (len_cache, next_expire_at_cache) = {
+            let conn = pool.connect()?;
+            (Self::query_len(&conn)?, Self::query_next_expire_at(&conn)?)
         };
-        Ok(scopeguard::guard(conn, |conn| {
-            let mut pool = self.pool.must_lock();
-            if pool.len() < self.connection_pool_size {
-                pool.push(conn);
-            }
-        }))
-    }
-
-    fn new_conn(&self) -> Result<Connection, Error> {
-        let conn = Connection::open(&self.path)?;
-        // This should be enough to "cache" all queries.
-        conn.set_prepared_statement_cache_capacity(32);
-        Ok(conn)
-    }
-
-    fn init(&self) -> Result<(), Error> {
-        let conn = self.connect()?;
-        conn.pragma_update(None, "journal_mode", "WAL")?;
-        conn.execute_batch(include_str!("../schema/dkvcache/storage.sql"))?;
-        *self.len_cache.must_lock() = Self::query_len(&conn)?;
-        *self.next_expire_at_cache.must_lock() = Self::query_next_expire_at(&conn)?;
-        Ok(())
+        Ok(Self {
+            pool,
+            len_cache: Mutex::new(len_cache),
+            next_expire_at_cache: Mutex::new(next_expire_at_cache),
+            recency_buffer: Mutex::new(Vec::new()),
+        })
     }
 
     fn transact<T, F>(&self, execute: F) -> Result<T, Error>
@@ -332,7 +321,7 @@ impl StorageImpl {
             },
         );
 
-        let mut conn = self.connect()?;
+        let mut conn = self.pool.connect()?;
         let tx = conn.transaction()?;
 
         Self::execute_flush(&tx, &recency_buffer)?;
@@ -470,6 +459,7 @@ mod test_harness {
         ) -> Result<(), Error> {
             let actual: Vec<_> = self
                 .0
+                .pool
                 .connect()?
                 .prepare_cached(formatcp!(
                     "SELECT {KEY}, {VALUE}, {EXPIRE_AT} FROM {DKVCACHE} ORDER BY {RECENCY} ASC"
