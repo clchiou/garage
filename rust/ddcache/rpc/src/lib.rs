@@ -14,7 +14,6 @@ use std::sync::Arc;
 use bytes::Bytes;
 use capnp::message;
 use capnp::serialize;
-use chrono::{DateTime, TimeZone, Utc};
 
 use g1_capnp::{owner::Owner, result_capnp::result};
 use g1_zmq::envelope::Frame;
@@ -27,7 +26,7 @@ g1_param::define!(pub num_replicas: usize = 2);
 pub type Endpoint = Arc<str>;
 pub type BlobEndpoint = SocketAddr;
 
-pub type Timestamp = DateTime<Utc>;
+pub use g1_chrono::{Timestamp, TimestampExt};
 
 pub type Token = u64;
 
@@ -121,33 +120,6 @@ pub struct BlobMetadata {
 pub struct BlobRequest {
     pub endpoint: BlobEndpoint,
     pub token: Token,
-}
-
-pub trait TimestampExt: Sized {
-    fn now() -> Self;
-    fn decode(timestamp: u64) -> Result<Option<Self>, u64>;
-    fn encode(timestamp: Option<Self>) -> u64;
-}
-
-impl TimestampExt for Timestamp {
-    fn now() -> Self {
-        Utc::now()
-    }
-
-    fn decode(timestamp: u64) -> Result<Option<Self>, u64> {
-        (timestamp != 0)
-            .then(|| {
-                i64::try_from(timestamp)
-                    .ok()
-                    .and_then(|t| Utc.timestamp_opt(t, 0).single())
-                    .ok_or(timestamp)
-            })
-            .transpose()
-    }
-
-    fn encode(timestamp: Option<Self>) -> u64 {
-        timestamp.map_or(0, |t| t.timestamp().try_into().unwrap())
-    }
 }
 
 impl<'a> TryFrom<endpoint::Reader<'a>> for BlobEndpoint {
@@ -272,7 +244,7 @@ impl request::Builder<'_> {
                 this.set_key(key);
                 this.set_metadata(metadata.as_deref().unwrap_or(&[]));
                 this.set_size((*size).try_into().unwrap());
-                this.set_expire_at(Timestamp::encode(*expire_at));
+                this.set_expire_at(expire_at.timestamp_u64());
             }
 
             Request::WriteMetadata {
@@ -291,7 +263,7 @@ impl request::Builder<'_> {
                 if let Some(expire_at) = expire_at {
                     this.reborrow()
                         .init_expire_at()
-                        .set_write(Timestamp::encode(*expire_at));
+                        .set_write(expire_at.timestamp_u64());
                 }
             }
 
@@ -316,7 +288,7 @@ impl request::Builder<'_> {
                 this.set_key(key);
                 this.set_metadata(metadata.as_deref().unwrap_or(&[]));
                 this.set_size((*size).try_into().unwrap());
-                this.set_expire_at(Timestamp::encode(*expire_at));
+                this.set_expire_at(expire_at.timestamp_u64());
             }
         }
     }
@@ -431,7 +403,7 @@ impl response::metadata::Builder<'_> {
     pub fn set(&mut self, metadata: &BlobMetadata) {
         self.set_metadata(metadata.metadata.as_deref().unwrap_or(&[]));
         self.set_size(metadata.size.try_into().unwrap());
-        self.set_expire_at(Timestamp::encode(metadata.expire_at));
+        self.set_expire_at(metadata.expire_at.timestamp_u64());
     }
 }
 
@@ -473,7 +445,7 @@ fn to_size(size: u32) -> usize {
 }
 
 fn to_expire_at(expire_at: u64) -> Result<Option<Timestamp>, capnp::Error> {
-    Timestamp::decode(expire_at).map_err(|expire_at| capnp::Error {
+    <Option<Timestamp>>::from_timestamp_secs(expire_at).map_err(|expire_at| capnp::Error {
         kind: capnp::ErrorKind::Failed,
         extra: format!("invalid expire_at: {expire_at}"),
     })

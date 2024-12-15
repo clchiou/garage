@@ -3,14 +3,13 @@ use std::io::Error;
 use std::path::PathBuf;
 
 use bytes::Bytes;
-use chrono::Utc;
 use clap::{Args, Parser, Subcommand};
 use tokio::time::Instant;
 
 use g1_cli::{param::ParametersConfig, tracing::TracingConfig};
 use g1_tokio::os::Splice;
 
-use ddcache_storage::{Storage, Timestamp};
+use ddcache_storage::{Storage, Timestamp, TimestampExt};
 
 #[derive(Debug, Parser)]
 #[command(after_help = ParametersConfig::render())]
@@ -87,7 +86,7 @@ impl Program {
             Command::Expire(Expire { now }) => {
                 let old_size = storage.size();
                 let start = Instant::now();
-                storage.expire(now.unwrap_or(Utc::now())).await?;
+                storage.expire(now.unwrap_or_else(Timestamp::now)).await?;
                 let duration = start.elapsed();
                 let new_size = storage.size();
                 eprintln!(

@@ -7,7 +7,6 @@ mod serde_impl;
 use std::collections::BTreeMap;
 use std::fmt;
 
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_bytes::Bytes;
 use sha1::{Digest, Sha1};
@@ -50,13 +49,15 @@ pub struct Metainfo<'a> {
 
     pub comment: Option<&'a str>,
     pub created_by: Option<&'a str>,
-    pub creation_date: Option<DateTime<Utc>>,
+    pub creation_date: Option<Timestamp>,
     pub encoding: Option<&'a str>,
     pub info: Info<'a>,
 
     #[debug(with = FormatDictionary)]
     pub extra: BTreeMap<&'a [u8], borrow::Value<'a>>,
 }
+
+pub use g1_chrono::{Timestamp, TimestampExt};
 
 #[derive(Clone, DebugExt, Deserialize, Eq, PartialEqExt, Serialize)]
 #[serde(try_from = "borrow::Value", into = "own::Value")]

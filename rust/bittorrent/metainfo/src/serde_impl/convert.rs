@@ -3,8 +3,9 @@
 //! Generally, `to_foo` converts `borrow::Value` to `Foo`, and `from_foo` converts `Foo` to
 //! `own::Value`.
 
-use chrono::{DateTime, TimeZone, Utc};
 use snafu::prelude::*;
+
+use g1_chrono::Timestamp;
 
 use bittorrent_base::PIECE_HASH_SIZE;
 use bittorrent_bencode::{
@@ -35,13 +36,15 @@ impl From<dict::Error> for Error {
     }
 }
 
-pub(super) fn to_timestamp(timestamp: i64) -> Result<DateTime<Utc>, Error> {
-    Utc.timestamp_opt(timestamp, 0)
-        .single()
-        .ok_or(Error::InvalidTimestamp { timestamp })
+//
+// Yeah, the directions of the to/from timestamp are confusing here.
+//
+
+pub(super) fn to_timestamp(timestamp: i64) -> Result<Timestamp, Error> {
+    Timestamp::from_timestamp(timestamp, 0).ok_or(Error::InvalidTimestamp { timestamp })
 }
 
-pub(super) fn from_timestamp(timestamp: DateTime<Utc>) -> own::Value {
+pub(super) fn from_timestamp(timestamp: Timestamp) -> own::Value {
     timestamp.timestamp().into()
 }
 
@@ -181,7 +184,7 @@ mod tests {
         // timestamp
         ok(
             100.into(),
-            Utc.timestamp_opt(100, 0).single().unwrap(),
+            Timestamp::from_timestamp(100, 0).unwrap(),
             |value| to_int(value).and_then(to_timestamp),
             from_timestamp,
         );

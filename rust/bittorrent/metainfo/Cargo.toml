@@ -4,13 +4,13 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-chrono.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_bytes.workspace = true
 sha1.workspace = true
 snafu.workspace = true
 
 g1_base.workspace = true
+g1_chrono.workspace = true
 
 bittorrent_base.workspace = true
 bittorrent_bencode = { workspace = true, features = ["serde"] }

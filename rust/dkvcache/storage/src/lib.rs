@@ -9,7 +9,6 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use bytes::Bytes;
-use chrono::{DateTime, Utc};
 use const_format::formatcp;
 use rusqlite::types::ValueRef;
 use rusqlite::{Connection, OptionalExtension, Row};
@@ -51,10 +50,10 @@ pub struct Entry {
     pub expire_at: Option<Timestamp>,
 }
 
-pub type Timestamp = DateTime<Utc>;
+pub use g1_chrono::{Timestamp, TimestampExt};
 
-// We manually encode `DateTime<Utc>` as `i64` because `rusqlite::types::ToSql` encodes
-// `DateTime<Utc>` as a string, which is quite inefficient.
+// We manually encode `Timestamp` (an alias for `DateTime<Utc>`) as `i64` because
+// `rusqlite::types::ToSql` encodes `DateTime<Utc>` as a string, which is quite inefficient.
 type RawTimestamp = i64;
 
 const DKVCACHE: &str = "dkvcache";
@@ -174,7 +173,7 @@ impl Storage {
                 key,
                 value,
                 encode_expire_at(expire_at),
-                encode_timestamp(Utc::now()),
+                encode_timestamp(Timestamp::now()),
             ))?;
             Ok(entry)
         })
@@ -196,7 +195,7 @@ impl Storage {
                 key,
                 value,
                 encode_expire_at(expire_at),
-                encode_timestamp(Utc::now()),
+                encode_timestamp(Timestamp::now()),
             ))?;
             Ok(entry)
         })
@@ -214,7 +213,10 @@ impl Storage {
                     "UPDATE {DKVCACHE} SET {RECENCY} = ?2 WHERE {KEY} = ?1
                     RETURNING {VALUE}, {EXPIRE_AT}, {ROWID}"
                 ))?
-                .query_row((key, encode_timestamp(Utc::now())), decode_entry_and_rowid)
+                .query_row(
+                    (key, encode_timestamp(Timestamp::now())),
+                    decode_entry_and_rowid,
+                )
                 .optional()?
             else {
                 return Ok(None);
@@ -380,7 +382,7 @@ impl StorageImpl {
     fn update_recency(&self, rowid: RowId) {
         self.recency_buffer
             .must_lock()
-            .push((rowid, encode_timestamp(Utc::now())));
+            .push((rowid, encode_timestamp(Timestamp::now())));
     }
 }
 
@@ -415,7 +417,7 @@ fn encode_expire_at(expire_at: Option<Timestamp>) -> Option<RawTimestamp> {
 }
 
 fn decode_timestamp(timestamp: RawTimestamp) -> Timestamp {
-    DateTime::from_timestamp_nanos(timestamp)
+    Timestamp::from_timestamp_nanos(timestamp)
 }
 
 fn encode_timestamp(timestamp: Timestamp) -> RawTimestamp {

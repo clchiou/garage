@@ -20,7 +20,6 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use bytes::Bytes;
-use chrono::{DateTime, Utc};
 use tokio::task;
 
 use g1_base::sync::MutexExt;
@@ -76,7 +75,7 @@ struct ExpireGuard {
 
 pub type RemovedBlobMetadata = (Option<Bytes>, u64, Option<Timestamp>);
 
-pub type Timestamp = DateTime<Utc>;
+pub use g1_chrono::{Timestamp, TimestampExt};
 
 impl Storage {
     pub async fn open(dir: &Path) -> Result<Self, Error> {
@@ -483,7 +482,6 @@ mod tests {
     use std::collections::HashMap;
     use std::fs;
 
-    use chrono::TimeZone;
     use tempfile;
 
     use crate::hash::KeyHash;
@@ -625,9 +623,9 @@ mod tests {
 
     #[tokio::test]
     async fn expire() -> Result<(), Error> {
-        let t1 = Utc.timestamp_opt(1, 0).single().unwrap();
-        let t2 = Utc.timestamp_opt(2, 0).single().unwrap();
-        let t3 = Utc.timestamp_opt(3, 0).single().unwrap();
+        let t1 = Timestamp::from_timestamp_secs(1).unwrap();
+        let t2 = Timestamp::from_timestamp_secs(2).unwrap();
+        let t3 = Timestamp::from_timestamp_secs(3).unwrap();
 
         let tempdir = tempfile::tempdir()?;
         let storage = Storage::open(tempdir.path()).await?;

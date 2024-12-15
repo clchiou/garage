@@ -6,7 +6,6 @@ edition.workspace = true
 [dependencies]
 bytes.workspace = true
 capnp = { workspace = true, features = ["unaligned"] }
-chrono.workspace = true
 fasthash.workspace = true
 lazy-regex.workspace = true
 tokio.workspace = true
@@ -14,6 +13,7 @@ tracing.workspace = true
 xattr.workspace = true
 
 g1_base = { workspace = true, features = ["collections_ext"] }
+g1_chrono.workspace = true
 
 [build-dependencies]
 capnpc.workspace = true

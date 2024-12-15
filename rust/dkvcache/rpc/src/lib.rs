@@ -13,7 +13,6 @@ use std::sync::Arc;
 use bytes::Bytes;
 use capnp::message;
 use capnp::serialize;
-use chrono::{DateTime, TimeZone, Utc};
 use snafu::prelude::*;
 
 use g1_capnp::result_capnp::result;
@@ -25,7 +24,7 @@ g1_param::define!(pub num_replicas: usize = 2);
 
 pub type Endpoint = Arc<str>;
 
-pub type Timestamp = DateTime<Utc>;
+pub use g1_chrono::{Timestamp, TimestampExt};
 
 pub type ResponseResult = Result<Option<Response>, Error>;
 
@@ -94,33 +93,6 @@ pub enum Error {
     MaxKeySizeExceeded { max: u32 },
     #[snafu(display("max value size exceeded: {max}"))]
     MaxValueSizeExceeded { max: u32 },
-}
-
-pub trait TimestampExt: Sized {
-    fn now() -> Self;
-    fn decode(timestamp: u64) -> Result<Option<Self>, u64>;
-    fn encode(timestamp: Option<Self>) -> u64;
-}
-
-impl TimestampExt for Timestamp {
-    fn now() -> Self {
-        Utc::now()
-    }
-
-    fn decode(timestamp: u64) -> Result<Option<Self>, u64> {
-        (timestamp != 0)
-            .then(|| {
-                i64::try_from(timestamp)
-                    .ok()
-                    .and_then(|t| Utc.timestamp_opt(t, 0).single())
-                    .ok_or(timestamp)
-            })
-            .transpose()
-    }
-
-    fn encode(timestamp: Option<Self>) -> u64 {
-        timestamp.map_or(0, |t| t.timestamp().try_into().unwrap())
-    }
 }
 
 impl<'a> TryFrom<&'a [u8]> for Request {
@@ -218,7 +190,7 @@ impl request::Builder<'_> {
                 let mut this = this.init_set();
                 this.set_key(key);
                 this.set_value(value);
-                this.set_expire_at(Timestamp::encode(*expire_at));
+                this.set_expire_at(expire_at.timestamp_u64());
             }
 
             Request::Update {
@@ -236,7 +208,7 @@ impl request::Builder<'_> {
                 if let Some(expire_at) = expire_at {
                     this.reborrow()
                         .init_expire_at()
-                        .set_set(Timestamp::encode(*expire_at));
+                        .set_set(expire_at.timestamp_u64());
                 }
             }
 
@@ -260,7 +232,7 @@ impl request::Builder<'_> {
                 let mut this = this.init_push();
                 this.set_key(key);
                 this.set_value(value);
-                this.set_expire_at(Timestamp::encode(*expire_at));
+                this.set_expire_at(expire_at.timestamp_u64());
             }
         }
     }
@@ -307,7 +279,7 @@ impl<'a> TryFrom<response::Reader<'a>> for Response {
 impl response::Builder<'_> {
     pub fn set(&mut self, response: &Response) {
         self.set_value(&response.value);
-        self.set_expire_at(Timestamp::encode(response.expire_at));
+        self.set_expire_at(response.expire_at.timestamp_u64());
     }
 }
 
@@ -360,7 +332,7 @@ fn to_value(value: &[u8]) -> Result<Bytes, capnp::Error> {
 }
 
 fn to_expire_at(expire_at: u64) -> Result<Option<Timestamp>, capnp::Error> {
-    Timestamp::decode(expire_at).map_err(|expire_at| capnp::Error {
+    <Option<Timestamp>>::from_timestamp_secs(expire_at).map_err(|expire_at| capnp::Error {
         kind: capnp::ErrorKind::Failed,
         extra: format!("invalid expire_at: {expire_at}"),
     })

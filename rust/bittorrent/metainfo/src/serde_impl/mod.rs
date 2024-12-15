@@ -188,7 +188,7 @@ impl<'a> From<File<'a>> for own::Value {
 
 #[cfg(test)]
 mod tests {
-    use chrono::{TimeZone, Utc};
+    use g1_chrono::{Timestamp, TimestampExt};
 
     use bittorrent_bencode::serde as serde_bencode;
 
@@ -265,7 +265,7 @@ mod tests {
             url_list: Some(vec!["url0", "url1"]),
             comment: Some("spam"),
             created_by: Some("egg"),
-            creation_date: Some(Utc.timestamp_opt(42, 0).single().unwrap()),
+            creation_date: Some(Timestamp::from_timestamp_secs(42).unwrap()),
             encoding: Some("utf-8"),
             info: Info {
                 raw_info: b"".as_slice(),

@@ -6,7 +6,6 @@ edition.workspace = true
 [dependencies]
 bytes.workspace = true
 capnp = { workspace = true, features = ["unaligned"] }
-chrono.workspace = true
 fasthash.workspace = true
 linkme.workspace = true # Required by g1_param.
 serde = { workspace = true, features = ["derive"] }
@@ -16,6 +15,7 @@ uuid.workspace = true
 etcd_client.workspace = true
 etcd_pubsub.workspace = true
 g1_capnp.workspace = true
+g1_chrono.workspace = true
 g1_param.workspace = true
 g1_zmq.workspace = true
 

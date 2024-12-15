@@ -4,11 +4,11 @@ use std::path::Path;
 use bytes::Bytes;
 use capnp::message;
 use capnp::serialize;
-use chrono::{TimeZone, Utc};
 use xattr::{self, SUPPORTED_PLATFORM};
 
+use g1_chrono::{Timestamp, TimestampExt};
+
 use crate::storage_capnp::blob_metadata;
-use crate::Timestamp;
 
 // Given our use case, it seems more efficient to use a shareable type `Bytes` than a `capnp`
 // reader.
@@ -52,15 +52,10 @@ impl BlobMetadata {
             let metadata = blob_metadata.get_metadata()?;
             let metadata = (!metadata.is_empty()).then(|| Bytes::copy_from_slice(metadata));
 
-            let expire_at = blob_metadata.get_expire_at();
-            let expire_at = (expire_at != 0)
-                .then(|| {
-                    i64::try_from(expire_at)
-                        .ok()
-                        .and_then(|t| Utc.timestamp_opt(t, 0).single())
-                        .ok_or_else(|| Error::other(format!("invalid timestamp: {}", expire_at)))
-                })
-                .transpose()?;
+            let expire_at = <Option<Timestamp>>::from_timestamp_secs(blob_metadata.get_expire_at())
+                .map_err(|expire_at| {
+                    Error::other(std::format!("invalid timestamp: {expire_at}"))
+                })?;
 
             Self {
                 key,
@@ -93,10 +88,7 @@ impl BlobMetadata {
         if let Some(metadata) = self.metadata.as_ref() {
             blob_metadata.set_metadata(metadata);
         }
-        blob_metadata.set_expire_at(
-            self.expire_at
-                .map_or(0, |t| t.timestamp().try_into().unwrap()),
-        );
+        blob_metadata.set_expire_at(self.expire_at.timestamp_u64());
         serialize::write_message_to_words(&builder).into()
     }
 
@@ -166,9 +158,9 @@ mod tests {
 
     #[test]
     fn expire_at() {
-        let t1 = Utc.timestamp_opt(1, 0).single().unwrap();
-        let t2 = Utc.timestamp_opt(2, 0).single().unwrap();
-        let t3 = Utc.timestamp_opt(3, 0).single().unwrap();
+        let t1 = Timestamp::from_timestamp_secs(1).unwrap();
+        let t2 = Timestamp::from_timestamp_secs(2).unwrap();
+        let t3 = Timestamp::from_timestamp_secs(3).unwrap();
 
         let mut metadata = BlobMetadata::new(Bytes::from_static(b"hello"));
         assert_eq!(metadata.expire_at, None);
