@@ -1,6 +1,10 @@
 #![allow(incomplete_features)]
+#![feature(iterator_try_collect)]
 #![feature(lazy_type_alias)]
 #![feature(type_alias_impl_trait)]
+#![cfg_attr(test, feature(assert_matches))]
+
+mod ext;
 
 use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
@@ -10,6 +14,8 @@ use rusqlite::{Connection, Error, OpenFlags};
 use scopeguard::{Always, ScopeGuard};
 
 use g1_base::sync::MutexExt;
+
+pub use crate::ext::{ConnectionExt, StatementExt};
 
 #[derive(Debug)]
 pub struct Pool<O> {
