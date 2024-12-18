@@ -49,6 +49,7 @@ members = [
     "g1/msg",
     "g1/nix",
     "g1/param",
+    "g1/pool",
     "g1/reqwest",
     "g1/rusqlite",
     "g1/serde",
@@ -175,6 +176,7 @@ g1_hyper = { path = "g1/hyper" }
 g1_msg = { path = "g1/msg" }
 g1_nix = { path = "g1/nix" }
 g1_param = { path = "g1/param" }
+g1_pool = { path = "g1/pool" }
 g1_reqwest = { path = "g1/reqwest" }
 g1_rusqlite = { path = "g1/rusqlite" }
 g1_serde = { path = "g1/serde" }

@@ -1,0 +1,9 @@
+[package]
+name = "g1_pool"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+scopeguard.workspace = true
+
+g1_base.workspace = true
