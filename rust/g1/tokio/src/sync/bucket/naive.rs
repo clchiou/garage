@@ -24,13 +24,23 @@ impl TokenBucket {
     }
 
     pub async fn acquire(&mut self, n: f64) {
+        loop {
+            match self.try_acquire(n) {
+                Ok(()) => break,
+                Err(delay) => time::sleep(delay).await,
+            }
+        }
+    }
+
+    pub fn try_acquire(&mut self, n: f64) -> Result<(), Duration> {
         assert!(n <= self.size);
         self.fill();
-        while self.n < n {
-            time::sleep(Duration::from_secs_f64((n - self.n) / self.rate)).await;
-            self.fill();
+        if self.n >= n {
+            self.n -= n;
+            Ok(())
+        } else {
+            Err(Duration::from_secs_f64((n - self.n) / self.rate))
         }
-        self.n -= n;
     }
 
     fn fill(&mut self) {
@@ -92,6 +102,26 @@ mod tests {
 
             assert_bucket(&bucket, 0.0, t0 + ms(2000));
         }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn try_acquire() {
+        let t0 = Instant::now();
+        let mut bucket = TokenBucket::new(1.0, 3.0);
+        assert_bucket(&bucket, 3.0, t0);
+
+        assert_eq!(bucket.try_acquire(1.8), Ok(()));
+        assert_bucket(&bucket, 1.2, t0);
+
+        assert_eq!(bucket.try_acquire(1.3), Err(ms(100)));
+        assert_eq!(bucket.try_acquire(1.4), Err(ms(200)));
+        assert_eq!(bucket.try_acquire(1.8), Err(ms(600)));
+        assert_bucket(&bucket, 1.2, t0);
+
+        time::advance(ms(1000)).await;
+        assert_eq!(bucket.try_acquire(1.8), Ok(()));
+        assert_eq!(Instant::now(), t0 + ms(1000));
+        assert_bucket(&bucket, 0.4, t0 + ms(1000));
     }
 
     #[tokio::test(start_paused = true)]
