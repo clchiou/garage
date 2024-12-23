@@ -1,0 +1,7 @@
+[package]
+name = "g1_scraper"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+scraper.workspace = true

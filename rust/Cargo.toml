@@ -52,6 +52,7 @@ members = [
     "g1/pool",
     "g1/reqwest",
     "g1/rusqlite",
+    "g1/scraper",
     "g1/serde",
     "g1/serde_json",
     "g1/tokio",
@@ -104,6 +105,7 @@ regex = "1.10.3"
 reqwest = "0.12.5"
 rusqlite = { version = "0.31.0", features = ["bundled"] }
 scopeguard = "1.2.0"
+scraper = "0.21.0"
 serde = "1.0.163"
 serde-transcode = "1.1.1"
 serde_bytes = "0.11.9"
@@ -179,6 +181,7 @@ g1_param = { path = "g1/param" }
 g1_pool = { path = "g1/pool" }
 g1_reqwest = { path = "g1/reqwest" }
 g1_rusqlite = { path = "g1/rusqlite" }
+g1_scraper = { path = "g1/scraper" }
 g1_serde = { path = "g1/serde" }
 g1_serde_json = { path = "g1/serde_json" }
 g1_tokio = { path = "g1/tokio" }
