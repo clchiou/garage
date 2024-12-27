@@ -165,7 +165,7 @@ pub fn object_map_own_property<'a, 's, F, T>(
     mut mapper: F,
 ) -> Option<impl Iterator<Item = Option<(String, T)>> + use<'a, 's, F, T>>
 where
-    F: FnMut(&mut v8::HandleScope, v8::Local<v8::Value>) -> Option<T>,
+    for<'t> F: FnMut(&mut v8::HandleScope<'t>, v8::Local<'t, v8::Value>) -> Option<T>,
 {
     let names = object.get_own_property_names(scope, Default::default())?;
     Some((0..names.length()).map(move |i| {
@@ -182,7 +182,7 @@ pub fn array_map<'a, 's, F, T>(
     mut mapper: F,
 ) -> impl Iterator<Item = Option<T>> + use<'a, 's, F, T>
 where
-    F: FnMut(&mut v8::HandleScope, v8::Local<v8::Value>) -> Option<T>,
+    for<'t> F: FnMut(&mut v8::HandleScope<'t>, v8::Local<'t, v8::Value>) -> Option<T>,
 {
     (0..array.length()).map(move |i| {
         let value = array.get_index(scope, i)?;
