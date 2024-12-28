@@ -76,19 +76,20 @@ class JsonWireData(wiredata.WireData):
 
         This and ``_decode_raw_value`` complement each other.
         """
+        result = None
 
         if typings.is_recursive_type(value_type):
 
             if value_type.__origin__ in (list, set, frozenset):
                 element_type = value_type.__args__[0]
-                return [
+                result = [
                     self._encode_value(element_type, element)
                     for element in value
                 ]
 
             elif value_type.__origin__ is tuple:
                 ASSERT.equal(len(value), len(value_type.__args__))
-                return tuple(
+                result = tuple(
                     self._encode_value(element_type, element)
                     for element_type, element in zip(
                         value_type.__args__,
@@ -99,7 +100,7 @@ class JsonWireData(wiredata.WireData):
             elif value_type.__origin__ is dict:
                 # JSON keys must be string-typed.
                 ASSERT.issubclass(value_type.__args__[0], str)
-                return {
+                result = {
                     self._encode_value(value_type.__args__[0], pair[0]):
                     self._encode_value(value_type.__args__[1], pair[1])
                     for pair in value.items()
@@ -110,58 +111,60 @@ class JsonWireData(wiredata.WireData):
                 # Make a special case for ``None``.
                 if value is None:
                     ASSERT.in_(NoneType, value_type.__args__)
-                    return None
-
-                # Make a special case for ``Optional[T]``.
-                type_ = typings.match_optional_type(value_type)
-                if type_:
-                    return self._encode_value(type_, value)
-
-                for type_ in value_type.__args__:
-                    if typings.is_recursive_type(type_):
-                        if _match_recursive_type(type_, value):
-                            return {
-                                str(type_): self._encode_value(type_, value)
-                            }
-                    elif isinstance(value, type_):
-                        return {
-                            type_.__name__: self._encode_value(type_, value)
-                        }
-
-                return ASSERT.unreachable(
-                    'value is not any union element type: {!r} {!r}',
-                    value_type,
-                    value,
-                )
+                    result = None
+                else:
+                    # Make a special case for ``Optional[T]``.
+                    type_ = typings.match_optional_type(value_type)
+                    if type_:
+                        result = self._encode_value(type_, value)
+                    else:
+                        for type_ in value_type.__args__:
+                            if typings.is_recursive_type(type_):
+                                if _match_recursive_type(type_, value):
+                                    result = {
+                                        str(type_): self._encode_value(type_, value)
+                                    }
+                                    break
+                            elif isinstance(value, type_):
+                                result = {
+                                    type_.__name__: self._encode_value(type_, value)
+                                }
+                                break
+                        else:
+                            result = ASSERT.unreachable(
+                                'value is not any union element type: {!r} {!r}',
+                                value_type,
+                                value,
+                            )
 
             else:
-                return ASSERT.unreachable(
+                result = ASSERT.unreachable(
                     'unsupported generic: {!r}', value_type
                 )
 
         elif wiredata.is_message(value):
             ASSERT.predicate(value_type, wiredata.is_message_type)
-            return {
+            result = {
                 f.name: self._encode_value(f.type, getattr(value, f.name))
                 for f in dataclasses.fields(value)
             }
 
         elif isinstance(value, datetime.datetime):
             ASSERT.issubclass(value_type, datetime.datetime)
-            return value.isoformat()
+            result = value.isoformat()
 
         elif isinstance(value, enum.Enum):
             ASSERT.issubclass(value_type, enum.Enum)
-            return value.name
+            result = value.name
 
         # JSON does not support binary type; so it has to be encoded.
         elif isinstance(value, bytes):
             ASSERT.issubclass(value_type, bytes)
-            return base64.standard_b64encode(value).decode('ascii')
+            result = base64.standard_b64encode(value).decode('ascii')
 
         elif isinstance(value, Exception):
             ASSERT.issubclass(value_type, Exception)
-            return {
+            result = {
                 type(value).__name__: [
                     ASSERT.isinstance(arg, _DIRECTLY_SERIALIZABLE_TYPES)
                     for arg in value.args
@@ -170,31 +173,33 @@ class JsonWireData(wiredata.WireData):
 
         elif isinstance(value, _DIRECTLY_SERIALIZABLE_TYPES):
             ASSERT.issubclass(value_type, _DIRECTLY_SERIALIZABLE_TYPES)
-            return value
+            result = value
 
         else:
-            return ASSERT.unreachable(
+            result = ASSERT.unreachable(
                 'unsupported value type: {!r} {!r}', value_type, value
             )
 
+        return result
     def _decode_raw_value(self, value_type, raw_value):
         """Decode a raw value into ``value_type``-typed value.
 
         This and ``_encode_value`` complement each other.
         """
+        result = None
 
         if typings.is_recursive_type(value_type):
 
             if value_type.__origin__ in (list, set, frozenset):
                 element_type = value_type.__args__[0]
-                return value_type.__origin__(
+                result = value_type.__origin__(
                     self._decode_raw_value(element_type, raw_element)
                     for raw_element in raw_value
                 )
 
             elif value_type.__origin__ is tuple:
                 ASSERT.equal(len(raw_value), len(value_type.__args__))
-                return tuple(
+                result = tuple(
                     self._decode_raw_value(element_type, raw_element)
                     for element_type, raw_element in zip(
                         value_type.__args__,
@@ -205,7 +210,7 @@ class JsonWireData(wiredata.WireData):
             elif value_type.__origin__ is dict:
                 # JSON keys must be string-typed.
                 ASSERT.issubclass(value_type.__args__[0], str)
-                return {
+                result = {
                     self._decode_raw_value(value_type.__args__[0], pair[0]):
                     self._decode_raw_value(value_type.__args__[1], pair[1])
                     for pair in raw_value.items()
@@ -216,36 +221,37 @@ class JsonWireData(wiredata.WireData):
                 # Handle ``None`` special case.
                 if raw_value is None:
                     ASSERT.in_(NoneType, value_type.__args__)
-                    return None
-
-                # Handle ``Optional[T]`` special case.
-                type_ = typings.match_optional_type(value_type)
-                if type_:
-                    return self._decode_raw_value(type_, raw_value)
-
-                ASSERT.equal(len(raw_value), 1)
-                type_name, raw_element = next(iter(raw_value.items()))
-                for type_ in value_type.__args__:
-                    if typings.is_recursive_type(type_):
-                        candidate = str(type_)
+                    result = None
+                else:
+                    # Handle ``Optional[T]`` special case.
+                    type_ = typings.match_optional_type(value_type)
+                    if type_:
+                        result = self._decode_raw_value(type_, raw_value)
                     else:
-                        candidate = type_.__name__
-                    if type_name == candidate:
-                        return self._decode_raw_value(type_, raw_element)
-
-                return ASSERT.unreachable(
-                    'raw value is not any union element type: {!r} {!r}',
-                    value_type,
-                    raw_value,
-                )
+                        ASSERT.equal(len(raw_value), 1)
+                        type_name, raw_element = next(iter(raw_value.items()))
+                        for type_ in value_type.__args__:
+                            if typings.is_recursive_type(type_):
+                                candidate = str(type_)
+                            else:
+                                candidate = type_.__name__
+                            if type_name == candidate:
+                                result = self._decode_raw_value(type_, raw_element)
+                                break
+                        else:
+                            result = ASSERT.unreachable(
+                                'raw value is not any union element type: {!r} {!r}',
+                                value_type,
+                                raw_value,
+                            )
 
             else:
-                return ASSERT.unreachable(
+                result = ASSERT.unreachable(
                     'unsupported generic: {!r}', value_type
                 )
 
         elif wiredata.is_message_type(value_type):
-            return value_type(
+            result = value_type(
                 **{
                     f.name: self._decode_raw_value(f.type, raw_value[f.name])
                     for f in dataclasses.fields(value_type)
@@ -255,22 +261,22 @@ class JsonWireData(wiredata.WireData):
 
         elif not isinstance(value_type, type):
             # Non-``type`` instance cannot be passed to ``issubclass``.
-            return ASSERT.unreachable(
+            result = ASSERT.unreachable(
                 'unsupported value type: {!r}', value_type
             )
 
         elif issubclass(value_type, datetime.datetime):
-            return value_type.fromisoformat(raw_value)
+            result = value_type.fromisoformat(raw_value)
 
         elif issubclass(value_type, enum.Enum):
-            return value_type[raw_value]
+            result = value_type[raw_value]
 
         elif issubclass(value_type, bytes):
-            return base64.standard_b64decode(raw_value.encode('ascii'))
+            result = base64.standard_b64decode(raw_value.encode('ascii'))
 
         elif issubclass(value_type, Exception):
             ASSERT.equal(len(raw_value), 1)
-            return value_type(
+            result = value_type(
                 *(
                     ASSERT.isinstance(raw_arg, _DIRECTLY_SERIALIZABLE_TYPES)
                     for raw_arg in raw_value[value_type.__name__]
@@ -279,15 +285,17 @@ class JsonWireData(wiredata.WireData):
 
         elif issubclass(value_type, _DIRECTLY_SERIALIZABLE_TYPES):
             if value_type in _DIRECTLY_SERIALIZABLE_TYPES:
-                return ASSERT.isinstance(raw_value, value_type)
+                result = ASSERT.isinstance(raw_value, value_type)
             else:
                 # Support sub-type of int, etc.
-                return value_type(raw_value)
+                result = value_type(raw_value)
 
         else:
-            return ASSERT.unreachable(
+            result = ASSERT.unreachable(
                 'unsupported value type: {!r}', value_type
             )
+
+        return result
 
 
 def _match_recursive_type(type_, value):
