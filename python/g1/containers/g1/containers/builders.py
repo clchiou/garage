@@ -125,7 +125,14 @@ def cmd_setup_base_rootfs(image_rootfs_path, prune_stash_path):
     """
     ASSERT.predicate(image_rootfs_path, Path.is_dir)
     oses.assert_root_privilege()
-    # Remove unneeded files.
+
+    _cleanup_unneeded_files(image_rootfs_path, prune_stash_path)
+    _remove_config_files(image_rootfs_path)
+    _replace_config_files(image_rootfs_path)
+    _setup_unit_files(image_rootfs_path)
+    _setup_pod_exit(image_rootfs_path)
+
+def _cleanup_unneeded_files(image_rootfs_path, prune_stash_path):
     for dir_relpath in (
         'usr/share/doc',
         'usr/share/info',
@@ -144,22 +151,19 @@ def cmd_setup_base_rootfs(image_rootfs_path, prune_stash_path):
                 _move_dir_content(dir_path, dst_path)
             else:
                 _clear_dir_content(dir_path)
-    # Remove certain config files.
+
+def _remove_config_files(image_rootfs_path):
     for path in (
-        # Remove this so that systemd-nspawn may set the hostname.
         image_rootfs_path / 'etc/hostname',
-        # systemd-nspawn uses machine-id to link journal.
         image_rootfs_path / 'etc/machine-id',
         image_rootfs_path / 'var/lib/dbus/machine-id',
-        # debootstrap seems to copy this file from the build machine,
-        # which is not the host machine that runs this image; so let's
-        # replace this with a generic stub.
         image_rootfs_path / 'etc/resolv.conf',
         image_rootfs_path / 'run/systemd/resolve/stub-resolv.conf',
     ):
         LOG.info('remove: %s', path)
         g1.files.remove(path)
-    # Replace certain config files.
+
+def _replace_config_files(image_rootfs_path):
     for path, content in (
         (image_rootfs_path / 'etc/default/locale', _LOCALE),
         (image_rootfs_path / 'etc/resolv.conf', _RESOLV_CONF),
@@ -167,7 +171,8 @@ def cmd_setup_base_rootfs(image_rootfs_path, prune_stash_path):
     ):
         LOG.info('replace: %s', path)
         path.write_text(content)
-    # Remove unneeded unit files.
+
+def _setup_unit_files(image_rootfs_path):
     base_units = set(_BASE_UNITS)
     for unit_dir_path in (
         image_rootfs_path / 'etc/systemd/system',
@@ -175,17 +180,22 @@ def cmd_setup_base_rootfs(image_rootfs_path, prune_stash_path):
     ):
         if not unit_dir_path.exists():
             continue
-        LOG.info('clean up unit files in: %s', unit_dir_path)
-        for unit_path in unit_dir_path.iterdir():
-            if unit_path.name in base_units:
-                base_units.remove(unit_path.name)
-                continue
-            # There should have no duplicated units, right?
-            ASSERT.not_in(unit_path.name, _BASE_UNITS)
-            LOG.info('remove: %s', unit_path)
-            g1.files.remove(unit_path)
+        _cleanup_unit_files(unit_dir_path, base_units)
     ASSERT.empty(base_units)
-    # Create unit files.
+
+    _create_unit_files(image_rootfs_path)
+
+def _cleanup_unit_files(unit_dir_path, base_units):
+    LOG.info('clean up unit files in: %s', unit_dir_path)
+    for unit_path in unit_dir_path.iterdir():
+        if unit_path.name in base_units:
+            base_units.remove(unit_path.name)
+            continue
+        ASSERT.not_in(unit_path.name, _BASE_UNITS)
+        LOG.info('remove: %s', unit_path)
+        g1.files.remove(unit_path)
+
+def _create_unit_files(image_rootfs_path):
     for unit_dir_path, unit_files in (
         (image_rootfs_path / 'etc/systemd/system', _ETC_UNIT_FILES),
         (image_rootfs_path / 'usr/lib/systemd/system', _LIB_UNIT_FILES),
@@ -194,16 +204,20 @@ def cmd_setup_base_rootfs(image_rootfs_path, prune_stash_path):
             ASSERT.predicate(unit_dir_path, Path.is_dir)
             path = unit_dir_path / unit_file.relpath
             LOG.info('create: %s', path)
-            if unit_file.kind is _UnitFile.Kinds.DIRECTORY:
-                path.mkdir(mode=0o755)
-            elif unit_file.kind is _UnitFile.Kinds.FILE:
-                path.write_text(unit_file.content)
-                path.chmod(0o644)
-            else:
-                ASSERT.is_(unit_file.kind, _UnitFile.Kinds.SYMLINK)
-                path.symlink_to(unit_file.content)
-            bases.chown_root(path)
-    # Create ``pod-exit`` script and exit status directory.
+            _create_unit_file(path, unit_file)
+
+def _create_unit_file(path, unit_file):
+    if unit_file.kind is _UnitFile.Kinds.DIRECTORY:
+        path.mkdir(mode=0o755)
+    elif unit_file.kind is _UnitFile.Kinds.FILE:
+        path.write_text(unit_file.content)
+        path.chmod(0o644)
+    else:
+        ASSERT.is_(unit_file.kind, _UnitFile.Kinds.SYMLINK)
+        path.symlink_to(unit_file.content)
+    bases.chown_root(path)
+
+def _setup_pod_exit(image_rootfs_path):
     pod_exit_path = image_rootfs_path / 'usr/sbin/pod-exit'
     LOG.info('create: %s', pod_exit_path)
     pod_exit_path.write_text(_POD_EXIT)
