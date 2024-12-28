@@ -210,12 +210,25 @@ class HttpSession:
                 context.file.close()
 
     async def _do_send_response(self, context, environ, keep_alive):
-        # Start sending status and headers after we receive the first
-        # chunk so that user has a chance to call start_response again
-        # to reset status and headers.
         chunks = [await context.get_body_chunk()]
         context.commit()
 
+        keep_alive, content_length = self._process_headers(context, keep_alive)
+
+        body_size = await self._calculate_body_size(context, chunks, content_length)
+
+        omit_body = self._should_omit_body(context.status, environ)
+        if omit_body:
+            chunks.clear()
+
+        await self._response_queue.begin(context.status, context.headers)
+
+        await self._send_body(context, chunks, omit_body, body_size, content_length)
+
+        if not keep_alive:
+            raise _SessionExit
+
+    def _process_headers(self, context, keep_alive):
         has_connection_header = False
         content_length = None
         for key, value in context.headers:
@@ -230,6 +243,9 @@ class HttpSession:
                 self._KEEP_ALIVE if keep_alive else self._NOT_KEEP_ALIVE
             )
 
+        return keep_alive, content_length
+
+    async def _calculate_body_size(self, context, chunks, content_length):
         if content_length is None:
             if context.file is None:
                 while chunks[-1]:
@@ -243,18 +259,9 @@ class HttpSession:
             ))
         else:
             body_size = len(chunks[0])
+        return body_size
 
-        omit_body = self._should_omit_body(context.status, environ)
-        if omit_body:
-            chunks.clear()
-
-        await self._response_queue.begin(context.status, context.headers)
-
-        # TODO: When body chunks or context.file is actually larger than
-        # Content-Length provided by the caller, we will still send the
-        # extra data to the client, and then err out.  Maybe,
-        # alternatively, we should not send the extra data (but still
-        # err out)?
+    async def _send_body(self, context, chunks, omit_body, body_size, content_length):
         if context.file is None:
             for chunk in chunks:
                 if not omit_body:
@@ -283,9 +290,6 @@ class HttpSession:
                 body_size,
                 environ,
             )
-            raise _SessionExit
-
-        if not keep_alive:
             raise _SessionExit
 
     @staticmethod
