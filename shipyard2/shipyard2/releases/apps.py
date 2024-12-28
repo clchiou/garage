@@ -103,23 +103,24 @@ def main(
     _: g1.scripts.parts.LABELS.setup,
 ):
     """Release process manager."""
+    result = 0
     if args.command == 'init':
-        return cmd_init(args)
+        result = cmd_init(args)
     elif args.command == 'list':
-        return cmd_list(args)
+        result = cmd_list(args)
     elif args.command == 'build':
-        return build.cmd_build(args)
+        result = build.cmd_build(args)
     elif args.command == 'release':
-        return build.cmd_release(args)
+        result = build.cmd_release(args)
     elif args.command == 'unrelease':
-        return build.cmd_unrelease(args)
+        result = build.cmd_unrelease(args)
     elif args.command == 'remove':
-        return build.cmd_remove(args)
+        result = build.cmd_remove(args)
     elif args.command == 'cleanup':
-        return cleanup.cmd_cleanup(args)
+        result = cleanup.cmd_cleanup(args)
     else:
         ASSERT.unreachable('unknown command: {}', args.command)
-    return 0
+    return result
 
 
 def add_arguments(parser: bases.LABELS.parser) -> bases.LABELS.parse:
