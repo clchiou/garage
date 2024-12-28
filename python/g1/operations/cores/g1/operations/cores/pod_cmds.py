@@ -224,17 +224,14 @@ def cmd_uninstall(args):
 @argparses.end
 @argparses.end
 def main(args):
-    if args.command == 'list':
-        return cmd_list(args)
-    elif args.command == 'install':
-        return cmd_install(args)
-    elif args.command == 'start':
-        return cmd_start(args)
-    elif args.command == 'restart':
-        return cmd_restart(args)
-    elif args.command == 'stop':
-        return cmd_stop(args)
-    elif args.command == 'uninstall':
-        return cmd_uninstall(args)
-    else:
+    commands = {
+        'list': cmd_list,
+        'install': cmd_install,
+        'start': cmd_start,
+        'restart': cmd_restart,
+        'stop': cmd_stop,
+        'uninstall': cmd_uninstall,
+    }
+    if args.command not in commands:
         return ASSERT.unreachable('unknown command: {}', args.command)
+    return commands[args.command](args)
