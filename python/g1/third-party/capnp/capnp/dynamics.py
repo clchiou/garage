@@ -248,26 +248,22 @@ _PRIMITIVE_TYPES = {
 
 
 def _make_to_upper(item_type, is_reader):
+    # Initialize result variable
+    result_func = None
 
-    # Handle non-pointer types first.
-
-    result = _PRIMITIVE_TYPES.get(item_type.which)
-    if result:
-        return functools.partial(_primitive_to_upper, result[1])
-
-    if item_type.is_enum():
-        return _enum_to_upper
-
-    # Handle pointer types.
-
-    if item_type.is_text():
-        return _text_to_upper
-
-    if item_type.is_data():
-        return _data_to_upper
-
-    if item_type.is_list():
-        return functools.partial(
+    # Handle non-pointer types first
+    primitive_types = _PRIMITIVE_TYPES.get(item_type.which)
+    if primitive_types:
+        result_func = functools.partial(_primitive_to_upper, primitive_types[1])
+    elif item_type.is_enum():
+        result_func = _enum_to_upper
+    # Handle pointer types
+    elif item_type.is_text():
+        result_func = _text_to_upper
+    elif item_type.is_data():
+        result_func = _data_to_upper
+    elif item_type.is_list():
+        result_func = functools.partial(
             _list_to_upper,
             # TODO: Sadly, this will break users who subclass
             # DynamicListReader or DynamicListBuilder (same below) as we
@@ -275,22 +271,20 @@ def _make_to_upper(item_type, is_reader):
             DynamicListReader if is_reader else DynamicListBuilder,
             item_type.as_list(),
         )
-
-    if item_type.is_struct():
-        return functools.partial(
+    elif item_type.is_struct():
+        result_func = functools.partial(
             _struct_to_upper,
             DynamicStructReader if is_reader else DynamicStructBuilder,
             item_type.as_struct(),
         )
-
-    if item_type.is_interface():
+    elif item_type.is_interface():
         raise NotImplementedError('do not support interface for now')
-
-    if item_type.is_any_pointer():
+    elif item_type.is_any_pointer():
         raise NotImplementedError('do not support any-pointer for now')
+    else:
+        return ASSERT.unreachable('unexpected item type: {}', item_type)
 
-    return ASSERT.unreachable('unexpected item type: {}', item_type)
-
+    return result_func
 
 def _primitive_to_upper(to_upper, message, value):
     del message  # Unused.
@@ -322,39 +316,33 @@ def _list_to_upper(list_type, schema, message, value):
 def _struct_to_upper(struct_type, schema, message, value):
     return struct_type(message, schema, value.asDynamicStruct())
 
-
 def _make_to_lower(item_type):
+    # Initialize result variable
+    result_func = None
 
-    # Handle non-pointer types first.
-
-    result = _PRIMITIVE_TYPES.get(item_type.which)
-    if result:
-        return functools.partial(_primitive_to_lower, result[0], result[2])
-
-    if item_type.is_enum():
-        return functools.partial(_enum_to_lower, item_type.as_enum())
-
-    # Handle pointer types.
-
-    if item_type.is_text():
-        return _text_to_lower
-
-    if item_type.is_data():
-        return _data_to_lower
-
-    if item_type.is_list():
-        return _list_to_lower
-
-    if item_type.is_struct():
-        return _struct_to_lower
-
-    if item_type.is_interface():
+    # Handle non-pointer types first
+    primitive_types = _PRIMITIVE_TYPES.get(item_type.which)
+    if primitive_types:
+        result_func = functools.partial(_primitive_to_lower, primitive_types[0], primitive_types[2])
+    elif item_type.is_enum():
+        result_func = functools.partial(_enum_to_lower, item_type.as_enum())
+    # Handle pointer types
+    elif item_type.is_text():
+        result_func = _text_to_lower
+    elif item_type.is_data():
+        result_func = _data_to_lower
+    elif item_type.is_list():
+        result_func = _list_to_lower
+    elif item_type.is_struct():
+        result_func = _struct_to_lower
+    elif item_type.is_interface():
         raise NotImplementedError('do not support interface for now')
-
-    if item_type.is_any_pointer():
+    elif item_type.is_any_pointer():
         raise NotImplementedError('do not support any-pointer for now')
+    else:
+        return ASSERT.unreachable('unexpected item type: {}', item_type)
 
-    return ASSERT.unreachable('unexpected item type: {}', item_type)
+    return result_func
 
 
 def _primitive_to_lower(type_, to_lower, value):
