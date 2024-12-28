@@ -414,6 +414,33 @@ def format_help(root_namespaces):
         output.write('\n')
         format_namespace(root_namespace, 1)
 
+    def format_parameter_info(value):
+        output_parts = []
+        
+        if value.doc:
+            output_parts.append(' ' + value.doc)
+            
+        if isinstance(value, Parameter):
+            output_parts.append(' (default: ' + (value.format or json.dumps)(value.default))
+        elif isinstance(value, ConstParameter):
+            output_parts.append(' (value: ' + (value.format or json.dumps)(value.value))
+        else:
+            ASSERT.isinstance(value, RequiredParameter)
+            if isinstance(value.type, type):
+                type_str = value.type.__name__
+            else:
+                type_str = ', '.join(t.__name__ for t in value.type)
+            output_parts.append(' (type: ' + type_str)
+            
+        if value.unit:
+            if isinstance(value, RequiredParameter):
+                output_parts.append(', unit: ' + value.unit)
+            else:
+                output_parts.append(' ' + value.unit)
+                
+        output_parts.append(')')
+        return ''.join(output_parts)
+
     def format_namespace(namespace, indent):
         for name, value in namespace._entries.items():
             write_indent(indent)
@@ -427,29 +454,9 @@ def format_help(root_namespaces):
                 format_namespace(value, indent + 1)
             else:
                 ASSERT.isinstance(value, ParameterBase)
-                if value.doc:
-                    output.write(' ')
-                    output.write(value.doc)
-                if isinstance(value, Parameter):
-                    output.write(' (default: ')
-                    output.write((value.format or json.dumps)(value.default))
-                elif isinstance(value, ConstParameter):
-                    output.write(' (value: ')
-                    output.write((value.format or json.dumps)(value.value))
-                else:
-                    ASSERT.isinstance(value, RequiredParameter)
-                    output.write(' (type: ')
-                    if isinstance(value.type, type):
-                        output.write(value.type.__name__)
-                    else:
-                        output.write(', '.join(t.__name__ for t in value.type))
-                if value.unit:
-                    if isinstance(value, RequiredParameter):
-                        output.write(', unit: ')
-                    else:
-                        output.write(' ')
-                    output.write(value.unit)
-                output.write(')\n')
+                output.write(format_parameter_info(value))
+                output.write('\n')
+
 
     def write_indent(indent):
         for _ in range(indent):
