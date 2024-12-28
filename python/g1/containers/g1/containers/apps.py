@@ -100,57 +100,57 @@ def cmd_images(args):
 @argparses.end
 @argparses.end
 def cmd_pods(args):
-    if args.command == 'list':
-        columnar = columns.Columnar(
-            **columns_argparses.make_columnar_kwargs(args),
-            stringifiers=pods.POD_LIST_STRINGIFIERS,
-        )
-        for row in pods.cmd_list():
-            columnar.append(row)
-        columnar.sort(lambda row: (row['name'], row['version'], row['id']))
-        columnar.output(sys.stdout)
-    elif args.command == 'show':
-        columnar = columns.Columnar(
-            **columns_argparses.make_columnar_kwargs(args),
-            stringifiers=pods.POD_SHOW_STRINGIFIERS,
-        )
-        for row in pods.cmd_show(args.id):
-            columnar.append(row)
-        columnar.sort(lambda row: row['name'])
-        columnar.output(sys.stdout)
-    elif args.command == 'cat-config':
-        pods.cmd_cat_config(args.id, sys.stdout.buffer)
-    elif args.command == 'generate-id':
-        pods.cmd_generate_id(sys.stdout)
-    elif args.command == 'run':
-        pods.cmd_run(
+    command_handlers = {
+        'list': lambda: _handle_list(args),
+        'show': lambda: _handle_show(args),
+        'cat-config': lambda: pods.cmd_cat_config(args.id, sys.stdout.buffer),
+        'generate-id': lambda: pods.cmd_generate_id(sys.stdout),
+        'run': lambda: pods.cmd_run(
             pod_id=args.id or models.generate_pod_id(),
             config_path=args.config,
             debug=get_debug(),
-        )
-    elif args.command == 'prepare':
-        pods.cmd_prepare(
+        ),
+        'prepare': lambda: pods.cmd_prepare(
             pod_id=args.id or models.generate_pod_id(),
             config_path=args.config,
-        )
-    elif args.command == 'run-prepared':
-        pods.cmd_run_prepared(pod_id=args.id, debug=get_debug())
-    elif args.command == 'add-ref':
-        pods.cmd_add_ref(pod_id=args.id, target_path=args.target)
-    elif args.command == 'export-overlay':
-        pods.cmd_export_overlay(
+        ),
+        'run-prepared': lambda: pods.cmd_run_prepared(pod_id=args.id, debug=get_debug()),
+        'add-ref': lambda: pods.cmd_add_ref(pod_id=args.id, target_path=args.target),
+        'export-overlay': lambda: pods.cmd_export_overlay(
             pod_id=args.id,
             output_path=args.output,
             filter_patterns=args.filter or (),
             debug=get_debug(),
-        )
-    elif args.command == 'remove':
-        pods.cmd_remove(args.id)
-    elif args.command == 'cleanup':
-        pods.cmd_cleanup(**bases.make_grace_period_kwargs(args))
-    else:
+        ),
+        'remove': lambda: pods.cmd_remove(args.id),
+        'cleanup': lambda: pods.cmd_cleanup(**bases.make_grace_period_kwargs(args)),
+    }
+
+    handler = command_handlers.get(args.command)
+    if not handler:
         ASSERT.unreachable('unknown pod command: {}', args.command)
+    handler()
     return 0
+
+def _handle_list(args):
+    columnar = columns.Columnar(
+        **columns_argparses.make_columnar_kwargs(args),
+        stringifiers=pods.POD_LIST_STRINGIFIERS,
+    )
+    for row in pods.cmd_list():
+        columnar.append(row)
+    columnar.sort(lambda row: (row['name'], row['version'], row['id']))
+    columnar.output(sys.stdout)
+
+def _handle_show(args):
+    columnar = columns.Columnar(
+        **columns_argparses.make_columnar_kwargs(args),
+        stringifiers=pods.POD_SHOW_STRINGIFIERS,
+    )
+    for row in pods.cmd_show(args.id):
+        columnar.append(row)
+    columnar.sort(lambda row: row['name'])
+    columnar.output(sys.stdout)
 
 
 def get_debug():
