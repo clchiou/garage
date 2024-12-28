@@ -360,83 +360,82 @@ def _make_field_converter(sf_type, df_type):
         if df_type.__origin__ is list:
             TYPE_ASSERT.equal(len(df_type.__args__), 1)
             TYPE_ASSERT.true(sf_type.is_list())
-            return _CollectionTypedFieldConverter.make_list_accessors(
+            getter, setter = _CollectionTypedFieldConverter.make_list_accessors(
                 _ListConverter(sf_type.as_list(), df_type.__args__[0])
             )
 
         elif df_type.__origin__ is tuple:
             TYPE_ASSERT.true(sf_type.is_struct())
-            return _CollectionTypedFieldConverter.make_accessors(
+            getter, setter = _CollectionTypedFieldConverter.make_accessors(
                 _TupleConverter(sf_type.as_struct(), df_type.__args__)
             )
 
         else:
-            return TYPE_ASSERT.unreachable(
+            TYPE_ASSERT.unreachable(
                 'unsupported generic type: {!r}', df_type
             )
 
     elif is_dataclass(df_type):
         TYPE_ASSERT.true(sf_type.is_struct())
-        return _CollectionTypedFieldConverter.make_accessors(
+        getter, setter = _CollectionTypedFieldConverter.make_accessors(
             _StructConverter.get(sf_type.as_struct(), df_type)
         )
 
     elif issubclass(df_type, Exception):
         TYPE_ASSERT.true(sf_type.is_struct())
-        return _CollectionTypedFieldConverter.make_accessors(
+        getter, setter = _CollectionTypedFieldConverter.make_accessors(
             _ExceptionConverter(sf_type.as_struct(), df_type)
         )
 
     elif issubclass(df_type, datetime.datetime):
         if sf_type.which is _DATETIME_FLOAT_TYPE:
-            return _datetime_getter, _datetime_setter_float
+            getter, setter = _datetime_getter, _datetime_setter_float
         else:
             TYPE_ASSERT.in_(sf_type.which, _DATETIME_INT_TYPES)
-            return _datetime_getter, _datetime_setter_int
+            getter, setter = _datetime_getter, _datetime_setter_int
 
     elif issubclass(df_type, enum.Enum):
         TYPE_ASSERT.true(sf_type.is_enum())
-        return functools.partial(_enum_getter, df_type), operator.setitem
+        getter, setter = functools.partial(_enum_getter, df_type), operator.setitem
 
     elif issubclass(df_type, NoneType):
         TYPE_ASSERT.true(sf_type.is_void())
-        return _none_getter, _none_setter
+        getter, setter = _none_getter, _none_setter
 
     elif issubclass(df_type, _capnp.VoidType):
         TYPE_ASSERT.true(sf_type.is_void())
-        return operator.getitem, operator.setitem
+        getter, setter = operator.getitem, operator.setitem
 
     elif issubclass(df_type, bool):
         TYPE_ASSERT.true(sf_type.is_bool())
-        return operator.getitem, operator.setitem
+        getter, setter = operator.getitem, operator.setitem
 
     elif issubclass(df_type, int):
-        # NOTE: For now we only support sub-types of int.  If there are
-        # use cases of sub-types other types, we will add support to
-        # them as well.
         TYPE_ASSERT.in_(sf_type.which, _INT_TYPES)
         if df_type is int:
             getter = operator.getitem
         else:
             getter = functools.partial(_int_subtype_getter, df_type)
-        return getter, operator.setitem
+        setter = operator.setitem
 
     elif issubclass(df_type, float):
         TYPE_ASSERT.in_(sf_type.which, _FLOAT_TYPES)
-        return operator.getitem, operator.setitem
+        getter, setter = operator.getitem, operator.setitem
 
     elif issubclass(df_type, bytes):
         TYPE_ASSERT.true(sf_type.is_data())
-        return _bytes_getter, _pointer_setter
+        getter, setter = _bytes_getter, _pointer_setter
 
     elif issubclass(df_type, str):
         TYPE_ASSERT.true(sf_type.is_text())
-        return operator.getitem, _pointer_setter
+        getter, setter = operator.getitem, _pointer_setter
 
     else:
-        return TYPE_ASSERT.unreachable(
+        TYPE_ASSERT.unreachable(
             'unsupported field type: {!r}, {!r}', sf_type, df_type
         )
+
+    return getter, setter
 
 
 def _make_optional_field_converter(sf_type, df_type):
@@ -468,83 +467,82 @@ def _make_union_member_converter(sf_type, df_type):
         if df_type.__origin__ is list:
             TYPE_ASSERT.equal(len(df_type.__args__), 1)
             TYPE_ASSERT.true(sf_type.is_list())
-            return _CollectionTypedFieldConverter.make_union_list_accessors(
+            getter, setter = _CollectionTypedFieldConverter.make_union_list_accessors(
                 _ListConverter(sf_type.as_list(), df_type.__args__[0])
             )
 
         elif df_type.__origin__ is tuple:
             TYPE_ASSERT.true(sf_type.is_struct())
-            return _CollectionTypedFieldConverter.make_union_accessors(
+            getter, setter = _CollectionTypedFieldConverter.make_union_accessors(
                 _TupleConverter(sf_type.as_struct(), df_type.__args__)
             )
 
         else:
-            return TYPE_ASSERT.unreachable(
+            TYPE_ASSERT.unreachable(
                 'unsupported generic type for union: {!r}', df_type
             )
 
     elif is_dataclass(df_type):
         TYPE_ASSERT.true(sf_type.is_struct())
-        return _CollectionTypedFieldConverter.make_union_accessors(
+        getter, setter = _CollectionTypedFieldConverter.make_union_accessors(
             _StructConverter.get(sf_type.as_struct(), df_type)
         )
 
     elif issubclass(df_type, Exception):
         TYPE_ASSERT.true(sf_type.is_struct())
-        return _CollectionTypedFieldConverter.make_union_accessors(
+        getter, setter = _CollectionTypedFieldConverter.make_union_accessors(
             _ExceptionConverter(sf_type.as_struct(), df_type)
         )
 
     elif issubclass(df_type, datetime.datetime):
         if sf_type.which is _DATETIME_FLOAT_TYPE:
-            return _union_datetime_getter, _union_datetime_setter_float
+            getter, setter = _union_datetime_getter, _union_datetime_setter_float
         else:
             TYPE_ASSERT.in_(sf_type.which, _DATETIME_INT_TYPES)
-            return _union_datetime_getter, _union_datetime_setter_int
+            getter, setter = _union_datetime_getter, _union_datetime_setter_int
 
     elif issubclass(df_type, enum.Enum):
         TYPE_ASSERT.true(sf_type.is_enum())
-        return functools.partial(_union_enum_getter, df_type), _union_setter
+        getter, setter = functools.partial(_union_enum_getter, df_type), _union_setter
 
     elif issubclass(df_type, NoneType):
         TYPE_ASSERT.true(sf_type.is_void())
-        return _union_none_getter, _union_setter
+        getter, setter = _union_none_getter, _union_setter
 
     elif issubclass(df_type, _capnp.VoidType):
         TYPE_ASSERT.true(sf_type.is_void())
-        return operator.getitem, _union_setter
+        getter, setter = operator.getitem, _union_setter
 
     elif issubclass(df_type, bool):
         TYPE_ASSERT.true(sf_type.is_bool())
-        return operator.getitem, _union_setter
+        getter, setter = operator.getitem, _union_setter
 
     elif issubclass(df_type, int):
-        # NOTE: For now we only support sub-types of int.  If there are
-        # use cases of sub-types other types, we will add support to
-        # them as well.
         TYPE_ASSERT.in_(sf_type.which, _INT_TYPES)
         if df_type is int:
             getter = operator.getitem
         else:
             getter = functools.partial(_union_int_subtype_getter, df_type)
-        return getter, _union_setter
+        setter = _union_setter
 
     elif issubclass(df_type, float):
         TYPE_ASSERT.in_(sf_type.which, _FLOAT_TYPES)
-        return operator.getitem, _union_setter
+        getter, setter = operator.getitem, _union_setter
 
     elif issubclass(df_type, bytes):
         TYPE_ASSERT.true(sf_type.is_data())
-        return _bytes_getter, _union_setter
+        getter, setter = _bytes_getter, _union_setter
 
     elif issubclass(df_type, str):
         TYPE_ASSERT.true(sf_type.is_text())
-        return operator.getitem, _union_setter
+        getter, setter = operator.getitem, _union_setter
 
     else:
-        return TYPE_ASSERT.unreachable(
+        TYPE_ASSERT.unreachable(
             'unsupported union member type: {!r}, {!r}', sf_type, df_type
         )
+
+    return getter, setter
 
 
 #
