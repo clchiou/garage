@@ -28,21 +28,18 @@ from . import xar_cmds
 @argparses.end
 def main(args: apps_bases.LABELS.args, _: g1.scripts.parts.LABELS.setup):
     """Operations tool."""
-    if args.subject == 'repos':
-        return repo_cmds.main(args)
-    elif args.subject == 'alerts':
-        return alert_cmds.main(args)
-    elif args.subject == 'pods':
-        return pod_cmds.main(args)
-    elif args.subject == 'xars':
-        return xar_cmds.main(args)
-    elif args.subject == 'envs':
-        return env_cmds.main(args)
-    elif args.subject == 'tokens':
-        return token_cmds.main(args)
-    else:
-        return ASSERT.unreachable('unknown subject: {}', args.subject)
-
+    commands = {
+        'repos': repo_cmds.main,
+        'alerts': alert_cmds.main,
+        'pods': pod_cmds.main,
+        'xars': xar_cmds.main,
+        'envs': env_cmds.main,
+        'tokens': token_cmds.main,
+    }
+    command = commands.get(args.subject)
+    if command:
+        return command(args)
+    return ASSERT.unreachable('unknown subject: {}', args.subject)
 
 def add_arguments(parser: apps_bases.LABELS.parser) -> apps_bases.LABELS.parse:
     argparses.make_argument_parser(main, parser=parser)
