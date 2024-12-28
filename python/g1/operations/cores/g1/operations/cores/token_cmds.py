@@ -262,17 +262,16 @@ def cmd_unassign(args):
 @argparses.end
 @argparses.end
 def main(args):
-    if args.command == 'list-definitions':
-        return cmd_list_definitions(args)
-    elif args.command == 'list-assignments':
-        return cmd_list_assignments(args)
-    elif args.command == 'define':
-        return cmd_define(args)
-    elif args.command == 'undefine':
-        return cmd_undefine(args)
-    elif args.command == 'assign':
-        return cmd_assign(args)
-    elif args.command == 'unassign':
-        return cmd_unassign(args)
+    commands = {
+        'list-definitions': cmd_list_definitions,
+        'list-assignments': cmd_list_assignments,
+        'define': cmd_define,
+        'undefine': cmd_undefine,
+        'assign': cmd_assign,
+        'unassign': cmd_unassign,
+    }
+    command_func = commands.get(args.command)
+    if command_func:
+        return command_func(args)
     else:
         return ASSERT.unreachable('unknown command: {}', args.command)
