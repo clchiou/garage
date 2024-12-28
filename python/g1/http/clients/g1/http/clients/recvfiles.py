@@ -183,82 +183,97 @@ class ChunkDecoder:
 
         while data:
             if self._state is self._States.CHUNK_SIZE:
-                i = find(self._SEMICOLON, self._CR)
-                if i == -1:
-                    self._append_chunk_size_buffer(data)
-                    break
-                self._append_chunk_size_buffer(data[:i])
-                if data[i] == self._SEMICOLON:
-                    self._state = self._States.CHUNK_EXTENSION
-                else:
-                    self._state = self._States.CHUNK_HEADER_LF
-                data = data[i + 1:]
-
+                data = self._handle_chunk_size(data, find)
             elif self._state is self._States.CHUNK_EXTENSION:
-                i = find(self._CR)
-                if i == -1:
-                    break
-                self._state = self._States.CHUNK_HEADER_LF
-                data = data[i + 1:]
-
+                data = self._handle_chunk_extension(data, find)
             elif self._state is self._States.CHUNK_HEADER_LF:
-                ASSERT.equal(data[0], self._LF)
-                self._chunk_remaining = self._parse_chunk_size()
-                if self._chunk_remaining == 0:
-                    self._state = self._States.TRAILER_SECTION
-                else:
-                    self._state = self._States.CHUNK_DATA
-                data = data[1:]
-
+                data = self._handle_chunk_header_lf(data)
             elif self._state is self._States.CHUNK_DATA:
-                if self._chunk_remaining > len(data):
-                    output.append(data)
-                    self._chunk_remaining -= len(data)
-                    break
-                self._state = self._States.CHUNK_DATA_CR
-                output.append(data[:self._chunk_remaining])
-                data = data[self._chunk_remaining:]
-                self._chunk_remaining = 0
-
+                data = self._handle_chunk_data(data, output)
             elif self._state is self._States.CHUNK_DATA_CR:
-                ASSERT.equal(data[0], self._CR)
-                self._state = self._States.CHUNK_DATA_LF
-                data = data[1:]
-
+                data = self._handle_chunk_data_cr(data)
             elif self._state is self._States.CHUNK_DATA_LF:
-                ASSERT.equal(data[0], self._LF)
-                self._state = self._States.CHUNK_SIZE
-                data = data[1:]
-
+                data = self._handle_chunk_data_lf(data)
             elif self._state is self._States.TRAILER_SECTION:
-                i = find(self._CR)
-                if i == -1:
-                    # Re-use _chunk_remaining to track the length of the
-                    # field line.
-                    self._chunk_remaining += len(data)
-                    break
-                self._state = self._States.TRAILER_SECTION_LF
-                self._chunk_remaining += i
-                data = data[i + 1:]
-
+                data = self._handle_trailer_section(data, find)
             elif self._state is self._States.TRAILER_SECTION_LF:
-                ASSERT.equal(data[0], self._LF)
-                if self._chunk_remaining == 0:
-                    self._state = self._States.END
-                else:
-                    self._state = self._States.TRAILER_SECTION
-                self._chunk_remaining = 0
-                data = data[1:]
-
+                data = self._handle_trailer_section_lf(data)
             else:
-                ASSERT.is_(self._state, self._States.END)
-                LOG.warning(
-                    'data after the end: len(data)=%d data[:64]=%r',
-                    len(data),
-                    bytes(data[:64]),
-                )
+                self._handle_end_state(data)
                 break
 
+    def _handle_chunk_size(self, data, find):
+        i = find(self._SEMICOLON, self._CR)
+        if i == -1:
+            self._append_chunk_size_buffer(data)
+            return b''
+        self._append_chunk_size_buffer(data[:i])
+        if data[i] == self._SEMICOLON:
+            self._state = self._States.CHUNK_EXTENSION
+        else:
+            self._state = self._States.CHUNK_HEADER_LF
+        return data[i + 1:]
+
+    def _handle_chunk_extension(self, data, find):
+        i = find(self._CR)
+        if i == -1:
+            return b''
+        self._state = self._States.CHUNK_HEADER_LF
+        return data[i + 1:]
+
+    def _handle_chunk_header_lf(self, data):
+        ASSERT.equal(data[0], self._LF)
+        self._chunk_remaining = self._parse_chunk_size()
+        if self._chunk_remaining == 0:
+            self._state = self._States.TRAILER_SECTION
+        else:
+            self._state = self._States.CHUNK_DATA
+        return data[1:]
+
+    def _handle_chunk_data(self, data, output):
+        if self._chunk_remaining > len(data):
+            output.append(data)
+            self._chunk_remaining -= len(data)
+            return b''
+        self._state = self._States.CHUNK_DATA_CR
+        output.append(data[:self._chunk_remaining])
+        return data[self._chunk_remaining:]
+
+    def _handle_chunk_data_cr(self, data):
+        ASSERT.equal(data[0], self._CR)
+        self._state = self._States.CHUNK_DATA_LF
+        return data[1:]
+
+    def _handle_chunk_data_lf(self, data):
+        ASSERT.equal(data[0], self._LF)
+        self._state = self._States.CHUNK_SIZE
+        return data[1:]
+
+    def _handle_trailer_section(self, data, find):
+        i = find(self._CR)
+        if i == -1:
+            self._chunk_remaining += len(data)
+            return b''
+        self._state = self._States.TRAILER_SECTION_LF
+        self._chunk_remaining += i
+        return data[i + 1:]
+
+    def _handle_trailer_section_lf(self, data):
+        ASSERT.equal(data[0], self._LF)
+        if self._chunk_remaining == 0:
+            self._state = self._States.END
+        else:
+            self._state = self._States.TRAILER_SECTION
+        self._chunk_remaining = 0
+        return data[1:]
+
+    def _handle_end_state(self, data):
+        ASSERT.is_(self._state, self._States.END)
+        LOG.warning(
+            'data after the end: len(data)=%d data[:64]=%r',
+            len(data),
+            bytes(data[:64]),
+        )
     def _append_chunk_size_buffer(self, data):
         new_size = ASSERT.less_or_equal(
             self._buffer_size + len(data),
