@@ -75,47 +75,54 @@ class SchemaLoader:
         }
 
         for schema in id_to_schema.values():
-
             if schema.proto.is_file():
-                path = schema.proto.display_name
-                if path not in self.files:
-                    LOG.debug('add file node: %s', path)
-                    self.files[path] = schema
-                continue
-
-            if schema.proto.is_struct():
-                table = self.struct_schemas
-            elif schema.proto.is_enum():
-                table = self.enum_schemas
-            elif schema.proto.is_interface():
-                table = self.interface_schemas
-            elif schema.proto.is_const():
-                table = self.const_schemas
-            elif schema.proto.is_annotation():
-                table = self.annotations
+                self._add_file_node(schema)
             else:
-                ASSERT.unreachable('unexpected schema kind: {}', schema)
+                self._add_schema_node(schema, id_to_schema)
 
-            label = labels.Label(
-                self._get_module_path(schema, id_to_schema),
-                self._get_object_path(schema, id_to_schema),
-            )
-            if label in table:
-                continue
+    def _add_file_node(self, schema):
+        path = schema.proto.display_name
+        if path not in self.files:
+            LOG.debug('add file node: %s', path)
+            self.files[path] = schema
 
+    def _add_schema_node(self, schema, id_to_schema):
+        table = self._get_schema_table(schema)
+        label = labels.Label(
+            self._get_module_path(schema, id_to_schema),
+            self._get_object_path(schema, id_to_schema),
+        )
+        if label not in table:
             LOG.debug('add schema: %s', label)
-            if schema.proto.is_struct():
-                table[label] = schema.as_struct()
-            elif schema.proto.is_enum():
-                table[label] = schema.as_enum()
-            elif schema.proto.is_interface():
-                table[label] = schema.as_interface()
-            elif schema.proto.is_const():
-                table[label] = schema.as_const()
-            elif schema.proto.is_annotation():
-                table[label] = schema
-            else:
-                ASSERT.unreachable('unexpected schema kind: {}', schema)
+            table[label] = self._get_schema_instance(schema)
+
+    def _get_schema_table(self, schema):
+        if schema.proto.is_struct():
+            return self.struct_schemas
+        elif schema.proto.is_enum():
+            return self.enum_schemas
+        elif schema.proto.is_interface():
+            return self.interface_schemas
+        elif schema.proto.is_const():
+            return self.const_schemas
+        elif schema.proto.is_annotation():
+            return self.annotations
+        else:
+            ASSERT.unreachable('unexpected schema kind: {}', schema)
+
+    def _get_schema_instance(self, schema):
+        if schema.proto.is_struct():
+            return schema.as_struct()
+        elif schema.proto.is_enum():
+            return schema.as_enum()
+        elif schema.proto.is_interface():
+            return schema.as_interface()
+        elif schema.proto.is_const():
+            return schema.as_const()
+        elif schema.proto.is_annotation():
+            return schema
+        else:
+            ASSERT.unreachable('unexpected schema kind: {}', schema)
 
     @staticmethod
     def _get_module_path(schema, id_to_schema):
