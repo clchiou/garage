@@ -23,16 +23,16 @@ def fromdict(dataclass, data):
     """
 
     def convert(type_, value):
+        result = value
 
         if typings.is_recursive_type(type_):
-
             if type_.__origin__ is list:
                 element_type = type_.__args__[0]
-                return [convert(element_type, element) for element in value]
+                result = [convert(element_type, element) for element in value]
 
             elif type_.__origin__ is tuple:
                 ASSERT.equal(len(value), len(type_.__args__))
-                return tuple(
+                result = tuple(
                     convert(element_type, element)
                     for element_type, element in zip(type_.__args__, value)
                 )
@@ -40,30 +40,23 @@ def fromdict(dataclass, data):
             elif typings.is_union_type(type_):
                 optional_type_ = typings.match_optional_type(type_)
                 if optional_type_ and value is not None:
-                    return convert(optional_type_, value)
-                else:
-                    return value
+                    result = convert(optional_type_, value)
 
             elif type_.__origin__ in (
                 collections.abc.Mapping,
                 collections.abc.MutableMapping,
             ):
                 ASSERT.equal(len(type_.__args__), 2)
-                return {
+                result = {
                     convert(type_.__args__[0], k):
                     convert(type_.__args__[1], v)
                     for k, v in value.items()
                 }
 
-            else:
-                return value
-
         elif dataclasses.is_dataclass(type_):
-            return fromdict(type_, value)
+            result = fromdict(type_, value)
 
-        else:
-            return value
-
+        return result
     return dataclass(
         **{
             field.name: convert(field.type, data[field.name])
