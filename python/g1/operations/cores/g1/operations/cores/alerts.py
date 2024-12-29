@@ -332,7 +332,7 @@ def watch_syslog(config):
             line = pipe.readline().decode('utf-8', errors='ignore')
             try:
                 message = _parse_syslog_entry(rules, line.strip(), host)
-            except Exception as exc:
+            except (re.error, KeyError, ValueError) as exc:
                 LOG.warning('syslog entry error: %r %r', exc, line)
                 continue
             if message is not None:
@@ -376,8 +376,11 @@ def watch_journal(config, pod_id):
             try:
                 entry = json.loads(line)
                 message = _parse_journal_entry(rules, entry, host, pod_id)
-            except Exception as exc:
-                LOG.warning('journal entry error: %r %r', exc, line)
+            except json.JSONDecodeError as exc:
+                LOG.warning('journal entry JSON decode error: %r %r', exc, line)
+                continue
+            except KeyError as exc:
+                LOG.warning('journal entry key error: %r %r', exc, line)
                 continue
             if message is not None:
                 config.send(message)
