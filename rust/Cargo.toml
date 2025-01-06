@@ -60,6 +60,7 @@ members = [
     "g1/v8",
     "g1/web",
     "g1/zmq",
+    "httpxd",
 ]
 resolver = "2"
 
@@ -189,3 +190,5 @@ g1_url = { path = "g1/url" }
 g1_v8 = { path = "g1/v8" }
 g1_web = { path = "g1/web" }
 g1_zmq = { path = "g1/zmq" }
+
+httpxd = { path = "httpxd" }

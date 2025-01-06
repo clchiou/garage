@@ -1,0 +1,19 @@
+[package]
+name = "httpxd"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+clap.workspace = true
+futures.workspace = true
+http-body-util.workspace = true
+hyper = { workspace = true, features = ["client", "http1"] }
+hyper-util = { workspace = true, features = ["tokio"] }
+linkme.workspace = true # Required by g1_param.
+tokio.workspace = true
+tracing.workspace = true
+
+g1_cli = { workspace = true, features = ["param", "tracing"] }
+g1_param.workspace = true
+g1_tokio = { workspace = true, features = ["param"] }
+g1_web = { workspace = true, features = ["upgrade"] }

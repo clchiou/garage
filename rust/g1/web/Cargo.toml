@@ -21,3 +21,6 @@ tempfile.workspace = true
 # examples
 clap.workspace = true
 g1_cli = { workspace = true, features = ["param", "tracing"] }
+
+[features]
+upgrade = []

@@ -82,6 +82,8 @@ where
                     TokioIo::new(stream),
                     ServiceContainer::new(cancel.clone(), endpoint, self.service.clone()),
                 );
+                #[cfg(feature = "upgrade")]
+                let conn = conn.with_upgrades();
                 async move {
                     tokio::pin!(conn);
                     tokio::select! {
