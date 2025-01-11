@@ -1,3 +1,10 @@
+#![allow(incomplete_features)]
+#![feature(generic_const_exprs)]
+
+extern crate self as g1_html;
+
+pub mod fragment;
+
 mod escape;
 
 use std::fmt::{Display, Write as _};
@@ -57,4 +64,21 @@ where
         output.write_all(format_args.literals[format_args.literals.len() - 1].as_bytes())?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn write() {
+        let mut output = <Vec<u8>>::new();
+        crate::write!(&mut output, r#"&<>"'{}"#, r#"&<>"'"#).unwrap();
+        assert_eq!(
+            String::from_utf8(output).unwrap(),
+            r#"&<>"'&amp;&lt;&gt;&quot;&#x27;"#,
+        );
+
+        let mut output = <Vec<u8>>::new();
+        crate::write!(&mut output, r#"&<>"'{:r}"#, r#"&<>"'"#).unwrap();
+        assert_eq!(String::from_utf8(output).unwrap(), r#"&<>"'&<>"'"#);
+    }
 }
