@@ -1,7 +1,127 @@
 use std::fmt;
+use std::str::{self, MatchIndices};
 use std::sync::Arc;
 
 pub use g1_base_derive::DebugExt;
+
+pub fn format(format: &str, args: &[&dyn fmt::Display]) -> String {
+    let mut output = String::new();
+    write(&mut output, format, args).expect("g1_base::fmt::format");
+    output
+}
+
+#[macro_export]
+macro_rules! format_str {
+    ($buffer:expr $(, $($arg:tt)*)?) => {{
+        use ::std::fmt::Write as _;
+        let mut writer = $crate::fmt::StrWriter::new($buffer);
+        writer.write_fmt(::std::format_args!($($($arg)*)?)).expect("g1_base::fmt::format_str!");
+        writer.into_str()
+    }};
+}
+
+pub fn format_str<'a>(buffer: &'a mut [u8], format: &str, args: &[&dyn fmt::Display]) -> &'a str {
+    let mut writer = StrWriter::new(buffer);
+    write(&mut writer, format, args).expect("g1_base::fmt::format_str");
+    writer.into_str()
+}
+
+pub fn write<W: fmt::Write>(
+    writer: &mut W,
+    format: &str,
+    args: &[&dyn fmt::Display],
+) -> Result<(), fmt::Error> {
+    let mut parser = FormatParser::new(format);
+    // Do not use `Iterator::zip`, as it incorrectly consumes one additional item from either
+    // `parser` or `args` at the end.
+    writer.write_str(parser.next().ok_or(fmt::Error)??)?;
+    for arg in args {
+        writer.write_fmt(std::format_args!("{arg}"))?;
+        writer.write_str(parser.next().ok_or(fmt::Error)??)?;
+    }
+    if parser.next().is_none() {
+        Ok(())
+    } else {
+        Err(fmt::Error)
+    }
+}
+
+struct FormatParser<'a> {
+    format: &'a str,
+    i: usize,
+    braces: MatchIndices<'a, [char; 2]>,
+}
+
+impl<'a> FormatParser<'a> {
+    fn new(format: &'a str) -> Self {
+        Self {
+            format,
+            i: 0,
+            braces: format.match_indices(['{', '}']),
+        }
+    }
+}
+
+impl<'a> Iterator for FormatParser<'a> {
+    type Item = Result<&'a str, fmt::Error>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.i > self.format.len() {
+            return None;
+        }
+
+        while let Some((j, brace)) = self.braces.next() {
+            match (brace, self.braces.next()) {
+                ("{", Some((k, "{"))) | ("}", Some((k, "}"))) if j + 1 == k => {}
+                ("{", Some((k, "}"))) if self.format[j + 1..k].chars().all(char::is_whitespace) => {
+                    let piece = &self.format[self.i..j];
+                    self.i = k + 1;
+                    return Some(Ok(piece));
+                }
+                _ => {
+                    self.i = self.format.len() + 1;
+                    return Some(Err(fmt::Error));
+                }
+            }
+        }
+
+        let piece = &self.format[self.i..];
+        self.i = self.format.len() + 1;
+        Some(Ok(piece))
+    }
+}
+
+#[derive(Debug)]
+pub struct StrWriter<'a> {
+    buffer: &'a mut [u8],
+    offset: usize,
+}
+
+impl<'a> StrWriter<'a> {
+    pub fn new(buffer: &'a mut [u8]) -> Self {
+        Self { buffer, offset: 0 }
+    }
+
+    pub fn as_str(&self) -> &str {
+        unsafe { str::from_utf8_unchecked(&self.buffer[..self.offset]) }
+    }
+
+    pub fn into_str(self) -> &'a str {
+        unsafe { str::from_utf8_unchecked(&self.buffer[..self.offset]) }
+    }
+}
+
+impl fmt::Write for StrWriter<'_> {
+    fn write_str(&mut self, string: &str) -> Result<(), fmt::Error> {
+        let slice = string.as_bytes();
+        self.buffer
+            .get_mut(self.offset..self.offset + slice.len())
+            .ok_or(fmt::Error)?
+            .copy_from_slice(slice);
+        self.offset += slice.len();
+        Ok(())
+    }
+}
 
 /// Escapes non-ASCII characters in a slice to produce `fmt::Debug` output.
 pub struct EscapeAscii<'a, T: ?Sized = [u8]>(pub &'a T);
@@ -298,6 +418,121 @@ impl<T: HaveImplDebug> fmt::Debug for InsertPlaceholderBase<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_format() {
+        assert_eq!(format("你好，{}！", &[&"世界"]), "你好，世界！");
+        assert_eq!(format("Hello, {}!", &[&"World"]), "Hello, World!");
+
+        let buffer = &mut [0u8; 32];
+
+        assert_eq!(
+            crate::format_str!(buffer, "你好，{}！", "世界"),
+            "你好，世界！",
+        );
+        assert_eq!(
+            crate::format_str!(buffer, "Hello, {}!", "World"),
+            "Hello, World!",
+        );
+
+        assert_eq!(format_str(buffer, "你好，{}！", &[&"世界"]), "你好，世界！");
+        assert_eq!(
+            format_str(buffer, "Hello, {}!", &[&"World"]),
+            "Hello, World!",
+        );
+    }
+
+    #[test]
+    fn test_write() {
+        fn test(format: &str, args: &[&dyn fmt::Display], expect: Result<&str, fmt::Error>) {
+            let mut output = String::new();
+            assert_eq!(write(&mut output, format, args).map(|()| &*output), expect);
+        }
+
+        test("", &[], Ok(""));
+        test("Hello, {}!", &[&"World"], Ok("Hello, World!"));
+        test("The answer is {}.", &[&42], Ok("The answer is 42."));
+        test("{ \t\r\n} \t\r\n", &[&"x"], Ok("x \t\r\n"));
+        test("{{ \t\r\n}} \t\r\n", &[], Ok("{{ \t\r\n}} \t\r\n"));
+
+        test("{ {", &[], Err(fmt::Error));
+        test("} }", &[], Err(fmt::Error));
+        test("{x}", &[], Err(fmt::Error));
+
+        test("{}", &[], Err(fmt::Error));
+        test("{}{}", &[&0], Err(fmt::Error));
+
+        test("{}", &[&0, &"extra-arg"], Err(fmt::Error));
+        test("{}{}", &[&0, &1, &"extra-arg"], Err(fmt::Error));
+    }
+
+    #[test]
+    fn format_parser() {
+        fn test(format: &str, expect: &[Result<&str, fmt::Error>]) {
+            assert_eq!(FormatParser::new(format).collect::<Vec<_>>(), expect);
+        }
+
+        test("", &[Ok("")]);
+        test("a", &[Ok("a")]);
+        test("Hello, {}!", &[Ok("Hello, "), Ok("!")]);
+
+        test("{}", &[Ok(""), Ok("")]);
+        test("a{}", &[Ok("a"), Ok("")]);
+        test("{}b", &[Ok(""), Ok("b")]);
+        test("a{}b", &[Ok("a"), Ok("b")]);
+
+        test("{}{}{}", &[Ok(""), Ok(""), Ok(""), Ok("")]);
+        test("a{}b{}c{}d", &[Ok("a"), Ok("b"), Ok("c"), Ok("d")]);
+
+        test("{{}}", &[Ok("{{}}")]);
+        test("{{{{", &[Ok("{{{{")]);
+        test("}}}}", &[Ok("}}}}")]);
+        test("{{  }}", &[Ok("{{  }}")]);
+        test("{{{  }}}", &[Ok("{{"), Ok("}}")]);
+
+        test("a{ \t\r\n\u{A0}}b", &[Ok("a"), Ok("b")]);
+
+        test("{", &[Err(fmt::Error)]);
+        test("a{", &[Err(fmt::Error)]);
+        test("{ {", &[Err(fmt::Error)]);
+        test("a{ {", &[Err(fmt::Error)]);
+
+        test("}", &[Err(fmt::Error)]);
+        test("a}", &[Err(fmt::Error)]);
+        test("} }", &[Err(fmt::Error)]);
+        test("a} }", &[Err(fmt::Error)]);
+
+        test("{x}", &[Err(fmt::Error)]);
+    }
+
+    #[test]
+    fn str_writer() {
+        use std::fmt::Write;
+
+        {
+            let writer = &mut [0u8; 32];
+            let mut writer = StrWriter::new(writer);
+            assert_eq!(writer.as_str(), "");
+
+            std::write!(&mut writer, "你好，{}！", "世界").unwrap();
+            assert_eq!(writer.as_str(), "你好，世界！");
+
+            std::write!(&mut writer, "Hello, {}!", "World").unwrap();
+            assert_eq!(writer.into_str(), "你好，世界！Hello, World!");
+        }
+
+        {
+            let writer = &mut [0u8; 4];
+            let mut writer = StrWriter::new(writer);
+            assert_eq!(writer.as_str(), "");
+
+            std::write!(&mut writer, "abc").unwrap();
+            assert_eq!(writer.as_str(), "abc");
+
+            assert_eq!(std::write!(&mut writer, "defg"), Err(fmt::Error));
+            assert_eq!(writer.into_str(), "abc");
+        }
+    }
 
     #[test]
     fn escape_ascii() {
