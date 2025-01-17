@@ -1,24 +1,94 @@
 use std::cmp;
-use std::io::{Error, Write};
+use std::fmt;
+use std::io;
+use std::str;
 
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine as _;
 
-pub struct Writer<W>
-where
-    W: Write,
-{
+pub struct Writer<W: io::Write>(WriterImpl<W>);
+
+impl<W: io::Write> Writer<W> {
+    pub fn new(writer: W) -> Self {
+        Self(WriterImpl::new(writer))
+    }
+
+    pub fn close(mut self) -> Result<(), io::Error> {
+        self.0.close()
+    }
+}
+
+impl<W: io::Write> io::Write for Writer<W> {
+    fn write(&mut self, plaintext: &[u8]) -> Result<usize, io::Error> {
+        self.0.write(plaintext)
+    }
+
+    fn flush(&mut self) -> Result<(), io::Error> {
+        self.0.writer.flush()
+    }
+}
+
+pub struct Display<T>(pub T);
+
+impl<T: fmt::Display> fmt::Display for Display<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use std::fmt::Write;
+
+        struct Adapter<'a, 'b>(WriterImpl<Formatter<'a, 'b>>);
+
+        impl Write for Adapter<'_, '_> {
+            fn write_str(&mut self, string: &str) -> Result<(), fmt::Error> {
+                assert_eq!(self.0.write(string.as_bytes())?, string.len());
+                Ok(())
+            }
+        }
+
+        std::write!(Adapter(WriterImpl::new(Formatter(f))), "{}", self.0)
+    }
+}
+
+pub struct DisplayBytes<'a>(pub &'a [u8]);
+
+impl fmt::Display for DisplayBytes<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        assert_eq!(WriterImpl::new(Formatter(f)).write(self.0)?, self.0.len());
+        Ok(())
+    }
+}
+
+struct WriterImpl<W: Write> {
     writer: W,
     residual: [u8; 3],
     size: usize,
 }
 
-impl<W> Drop for Writer<W>
-where
-    W: Write,
-{
+impl<W: Write> Drop for WriterImpl<W> {
     fn drop(&mut self) {
-        self.close_impl().expect("Writer::close");
+        self.close().expect("Writer::close");
+    }
+}
+
+trait Write {
+    type Error: fmt::Debug;
+
+    fn write(&mut self, data: &[u8]) -> Result<(), Self::Error>;
+}
+
+impl<W: io::Write> Write for W {
+    type Error = io::Error;
+
+    fn write(&mut self, data: &[u8]) -> Result<(), Self::Error> {
+        self.write_all(data)
+    }
+}
+
+struct Formatter<'a, 'b>(&'a mut fmt::Formatter<'b>);
+
+impl Write for Formatter<'_, '_> {
+    type Error = fmt::Error;
+
+    fn write(&mut self, data: &[u8]) -> Result<(), Self::Error> {
+        self.0.write_str(unsafe { str::from_utf8_unchecked(data) })
     }
 }
 
@@ -27,11 +97,8 @@ const BUFFER_SIZE: usize = 1024;
 /// Maximum input size that `write_base64` can process.
 const CHUNK_SIZE: usize = (BUFFER_SIZE - BUFFER_SIZE % 4) * 3 / 4;
 
-impl<W> Writer<W>
-where
-    W: Write,
-{
-    pub fn new(writer: W) -> Self {
+impl<W: Write> WriterImpl<W> {
+    fn new(writer: W) -> Self {
         Self {
             writer,
             residual: [0; 3],
@@ -40,11 +107,11 @@ where
     }
 
     /// Encodes and writes `plaintext` up to the Base64 "boundary".
-    fn write_base64(&mut self, plaintext: &[u8]) -> Result<usize, Error> {
+    fn write_base64(&mut self, plaintext: &[u8]) -> Result<usize, W::Error> {
         let mut buffer = [0u8; BUFFER_SIZE];
         let size = plaintext.len() - plaintext.len() % 3;
         let n = encode(&plaintext[..size], &mut buffer);
-        self.writer.write_all(&buffer[..n])?;
+        self.writer.write(&buffer[..n])?;
         Ok(size)
     }
 
@@ -56,30 +123,21 @@ where
     }
 
     /// Encodes `residual` and writes it with padding.
-    fn write_residual(&mut self) -> Result<(), Error> {
+    fn write_residual(&mut self) -> Result<(), W::Error> {
         let mut buffer = [0u8; 4];
         let n = encode(&self.residual[..self.size], &mut buffer);
-        self.writer.write_all(&buffer[..n])?;
+        self.writer.write(&buffer[..n])?;
         self.size = 0;
         Ok(())
     }
 
-    pub fn close(mut self) -> Result<(), Error> {
-        self.close_impl()
-    }
-
-    fn close_impl(&mut self) -> Result<(), Error> {
+    fn close(&mut self) -> Result<(), W::Error> {
         self.write_residual()
         // NOTE: I am not sure if this is a good idea, but we do not call `self.writer.flush()`
         // here, and `writer` should/will flush itself when it is dropped.
     }
-}
 
-impl<W> Write for Writer<W>
-where
-    W: Write,
-{
-    fn write(&mut self, mut plaintext: &[u8]) -> Result<usize, Error> {
+    fn write(&mut self, mut plaintext: &[u8]) -> Result<usize, W::Error> {
         let mut num_written = 0;
 
         let n = self.fill_residual(plaintext);
@@ -106,10 +164,6 @@ where
 
         Ok(num_written)
     }
-
-    fn flush(&mut self) -> Result<(), Error> {
-        self.writer.flush()
-    }
 }
 
 fn encode(input: &[u8], output: &mut [u8]) -> usize {
@@ -120,6 +174,7 @@ fn encode(input: &[u8], output: &mut [u8]) -> usize {
 
 #[cfg(test)]
 mod tests {
+    use std::io::Write as _;
     use std::iter;
 
     use super::*;
@@ -130,6 +185,13 @@ mod tests {
             let mut buffer = Vec::new();
             std::write!(Writer::new(&mut buffer), "{testdata}").unwrap();
             assert_eq!(buffer, expect);
+
+            assert_eq!(std::format!("{}", Display(&testdata)).as_bytes(), expect);
+
+            assert_eq!(
+                std::format!("{}", DisplayBytes(testdata.as_bytes())).as_bytes(),
+                expect,
+            );
         }
 
         test("", b"");
@@ -163,5 +225,42 @@ mod tests {
             expect.extend_from_slice(b"MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5");
         }
         test(&testdata, &expect);
+    }
+
+    #[test]
+    fn display() {
+        struct Pieces<'a>(&'a [&'a str]);
+
+        impl fmt::Display for Pieces<'_> {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                for piece in self.0 {
+                    f.write_str(piece)?;
+                }
+                Ok(())
+            }
+        }
+
+        fn test(testdata: &[&str], expect: &str) {
+            assert_eq!(std::format!("{}", Display(Pieces(testdata))), expect);
+        }
+
+        test(&[], "");
+        test(&[""], "");
+        test(&["", ""], "");
+
+        test(&["a", ""], "YQ==");
+        test(&["", "a", ""], "YQ==");
+
+        test(&["", "a", "b"], "YWI=");
+        test(&["a", "", "b", "c"], "YWJj");
+        test(&["a", "", "b", "c", "", "d"], "YWJjZA==");
+
+        for chunk_size in 1..=14 {
+            let chunks = b"Hello, World!"
+                .chunks(chunk_size)
+                .map(|x| str::from_utf8(x).unwrap())
+                .collect::<Vec<_>>();
+            test(&chunks, "SGVsbG8sIFdvcmxkIQ==");
+        }
     }
 }
