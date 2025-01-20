@@ -4,7 +4,7 @@ use std::iter;
 use proc_macro2::{Span, TokenStream};
 use syn::parse::{Error, Parse, ParseStream};
 use syn::punctuated::Punctuated;
-use syn::{Expr, Ident, LitStr};
+use syn::{Expr, Ident, Index, LitStr};
 
 // Define `format!` and `write!` as procedural macros instead of declarative ones so that they can
 // bypass `E0424` when accessing `self`.
@@ -274,7 +274,16 @@ impl TryFrom<FormatArgs> for TokenStream {
                 }
             };
 
-            let field = arg.field.iter().map(|f| Ident::new(f, Span::call_site()));
+            let field = arg.field.iter().map(|f| match f.parse::<usize>() {
+                Ok(i) => {
+                    let i = Index::from(i);
+                    quote::quote!(#i)
+                }
+                Err(_) => {
+                    let f = Ident::new(f, Span::call_site());
+                    quote::quote!(#f)
+                }
+            });
 
             let spec = if arg.raw {
                 quote::quote!(::g1_html::FormatSpec::Raw)
@@ -583,6 +592,14 @@ mod tests {
                     (&(y).p.q, ::g1_html::FormatSpec::Raw),
                     (&z.a.b, ::g1_html::FormatSpec::None)
                 ]
+            )),
+        );
+
+        test_ok(
+            fa(q!("{0.1.2.3}"), [p(q!(x))]),
+            q!(::g1_html::FormatArgs::new(
+                &[""],
+                &[(&(x).1 .2 .3, ::g1_html::FormatSpec::None)]
             )),
         );
 
