@@ -6,6 +6,7 @@ extern crate self as g1_html;
 pub mod fragment;
 
 mod escape;
+mod fragment_ext;
 
 use std::fmt::{Display, Write as _};
 use std::io::{Error, Write};
