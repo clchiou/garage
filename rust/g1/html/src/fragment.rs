@@ -238,8 +238,12 @@ where
     W: Write,
 {
     for attr in attrs {
-        output.write_all(b" ")?;
-        attr.write_to(output)?;
+        // I am not sure if this is a good idea, but we will use an empty string as a sentinel
+        // value for conditionally omitting an attribute.
+        if !attr.name.is_empty() {
+            output.write_all(b" ")?;
+            attr.write_to(output)?;
+        }
     }
     Ok(())
 }
@@ -253,6 +257,7 @@ impl<'a> Attr<'a> {
     where
         W: Write,
     {
+        assert!(!self.name.is_empty());
         match self.value {
             Some(value) => crate::write!(output, r#"{self.name}="{value}""#),
             None => crate::write!(output, "{self.name}"),
@@ -288,6 +293,17 @@ mod tests {
                 f(r#"&<>"'{x} -- "#, x = r#"&<>"'"#)
             }),
             r#"&amp;&lt;&gt;&quot;&#x27;{} -- &<>"'{} -- &amp;&lt;&gt;&quot;&#x27;{} -- &<>"'{} -- &<>"'&amp;&lt;&gt;&quot;&#x27; -- "#,
+        );
+
+        assert_eq!(String::from(crate::fragment!(<a {""}="true">)), r#"<a>"#);
+        assert_eq!(String::from(crate::fragment!(<a {""}>)), r#"<a>"#);
+        assert_eq!(
+            String::from(crate::fragment!(<a href="foobar" {""}="true" enabled>)),
+            r#"<a href="foobar" enabled>"#,
+        );
+        assert_eq!(
+            String::from(crate::fragment!(<a href="foobar" {""} enabled>)),
+            r#"<a href="foobar" enabled>"#,
         );
     }
 }
