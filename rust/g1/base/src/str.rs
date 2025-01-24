@@ -1,10 +1,15 @@
 use std::cmp;
 use std::num::ParseIntError;
-use std::str::FromStr;
+use std::str::{self, FromStr};
 
 pub trait StrExt {
     // TODO: Deprecate this when/if the `str` type provides a `chunks` method.
     fn chunks(&self, chunk_size: usize) -> impl Iterator<Item = &str>;
+
+    // Helper function for using `str::make_ascii_lowercase`.
+    fn transform<'a, F>(&self, buffer: &'a mut [u8], f: F) -> Option<&'a str>
+    where
+        F: FnOnce(&mut str) -> Option<&str>;
 }
 
 impl StrExt for str {
@@ -13,6 +18,17 @@ impl StrExt for str {
         (0..self.len())
             .step_by(chunk_size)
             .map(move |i| &self[i..cmp::min(i + chunk_size, self.len())])
+    }
+
+    fn transform<'a, F>(&self, buffer: &'a mut [u8], f: F) -> Option<&'a str>
+    where
+        F: FnOnce(&mut str) -> Option<&str>,
+    {
+        let input = self.as_bytes();
+        let buffer = buffer.get_mut(0..input.len())?;
+        buffer.copy_from_slice(input);
+        let buffer = unsafe { str::from_utf8_unchecked_mut(buffer) };
+        f(buffer)
     }
 }
 
@@ -87,6 +103,27 @@ mod tests {
         test("abc", 2, vec!["ab", "c"]);
         test("abcd", 2, vec!["ab", "cd"]);
         test("abcdf", 2, vec!["ab", "cd", "f"]);
+    }
+
+    #[test]
+    fn transform() {
+        assert_eq!(
+            "ABC".transform(&mut [0u8; 32], |x| {
+                x.make_ascii_lowercase();
+                Some(&*x)
+            }),
+            Some("abc"),
+        );
+
+        assert_eq!(
+            "ABC".transform(&mut [0u8; 2], |x| {
+                x.make_ascii_lowercase();
+                Some(&*x)
+            }),
+            None,
+        );
+
+        assert_eq!("ABC".transform(&mut [0u8; 32], |_| None), None);
     }
 
     #[test]
