@@ -34,7 +34,7 @@ impl<'a> IntoIterator for TextList<'a> {
     type Item = <Self::IntoIter as Iterator>::Item;
 
     fn into_iter(self) -> Self::IntoIter {
-        TextListIter(self.0.into_iter())
+        self.iter()
     }
 }
 
@@ -45,6 +45,10 @@ impl<'a> TextList<'a> {
 
     pub fn len(&self) -> u32 {
         self.0.len()
+    }
+
+    pub fn iter(self) -> TextListIter<'a> {
+        TextListIter(self.0.iter())
     }
 
     pub fn get(&self, index: u32) -> &'a str {
