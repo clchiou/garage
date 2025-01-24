@@ -38,7 +38,7 @@ impl<'a> IntoIterator for TextList<'a> {
     }
 }
 
-impl TextList<'_> {
+impl<'a> TextList<'a> {
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
@@ -47,11 +47,11 @@ impl TextList<'_> {
         self.0.len()
     }
 
-    pub fn get(&self, index: u32) -> &str {
+    pub fn get(&self, index: u32) -> &'a str {
         self.0.get(index).expect("get").must_to_str()
     }
 
-    pub fn try_get(&self, index: u32) -> Option<&str> {
+    pub fn try_get(&self, index: u32) -> Option<&'a str> {
         self.0
             .try_get(index)
             .map(|text| text.expect("try_get").must_to_str())
