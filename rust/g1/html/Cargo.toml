@@ -4,5 +4,4 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-g1_base.workspace = true
 g1_html_macros.workspace = true

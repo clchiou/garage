@@ -1,26 +1,19 @@
-use std::fmt;
-use std::io;
+use std::fmt::{Error, Write};
 use std::iter;
 
-use g1_base::fmt::Adapter;
-
-pub(crate) struct Escaper<W>(Adapter<W>);
+pub(crate) struct Escaper<W>(W);
 
 impl<W> Escaper<W> {
     pub(crate) fn new(output: W) -> Self {
-        Self(Adapter::new(output))
-    }
-
-    pub(crate) fn into_error(self) -> Option<io::Error> {
-        self.0.into_error()
+        Self(output)
     }
 }
 
-impl<W> fmt::Write for Escaper<W>
+impl<W> Write for Escaper<W>
 where
-    W: io::Write,
+    W: Write,
 {
-    fn write_str(&mut self, string: &str) -> Result<(), fmt::Error> {
+    fn write_str(&mut self, string: &str) -> Result<(), Error> {
         escape(string).try_for_each(|piece| self.0.write_str(piece))
     }
 }
@@ -58,15 +51,13 @@ mod tests {
 
     #[test]
     fn escaper() {
-        use std::fmt::Write;
-
-        let mut buffer = Vec::new();
+        let mut buffer = String::new();
         Escaper::new(&mut buffer)
             .write_str(r#"<foo bar="&spam 'egg'"/>"#)
             .unwrap();
         assert_eq!(
             buffer,
-            b"&lt;foo bar=&quot;&amp;spam &#x27;egg&#x27;&quot;/&gt;",
+            "&lt;foo bar=&quot;&amp;spam &#x27;egg&#x27;&quot;/&gt;",
         );
     }
 

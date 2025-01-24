@@ -132,13 +132,13 @@ macro_rules! _fx {
 
 #[cfg(test)]
 mod tests {
-    use std::io::Error;
+    use std::fmt::Error;
 
     macro_rules! test {
         ($expect:expr, $($testdata:tt)*) => {{
-            let mut writer = <Vec<u8>>::new();
+            let mut writer = String::new();
             let () = crate::fragment_ext!(&mut writer => $($testdata)*);
-            assert_eq!(String::from_utf8(writer).unwrap(), $expect);
+            assert_eq!(writer, $expect);
         }};
     }
 
@@ -266,7 +266,7 @@ mod tests {
 
     #[test]
     fn return_stmt() {
-        fn test(writer: &mut Vec<u8>, x: bool) -> Result<(), Error> {
+        fn test(writer: &mut String, x: bool) -> Result<(), Error> {
             let () = crate::fragment_ext!(
                 &mut *writer =>
                 "before"
@@ -278,13 +278,13 @@ mod tests {
             Ok(())
         }
 
-        let mut writer = Vec::new();
+        let mut writer = String::new();
         test(&mut writer, true).unwrap();
-        assert_eq!(writer, b"before");
+        assert_eq!(writer, "before");
 
-        let mut writer = Vec::new();
+        let mut writer = String::new();
         test(&mut writer, false).unwrap();
-        assert_eq!(writer, b"before after");
+        assert_eq!(writer, "before after");
     }
 
     #[test]
@@ -300,14 +300,14 @@ mod tests {
 
     #[test]
     fn exec() -> Result<(), Error> {
-        let mut writer = Vec::new();
+        let mut writer = String::new();
         crate::fragment_ext! {
             &mut writer =>
             "Hello, "
-            exec { writer.extend(b"World") }
+            exec { writer.push_str("World") }
             "!"
         }
-        assert_eq!(writer, b"Hello, World!");
+        assert_eq!(writer, "Hello, World!");
         Ok(())
     }
 }

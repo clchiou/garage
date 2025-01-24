@@ -5,9 +5,10 @@ pub mod fragment;
 mod escape;
 mod fragment_ext;
 
-use std::fmt::{Display, Write as _};
-use std::io::{Error, Write};
+use std::fmt::{Display, Error, Write};
 use std::iter;
+
+use crate::escape::Escaper;
 
 pub use g1_html_macros::{format, format_args, write};
 
@@ -32,11 +33,11 @@ impl<'a> FormatArgs<'a> {
     }
 }
 
-pub fn format(format_args: FormatArgs) -> Vec<u8> {
+pub fn format(format_args: FormatArgs) -> String {
     // I do not know which capacity we should use; I just arbitrarily choose one.
     let literal_size: usize = format_args.literals.iter().copied().map(str::len).sum();
     let estimated_arg_size = format_args.args.len() * 32;
-    let mut buffer = Vec::with_capacity(literal_size + estimated_arg_size);
+    let mut buffer = String::with_capacity(literal_size + estimated_arg_size);
     write(&mut buffer, format_args).expect("format");
     buffer
 }
@@ -46,20 +47,14 @@ where
     W: Write,
 {
     for (literal, (arg, spec)) in iter::zip(format_args.literals, format_args.args) {
-        output.write_all(literal.as_bytes())?;
+        output.write_str(literal)?;
         match spec {
-            FormatSpec::None => {
-                let mut escaper = escape::Escaper::new(&mut output);
-                std::write!(escaper, "{}", arg)
-                    .map_err(|error| escaper.into_error().unwrap_or_else(|| Error::other(error)))?;
-            }
-            FormatSpec::Raw => {
-                std::write!(output, "{}", arg)?;
-            }
+            FormatSpec::None => std::write!(Escaper::new(&mut output), "{}", arg)?,
+            FormatSpec::Raw => std::write!(output, "{}", arg)?,
         }
     }
     if format_args.literals.len() > format_args.args.len() {
-        output.write_all(format_args.literals[format_args.literals.len() - 1].as_bytes())?;
+        output.write_str(format_args.literals[format_args.literals.len() - 1])?;
     }
     Ok(())
 }
@@ -68,15 +63,12 @@ where
 mod tests {
     #[test]
     fn write() {
-        let mut output = <Vec<u8>>::new();
+        let mut output = String::new();
         crate::write!(&mut output, r#"&<>"'{}"#, r#"&<>"'"#).unwrap();
-        assert_eq!(
-            String::from_utf8(output).unwrap(),
-            r#"&<>"'&amp;&lt;&gt;&quot;&#x27;"#,
-        );
+        assert_eq!(output, r#"&<>"'&amp;&lt;&gt;&quot;&#x27;"#);
 
-        let mut output = <Vec<u8>>::new();
+        let mut output = String::new();
         crate::write!(&mut output, r#"&<>"'{:r}"#, r#"&<>"'"#).unwrap();
-        assert_eq!(String::from_utf8(output).unwrap(), r#"&<>"'&<>"'"#);
+        assert_eq!(output, r#"&<>"'&<>"'"#);
     }
 }

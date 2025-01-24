@@ -9,8 +9,7 @@
 //!
 //! [temporary scopes]: https://doc.rust-lang.org/reference/destructors.html#temporary-scopes
 
-use std::fmt::Display;
-use std::io::{Error, Write};
+use std::fmt::{Display, Error, Write};
 
 use crate::FormatArgs;
 
@@ -181,13 +180,7 @@ pub struct Attr<'a> {
 
 impl<const N: usize> From<Fragment<'_, N>> for String {
     fn from(fragment: Fragment<N>) -> Self {
-        String::from_utf8(fragment.into()).expect("from_utf8")
-    }
-}
-
-impl<const N: usize> From<Fragment<'_, N>> for Vec<u8> {
-    fn from(fragment: Fragment<N>) -> Self {
-        let mut output = Vec::new();
+        let mut output = String::new();
         fragment.write_to(&mut output).expect("write_to");
         output
     }
@@ -218,14 +211,14 @@ impl Piece<'_> {
             Self::StartTag { tag, attrs } => {
                 crate::write!(&mut *output, "<{tag}")?;
                 write_attrs(output, attrs)?;
-                output.write_all(b">")
+                output.write_str(">")
             }
             Self::EndTag { tag } => crate::write!(output, "</{tag}>"),
 
             Self::Void { tag, attrs } => {
                 crate::write!(&mut *output, "<{tag}")?;
                 write_attrs(output, attrs)?;
-                output.write_all(b" />")
+                output.write_str(" />")
             }
 
             Self::Text { format_args } => crate::write(output, format_args),
@@ -241,7 +234,7 @@ where
         // I am not sure if this is a good idea, but we will use an empty string as a sentinel
         // value for conditionally omitting an attribute.
         if !attr.name.is_empty() {
-            output.write_all(b" ")?;
+            output.write_str(" ")?;
             attr.write_to(output)?;
         }
     }
