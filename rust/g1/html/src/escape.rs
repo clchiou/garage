@@ -2,7 +2,7 @@ use std::fmt;
 use std::io;
 use std::iter;
 
-use g1_base::io::Adapter;
+use g1_base::fmt::Adapter;
 
 pub(crate) struct Escaper<W>(Adapter<W>);
 

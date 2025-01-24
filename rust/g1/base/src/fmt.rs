@@ -1,4 +1,5 @@
 use std::fmt;
+use std::io;
 use std::str::{self, MatchIndices};
 use std::sync::Arc;
 
@@ -120,6 +121,43 @@ impl fmt::Write for StrWriter<'_> {
             .copy_from_slice(slice);
         self.offset += slice.len();
         Ok(())
+    }
+}
+
+// TODO: Remove this after [#133] is fixed.
+// [#133]: https://github.com/rust-lang/libs-team/issues/133
+#[derive(Debug)]
+pub struct Adapter<W> {
+    output: W,
+    error: Option<io::Error>,
+}
+
+impl<W> Adapter<W> {
+    pub fn new(output: W) -> Self {
+        Self {
+            output,
+            error: None,
+        }
+    }
+
+    pub fn unwrap(self) -> (W, Option<io::Error>) {
+        (self.output, self.error)
+    }
+
+    pub fn into_error(self) -> Option<io::Error> {
+        self.error
+    }
+}
+
+impl<W> fmt::Write for Adapter<W>
+where
+    W: io::Write,
+{
+    fn write_str(&mut self, string: &str) -> Result<(), fmt::Error> {
+        self.output.write_all(string.as_bytes()).map_err(|error| {
+            self.error = Some(error);
+            fmt::Error
+        })
     }
 }
 
@@ -532,6 +570,15 @@ mod tests {
             assert_eq!(std::write!(&mut writer, "defg"), Err(fmt::Error));
             assert_eq!(writer.into_str(), "abc");
         }
+    }
+
+    #[test]
+    fn adapter() {
+        use std::fmt::Write as _;
+
+        let mut buffer = Vec::new();
+        std::write!(Adapter::new(&mut buffer), "Hello, World!").unwrap();
+        assert_eq!(buffer, b"Hello, World!");
     }
 
     #[test]

@@ -26,7 +26,6 @@ pub mod collections;
 pub mod every;
 pub mod fmt;
 pub mod future;
-pub mod io;
 pub mod iter;
 pub mod ops;
 pub mod owner;
