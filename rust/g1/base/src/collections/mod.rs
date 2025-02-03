@@ -1,3 +1,4 @@
+pub mod array;
 pub mod bigraph;
 #[cfg(feature = "collections_ext")]
 pub mod cursor_set;
@@ -15,6 +16,7 @@ mod table;
 
 use std::iter::FusedIterator;
 
+pub use self::array::Array;
 #[cfg(feature = "collections_ext")]
 pub use self::bigraph::HashBiGraph;
 pub use self::bigraph::{NaiveBTreeBiGraph, NaiveHashBiGraph};
