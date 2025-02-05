@@ -4,6 +4,7 @@ pub mod bigraph;
 pub mod cursor_set;
 #[cfg(feature = "collections_ext")]
 pub mod index_map;
+pub mod lil_vec;
 pub mod vec_list;
 
 #[cfg(feature = "collections_ext")]
@@ -28,6 +29,7 @@ pub use self::bitable::HashBasedBiTable;
 pub use self::cursor_set::HashCursorSet;
 #[cfg(feature = "collections_ext")]
 pub use self::index_map::HashIndexMap;
+pub use self::lil_vec::LilVec;
 #[cfg(feature = "collections_ext")]
 pub use self::ordered::HashOrderedMap;
 pub use self::table::HashBasedTable;
