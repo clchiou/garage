@@ -9,6 +9,8 @@ pub trait TimestampExt: Sized {
 
     // NOTE: I am not sure if this is a good idea, but we will crash on timestamps before 1970.
     fn timestamp_u64(&self) -> u64;
+
+    fn tomorrow(&self) -> Option<Self>;
 }
 
 impl TimestampExt for Timestamp {
@@ -26,6 +28,12 @@ impl TimestampExt for Timestamp {
     fn timestamp_u64(&self) -> u64 {
         self.timestamp().try_into().expect("u64")
     }
+
+    fn tomorrow(&self) -> Option<Self> {
+        self.date_naive()
+            .succ_opt()
+            .map(|tomorrow| tomorrow.and_time(self.time()).and_utc())
+    }
 }
 
 impl TimestampExt for Option<Timestamp> {
@@ -41,5 +49,12 @@ impl TimestampExt for Option<Timestamp> {
 
     fn timestamp_u64(&self) -> u64 {
         self.as_ref().map_or(0, Timestamp::timestamp_u64)
+    }
+
+    fn tomorrow(&self) -> Option<Self> {
+        Some(match self.as_ref() {
+            Some(this) => Some(this.tomorrow()?),
+            None => None,
+        })
     }
 }
