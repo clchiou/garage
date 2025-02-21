@@ -20,7 +20,11 @@ pub trait UrlExt {
 // parameters are generally part of the public interface.
 //
 
-// TODO: Is it possible for `Self` to borrow from `query_pairs`?
+// NOTE: I did a few experiments to make `Self` borrow from query_pairs, but they were
+// unsuccessful.  The primary reason is that `query_pairs` returns `Cow`s, meaning the value may or
+// may not be borrowing from the request.  As a result, the caller is often forced to create a
+// self-referential struct that owns the `Cow` values and pointers to them.  This adds unnecessary
+// complexity for little benefit.
 pub trait ParseQuery: Sized {
     type Error;
 
