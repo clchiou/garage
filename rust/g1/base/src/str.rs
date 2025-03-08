@@ -6,6 +6,9 @@ pub trait StrExt {
     // TODO: Deprecate this when/if the `str` type provides a `chunks` method.
     fn chunks(&self, chunk_size: usize) -> impl Iterator<Item = &str>;
 
+    // Unlike Python, our `is_whitespace` returns true on empty strings.
+    fn is_whitespace(&self) -> bool;
+
     // Helper function for using `str::make_ascii_lowercase`.
     fn transform<'a, F>(&self, buffer: &'a mut [u8], f: F) -> Option<&'a str>
     where
@@ -18,6 +21,10 @@ impl StrExt for str {
         (0..self.len())
             .step_by(chunk_size)
             .map(move |i| &self[i..cmp::min(i + chunk_size, self.len())])
+    }
+
+    fn is_whitespace(&self) -> bool {
+        self.chars().all(char::is_whitespace)
     }
 
     fn transform<'a, F>(&self, buffer: &'a mut [u8], f: F) -> Option<&'a str>
@@ -103,6 +110,14 @@ mod tests {
         test("abc", 2, vec!["ab", "c"]);
         test("abcd", 2, vec!["ab", "cd"]);
         test("abcdf", 2, vec!["ab", "cd", "f"]);
+    }
+
+    #[test]
+    fn is_whitespace() {
+        assert_eq!("".is_whitespace(), true);
+        assert_eq!(" \t\r\n\u{3000}".is_whitespace(), true);
+        assert_eq!("x".is_whitespace(), false);
+        assert_eq!("x y".is_whitespace(), false);
     }
 
     #[test]
