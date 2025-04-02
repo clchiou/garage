@@ -39,6 +39,7 @@ members = [
     "g1/base_derive",
     "g1/bytes",
     "g1/bytes_derive",
+    "g1/cache",
     "g1/capnp",
     "g1/chrono",
     "g1/cli",
@@ -169,6 +170,7 @@ g1_base64 = { path = "g1/base64" }
 g1_base_derive = { path = "g1/base_derive" }
 g1_bytes = { path = "g1/bytes" }
 g1_bytes_derive = { path = "g1/bytes_derive" }
+g1_cache = { path = "g1/cache" }
 g1_capnp = { path = "g1/capnp" }
 g1_chrono = { path = "g1/chrono" }
 g1_cli = { path = "g1/cli" }

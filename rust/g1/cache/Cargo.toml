@@ -1,0 +1,12 @@
+[package]
+name = "g1_cache"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+const_format.workspace = true
+rusqlite.workspace = true
+
+g1_base.workspace = true
+g1_chrono.workspace = true
+g1_rusqlite.workspace = true
