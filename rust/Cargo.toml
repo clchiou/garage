@@ -60,6 +60,7 @@ members = [
     "g1/url",
     "g1/v8",
     "g1/web",
+    "g1/yaml",
     "g1/zmq",
     "httpxd",
 ]
@@ -191,6 +192,7 @@ g1_tokio = { path = "g1/tokio" }
 g1_url = { path = "g1/url" }
 g1_v8 = { path = "g1/v8" }
 g1_web = { path = "g1/web" }
+g1_yaml = { path = "g1/yaml" }
 g1_zmq = { path = "g1/zmq" }
 
 httpxd = { path = "httpxd" }

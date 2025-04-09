@@ -1,0 +1,7 @@
+[package]
+name = "g1_yaml"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+serde_yaml.workspace = true
