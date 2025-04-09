@@ -1,3 +1,5 @@
+#![cfg_attr(feature = "param", feature(iterator_try_collect))]
+
 #[cfg(feature = "param")]
 pub mod param;
 #[cfg(feature = "tracing")]

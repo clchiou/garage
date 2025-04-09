@@ -9,5 +9,7 @@ linkme.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_yaml.workspace = true
 
+g1_yaml.workspace = true
+
 [dev-dependencies]
 clap.workspace = true

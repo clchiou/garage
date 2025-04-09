@@ -1,14 +1,19 @@
 //! Static Parameter
 
+#![feature(iterator_try_collect)]
+
 pub mod parse;
 
 use std::any::Any;
+use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
 use std::error;
 use std::fmt;
 
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
+
+use g1_yaml::tree::Tree;
 
 //
 // Implementer's notes: The `Parameter` type must not be generic, and therefore everything about
@@ -139,7 +144,9 @@ pub struct Parameters<'a> {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct ParameterValues<'a>(#[serde(borrow)] HashMap<&'a str, HashMap<&'a str, RawValue>>);
+pub struct ParameterValues<'a>(
+    #[serde(borrow)] HashMap<Cow<'a, str>, HashMap<Cow<'a, str>, RawValue>>,
+);
 
 // This `impl` block contains all the methods of `Parameter` that are called by the `define!` macro
 // body.  Since the `define!` macro can be invoked in any module, these methods need to be `pub`.
@@ -310,7 +317,7 @@ impl<'a> Parameters<'a> {
     pub fn parse_values_then_set(&mut self, values: ParameterValues) -> Result<(), Error> {
         for (module_path, module_values) in values.0 {
             for (name, value) in module_values {
-                self.set_with(module_path, name, |parameter| parameter.parse_raw(value))?;
+                self.set_with(&module_path, &name, |parameter| parameter.parse_raw(value))?;
             }
         }
         Ok(())
@@ -357,6 +364,34 @@ impl<'a> Parameters<'a> {
                 .set(value)?;
         }
         Ok(())
+    }
+}
+
+impl TryFrom<Tree> for ParameterValues<'static> {
+    type Error = Error;
+
+    fn try_from(tree: Tree) -> Result<Self, Self::Error> {
+        fn try_into_subtree(tree: Tree) -> Result<HashMap<String, Tree>, Error> {
+            match tree {
+                Tree::Subtree(map) => Ok(map),
+                _ => Err("invalid yaml tree schema".to_string().into()),
+            }
+        }
+
+        Ok(Self(
+            try_into_subtree(tree)?
+                .into_iter()
+                .map(|(module_path, subtree)| {
+                    Ok::<_, Error>((
+                        module_path.into(),
+                        try_into_subtree(subtree)?
+                            .into_iter()
+                            .map(|(name, value)| (name.into(), value.into()))
+                            .collect(),
+                    ))
+                })
+                .try_collect()?,
+        ))
     }
 }
 
