@@ -60,7 +60,14 @@ impl ClientBuilder {
         self.build_from(reqwest::ClientBuilder::new())
     }
 
-    pub fn build_from(self, mut builder: reqwest::ClientBuilder) -> Result<Client, Error> {
+    pub fn build_from(self, builder: reqwest::ClientBuilder) -> Result<Client, Error> {
+        self.merge_into(builder).and_then(|builder| builder.build())
+    }
+
+    pub fn merge_into(
+        self,
+        mut builder: reqwest::ClientBuilder,
+    ) -> Result<reqwest::ClientBuilder, Error> {
         macro_rules! set {
             ($name:ident $(,)?) => {
                 if let Some(x) = self.$name {
@@ -90,7 +97,7 @@ impl ClientBuilder {
         set!(default_headers);
         set!(user_agent);
 
-        builder.build()
+        Ok(builder)
     }
 }
 
