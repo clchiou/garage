@@ -107,3 +107,22 @@ impl ProxyBuilder {
         Proxy::custom(move |url| host.is_match(url.host_str()?).then(|| proxy.clone()))
     }
 }
+
+pub trait MergeFrom<Builder>: Sized {
+    fn merge_from(self, builder: Builder) -> Result<Self, Error>;
+}
+
+impl MergeFrom<ClientBuilder> for reqwest::ClientBuilder {
+    fn merge_from(self, builder: ClientBuilder) -> Result<Self, Error> {
+        builder.merge_into(self)
+    }
+}
+
+impl MergeFrom<Option<ClientBuilder>> for reqwest::ClientBuilder {
+    fn merge_from(self, builder: Option<ClientBuilder>) -> Result<Self, Error> {
+        match builder {
+            Some(builder) => self.merge_from(builder),
+            None => Ok(self),
+        }
+    }
+}
