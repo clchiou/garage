@@ -50,9 +50,24 @@ pub struct ClientBuilder {
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ProxyBuilder {
-    #[serde(deserialize_with = "de::regex")]
-    pub host: Regex,
+    #[serde(flatten)]
+    pub match_: ProxyMatch,
     pub proxy: Url,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "snake_case")]
+pub enum ProxyMatch {
+    Scheme(Scheme),
+    Host(#[serde(deserialize_with = "de::regex")] Regex),
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "snake_case")]
+pub enum Scheme {
+    All,
+    Http,
+    Https,
 }
 
 impl ClientBuilder {
@@ -84,7 +99,7 @@ impl ClientBuilder {
         set!(timeout);
 
         for proxy in self.proxy {
-            builder = builder.proxy(proxy.build());
+            builder = builder.proxy(proxy.build()?);
         }
 
         set!(danger_accept_invalid_certs);
@@ -102,9 +117,16 @@ impl ClientBuilder {
 }
 
 impl ProxyBuilder {
-    pub fn build(self) -> Proxy {
-        let Self { host, proxy } = self;
-        Proxy::custom(move |url| host.is_match(url.host_str()?).then(|| proxy.clone()))
+    pub fn build(self) -> Result<Proxy, Error> {
+        let Self { match_, proxy } = self;
+        match match_ {
+            ProxyMatch::Scheme(Scheme::All) => Proxy::all(proxy),
+            ProxyMatch::Scheme(Scheme::Http) => Proxy::http(proxy),
+            ProxyMatch::Scheme(Scheme::Https) => Proxy::https(proxy),
+            ProxyMatch::Host(host) => Ok(Proxy::custom(move |url| {
+                host.is_match(url.host_str()?).then(|| proxy.clone())
+            })),
+        }
     }
 }
 
