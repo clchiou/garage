@@ -30,6 +30,14 @@ where
         Self::new(guards)
     }
 
+    pub fn into_guards(self) -> Vec<JoinGuard<T>> {
+        self.0
+            .into_futures()
+            .into_iter()
+            .filter_map(|cell| cell.0)
+            .collect()
+    }
+
     fn for_each<F>(&self, f: F)
     where
         F: FnMut(&JoinGuard<T>),
