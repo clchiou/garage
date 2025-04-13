@@ -34,6 +34,7 @@ members = [
     "dkvcache/storage",
     "etcd/client",
     "etcd/pubsub",
+    "etcd/watch",
     "g1/base",
     "g1/base64",
     "g1/base_derive",
@@ -165,6 +166,7 @@ dkvcache_storage = { path = "dkvcache/storage" }
 
 etcd_client = { path = "etcd/client" }
 etcd_pubsub = { path = "etcd/pubsub" }
+etcd_watch = { path = "etcd/watch" }
 
 g1_base = { path = "g1/base" }
 g1_base64 = { path = "g1/base64" }

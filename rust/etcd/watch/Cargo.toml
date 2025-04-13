@@ -1,0 +1,17 @@
+[package]
+name = "etcd_watch"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+futures.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+g1_tokio.workspace = true
+
+etcd_client.workspace = true
+
+[dev-dependencies]
+clap.workspace = true
+g1_cli = { workspace = true, features = ["param", "tracing"] }
