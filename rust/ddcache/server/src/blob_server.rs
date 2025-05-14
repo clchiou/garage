@@ -181,7 +181,7 @@ async fn txrx_blob(
             if size != expect {
                 return Err(Error::new(
                     ErrorKind::UnexpectedEof,
-                    format!("send blob: expect {} bytes: {}", expect, size),
+                    format!("send blob: expect {expect} bytes: {size}"),
                 ));
             }
 
@@ -199,7 +199,7 @@ async fn txrx_blob(
             if size != expect {
                 return Err(Error::new(
                     ErrorKind::UnexpectedEof,
-                    format!("recv blob: expect {} bytes: {}", expect, size),
+                    format!("recv blob: expect {expect} bytes: {size}"),
                 ));
             }
             writer.commit()?;

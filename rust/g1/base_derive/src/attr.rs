@@ -16,7 +16,7 @@ impl AttrArgValue {
     pub(crate) fn into_assignee_path(self) -> Path {
         match self {
             AttrArgValue::AssignPath(path) => path,
-            _ => std::panic!("expect AssignPath: {:?}", self),
+            _ => std::panic!("expect AssignPath: {self:?}"),
         }
     }
 }
@@ -101,15 +101,13 @@ mod error {
 
     pub(super) fn duplicated(attr_name: &str, attr_arg_name: &str) -> Error {
         crate::new_error(format!(
-            "duplicated argument of `#[{}(...)]`: {}",
-            attr_name, attr_arg_name,
+            "duplicated argument of `#[{attr_name}(...)]`: {attr_arg_name}",
         ))
     }
 
     pub(super) fn empty(attr_name: &str) -> Error {
         crate::new_error(format!(
-            "`#[{}(...)]` requires non-empty arguments",
-            attr_name,
+            "`#[{attr_name}(...)]` requires non-empty arguments",
         ))
     }
 

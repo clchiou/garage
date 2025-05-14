@@ -345,7 +345,7 @@ impl<'a> Parameters<'a> {
         let parameter = self
             .parameters
             .get(&(module_path, name))
-            .ok_or_else(|| format!("parameter was not defined: {}::{}", module_path, name))?;
+            .ok_or_else(|| format!("parameter was not defined: {module_path}::{name}"))?;
         let value = get_value(parameter)?;
         parameter.validate(&value)?;
         self.values
@@ -360,7 +360,7 @@ impl<'a> Parameters<'a> {
         for ((module_path, name), value) in self.values.drain() {
             self.parameters
                 .get(&(module_path, name))
-                .ok_or_else(|| format!("parameter was not defined: {}::{}", module_path, name))?
+                .ok_or_else(|| format!("parameter was not defined: {module_path}::{name}"))?
                 .set(value)?;
         }
         Ok(())
@@ -403,12 +403,8 @@ impl<'a> ParameterValues<'a> {
 
 /// Parses an assignment of the form "module_path::name=value".
 pub fn parse_assignment(assignment: &str) -> Result<(&str, &str, &str), Error> {
-    let error = || {
-        format!(
-            "expect assignment of the form \"module_path::name=value\": {}",
-            assignment,
-        )
-    };
+    let error =
+        || format!("expect assignment of the form \"module_path::name=value\": {assignment}");
     let (path, value) = assignment.rsplit_once('=').ok_or_else(error)?;
     let (module_path, name) = path.rsplit_once("::").ok_or_else(error)?;
     Ok((module_path, name, value))

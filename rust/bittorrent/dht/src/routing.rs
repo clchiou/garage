@@ -160,13 +160,13 @@ impl Tree {
     fn as_branch_mut(&mut self) -> &mut Branch {
         match self {
             Self::Branch(branch) => branch,
-            Self::Leaf(_) => std::panic!("expect tree branch: {:?}", self),
+            Self::Leaf(_) => std::panic!("expect tree branch: {self:?}"),
         }
     }
 
     fn as_leaf_mut(&mut self) -> &mut Leaf {
         match self {
-            Self::Branch(_) => std::panic!("expect tree leaf: {:?}", self),
+            Self::Branch(_) => std::panic!("expect tree leaf: {self:?}"),
             Self::Leaf(leaf) => leaf,
         }
     }

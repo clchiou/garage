@@ -1099,7 +1099,7 @@ pub(crate) mod error {
         pub(crate) fn incorrect_value(endian: &str) -> Error {
             const MESSAGE: &str =
                 "`#[endian(...)]` should be one of \"big\", \"little\", or \"native\"";
-            new_error(&format!("{}: \"{}\"", MESSAGE, endian))
+            new_error(&format!("{MESSAGE}: \"{endian}\""))
         }
     }
 }

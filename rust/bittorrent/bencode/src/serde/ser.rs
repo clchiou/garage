@@ -219,7 +219,7 @@ impl SerializeTupleVariant for Dictionary {
         if let Value::List(list) = self.last_entry().unwrap().get_mut() {
             list.push(value.serialize(Serializer)?);
         } else {
-            panic!("expect a list entry: {:?}", self);
+            panic!("expect a list entry: {self:?}");
         }
         Ok(())
     }
@@ -312,7 +312,7 @@ impl SerializeStructVariant for Dictionary {
                 value.serialize(Serializer)?,
             );
         } else {
-            panic!("expect a dict entry: {:?}", self);
+            panic!("expect a dict entry: {self:?}");
         }
         Ok(())
     }

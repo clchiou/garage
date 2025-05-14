@@ -43,8 +43,7 @@ impl BlobMetadata {
             let key = blob_metadata.get_key()?;
             if key.is_empty() {
                 return Err(Error::other(format!(
-                    "expect non-empty ddcache key: {:?}",
-                    blob_metadata,
+                    "expect non-empty ddcache key: {blob_metadata:?}",
                 )));
             }
             let key = Bytes::copy_from_slice(key);

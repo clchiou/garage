@@ -92,7 +92,7 @@ impl Client {
             tracing::trace!(response.extra = ?FormatDictionary(&response.extra));
         }
         if let Payload::Error(error) = &response.payload {
-            return Err(Error::other(format!("peer returns error: {:?}", error)));
+            return Err(Error::other(format!("peer returns error: {error:?}")));
         }
 
         response_owner.try_into().map_err(Error::other)

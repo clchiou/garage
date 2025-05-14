@@ -63,7 +63,7 @@ impl AnnounceUrls {
             } else if let Some(url) = &metainfo.announce {
                 vec![VecDeque::from([url.to_string()])]
             } else {
-                panic!("expect announce or announce_list: {:?}", metainfo);
+                panic!("expect announce or announce_list: {metainfo:?}");
             },
             i: 0,
             j: 0,

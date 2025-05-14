@@ -81,10 +81,9 @@ impl IcmpSocket {
         ) {
             Ok(message) => message,
             Err(Errno::EAGAIN) => return None,
-            Err(errno) => std::panic!(
-                "unexpected error when reading from the socket error queue: {:?}",
-                errno,
-            ),
+            Err(errno) => {
+                std::panic!("unexpected error when reading from the socket error queue: {errno:?}");
+            }
         };
 
         let peer_endpoint = message.address.map(|peer_endpoint| {
@@ -95,7 +94,7 @@ impl IcmpSocket {
         let mut cmsgs = message.cmsgs();
         let error = match cmsgs.next().unwrap() {
             ControlMessageOwned::Ipv4RecvErr(error, _) => error,
-            cmsg => std::panic!("unexpected cmsg: {:?}", cmsg),
+            cmsg => std::panic!("unexpected cmsg: {cmsg:?}"),
         };
         assert_eq!(cmsgs.next(), None);
 

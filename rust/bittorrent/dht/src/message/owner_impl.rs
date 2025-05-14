@@ -65,7 +65,7 @@ impl<'a> TryFrom<Message<'a>> for response::Response<'a> {
         match message.payload {
             Payload::Response(response) => Ok(response),
             Payload::Query(_) | Payload::Error(_) => Err(Error::ExpectResponse {
-                message: format!("{:?}", message),
+                message: format!("{message:?}"),
             }),
         }
     }

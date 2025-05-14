@@ -499,7 +499,7 @@ impl<'de, const STRICT: bool> VariantAccess<'de> for &Value<'de, STRICT> {
     type Error = Error;
 
     fn unit_variant(self) -> Result<(), Self::Error> {
-        panic!("expect a unit variant: {:?}", self);
+        panic!("expect a unit variant: {self:?}");
     }
 
     fn newtype_variant_seed<T>(self, seed: T) -> Result<T::Value, Self::Error>

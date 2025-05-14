@@ -359,7 +359,7 @@ where
 
         if let Err(error) = self.outgoing.send(message).await {
             let Some(State::Request(result_send)) = self.reqrep.remove(&endpoint) else {
-                std::panic!("expect reqrep request entry: {:?}", endpoint);
+                std::panic!("expect reqrep request entry: {endpoint:?}");
             };
             result_send.send_and_forget(Err(error));
         }
@@ -376,7 +376,7 @@ where
                     ErrorKind::TimedOut,
                     error::Error::RequestTimeout,
                 ))),
-                Some(_) => std::panic!("expect reqrep request entry: {:?}", endpoint),
+                Some(_) => std::panic!("expect reqrep request entry: {endpoint:?}"),
                 None => {}
             }
         }
@@ -397,7 +397,7 @@ where
 
     fn remove_response(&mut self, endpoint: &E) -> ResultSend<()> {
         let Some(State::Response(result_send)) = self.reqrep.remove(endpoint) else {
-            std::panic!("expect reqrep response entry: {:?}", endpoint);
+            std::panic!("expect reqrep response entry: {endpoint:?}");
         };
         result_send
     }
@@ -424,7 +424,7 @@ where
     Error::new(
         ErrorKind::AddrInUse,
         error::Error::RequestConflict {
-            endpoint: format!("{:?}", endpoint),
+            endpoint: format!("{endpoint:?}"),
         },
     )
 }

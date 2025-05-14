@@ -191,9 +191,7 @@ impl BlockOffset {
     fn check(offset: u64, piece_size: u64) {
         assert!(
             offset < piece_size,
-            "expect block offset < {}: {}",
-            piece_size,
-            offset,
+            "expect block offset < {piece_size}: {offset}",
         );
     }
 

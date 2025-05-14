@@ -114,7 +114,7 @@ where
     ) -> Result<(), Error> {
         for message in messages {
             if let Err(error) = self.check_features(&message) {
-                panic!("send_many: {}", error); // `panic!` because it is our fault.
+                panic!("send_many: {error}"); // `panic!` because it is our fault.
             }
             message.encode(&mut *self.stream.send_buffer());
         }

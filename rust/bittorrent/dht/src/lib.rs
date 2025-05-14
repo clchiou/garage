@@ -140,7 +140,7 @@ where
 
     Ok(Arc::new(
         Hex::try_from(String::deserialize(deserializer)?.as_str())
-            .map_err(|hex| de::Error::custom(format!("invalid node id: {:?}", hex)))?
+            .map_err(|hex| de::Error::custom(format!("invalid node id: {hex:?}")))?
             .into_inner(),
     ))
 }

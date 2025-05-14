@@ -316,9 +316,9 @@ impl Peers {
         match self.connectors.get_mut(&peer_endpoint) {
             Some(entry) => match entry {
                 None => *entry = Some(connector),
-                Some(_) => std::panic!("peer connector entry was returned: {:?}", peer_endpoint),
+                Some(_) => std::panic!("peer connector entry was returned: {peer_endpoint:?}"),
             },
-            None => std::panic!("peer connector entry does not exist: {:?}", peer_endpoint),
+            None => std::panic!("peer connector entry does not exist: {peer_endpoint:?}"),
         }
     }
 

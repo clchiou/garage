@@ -167,8 +167,7 @@ async fn probe(socket: &IcmpSocket, peer_endpoint: SocketAddr) -> Result<usize, 
                 }
                 _ => {
                     return Err(Error::other(format!(
-                        "unexpected sock_extended_err: {:?} {:?}",
-                        endpoint, error,
+                        "unexpected sock_extended_err: {endpoint:?} {error:?}",
                     )));
                 }
             }

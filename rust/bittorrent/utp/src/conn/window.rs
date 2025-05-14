@@ -387,9 +387,7 @@ impl SendWindow {
             if let Some((last_seq, last_num_acks)) = self.last_num_acks {
                 assert!(
                     measure(last_seq, seq) == 1,
-                    "expect no holes in seq: last_seq={} seq={}",
-                    last_seq,
-                    seq,
+                    "expect no holes in seq: last_seq={last_seq} seq={seq}",
                 );
                 if last_num_acks >= NUM_DUPLICATED_ACKS {
                     return true;

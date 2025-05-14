@@ -49,8 +49,8 @@ where
     for (literal, (arg, spec)) in iter::zip(format_args.literals, format_args.args) {
         output.write_str(literal)?;
         match spec {
-            FormatSpec::None => std::write!(Escaper::new(&mut output), "{}", arg)?,
-            FormatSpec::Raw => std::write!(output, "{}", arg)?,
+            FormatSpec::None => std::write!(Escaper::new(&mut output), "{arg}")?,
+            FormatSpec::Raw => std::write!(output, "{arg}")?,
         }
     }
     if format_args.literals.len() > format_args.args.len() {

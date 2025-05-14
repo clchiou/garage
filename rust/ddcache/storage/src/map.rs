@@ -186,7 +186,7 @@ impl BlobMap {
                 State::Removing => task::yield_now().await,
             }
         }
-        std::panic!("map is stuck in removing entry: {:?} {:?}", key, hash);
+        std::panic!("map is stuck in removing entry: {key:?} {hash:?}");
     }
 
     pub(crate) fn write_new(&self, key: Bytes) -> Option<(KeyHash, WriteGuard)> {

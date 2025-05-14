@@ -198,8 +198,7 @@ impl Storage {
             }
         }
         Err(Error::other(format!(
-            "cannot resolve hash collision by replacement: {:?}",
-            key,
+            "cannot resolve hash collision by replacement: {key:?}",
         )))
     }
 

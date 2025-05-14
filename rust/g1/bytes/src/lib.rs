@@ -219,12 +219,12 @@ impl BufSliceExt for &[u8] {
 pub trait BufMutExt: BufMut {
     /// Formats a value using `fmt::Debug` and writes the output to the buffer.
     fn put_debug<T: fmt::Debug>(&mut self, value: &T) {
-        write!(self.writer(), "{:?}", value).expect("buffer write should be infallible");
+        write!(self.writer(), "{value:?}").expect("buffer write should be infallible");
     }
 
     /// It is similar to `put_debug` except that it uses `fmt::Display`.
     fn put_display<T: fmt::Display>(&mut self, value: &T) {
-        write!(self.writer(), "{}", value).expect("buffer write should be infallible");
+        write!(self.writer(), "{value}").expect("buffer write should be infallible");
     }
 }
 

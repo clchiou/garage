@@ -12,7 +12,7 @@ impl PeerId {
     {
         let hex = String::deserialize(deserializer)?;
         Ok(Arc::new(hex.as_bytes().try_into().map_err(|_| {
-            de::Error::custom(format!("invalid peer id: {:?}", hex))
+            de::Error::custom(format!("invalid peer id: {hex:?}"))
         })?))
     }
 

@@ -463,7 +463,7 @@ impl<'a, const STRICT: bool> borrow::Value<'a, STRICT> {
             Self::List(list) => list.raw_value,
             Self::Dictionary(dict) => dict.raw_value,
             Self::ByteString(_) | Self::Integer(_) => {
-                panic!("we do not store raw value for these types: {:?}", self)
+                panic!("we do not store raw value for these types: {self:?}")
             }
         }
     }
