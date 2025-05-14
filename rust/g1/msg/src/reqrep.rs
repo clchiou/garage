@@ -475,6 +475,7 @@ mod test_harness {
             Outgoing,
         >
     {
+        #[define_opaque(Outgoing)]
         pub fn new_mock() -> (Self, MockActor) {
             let cancel = Cancel::new();
             let (incoming_send, incoming_recv) = futures_mpsc::unbounded();

@@ -207,10 +207,7 @@ where
     CS: BuildHasher,
 {
     fn eq(&self, other: &Self) -> bool {
-        self.len() == other.len()
-            && self
-                .iter()
-                .all(|(r, c, v)| other.get(r, c).map_or(false, |w| w == v))
+        self.len() == other.len() && self.iter().all(|(r, c, v)| other.get(r, c) == Some(v))
     }
 }
 
@@ -300,7 +297,7 @@ where
     {
         self.row_map
             .get(&self.entries, row)
-            .map_or(false, |i| to_c(&self.entries[i]).borrow() == column)
+            .is_some_and(|i| to_c(&self.entries[i]).borrow() == column)
     }
 
     pub fn get_row<Q>(&self, row: &Q) -> Option<(&C, &V)>

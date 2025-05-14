@@ -23,11 +23,11 @@ impl<T, const N: usize> Drop for Array<T, N> {
 
 impl<T, const N: usize> Array<T, N> {
     pub fn as_slice(&self) -> &[T] {
-        unsafe { MaybeUninit::slice_assume_init_ref(&self.array[0..self.len]) }
+        unsafe { self.array[0..self.len].assume_init_ref() }
     }
 
     pub fn as_mut_slice(&mut self) -> &mut [T] {
-        unsafe { MaybeUninit::slice_assume_init_mut(&mut self.array[0..self.len]) }
+        unsafe { self.array[0..self.len].assume_init_mut() }
     }
 
     pub fn as_ptr(&self) -> *const T {
@@ -63,7 +63,7 @@ fn as_mut_ptr<T, const N: usize>(array: &mut [MaybeUninit<T>; N]) -> *mut T {
 }
 
 fn drop_in_place<T>(slice: &mut [MaybeUninit<T>]) {
-    unsafe { ptr::drop_in_place(MaybeUninit::slice_assume_init_mut(slice) as *mut [T]) };
+    unsafe { slice.assume_init_drop() };
 }
 
 //
@@ -76,7 +76,7 @@ where
 {
     fn clone(&self) -> Self {
         let mut array = [const { MaybeUninit::uninit() }; N];
-        MaybeUninit::clone_from_slice(&mut array[0..self.len], self);
+        array[0..self.len].write_clone_of_slice(self);
         Self {
             array,
             len: self.len,

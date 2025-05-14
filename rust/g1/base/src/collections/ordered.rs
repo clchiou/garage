@@ -160,7 +160,7 @@ where
         self.len() == other.len()
             && self
                 .iter()
-                .all(|(key, value)| other.get(key).map_or(false, |v| v == value))
+                .all(|(key, value)| other.get(key) == Some(value))
     }
 }
 
@@ -191,22 +191,27 @@ impl<K, V, S> HashOrderedMap<K, V, S> {
 }
 
 impl<K, V, S> HashOrderedMap<K, V, S> {
+    #[define_opaque(Keys)]
     pub fn keys(&self) -> Keys<'_, K, V, S> {
         self.entries.iter().map(|(k, _)| k)
     }
 
+    #[define_opaque(Values)]
     pub fn values(&self) -> Values<'_, K, V, S> {
         self.entries.iter().map(|(_, v)| v)
     }
 
+    #[define_opaque(ValuesMut)]
     pub fn values_mut(&mut self) -> ValuesMut<'_, K, V, S> {
         self.entries.iter_mut().map(|(_, v)| v)
     }
 
+    #[define_opaque(Iter)]
     pub fn iter(&self) -> Iter<'_, K, V, S> {
         self.entries.iter().map(|(k, v)| (k, v))
     }
 
+    #[define_opaque(IterMut)]
     pub fn iter_mut(&mut self) -> IterMut<'_, K, V, S> {
         self.entries.iter_mut().map(|(k, v)| (&*k, v))
     }

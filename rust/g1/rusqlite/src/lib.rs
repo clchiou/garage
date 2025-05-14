@@ -92,6 +92,7 @@ where
         }
     }
 
+    #[define_opaque(ConnGuard)]
     pub fn connect(&self) -> Result<ConnGuard<'_, O>, Error> {
         let conn = match self.pool.must_lock().pop() {
             Some(conn) => conn,

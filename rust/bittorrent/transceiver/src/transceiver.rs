@@ -29,6 +29,7 @@ pub type TransceiverGuard = JoinGuard<Result<(), Error>>;
 pub type TransceiverSpawn = impl FnOnce() -> (Transceiver, TransceiverGuard);
 
 impl Transceiver {
+    #[define_opaque(TransceiverSpawn)]
     pub async fn prepare_spawn(
         raw_info: Bytes,
         dim: Dimension,

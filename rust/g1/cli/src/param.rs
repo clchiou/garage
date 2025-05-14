@@ -44,7 +44,7 @@ impl ParametersConfig {
     pub fn try_init(&self) -> Result<(), Error> {
         fn is_yaml(path: &Path) -> bool {
             path.extension()
-                .map_or(false, |ext| ext == "yaml" || ext == "yml")
+                .is_some_and(|ext| ext == "yaml" || ext == "yml")
         }
 
         fn load<P>(path: P) -> Result<Tree, Error>

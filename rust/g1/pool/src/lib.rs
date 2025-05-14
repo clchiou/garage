@@ -40,6 +40,7 @@ impl<T, E> Pool<T, E> {
 
     // This does not rate-limit (and blocks the caller); it simply creates a new `T` instance when
     // the pool is empty.  If this is an issue, the caller must implement rate limiting themselves.
+    #[define_opaque(Guard)]
     pub fn acquire(&self) -> Result<Guard<'_, T, E>, E> {
         let resource = match self.pool.must_lock().pop() {
             Some(resource) => resource,

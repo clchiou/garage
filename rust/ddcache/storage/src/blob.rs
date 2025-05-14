@@ -78,7 +78,7 @@ impl BlobMetadata {
     }
 
     pub(crate) fn is_expired(&self, now: Timestamp) -> bool {
-        self.expire_at.map_or(false, |expire_at| expire_at <= now)
+        self.expire_at.is_some_and(|expire_at| expire_at <= now)
     }
 
     pub(crate) fn encode(&self) -> Bytes {

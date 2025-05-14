@@ -209,7 +209,7 @@ impl Actor {
                     if self
                         .last_seen
                         .get(&id)
-                        .map_or(true, |last_seen| last_seen.elapsed() > DISCONNECT_BEFORE)
+                        .is_none_or(|last_seen| last_seen.elapsed() > DISCONNECT_BEFORE)
                     {
                         tracing::warn!(%id, "disconnect unseen server");
                         self.servers.disconnect(id);

@@ -129,7 +129,7 @@ where
                 break;
             }
 
-            let expired = self.entries.get(key).map_or(false, |e| e.is_expired(now));
+            let expired = self.entries.get(key).is_some_and(|e| e.is_expired(now));
             if expired {
                 self.entries.remove(key);
             }
@@ -145,7 +145,7 @@ where
 
 impl<V> Entry<V> {
     fn is_expired(&self, now: Instant) -> bool {
-        self.deadline.map_or(false, |deadline| deadline < now)
+        self.deadline.is_some_and(|deadline| deadline < now)
     }
 }
 

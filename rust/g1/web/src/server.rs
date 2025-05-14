@@ -120,5 +120,5 @@ fn is_probably_connection_close(error: &hyper::Error) -> bool {
     error
         .source()
         .and_then(|source| source.downcast_ref::<Error>())
-        .map_or(false, |error| KINDS.contains(&error.kind()))
+        .is_some_and(|error| KINDS.contains(&error.kind()))
 }

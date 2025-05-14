@@ -50,7 +50,7 @@ struct Httpxd {
 impl Httpxd {
     async fn execute(&self) -> Result<(), Error> {
         let outgoing = *outgoing();
-        if outgoing.map_or(false, |outgoing| outgoing.port() != 0) {
+        if outgoing.is_some_and(|outgoing| outgoing.port() != 0) {
             tracing::warn!("outgoing port is not ephemeral");
         }
 

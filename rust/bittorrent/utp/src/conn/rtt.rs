@@ -1,4 +1,5 @@
 use std::cmp;
+use std::ops::{AddAssign, SubAssign};
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -29,22 +30,21 @@ impl Rtt {
     pub(super) fn update(&mut self, rtt: Duration) {
         const MIN_TIMEOUT: Duration = Duration::from_millis(500);
 
-        let abs_delta = if self.average > rtt {
-            self.average - rtt
-        } else {
-            rtt - self.average
-        };
-        if abs_delta > self.variance {
-            self.variance += (abs_delta - self.variance) / 4;
-        } else {
-            self.variance -= (self.variance - abs_delta) / 4;
+        fn abs_diff(x: Duration, y: Duration) -> (Duration, fn(&mut Duration, Duration)) {
+            match x.checked_sub(y) {
+                Some(d) => (d, Duration::add_assign),
+                None => (y - x, Duration::sub_assign),
+            }
         }
 
-        if rtt > self.average {
-            self.average += (rtt - self.average) / 8;
-        } else {
-            self.average -= (self.average - rtt) / 8;
-        }
+        let abs_delta = self.average.abs_diff(rtt);
+        // variance += (abs_delta - variance) / 4
+        let (d, f) = abs_diff(abs_delta, self.variance);
+        f(&mut self.variance, d / 4);
+
+        // average += (rtt - average) / 8
+        let (d, f) = abs_diff(rtt, self.average);
+        f(&mut self.average, d / 8);
 
         self.timeout = cmp::min(
             cmp::max(self.average + self.variance * 4, MIN_TIMEOUT),

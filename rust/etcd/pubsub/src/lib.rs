@@ -1,7 +1,6 @@
 #![feature(duration_constants)]
 #![feature(iterator_try_collect)]
 #![feature(never_type)]
-#![feature(slice_take)]
 #![feature(try_blocks)]
 
 use std::io::{self, Write};
@@ -195,7 +194,7 @@ where
                 // * Our lease has expired by the time it is finally able to process our request.
                 | (_, Err(error @ Error::Grpc { status: StatusCode::NOT_FOUND }))
                 | (_, Err(error @ Error::Grpc { status: StatusCode::SERVICE_UNAVAILABLE })) => {
-                    if retry_start_at.map_or(false, |x| x.elapsed() > TIMEOUT) {
+                    if retry_start_at.is_some_and(|x| x.elapsed() > TIMEOUT) {
                         tracing::warn!("retry timeout");
                         return Err(error);
                     }
@@ -281,7 +280,7 @@ impl KeyScheme {
     }
 
     fn parse(&self, key: &Key) -> Option<Uuid> {
-        Uuid::parse_str(str::from_utf8(key.as_slice().take(self.prefix.len()..)?).ok()?).ok()
+        Uuid::parse_str(str::from_utf8(key.as_slice().split_off(self.prefix.len()..)?).ok()?).ok()
     }
 
     fn encode(&self, id: Uuid) -> Key {
