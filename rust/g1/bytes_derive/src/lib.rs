@@ -201,6 +201,8 @@ impl Generate for Generator<'_, '_, BufExt> {
     }
 }
 
+// TODO: Rewrtie this since `bytes` has [implemented][1] related feature.
+// [1]: https://github.com/tokio-rs/bytes/pull/753
 impl Generator<'_, '_, BufExt> {
     /// Generates a decoder for a struct.
     fn gen_impl(&self, get_body: TokenStream, try_get_body: TokenStream) -> TokenStream {

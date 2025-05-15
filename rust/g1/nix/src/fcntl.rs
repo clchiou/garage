@@ -7,6 +7,8 @@ use nix::fcntl::{fcntl, OFlag, F_GETFL, F_SETFL};
 #[derive(Debug)]
 pub struct StatusGuard<T>
 where
+    // TODO: Change the trait bound to `AsFd`, as [done][1] in the `nix` crate.
+    // [1]: https://github.com/nix-rust/nix/pull/2434
     T: AsRawFd,
 {
     fd: Option<T>,
@@ -109,10 +111,12 @@ impl Restore {
 }
 
 fn get_status(fd: RawFd) -> Result<OFlag, Errno> {
+    let fd = unsafe { BorrowedFd::borrow_raw(fd) };
     Ok(OFlag::from_bits_retain(fcntl(fd, F_GETFL)?))
 }
 
 fn set_status(fd: RawFd, flags: OFlag) -> Result<(), Errno> {
+    let fd = unsafe { BorrowedFd::borrow_raw(fd) };
     fcntl(fd, F_SETFL(flags)).map(|_| ())
 }
 
@@ -137,6 +141,8 @@ mod tests {
         let expect = OFlag::O_TMPFILE | OFlag::O_RDWR | UNKNOWN;
         let fd = open("/tmp", OFlag::O_TMPFILE | OFlag::O_RDWR, Mode::empty())?;
         let result: Result<(), Errno> = try {
+            let fd = fd.as_raw_fd();
+
             assert_eq!(get_status(fd)?, expect);
 
             let guard = StatusGuard::set(fd, OFlag::O_NONBLOCK)?;

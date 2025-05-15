@@ -1,5 +1,5 @@
 use std::io::Error;
-use std::os::fd::{AsFd, AsRawFd};
+use std::os::fd::{AsFd, AsRawFd, BorrowedFd};
 
 use async_trait::async_trait;
 use nix::fcntl::{splice, OFlag, SpliceFFlags};
@@ -122,6 +122,8 @@ where
 
 fn splice_all<I, O>(cancel: Cancel, input: &I, output: &O, count: usize) -> Result<usize, Error>
 where
+    // TODO: Change the trait bound to `AsFd`, as [done][1] in the `nix` crate.
+    // [1]: https://github.com/nix-rust/nix/pull/2434
     I: AsRawFd,
     O: AsRawFd,
 {
@@ -129,9 +131,8 @@ where
     // clear `O_NONBLOCK` on input and output.
     const FLAG: SpliceFFlags = SpliceFFlags::SPLICE_F_MOVE;
 
-    // Somehow `nix` has not made `splice` to accept `AsFd` (yet?).
-    let i = input.as_raw_fd();
-    let o = output.as_raw_fd();
+    let i = unsafe { BorrowedFd::borrow_raw(input.as_raw_fd()) };
+    let o = unsafe { BorrowedFd::borrow_raw(output.as_raw_fd()) };
 
     let mut size = 0;
     while count > size && !cancel.is_set() {

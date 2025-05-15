@@ -91,7 +91,7 @@ impl IcmpSocket {
             peer_endpoint.ip()
         });
 
-        let mut cmsgs = message.cmsgs();
+        let mut cmsgs = message.cmsgs().expect("expect cmsgs");
         let error = match cmsgs.next().unwrap() {
             ControlMessageOwned::Ipv4RecvErr(error, _) => error,
             cmsg => std::panic!("unexpected cmsg: {cmsg:?}"),

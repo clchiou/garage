@@ -29,7 +29,7 @@ impl PathMtu {
         socket.set_recverr(true)?;
 
         let mut probe_data = vec![0u8; to_payload_size(MAX_PROBE_MTU)];
-        thread_rng().fill(probe_data.as_mut_slice());
+        rand::rng().fill(probe_data.as_mut_slice());
 
         let mut path_mtu = MAX_PROBE_MTU;
         let mut have_recv_icmp_mtu_reply = false;

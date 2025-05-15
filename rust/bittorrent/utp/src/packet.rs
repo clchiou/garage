@@ -86,8 +86,8 @@ impl TryFrom<Bytes> for Packet {
 
     fn try_from(mut buffer: Bytes) -> Result<Self, Self::Error> {
         fn decode_extension(buffer: &mut Bytes) -> Result<(Bytes, u8), Error> {
-            let next_extension = buffer.try_get_u8().ok_or(Error::Incomplete)?;
-            let size = usize::from(buffer.try_get_u8().ok_or(Error::Incomplete)?);
+            let next_extension = buffer.try_get_u8().map_err(|_| Error::Incomplete)?;
+            let size = usize::from(buffer.try_get_u8().map_err(|_| Error::Incomplete)?);
             ensure!(buffer.remaining() >= size, IncompleteSnafu);
             Ok((buffer.split_to(size), next_extension))
         }

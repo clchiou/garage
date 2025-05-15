@@ -24,8 +24,7 @@ impl PeerId {
     fn random() -> [u8; PEER_ID_SIZE] {
         const CHARSET: &[u8] = b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz.-";
         let mut peer_id = [0u8; PEER_ID_SIZE];
-        let mut rng = thread_rng();
-        peer_id.fill_with(|| *CHARSET.choose(&mut rng).unwrap());
+        peer_id.fill_with(|| *CHARSET.choose(&mut rand::rng()).unwrap());
         peer_id
     }
 }

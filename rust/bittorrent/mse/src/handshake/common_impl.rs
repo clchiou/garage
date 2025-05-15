@@ -231,8 +231,8 @@ where
 
 fn put_random_padding(buffer: &mut BytesMut) {
     let mut padding = [0u8; *PADDING_SIZE_RANGE.end()];
-    let mut rng = rand::thread_rng();
-    let size = rng.gen_range(PADDING_SIZE_RANGE);
+    let mut rng = rand::rng();
+    let size = rng.random_range(PADDING_SIZE_RANGE);
     rng.fill(&mut padding[0..size]);
     buffer.put_slice(&padding[0..size]);
 }

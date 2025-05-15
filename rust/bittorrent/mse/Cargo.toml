@@ -5,7 +5,6 @@ edition.workspace = true
 
 [dependencies]
 bytes.workspace = true
-cipher.workspace = true
 crypto-bigint.workspace = true
 linkme.workspace = true # Required by g1_param.
 rand.workspace = true

@@ -9,6 +9,8 @@ use paste::paste;
 
 pub use g1_bytes_derive::{BufExt, BufMutExt, BufPeekExt};
 
+// TODO: Refactor the interface to match the new `bytes` [interface][1].
+// [1]: https://github.com/tokio-rs/bytes/pull/753
 macro_rules! for_each_method_name {
     ($gen:tt, $gen_nbytes:tt) => {
         for_each_method_name!(@call $gen u8);
@@ -43,41 +45,6 @@ macro_rules! for_each_method_name {
         }
     };
 }
-
-macro_rules! gen_try_get {
-    ($type:ident, $name:ident) => {
-        paste! {
-            fn [<try_get_ $name>](&mut self) -> Option<$type> {
-                if self.remaining() < mem::size_of::<$type>() {
-                    return None;
-                }
-                Some(self.[<get_ $name>]())
-            }
-        }
-    };
-}
-
-macro_rules! gen_try_get_nbytes {
-    ($type:ident, $name:ident) => {
-        paste! {
-            fn [<try_get_ $name>](&mut self, nbytes: usize) -> Option<$type> {
-                if self.remaining() < nbytes {
-                    return None;
-                }
-                Some(self.[<get_ $name>](nbytes))
-            }
-        }
-    };
-}
-
-/// Extends the `Buf` trait.
-///
-/// It adds `try_get_X` methods that check the buffer size before reading.
-pub trait BufExt: Buf {
-    for_each_method_name!(gen_try_get, gen_try_get_nbytes);
-}
-
-impl<T> BufExt for T where T: Buf {}
 
 macro_rules! gen_peek {
     ($type:ident, $name:ident) => {
@@ -238,16 +205,16 @@ mod tests {
         Some(bytes)
     }
 
-    macro_rules! test_try_get_and_peek {
+    macro_rules! test_peek {
         ($array:expr, ($($type:ident),+), $expect:expr, $expect_le:expr $(,)?) => {
             paste! {
                 $(
-                    test_try_get_and_peek!($array, ($type), $expect);
-                    test_try_get_and_peek!($array, ([<$type _le>]), $expect_le);
+                    test_peek!($array, ($type), $expect);
+                    test_peek!($array, ([<$type _le>]), $expect_le);
                     if cfg!(target_endian = "big") {
-                        test_try_get_and_peek!($array, ([<$type _ne>]), $expect);
+                        test_peek!($array, ([<$type _ne>]), $expect);
                     } else {
-                        test_try_get_and_peek!($array, ([<$type _ne>]), $expect_le);
+                        test_peek!($array, ([<$type _ne>]), $expect_le);
                     }
                 )*
             }
@@ -256,14 +223,6 @@ mod tests {
         ($array:expr, ($($type:ident),+), $expect:expr $(,)?) => {
             paste! {
                 $(
-                    let mut buf: &[u8] = &$array;
-                    assert_eq!(buf.[<try_get_ $type>](), Some($expect));
-                    assert_eq!(buf, &[]);
-
-                    let mut buf: &[u8] = &$array[1..];
-                    assert_eq!(buf.[<try_get_ $type>](), None);
-                    assert_eq!(buf, &$array[1..]);
-
                     let buf: &[u8] = &$array;
                     assert_eq!(buf.[<peek_ $type>](), Some($expect));
 
@@ -275,49 +234,41 @@ mod tests {
     }
 
     #[test]
-    fn try_get_and_peek() {
-        test_try_get_and_peek!([1], (u8, i8), 1);
-        test_try_get_and_peek!([1, 2], (u16, i16), 0x0102, 0x0201);
-        test_try_get_and_peek!([1, 2, 3, 4], (u32, i32), 0x01020304, 0x04030201);
-        test_try_get_and_peek!(
+    fn peek() {
+        test_peek!([1], (u8, i8), 1);
+        test_peek!([1, 2], (u16, i16), 0x0102, 0x0201);
+        test_peek!([1, 2, 3, 4], (u32, i32), 0x01020304, 0x04030201);
+        test_peek!(
             [1, 2, 3, 4, 5, 6, 7, 8],
             (u64, i64),
             0x0102030405060708,
             0x0807060504030201,
         );
-        test_try_get_and_peek!(
+        test_peek!(
             [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
             (u128, i128),
             0x0102030405060708090a0b0c0d0e0f10,
             0x100f0e0d0c0b0a090807060504030201,
         );
-        test_try_get_and_peek!([0, 0, 0, 0], (f32), 0f32);
-        test_try_get_and_peek!([0, 0, 0, 0, 0, 0, 0, 0], (f64), 0f64);
+        test_peek!([0, 0, 0, 0], (f32), 0f32);
+        test_peek!([0, 0, 0, 0, 0, 0, 0, 0], (f64), 0f64);
     }
 
-    macro_rules! test_try_get_and_peek_nbytes {
+    macro_rules! test_peek_nbytes {
         ($type:ident) => {
             paste! {
-                test_try_get_and_peek_nbytes!($type, 0x010203);
-                test_try_get_and_peek_nbytes!([<$type _le>], 0x030201);
+                test_peek_nbytes!($type, 0x010203);
+                test_peek_nbytes!([<$type _le>], 0x030201);
                 if cfg!(target_endian = "big") {
-                    test_try_get_and_peek_nbytes!([<$type _ne>], 0x010203);
+                    test_peek_nbytes!([<$type _ne>], 0x010203);
                 } else {
-                    test_try_get_and_peek_nbytes!([<$type _ne>], 0x030201);
+                    test_peek_nbytes!([<$type _ne>], 0x030201);
                 }
             }
         };
 
         ($name:ident, $expect:expr) => {
             paste! {
-                let mut buf: &[u8] = &[1, 2, 3];
-                assert_eq!(buf.[<try_get_ $name>](3), Some($expect));
-                assert_eq!(buf, &[]);
-
-                let mut buf: &[u8] = &[1, 2, 3];
-                assert_eq!(buf.[<try_get_ $name>](4), None);
-                assert_eq!(buf, &[1, 2, 3]);
-
                 let buf: &[u8] = &[1, 2, 3];
                 assert_eq!(buf.[<peek_ $name>](3), Some($expect));
 
@@ -328,9 +279,9 @@ mod tests {
     }
 
     #[test]
-    fn try_get_and_peek_nbytes() {
-        test_try_get_and_peek_nbytes!(uint);
-        test_try_get_and_peek_nbytes!(int);
+    fn peek_nbytes() {
+        test_peek_nbytes!(uint);
+        test_peek_nbytes!(int);
     }
 
     #[test]
@@ -393,19 +344,6 @@ mod tests {
 
         let mut buffer = b"hello world".as_slice();
         assert_eq!(buffer.get_slice(5), b"hello");
-        assert_eq!(buffer, b" world");
-    }
-
-    #[test]
-    fn try_get_slice() {
-        let mut buffer = b"".as_slice();
-        assert_eq!(buffer.try_get_slice(0), some(b""));
-        assert_eq!(buffer.try_get_slice(1), None);
-
-        let mut buffer = b"hello world".as_slice();
-        assert_eq!(buffer.try_get_slice(5), some(b"hello"));
-        assert_eq!(buffer, b" world");
-        assert_eq!(buffer.try_get_slice(7), None);
         assert_eq!(buffer, b" world");
     }
 

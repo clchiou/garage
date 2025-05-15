@@ -1,6 +1,5 @@
-use cipher::StreamCipher;
 use crypto_bigint::ArrayEncoding;
-use rc4::{consts::U20, Key, KeyInit, Rc4};
+use rc4::{consts::U20, Key, KeyInit, Rc4, StreamCipher};
 
 use g1_base::fmt::{DebugExt, InsertPlaceholder};
 use g1_tokio::bstream::transform::Transform;

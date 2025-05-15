@@ -50,7 +50,7 @@ impl AnnounceUrls {
     pub(crate) fn new(metainfo: &Metainfo) -> Self {
         Self {
             urls: if let Some(list) = &metainfo.announce_list {
-                let mut rng = rand::thread_rng();
+                let mut rng = rand::rng();
                 list.iter()
                     .map(|urls| {
                         let mut urls: VecDeque<_> =
