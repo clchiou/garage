@@ -249,7 +249,7 @@ where
     {
         use private::ValueNew;
 
-        match buffer.peek_u8().ok_or(Error::Incomplete)? {
+        match buffer.peek_u8().map_err(|_| Error::Incomplete)? {
             b'0'..=b'9' => Ok(Self::ByteString(Self::new_byte_string(decode_byte_string(
                 buffer,
             )?))),
@@ -268,7 +268,7 @@ where
                 let mut list = Vec::new();
                 let mut buf = buffer.dup();
                 buf.advance(1);
-                while buf.peek_u8().ok_or(Error::Incomplete)? != b'e' {
+                while buf.peek_u8().map_err(|_| Error::Incomplete)? != b'e' {
                     list.push(Self::decode(&mut buf)?);
                 }
                 buf.advance(1);
@@ -281,7 +281,7 @@ where
                 let mut dict = BTreeMap::<ByteString, Self>::new();
                 let mut buf = buffer.dup();
                 buf.advance(1);
-                while buf.peek_u8().ok_or(Error::Incomplete)? != b'e' {
+                while buf.peek_u8().map_err(|_| Error::Incomplete)? != b'e' {
                     let key = Self::new_byte_string(decode_byte_string(&mut buf)?);
                     let value = Self::decode(&mut buf)?;
                     if let Some((last_key, _)) = dict.last_key_value() {
@@ -316,7 +316,7 @@ where
     let length = decode_integer(length).ok_or_else(|| Error::InvalidByteStringLength {
         length: length.escape_ascii().to_string(),
     })?;
-    buffer.try_get_slice(length).ok_or(Error::Incomplete)
+    buffer.try_get_slice(length).map_err(|_| Error::Incomplete)
 }
 
 /// Decodes an integer from a slice.

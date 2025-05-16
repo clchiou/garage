@@ -33,15 +33,16 @@ where
         //
 
         // Ensure that if `sendfile` returns `EAGAIN`, it must be due to `self` and not `input`.
-        let input = &StatusGuard::clear(input.as_fd(), OFlag::O_NONBLOCK)?;
-        let output = AsyncFd::new(StatusGuard::set(self.as_fd(), OFlag::O_NONBLOCK)?)?;
+        let input = StatusGuard::clear(input, OFlag::O_NONBLOCK)?;
+        let output = StatusGuard::set(self, OFlag::O_NONBLOCK)?;
 
+        let output = AsyncFd::new(output.as_fd())?;
         let mut size = 0;
         while count > size {
             if let Ok(n) = output
                 .writable()
                 .await?
-                .try_io(|output| Ok(sendfile(output, input, offset.as_mut(), count - size)?))
+                .try_io(|output| Ok(sendfile(output, &input, offset.as_mut(), count - size)?))
             {
                 match n? {
                     0 => break,
@@ -61,6 +62,16 @@ where
 {
     async fn splice(&mut self, output: &mut O, count: usize) -> Result<usize, Error> {
         //
+        // We perform this strange "cast" to `BorrowedFd<'static>` for two reasons: to satisfy the
+        // requirement of `task::spawn_blocking`, which requires `'static`, and to avoid requiring
+        // `'static` from the caller.
+        //
+        // This should be safe because we join the tasks.
+        //
+        let input = unsafe { BorrowedFd::borrow_raw(self.as_fd().as_raw_fd()) };
+        let output = unsafe { BorrowedFd::borrow_raw(output.as_fd().as_raw_fd()) };
+
+        //
         // We make blocking calls to `splice` for two reasons:
         //
         // * On `self`-to-`w` half: If we were to register them with the tokio reactor and make
@@ -72,11 +83,9 @@ where
         //   type and made non-blocking `splice` calls.  However, the results are slower, and the
         //   reasons for this slowdown are unknown to me.
         //
-        let input_guard = StatusGuard::clear(self.as_fd(), OFlag::O_NONBLOCK)?;
-        let output_guard = StatusGuard::clear(output.as_fd(), OFlag::O_NONBLOCK)?;
+        let i = StatusGuard::clear(input, OFlag::O_NONBLOCK)?;
+        let o = StatusGuard::clear(output, OFlag::O_NONBLOCK)?;
 
-        let i = input_guard.as_raw_fd();
-        let o = output_guard.as_raw_fd();
         let (r, w) = pipe2(OFlag::O_CLOEXEC)?;
 
         //
@@ -89,7 +98,7 @@ where
         let mut i_guard = JoinGuard::new(
             {
                 let cancel = cancel.clone();
-                task::spawn_blocking(move || splice_all(cancel, &i, &w, count))
+                task::spawn_blocking(move || splice_all(cancel, i, w, count))
             },
             cancel,
         );
@@ -98,7 +107,7 @@ where
         let mut o_guard = JoinGuard::new(
             {
                 let cancel = cancel.clone();
-                task::spawn_blocking(move || splice_all(cancel, &r, &o, count))
+                task::spawn_blocking(move || splice_all(cancel, r, o, count))
             },
             cancel,
         );
@@ -120,23 +129,18 @@ where
     }
 }
 
-fn splice_all<I, O>(cancel: Cancel, input: &I, output: &O, count: usize) -> Result<usize, Error>
+fn splice_all<I, O>(cancel: Cancel, input: I, output: O, count: usize) -> Result<usize, Error>
 where
-    // TODO: Change the trait bound to `AsFd`, as [done][1] in the `nix` crate.
-    // [1]: https://github.com/nix-rust/nix/pull/2434
-    I: AsRawFd,
-    O: AsRawFd,
+    I: AsFd,
+    O: AsFd,
 {
     // NOTE: We do not set `SPLICE_F_NONBLOCK` here and it is the caller's responsibility to set or
     // clear `O_NONBLOCK` on input and output.
     const FLAG: SpliceFFlags = SpliceFFlags::SPLICE_F_MOVE;
 
-    let i = unsafe { BorrowedFd::borrow_raw(input.as_raw_fd()) };
-    let o = unsafe { BorrowedFd::borrow_raw(output.as_raw_fd()) };
-
     let mut size = 0;
     while count > size && !cancel.is_set() {
-        match splice(i, None, o, None, count - size, FLAG)? {
+        match splice(&input, None, &output, None, count - size, FLAG)? {
             0 => break,
             n => size += n,
         }

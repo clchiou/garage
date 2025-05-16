@@ -1,17 +1,15 @@
-use std::os::fd::{AsFd, AsRawFd, BorrowedFd, RawFd};
+use std::os::fd::{AsFd, BorrowedFd};
 
 use nix::errno::Errno;
 use nix::fcntl::{fcntl, OFlag, F_GETFL, F_SETFL};
 
 /// Guards file status flags.
 #[derive(Debug)]
-pub struct StatusGuard<T>
+pub struct StatusGuard<Fd>
 where
-    // TODO: Change the trait bound to `AsFd`, as [done][1] in the `nix` crate.
-    // [1]: https://github.com/nix-rust/nix/pull/2434
-    T: AsRawFd,
+    Fd: AsFd,
 {
-    fd: Option<T>,
+    fd: Option<Fd>,
     restore: Restore,
 }
 
@@ -21,24 +19,23 @@ struct Restore {
     target: OFlag,
 }
 
-impl<T> StatusGuard<T>
+impl<Fd> StatusGuard<Fd>
 where
-    T: AsRawFd,
+    Fd: AsFd,
 {
-    pub fn set(fd: T, target: OFlag) -> Result<Self, Errno> {
+    pub fn set(fd: Fd, target: OFlag) -> Result<Self, Errno> {
         Self::new(fd, target, |current| current | target)
     }
 
-    pub fn clear(fd: T, target: OFlag) -> Result<Self, Errno> {
+    pub fn clear(fd: Fd, target: OFlag) -> Result<Self, Errno> {
         Self::new(fd, target, |current| current - target)
     }
 
-    fn new(fd: T, target: OFlag, new_flag: impl Fn(OFlag) -> OFlag) -> Result<Self, Errno> {
-        let raw_fd = fd.as_raw_fd();
-        let current = get_status(raw_fd)?;
+    fn new(fd: Fd, target: OFlag, new_flag: impl Fn(OFlag) -> OFlag) -> Result<Self, Errno> {
+        let current = get_status(&fd)?;
         let new = new_flag(current);
         if current != new {
-            set_status(raw_fd, new)?;
+            set_status(&fd, new)?;
         }
         Ok(Self {
             fd: Some(fd),
@@ -46,21 +43,21 @@ where
         })
     }
 
-    pub fn get_ref(&self) -> &T {
-        self.fd.as_ref().unwrap()
+    pub fn get_ref(&self) -> &Fd {
+        self.fd.as_ref().expect("fd")
     }
 
-    pub fn into_inner(mut self) -> T {
-        self.take_inner().unwrap()
+    pub fn into_inner(mut self) -> Fd {
+        self.take_inner().expect("fd")
     }
 
-    fn take_inner(&mut self) -> Option<T> {
+    fn take_inner(&mut self) -> Option<Fd> {
         let fd = self.fd.take()?;
-        self.restore(fd.as_raw_fd()).unwrap();
+        self.restore(&fd).expect("restore");
         Some(fd)
     }
 
-    fn restore(&self, fd: RawFd) -> Result<(), Errno> {
+    fn restore(&self, fd: &Fd) -> Result<(), Errno> {
         let current = get_status(fd)?;
         let original = self.restore.restore(current);
         if current != original {
@@ -70,30 +67,21 @@ where
     }
 }
 
-impl<T> AsFd for StatusGuard<T>
+impl<Fd> AsFd for StatusGuard<Fd>
 where
-    T: AsRawFd,
+    Fd: AsFd,
 {
     fn as_fd(&self) -> BorrowedFd<'_> {
-        unsafe { BorrowedFd::borrow_raw(self.get_ref().as_raw_fd()) }
+        self.get_ref().as_fd()
     }
 }
 
-impl<T> AsRawFd for StatusGuard<T>
+impl<Fd> Drop for StatusGuard<Fd>
 where
-    T: AsRawFd,
-{
-    fn as_raw_fd(&self) -> RawFd {
-        self.get_ref().as_raw_fd()
-    }
-}
-
-impl<T> Drop for StatusGuard<T>
-where
-    T: AsRawFd,
+    Fd: AsFd,
 {
     fn drop(&mut self) {
-        let _ = self.take_inner();
+        drop(self.take_inner());
     }
 }
 
@@ -110,13 +98,11 @@ impl Restore {
     }
 }
 
-fn get_status(fd: RawFd) -> Result<OFlag, Errno> {
-    let fd = unsafe { BorrowedFd::borrow_raw(fd) };
+fn get_status<Fd: AsFd>(fd: Fd) -> Result<OFlag, Errno> {
     Ok(OFlag::from_bits_retain(fcntl(fd, F_GETFL)?))
 }
 
-fn set_status(fd: RawFd, flags: OFlag) -> Result<(), Errno> {
-    let fd = unsafe { BorrowedFd::borrow_raw(fd) };
+fn set_status<Fd: AsFd>(fd: Fd, flags: OFlag) -> Result<(), Errno> {
     fcntl(fd, F_SETFL(flags)).map(|_| ())
 }
 
@@ -141,7 +127,7 @@ mod tests {
         let expect = OFlag::O_TMPFILE | OFlag::O_RDWR | UNKNOWN;
         let fd = open("/tmp", OFlag::O_TMPFILE | OFlag::O_RDWR, Mode::empty())?;
         let result: Result<(), Errno> = try {
-            let fd = fd.as_raw_fd();
+            let fd = &fd;
 
             assert_eq!(get_status(fd)?, expect);
 

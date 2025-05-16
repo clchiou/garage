@@ -1,7 +1,7 @@
 pub mod rpc_capnp {
-    // TODO: Remove `clippy::needless_lifetimes` after [#522] has been fixed.
-    // [#522]: https://github.com/capnproto/capnproto-rust/issues/522
-    #![allow(clippy::needless_lifetimes, clippy::uninlined_format_args)]
+    // TODO: Remove `clippy::uninlined_format_args` after [#15] has been fixed.
+    // [#15]: https://github.com/capnproto/capnproto-rust/issues/15
+    #![allow(clippy::uninlined_format_args)]
     include!(concat!(env!("OUT_DIR"), "/ddcache/rpc_capnp.rs"));
 }
 

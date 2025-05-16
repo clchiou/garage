@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use futures::stream::StreamExt;
-use tokio::sync::broadcast::{self, Receiver, Sender};
+use tokio::sync::broadcast::{self, Receiver, Sender, WeakSender};
 use tokio::time;
 
 use g1_tokio::task::{Cancel, JoinGuard};
@@ -19,9 +19,7 @@ pub struct WatcherSpawner {
 // Exposes an etcd watch through a tokio broadcast channel.
 #[derive(Clone, Debug)]
 pub struct Watcher {
-    // TODO: Switch to `broadcast::WeakSender` once we upgrade to tokio [1.44.0].
-    // [1.44.0]: https://github.com/tokio-rs/tokio/releases/tag/tokio-1.44.0
-    subscriber: Arc<WatcherEventRecv>,
+    subscriber: WatcherEventSubscriber,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -32,6 +30,7 @@ pub enum WatcherEvent {
 
 pub type WatcherEventRecv = Receiver<WatcherEvent>;
 type WatcherEventSend = Sender<WatcherEvent>;
+type WatcherEventSubscriber = WeakSender<WatcherEvent>;
 
 // For convenience, we return `io::Error` instead of `etcd_client::Error`.
 pub type WatcherGuard = JoinGuard<Result<(), io::Error>>;
@@ -62,7 +61,7 @@ impl WatcherSpawner {
 
     pub fn spawn(self, client: Arc<Client>, watch: Watch) -> (Watcher, WatcherGuard) {
         let Self { event_send } = self;
-        let subscriber = Arc::new(event_send.subscribe());
+        let subscriber = event_send.downgrade();
         (
             Watcher::new(subscriber),
             WatcherGuard::spawn(move |cancel| Actor::new(cancel, client, watch, event_send).run()),
@@ -71,12 +70,12 @@ impl WatcherSpawner {
 }
 
 impl Watcher {
-    fn new(subscriber: Arc<WatcherEventRecv>) -> Self {
+    fn new(subscriber: WatcherEventSubscriber) -> Self {
         Self { subscriber }
     }
 
-    pub fn subscribe(&self) -> WatcherEventRecv {
-        self.subscriber.resubscribe()
+    pub fn subscribe(&self) -> Option<WatcherEventRecv> {
+        self.subscriber.upgrade().map(|sender| sender.subscribe())
     }
 }
 

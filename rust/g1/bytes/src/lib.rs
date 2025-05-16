@@ -4,64 +4,37 @@ use std::fmt;
 use std::io::Write;
 use std::mem;
 
-use bytes::{Buf, BufMut};
+use bytes::{Buf, BufMut, TryGetError};
 use paste::paste;
 
 pub use g1_bytes_derive::{BufExt, BufMutExt, BufPeekExt};
 
-// TODO: Refactor the interface to match the new `bytes` [interface][1].
-// [1]: https://github.com/tokio-rs/bytes/pull/753
-macro_rules! for_each_method_name {
-    ($gen:tt, $gen_nbytes:tt) => {
-        for_each_method_name!(@call $gen u8);
-        for_each_method_name!(@call $gen i8);
-        for_each_method_name!(@call $gen u16 le ne);
-        for_each_method_name!(@call $gen i16 le ne);
-        for_each_method_name!(@call $gen u32 le ne);
-        for_each_method_name!(@call $gen i32 le ne);
-        for_each_method_name!(@call $gen u64 le ne);
-        for_each_method_name!(@call $gen i64 le ne);
-        for_each_method_name!(@call $gen u128 le ne);
-        for_each_method_name!(@call $gen i128 le ne);
-        for_each_method_name!(@call_nbytes $gen_nbytes u64 uint);
-        for_each_method_name!(@call_nbytes $gen_nbytes i64 int);
-        for_each_method_name!(@call $gen f32 le ne);
-        for_each_method_name!(@call $gen f64 le ne);
-
-    };
-
-    (@call $gen:tt $type:ident $($endian:ident)*) => {
-        $gen!($type, $type);
-        paste! {
-            $($gen!($type, [<$type _ $endian>]);)*
-        }
-    };
-
-    (@call_nbytes $gen_nbytes:tt $type:ident $name:ident) => {
-        $gen_nbytes!($type, $name);
-        paste! {
-            $gen_nbytes!($type, [<$name _le>]);
-            $gen_nbytes!($type, [<$name _ne>]);
-        }
-    };
-}
-
 macro_rules! gen_peek {
-    ($type:ident, $name:ident) => {
+    ($type:ident $($endian:ident)*) => {
         paste! {
-            fn [<peek_ $name>](&self) -> Option<$type> {
-                self.peek_slice(mem::size_of::<$type>()).map(|mut slice| slice.[<get_ $name>]())
-            }
+            gen_peek!(@ [<peek_ $type>] [<get_ $type>] $type);
+            $(gen_peek!(@ [<peek_ $type _ $endian>] [<get_ $type _ $endian>] $type);)*
+        }
+    };
+
+    (@ $peek:ident $get:ident $type:ident) => {
+        fn $peek(&self) -> Result<$type, TryGetError> {
+            self.peek_slice(mem::size_of::<$type>()).map(|mut slice| slice.$get())
         }
     };
 }
 
-macro_rules! gen_peek_nbytes {
-    ($type:ident, $name:ident) => {
+macro_rules! gen_peek_int {
+    ($name:ident $type:ident $($endian:ident)*) => {
         paste! {
-            fn [<peek_ $name>](&self, nbytes: usize) -> Option<$type> {
-                self.peek_slice(nbytes).map(|mut slice| slice.[<get_ $name>](nbytes))
-            }
+            gen_peek_int!(@ [<peek_ $name>] [<get_ $name>] $type);
+            $(gen_peek_int!(@ [<peek_ $name _ $endian>] [<get_ $name _ $endian>] $type);)*
+        }
+    };
+
+    (@ $peek:ident $get:ident $type:ident) => {
+        fn $peek(&self, nbytes: usize) -> Result<$type, TryGetError> {
+            self.peek_slice(nbytes).map(|mut slice| slice.$get(nbytes))
         }
     };
 }
@@ -71,9 +44,22 @@ macro_rules! gen_peek_nbytes {
 /// We cannot implement `BufPeekExt` for `Buf` types because `Buf::chunk` only returns the current
 /// chunk, which may contain less than the full buffer data.
 pub trait BufPeekExt {
-    for_each_method_name!(gen_peek, gen_peek_nbytes);
+    gen_peek!(u8);
+    gen_peek!(i8);
+    gen_peek!(u16 le ne);
+    gen_peek!(i16 le ne);
+    gen_peek!(u32 le ne);
+    gen_peek!(i32 le ne);
+    gen_peek!(u64 le ne);
+    gen_peek!(i64 le ne);
+    gen_peek!(u128 le ne);
+    gen_peek!(i128 le ne);
+    gen_peek_int!(uint u64 le ne);
+    gen_peek_int!(int i64 le ne);
+    gen_peek!(f32 le ne);
+    gen_peek!(f64 le ne);
 
-    fn peek_slice(&self, size: usize) -> Option<&[u8]>;
+    fn peek_slice(&self, size: usize) -> Result<&[u8], TryGetError>;
 
     /// Returns a slice whose last byte matches the `predicate`.
     fn peek_slice_until<Predicate>(&self, predicate: Predicate) -> Option<&[u8]>
@@ -95,12 +81,15 @@ impl<T> BufPeekExt for T
 where
     T: AsRef<[u8]>,
 {
-    fn peek_slice(&self, size: usize) -> Option<&[u8]> {
+    fn peek_slice(&self, size: usize) -> Result<&[u8], TryGetError> {
         let slice = self.as_ref();
         if slice.len() < size {
-            return None;
+            return Err(TryGetError {
+                requested: size,
+                available: slice.len(),
+            });
         }
-        Some(&slice[..size])
+        Ok(&slice[..size])
     }
 
     fn peek_slice_until<Predicate>(&self, mut predicate: Predicate) -> Option<&[u8]>
@@ -129,14 +118,17 @@ pub trait BufSliceExt: Buf {
     where
         Self: 'a;
 
-    fn try_get_slice<'a>(&mut self, size: usize) -> Option<&'a [u8]>
+    fn try_get_slice<'a>(&mut self, size: usize) -> Result<&'a [u8], TryGetError>
     where
         Self: 'a,
     {
         if self.remaining() < size {
-            return None;
+            return Err(TryGetError {
+                requested: size,
+                available: self.remaining(),
+            });
         }
-        Some(self.get_slice(size))
+        Ok(self.get_slice(size))
     }
 
     /// Returns a slice whose last byte matches the `predicate`.
@@ -201,87 +193,100 @@ impl<T> BufMutExt for T where T: BufMut {}
 mod tests {
     use super::*;
 
+    fn ok(bytes: &[u8]) -> Result<&[u8], TryGetError> {
+        Ok(bytes)
+    }
+
+    fn err<'a>(requested: usize, available: usize) -> Result<&'a [u8], TryGetError> {
+        Err(TryGetError {
+            requested,
+            available,
+        })
+    }
+
     fn some(bytes: &[u8]) -> Option<&[u8]> {
         Some(bytes)
     }
 
     macro_rules! test_peek {
-        ($array:expr, ($($type:ident),+), $expect:expr, $expect_le:expr $(,)?) => {
+        ($array:expr, $expect:expr, ($($type:ident),+) $(,)?) => {
             paste! {
                 $(
-                    test_peek!($array, ($type), $expect);
-                    test_peek!($array, ([<$type _le>]), $expect_le);
+                    test_peek!($array, $expect => [<peek_ $type>]);
+                    test_peek!($array, $type::swap_bytes($expect) => [<peek_ $type _le>]);
                     if cfg!(target_endian = "big") {
-                        test_peek!($array, ([<$type _ne>]), $expect);
+                        test_peek!($array, $expect => [<peek_ $type _ne>]);
                     } else {
-                        test_peek!($array, ([<$type _ne>]), $expect_le);
+                        test_peek!($array, $type::swap_bytes($expect) => [<peek_ $type _ne>]);
                     }
                 )*
             }
         };
 
-        ($array:expr, ($($type:ident),+), $expect:expr $(,)?) => {
-            paste! {
-                $(
-                    let buf: &[u8] = &$array;
-                    assert_eq!(buf.[<peek_ $type>](), Some($expect));
-
-                    let buf: &[u8] = &$array[1..];
-                    assert_eq!(buf.[<peek_ $type>](), None);
-                )*
-            }
+        ($array:expr, $expect:expr => $($peek:ident),+ $(,)?) => {
+            $(
+                let buf: &[u8] = &$array;
+                assert_eq!(buf.$peek(), Ok($expect));
+                assert_eq!(
+                    (&buf[1..]).$peek(),
+                    Err(TryGetError {
+                        requested: buf.len(),
+                        available: buf.len() - 1,
+                    }),
+                );
+            )*
         };
     }
 
     #[test]
     fn peek() {
-        test_peek!([1], (u8, i8), 1);
-        test_peek!([1, 2], (u16, i16), 0x0102, 0x0201);
-        test_peek!([1, 2, 3, 4], (u32, i32), 0x01020304, 0x04030201);
-        test_peek!(
-            [1, 2, 3, 4, 5, 6, 7, 8],
-            (u64, i64),
-            0x0102030405060708,
-            0x0807060504030201,
-        );
+        test_peek!([1], 1 => peek_u8, peek_i8);
+
+        test_peek!([1, 2], 0x0102, (u16, i16));
+        test_peek!([1, 2, 3, 4], 0x01020304, (u32, i32));
+        test_peek!([1, 2, 3, 4, 5, 6, 7, 8], 0x0102030405060708, (u64, i64));
         test_peek!(
             [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
-            (u128, i128),
             0x0102030405060708090a0b0c0d0e0f10,
-            0x100f0e0d0c0b0a090807060504030201,
+            (u128, i128),
         );
-        test_peek!([0, 0, 0, 0], (f32), 0f32);
-        test_peek!([0, 0, 0, 0, 0, 0, 0, 0], (f64), 0f64);
+
+        test_peek!([0, 0, 0, 0], 0f32 => peek_f32, peek_f32_le, peek_f32_ne);
+        test_peek!([0, 0, 0, 0, 0, 0, 0, 0], 0f64 => peek_f64, peek_f64_le, peek_f64_ne);
     }
 
-    macro_rules! test_peek_nbytes {
+    macro_rules! test_peek_int {
         ($type:ident) => {
             paste! {
-                test_peek_nbytes!($type, 0x010203);
-                test_peek_nbytes!([<$type _le>], 0x030201);
+                test_peek_int!([<peek_ $type>], 0x010203);
+                test_peek_int!([<peek_ $type _le>], 0x030201);
                 if cfg!(target_endian = "big") {
-                    test_peek_nbytes!([<$type _ne>], 0x010203);
+                    test_peek_int!([<peek_ $type _ne>], 0x010203);
                 } else {
-                    test_peek_nbytes!([<$type _ne>], 0x030201);
+                    test_peek_int!([<peek_ $type _ne>], 0x030201);
                 }
             }
         };
 
-        ($name:ident, $expect:expr) => {
+        ($peek:ident, $expect:expr) => {
             paste! {
                 let buf: &[u8] = &[1, 2, 3];
-                assert_eq!(buf.[<peek_ $name>](3), Some($expect));
-
-                let buf: &[u8] = &[1, 2, 3];
-                assert_eq!(buf.[<peek_ $name>](4), None);
+                assert_eq!(buf.$peek(3), Ok($expect));
+                assert_eq!(
+                    buf.$peek(4),
+                    Err(TryGetError {
+                        requested: 4,
+                        available: 3,
+                    }),
+                );
             }
         };
     }
 
     #[test]
     fn peek_nbytes() {
-        test_peek_nbytes!(uint);
-        test_peek_nbytes!(int);
+        test_peek_int!(uint);
+        test_peek_int!(int);
     }
 
     #[test]
@@ -296,18 +301,18 @@ mod tests {
         }
 
         let buffer = b"".as_slice();
-        assert_eq!(buffer.peek_slice(0), some(b""));
-        assert_eq!(buffer.peek_slice(1), None);
+        assert_eq!(buffer.peek_slice(0), ok(b""));
+        assert_eq!(buffer.peek_slice(1), err(1, 0));
         assert_eq!(buffer.peek_slice_until(|_| true), None);
         assert_eq!(buffer.peek_slice_until(|_| false), None);
         assert_eq!(buffer.peek_slice_until_strip(|_| true), None);
         assert_eq!(buffer.peek_slice_until_strip(|_| false), None);
 
         let buffer = b"hello world".as_slice();
-        assert_eq!(buffer.peek_slice(0), some(b""));
-        assert_eq!(buffer.peek_slice(1), some(b"h"));
-        assert_eq!(buffer.peek_slice(11), some(b"hello world"));
-        assert_eq!(buffer.peek_slice(12), None);
+        assert_eq!(buffer.peek_slice(0), ok(b""));
+        assert_eq!(buffer.peek_slice(1), ok(b"h"));
+        assert_eq!(buffer.peek_slice(11), ok(b"hello world"));
+        assert_eq!(buffer.peek_slice(12), err(12, 11));
         test(buffer, |x| *x == b' ', some(b"hello "));
         test(buffer, |x| *x == b'x', None);
         test(buffer, |_| true, some(b"h"));
@@ -344,6 +349,21 @@ mod tests {
 
         let mut buffer = b"hello world".as_slice();
         assert_eq!(buffer.get_slice(5), b"hello");
+        assert_eq!(buffer, b" world");
+    }
+
+    #[test]
+    fn try_get_slice() {
+        let mut buffer = b"".as_slice();
+        assert_eq!(buffer.try_get_slice(0), ok(b""));
+        assert_eq!(buffer, b"");
+        assert_eq!(buffer.try_get_slice(1), err(1, 0));
+        assert_eq!(buffer, b"");
+
+        let mut buffer = b"hello world".as_slice();
+        assert_eq!(buffer.try_get_slice(5), ok(b"hello"));
+        assert_eq!(buffer, b" world");
+        assert_eq!(buffer.try_get_slice(7), err(7, 6));
         assert_eq!(buffer, b" world");
     }
 

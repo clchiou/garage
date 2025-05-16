@@ -92,7 +92,9 @@ impl TryFrom<Bytes> for Packet {
             Ok((buffer.split_to(size), next_extension))
         }
 
-        let header = buffer.try_get_packet_header().ok_or(Error::Incomplete)?;
+        let header = buffer
+            .try_get_packet_header()
+            .map_err(|_| Error::Incomplete)?;
 
         header.try_packet_type()?;
         let version = header.version();

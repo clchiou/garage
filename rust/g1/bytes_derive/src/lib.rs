@@ -187,10 +187,7 @@ impl Generate for Generator<'_, '_, BufExt> {
 
     fn gen_unit(&self) -> TokenStream {
         let struct_name = &self.struct_name;
-        self.gen_impl(
-            quote::quote!(#struct_name),
-            quote::quote!(Some(#struct_name)),
-        )
+        self.gen_impl(quote::quote!(#struct_name), quote::quote!(Ok(#struct_name)))
     }
 
     fn gen_dummy(&self) -> TokenStream {
@@ -201,8 +198,6 @@ impl Generate for Generator<'_, '_, BufExt> {
     }
 }
 
-// TODO: Rewrtie this since `bytes` has [implemented][1] related feature.
-// [1]: https://github.com/tokio-rs/bytes/pull/753
 impl Generator<'_, '_, BufExt> {
     /// Generates a decoder for a struct.
     fn gen_impl(&self, get_body: TokenStream, try_get_body: TokenStream) -> TokenStream {
@@ -217,7 +212,7 @@ impl Generator<'_, '_, BufExt> {
                     #get_body
                 }
 
-                fn #try_get(&mut self) -> Option<#struct_name> {
+                fn #try_get(&mut self) -> Result<#struct_name, ::bytes::TryGetError> {
                     #try_get_body
                 }
             }
@@ -257,9 +252,12 @@ impl Generator<'_, '_, BufExt> {
         Ok(quote::quote! {
             #size
             if self.remaining() < SIZE {
-                return None;
+                return Err(::bytes::TryGetError {
+                    requested: SIZE,
+                    available: self.remaining(),
+                });
             }
-            Some(self.#get())
+            Ok(self.#get())
         })
     }
 }
@@ -275,7 +273,7 @@ impl Generate for Generator<'_, '_, BufPeekExt> {
 
     fn gen_unit(&self) -> TokenStream {
         let struct_name = &self.struct_name;
-        self.gen_impl(quote::quote!(Some(#struct_name)))
+        self.gen_impl(quote::quote!(Ok(#struct_name)))
     }
 
     fn gen_dummy(&self) -> TokenStream {
@@ -292,7 +290,7 @@ impl Generator<'_, '_, BufPeekExt> {
         let struct_name = self.struct_name;
         quote::quote! {
             #vis trait #trait_name: ::g1_bytes::BufPeekExt {
-                fn #peek(&self) -> Option<#struct_name> {
+                fn #peek(&self) -> Result<#struct_name, ::bytes::TryGetError> {
                     #peek_body
                 }
             }
@@ -311,7 +309,7 @@ impl Generator<'_, '_, BufPeekExt> {
             #size
             let mut slice = self.peek_slice(SIZE)?;
             #(let #field = slice.#get();)*
-            Some(#struct_name { #(#field),* })
+            Ok(#struct_name { #(#field),* })
         })
     }
 
@@ -327,7 +325,7 @@ impl Generator<'_, '_, BufPeekExt> {
             #size
             let mut slice = self.peek_slice(SIZE)?;
             #(let #element = slice.#get();)*
-            Some(#struct_name(#(#element),*))
+            Ok(#struct_name(#(#element),*))
         })
     }
 }
@@ -454,8 +452,8 @@ mod tests {
                 fn get_foo(&mut self) -> r#Foo {
                     r#Foo
                 }
-                fn try_get_foo(&mut self) -> Option<r#Foo> {
-                    Some(r#Foo)
+                fn try_get_foo(&mut self) -> Result<r#Foo, ::bytes::TryGetError> {
+                    Ok(r#Foo)
                 }
             }
             impl<T> FooBufExt for T where T: ::bytes::Buf {}
@@ -482,9 +480,12 @@ mod tests {
         let expect = quote::quote! {
             const SIZE: usize = ::std::mem::size_of::<u8>();
             if self.remaining() < SIZE {
-                return None;
+                return Err(::bytes::TryGetError {
+                    requested: SIZE,
+                    available: self.remaining(),
+                });
             }
-            Some(self.get_foo())
+            Ok(self.get_foo())
         }
         .to_string();
         assert_matches!(gen.gen_try_get(&fields), Ok(ts) if ts.to_string() == expect);
@@ -511,9 +512,12 @@ mod tests {
         let expect = quote::quote! {
             const SIZE: usize = ::std::mem::size_of::<u8>() + ::std::mem::size_of::<i8>();
             if self.remaining() < SIZE {
-                return None;
+                return Err(::bytes::TryGetError {
+                    requested: SIZE,
+                    available: self.remaining(),
+                });
             }
-            Some(self.get_foo())
+            Ok(self.get_foo())
         }
         .to_string();
         assert_matches!(gen.gen_try_get(&fields), Ok(ts) if ts.to_string() == expect);
@@ -528,8 +532,8 @@ mod tests {
 
         let expect = quote::quote! {
             pub(in super::super) trait FooBarBufPeekExt: ::g1_bytes::BufPeekExt {
-                fn peek_foo_bar(&self) -> Option<r#FooBar> {
-                    Some(r#FooBar)
+                fn peek_foo_bar(&self) -> Result<r#FooBar, ::bytes::TryGetError> {
+                    Ok(r#FooBar)
                 }
             }
             impl<T> FooBarBufPeekExt for T where T: ::g1_bytes::BufPeekExt {}
@@ -545,7 +549,7 @@ mod tests {
             const SIZE: usize = ::std::mem::size_of::<u8>();
             let mut slice = self.peek_slice(SIZE)?;
             let ty_u8 = slice.get_u8();
-            Some(r#FooBar { ty_u8 })
+            Ok(r#FooBar { ty_u8 })
         }
         .to_string();
         assert_matches!(gen.gen_peek(&fields), Ok(ts) if ts.to_string() == expect);
@@ -553,7 +557,7 @@ mod tests {
             const SIZE: usize = ::std::mem::size_of::<u8>();
             let mut slice = self.peek_slice(SIZE)?;
             let e0 = slice.get_u8();
-            Some(r#FooBar(e0))
+            Ok(r#FooBar(e0))
         }
         .to_string();
         assert_matches!(gen.gen_peek_tuple(&fields), Ok(ts) if ts.to_string() == expect);
@@ -568,7 +572,7 @@ mod tests {
             let mut slice = self.peek_slice(SIZE)?;
             let ty_u8 = slice.get_u8();
             let ty_i8 = slice.get_i8();
-            Some(r#FooBar { ty_u8, ty_i8 })
+            Ok(r#FooBar { ty_u8, ty_i8 })
         }
         .to_string();
         assert_matches!(gen.gen_peek(&fields), Ok(ts) if ts.to_string() == expect);
@@ -577,7 +581,7 @@ mod tests {
             let mut slice = self.peek_slice(SIZE)?;
             let e0 = slice.get_u8();
             let e1 = slice.get_i8();
-            Some(r#FooBar(e0, e1))
+            Ok(r#FooBar(e0, e1))
         }
         .to_string();
         assert_matches!(gen.gen_peek_tuple(&fields), Ok(ts) if ts.to_string() == expect);

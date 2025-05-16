@@ -1,5 +1,4 @@
 use std::net::SocketAddr;
-use std::sync::Arc;
 
 use futures::future::OptionFuture;
 use tokio::{
@@ -43,8 +42,7 @@ pub enum Endpoint {
 
 #[derive(Clone, Debug)]
 pub struct Tracker {
-    // Wrap it in an `Arc` so that `Clone` can be derived for `Tracker`.
-    event_send: Arc<watch::Sender<Option<Event>>>,
+    event_send: watch::Sender<Option<Event>>,
     peer_recv: mpmc::Receiver<PeerContactInfo>,
 }
 
@@ -101,7 +99,7 @@ impl Tracker {
         let (peer_send, peer_recv) = mpmc::channel(*crate::peer_queue_size());
         (
             Self {
-                event_send: Arc::new(event_send),
+                event_send,
                 peer_recv,
             },
             JoinGuard::spawn(move |cancel| {

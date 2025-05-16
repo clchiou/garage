@@ -4,7 +4,6 @@ mod actor;
 mod error;
 
 use std::io;
-use std::sync::Arc;
 use std::time::Duration;
 
 use bytes::Bytes;
@@ -36,8 +35,7 @@ pub use crate::error::Error;
 
 #[derive(Clone, Debug)]
 pub struct RawClient {
-    // TODO: Remove `Arc` after we upgrade `tokio` to v1.37.0.
-    server_send: Arc<ServerSend>,
+    server_send: ServerSend,
     request_send: RequestSend,
     cancel: Cancel,
 }
@@ -57,7 +55,7 @@ impl RawClient {
         });
         (
             Self {
-                server_send: Arc::new(server_send),
+                server_send,
                 request_send,
                 cancel: guard.cancel_handle(),
             },
