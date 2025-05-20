@@ -295,7 +295,7 @@ impl Dimension {
         }
     }
 
-    pub fn block_descs(&self, index: PieceIndex) -> impl Iterator<Item = BlockDesc> {
+    pub fn block_descs(&self, index: PieceIndex) -> impl Iterator<Item = BlockDesc> + use<> {
         let block_size = self.block_size;
         let piece_size = self.piece_size(index);
         let index = usize::from(index);

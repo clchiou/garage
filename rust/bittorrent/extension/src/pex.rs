@@ -87,7 +87,9 @@ impl<'a> PeerExchange<'a> {
         }
     }
 
-    pub fn decode_added_v4(&self) -> Result<impl Iterator<Item = PeerContactInfo> + 'a, Error> {
+    pub fn decode_added_v4(
+        &self,
+    ) -> Result<impl Iterator<Item = PeerContactInfo> + use<'a>, Error> {
         Ok(
             decode_endpoints::<SocketAddrV4>(self.added_v4, self.added_flags_v4.len())?
                 .zip(self.added_flags_v4.iter().copied().chain(iter::repeat(0)))
@@ -96,7 +98,9 @@ impl<'a> PeerExchange<'a> {
         )
     }
 
-    pub fn decode_added_v6(&self) -> Result<impl Iterator<Item = PeerContactInfo> + 'a, Error> {
+    pub fn decode_added_v6(
+        &self,
+    ) -> Result<impl Iterator<Item = PeerContactInfo> + use<'a>, Error> {
         Ok(
             decode_endpoints::<SocketAddrV6>(self.added_v6, self.added_flags_v6.len())?
                 .zip(self.added_flags_v6.iter().copied().chain(iter::repeat(0)))
@@ -105,11 +109,11 @@ impl<'a> PeerExchange<'a> {
         )
     }
 
-    pub fn decode_dropped_v4(&self) -> Result<impl Iterator<Item = SocketAddr> + 'a, Error> {
+    pub fn decode_dropped_v4(&self) -> Result<impl Iterator<Item = SocketAddr> + use<'a>, Error> {
         decode_endpoints::<SocketAddrV4>(self.dropped_v4, 0)
     }
 
-    pub fn decode_dropped_v6(&self) -> Result<impl Iterator<Item = SocketAddr> + 'a, Error> {
+    pub fn decode_dropped_v6(&self) -> Result<impl Iterator<Item = SocketAddr> + use<'a>, Error> {
         decode_endpoints::<SocketAddrV6>(self.dropped_v6, 0)
     }
 
@@ -234,7 +238,7 @@ impl<'a> From<PeerExchange<'a>> for BTreeMap<&'a Bytes, own::Value> {
 fn decode_endpoints<'a, T>(
     endpoints: &'a [u8],
     expect: usize,
-) -> Result<impl Iterator<Item = SocketAddr> + 'a, Error>
+) -> Result<impl Iterator<Item = SocketAddr> + use<'a, T>, Error>
 where
     T: Compact + 'a,
     SocketAddr: From<T>,

@@ -80,7 +80,7 @@ impl Storage {
         *self.0.len_cache.must_lock()
     }
 
-    pub fn scan(&self, most_recent: bool) -> impl Iterator<Item = Result<Bytes, Error>> {
+    pub fn scan(&self, most_recent: bool) -> impl Iterator<Item = Result<Bytes, Error>> + use<> {
         Scanner::new(self.clone(), most_recent).flatten()
     }
 

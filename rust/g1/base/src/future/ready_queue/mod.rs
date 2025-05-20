@@ -113,20 +113,20 @@ where
     }
 
     /// Similar to `pop_ready`, but does not remove a future from the queue.
-    pub fn ready(&self) -> impl Future<Output = ()> {
+    pub fn ready(&self) -> impl Future<Output = ()> + use<T, Fut> {
         Ready::new(self.0.clone())
     }
 
     /// Polls the futures and removes one of the resolved futures from the queue.
     ///
     /// It returns `None` when the queue is closed and empty.
-    pub fn pop_ready(&self) -> impl Future<Output = Option<T>> {
+    pub fn pop_ready(&self) -> impl Future<Output = Option<T>> + use<T, Fut> {
         let pop_ready = self.pop_ready_with_future();
         async move { pop_ready.await.map(|(value, _)| value) }
     }
 
     /// Similar to `pop_ready`, but also returns the resolved future.
-    pub fn pop_ready_with_future(&self) -> impl Future<Output = Option<(T, Fut)>> {
+    pub fn pop_ready_with_future(&self) -> impl Future<Output = Option<(T, Fut)>> + use<T, Fut> {
         PopReady::new(self.0.clone())
     }
 }

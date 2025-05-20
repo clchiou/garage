@@ -274,7 +274,7 @@ impl<'a> HandlerSpawner<'a> {
             }};
         }
 
-        if let Err(response) = try {
+        let Err(response) = try {
             let request = Request::try_from(&**self.envelope.data())
                 .inspect_err(|error| tracing::warn!(envelope = ?self.envelope, %error, "decode"))
                 .map_err(|_| Err(Error::InvalidRequest))?;
@@ -330,9 +330,8 @@ impl<'a> HandlerSpawner<'a> {
                     spawn!("dkvcache/push", push(key, value, expire_at));
                 }
             }
-        } {
-            self.send_response(response);
-        }
+        };
+        self.send_response(response);
     }
 
     fn send_response(self, response: ResponseResult) {

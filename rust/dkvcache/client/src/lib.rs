@@ -38,11 +38,11 @@ impl Client {
         Ok((Self(service), guard))
     }
 
-    fn all(&self) -> Result<impl Iterator<Item = (Uuid, RawClient)>, Error> {
+    fn all(&self) -> Result<impl Iterator<Item = (Uuid, RawClient)> + use<>, Error> {
         Ok(Self::unwrap_client(self.0.all()?))
     }
 
-    fn find(&self, key: &[u8]) -> Result<impl Iterator<Item = (Uuid, RawClient)>, Error> {
+    fn find(&self, key: &[u8]) -> Result<impl Iterator<Item = (Uuid, RawClient)> + use<>, Error> {
         Ok(Self::unwrap_client(self.0.find(key, None)?))
     }
 

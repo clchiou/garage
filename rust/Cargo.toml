@@ -65,11 +65,11 @@ members = [
     "g1/zmq",
     "httpxd",
 ]
-resolver = "2"
+resolver = "3"
 
 [workspace.package]
 version = "0.0.0"
-edition = "2021"
+edition = "2024"
 
 [workspace.dependencies]
 async-trait = "0.1.88"

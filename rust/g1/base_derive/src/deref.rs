@@ -3,7 +3,7 @@ use syn::{punctuated::Punctuated, token::Comma, DeriveInput, Error, Field};
 
 use crate::{
     attr::{self, AttrArgType},
-    gen,
+    generate,
 };
 
 pub(crate) fn derive_deref(input: DeriveInput) -> Result<TokenStream, Error> {
@@ -24,10 +24,10 @@ fn derive(
 
 fn generate_deref(input: &DeriveInput, index: usize, field: &Field) -> TokenStream {
     let name = &input.ident;
-    let generic_params = gen::generic_params(input);
-    let generic_param_names = gen::generic_param_names(input);
-    let where_clause = gen::where_clause(input);
-    let target = gen::field(index, field);
+    let generic_params = generate::generic_params(input);
+    let generic_param_names = generate::generic_param_names(input);
+    let where_clause = generate::where_clause(input);
+    let target = generate::field(index, field);
     let target_type = &field.ty;
     quote::quote! {
         impl #generic_params ::std::ops::Deref for #name #generic_param_names #where_clause {
@@ -42,10 +42,10 @@ fn generate_deref(input: &DeriveInput, index: usize, field: &Field) -> TokenStre
 
 fn generate_deref_mut(input: &DeriveInput, index: usize, field: &Field) -> TokenStream {
     let name = &input.ident;
-    let generic_params = gen::generic_params(input);
-    let generic_param_names = gen::generic_param_names(input);
-    let where_clause = gen::where_clause(input);
-    let target = gen::field(index, field);
+    let generic_params = generate::generic_params(input);
+    let generic_param_names = generate::generic_param_names(input);
+    let where_clause = generate::where_clause(input);
+    let target = generate::field(index, field);
     quote::quote! {
         impl #generic_params ::std::ops::DerefMut for #name #generic_param_names #where_clause {
             fn deref_mut(&mut self) -> &mut Self::Target {

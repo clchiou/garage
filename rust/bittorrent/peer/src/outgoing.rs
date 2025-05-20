@@ -93,7 +93,7 @@ impl QueueLower {
         self.queue.must_lock().dequeue(desc)
     }
 
-    pub(crate) fn expired(&self) -> impl Future<Output = Option<BlockDesc>> {
+    pub(crate) fn expired(&self) -> impl Future<Output = Option<BlockDesc>> + use<> {
         let queue = self.queue.clone();
         async move {
             loop {

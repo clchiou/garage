@@ -3,15 +3,15 @@ use syn::{ext::IdentExt, DeriveInput, Error, Field};
 
 use crate::{
     attr::{self, AttrArgType, AttrArgValue},
-    gen,
+    generate,
 };
 
 pub(crate) fn derive(input: DeriveInput) -> Result<TokenStream, Error> {
     let body = generate_body(&input)?;
     let name = &input.ident;
-    let generic_params = gen::generic_params(&input);
-    let generic_param_names = gen::generic_param_names(&input);
-    let where_clause = gen::where_clause(&input);
+    let generic_params = generate::generic_params(&input);
+    let generic_param_names = generate::generic_param_names(&input);
+    let where_clause = generate::where_clause(&input);
     Ok(quote::quote! {
         impl #generic_params ::std::fmt::Debug for #name #generic_param_names #where_clause {
             fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
@@ -33,7 +33,7 @@ fn generate_body(input: &DeriveInput) -> Result<TokenStream, Error> {
     for (i, field) in fields.iter().enumerate() {
         let (skip, with) = parse_attr(field)?;
         if !skip {
-            let access = gen::field(i, field);
+            let access = generate::field(i, field);
             if !is_tuple_struct {
                 field_name_strings.push(field.ident.as_ref().unwrap().to_string());
             }

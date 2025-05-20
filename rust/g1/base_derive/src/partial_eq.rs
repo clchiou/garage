@@ -3,15 +3,15 @@ use syn::{punctuated::Punctuated, token::Comma, DeriveInput, Error, Field};
 
 use crate::{
     attr::{self, AttrArgType},
-    gen,
+    generate,
 };
 
 pub(crate) fn derive(input: DeriveInput) -> Result<TokenStream, Error> {
     let cmps = generate_comparisons(crate::get_fields(&input).ok_or_else(error::unsupported)?)?;
     let name = &input.ident;
-    let generic_params = gen::generic_params(&input);
-    let generic_param_names = gen::generic_param_names(&input);
-    let where_clause = gen::where_clause(&input);
+    let generic_params = generate::generic_params(&input);
+    let generic_param_names = generate::generic_param_names(&input);
+    let where_clause = generate::where_clause(&input);
     Ok(quote::quote! {
         impl #generic_params ::std::cmp::PartialEq for #name #generic_param_names #where_clause {
             fn eq(&self, other: &Self) -> bool {
@@ -28,7 +28,7 @@ fn generate_comparisons(fields: &Punctuated<Field, Comma>) -> Result<Vec<TokenSt
     let mut comparisons = Vec::new();
     for (i, field) in fields.iter().enumerate() {
         if !should_skip_field(field)? {
-            let field = gen::field(i, field);
+            let field = generate::field(i, field);
             comparisons.push(quote::quote!(self.#field == other.#field));
         }
     }

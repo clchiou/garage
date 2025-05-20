@@ -192,7 +192,7 @@ impl Client {
             .map(|auth_header| auth_header.to_str().unwrap().to_string())
     }
 
-    fn headers(&self) -> impl IntoIterator<Item = (HeaderName, HeaderValue)> {
+    fn headers(&self) -> impl IntoIterator<Item = (HeaderName, HeaderValue)> + use<> {
         self.auth_header
             .must_lock()
             .clone()

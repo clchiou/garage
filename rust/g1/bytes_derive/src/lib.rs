@@ -43,7 +43,7 @@ const DEFAULT_ENDIAN: &str = BIG_ENDIAN;
 
 trait Generate {
     /// Generates code for an ordinary struct.
-    fn gen(&self, fields: &Punctuated<Field, Comma>) -> Result<TokenStream, Error>;
+    fn generate(&self, fields: &Punctuated<Field, Comma>) -> Result<TokenStream, Error>;
 
     /// Generates code for a tuple struct.
     fn gen_tuple(&self, fields: &Punctuated<Field, Comma>) -> Result<TokenStream, Error>;
@@ -88,20 +88,20 @@ where
     T: Clone + Target,
     for<'a, 'b> Generator<'a, 'b, T>: Generate,
 {
-    let gen = Generator::<T>::new(&input);
+    let generator = Generator::<T>::new(&input);
     let output: Result<_, Error> = try {
-        let gen = gen.with_default_endian(try_get_endian(&input)?);
+        let generator = generator.with_default_endian(try_get_endian(&input)?);
         match &input.data {
             Data::Struct(DataStruct { fields, .. }) => match fields {
-                Fields::Named(fields) => gen.gen(&fields.named)?,
-                Fields::Unnamed(fields) => gen.gen_tuple(&fields.unnamed)?,
-                Fields::Unit => gen.gen_unit(),
+                Fields::Named(fields) => generator.generate(&fields.named)?,
+                Fields::Unnamed(fields) => generator.gen_tuple(&fields.unnamed)?,
+                Fields::Unit => generator.gen_unit(),
             },
             Data::Enum(_) | Data::Union(_) => Err(error::unsupported())?,
         }
     };
     output.unwrap_or_else(|error| {
-        let dummy = gen.gen_dummy();
+        let dummy = generator.gen_dummy();
         let compile_errors = error.to_compile_error();
         quote::quote!(
             #dummy
@@ -177,7 +177,7 @@ where
 }
 
 impl Generate for Generator<'_, '_, BufExt> {
-    fn gen(&self, fields: &Punctuated<Field, Comma>) -> Result<TokenStream, Error> {
+    fn generate(&self, fields: &Punctuated<Field, Comma>) -> Result<TokenStream, Error> {
         Ok(self.gen_impl(self.gen_get(fields)?, self.gen_try_get(fields)?))
     }
 
@@ -263,7 +263,7 @@ impl Generator<'_, '_, BufExt> {
 }
 
 impl Generate for Generator<'_, '_, BufPeekExt> {
-    fn gen(&self, fields: &Punctuated<Field, Comma>) -> Result<TokenStream, Error> {
+    fn generate(&self, fields: &Punctuated<Field, Comma>) -> Result<TokenStream, Error> {
         Ok(self.gen_impl(self.gen_peek(fields)?))
     }
 
@@ -331,7 +331,7 @@ impl Generator<'_, '_, BufPeekExt> {
 }
 
 impl Generate for Generator<'_, '_, BufMutExt> {
-    fn gen(&self, fields: &Punctuated<Field, Comma>) -> Result<TokenStream, Error> {
+    fn generate(&self, fields: &Punctuated<Field, Comma>) -> Result<TokenStream, Error> {
         Ok(self.gen_impl(self.gen_put(fields)?))
     }
 
@@ -445,7 +445,7 @@ mod tests {
         let input = syn::parse_quote! {
             pub(in super::super) struct r#Foo;
         };
-        let gen = Generator::<BufExt>::new(&input);
+        let generator = Generator::<BufExt>::new(&input);
 
         let expect = quote::quote! {
             pub(in super::super) trait FooBufExt: ::bytes::Buf {
@@ -459,7 +459,7 @@ mod tests {
             impl<T> FooBufExt for T where T: ::bytes::Buf {}
         }
         .to_string();
-        assert_eq!(gen.gen_unit().to_string(), expect);
+        assert_eq!(generator.gen_unit().to_string(), expect);
 
         let fields: FieldsNamed = syn::parse_quote!({
             ty_u8: u8,
@@ -470,13 +470,13 @@ mod tests {
             r#Foo { ty_u8 }
         }
         .to_string();
-        assert_matches!(gen.gen_get(&fields), Ok(ts) if ts.to_string() == expect);
+        assert_matches!(generator.gen_get(&fields), Ok(ts) if ts.to_string() == expect);
         let expect = quote::quote! {
             let e0 = self.get_u8();
             r#Foo(e0)
         }
         .to_string();
-        assert_matches!(gen.gen_get_tuple(&fields), Ok(ts) if ts.to_string() == expect);
+        assert_matches!(generator.gen_get_tuple(&fields), Ok(ts) if ts.to_string() == expect);
         let expect = quote::quote! {
             const SIZE: usize = ::std::mem::size_of::<u8>();
             if self.remaining() < SIZE {
@@ -488,7 +488,7 @@ mod tests {
             Ok(self.get_foo())
         }
         .to_string();
-        assert_matches!(gen.gen_try_get(&fields), Ok(ts) if ts.to_string() == expect);
+        assert_matches!(generator.gen_try_get(&fields), Ok(ts) if ts.to_string() == expect);
 
         let fields: FieldsNamed = syn::parse_quote!({
             ty_u8: u8,
@@ -501,14 +501,14 @@ mod tests {
             r#Foo { ty_u8, ty_i8 }
         }
         .to_string();
-        assert_matches!(gen.gen_get(&fields), Ok(ts) if ts.to_string() == expect);
+        assert_matches!(generator.gen_get(&fields), Ok(ts) if ts.to_string() == expect);
         let expect = quote::quote! {
             let e0 = self.get_u8();
             let e1 = self.get_i8();
             r#Foo(e0, e1)
         }
         .to_string();
-        assert_matches!(gen.gen_get_tuple(&fields), Ok(ts) if ts.to_string() == expect);
+        assert_matches!(generator.gen_get_tuple(&fields), Ok(ts) if ts.to_string() == expect);
         let expect = quote::quote! {
             const SIZE: usize = ::std::mem::size_of::<u8>() + ::std::mem::size_of::<i8>();
             if self.remaining() < SIZE {
@@ -520,7 +520,7 @@ mod tests {
             Ok(self.get_foo())
         }
         .to_string();
-        assert_matches!(gen.gen_try_get(&fields), Ok(ts) if ts.to_string() == expect);
+        assert_matches!(generator.gen_try_get(&fields), Ok(ts) if ts.to_string() == expect);
     }
 
     #[test]
@@ -528,7 +528,7 @@ mod tests {
         let input = syn::parse_quote! {
             pub(in super::super) struct r#FooBar;
         };
-        let gen = Generator::<BufPeekExt>::new(&input);
+        let generator = Generator::<BufPeekExt>::new(&input);
 
         let expect = quote::quote! {
             pub(in super::super) trait FooBarBufPeekExt: ::g1_bytes::BufPeekExt {
@@ -539,7 +539,7 @@ mod tests {
             impl<T> FooBarBufPeekExt for T where T: ::g1_bytes::BufPeekExt {}
         }
         .to_string();
-        assert_eq!(gen.gen_unit().to_string(), expect);
+        assert_eq!(generator.gen_unit().to_string(), expect);
 
         let fields: FieldsNamed = syn::parse_quote!({
             ty_u8: u8,
@@ -552,7 +552,7 @@ mod tests {
             Ok(r#FooBar { ty_u8 })
         }
         .to_string();
-        assert_matches!(gen.gen_peek(&fields), Ok(ts) if ts.to_string() == expect);
+        assert_matches!(generator.gen_peek(&fields), Ok(ts) if ts.to_string() == expect);
         let expect = quote::quote! {
             const SIZE: usize = ::std::mem::size_of::<u8>();
             let mut slice = self.peek_slice(SIZE)?;
@@ -560,7 +560,7 @@ mod tests {
             Ok(r#FooBar(e0))
         }
         .to_string();
-        assert_matches!(gen.gen_peek_tuple(&fields), Ok(ts) if ts.to_string() == expect);
+        assert_matches!(generator.gen_peek_tuple(&fields), Ok(ts) if ts.to_string() == expect);
 
         let fields: FieldsNamed = syn::parse_quote!({
             ty_u8: u8,
@@ -575,7 +575,7 @@ mod tests {
             Ok(r#FooBar { ty_u8, ty_i8 })
         }
         .to_string();
-        assert_matches!(gen.gen_peek(&fields), Ok(ts) if ts.to_string() == expect);
+        assert_matches!(generator.gen_peek(&fields), Ok(ts) if ts.to_string() == expect);
         let expect = quote::quote! {
             const SIZE: usize = ::std::mem::size_of::<u8>() + ::std::mem::size_of::<i8>();
             let mut slice = self.peek_slice(SIZE)?;
@@ -584,7 +584,7 @@ mod tests {
             Ok(r#FooBar(e0, e1))
         }
         .to_string();
-        assert_matches!(gen.gen_peek_tuple(&fields), Ok(ts) if ts.to_string() == expect);
+        assert_matches!(generator.gen_peek_tuple(&fields), Ok(ts) if ts.to_string() == expect);
     }
 
     #[test]
@@ -592,7 +592,7 @@ mod tests {
         let input = syn::parse_quote! {
             pub(in super::super) struct r#Foo;
         };
-        let gen = Generator::<BufMutExt>::new(&input);
+        let generator = Generator::<BufMutExt>::new(&input);
 
         let expect = quote::quote! {
             pub(in super::super) trait FooBufMutExt: ::bytes::BufMut {
@@ -601,7 +601,7 @@ mod tests {
             impl<T> FooBufMutExt for T where T: ::bytes::BufMut {}
         }
         .to_string();
-        assert_eq!(gen.gen_unit().to_string(), expect);
+        assert_eq!(generator.gen_unit().to_string(), expect);
 
         let fields: FieldsNamed = syn::parse_quote!({
             ty_u8: u8,
@@ -611,12 +611,12 @@ mod tests {
             self.put_u8(this.ty_u8);
         }
         .to_string();
-        assert_matches!(gen.gen_put(&fields), Ok(ts) if ts.to_string() == expect);
+        assert_matches!(generator.gen_put(&fields), Ok(ts) if ts.to_string() == expect);
         let expect = quote::quote! {
             self.put_u8(this.0);
         }
         .to_string();
-        assert_matches!(gen.gen_put_tuple(&fields), Ok(ts) if ts.to_string() == expect);
+        assert_matches!(generator.gen_put_tuple(&fields), Ok(ts) if ts.to_string() == expect);
 
         let fields: FieldsNamed = syn::parse_quote!({
             ty_u8: u8,
@@ -628,13 +628,13 @@ mod tests {
             self.put_i8(this.ty_i8);
         }
         .to_string();
-        assert_matches!(gen.gen_put(&fields), Ok(ts) if ts.to_string() == expect);
+        assert_matches!(generator.gen_put(&fields), Ok(ts) if ts.to_string() == expect);
         let expect = quote::quote! {
             self.put_u8(this.0);
             self.put_i8(this.1);
         }
         .to_string();
-        assert_matches!(gen.gen_put_tuple(&fields), Ok(ts) if ts.to_string() == expect);
+        assert_matches!(generator.gen_put_tuple(&fields), Ok(ts) if ts.to_string() == expect);
     }
 }
 

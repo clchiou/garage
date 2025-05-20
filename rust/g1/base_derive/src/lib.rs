@@ -3,7 +3,7 @@
 mod attr;
 mod debug;
 mod deref;
-mod gen;
+mod generate;
 mod partial_eq;
 
 use std::fmt;

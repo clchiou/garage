@@ -195,7 +195,7 @@ where
             .unwrap_or(false)
     }
 
-    pub fn iter_row<Q>(&self, row: &Q) -> impl Iterator<Item = (&C, &V)>
+    pub fn iter_row<Q>(&self, row: &Q) -> impl Iterator<Item = (&C, &V)> + use<'_, R, Q, C, V>
     where
         R: Borrow<Q>,
         Q: Eq + Hash + ?Sized,
@@ -203,7 +203,10 @@ where
         self.get_row(row).into_iter().flat_map(|cs| cs.iter())
     }
 
-    pub fn iter_row_mut<Q>(&mut self, row: &Q) -> impl Iterator<Item = (&C, &mut V)>
+    pub fn iter_row_mut<Q>(
+        &mut self,
+        row: &Q,
+    ) -> impl Iterator<Item = (&C, &mut V)> + use<'_, R, Q, C, V>
     where
         R: Borrow<Q>,
         Q: Eq + Hash + ?Sized,

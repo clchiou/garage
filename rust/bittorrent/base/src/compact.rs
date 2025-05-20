@@ -38,7 +38,7 @@ pub trait Compact: Sized {
 
     fn decode_many<'a>(
         compact: &'a [u8],
-    ) -> Result<impl Iterator<Item = Result<Self, Error>> + 'a, Error>
+    ) -> Result<impl Iterator<Item = Result<Self, Error>> + use<'a, Self>, Error>
     where
         Self: 'a,
     {

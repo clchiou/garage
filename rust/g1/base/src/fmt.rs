@@ -381,14 +381,14 @@ macro_rules! generate_tuple {
     };
 
     (@loop $($name:ident)* ; $head:ident $($tail:ident)*) => {
-        generate_tuple!(@gen $($name)*);
+        generate_tuple!(@generate $($name)*);
         generate_tuple!(@loop $($name)* $head ; $($tail)*);
     };
     (@loop $($name:ident)* ; ) => {
-        generate_tuple!(@gen $($name)*);
+        generate_tuple!(@generate $($name)*);
     };
 
-    (@gen $($name:ident)+) => {
+    (@generate $($name:ident)+) => {
         impl<'a, $($name),+> fmt::Debug for InsertPlaceholder<'a, ($($name,)+)> {
             #[allow(non_snake_case)]
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -399,7 +399,7 @@ macro_rules! generate_tuple {
             }
         }
     };
-    (@gen) => {};
+    (@generate) => {};
 }
 
 generate_tuple!(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11);

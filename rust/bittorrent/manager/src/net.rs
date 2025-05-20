@@ -256,7 +256,7 @@ impl Listener {
         (
             Endpoint,
             Option<Endpoint>,
-            impl Future<Output = Result<Socket, Error>> + Send + 'static,
+            impl Future<Output = Result<Socket, Error>> + Send + 'static + use<>,
         ),
         Error,
     > {

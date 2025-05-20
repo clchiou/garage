@@ -95,13 +95,16 @@ where
             }
         }
 
-        if let item @ Some(_) = inner.queues[this.index].pop() {
-            Poll::Ready(item)
-        } else if inner.eof {
-            Poll::Ready(None)
-        } else {
-            inner.queues[this.index].update_waker(context);
-            Poll::Pending
+        match inner.queues[this.index].pop() {
+            item @ Some(_) => Poll::Ready(item),
+            _ => {
+                if inner.eof {
+                    Poll::Ready(None)
+                } else {
+                    inner.queues[this.index].update_waker(context);
+                    Poll::Pending
+                }
+            }
         }
     }
 

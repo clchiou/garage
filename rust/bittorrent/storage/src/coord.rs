@@ -59,7 +59,7 @@ impl CoordSys {
     pub(crate) fn to_file_descs(
         &self,
         desc: BlockDesc,
-    ) -> Result<impl Iterator<Item = FileBlockDesc>, error::Error> {
+    ) -> Result<impl Iterator<Item = FileBlockDesc> + use<>, error::Error> {
         let BlockDesc(mut offset, mut size) = self.check_block_desc(desc)?;
         let file_ends = self.file_ends.clone();
         let piece_size = self.dim.piece_size;
