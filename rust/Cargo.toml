@@ -36,17 +36,17 @@ members = [
     "etcd/pubsub",
     "etcd/watch",
     "g1/base",
+    "g1/base/derive",
     "g1/base64",
-    "g1/base_derive",
     "g1/bytes",
-    "g1/bytes_derive",
+    "g1/bytes/derive",
     "g1/cache",
     "g1/capnp",
     "g1/chrono",
     "g1/cli",
     "g1/futures",
     "g1/html",
-    "g1/html/macros",
+    "g1/html/macro",
     "g1/hyper",
     "g1/msg",
     "g1/nix",
@@ -174,17 +174,17 @@ etcd_pubsub = { path = "etcd/pubsub" }
 etcd_watch = { path = "etcd/watch" }
 
 g1_base = { path = "g1/base" }
+g1_base_derive = { path = "g1/base/derive" }
 g1_base64 = { path = "g1/base64" }
-g1_base_derive = { path = "g1/base_derive" }
 g1_bytes = { path = "g1/bytes" }
-g1_bytes_derive = { path = "g1/bytes_derive" }
+g1_bytes_derive = { path = "g1/bytes/derive" }
 g1_cache = { path = "g1/cache" }
 g1_capnp = { path = "g1/capnp" }
 g1_chrono = { path = "g1/chrono" }
 g1_cli = { path = "g1/cli" }
 g1_futures = { path = "g1/futures" }
 g1_html = { path = "g1/html" }
-g1_html_macros = { path = "g1/html/macros" }
+g1_html_macro = { path = "g1/html/macro" }
 g1_hyper = { path = "g1/hyper" }
 g1_msg = { path = "g1/msg" }
 g1_nix = { path = "g1/nix" }

@@ -1,5 +1,5 @@
 [package]
-name = "g1_html_macros"
+name = "g1_html_macro"
 version.workspace = true
 edition.workspace = true
 

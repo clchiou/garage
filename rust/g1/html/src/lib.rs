@@ -10,7 +10,7 @@ use std::iter;
 
 use crate::escape::Escaper;
 
-pub use g1_html_macros::{format, format_args, write};
+pub use g1_html_macro::{format, format_args, write};
 
 pub struct FormatArgs<'a> {
     literals: &'a [&'static str],
