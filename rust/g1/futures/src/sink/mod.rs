@@ -1,3 +1,3 @@
 mod fanin;
 
-pub use self::fanin::{fanin, Fanin};
+pub use self::fanin::{Fanin, fanin};

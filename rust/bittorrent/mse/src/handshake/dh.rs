@@ -1,7 +1,7 @@
 use crypto_bigint::{
+    Random,
     modular::constant_mod::{Residue, ResidueParams},
     rand_core::OsRng,
-    Random,
 };
 
 use super::DhKey;

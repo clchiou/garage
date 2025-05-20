@@ -4,10 +4,10 @@ use uuid::Uuid;
 
 use etcd_pubsub::SubscriberError;
 
-use dkvcache_client_raw::{concurrent, RawClient};
+use dkvcache_client_raw::{RawClient, concurrent};
 use dkvcache_client_service::{NotConnectedError, Service};
-use dkvcache_rpc::service::PubSub;
 use dkvcache_rpc::Response;
+use dkvcache_rpc::service::PubSub;
 
 pub use dkvcache_rpc::Timestamp;
 

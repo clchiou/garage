@@ -10,7 +10,7 @@ use tokio::{
     io::AsyncReadExt,
 };
 
-use crate::{error, PieceHash};
+use crate::{PieceHash, error};
 
 #[derive(Debug)]
 pub(crate) struct PieceHasher {

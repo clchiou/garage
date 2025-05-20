@@ -10,7 +10,7 @@ use std::fmt;
 
 use proc_macro2::{Span, TokenStream};
 use syn::{
-    punctuated::Punctuated, token::Comma, Data, DataStruct, DeriveInput, Error, Field, Fields,
+    Data, DataStruct, DeriveInput, Error, Field, Fields, punctuated::Punctuated, token::Comma,
 };
 
 #[proc_macro_derive(DebugExt, attributes(debug))]

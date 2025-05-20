@@ -6,9 +6,9 @@ use std::hash::{BuildHasher, Hash};
 use std::mem;
 
 use super::{
+    DefaultHashBuilder,
     index_map::{Entry, HashIndexMap, KeyAsHash},
     vec_list::{Cursor, VecList},
-    DefaultHashBuilder,
 };
 
 #[derive(Clone)]

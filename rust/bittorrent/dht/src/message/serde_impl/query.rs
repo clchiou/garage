@@ -10,13 +10,13 @@ use bittorrent_bencode::{
 };
 
 use crate::message::{
-    query::{AnnouncePeer, FindNode, GetPeers, Ping, Query},
     Error,
+    query::{AnnouncePeer, FindNode, GetPeers, Ping, Query},
 };
 
 use super::{
-    convert::{to_id, to_info_hash},
     QUERY,
+    convert::{to_id, to_info_hash},
 };
 
 const PING: &[u8] = b"ping";

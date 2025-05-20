@@ -14,8 +14,8 @@ use g1_tokio::task::{Cancel, JoinQueue};
 
 use ddcache_rpc::BlobEndpoint;
 
-use crate::state::{Io, State};
 use crate::Guard;
+use crate::state::{Io, State};
 
 #[derive(Debug)]
 pub(crate) struct Actor {

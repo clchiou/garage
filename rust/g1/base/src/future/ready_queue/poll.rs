@@ -163,8 +163,8 @@ mod tests {
 
     use super::{
         super::{
-            test_harness::{MockContext, Yield},
             BoxFuture,
+            test_harness::{MockContext, Yield},
         },
         *,
     };

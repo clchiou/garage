@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 use std::sync::{
-    atomic::{AtomicUsize, Ordering},
     Arc, Mutex,
+    atomic::{AtomicUsize, Ordering},
 };
 
 use tokio::sync::{Semaphore, SemaphorePermit, TryAcquireError};

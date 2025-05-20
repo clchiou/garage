@@ -3,8 +3,8 @@ use std::cmp::Reverse;
 use std::io::Error;
 use std::path::Path;
 use std::sync::{
-    atomic::{AtomicU64, Ordering},
     Arc, Mutex,
+    atomic::{AtomicU64, Ordering},
 };
 
 use bytes::Bytes;
@@ -14,9 +14,9 @@ use tokio::task;
 use g1_base::collections::HashOrderedMap;
 use g1_base::sync::MutexExt;
 
+use crate::RawExpireQueue;
 use crate::blob::BlobMetadata;
 use crate::hash::KeyHash;
-use crate::RawExpireQueue;
 
 //
 // Implementer's Notes: To ensure cancel safety, `BlobMap` should return guard types that maintain

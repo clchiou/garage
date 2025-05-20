@@ -1,4 +1,4 @@
-use syn::{punctuated::Punctuated, token::Comma, Error, Expr, Field, Path};
+use syn::{Error, Expr, Field, Path, punctuated::Punctuated, token::Comma};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum AttrArgType {

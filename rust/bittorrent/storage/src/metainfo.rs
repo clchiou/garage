@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use bittorrent_metainfo::{Info, Mode};
 
-use crate::{error, io, PieceHash};
+use crate::{PieceHash, error, io};
 
 pub(crate) fn new_piece_hashes(info: &Info) -> Vec<PieceHash> {
     info.pieces

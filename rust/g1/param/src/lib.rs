@@ -10,8 +10,8 @@ use std::collections::{BTreeMap, HashMap};
 use std::error;
 use std::fmt;
 
-use serde::de::DeserializeOwned;
 use serde::Deserialize;
+use serde::de::DeserializeOwned;
 
 use g1_yaml::tree::Tree;
 

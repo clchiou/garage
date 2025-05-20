@@ -4,7 +4,7 @@ use tokio::time::{self, Instant};
 
 use g1_base::future::ReadyQueue;
 
-use super::join_guard::{self, Cancel, JoinGuard, ShutdownError, SHUTDOWN_TIMEOUT};
+use super::join_guard::{self, Cancel, JoinGuard, SHUTDOWN_TIMEOUT, ShutdownError};
 
 // It is easy to share `JoinQueue` among threads.  However, we do not implement `Clone` for
 // `JoinQueue` because we have implemented `Drop` for `JoinQueue` and want to avoid the scenario

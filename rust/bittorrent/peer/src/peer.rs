@@ -14,12 +14,12 @@ use bittorrent_extension::{Enabled, ExtensionIdMap};
 use bittorrent_socket::{Message, Socket};
 
 use crate::{
+    Full, Incompatible, Possession,
     actor::Actor,
     chan::{Endpoint, ExtensionMessageOwner, Sends},
     incoming,
     outgoing::{self, ResponseRecv},
     state::{self, ConnStateUpper},
-    Full, Incompatible, Possession,
 };
 
 #[derive(Clone, Debug)]

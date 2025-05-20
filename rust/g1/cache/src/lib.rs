@@ -21,8 +21,8 @@ use g1_base::sync::MutexExt;
 use g1_chrono::{Timestamp, TimestampExt};
 use g1_rusqlite::ConnectionExt;
 
-pub use rusqlite::types::{FromSqlError, ToSql};
 pub use rusqlite::Error;
+pub use rusqlite::types::{FromSqlError, ToSql};
 
 #[derive(Debug)]
 pub struct LruCacheDatabase {

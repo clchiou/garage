@@ -1,7 +1,7 @@
 use std::io;
 use std::sync::{
-    atomic::{AtomicU64, Ordering},
     Arc,
+    atomic::{AtomicU64, Ordering},
 };
 use std::time::Duration;
 
@@ -16,9 +16,9 @@ use tokio::time::{self, Instant};
 use tracing::Instrument;
 
 use g1_tokio::task::{Cancel, JoinGuard, JoinQueue};
+use g1_zmq::Socket;
 use g1_zmq::duplex::Duplex;
 use g1_zmq::envelope::{Envelope, Frame, Multipart};
-use g1_zmq::Socket;
 
 use dkvcache_peer::Peer;
 use dkvcache_rpc::envelope;

@@ -2,8 +2,8 @@ use std::marker::Unpin;
 use std::ops::Bound;
 use std::time::Duration;
 
-use base64::prelude::*;
 use base64::DecodeError;
+use base64::prelude::*;
 use clap::{Args, Parser, Subcommand};
 use futures::stream::{Stream, TryStreamExt};
 

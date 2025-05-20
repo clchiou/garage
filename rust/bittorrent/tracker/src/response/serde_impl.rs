@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use snafu::prelude::*;
 
-use bittorrent_base::{compact::Compact, PEER_ID_SIZE};
+use bittorrent_base::{PEER_ID_SIZE, compact::Compact};
 use bittorrent_bencode::{
     borrow,
     convert::{to_bytes, to_dict, to_int, to_str, to_vec},

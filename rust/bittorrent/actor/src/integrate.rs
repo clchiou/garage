@@ -2,7 +2,7 @@ use bytes::Bytes;
 use futures::stream::TryStreamExt;
 use std::io::Error;
 use tokio::{
-    sync::broadcast::{error::RecvError, Receiver},
+    sync::broadcast::{Receiver, error::RecvError},
     time,
 };
 

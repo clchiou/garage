@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::net::IpAddr;
 use std::sync::{
-    atomic::{AtomicU64, Ordering},
     Arc,
+    atomic::{AtomicU64, Ordering},
 };
 
 use bittorrent_manager::Endpoint;

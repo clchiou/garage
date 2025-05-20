@@ -17,9 +17,9 @@ use tokio::sync::oneshot;
 use g1_tokio::task::{Cancel, JoinGuard};
 use g1_tokio::time::queue::naive::FixedDelayQueue;
 
+use crate::Socket;
 use crate::duplex::Duplex;
 use crate::envelope::{Envelope, Frame, Multipart};
-use crate::Socket;
 
 #[cfg(feature = "param")]
 mod param {
@@ -77,8 +77,8 @@ mod param {
     mod de {
         use std::time::Duration;
 
-        use serde::de::{Deserializer, Error};
         use serde::Deserialize;
+        use serde::de::{Deserializer, Error};
 
         use g1_param::parse;
 
@@ -184,10 +184,11 @@ impl Actor {
 
     fn insert(&mut self, response_send: ResponseSend) -> RoutingId {
         let routing_id = self.next_routing_id();
-        assert!(self
-            .response_sends
-            .insert(routing_id, response_send)
-            .is_none());
+        assert!(
+            self.response_sends
+                .insert(routing_id, response_send)
+                .is_none()
+        );
         self.deadlines.push(routing_id);
         routing_id
     }

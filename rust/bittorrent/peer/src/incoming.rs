@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 use bytes::Bytes;
-use tokio::sync::oneshot::{self, error::RecvError, Sender};
+use tokio::sync::oneshot::{self, Sender, error::RecvError};
 
 use g1_base::sync::MutexExt;
 use g1_tokio::task::{Cancel, JoinGuard, JoinQueue};

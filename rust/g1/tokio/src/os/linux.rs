@@ -2,7 +2,7 @@ use std::io::Error;
 use std::os::fd::{AsFd, AsRawFd, BorrowedFd};
 
 use async_trait::async_trait;
-use nix::fcntl::{splice, OFlag, SpliceFFlags};
+use nix::fcntl::{OFlag, SpliceFFlags, splice};
 use nix::sys::sendfile::sendfile;
 use nix::unistd::pipe2;
 use tokio::io::unix::AsyncFd;

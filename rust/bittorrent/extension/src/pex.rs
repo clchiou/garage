@@ -12,9 +12,9 @@ use g1_base::fmt::{DebugExt, Hex};
 
 use bittorrent_base::compact::Compact;
 use bittorrent_bencode::{
-    borrow,
+    FormatDictionary, borrow,
     convert::{from_bytes, from_dict, to_bytes},
-    own, serde as serde_bencode, FormatDictionary,
+    own, serde as serde_bencode,
 };
 
 use crate::{Error, ExpectPeerExchangeEndpointsSizeSnafu};

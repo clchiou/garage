@@ -7,7 +7,7 @@ use tokio::{
     net::{TcpListener, TcpSocket},
     time,
 };
-use tracing::{field, Instrument, Span};
+use tracing::{Instrument, Span, field};
 
 use g1_tokio::{
     bstream::{StreamRecv, StreamSend},
@@ -19,7 +19,7 @@ use bittorrent_base::{Features, InfoHash, PeerId};
 use bittorrent_mse::MseStream;
 use bittorrent_utp::{UtpConnector, UtpListener};
 
-use crate::{error, Cipher, Endpoint, Preference, Socket, Transport};
+use crate::{Cipher, Endpoint, Preference, Socket, Transport, error};
 
 type Prefs = [Preference; 4];
 

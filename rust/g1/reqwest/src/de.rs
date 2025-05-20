@@ -4,8 +4,8 @@ use std::time::Duration;
 use regex::Regex;
 use reqwest::header::{HeaderMap, HeaderValue};
 
-use serde::de::{Deserializer, Error};
 use serde::Deserialize;
+use serde::de::{Deserializer, Error};
 
 use g1_param::parse;
 

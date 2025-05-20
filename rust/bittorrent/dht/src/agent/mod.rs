@@ -22,10 +22,10 @@ use g1_tokio::task::{Cancel, JoinGuard, JoinQueue};
 use bittorrent_base::InfoHash;
 
 use crate::{
+    NODE_ID_SIZE, NodeId,
     reqrep::{Client, Incoming, ReqRep, Sender},
     routing::{KBucketFull, KBucketPrefix, RoutingTable},
     token::TokenSource,
-    NodeId, NODE_ID_SIZE,
 };
 
 use self::{

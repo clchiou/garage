@@ -22,7 +22,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use bitvec::prelude::*;
-use serde::{de, Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, de};
 
 use g1_base::fmt::{DebugExt, Hex};
 

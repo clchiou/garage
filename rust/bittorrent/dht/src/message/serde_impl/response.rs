@@ -11,11 +11,11 @@ use bittorrent_bencode::{
 };
 
 use crate::message::{
-    response::{AnnouncePeer, Error as ErrorResponse, FindNode, GetPeers, Ping, Response},
     Error, ExpectErrorListSizeSnafu, MissingDictionaryKeySnafu,
+    response::{AnnouncePeer, Error as ErrorResponse, FindNode, GetPeers, Ping, Response},
 };
 
-use super::{convert::to_id, ERROR, RESPONSE};
+use super::{ERROR, RESPONSE, convert::to_id};
 
 const ID: &[u8] = b"id";
 const TOKEN: &[u8] = b"token";

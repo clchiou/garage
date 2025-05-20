@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use rand::prelude::*;
-use serde::{de, Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, de};
 
-use crate::{PeerId, PEER_ID_SIZE};
+use crate::{PEER_ID_SIZE, PeerId};
 
 impl PeerId {
     pub(crate) fn deserialize<'de, D>(deserializer: D) -> Result<Arc<[u8; PEER_ID_SIZE]>, D::Error>

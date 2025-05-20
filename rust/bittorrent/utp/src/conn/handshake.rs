@@ -6,10 +6,10 @@ use crate::packet::{Packet, PacketType};
 use crate::timestamp::{self, Timestamp};
 
 use super::{
+    Error, ExpectPacketTypeSnafu, IncomingRecv, InvalidPacketSnafu,
     actor::Actor,
     state::State,
     window::{RecvWindow, SendWindow},
-    Error, ExpectPacketTypeSnafu, IncomingRecv, InvalidPacketSnafu,
 };
 
 #[derive(Debug)]

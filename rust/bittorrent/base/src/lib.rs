@@ -224,7 +224,7 @@ impl From<(BlockOffset, u64)> for BlockDesc {
 
 impl fmt::Debug for BlockDesc {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[{} {}+{}]", self.0 .0 .0, self.0 .1, self.1)
+        write!(f, "[{} {}+{}]", self.0.0.0, self.0.1, self.1)
     }
 }
 

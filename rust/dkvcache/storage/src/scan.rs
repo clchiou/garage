@@ -2,7 +2,7 @@ use bytes::Bytes;
 use const_format::formatcp;
 use rusqlite::Error;
 
-use crate::{decode_bytes, RawTimestamp, RowId, Storage, DKVCACHE, KEY, RECENCY, ROWID};
+use crate::{DKVCACHE, KEY, RECENCY, ROWID, RawTimestamp, RowId, Storage, decode_bytes};
 
 /// Paginated scanner.
 #[derive(Debug)]

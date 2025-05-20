@@ -3,7 +3,7 @@ use std::io::{Error, ErrorKind};
 use std::sync::{Arc, Mutex};
 
 use tokio::{
-    sync::mpsc::{error::TrySendError, UnboundedReceiver},
+    sync::mpsc::{UnboundedReceiver, error::TrySendError},
     time::{self, Interval},
 };
 
@@ -16,11 +16,11 @@ use bittorrent_extension::{ExtensionIdMap, Message as ExtensionMessage};
 use bittorrent_socket::{Message, Socket};
 
 use crate::{
+    Full, KeepAliveTimeout, Possession,
     chan::{Endpoint, Sends},
     incoming::{self, Reject, Response},
     outgoing,
     state::ConnStateLower,
-    Full, KeepAliveTimeout, Possession,
 };
 
 #[derive(Debug)]
@@ -311,7 +311,7 @@ where
     }
 
     async fn handle_new(&mut self, desc: BlockDesc) -> Result<(), Error> {
-        if !self.conn_state.peer_choking.get() || self.peer_allowed_fast.contains(&desc.0 .0) {
+        if !self.conn_state.peer_choking.get() || self.peer_allowed_fast.contains(&desc.0.0) {
             self.send(Message::Request(desc)).await
         } else {
             self.outgoings.push_choke(desc);
@@ -347,7 +347,7 @@ mod test_harness {
 
     use g1_tokio::{io::Stream, task::Cancel};
 
-    use bittorrent_base::{Features, PeerId, PEER_ID_SIZE};
+    use bittorrent_base::{Features, PEER_ID_SIZE, PeerId};
 
     use crate::{
         chan::{self, Recvs},

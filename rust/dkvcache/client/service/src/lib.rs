@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use futures::stream::StreamExt;
 use snafu::prelude::*;
-use tokio::sync::{broadcast, OwnedSemaphorePermit, Semaphore};
+use tokio::sync::{OwnedSemaphorePermit, Semaphore, broadcast};
 use tokio::task;
 use tokio::time::{self, Instant};
 use uuid::Uuid;

@@ -5,8 +5,8 @@ use std::hash::{BuildHasher, Hash};
 
 use super::{
     super::{
-        cursor_set::{Cursor, HashCursorSet},
         DefaultHashBuilder,
+        cursor_set::{Cursor, HashCursorSet},
     },
     hash::NaiveHashBiGraph,
 };

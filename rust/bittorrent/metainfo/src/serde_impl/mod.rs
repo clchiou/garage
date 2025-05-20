@@ -289,16 +289,18 @@ mod tests {
                 (b"name".as_slice(), new_bytes(b"foo")),
                 (
                     b"files",
-                    vec![BTreeMap::from([
-                        (
-                            b"path".as_slice(),
-                            vec![new_bytes(b"spam"), new_bytes(b"egg")].into(),
-                        ),
-                        (b"length".as_slice(), 100.into()),
-                        (b"md5sum".as_slice(), new_bytes(b"deadbeef")),
-                        (b"extra stuff".as_slice(), 42.into()),
-                    ])
-                    .into()]
+                    vec![
+                        BTreeMap::from([
+                            (
+                                b"path".as_slice(),
+                                vec![new_bytes(b"spam"), new_bytes(b"egg")].into(),
+                            ),
+                            (b"length".as_slice(), 100.into()),
+                            (b"md5sum".as_slice(), new_bytes(b"deadbeef")),
+                            (b"extra stuff".as_slice(), 42.into()),
+                        ])
+                        .into(),
+                    ]
                     .into(),
                 ),
                 (b"piece length".as_slice(), 512.into()),

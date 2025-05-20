@@ -5,7 +5,7 @@ use bytes::Bytes;
 use snafu::prelude::*;
 use tokio::{
     net::UdpSocket,
-    sync::{mpsc, watch, Notify},
+    sync::{Notify, mpsc, watch},
     time,
 };
 
@@ -17,8 +17,8 @@ use crate::packet::{Packet, PacketType};
 use crate::timestamp::Timestamp;
 
 use super::{
-    handshake::Handshake, state::State, ConnectedSend, Connection, ConnectionGuard, Error,
-    IncomingRecv, InvalidPacketSnafu, OutgoingSend, PacketSizeRecv, MIN_PACKET_SIZE,
+    ConnectedSend, Connection, ConnectionGuard, Error, IncomingRecv, InvalidPacketSnafu,
+    MIN_PACKET_SIZE, OutgoingSend, PacketSizeRecv, handshake::Handshake, state::State,
 };
 
 #[derive(Debug)]

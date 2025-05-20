@@ -16,9 +16,9 @@ use g1_tokio::{net, task::Joiner};
 use bittorrent_base::InfoHash;
 
 use crate::{
+    Distance, NodeContactInfo, NodeId, NodeIdBitSlice,
     agent::NodeState,
     reqrep::{Client, GetPeers, Nodes, Token},
-    Distance, NodeContactInfo, NodeId, NodeIdBitSlice,
 };
 
 #[derive(Debug)]

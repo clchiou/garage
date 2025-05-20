@@ -20,9 +20,11 @@ where
     let request_queue = ReadyQueue::new();
     for (id, client) in servers.into_iter() {
         let response = requester(client.clone());
-        assert!(request_queue
-            .push(async move { (id, response.await) })
-            .is_ok());
+        assert!(
+            request_queue
+                .push(async move { (id, response.await) })
+                .is_ok()
+        );
     }
     request_queue.close();
 

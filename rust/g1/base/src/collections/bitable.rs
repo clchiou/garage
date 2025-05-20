@@ -7,9 +7,9 @@ use std::fmt::{self, Debug};
 use std::hash::{BuildHasher, Hash};
 
 use super::{
+    DefaultHashBuilder,
     index_map::{AsHash, HashIndexMap},
     vec_list::{Cursor, VecList},
-    DefaultHashBuilder,
 };
 
 #[derive(Clone)]

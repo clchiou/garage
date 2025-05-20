@@ -81,7 +81,7 @@ impl Actor {
             Ok(buffer) => self.recv_block(peer_endpoint, request, buffer).await?,
             Err(_) => {
                 tracing::debug!(?request, "peer-> error");
-                let piece = request.0 .0;
+                let piece = request.0.0;
                 self.scheduler.notify_response_error(peer_endpoint, piece);
                 if let Some(queue) = self.queues.get_mut(piece) {
                     queue.push_request(request);
@@ -119,10 +119,11 @@ impl Actor {
                 match peer.request(request) {
                     Ok(Some(response_recv)) => {
                         tracing::debug!(?request, "->peer");
-                        assert!(self
-                            .responses
-                            .push(async move { (peer_endpoint, request, response_recv.await) })
-                            .is_ok());
+                        assert!(
+                            self.responses
+                                .push(async move { (peer_endpoint, request, response_recv.await) })
+                                .is_ok()
+                        );
                     }
                     Ok(None) => {} // We already sent the request to this peer.
                     Err(Full) => {
@@ -142,7 +143,7 @@ impl Actor {
         mut buffer: Bytes,
     ) -> Result<(), Error> {
         tracing::debug!(?block, "peer->");
-        let piece = block.0 .0;
+        let piece = block.0.0;
 
         // Skip this block if we already have it.
         if self.self_pieces[usize::from(piece)] {

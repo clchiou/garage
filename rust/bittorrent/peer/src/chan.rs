@@ -7,7 +7,7 @@ use tokio::sync::mpsc::{self, Receiver, Sender};
 
 use bittorrent_base::{BlockDesc, PieceIndex};
 
-use crate::{incoming::ResponseSend, Possession};
+use crate::{Possession, incoming::ResponseSend};
 
 // NOTE: For now, we use the peer endpoint to uniquely identify a peer, regardless of the transport
 // layer protocol (TCP vs uTP) used by the peer.

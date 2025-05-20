@@ -7,7 +7,7 @@ use g1_base::sync::MutexExt;
 
 use crate::bstream;
 
-use super::{actor::Actor, state::State, Error};
+use super::{Error, actor::Actor, state::State};
 
 impl Actor<Mutex<State>> {
     pub(super) async fn send(

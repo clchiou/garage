@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use etcd_pubsub::SubscriberError;
 
-use ddcache_client_raw::{concurrent, RawClient};
+use ddcache_client_raw::{RawClient, concurrent};
 use ddcache_client_service::Service;
 use ddcache_rpc::service::PubSub;
 use ddcache_rpc::{BlobMetadata, Timestamp};

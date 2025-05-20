@@ -8,9 +8,9 @@ use crate::packet::{Packet, PacketHeader, PacketType, SelectiveAck};
 use crate::timestamp::{self, Timestamp};
 
 use super::{
+    Error, MIN_PACKET_SIZE, ResendLimitExceededSnafu,
     control::DelayWindow,
     window::{RecvWindow, SendWindow},
-    Error, ResendLimitExceededSnafu, MIN_PACKET_SIZE,
 };
 
 #[derive(Debug)]

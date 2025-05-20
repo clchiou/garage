@@ -6,7 +6,7 @@ use snafu::prelude::*;
 
 use bittorrent_base::{BlockDesc, BlockOffset, Dimension};
 
-use crate::{error, FileBlockDesc, FileBlockOffset};
+use crate::{FileBlockDesc, FileBlockOffset, error};
 
 /// Converts `BlockOffset` to `FileBlockOffset`.
 #[derive(Clone, Debug, Eq, PartialEq)]

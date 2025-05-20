@@ -19,8 +19,8 @@ use g1_tokio::task::{JoinArray, JoinGuard};
 use g1_zmq::Socket;
 
 use ddcache_peer::Peer;
-use ddcache_rpc::service;
 use ddcache_rpc::Endpoint;
+use ddcache_rpc::service;
 use ddcache_storage::Storage;
 
 use crate::state::State;

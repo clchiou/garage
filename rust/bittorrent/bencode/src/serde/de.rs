@@ -1,15 +1,15 @@
-use std::collections::{btree_map, BTreeMap};
+use std::collections::{BTreeMap, btree_map};
 use std::fmt;
 use std::iter::Peekable;
 use std::slice;
 use std::str;
 
 use serde::{
+    Deserialize,
     de::{
         self, DeserializeSeed, EnumAccess, Error as _, IntoDeserializer, MapAccess, SeqAccess,
         VariantAccess, Visitor,
     },
-    Deserialize,
 };
 use snafu::prelude::*;
 

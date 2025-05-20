@@ -5,7 +5,7 @@ use tracing::Instrument;
 use g1_base::sync::MutexExt;
 use g1_tokio::task::{Cancel, Joiner};
 
-use crate::{kbucket::KBucketItem, lookup::Lookup, NodeContactInfo, NodeId};
+use crate::{NodeContactInfo, NodeId, kbucket::KBucketItem, lookup::Lookup};
 
 use super::NodeState;
 

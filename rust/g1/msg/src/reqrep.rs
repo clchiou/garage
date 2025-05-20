@@ -1,4 +1,4 @@
-use std::collections::{hash_map::Entry, HashMap, VecDeque};
+use std::collections::{HashMap, VecDeque, hash_map::Entry};
 use std::fmt;
 use std::hash::Hash;
 use std::io::{Error, ErrorKind};

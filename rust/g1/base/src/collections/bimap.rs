@@ -4,7 +4,7 @@ use std::borrow::Borrow;
 use std::fmt::{self, Debug};
 use std::hash::{BuildHasher, Hash};
 
-use super::{bitable::HashBasedBiTable, DefaultHashBuilder};
+use super::{DefaultHashBuilder, bitable::HashBasedBiTable};
 
 #[derive(Clone)]
 pub struct HashBiMap<K, V, KS = DefaultHashBuilder, VS = DefaultHashBuilder>(

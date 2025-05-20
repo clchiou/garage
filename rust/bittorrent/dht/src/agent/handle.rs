@@ -8,11 +8,11 @@ use tokio::sync::mpsc;
 use g1_base::{fmt::Hex, sync::MutexExt};
 use g1_tokio::task::Cancel;
 
-use bittorrent_bencode::{borrow, serde as serde_bencode, FormatDictionary};
+use bittorrent_bencode::{FormatDictionary, borrow, serde as serde_bencode};
 
 use crate::{
     kbucket::KBucketItem,
-    message::{query, response, Message, MessageOwner, Payload},
+    message::{Message, MessageOwner, Payload, query, response},
     reqrep::{Endpoint, Sender},
     routing::KBucketFull,
     token::{Token, TokenSource},

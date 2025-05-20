@@ -11,20 +11,19 @@ use tokio::time;
 
 use g1_base::ops::SliceCompoundAssignOp;
 use g1_base::slice::SliceExt;
-use g1_tokio::bstream::{transform::Transform, StreamBuffer, StreamRecv, StreamSend};
+use g1_tokio::bstream::{StreamBuffer, StreamRecv, StreamSend, transform::Transform};
 
 use crate::{
-    compute_hash,
+    HASH_SIZE, MseStream, compute_hash,
     error::{
         self, ExpectPaddingSizeSnafu, ExpectRecvPublicKeySizeSnafu, ExpectRecvSnafu,
         ExpectResynchronizeSnafu,
     },
-    MseStream, HASH_SIZE,
 };
 
 use super::{
-    dh, recv_public_key_timeout, DhKey, Handshake, HandshakeSide, CRYPTO_PLAINTEXT, CRYPTO_RC4,
-    DH_KEY_NUM_BYTES, PADDING_SIZE_RANGE,
+    CRYPTO_PLAINTEXT, CRYPTO_RC4, DH_KEY_NUM_BYTES, DhKey, Handshake, HandshakeSide,
+    PADDING_SIZE_RANGE, dh, recv_public_key_timeout,
 };
 
 const REQ1: &[u8] = b"req1";

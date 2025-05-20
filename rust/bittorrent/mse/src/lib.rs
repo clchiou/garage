@@ -7,10 +7,10 @@ mod handshake;
 
 use std::io::Error;
 
-use sha1::{digest::Output, Digest, Sha1, Sha1Core};
+use sha1::{Digest, Sha1, Sha1Core, digest::Output};
 
 use g1_tokio::{
-    bstream::{transform::DuplexTransformer, StreamRecv, StreamSend},
+    bstream::{StreamRecv, StreamSend, transform::DuplexTransformer},
     io::DynStream,
 };
 

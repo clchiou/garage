@@ -18,7 +18,7 @@ use g1_base::{
 };
 
 use bittorrent_base::{Dimension, INFO_HASH_SIZE};
-use bittorrent_bencode::{borrow, own, FormatDictionary};
+use bittorrent_bencode::{FormatDictionary, borrow, own};
 
 pub use self::sanity::Insanity;
 

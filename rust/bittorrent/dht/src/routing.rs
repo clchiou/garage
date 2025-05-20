@@ -4,8 +4,8 @@ use std::iter;
 use bitvec::prelude::*;
 
 use crate::{
+    Distance, NODE_ID_BIT_SIZE, NodeContactInfo, NodeId, NodeIdBitSlice,
     kbucket::{KBucket, KBucketItem},
-    Distance, NodeContactInfo, NodeId, NodeIdBitSlice, NODE_ID_BIT_SIZE,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]

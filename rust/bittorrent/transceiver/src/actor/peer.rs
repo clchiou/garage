@@ -6,7 +6,7 @@ use bittorrent_extension::Handshake;
 use bittorrent_manager::{Endpoint, Update};
 use bittorrent_peer::{Peer, Possession};
 
-use super::{extension::ToMessage, Actor};
+use super::{Actor, extension::ToMessage};
 
 impl Actor {
     #[tracing::instrument(name = "txrx/peer", skip(self))]

@@ -12,8 +12,8 @@
 use heck::ToSnakeCase;
 use proc_macro2::{Ident, TokenStream};
 use syn::{
-    ext::IdentExt, punctuated::Punctuated, token::Comma, Data, DataStruct, DeriveInput, Error,
-    Field, Fields, Index, Visibility,
+    Data, DataStruct, DeriveInput, Error, Field, Fields, Index, Visibility, ext::IdentExt,
+    punctuated::Punctuated, token::Comma,
 };
 
 #[proc_macro_derive(BufExt, attributes(endian))]
@@ -640,7 +640,7 @@ mod tests {
 
 pub(crate) mod fields {
     use proc_macro2::{Ident, TokenStream};
-    use syn::{punctuated::Punctuated, token::Comma, Error, Field};
+    use syn::{Error, Field, punctuated::Punctuated, token::Comma};
 
     use crate::{error, field};
 
@@ -824,7 +824,7 @@ pub(crate) mod field {
     use proc_macro2::Ident;
     use syn::{Error, Field, Type, TypePath};
 
-    use crate::{attr, error, PRIMITIVE_TYPES};
+    use crate::{PRIMITIVE_TYPES, attr, error};
 
     /// Generates the get method name for the field.
     pub(crate) fn gen_get(field: &Field, default_endian: &str) -> Result<Ident, Error> {
@@ -877,7 +877,7 @@ pub(crate) mod field {
 
         use syn::FieldsNamed;
 
-        use crate::{error, BIG_ENDIAN, LITTLE_ENDIAN};
+        use crate::{BIG_ENDIAN, LITTLE_ENDIAN, error};
 
         use super::*;
 
@@ -977,7 +977,7 @@ pub(crate) mod field {
 pub(crate) mod attr {
     use syn::{Attribute, Error, Expr, Lit};
 
-    use crate::{error, BIG_ENDIAN, LITTLE_ENDIAN, NATIVE_ENDIAN};
+    use crate::{BIG_ENDIAN, LITTLE_ENDIAN, NATIVE_ENDIAN, error};
 
     /// Returns the endian value of the attribute or `None` if the attribute is not an endian
     /// attribute.

@@ -6,16 +6,16 @@ use bytes::{Buf, BufMut};
 use snafu::prelude::*;
 use tokio::time;
 
-use g1_tokio::bstream::{transform::Transform, StreamBuffer, StreamRecv, StreamSend};
+use g1_tokio::bstream::{StreamBuffer, StreamRecv, StreamSend, transform::Transform};
 
 use crate::{
-    error::{self, ExpectCryptoSelectSnafu},
     MseStream,
+    error::{self, ExpectCryptoSelectSnafu},
 };
 
 use super::{
-    encode_size, load_crypto_provide, timeout, ConnectSide, Handshake, CRYPTO_PLAINTEXT,
-    CRYPTO_RC4, PADDING_SIZE_RANGE, VC,
+    CRYPTO_PLAINTEXT, CRYPTO_RC4, ConnectSide, Handshake, PADDING_SIZE_RANGE, VC, encode_size,
+    load_crypto_provide, timeout,
 };
 
 // Send empty initial payload for now.

@@ -8,7 +8,7 @@ use std::os::fd::{AsRawFd, RawFd};
 use std::string::FromUtf8Error;
 
 use tokio::io::unix::AsyncFd;
-use zmq::{Mechanism, Message, PollEvents, SocketType, DONTWAIT};
+use zmq::{DONTWAIT, Mechanism, Message, PollEvents, SocketType};
 
 use g1_base::fmt::{DebugExt, InsertPlaceholder};
 

@@ -129,11 +129,12 @@ mod test_harness {
 
         pub(crate) fn assert_items(&self, expect: &[&KBucketItem]) {
             assert_eq!(self.items.len(), expect.len());
-            assert!(self
-                .items
-                .iter()
-                .zip(expect.iter())
-                .all(|(item, expect)| item.contact_info == expect.contact_info));
+            assert!(
+                self.items
+                    .iter()
+                    .zip(expect.iter())
+                    .all(|(item, expect)| item.contact_info == expect.contact_info)
+            );
             assert!(self.items.iter().is_sorted_by_key(|item| item.last_seen));
         }
     }

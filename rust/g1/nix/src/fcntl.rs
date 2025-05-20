@@ -1,7 +1,7 @@
 use std::os::fd::{AsFd, BorrowedFd};
 
 use nix::errno::Errno;
-use nix::fcntl::{fcntl, OFlag, F_GETFL, F_SETFL};
+use nix::fcntl::{F_GETFL, F_SETFL, OFlag, fcntl};
 
 /// Guards file status flags.
 #[derive(Debug)]

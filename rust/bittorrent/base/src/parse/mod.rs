@@ -96,7 +96,9 @@ mod tests {
             Ok(MagnetUri {
                 info_hashes: vec![
                     InfoHash::new(hex!("0123456789012345678901234567890123456789")),
-                    InfoHash::new(hex!("00 44 32 14 c7 42 54 b6 35 cf 84 65 3a 56 d7 c6 75 be 77 df")),
+                    InfoHash::new(hex!(
+                        "00 44 32 14 c7 42 54 b6 35 cf 84 65 3a 56 d7 c6 75 be 77 df"
+                    )),
                 ],
             }),
         );

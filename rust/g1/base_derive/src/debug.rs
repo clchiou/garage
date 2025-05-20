@@ -1,5 +1,5 @@
 use proc_macro2::TokenStream;
-use syn::{ext::IdentExt, DeriveInput, Error, Field};
+use syn::{DeriveInput, Error, Field, ext::IdentExt};
 
 use crate::{
     attr::{self, AttrArgType, AttrArgValue},

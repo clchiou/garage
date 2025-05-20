@@ -13,8 +13,8 @@ use g1_tokio::task::{JoinArray, JoinGuard};
 use g1_zmq::Socket;
 
 use dkvcache_peer::Peer;
-use dkvcache_rpc::service;
 use dkvcache_rpc::Endpoint;
+use dkvcache_rpc::service;
 use dkvcache_storage::Storage;
 
 use crate::server::Actor;

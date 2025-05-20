@@ -3,11 +3,11 @@ use std::ops::Deref;
 
 use bytes::BytesMut;
 use serde::{
+    Serialize,
     ser::{
         self, SerializeMap, SerializeSeq, SerializeStruct, SerializeStructVariant, SerializeTuple,
         SerializeTupleStruct, SerializeTupleVariant,
     },
-    Serialize,
 };
 use serde_bytes::Bytes;
 

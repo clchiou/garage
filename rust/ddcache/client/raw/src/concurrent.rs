@@ -5,9 +5,9 @@ use uuid::Uuid;
 
 use g1_base::future::ReadyQueue;
 
+use crate::RawClient;
 use crate::error::Error;
 use crate::response::{Response, ResponseResult};
-use crate::RawClient;
 
 #[tracing::instrument(skip_all)]
 pub async fn request_any<Requester, Fut>(
@@ -21,9 +21,11 @@ where
     let request_queue = ReadyQueue::new();
     for (id, client) in servers.into_iter() {
         let response = requester(client.clone());
-        assert!(request_queue
-            .push(async move { (id, client, response.await) })
-            .is_ok());
+        assert!(
+            request_queue
+                .push(async move { (id, client, response.await) })
+                .is_ok()
+        );
     }
     request_queue.close();
 
@@ -105,9 +107,11 @@ where
     let request_queue = ReadyQueue::new();
     for (id, client) in servers.into_iter() {
         let response = requester(client);
-        assert!(request_queue
-            .push(async move { (id, response.await) })
-            .is_ok());
+        assert!(
+            request_queue
+                .push(async move { (id, response.await) })
+                .is_ok()
+        );
     }
     request_queue.close();
 

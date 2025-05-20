@@ -24,9 +24,9 @@ use bittorrent_transceiver::{
 };
 use bittorrent_utp::UtpSocket;
 
+use crate::Mode;
 use crate::integrate;
 use crate::storage::StorageOpen;
-use crate::Mode;
 
 // TODO: Can we remove these `Pin`?
 type DynStream = Pin<Box<dyn Stream<Item = Result<(SocketAddr, Bytes), Error>> + Send + 'static>>;

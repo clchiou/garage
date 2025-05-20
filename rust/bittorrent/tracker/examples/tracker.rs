@@ -12,9 +12,9 @@ use bittorrent_base::InfoHash;
 use bittorrent_bencode::serde as serde_bencode;
 use bittorrent_metainfo::Metainfo;
 use bittorrent_tracker::{
+    Tracker,
     client::Client,
     request::{Event, Request},
-    Tracker,
 };
 
 #[derive(Debug, Parser)]

@@ -2,9 +2,9 @@ mod de;
 mod error;
 mod ser;
 
-pub use de::{from_bytes, from_bytes_lenient, from_bytes_lenient_two_pass, Deserializer};
+pub use de::{Deserializer, from_bytes, from_bytes_lenient, from_bytes_lenient_two_pass};
 pub use error::{Error, Result};
-pub use ser::{to_bytes, Serializer};
+pub use ser::{Serializer, to_bytes};
 
 /// Converts from one integer type to another.
 ///

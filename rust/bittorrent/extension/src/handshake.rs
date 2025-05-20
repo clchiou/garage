@@ -7,13 +7,13 @@ use serde_bytes::Bytes;
 use g1_base::fmt::DebugExt;
 
 use bittorrent_bencode::{
-    borrow,
+    FormatDictionary, borrow,
     convert::{from_dict, to_dict, to_int, to_str},
     dict::{DictionaryInsert, DictionaryRemove},
-    own, serde as serde_bencode, FormatDictionary,
+    own, serde as serde_bencode,
 };
 
-use crate::{metadata, Error, EXTENSIONS};
+use crate::{EXTENSIONS, Error, metadata};
 
 #[derive(Clone, DebugExt, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(

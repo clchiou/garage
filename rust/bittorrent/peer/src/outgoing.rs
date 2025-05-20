@@ -1,6 +1,6 @@
 //! Outgoing block request queue.
 
-use std::collections::{hash_map::Entry, HashMap, VecDeque};
+use std::collections::{HashMap, VecDeque, hash_map::Entry};
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex, Weak};
@@ -259,10 +259,11 @@ mod test_harness {
 
             assert_eq!(self.size, expect_size);
 
-            assert!(self
-                .deadlines
-                .iter()
-                .is_sorted_by_key(|(deadline, _)| deadline));
+            assert!(
+                self.deadlines
+                    .iter()
+                    .is_sorted_by_key(|(deadline, _)| deadline)
+            );
             assert_eq!(
                 self.deadlines
                     .iter()

@@ -1,4 +1,4 @@
-use std::collections::{btree_map::Entry, BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, btree_map::Entry};
 use std::future::Future;
 use std::io::Error;
 use std::sync::{Arc, Mutex};
@@ -16,8 +16,8 @@ use bittorrent_peer::{Peer, PeerGuard, Sends};
 use bittorrent_utp::UtpConnector;
 
 use crate::{
-    net::{Connector, Listener},
     Endpoint, Socket, Update,
+    net::{Connector, Listener},
 };
 
 #[derive(DebugExt)]
@@ -144,13 +144,14 @@ impl Actor {
         if peer_id.is_some() {
             connector.set_peer_id(peer_id);
         }
-        assert!(self
-            .connected_futures
-            .push(async move {
-                let socket = connector.connect().await;
-                (peer_endpoint, connector, socket)
-            })
-            .is_ok());
+        assert!(
+            self.connected_futures
+                .push(async move {
+                    let socket = connector.connect().await;
+                    (peer_endpoint, connector, socket)
+                })
+                .is_ok()
+        );
     }
 
     #[tracing::instrument(name = "mgr/connect", fields(?peer_endpoint), skip_all)]
@@ -181,10 +182,11 @@ impl Actor {
             impl Future<Output = Result<Socket, Error>> + Send + 'static,
         ),
     ) {
-        assert!(self
-            .accepted_futures
-            .push(async move { (peer_endpoint, peer_listening_endpoint, socket.await) })
-            .is_ok());
+        assert!(
+            self.accepted_futures
+                .push(async move { (peer_endpoint, peer_listening_endpoint, socket.await) })
+                .is_ok()
+        );
     }
 
     #[tracing::instrument(name = "mgr/accept", fields(?peer_endpoint), skip_all)]
@@ -225,14 +227,15 @@ impl Actor {
             },
             Err(mut socket) => {
                 tracing::error!("new socket conflicts with current peer");
-                assert!(self
-                    .socket_shutdown
-                    .push(async move {
-                        if let Err(error) = socket.shutdown().await {
-                            tracing::warn!(%error, "peer socket shutdown error");
-                        }
-                    })
-                    .is_ok());
+                assert!(
+                    self.socket_shutdown
+                        .push(async move {
+                            if let Err(error) = socket.shutdown().await {
+                                tracing::warn!(%error, "peer socket shutdown error");
+                            }
+                        })
+                        .is_ok()
+                );
             }
         }
     }
@@ -286,10 +289,11 @@ impl Peers {
         if self.connectors.contains_key(&peer_endpoint) {
             return false;
         }
-        assert!(self
-            .connectors
-            .insert(peer_endpoint, Some(self.new_connector(peer_endpoint)))
-            .is_none());
+        assert!(
+            self.connectors
+                .insert(peer_endpoint, Some(self.new_connector(peer_endpoint)))
+                .is_none()
+        );
         true
     }
 
@@ -339,10 +343,11 @@ impl Peers {
             Entry::Occupied(_) => Err(socket),
             Entry::Vacant(entry) => {
                 let (peer, guard) = Peer::spawn(socket, peer_endpoint, self.sends.clone());
-                assert!(self
-                    .peer_endpoints
-                    .insert(guard.id(), peer_endpoint)
-                    .is_none());
+                assert!(
+                    self.peer_endpoints
+                        .insert(guard.id(), peer_endpoint)
+                        .is_none()
+                );
                 entry.insert(peer);
                 Ok(guard)
             }

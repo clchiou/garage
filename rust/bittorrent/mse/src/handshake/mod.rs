@@ -12,7 +12,7 @@ use crypto_bigint::{ByteArray, U768};
 
 use g1_tokio::bstream::{StreamRecv, StreamSend};
 
-use crate::{cipher::MseRc4, MseStream};
+use crate::{MseStream, cipher::MseRc4};
 
 g1_param::define!(
     timeout: Duration = Duration::from_secs(60);

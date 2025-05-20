@@ -8,7 +8,7 @@ use tokio::time;
 use g1_base::fmt::Hex;
 use g1_tokio::bstream::{StreamRecv, StreamSend};
 
-use bittorrent_base::{Features, InfoHash, PeerId, INFO_HASH_SIZE, PEER_ID_SIZE, PROTOCOL_ID};
+use bittorrent_base::{Features, INFO_HASH_SIZE, InfoHash, PEER_ID_SIZE, PROTOCOL_ID, PeerId};
 
 use crate::error;
 

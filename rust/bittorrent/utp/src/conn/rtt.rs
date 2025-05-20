@@ -7,7 +7,7 @@ use tokio::time;
 
 use g1_base::sync::MutexExt;
 
-use super::{actor::Actor, state::State, Error, MIN_PACKET_SIZE};
+use super::{Error, MIN_PACKET_SIZE, actor::Actor, state::State};
 
 #[derive(Debug)]
 pub(super) struct Rtt {

@@ -1,7 +1,7 @@
 use std::io::Error;
 use std::sync::{
-    atomic::{AtomicU64, Ordering},
     Arc,
+    atomic::{AtomicU64, Ordering},
 };
 use std::time::Duration;
 
@@ -15,18 +15,18 @@ use tokio::time::{self, Instant};
 use tracing::Instrument;
 
 use g1_tokio::task::{Cancel, JoinGuard, JoinQueue};
+use g1_zmq::Socket;
 use g1_zmq::duplex::Duplex;
 use g1_zmq::envelope::{Envelope, Frame, Multipart};
-use g1_zmq::Socket;
 
 use ddcache_peer::Peer;
 use ddcache_rpc::envelope;
 use ddcache_rpc::{BlobEndpoint, Request, Timestamp, TimestampExt, Token};
 use ddcache_storage::{ReadGuard, Storage, WriteGuard};
 
+use crate::Guard;
 use crate::rep;
 use crate::state::State;
-use crate::Guard;
 
 #[derive(Debug)]
 pub(crate) struct Actor {
@@ -367,9 +367,11 @@ impl Actor {
                 let span = tracing::info_span!("ddcache/write-metadata");
                 let _enter = span.enter();
                 check_key!(key);
-                check_metadata!(metadata
-                    .as_ref()
-                    .map_or(&[] as &[u8], |x| x.as_deref().unwrap_or(&[])));
+                check_metadata!(
+                    metadata
+                        .as_ref()
+                        .map_or(&[] as &[u8], |x| x.as_deref().unwrap_or(&[]))
+                );
                 handler.write_metadata(key, metadata, expire_at);
             }
 

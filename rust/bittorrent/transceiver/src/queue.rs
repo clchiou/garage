@@ -1,6 +1,6 @@
 use std::collections::{
-    hash_map::{Entry, OccupiedEntry},
     BTreeMap, BTreeSet, HashMap,
+    hash_map::{Entry, OccupiedEntry},
 };
 use std::ops::{Deref, DerefMut};
 
@@ -90,7 +90,7 @@ impl Queue {
     }
 
     pub(crate) fn push_request(&mut self, request: BlockDesc) {
-        assert_eq!(request.0 .0, self.piece);
+        assert_eq!(request.0.0, self.piece);
         self.requests.insert(request);
     }
 
@@ -100,7 +100,7 @@ impl Queue {
 
     // NOTE: `block` may or may not be a request that we sent.
     pub(crate) fn add_progress(&mut self, peer: Endpoint, block: BlockDesc) -> u64 {
-        assert_eq!(block.0 .0, self.piece);
+        assert_eq!(block.0.0, self.piece);
         let num_recv = self.progress.add(block);
         if num_recv > 0 {
             *self.recv_stats.entry(peer).or_default() += num_recv;
@@ -115,11 +115,12 @@ mod test_harness {
 
     impl Queues {
         pub fn assert_pieces<const N: usize>(&self, expect: [usize; N]) {
-            assert!(self
-                .queues
-                .keys()
-                .copied()
-                .eq(expect.into_iter().map(PieceIndex::from)));
+            assert!(
+                self.queues
+                    .keys()
+                    .copied()
+                    .eq(expect.into_iter().map(PieceIndex::from))
+            );
         }
     }
 }

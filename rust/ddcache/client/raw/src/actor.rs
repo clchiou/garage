@@ -11,9 +11,9 @@ use zmq::{Context, DEALER};
 
 use g1_base::fmt::{DebugExt, InsertPlaceholder};
 use g1_tokio::task::Cancel;
+use g1_zmq::Socket;
 use g1_zmq::duplex::Duplex;
 use g1_zmq::envelope::{Envelope, Frame, Multipart};
-use g1_zmq::Socket;
 
 use ddcache_rpc::envelope;
 use ddcache_rpc::service::Server;

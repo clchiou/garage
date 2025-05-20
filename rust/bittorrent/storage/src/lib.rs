@@ -18,7 +18,7 @@ use tokio::{
     io::{AsyncSeekExt, SeekFrom},
 };
 
-use bittorrent_base::{BlockDesc, PieceIndex, PIECE_HASH_SIZE};
+use bittorrent_base::{BlockDesc, PIECE_HASH_SIZE, PieceIndex};
 
 // Use the same bit layout as the wire format for faster conversion.
 pub type Bitfield = BitVec<u8, Msb0>;

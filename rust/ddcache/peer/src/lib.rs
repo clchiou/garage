@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use snafu::prelude::*;
-use tokio::sync::{broadcast::error::RecvError, mpsc, OwnedSemaphorePermit, Semaphore};
+use tokio::sync::{OwnedSemaphorePermit, Semaphore, broadcast::error::RecvError, mpsc};
 use tracing::Instrument;
 use uuid::Uuid;
 
@@ -13,7 +13,7 @@ use etcd_pubsub::SubscriberError;
 use g1_base::future::ReadyQueue;
 use g1_tokio::task::{Cancel, JoinArray, JoinGuard, JoinQueue};
 
-use ddcache_client_raw::{concurrent, Error, RawClient};
+use ddcache_client_raw::{Error, RawClient, concurrent};
 use ddcache_client_service::{NotConnectedError, Service, Update, UpdateRecv};
 use ddcache_rpc::service::{self, PubSub};
 use ddcache_storage::Storage;
@@ -160,21 +160,22 @@ impl Actor {
 
     fn handle_pull(&self, key: Bytes) {
         let handler = self.handler.clone();
-        assert!(self
-            .tasks
-            .push(JoinGuard::spawn(move |cancel| {
-                {
-                    let key = key.clone();
-                    async move {
-                        tokio::select! {
-                            () = cancel.wait() => Ok(()),
-                            result = handler.pull(key) => result,
+        assert!(
+            self.tasks
+                .push(JoinGuard::spawn(move |cancel| {
+                    {
+                        let key = key.clone();
+                        async move {
+                            tokio::select! {
+                                () = cancel.wait() => Ok(()),
+                                result = handler.pull(key) => result,
+                            }
                         }
                     }
-                }
-                .instrument(tracing::info_span!("ddcache-peer/pull", key = %key.escape_ascii()))
-            }))
-            .is_ok());
+                    .instrument(tracing::info_span!("ddcache-peer/pull", key = %key.escape_ascii()))
+                }))
+                .is_ok()
+        );
     }
 
     fn handle_update(&self, update: Update) {
@@ -186,21 +187,22 @@ impl Actor {
             return;
         }
         let handler = self.handler.clone();
-        assert!(self
-            .tasks
-            .push(JoinGuard::spawn(move |cancel| {
-                async move {
-                    tokio::select! {
-                        () = cancel.wait() => Ok(()),
-                        result = async {
-                            handler.push(peer_id).await?;
-                            handler.cleanup().await
-                        } => result,
+        assert!(
+            self.tasks
+                .push(JoinGuard::spawn(move |cancel| {
+                    async move {
+                        tokio::select! {
+                            () = cancel.wait() => Ok(()),
+                            result = async {
+                                handler.push(peer_id).await?;
+                                handler.cleanup().await
+                            } => result,
+                        }
                     }
-                }
-                .instrument(tracing::info_span!("ddcache-peer/push", %peer_id))
-            }))
-            .is_ok());
+                    .instrument(tracing::info_span!("ddcache-peer/push", %peer_id))
+                }))
+                .is_ok()
+        );
     }
 
     fn handle_task(&self, mut guard: JoinGuard<Result<(), HandlerError>>) {
@@ -324,9 +326,11 @@ impl Handler {
                     let permit = concurrency.clone().acquire_owned().await.unwrap();
                     let handler = self.clone();
                     let client = client.clone();
-                    assert!(queue
-                        .push(async move { handler.push_key(client, permit, key).await })
-                        .is_ok());
+                    assert!(
+                        queue
+                            .push(async move { handler.push_key(client, permit, key).await })
+                            .is_ok()
+                    );
                 }
                 queue.close();
                 Ok::<_, HandlerError>(())

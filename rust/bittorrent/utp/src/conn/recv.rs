@@ -9,7 +9,7 @@ use g1_base::sync::MutexExt;
 use crate::packet::{Packet, PacketType};
 use crate::timestamp::Timestamp;
 
-use super::{actor::Actor, state::State, Error, IncomingRecv};
+use super::{Error, IncomingRecv, actor::Actor, state::State};
 
 #[derive(Debug)]
 struct RecvState {

@@ -3,8 +3,8 @@ use std::fmt;
 use std::io;
 use std::str;
 
-use base64::engine::general_purpose::STANDARD;
 use base64::Engine as _;
+use base64::engine::general_purpose::STANDARD;
 
 pub struct Writer<W: io::Write>(WriterImpl<W>);
 

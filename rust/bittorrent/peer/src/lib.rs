@@ -42,7 +42,7 @@ g1_param::define!(port_queue_size: usize = 256);
 
 g1_param::define!(extension_queue_size: usize = 256);
 
-pub use crate::chan::{new_channels, Endpoint, ExtensionMessageOwner, Recvs, Sends};
+pub use crate::chan::{Endpoint, ExtensionMessageOwner, Recvs, Sends, new_channels};
 pub use crate::peer::{Peer, PeerGuard};
 
 #[derive(Clone, Debug, Eq, PartialEq, Snafu)]

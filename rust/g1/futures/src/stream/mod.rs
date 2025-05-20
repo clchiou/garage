@@ -1,3 +1,3 @@
 mod fork;
 
-pub use self::fork::{fork, Fork};
+pub use self::fork::{Fork, fork};

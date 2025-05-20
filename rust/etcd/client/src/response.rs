@@ -5,7 +5,7 @@
 // [json]: https://protobuf.dev/programming-guides/proto3/#json
 
 use serde::{Deserialize, Serialize};
-use serde_with::{base64::Base64, serde_as, skip_serializing_none, DisplayFromStr};
+use serde_with::{DisplayFromStr, base64::Base64, serde_as, skip_serializing_none};
 
 use crate::{Key, Value};
 

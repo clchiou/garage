@@ -189,8 +189,8 @@ impl<T> DelayQueue<T> {
     }
 
     pub async fn pop(&mut self) -> Option<T> {
-        time::sleep_until(self.0.peek()?.0 .1).await;
-        Some(self.0.pop().unwrap().0 .0)
+        time::sleep_until(self.0.peek()?.0.1).await;
+        Some(self.0.pop().unwrap().0.0)
     }
 }
 

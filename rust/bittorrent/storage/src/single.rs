@@ -11,9 +11,10 @@ use bittorrent_base::{BlockDesc, Dimension, PieceIndex};
 use bittorrent_metainfo::Info;
 
 use crate::{
+    Bitfield, PieceHash,
     coord::CoordSys,
     io::{self, PieceHasher},
-    metainfo, Bitfield, PieceHash,
+    metainfo,
 };
 
 #[derive(Debug)]

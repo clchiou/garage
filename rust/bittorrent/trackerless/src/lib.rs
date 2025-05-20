@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 
 use bytes::{Bytes, BytesMut};
 use snafu::prelude::*;
-use tokio::sync::broadcast::{error::RecvError, Receiver};
+use tokio::sync::broadcast::{Receiver, error::RecvError};
 
 use bittorrent_base::{Features, InfoHash};
 use bittorrent_bencode::serde as serde_bencode;

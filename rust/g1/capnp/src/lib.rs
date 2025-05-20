@@ -9,7 +9,7 @@ pub mod result_capnp {
     include!(concat!(env!("OUT_DIR"), "/g1/result_capnp.rs"));
 }
 
-use capnp::{traits::Owned, Error};
+use capnp::{Error, traits::Owned};
 
 use crate::result_capnp::result;
 

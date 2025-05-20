@@ -17,9 +17,9 @@ use bittorrent_peer::{Peer, Recvs};
 use bittorrent_utp::UtpSocket;
 
 use crate::{
+    Endpoint, Update,
     actor::{Actor, Peers},
     net::Listener,
-    Endpoint, Update,
 };
 
 #[derive(Clone, Debug)]

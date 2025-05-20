@@ -14,9 +14,9 @@ use bittorrent_bencode::{
 };
 
 use crate::message::{
+    Error, Message, Payload,
     query::Query,
     response::{Error as ErrorResponse, Response},
-    Error, Message, Payload,
 };
 
 const TXID: &[u8] = b"t";

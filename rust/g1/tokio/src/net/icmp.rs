@@ -6,8 +6,8 @@ use libc::sockaddr_in;
 use nix::{
     errno::Errno,
     sys::socket::{
-        recvfrom, recvmsg, sendmsg, setsockopt, sockopt::Ipv4RecvErr, AddressFamily,
-        ControlMessageOwned, MsgFlags, SockFlag, SockaddrIn,
+        AddressFamily, ControlMessageOwned, MsgFlags, SockFlag, SockaddrIn, recvfrom, recvmsg,
+        sendmsg, setsockopt, sockopt::Ipv4RecvErr,
     },
     unistd::close,
 };

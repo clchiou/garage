@@ -2,10 +2,10 @@ use std::fmt;
 use std::ops::Deref;
 use std::pin::Pin;
 
+use capnp::Error;
 use capnp::message;
 use capnp::serialize::{self, BufferSegments};
 use capnp::traits::FromPointerReader;
-use capnp::Error;
 
 use g1_base::ops::Deref;
 

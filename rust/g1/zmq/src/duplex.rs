@@ -5,7 +5,7 @@ use std::task::{Context, Poll};
 
 use futures::sink;
 use futures::stream;
-use zmq::{Message, DONTWAIT, SNDMORE};
+use zmq::{DONTWAIT, Message, SNDMORE};
 
 use crate::Socket;
 

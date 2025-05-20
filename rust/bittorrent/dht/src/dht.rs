@@ -10,10 +10,10 @@ use g1_tokio::task::JoinArray;
 use bittorrent_base::InfoHash;
 
 use crate::{
+    NodeId,
     agent::Agent,
     lookup::{Lookup, LookupPeers},
     reqrep::{self, GetPeers, Nodes},
-    NodeId,
 };
 
 #[derive(Clone, Debug)]

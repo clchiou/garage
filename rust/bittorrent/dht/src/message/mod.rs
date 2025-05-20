@@ -13,7 +13,7 @@ use snafu::prelude::*;
 use g1_base::fmt::{DebugExt, Hex};
 
 use bittorrent_base::{INFO_HASH_SIZE, NODE_ID_SIZE};
-use bittorrent_bencode::{borrow, own, FormatDictionary};
+use bittorrent_bencode::{FormatDictionary, borrow, own};
 
 use self::{
     query::Query,

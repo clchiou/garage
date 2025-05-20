@@ -1,9 +1,9 @@
 use std::sync::{
-    atomic::{AtomicBool, Ordering},
     Arc,
+    atomic::{AtomicBool, Ordering},
 };
 
-use tokio::sync::watch::{self, error::RecvError, Receiver, Sender};
+use tokio::sync::watch::{self, Receiver, Sender, error::RecvError};
 
 use g1_tokio::sync::watch::Update;
 

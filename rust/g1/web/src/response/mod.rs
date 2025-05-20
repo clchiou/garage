@@ -1,7 +1,7 @@
 pub mod body;
 
-use hyper::header::RETRY_AFTER;
 use hyper::StatusCode;
+use hyper::header::RETRY_AFTER;
 
 pub type Response = hyper::Response<self::body::Body>;
 

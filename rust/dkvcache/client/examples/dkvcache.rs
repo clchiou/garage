@@ -9,8 +9,8 @@ use tokio::time;
 use g1_cli::{param::ParametersConfig, tracing::TracingConfig};
 
 use dkvcache_client::Client;
-use dkvcache_rpc::service;
 use dkvcache_rpc::Timestamp;
+use dkvcache_rpc::service;
 
 #[derive(Debug, Parser)]
 #[command(after_help = ParametersConfig::render())]

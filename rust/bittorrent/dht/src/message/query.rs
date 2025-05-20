@@ -4,7 +4,7 @@ use bitvec::prelude::*;
 
 use g1_base::fmt::{DebugExt, Hex};
 
-use bittorrent_bencode::{borrow, FormatDictionary};
+use bittorrent_bencode::{FormatDictionary, borrow};
 
 use crate::NodeIdBitSlice;
 

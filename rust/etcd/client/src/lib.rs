@@ -14,7 +14,7 @@ use std::time::Duration;
 
 use futures::io::AsyncBufReadExt;
 use futures::stream::{self, BoxStream, Stream, TryStreamExt};
-use reqwest::header::{HeaderName, HeaderValue, AUTHORIZATION};
+use reqwest::header::{AUTHORIZATION, HeaderName, HeaderValue};
 use reqwest::{Response, StatusCode, Url};
 use serde::Deserialize;
 use snafu::prelude::*;

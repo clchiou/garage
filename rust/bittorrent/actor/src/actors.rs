@@ -11,9 +11,9 @@ use bittorrent_tracker::{Tracker, TrackerGuard};
 use bittorrent_transceiver::{Transceiver, TransceiverGuard};
 use bittorrent_utp::UtpSocket;
 
+use crate::Mode;
 use crate::init::{Guards, Init};
 use crate::storage::StorageOpen;
-use crate::Mode;
 
 #[derive(Debug)]
 pub struct Actors {

@@ -1,6 +1,6 @@
 use bittorrent_bencode::serde as serde_bencode;
 
-use crate::message::{response, Error, Message, Payload};
+use crate::message::{Error, Message, Payload, response};
 
 impl<'a> TryFrom<&'a [u8]> for Message<'a> {
     type Error = serde_bencode::Error;

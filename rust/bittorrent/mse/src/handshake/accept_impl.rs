@@ -6,18 +6,18 @@ use bytes::{Buf, BufMut};
 use snafu::prelude::*;
 use tokio::time;
 
-use g1_tokio::bstream::{transform::Transform, StreamBuffer, StreamRecv, StreamSend};
+use g1_tokio::bstream::{StreamBuffer, StreamRecv, StreamSend, transform::Transform};
 
-use bittorrent_base::{payload_size_limit, PROTOCOL_ID};
+use bittorrent_base::{PROTOCOL_ID, payload_size_limit};
 
 use crate::{
-    error::{self, ExpectCryptoProvideSnafu, ExpectPayloadSizeSnafu},
     MseStream,
+    error::{self, ExpectCryptoProvideSnafu, ExpectPayloadSizeSnafu},
 };
 
 use super::{
-    encode_size, load_crypto_provide, timeout, AcceptSide, Handshake, CRYPTO_PLAINTEXT, CRYPTO_RC4,
-    PADDING_SIZE_RANGE, VC,
+    AcceptSide, CRYPTO_PLAINTEXT, CRYPTO_RC4, Handshake, PADDING_SIZE_RANGE, VC, encode_size,
+    load_crypto_provide, timeout,
 };
 
 impl<Stream> Handshake<'_, Stream, AcceptSide>

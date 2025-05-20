@@ -6,9 +6,9 @@ use std::hash::{BuildHasher, Hash};
 use std::ops::Index;
 
 use super::{
+    DefaultHashBuilder,
     index_map::{Entry, HashIndexMap, IdentityAsHash},
     vec_list::VecList,
-    DefaultHashBuilder,
 };
 
 pub use super::vec_list::Cursor;

@@ -9,7 +9,7 @@ pub mod service;
 
 pub use crate::handler::{Handler, HandlerService};
 pub use crate::request::Request;
-pub use crate::response::body::Body;
 pub use crate::response::Response;
+pub use crate::response::body::Body;
 pub use crate::server::{Server, ServerGuard};
 pub use crate::service::Service;

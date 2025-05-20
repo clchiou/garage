@@ -419,18 +419,21 @@ mod test_harness {
 
     impl Scheduler {
         pub fn assert_invariant(&self) {
-            assert!(self
-                .assignments
-                .keys()
-                .all(|peer| self.num_assignments(peer) <= self.max_assignments));
-            assert!(self
-                .assignments
-                .values()
-                .all(|piece| self.num_replicates(piece) <= self.max_replicates));
-            assert!(self
-                .assignments
-                .iter()
-                .all(|(peer, piece)| self.peer_pieces.contains(peer, piece)));
+            assert!(
+                self.assignments
+                    .keys()
+                    .all(|peer| self.num_assignments(peer) <= self.max_assignments)
+            );
+            assert!(
+                self.assignments
+                    .values()
+                    .all(|piece| self.num_replicates(piece) <= self.max_replicates)
+            );
+            assert!(
+                self.assignments
+                    .iter()
+                    .all(|(peer, piece)| self.peer_pieces.contains(peer, piece))
+            );
         }
 
         pub fn assert_peer_pieces<const N: usize>(&self, expect: [(Endpoint, usize); N]) {
@@ -444,11 +447,12 @@ mod test_harness {
         }
 
         pub fn assert_schedule<const N: usize>(&self, expect: [usize; N]) {
-            assert!(self
-                .schedule
-                .iter()
-                .copied()
-                .eq(expect.into_iter().map(PieceIndex::from)));
+            assert!(
+                self.schedule
+                    .iter()
+                    .copied()
+                    .eq(expect.into_iter().map(PieceIndex::from))
+            );
         }
 
         pub fn assert_assignments<const N: usize>(&self, expect: [(Endpoint, usize); N]) {

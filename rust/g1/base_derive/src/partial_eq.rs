@@ -1,5 +1,5 @@
 use proc_macro2::TokenStream;
-use syn::{punctuated::Punctuated, token::Comma, DeriveInput, Error, Field};
+use syn::{DeriveInput, Error, Field, punctuated::Punctuated, token::Comma};
 
 use crate::{
     attr::{self, AttrArgType},

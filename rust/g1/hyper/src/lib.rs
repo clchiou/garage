@@ -6,7 +6,7 @@ use bytes::{BufMut, Bytes, BytesMut};
 use futures::stream::TryStreamExt;
 use http_body_util::BodyDataStream;
 use hyper::body::Body;
-use hyper::header::{HeaderValue, ACCEPT_LANGUAGE, CONTENT_LENGTH};
+use hyper::header::{ACCEPT_LANGUAGE, CONTENT_LENGTH, HeaderValue};
 use hyper::{Error, Request};
 use url::Url;
 

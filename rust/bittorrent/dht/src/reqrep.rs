@@ -13,11 +13,11 @@ use futures::{
 use g1_base::fmt::{DebugExt, Hex};
 use g1_msg::reqrep;
 
-use bittorrent_bencode::{borrow, serde as serde_bencode, FormatDictionary};
+use bittorrent_bencode::{FormatDictionary, borrow, serde as serde_bencode};
 
 use crate::{
-    message::{self, query, response, Message, MessageOwner, Payload},
     NodeContactInfo, NodeId,
+    message::{self, Message, MessageOwner, Payload, query, response},
 };
 
 pub(crate) use g1_msg::reqrep::ReqRepGuard;

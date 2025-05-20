@@ -11,8 +11,8 @@ use tokio::time;
 use g1_cli::{param::ParametersConfig, tracing::TracingConfig};
 
 use ddcache_client::Client;
-use ddcache_rpc::service;
 use ddcache_rpc::Timestamp;
+use ddcache_rpc::service;
 
 #[derive(Debug, Parser)]
 #[command(after_help = ParametersConfig::render())]

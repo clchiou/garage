@@ -86,11 +86,7 @@ where
 
     async fn recv_or_eof(&mut self) -> Result<Option<usize>, Self::Error> {
         let size = self.stream.read_buf(&mut self.recv_buffer).await?;
-        if size == 0 {
-            Ok(None)
-        } else {
-            Ok(Some(size))
-        }
+        if size == 0 { Ok(None) } else { Ok(Some(size)) }
     }
 
     fn buffer(&mut self) -> &mut BytesMut {
@@ -138,11 +134,7 @@ where
 
     async fn recv_or_eof(&mut self) -> Result<Option<usize>, Self::Error> {
         let size = self.stream.read_buf(self.buffer.borrow_mut()).await?;
-        if size == 0 {
-            Ok(None)
-        } else {
-            Ok(Some(size))
-        }
+        if size == 0 { Ok(None) } else { Ok(Some(size)) }
     }
 
     fn buffer(&mut self) -> &mut BytesMut {

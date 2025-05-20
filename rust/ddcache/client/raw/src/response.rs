@@ -4,8 +4,8 @@ use std::time::Duration;
 use tokio::sync::oneshot;
 use tokio::time::Instant;
 
-use ddcache_rpc::rpc_capnp::response;
 use ddcache_rpc::BlobMetadata;
+use ddcache_rpc::rpc_capnp::response;
 
 use crate::blob::RemoteBlob;
 use crate::error::Error;

@@ -8,7 +8,7 @@ use g1_cli::{param::ParametersConfig, tracing::TracingConfig};
 
 use bittorrent_bencode::serde as serde_bencode;
 use bittorrent_metainfo::Metainfo;
-use bittorrent_storage::{file, single, Storage};
+use bittorrent_storage::{Storage, file, single};
 
 #[derive(Debug, Parser)]
 #[command(after_help = ParametersConfig::render())]

@@ -8,7 +8,7 @@ use serde::Deserialize;
 
 use g1_base::fmt::{DebugExt, EscapeAscii};
 
-use bittorrent_bencode::{borrow, FormatDictionary};
+use bittorrent_bencode::{FormatDictionary, borrow};
 
 g1_base::define_owner!(#[derive(Debug)] pub ResponseOwner for Response);
 

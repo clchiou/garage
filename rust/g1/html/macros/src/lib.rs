@@ -599,7 +599,7 @@ mod tests {
             fa(q!("{0.1.2.3}"), [p(q!(x))]),
             q!(::g1_html::FormatArgs::new(
                 &[""],
-                &[(&(x).1 .2 .3, ::g1_html::FormatSpec::None)]
+                &[(&(x).1.2.3, ::g1_html::FormatSpec::None)]
             )),
         );
 

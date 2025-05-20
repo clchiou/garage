@@ -3,16 +3,16 @@ use std::collections::BTreeMap;
 use std::ops::Range;
 
 use bytes::BufMut;
-use serde::{de::Error as _, Serialize};
+use serde::{Serialize, de::Error as _};
 use serde_bytes::Bytes;
 
 use g1_base::fmt::DebugExt;
 
 use bittorrent_bencode::{
-    borrow,
+    FormatDictionary, borrow,
     convert::{from_dict, to_dict, to_int},
     dict::{DictionaryInsert, DictionaryRemove},
-    own, serde as serde_bencode, FormatDictionary,
+    own, serde as serde_bencode,
 };
 
 use crate::Error;

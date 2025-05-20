@@ -10,7 +10,7 @@ use crate::packet::SelectiveAck;
 use crate::timestamp::{self, Timestamp};
 
 use super::{
-    rtt::Rtt, AckExceedSeqSnafu, DifferentEofSnafu, DistantSeqSnafu, Error, SeqExceedEofSnafu,
+    AckExceedSeqSnafu, DifferentEofSnafu, DistantSeqSnafu, Error, SeqExceedEofSnafu, rtt::Rtt,
 };
 
 #[derive(Debug)]

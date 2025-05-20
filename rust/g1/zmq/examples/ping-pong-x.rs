@@ -3,10 +3,10 @@ use std::io::Error;
 use clap::Parser;
 use futures::sink::SinkExt;
 use futures::stream::TryStreamExt;
-use zmq::{Context, Message, DEALER, ROUTER};
+use zmq::{Context, DEALER, Message, ROUTER};
 
-use g1_zmq::duplex::{Duplex, Multipart};
 use g1_zmq::Socket;
+use g1_zmq::duplex::{Duplex, Multipart};
 
 #[derive(Debug, Parser)]
 struct Program {

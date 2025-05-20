@@ -11,9 +11,10 @@ use bittorrent_base::{BlockDesc, Dimension, PieceIndex};
 use bittorrent_metainfo::Info;
 
 use crate::{
+    Bitfield, FileBlockDesc, FileBlockOffset, PieceHash,
     coord::CoordSys,
     io::{self, PieceHasher},
-    metainfo, Bitfield, FileBlockDesc, FileBlockOffset, PieceHash,
+    metainfo,
 };
 
 #[derive(Debug)]
@@ -33,11 +34,7 @@ impl Storage {
             dim,
             paths.iter().filter_map(|(_, size)| {
                 let size = *size;
-                if size > 0 {
-                    Some(size)
-                } else {
-                    None
-                }
+                if size > 0 { Some(size) } else { None }
             }),
         )?;
         // TODO: Is there an async version of `map`?

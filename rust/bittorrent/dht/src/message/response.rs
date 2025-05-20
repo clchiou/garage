@@ -6,12 +6,12 @@ use bytes::{Bytes, BytesMut};
 use g1_base::fmt::{DebugExt, Hex};
 
 use bittorrent_base::{
-    compact::{self, Compact},
     NODE_ID_SIZE,
+    compact::{self, Compact},
 };
-use bittorrent_bencode::{borrow, FormatDictionary};
+use bittorrent_bencode::{FormatDictionary, borrow};
 
-use crate::{message, NodeContactInfo, NodeId};
+use crate::{NodeContactInfo, NodeId, message};
 
 g1_base::define_owner!(#[derive(Debug)] pub(crate) PingOwner for Ping);
 g1_base::impl_owner_try_from!(message::MessageOwner for PingOwner);

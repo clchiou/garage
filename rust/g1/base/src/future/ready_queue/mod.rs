@@ -137,8 +137,8 @@ pub(crate) mod test_harness {
     use std::marker::PhantomData;
     use std::pin::Pin;
     use std::sync::{
-        atomic::{AtomicUsize, Ordering},
         Arc,
+        atomic::{AtomicUsize, Ordering},
     };
     use std::task::{Context, Poll, Wake, Waker};
 

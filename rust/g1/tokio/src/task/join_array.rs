@@ -7,7 +7,7 @@ use tokio::time::{self, Instant};
 
 use g1_base::future::ReadyArray;
 
-use super::join_guard::{self, Cancel, JoinGuard, ShutdownError, SHUTDOWN_TIMEOUT};
+use super::join_guard::{self, Cancel, JoinGuard, SHUTDOWN_TIMEOUT, ShutdownError};
 
 #[derive(Debug)]
 pub struct JoinArray<T: Unpin, const N: usize>(ReadyArray<JoinCell<T>, N>);
