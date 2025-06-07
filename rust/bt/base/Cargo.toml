@@ -5,6 +5,7 @@ edition.workspace = true
 
 [dependencies]
 bitvec.workspace = true
+bytes.workspace = true
 rand.workspace = true
 serde.workspace = true
 snafu.workspace = true
