@@ -1,3 +1,8 @@
+use std::iter::Copied;
+use std::slice::Iter;
+
+use crate::iter;
+
 pub trait SliceExt {
     fn find(&self, pattern: &Self) -> Option<usize>;
 }
@@ -14,6 +19,20 @@ where
             .position(|slice| slice == pattern)
     }
 }
+
+pub trait ByteSliceExt {
+    fn unescape_ascii(&self) -> UnescapeAscii<'_>;
+}
+
+impl ByteSliceExt for [u8] {
+    fn unescape_ascii(&self) -> UnescapeAscii<'_> {
+        UnescapeAscii::new(self.iter().copied())
+    }
+}
+
+pub type UnescapeAscii<'a> = iter::UnescapeAscii<Copied<Iter<'a, u8>>>;
+
+pub use iter::UnescapeAsciiError;
 
 #[cfg(test)]
 mod tests {
