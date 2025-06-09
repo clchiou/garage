@@ -6,9 +6,11 @@ edition.workspace = true
 [dependencies]
 bitvec.workspace = true
 bytes.workspace = true
+lazy-regex.workspace = true
 rand.workspace = true
 serde.workspace = true
 snafu.workspace = true
+url.workspace = true
 
 g1_base.workspace = true
 
