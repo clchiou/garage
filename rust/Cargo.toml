@@ -17,6 +17,7 @@ members = [
     "bittorrent/udp",
     "bittorrent/utp",
     "bt/base",
+    "bt/bencode",
     "ddcache/bin/ddcached",
     "ddcache/client",
     "ddcache/client/raw",
@@ -155,6 +156,7 @@ bittorrent_udp = { path = "bittorrent/udp" }
 bittorrent_utp = { path = "bittorrent/utp" }
 
 bt_base = { path = "bt/base" }
+bt_bencode = { path = "bt/bencode" }
 
 ddcache_client = { path = "ddcache/client" }
 ddcache_client_raw = { path = "ddcache/client/raw" }
