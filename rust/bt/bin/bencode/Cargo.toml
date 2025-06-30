@@ -1,0 +1,11 @@
+[package]
+name = "bencode"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+clap.workspace = true
+serde_json.workspace = true
+serde_yaml.workspace = true
+
+bt_bencode.workspace = true

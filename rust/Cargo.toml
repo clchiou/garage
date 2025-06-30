@@ -18,6 +18,7 @@ members = [
     "bittorrent/utp",
     "bt/base",
     "bt/bencode",
+    "bt/bin/bencode",
     "ddcache/bin/ddcached",
     "ddcache/client",
     "ddcache/client/raw",
