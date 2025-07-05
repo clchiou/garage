@@ -1,0 +1,13 @@
+[package]
+name = "bt_metainfo"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+serde = { workspace = true, features = ["derive"] }
+snafu.workspace = true
+
+g1_chrono.workspace = true
+
+bt_base.workspace = true
+bt_bencode.workspace = true
