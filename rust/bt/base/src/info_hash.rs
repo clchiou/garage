@@ -5,6 +5,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
+use sha1::{Digest, Sha1};
 use snafu::prelude::*;
 
 use g1_base::fmt::{DebugExt, Hex};
@@ -84,6 +85,15 @@ impl From<Arc<[u8; INFO_HASH_SIZE]>> for InfoHash {
 impl From<[u8; INFO_HASH_SIZE]> for InfoHash {
     fn from(info_hash: [u8; INFO_HASH_SIZE]) -> Self {
         Self(info_hash.into())
+    }
+}
+
+impl InfoHash {
+    pub fn digest<T>(data: T) -> Self
+    where
+        T: AsRef<[u8]>,
+    {
+        Self(Arc::new(Sha1::digest(data).into()))
     }
 }
 
@@ -169,5 +179,19 @@ mod tests {
                 }),
             );
         }
+    }
+
+    #[test]
+    fn digest() {
+        fn test(data: &[u8], expect: &str) {
+            let expect = expect.parse::<InfoHash>().unwrap();
+            assert_eq!(InfoHash::digest(data), expect);
+        }
+
+        test(b"", "da39a3ee5e6b4b0d3255bfef95601890afd80709");
+        test(
+            b"The quick brown fox jumps over the lazy dog",
+            "2fd4e1c67a2d28fced849ee1bb76e7391b93eb12",
+        );
     }
 }
