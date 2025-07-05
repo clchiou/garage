@@ -1,0 +1,10 @@
+[package]
+name = "metainfo"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+clap.workspace = true
+
+bt_bencode.workspace = true
+bt_metainfo.workspace = true

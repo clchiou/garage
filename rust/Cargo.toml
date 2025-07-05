@@ -19,6 +19,7 @@ members = [
     "bt/base",
     "bt/bencode",
     "bt/bin/bencode",
+    "bt/bin/metainfo",
     "bt/metainfo",
     "ddcache/bin/ddcached",
     "ddcache/client",
