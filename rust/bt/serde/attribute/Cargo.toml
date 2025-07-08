@@ -1,0 +1,15 @@
+[package]
+name = "bt_serde_attribute"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2.workspace = true
+quote.workspace = true
+syn.workspace = true
+
+[dev-dependencies]
+syn = { workspace = true, features = ["extra-traits"] }

@@ -1,0 +1,13 @@
+[package]
+name = "bt_serde"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+serde.workspace = true
+
+bt_serde_attribute.workspace = true
+
+[dev-dependencies]
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
