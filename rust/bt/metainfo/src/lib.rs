@@ -1,32 +1,25 @@
 #![feature(debug_closure_helpers)]
 
-mod optional;
 mod sanity;
 
+use std::fmt;
 use std::sync::OnceLock;
 
+use serde::de::{Deserializer, Error as _};
+use serde::ser::Serializer;
 use serde::{Deserialize, Serialize};
 
 use bt_base::{InfoHash, Md5Hash, PieceHashes};
 use bt_bencode::{Value, WithRaw};
-
-//
-// Implementer's Notes: Almost all fields are optional.  `bt_bencode` does not have the concept of
-// an "optional field" and treats an `Option<T>` field as a list field.  Here, we introduce this
-// concept and treat it as a present/absent `T` field.
-//
-// TODO: We use `serde(default, skip_serializing_if = "Option::is_none", with = "optional")` to
-// implement optional fields.  This approach is repetitive and cumbersome.  Could we introduce a
-// container attribute, similar to `serde_with::skip_serializing_none`?
-//
+use bt_serde::SerdeWith;
 
 pub use g1_chrono::{Timestamp, TimestampExt};
 
 pub use self::sanity::{Insane, Symptom};
 
+#[bt_serde::optional]
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Metainfo {
-    #[serde(default, skip_serializing_if = "Option::is_none", with = "optional")]
     announce: Option<String>,
 
     info: WithRaw<Info>,
@@ -35,37 +28,27 @@ pub struct Metainfo {
 
     // BEP 12 Multitracker Metadata Extension
     #[serde(rename = "announce-list")]
-    #[serde(default, skip_serializing_if = "Option::is_none", with = "optional")]
     announce_list: Option<Vec<Vec<String>>>,
 
     // BEP 5 DHT Protocol
-    #[serde(default, skip_serializing_if = "Option::is_none", with = "optional")]
     nodes: Option<Vec<(String, u16)>>,
 
     // BEP 19 WebSeed - HTTP/FTP Seeding (GetRight style)
     #[serde(rename = "url-list")]
-    #[serde(default, skip_serializing_if = "Option::is_none", with = "optional")]
     url_list: Option<Vec<String>>,
 
     //
     // Non-BEP fields.
     //
-    #[serde(default, skip_serializing_if = "Option::is_none", with = "optional")]
     comment: Option<String>,
 
     #[serde(rename = "created by")]
-    #[serde(default, skip_serializing_if = "Option::is_none", with = "optional")]
     created_by: Option<String>,
 
     #[serde(rename = "creation date")]
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        with = "optional::timestamp"
-    )]
+    #[optional(with = "TimestampSerdeWith")]
     creation_date: Option<Timestamp>,
 
-    #[serde(default, skip_serializing_if = "Option::is_none", with = "optional")]
     encoding: Option<String>,
 
     #[serde(flatten)]
@@ -109,6 +92,7 @@ pub enum Mode {
     },
 }
 
+#[bt_serde::optional]
 #[derive(Deserialize, Serialize)]
 struct FlatInfo {
     name: String,
@@ -117,22 +101,19 @@ struct FlatInfo {
     pieces: PieceHashes,
 
     // Mode::Single
-    #[serde(default, skip_serializing_if = "Option::is_none", with = "optional")]
     length: Option<u64>,
-    #[serde(default, skip_serializing_if = "Option::is_none", with = "optional")]
     md5sum: Option<Md5Hash>,
 
     // Mode::Multiple
-    #[serde(default, skip_serializing_if = "Option::is_none", with = "optional")]
     files: Option<Vec<File>>,
 
-    #[serde(default, skip_serializing_if = "Option::is_none", with = "optional")]
     private: Option<bool>,
 
     #[serde(flatten)]
     extra: Value,
 }
 
+#[bt_serde::optional]
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct File {
     length: u64,
@@ -141,7 +122,6 @@ pub struct File {
     //
     // Non-BEP fields.
     //
-    #[serde(default, skip_serializing_if = "Option::is_none", with = "optional")]
     md5sum: Option<Md5Hash>,
 
     #[serde(flatten)]
@@ -202,6 +182,31 @@ impl From<Info> for FlatInfo {
             private,
             extra,
         }
+    }
+}
+
+struct TimestampSerdeWith;
+
+impl SerdeWith for TimestampSerdeWith {
+    type Value = Timestamp;
+
+    fn deserialize<'de, D>(deserializer: D) -> Result<Self::Value, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let secs = i64::deserialize(deserializer)?;
+        Timestamp::from_timestamp(secs, 0).ok_or_else(|| {
+            D::Error::custom(fmt::from_fn(|f| {
+                std::write!(f, "invalid timestamp: {secs}")
+            }))
+        })
+    }
+
+    fn serialize<S>(value: &Self::Value, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        value.timestamp().serialize(serializer)
     }
 }
 

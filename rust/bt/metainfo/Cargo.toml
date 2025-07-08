@@ -11,3 +11,4 @@ g1_chrono.workspace = true
 
 bt_base.workspace = true
 bt_bencode.workspace = true
+bt_serde.workspace = true
