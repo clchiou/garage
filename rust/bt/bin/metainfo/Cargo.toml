@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+bytes.workspace = true
 clap.workspace = true
 
 bt_bencode.workspace = true

@@ -1,6 +1,7 @@
 use std::error;
-use std::io::{self, Write};
+use std::io::{self, Read, Write};
 
+use bytes::Bytes;
 use clap::{Parser, Subcommand};
 
 #[derive(Debug, Parser)]
@@ -20,12 +21,16 @@ type Error = Box<dyn error::Error>;
 
 impl Metainfo {
     fn execute(&self) -> Result<(), Error> {
+        let mut buffer = Vec::new();
+        io::stdin().read_to_end(&mut buffer)?;
+        let mut buffer = Bytes::from(buffer);
+
         // The `info` dictionary must be strict.
-        let Some(metainfo) =
-            bt_bencode::from_reader_strict::<_, bt_metainfo::Metainfo>(io::stdin())?
-        else {
-            return Err(bt_bencode::error::Error::Eof.into());
-        };
+        let metainfo = bt_bencode::from_buf_strict::<_, bt_metainfo::Metainfo>(&mut buffer)?;
+
+        if !buffer.is_empty() {
+            return Err(std::format!("trailing data: \"{}\"", buffer.escape_ascii()).into());
+        }
 
         metainfo.sanity_check()?;
 
