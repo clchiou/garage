@@ -298,7 +298,7 @@ mod tests {
 
     use serde::de::DeserializeOwned;
 
-    use bt_bencode::own::bytes::{ByteString, Integer};
+    use bt_bencode::bencode;
 
     use super::*;
 
@@ -323,9 +323,9 @@ mod tests {
                     created_by: None,
                     creation_date: None,
                     encoding: None,
-                    extra: vd([]),
+                    extra: bencode!({}),
                 },
-                vd([(b"info", info_dict.clone())]),
+                bencode!({b"info": info_dict.clone()}),
             ),
             (
                 Metainfo {
@@ -339,20 +339,20 @@ mod tests {
                     created_by: Some("world".to_string()),
                     creation_date: Some(Timestamp::from_timestamp_secs(42).unwrap()),
                     encoding: Some("xyz".to_string()),
-                    extra: vd([(b"", vb(b""))]),
+                    extra: bencode!({b"": b""}),
                 },
-                vd([
-                    (b"announce", vb(b"foo")),
-                    (b"info", info_dict),
-                    (b"announce-list", vl([vl([vb(b"bar")])])),
-                    (b"nodes", vl([vl([vb(b"spam"), vi(101)])])),
-                    (b"url-list", vl([vb(b"egg")])),
-                    (b"comment", vb(b"hello")),
-                    (b"created by", vb(b"world")),
-                    (b"creation date", vi(42)),
-                    (b"encoding", vb(b"xyz")),
-                    (b"", vb(b"")),
-                ]),
+                bencode!({
+                    b"announce": b"foo",
+                    b"info": info_dict,
+                    b"announce-list": [[b"bar"]],
+                    b"nodes": [[b"spam", 101]],
+                    b"url-list": [b"egg"],
+                    b"comment": b"hello",
+                    b"created by": b"world",
+                    b"creation date": 42,
+                    b"encoding": b"xyz",
+                    b"": b"",
+                }),
             ),
         ]
     }
@@ -377,14 +377,14 @@ mod tests {
                         md5sum: None,
                     },
                     private: None,
-                    extra: vd([]),
+                    extra: bencode!({}),
                 },
-                vd([
-                    (b"name", vb(b"")),
-                    (b"piece length", vi(0)),
-                    (b"pieces", vb(b"")),
-                    (b"length", vi(0)),
-                ]),
+                bencode!({
+                    b"name": b"",
+                    b"piece length": 0,
+                    b"pieces": b"",
+                    b"length": 0,
+                }),
             ),
             (
                 Info {
@@ -396,18 +396,18 @@ mod tests {
                         md5sum: Some(MD5_HASH_TESTDATA.parse().unwrap()),
                     },
                     private: Some(false),
-                    extra: vd([(b"x", vi(2)), (b"spam", vb(b"egg"))]),
+                    extra: bencode!({b"x": 2, b"spam": b"egg"}),
                 },
-                vd([
-                    (b"name", vb(b"foo")),
-                    (b"piece length", vi(256)),
-                    (b"pieces", vb(&[0u8; 20])),
-                    (b"length", vi(42)),
-                    (b"md5sum", vb(MD5_HASH_TESTDATA.as_bytes())),
-                    (b"private", vi(0)),
-                    (b"x", vi(2)),
-                    (b"spam", vb(b"egg")),
-                ]),
+                bencode!({
+                    b"name": b"foo",
+                    b"piece length": 256,
+                    b"pieces": &[0u8; 20],
+                    b"length": 42,
+                    b"md5sum": MD5_HASH_TESTDATA.as_bytes(),
+                    b"private": 0,
+                    b"x": 2,
+                    b"spam": b"egg",
+                }),
             ),
             (
                 Info {
@@ -416,16 +416,16 @@ mod tests {
                     pieces: PieceHashes::new([0u8; 40].into()).unwrap(),
                     mode: Mode::Multiple { files: vec![] },
                     private: Some(true),
-                    extra: vd([(b"", vb(b""))]),
+                    extra: bencode!({b"": b""}),
                 },
-                vd([
-                    (b"name", vb(b"hello")),
-                    (b"piece length", vi(13)),
-                    (b"pieces", vb(&[0u8; 40])),
-                    (b"files", vl([])),
-                    (b"private", vi(1)),
-                    (b"", vb(b"")),
-                ]),
+                bencode!({
+                    b"name": b"hello",
+                    b"piece length": 13,
+                    b"pieces": &[0u8; 40],
+                    b"files": [],
+                    b"private": 1,
+                    b"": b"",
+                }),
             ),
             (
                 Info {
@@ -434,16 +434,16 @@ mod tests {
                     pieces: PieceHashes::new([0u8; 60].into()).unwrap(),
                     mode: Mode::Multiple { files },
                     private: Some(true),
-                    extra: vd([(b"\x80", vb(b"\x80"))]),
+                    extra: bencode!({b"\x80": b"\x80"}),
                 },
-                vd([
-                    (b"name", vb(b"world")),
-                    (b"piece length", vi(17)),
-                    (b"pieces", vb(&[0u8; 60])),
-                    (b"files", file_list),
-                    (b"private", vi(1)),
-                    (b"\x80", vb(b"\x80")),
-                ]),
+                bencode!({
+                    b"name": b"world",
+                    b"piece length": 17,
+                    b"pieces": &[0u8; 60],
+                    b"files": file_list,
+                    b"private": 1,
+                    b"\x80": b"\x80",
+                }),
             ),
         ]
     }
@@ -455,47 +455,26 @@ mod tests {
                     length: 0,
                     path: vec![],
                     md5sum: None,
-                    extra: vd([]),
+                    extra: bencode!({}),
                 },
-                vd([(b"length", vi(0)), (b"path", vl([]))]),
+                bencode!({b"length": 0, b"path": []}),
             ),
             (
                 File {
                     length: 42,
                     path: vec!["foo".to_string()],
                     md5sum: Some(MD5_HASH_TESTDATA.parse().unwrap()),
-                    extra: vd([(b"x", vi(2)), (b"spam", vb(b"egg"))]),
+                    extra: bencode!({b"x": 2, b"spam": b"egg"}),
                 },
-                vd([
-                    (b"length", vi(42)),
-                    (b"path", vl([vb(b"foo")])),
-                    (b"md5sum", vb(MD5_HASH_TESTDATA.as_bytes())),
-                    (b"x", vi(2)),
-                    (b"spam", vb(b"egg")),
-                ]),
+                bencode!({
+                    b"length": 42,
+                    b"path": [b"foo"],
+                    b"md5sum": MD5_HASH_TESTDATA.as_bytes(),
+                    b"x": 2,
+                    b"spam": b"egg",
+                }),
             ),
         ]
-    }
-
-    fn vb(bytes: &[u8]) -> Value {
-        Value::ByteString(ByteString::copy_from_slice(bytes))
-    }
-
-    fn vi(integer: Integer) -> Value {
-        Value::Integer(integer)
-    }
-
-    fn vl<const N: usize>(items: [Value; N]) -> Value {
-        Value::List(items.into())
-    }
-
-    fn vd<const N: usize>(items: [(&[u8], Value); N]) -> Value {
-        Value::Dictionary(
-            items
-                .into_iter()
-                .map(|(k, v)| (ByteString::copy_from_slice(k), v))
-                .collect(),
-        )
     }
 
     fn test<T>(object: T, value: Value)

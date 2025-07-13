@@ -187,7 +187,7 @@ impl File {
 #[cfg(test)]
 mod tests {
     use bt_base::PieceHashes;
-    use bt_bencode::Value;
+    use bt_bencode::bencode;
 
     use super::*;
 
@@ -217,7 +217,7 @@ mod tests {
             length,
             path: v(path),
             md5sum: None,
-            extra: Value::Dictionary([].into()),
+            extra: bencode!({}),
         }
     }
 
@@ -246,8 +246,16 @@ mod tests {
             }
         }
 
-        let metainfo = b"d4:infod4:name3:foo12:piece lengthi1e6:pieces20:\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x006:lengthi1eee";
-        let metainfo = bt_bencode::from_buf::<_, Metainfo>(metainfo.as_slice()).unwrap();
+        let metainfo = bt_bencode::to_bytes(&bencode!({
+            b"info": {
+                b"name": b"foo",
+                b"piece length": 1,
+                b"pieces": ([0u8; 20]),
+                b"length": 1,
+            },
+        }))
+        .unwrap();
+        let metainfo = bt_bencode::from_buf::<_, Metainfo>(metainfo).unwrap();
         test_metainfo(&metainfo, &[]);
 
         test_metainfo(
@@ -270,8 +278,16 @@ mod tests {
             );
         }
 
-        let metainfo = b"d4:infod4:name0:12:piece lengthi0e6:pieces0:6:lengthi1eee";
-        let metainfo = bt_bencode::from_buf::<_, Metainfo>(metainfo.as_slice()).unwrap();
+        let metainfo = bt_bencode::to_bytes(&bencode!({
+            b"info": {
+                b"name": b"",
+                b"piece length": 0,
+                b"pieces": b"",
+                b"length": 1,
+            },
+        }))
+        .unwrap();
+        let metainfo = bt_bencode::from_buf::<_, Metainfo>(metainfo).unwrap();
         test_metainfo(
             &metainfo,
             &[
@@ -291,7 +307,7 @@ mod tests {
             pieces: PieceHashes::new([0; 20].into()).unwrap(),
             mode: s(1),
             private: None,
-            extra: Value::Dictionary([].into()),
+            extra: bencode!({}),
         };
         test(&info, &[]);
 
