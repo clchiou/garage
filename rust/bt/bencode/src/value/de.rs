@@ -450,8 +450,8 @@ mod tests {
     use bytes::Bytes;
 
     use crate::testing::{
-        Enum, Flatten, Ignored, Newtype, StrictEnum, StrictStruct, Struct, Tuple, Unit, vb, vd, vi,
-        vl,
+        AdjacentlyTagged, Enum, Flatten, Ignored, InternallyTagged, Newtype, StrictEnum,
+        StrictStruct, Struct, Tuple, Unit, Untagged, vb, vd, vi, vl,
     };
 
     use super::*;
@@ -799,6 +799,43 @@ mod tests {
                 "a",
                 vec![HashMap::from([("b", vec![HashMap::from([("c", "d")])])])],
             )])),
+        );
+    }
+
+    //
+    // TODO: It is unfortunate that we cannot support deserialization for non-default enum
+    // representations.  Bencode, being a rather limited data format, requires that a caller
+    // provide hints to the deserializer to correctly deserialize Serde data types such as `bool`
+    // and `char`.  However, the way Serde implements deserialization for non-default enum
+    // representations breaks this tight coupling.
+    //
+    #[test]
+    fn enum_repr() {
+        test_err::<InternallyTagged>(
+            vd([(b"t", vb(b"Bool")), (b"value", vi(1))]),
+            "invalid type: integer `1`, expected a boolean",
+        );
+        test_err::<InternallyTagged>(
+            vd([(b"t", vb(b"Char")), (b"value", vb(b"c"))]),
+            "invalid type: byte array, expected a char",
+        );
+
+        test_err::<AdjacentlyTagged>(
+            vd([(b"t", vb(b"Bool")), (b"c", vd([(b"value", vi(1))]))]),
+            "invalid type: integer `1`, expected a boolean",
+        );
+        test_err::<AdjacentlyTagged>(
+            vd([(b"t", vb(b"Char")), (b"c", vd([(b"value", vb(b"c"))]))]),
+            "invalid type: byte array, expected a char",
+        );
+
+        test_err::<Untagged>(
+            vd([(b"value", vi(1))]),
+            "data did not match any variant of untagged enum Untagged",
+        );
+        test_err::<Untagged>(
+            vd([(b"value", vb(b"c"))]),
+            "data did not match any variant of untagged enum Untagged",
         );
     }
 

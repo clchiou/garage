@@ -481,7 +481,8 @@ mod tests {
     use bytes::Bytes;
 
     use crate::testing::{
-        Enum, Flatten, Ignored, Newtype, StrictEnum, StrictStruct, Struct, Tuple, Unit, vb, vd, vi,
+        AdjacentlyTagged, Enum, Flatten, Ignored, InternallyTagged, Newtype, StrictEnum,
+        StrictStruct, Struct, Tuple, Unit, Untagged, vb, vd, vi,
     };
 
     use super::*;
@@ -911,6 +912,43 @@ mod tests {
                 "a",
                 vec![HashMap::from([("b", vec![HashMap::from([("c", "d")])])])],
             )])),
+        );
+    }
+
+    //
+    // TODO: It is unfortunate that we cannot support deserialization for non-default enum
+    // representations.  Bencode, being a rather limited data format, requires that a caller
+    // provide hints to the deserializer to correctly deserialize Serde data types such as `bool`
+    // and `char`.  However, the way Serde implements deserialization for non-default enum
+    // representations breaks this tight coupling.
+    //
+    #[test]
+    fn enum_repr() {
+        test_err::<InternallyTagged>(
+            b"d1:t4:Bool5:valuei1ee",
+            "invalid type: integer `1`, expected a boolean",
+        );
+        test_err::<InternallyTagged>(
+            b"d1:t4:Char5:value1:ce",
+            "invalid type: byte array, expected a char",
+        );
+
+        test_err::<AdjacentlyTagged>(
+            b"d1:cd5:valuei1ee1:t4:Boole",
+            "invalid type: integer `1`, expected a boolean",
+        );
+        test_err::<AdjacentlyTagged>(
+            b"d1:cd5:value1:ce1:t4:Chare",
+            "invalid type: byte array, expected a char",
+        );
+
+        test_err::<Untagged>(
+            b"d5:valuei1ee",
+            "data did not match any variant of untagged enum Untagged",
+        );
+        test_err::<Untagged>(
+            b"d5:value1:ce",
+            "data did not match any variant of untagged enum Untagged",
         );
     }
 

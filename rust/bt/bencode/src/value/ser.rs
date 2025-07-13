@@ -459,7 +459,10 @@ mod tests {
     use bytes::Bytes;
 
     use crate::int::Int;
-    use crate::testing::{Enum, Flatten, Ignored, Newtype, Struct, Tuple, Unit, vb, vd, vi, vl};
+    use crate::testing::{
+        AdjacentlyTagged, Enum, Flatten, Ignored, InternallyTagged, Newtype, Struct, Tuple, Unit,
+        Untagged, vb, vd, vi, vl,
+    };
 
     use super::*;
 
@@ -660,6 +663,36 @@ mod tests {
                 b"a",
                 vl([vd([(b"b", vl([vd([(b"c", vb(b"d"))])]))])]),
             )])),
+        );
+    }
+
+    #[test]
+    fn enum_repr() {
+        test(
+            InternallyTagged::Bool { value: true },
+            Ok(vd([(b"t", vb(b"Bool")), (b"value", vi(1))])),
+        );
+        test(
+            InternallyTagged::Char { value: 'c' },
+            Ok(vd([(b"t", vb(b"Char")), (b"value", vb(b"c"))])),
+        );
+
+        test(
+            AdjacentlyTagged::Bool { value: true },
+            Ok(vd([(b"t", vb(b"Bool")), (b"c", vd([(b"value", vi(1))]))])),
+        );
+        test(
+            AdjacentlyTagged::Char { value: 'c' },
+            Ok(vd([
+                (b"t", vb(b"Char")),
+                (b"c", vd([(b"value", vb(b"c"))])),
+            ])),
+        );
+
+        test(Untagged::Bool { value: true }, Ok(vd([(b"value", vi(1))])));
+        test(
+            Untagged::Char { value: 'c' },
+            Ok(vd([(b"value", vb(b"c"))])),
         );
     }
 

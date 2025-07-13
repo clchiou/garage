@@ -55,6 +55,27 @@ pub(crate) enum Enum {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(tag = "t")]
+pub(crate) enum InternallyTagged {
+    Bool { value: bool },
+    Char { value: char },
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(tag = "t", content = "c")]
+pub(crate) enum AdjacentlyTagged {
+    Bool { value: bool },
+    Char { value: char },
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(untagged)]
+pub(crate) enum Untagged {
+    Bool { value: bool },
+    Char { value: char },
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct StrictStruct {
     pub(crate) x: u8,

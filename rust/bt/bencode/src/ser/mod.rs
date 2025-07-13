@@ -459,7 +459,10 @@ mod tests {
     use serde::ser::Error as _;
 
     use crate::int::Int;
-    use crate::testing::{Enum, Flatten, Ignored, Newtype, Struct, Tuple, Unit, vb, vd, vi, vl};
+    use crate::testing::{
+        AdjacentlyTagged, Enum, Flatten, Ignored, InternallyTagged, Newtype, Struct, Tuple, Unit,
+        Untagged, vb, vd, vi, vl,
+    };
 
     use super::*;
 
@@ -667,6 +670,30 @@ mod tests {
             )]),
             b"d1:ald1:bld1:c1:deeeee",
         );
+    }
+
+    #[test]
+    fn enum_repr() {
+        test(
+            InternallyTagged::Bool { value: true },
+            b"d1:t4:Bool5:valuei1ee",
+        );
+        test(
+            InternallyTagged::Char { value: 'c' },
+            b"d1:t4:Char5:value1:ce",
+        );
+
+        test(
+            AdjacentlyTagged::Bool { value: true },
+            b"d1:cd5:valuei1ee1:t4:Boole",
+        );
+        test(
+            AdjacentlyTagged::Char { value: 'c' },
+            b"d1:cd5:value1:ce1:t4:Chare",
+        );
+
+        test(Untagged::Bool { value: true }, b"d5:valuei1ee");
+        test(Untagged::Char { value: 'c' }, b"d5:value1:ce");
     }
 
     #[test]
