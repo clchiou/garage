@@ -35,14 +35,20 @@ where
     }
 }
 
-pub(crate) struct Serializer<B>(PhantomData<B>);
+pub struct Serializer<B>(PhantomData<B>);
 
-pub(crate) struct ListSerializer<B, T>(List<B>, T);
+pub struct ListSerializer<B, T>(List<B>, T);
 
-pub(crate) struct DictionarySerializer<B, T>(Dictionary<B>, T);
+pub struct DictionarySerializer<B, T>(Dictionary<B>, T);
+
+impl<B> Default for Serializer<B> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl<B> Serializer<B> {
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         Self(PhantomData)
     }
 }

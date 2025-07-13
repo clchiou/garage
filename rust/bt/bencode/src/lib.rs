@@ -7,6 +7,7 @@ pub mod borrow;
 pub mod error;
 pub mod macros;
 pub mod own;
+pub mod value;
 
 mod bstr;
 mod de;
@@ -16,7 +17,6 @@ mod json;
 mod mut_ref;
 mod raw;
 mod ser;
-mod value;
 mod yaml;
 
 #[cfg(test)]

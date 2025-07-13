@@ -1,6 +1,7 @@
+pub mod ser;
+
 pub(crate) mod de;
 pub(crate) mod de_impl;
-pub(crate) mod ser;
 
 mod int;
 mod ser_impl;
