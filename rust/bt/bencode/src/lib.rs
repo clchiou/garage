@@ -5,6 +5,7 @@
 
 pub mod borrow;
 pub mod error;
+pub mod macros;
 pub mod own;
 
 mod bstr;
