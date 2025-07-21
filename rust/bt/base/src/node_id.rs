@@ -13,6 +13,8 @@ use snafu::prelude::*;
 use g1_base::fmt::{DebugExt, Hex};
 use g1_base::str;
 
+use crate::info_hash::InfoHash;
+
 //
 // Implementer's Notes: BEP 5 does not appear to specify which endianness should be used to
 // interpret the node id or info hash as a 160-bit integer.  For now, I assume it is network endian
@@ -142,6 +144,10 @@ impl Borrow<[u8]> for NodeId {
 }
 
 impl NodeId {
+    pub fn pretend(InfoHash(bytes): InfoHash) -> Self {
+        Self(bytes)
+    }
+
     pub fn bits(&self) -> &NodeIdBitSlice {
         self.0.view_bits()
     }

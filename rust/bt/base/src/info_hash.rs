@@ -12,7 +12,7 @@ use g1_base::fmt::{DebugExt, Hex};
 use g1_base::str;
 
 #[derive(Clone, DebugExt, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct InfoHash(#[debug(with = Hex)] Arc<[u8; INFO_HASH_SIZE]>);
+pub struct InfoHash(#[debug(with = Hex)] pub(crate) Arc<[u8; INFO_HASH_SIZE]>);
 
 pub const INFO_HASH_SIZE: usize = 20;
 
