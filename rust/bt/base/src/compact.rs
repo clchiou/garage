@@ -59,7 +59,7 @@ pub trait CompactDecode: CompactSize {
 }
 
 pub trait CompactEncode: CompactSize {
-    fn encode(&self, buffer: &mut BytesMut);
+    fn encode<B: BufMut>(&self, buffer: B);
 
     fn encode_many<I>(items: I, buffer: &mut BytesMut)
     where
@@ -68,7 +68,7 @@ pub trait CompactEncode: CompactSize {
         let items = items.into_iter();
         buffer.reserve(items.size_hint().0 * Self::SIZE);
         for item in items {
-            item.encode(buffer);
+            item.encode(&mut *buffer);
         }
     }
 
@@ -91,7 +91,7 @@ impl CompactDecode for u16 {
 }
 
 impl CompactEncode for u16 {
-    fn encode(&self, buffer: &mut BytesMut) {
+    fn encode<B: BufMut>(&self, mut buffer: B) {
         buffer.put_u16(*self);
     }
 }
@@ -107,7 +107,7 @@ impl CompactDecode for Ipv4Addr {
 }
 
 impl CompactEncode for Ipv4Addr {
-    fn encode(&self, buffer: &mut BytesMut) {
+    fn encode<B: BufMut>(&self, mut buffer: B) {
         buffer.put_slice(self.as_octets());
     }
 }
@@ -123,7 +123,7 @@ impl CompactDecode for Ipv6Addr {
 }
 
 impl CompactEncode for Ipv6Addr {
-    fn encode(&self, buffer: &mut BytesMut) {
+    fn encode<B: BufMut>(&self, mut buffer: B) {
         buffer.put_slice(self.as_octets());
     }
 }
@@ -140,7 +140,7 @@ impl CompactDecode for SocketAddrV4 {
 }
 
 impl CompactEncode for SocketAddrV4 {
-    fn encode(&self, buffer: &mut BytesMut) {
+    fn encode<B: BufMut>(&self, buffer: B) {
         (self.ip(), self.port()).encode(buffer);
     }
 }
@@ -157,7 +157,7 @@ impl CompactDecode for SocketAddrV6 {
 }
 
 impl CompactEncode for SocketAddrV6 {
-    fn encode(&self, buffer: &mut BytesMut) {
+    fn encode<B: BufMut>(&self, buffer: B) {
         (self.ip(), self.port()).encode(buffer);
     }
 }
@@ -173,7 +173,7 @@ impl CompactDecode for NodeId {
 }
 
 impl CompactEncode for NodeId {
-    fn encode(&self, buffer: &mut BytesMut) {
+    fn encode<B: BufMut>(&self, mut buffer: B) {
         buffer.put_slice(self.as_ref());
     }
 }
@@ -190,7 +190,7 @@ impl<T> CompactEncode for &T
 where
     T: CompactEncode,
 {
-    fn encode(&self, buffer: &mut BytesMut) {
+    fn encode<B: BufMut>(&self, buffer: B) {
         (*self).encode(buffer);
     }
 }
@@ -219,9 +219,9 @@ where
     T0: CompactEncode,
     T1: CompactEncode,
 {
-    fn encode(&self, buffer: &mut BytesMut) {
-        self.0.encode(buffer);
-        self.1.encode(buffer);
+    fn encode<B: BufMut>(&self, mut buffer: B) {
+        self.0.encode(&mut buffer);
+        self.1.encode(&mut buffer);
     }
 }
 
@@ -257,10 +257,10 @@ where
     T1: CompactEncode,
     T2: CompactEncode,
 {
-    fn encode(&self, buffer: &mut BytesMut) {
-        self.0.encode(buffer);
-        self.1.encode(buffer);
-        self.2.encode(buffer);
+    fn encode<B: BufMut>(&self, mut buffer: B) {
+        self.0.encode(&mut buffer);
+        self.1.encode(&mut buffer);
+        self.2.encode(&mut buffer);
     }
 }
 
