@@ -27,14 +27,7 @@ pub struct NodeId(#[debug(with = Hex)] Arc<[u8; NODE_ID_SIZE]>);
 
 pub type NodeIdBitSlice = BitSlice<u8, Msb0>;
 
-#[derive(Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct NodeDistance(BitArr!(for NODE_ID_BIT_SIZE, in u8, Msb0));
-
-impl fmt::Debug for NodeDistance {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        std::write!(f, "{:?}", Hex(self.0.as_raw_slice()))
-    }
-}
+pub type NodeDistance = BitArr!(for NODE_ID_BIT_SIZE, in u8, Msb0);
 
 pub const NODE_ID_SIZE: usize = 20;
 pub const NODE_ID_BIT_SIZE: usize = NODE_ID_SIZE * 8;
@@ -153,9 +146,9 @@ impl NodeId {
     }
 
     pub fn distance(&self, rhs: &Self) -> NodeDistance {
-        let mut distance = BitArray::new(*self.0);
+        let mut distance = NodeDistance::new(*self.0);
         distance ^= rhs.bits();
-        NodeDistance(distance)
+        distance
     }
 }
 
@@ -228,7 +221,7 @@ mod tests {
         fn test(p: [u8; NODE_ID_SIZE], q: [u8; NODE_ID_SIZE], expect: [u8; NODE_ID_SIZE]) {
             let p = NodeId::from(p);
             let q = NodeId::from(q);
-            let expect = NodeDistance(BitArray::new(expect));
+            let expect = NodeDistance::new(expect);
             assert_eq!(p.distance(&q), expect);
             assert_eq!(q.distance(&p), expect);
         }
