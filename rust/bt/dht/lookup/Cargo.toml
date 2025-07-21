@@ -1,0 +1,10 @@
+[package]
+name = "bt_dht_lookup"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+g1_base.workspace = true
+
+bt_base.workspace = true
+bt_dht_proto.workspace = true
