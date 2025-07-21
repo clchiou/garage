@@ -1,0 +1,20 @@
+[package]
+name = "dhtutl"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+bytes.workspace = true
+clap.workspace = true
+rand.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+g1_base.workspace = true
+g1_cli = { workspace = true, features = ["tracing"] }
+g1_tokio.workspace = true
+
+bt_base.workspace = true
+bt_bencode.workspace = true
+bt_dht_lookup.workspace = true
+bt_dht_proto.workspace = true
