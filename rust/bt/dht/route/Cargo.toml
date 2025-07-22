@@ -1,0 +1,15 @@
+[package]
+name = "bt_dht_route"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+tokio.workspace = true
+
+g1_base.workspace = true
+
+bt_base.workspace = true
+bt_dht_proto.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
