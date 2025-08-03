@@ -42,6 +42,8 @@ members = [
     "etcd/client",
     "etcd/pubsub",
     "etcd/watch",
+    "g1/actor",
+    "g1/actor/attribute",
     "g1/base",
     "g1/base/derive",
     "g1/base64",
@@ -186,6 +188,8 @@ etcd_client = { path = "etcd/client" }
 etcd_pubsub = { path = "etcd/pubsub" }
 etcd_watch = { path = "etcd/watch" }
 
+g1_actor = { path = "g1/actor" }
+g1_actor_attribute = { path = "g1/actor/attribute" }
 g1_base = { path = "g1/base" }
 g1_base_derive = { path = "g1/base/derive" }
 g1_base64 = { path = "g1/base64" }

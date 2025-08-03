@@ -1,0 +1,10 @@
+[package]
+name = "g1_actor"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+tokio.workspace = true
+
+g1_actor_attribute.workspace = true
+g1_tokio.workspace = true
