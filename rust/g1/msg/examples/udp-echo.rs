@@ -1,28 +1,42 @@
 use std::io::{self, Error, Read};
 use std::net::SocketAddr;
 
+use bytes::Bytes;
 use clap::Parser;
-use futures::future::FutureExt;
 use tokio::net;
 use tokio::signal;
 
-use g1_base::fmt::EscapeAscii;
-use g1_cli::{param::ParametersConfig, tracing::TracingConfig};
-use g1_msg::reqrep::ReqRep;
+use g1_cli::tracing::TracingConfig;
+use g1_msg::reqrep::{Protocol, ReqRep};
 use g1_tokio::net::udp::UdpSocket;
 
 #[derive(Debug, Parser)]
-#[command(after_help = ParametersConfig::render())]
 struct UdpEcho {
     #[command(flatten)]
     tracing: TracingConfig,
-    #[command(flatten)]
-    parameters: ParametersConfig,
 
     #[arg(long, short)]
     listen: bool,
     #[arg(default_value = "127.0.0.1:8000")]
     endpoint: SocketAddr,
+}
+
+struct UdpEchoProtocol;
+
+impl Protocol for UdpEchoProtocol {
+    type Id = SocketAddr;
+    type Incoming = (SocketAddr, Bytes);
+    type Outgoing = (SocketAddr, Bytes);
+
+    type Error = Error;
+
+    fn incoming_id((id, _): &Self::Incoming) -> Self::Id {
+        *id
+    }
+
+    fn outgoing_id((id, _): &Self::Outgoing) -> Self::Id {
+        *id
+    }
 }
 
 impl UdpEcho {
@@ -35,24 +49,30 @@ impl UdpEcho {
 
         eprintln!("self endpoint: {}", socket.socket().local_addr()?);
         let (stream, sink) = socket.into_split();
-        let (reqrep, mut guard) = ReqRep::spawn(stream, sink);
+        let (reqrep, mut guard) = ReqRep::<UdpEchoProtocol>::spawn(stream, sink);
 
         if self.listen {
             tokio::select! {
-                () = signal::ctrl_c().map(Result::unwrap) => eprintln!("ctrl-c received!"),
-                result = async {
+                result = signal::ctrl_c() => {
+                    result?;
+                    eprintln!("ctrl-c received!");
+                }
+                () = async {
                     while let Some(((endpoint, payload), response_send)) = reqrep.accept().await {
-                        eprintln!("peer-> {} {:?}", endpoint, EscapeAscii(payload.as_ref()));
-                        response_send.send((endpoint, payload)).await?;
+                        eprintln!("{} -> \"{}\"", endpoint, payload.escape_ascii());
+                        response_send.send((endpoint, payload)).await;
                     }
-                    Ok::<_, Error>(())
-                } => result?,
+                } => {}
             };
         } else {
             let mut payload = Vec::new();
             io::stdin().read_to_end(&mut payload)?;
-            let (endpoint, response) = reqrep.request((self.endpoint, payload.into())).await?;
-            eprintln!("peer-> {} {:?}", endpoint, EscapeAscii(response.as_ref()));
+            let response = reqrep
+                .request((self.endpoint, payload.into()))
+                .await
+                .ok_or_else(|| Error::other("reqrep exit"))?;
+            let (endpoint, response) = response.await.map_err(Error::other)?;
+            eprintln!("{} -> \"{}\"", endpoint, response.escape_ascii());
         }
 
         guard.shutdown().await?
@@ -63,6 +83,5 @@ impl UdpEcho {
 async fn main() -> Result<(), Error> {
     let udp_echo = UdpEcho::parse();
     udp_echo.tracing.init();
-    udp_echo.parameters.init();
     udp_echo.execute().await
 }

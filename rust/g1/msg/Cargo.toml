@@ -5,18 +5,17 @@ edition.workspace = true
 
 [dependencies]
 futures.workspace = true
-linkme.workspace = true # Required by g1_param.
-snafu.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 
-g1_param.workspace = true
+g1_actor.workspace = true
+g1_base = { workspace = true, features = ["collections_ext"] }
 g1_tokio.workspace = true
 
 [dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
+
 # examples
+bytes.workspace = true
 clap.workspace = true
 g1_cli = { workspace = true, features = ["param", "tracing"] }
-
-# examples/udp-echo
-g1_base.workspace = true
