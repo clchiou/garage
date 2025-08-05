@@ -20,10 +20,28 @@ use crate::{
     message::{self, Message, MessageOwner, Payload, query, response},
 };
 
-pub(crate) use g1_msg::reqrep::ReqRepGuard;
+pub(crate) struct DhtProtocol;
 
-pub(crate) type ReqRep = reqrep::ReqRep<Incoming, Outgoing, Endpoint>;
-pub(crate) type Sender = reqrep::Sender<Outgoing, Endpoint>;
+impl reqrep::Protocol for DhtProtocol {
+    type Id = Endpoint;
+    type Incoming = Incoming;
+    type Outgoing = Outgoing;
+
+    type Error = Error;
+
+    fn incoming_id((endpoint, _): &Self::Incoming) -> Self::Id {
+        endpoint.clone()
+    }
+
+    fn outgoing_id((endpoint, _): &Self::Outgoing) -> Self::Id {
+        endpoint.clone()
+    }
+}
+
+pub(crate) type ReqRepGuard = reqrep::Guard<DhtProtocol>;
+
+pub(crate) type ReqRep = reqrep::ReqRep<DhtProtocol>;
+pub(crate) type Sender = reqrep::ResponseSend<DhtProtocol>;
 pub(crate) type Incoming = (Endpoint, MessageOwner<Bytes>);
 pub(crate) type Outgoing = (Endpoint, Bytes);
 
@@ -84,7 +102,13 @@ impl Client {
         let request = serde_bencode::to_bytes(&request)
             .map_err(Error::other)?
             .freeze();
-        let (_, response_owner) = self.reqrep.request((peer_endpoint, request)).await?;
+        let (_, response_owner) = self
+            .reqrep
+            .request((peer_endpoint, request))
+            .await
+            .ok_or_else(|| Error::other("dht reqrep exit"))?
+            .await
+            .map_err(Error::other)?;
 
         let response = response_owner.deref();
         tracing::trace!(?response, "peer->");

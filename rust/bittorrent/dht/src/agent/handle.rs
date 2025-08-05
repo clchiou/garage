@@ -74,10 +74,10 @@ impl Handler {
         tokio::select! {
             () = self.cancel.wait() => {
                 tracing::debug!("dht handler is cancelled");
-                Ok(())
             }
-            result = self.response_send.send((self.endpoint.clone(), response)) => result,
+            () = self.response_send.send((self.endpoint.clone(), response)) => {}
         }
+        Ok(())
     }
 
     fn handle_query(&self, query: &query::Query) -> Result<Bytes, Error> {
