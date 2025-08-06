@@ -1,7 +1,6 @@
 #[cfg(feature = "icmp")]
 pub mod icmp;
 pub mod tcp;
-pub mod udp;
 
 use std::io::Error;
 use std::net::SocketAddr;
