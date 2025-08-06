@@ -1,0 +1,9 @@
+[package]
+name = "g1_udp"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+bytes.workspace = true
+futures.workspace = true
+tokio.workspace = true

@@ -67,6 +67,7 @@ members = [
     "g1/serde",
     "g1/serde_json",
     "g1/tokio",
+    "g1/udp",
     "g1/url",
     "g1/v8",
     "g1/web",
@@ -213,6 +214,7 @@ g1_scraper = { path = "g1/scraper" }
 g1_serde = { path = "g1/serde" }
 g1_serde_json = { path = "g1/serde_json" }
 g1_tokio = { path = "g1/tokio" }
+g1_udp = { path = "g1/udp" }
 g1_url = { path = "g1/url" }
 g1_v8 = { path = "g1/v8" }
 g1_web = { path = "g1/web" }
