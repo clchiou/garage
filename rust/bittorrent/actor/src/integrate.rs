@@ -1,12 +1,14 @@
+use std::io::Error;
+use std::sync::Arc;
+
 use bytes::Bytes;
 use futures::stream::TryStreamExt;
-use std::io::Error;
-use tokio::{
-    sync::broadcast::{Receiver, error::RecvError},
-    time,
-};
+use tokio::net::UdpSocket;
+use tokio::sync::broadcast::{Receiver, error::RecvError};
+use tokio::time;
 
-use g1_tokio::net::{self, udp::OwnedUdpStream};
+use g1_tokio::net;
+use g1_udp::UdpStream;
 
 use bittorrent_base::InfoHash;
 use bittorrent_dht::Dht;
@@ -105,7 +107,7 @@ pub(crate) async fn recruit_from_tracker(tracker: Tracker, manager: Manager) {
 }
 
 pub(crate) async fn handle_udp_error(
-    mut udp_error_stream: Fork<OwnedUdpStream>,
+    mut udp_error_stream: Fork<UdpStream<Arc<UdpSocket>>>,
 ) -> Result<(), Error> {
     while let Some((peer_endpoint, payload)) = udp_error_stream.try_next().await? {
         tracing::warn!(?peer_endpoint, ?payload, "receive unrecognizable payload");

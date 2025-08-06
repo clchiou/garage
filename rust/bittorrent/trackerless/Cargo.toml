@@ -21,7 +21,7 @@ bittorrent_peer.workspace = true
 clap.workspace = true
 g1_cli = { workspace = true, features = ["param", "tracing"] }
 g1_futures.workspace = true
-g1_tokio.workspace = true
+g1_udp.workspace = true
 bittorrent_base = { workspace = true, features = ["param", "parse"] }
 bittorrent_dht.workspace = true
 bittorrent_udp.workspace = true

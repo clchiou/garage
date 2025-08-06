@@ -33,4 +33,5 @@ bittorrent_bencode = { workspace = true, features = ["serde", "test_harness"] }
 # examples/dht
 clap.workspace = true
 g1_cli = { workspace = true, features = ["param", "tracing"] }
+g1_udp.workspace = true
 bittorrent_base = { workspace = true, features = ["compact", "parse"] }

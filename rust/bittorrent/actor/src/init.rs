@@ -10,8 +10,8 @@ use tokio::sync::broadcast::Receiver;
 
 use g1_base::fmt::{DebugExt, InsertPlaceholder};
 use g1_futures::sink;
-use g1_tokio::net::udp::{self, OwnedUdpSink, OwnedUdpStream};
 use g1_tokio::task::{JoinGuard, JoinQueue};
+use g1_udp::{UdpSink, UdpStream};
 
 use bittorrent_base::{Dimension, Features, InfoHash};
 use bittorrent_dht::{Dht, DhtGuard};
@@ -32,8 +32,8 @@ use crate::storage::StorageOpen;
 type DynStream = Pin<Box<dyn Stream<Item = Result<(SocketAddr, Bytes), Error>> + Send + 'static>>;
 type DynSink = Pin<Box<dyn Sink<(SocketAddr, Bytes), Error = Error> + Send + 'static>>;
 
-pub(crate) type Fork = bittorrent_udp::Fork<OwnedUdpStream>;
-type Fanin = sink::Fanin<OwnedUdpSink>;
+pub(crate) type Fork = bittorrent_udp::Fork<UdpStream<Arc<UdpSocket>>>;
+type Fanin = sink::Fanin<UdpSink<Arc<UdpSocket>>>;
 
 #[derive(DebugExt)]
 pub(crate) struct Init {
@@ -590,7 +590,7 @@ impl NetInit {
             return Ok(());
         }
 
-        let (stream, sink) = udp::UdpSocket::new(self.init_udp_socket().await?).into_split();
+        let (stream, sink) = g1_udp::split(self.init_udp_socket().await?);
 
         if self.self_features.dht {
             let (dht_stream, utp_stream, udp_error_stream) = bittorrent_udp::fork(stream);

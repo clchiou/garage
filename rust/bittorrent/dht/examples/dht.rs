@@ -5,12 +5,11 @@ use std::sync::Arc;
 
 use clap::{Args, Parser, Subcommand};
 use futures::future::FutureExt;
-use tokio::net;
+use tokio::net::UdpSocket;
 use tokio::signal;
 
 use g1_base::str::Hex;
 use g1_cli::{param::ParametersConfig, tracing::TracingConfig};
-use g1_tokio::net::udp::UdpSocket;
 
 use bittorrent_base::InfoHash;
 use bittorrent_dht::{Dht, NodeId};
@@ -42,9 +41,9 @@ enum Command {
 
 impl Program {
     async fn execute(&self) -> Result<(), Error> {
-        let socket = UdpSocket::new(net::UdpSocket::bind(self.self_endpoint).await?);
-        let self_endpoint = socket.socket().local_addr()?;
-        let (stream, sink) = socket.into_split();
+        let socket = UdpSocket::bind(self.self_endpoint).await?;
+        let self_endpoint = socket.local_addr()?;
+        let (stream, sink) = g1_udp::split(Arc::new(socket));
         let (dht, mut dht_guard) = Dht::spawn(self_endpoint, stream, sink);
         match &self.command {
             Command::Ping(this) => this.execute(dht).await?,

@@ -15,7 +15,7 @@ use tokio::{
 
 use g1_cli::{param::ParametersConfig, tracing::TracingConfig};
 use g1_futures::sink;
-use g1_tokio::net::udp::{self as g1_udp, OwnedUdpSink, OwnedUdpStream};
+use g1_udp::{UdpSink, UdpStream};
 
 use bittorrent_base::{Features, InfoHash};
 use bittorrent_dht::{Dht, DhtGuard};
@@ -25,8 +25,8 @@ use bittorrent_peer::Recvs;
 use bittorrent_trackerless::{InfoOwner, Trackerless};
 use bittorrent_utp::UtpSocket;
 
-type Fork = bittorrent_udp::Fork<OwnedUdpStream>;
-type Fanin = sink::Fanin<OwnedUdpSink>;
+type Fork = bittorrent_udp::Fork<UdpStream<Arc<UdpSocket>>>;
+type Fanin = sink::Fanin<UdpSink<Arc<UdpSocket>>>;
 
 /// Fetches the info blob through the metadata protocol extension.
 #[derive(Debug, Parser)]
@@ -111,7 +111,7 @@ impl Program {
         &self,
         udp_socket: Arc<UdpSocket>,
     ) -> Result<((Fork, Fanin), (Fork, Fanin), Fork), Error> {
-        let (stream, sink) = g1_udp::UdpSocket::new(udp_socket).into_split();
+        let (stream, sink) = g1_udp::split(udp_socket);
         let (dht_stream, utp_stream, udp_error_stream) = bittorrent_udp::fork(stream);
         let [dht_sink, utp_sink] = sink::fanin(sink);
         Ok((

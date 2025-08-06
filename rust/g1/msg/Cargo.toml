@@ -19,3 +19,4 @@ tokio = { workspace = true, features = ["test-util"] }
 bytes.workspace = true
 clap.workspace = true
 g1_cli = { workspace = true, features = ["param", "tracing"] }
+g1_udp.workspace = true

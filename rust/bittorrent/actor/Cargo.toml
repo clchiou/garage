@@ -14,6 +14,7 @@ g1_base.workspace = true
 g1_futures.workspace = true
 g1_param.workspace = true
 g1_tokio.workspace = true
+g1_udp.workspace = true
 
 bittorrent_base = { workspace = true, features = ["param"] }
 bittorrent_dht.workspace = true

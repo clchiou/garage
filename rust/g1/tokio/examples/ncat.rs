@@ -8,7 +8,7 @@ use clap::{Parser, ValueEnum};
 use futures::{sink::SinkExt, stream::StreamExt};
 use tokio::{
     io::{self, AsyncReadExt, AsyncWriteExt},
-    net::{self, TcpListener, TcpSocket},
+    net::{TcpListener, TcpSocket, UdpSocket},
 };
 
 use g1_base::str::Hex;
@@ -17,7 +17,6 @@ use g1_tokio::{
     bstream::{StreamIntoSplit, StreamRecv, StreamSend},
     io::{DynStream, DynStreamRecv, DynStreamSend},
     net::tcp::TcpStream,
-    net::udp::UdpSocket,
 };
 
 use bittorrent_base::{Features, InfoHash};
@@ -188,32 +187,32 @@ impl NetCat {
                 "udp mode does not support `--send` nor `--no-send`",
             ));
         }
+        let socket = UdpSocket::bind(self.endpoint).await?;
+        let (mut stream, mut sink) = g1_udp::split(&socket);
         if self.listen {
-            let mut socket = UdpSocket::new(net::UdpSocket::bind(self.endpoint).await?);
-            let (peer, mut payload) = socket
+            let (peer, mut payload) = stream
                 .next()
                 .await
                 .ok_or_else(|| Error::from(ErrorKind::UnexpectedEof))??;
             eprintln!("receive datagram from: {}", peer);
             io::stdout().write_all_buf(&mut payload).await
         } else {
-            let mut socket = UdpSocket::new(net::UdpSocket::bind("127.0.0.1:0").await?);
-            eprintln!("local address: {}", socket.socket().local_addr()?);
+            eprintln!("local address: {}", socket.local_addr()?);
             let mut payload = Vec::new();
             io::stdin().read_to_end(&mut payload).await?;
-            socket.feed((self.endpoint, payload.into())).await?;
-            socket.close().await
+            sink.feed((self.endpoint, payload.into())).await?;
+            sink.close().await
         }
     }
 
     async fn execute_utp(&self) -> Result<(), Error> {
         let (mut socket, stream) = if self.listen {
-            let socket = self.new_utp_socket(net::UdpSocket::bind(self.endpoint).await?);
+            let socket = self.new_utp_socket(UdpSocket::bind(self.endpoint).await?);
             let stream = socket.listener().accept().await?;
             eprintln!("peer endpoint: {}", stream.peer_endpoint());
             (socket, stream)
         } else {
-            let socket = self.new_utp_socket(net::UdpSocket::bind("127.0.0.1:0").await?);
+            let socket = self.new_utp_socket(UdpSocket::bind("127.0.0.1:0").await?);
             eprintln!("local endpoint: {}", socket.socket().local_addr()?);
             let stream = socket.connector().connect(self.endpoint).await?;
             (socket, stream)
@@ -239,9 +238,9 @@ impl NetCat {
         Ok(socket)
     }
 
-    fn new_utp_socket(&self, socket: net::UdpSocket) -> UtpSocket {
+    fn new_utp_socket(&self, socket: UdpSocket) -> UtpSocket {
         let socket = Arc::new(socket);
-        let (stream, sink) = UdpSocket::new(socket.clone()).into_split();
+        let (stream, sink) = g1_udp::split(socket.clone());
         UtpSocket::new(socket, stream, sink)
     }
 

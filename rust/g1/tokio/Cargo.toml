@@ -33,6 +33,7 @@ bittorrent_mse.workspace = true
 bittorrent_peer.workspace = true
 bittorrent_socket.workspace = true
 bittorrent_utp.workspace = true
+g1_udp.workspace = true
 
 # examples/path-mtu
 rand.workspace = true

@@ -1,14 +1,14 @@
 use std::io::{self, Error, Read};
 use std::net::SocketAddr;
+use std::sync::Arc;
 
 use bytes::Bytes;
 use clap::Parser;
-use tokio::net;
+use tokio::net::UdpSocket;
 use tokio::signal;
 
 use g1_cli::tracing::TracingConfig;
 use g1_msg::reqrep::{Protocol, ReqRep};
-use g1_tokio::net::udp::UdpSocket;
 
 #[derive(Debug, Parser)]
 struct UdpEcho {
@@ -42,13 +42,13 @@ impl Protocol for UdpEchoProtocol {
 impl UdpEcho {
     async fn execute(&self) -> Result<(), Error> {
         let socket = if self.listen {
-            UdpSocket::new(net::UdpSocket::bind(self.endpoint).await?)
+            UdpSocket::bind(self.endpoint).await
         } else {
-            UdpSocket::new(net::UdpSocket::bind("0.0.0.0:0").await?)
-        };
+            UdpSocket::bind("0.0.0.0:0").await
+        }?;
 
-        eprintln!("self endpoint: {}", socket.socket().local_addr()?);
-        let (stream, sink) = socket.into_split();
+        eprintln!("self endpoint: {}", socket.local_addr()?);
+        let (stream, sink) = g1_udp::split(Arc::new(socket));
         let (reqrep, mut guard) = ReqRep::<UdpEchoProtocol>::spawn(stream, sink);
 
         if self.listen {
