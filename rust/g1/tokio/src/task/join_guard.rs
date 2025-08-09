@@ -2,18 +2,17 @@ use std::error;
 use std::fmt;
 use std::future::Future;
 use std::io;
+use std::mem;
 use std::panic;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::task::{Context, Poll};
+use std::task::{self, Context, Poll};
 use std::time::Duration;
 
 #[cfg(tokio_unstable)]
 use tokio::task::Id;
-use tokio::{
-    task::{JoinError, JoinHandle},
-    time::{self, Instant},
-};
+use tokio::task::{JoinError, JoinHandle};
+use tokio::time::{self, Instant};
 
 use crate::sync::oneway::Flag;
 
@@ -22,9 +21,17 @@ use crate::sync::oneway::Flag;
 /// We do not expose `abort` directly to the user.  Instead, user should just drop the guard.
 #[derive(Debug)]
 pub struct JoinGuard<T> {
-    handle: JoinHandle<T>,
-    result: Option<Result<T, JoinError>>,
+    stage: Stage<T>,
     cancel: Cancel,
+    #[cfg(tokio_unstable)]
+    id: Id,
+}
+
+#[derive(Debug)]
+enum Stage<T> {
+    Running(JoinHandle<T>),
+    Finished(Result<T, JoinError>),
+    Consumed,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -79,10 +86,27 @@ impl<T> JoinGuard<T> {
     }
 
     pub fn new(handle: JoinHandle<T>, cancel: Cancel) -> Self {
+        #[cfg(tokio_unstable)]
+        let id = handle.id();
         Self {
-            handle,
-            result: None,
+            stage: Stage::Running(handle),
             cancel,
+            #[cfg(tokio_unstable)]
+            id,
+        }
+    }
+
+    fn handle(&self) -> Option<&JoinHandle<T>> {
+        match &self.stage {
+            Stage::Running(handle) => Some(handle),
+            _ => None,
+        }
+    }
+
+    fn handle_mut(&mut self) -> Option<&mut JoinHandle<T>> {
+        match &mut self.stage {
+            Stage::Running(handle) => Some(handle),
+            _ => None,
         }
     }
 
@@ -100,11 +124,17 @@ impl<T> JoinGuard<T> {
 
     #[cfg(tokio_unstable)]
     pub fn id(&self) -> Id {
-        self.handle.id()
+        self.id
     }
 
     pub fn is_finished(&self) -> bool {
-        self.handle.is_finished()
+        self.handle().is_none_or(|handle| handle.is_finished())
+    }
+
+    fn abort(&self) {
+        if let Some(handle) = self.handle() {
+            handle.abort();
+        }
     }
 
     pub fn cancel_handle(&self) -> Cancel {
@@ -119,9 +149,7 @@ impl<T> JoinGuard<T> {
     ///
     /// It can be called more than once before `shutdown` is called.
     pub async fn join(&mut self) {
-        if self.result.is_none() {
-            self.result = Some((&mut self.handle).await);
-        }
+        self.await
     }
 
     /// Shuts down the task gracefully.
@@ -135,7 +163,7 @@ impl<T> JoinGuard<T> {
         self.cancel();
 
         if time::timeout(timeout, self.join()).await.is_err() {
-            self.handle.abort();
+            self.abort();
             return Err(ShutdownError::JoinTimeout);
         }
 
@@ -143,7 +171,15 @@ impl<T> JoinGuard<T> {
     }
 
     pub fn take_result(&mut self) -> Result<T, ShutdownError> {
-        self.result.take().unwrap().map_err(|join_error| {
+        match mem::replace(&mut self.stage, Stage::Consumed) {
+            Stage::Running(handle) => {
+                handle.abort();
+                panic!("task is still running; abort")
+            }
+            Stage::Finished(result) => result,
+            Stage::Consumed => panic!("task result was consumed"),
+        }
+        .map_err(|join_error| {
             if join_error.is_panic() {
                 panic::resume_unwind(join_error.into_panic());
             }
@@ -151,30 +187,29 @@ impl<T> JoinGuard<T> {
             ShutdownError::TaskAborted
         })
     }
+
+    pub fn checked_take_result(&mut self) -> Option<Result<T, ShutdownError>> {
+        matches!(self.stage, Stage::Finished(_)).then(|| self.take_result())
+    }
 }
 
-impl<T> Future for JoinGuard<T>
-where
-    // TODO: Can we remove this bound?  That way, we will not have to re-implement `join` above.
-    T: Unpin,
-{
+// TODO: I cannot prove this, but I feel it is correct.
+impl<T> Unpin for JoinGuard<T> {}
+
+impl<T> Future for JoinGuard<T> {
     type Output = ();
 
-    fn poll(self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<Self::Output> {
-        let this = self.get_mut();
-        if this.result.is_some() {
-            Poll::Ready(())
-        } else {
-            Pin::new(&mut this.handle).poll(context).map(|result| {
-                this.result = Some(result);
-            })
+    fn poll(mut self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<Self::Output> {
+        if let Some(handle) = self.handle_mut() {
+            self.stage = Stage::Finished(task::ready!(Pin::new(handle).poll(context)));
         }
+        Poll::Ready(())
     }
 }
 
 impl<T> Drop for JoinGuard<T> {
     fn drop(&mut self) {
-        self.handle.abort();
+        self.abort();
         // It is necessary to call `cancel` here to not only propagate the cancellation to child
         // `JoinGuard`s, but also unblock all `add_parent` tasks.
         self.cancel();
@@ -291,7 +326,7 @@ mod tests {
         parent.cancel();
         for _ in 0..3 {
             parent.join().await;
-            assert!(matches!(parent.result, Some(Ok(()))));
+            assert!(matches!(parent.stage, Stage::Finished(Ok(()))));
         }
         assert_eq!(*mock.must_lock(), ["child", "parent"]);
     }
@@ -329,7 +364,7 @@ mod tests {
         guard.add_timeout(Duration::ZERO);
         for _ in 0..3 {
             guard.join().await;
-            assert!(matches!(guard.result, Some(Ok(()))));
+            assert!(matches!(guard.stage, Stage::Finished(Ok(()))));
         }
     }
 
@@ -339,21 +374,33 @@ mod tests {
         guard.add_deadline(Instant::now());
         for _ in 0..3 {
             guard.join().await;
-            assert!(matches!(guard.result, Some(Ok(()))));
+            assert!(matches!(guard.stage, Stage::Finished(Ok(()))));
         }
     }
 
     #[tokio::test]
     async fn join() {
         let mut guard = JoinGuard::spawn(|_| async { 42 });
-        assert!(matches!(guard.result, None));
+        assert!(matches!(guard.stage, Stage::Running(_)));
         assert_eq!(guard.join().await, ());
-        assert!(matches!(guard.result, Some(Ok(42))));
+        assert!(matches!(guard.stage, Stage::Finished(Ok(42))));
+        assert!(matches!(guard.take_result(), Ok(42)));
+        assert!(matches!(guard.stage, Stage::Consumed));
+        for _ in 0..3 {
+            assert_eq!(guard.join().await, ());
+            assert!(matches!(guard.stage, Stage::Consumed));
+        }
 
         let mut guard = JoinGuard::spawn(|_| async { 42 });
-        assert!(matches!(guard.result, None));
+        assert!(matches!(guard.stage, Stage::Running(_)));
         assert_eq!((&mut guard).await, ());
-        assert!(matches!(guard.result, Some(Ok(42))));
+        assert!(matches!(guard.stage, Stage::Finished(Ok(42))));
+        assert!(matches!(guard.take_result(), Ok(42)));
+        assert!(matches!(guard.stage, Stage::Consumed));
+        for _ in 0..3 {
+            assert_eq!((&mut guard).await, ());
+            assert!(matches!(guard.stage, Stage::Consumed));
+        }
     }
 
     #[tokio::test]
@@ -372,8 +419,24 @@ mod tests {
         assert_eq!(guard.is_finished(), true);
 
         let mut guard = JoinGuard::spawn(|_| future::pending::<()>());
-        guard.handle.abort();
+        guard.abort();
         assert_eq!(guard.shutdown().await, Err(ShutdownError::TaskAborted));
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "task is still running; abort")]
+    async fn take_result_running() {
+        let mut guard = JoinGuard::spawn(|_| future::pending::<()>());
+        let _ = guard.take_result();
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "task result was consumed")]
+    async fn take_result_consumed() {
+        let mut guard = JoinGuard::spawn(|_| async { 42 });
+        guard.join().await;
+        assert!(matches!(guard.take_result(), Ok(42)));
+        let _ = guard.take_result();
     }
 
     #[tokio::test]
