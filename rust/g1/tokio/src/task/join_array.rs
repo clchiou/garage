@@ -1,26 +1,21 @@
-use std::future::Future;
-use std::pin::Pin;
-use std::task::{Context, Poll};
 use std::time::Duration;
 
 use tokio::time::{self, Instant};
 
+use g1_base::collections::Array;
 use g1_base::future::ReadyArray;
 
 use super::join_guard::{self, Cancel, JoinGuard, SHUTDOWN_TIMEOUT, ShutdownError};
 
 #[derive(Debug)]
-pub struct JoinArray<T: Unpin, const N: usize>(ReadyArray<JoinCell<T>, N>);
-
-#[derive(Debug)]
-struct JoinCell<T>(Option<JoinGuard<T>>);
+pub struct JoinArray<T: Unpin, const N: usize>(ReadyArray<JoinGuard<T>, N>);
 
 impl<T, const N: usize> JoinArray<T, N>
 where
     T: Unpin,
 {
     pub fn new(guards: [JoinGuard<T>; N]) -> Self {
-        Self(ReadyArray::new(guards.map(|guard| JoinCell(Some(guard)))))
+        Self(ReadyArray::new(guards))
     }
 
     pub fn with_cancel(guards: [JoinGuard<T>; N], cancel: Cancel) -> Self {
@@ -30,31 +25,26 @@ where
         Self::new(guards)
     }
 
-    pub fn into_guards(self) -> Vec<JoinGuard<T>> {
-        self.0.into_iter().filter_map(|cell| cell.0).collect()
-    }
-
-    fn for_each<F>(&self, f: F)
-    where
-        F: FnMut(&JoinGuard<T>),
-    {
-        self.0.iter().filter_map(|cell| cell.0.as_ref()).for_each(f);
+    pub fn into_guards(mut self) -> Array<JoinGuard<T>, N> {
+        self.0.detach_all()
     }
 
     pub fn add_parent(&self, parent: Cancel) {
-        self.for_each(move |guard| guard.add_parent(parent.clone()));
+        self.0
+            .iter()
+            .for_each(|guard| guard.add_parent(parent.clone()));
     }
 
     pub fn add_timeout(&self, timeout: Duration) {
-        self.for_each(move |guard| guard.add_timeout(timeout));
+        self.0.iter().for_each(|guard| guard.add_timeout(timeout));
     }
 
     pub fn add_deadline(&self, deadline: Instant) {
-        self.for_each(move |guard| guard.add_deadline(deadline));
+        self.0.iter().for_each(|guard| guard.add_deadline(deadline));
     }
 
     pub fn cancel(&self) {
-        self.for_each(|guard| guard.cancel());
+        self.0.iter().for_each(|guard| guard.cancel());
     }
 
     pub async fn joinable(&mut self) {
@@ -62,21 +52,10 @@ where
     }
 
     pub async fn join_next(&mut self) -> Option<JoinGuard<T>> {
-        self.0.pop_ready().await
-    }
-}
-
-impl<T> Future for JoinCell<T>
-where
-    T: Unpin,
-{
-    type Output = JoinGuard<T>;
-
-    fn poll(self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<Self::Output> {
-        let this = self.get_mut();
-        Pin::new(this.0.as_mut().unwrap())
-            .poll(context)
-            .map(|()| this.0.take().unwrap())
+        self.0
+            .pop_ready_with_future()
+            .await
+            .map(|((), guard)| guard)
     }
 }
 
