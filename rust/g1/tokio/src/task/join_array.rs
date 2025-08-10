@@ -81,6 +81,7 @@ where
         loop {
             tokio::select! {
                 () = &mut sleep => {
+                    drop(self.0.detach_all()); // `abort` is called by `JoinGuard::drop`.
                     result = join_guard::merge((result, Err(ShutdownError::JoinTimeout)));
                     break;
                 }
@@ -176,6 +177,7 @@ mod tests {
                 array.shutdown_with_timeout(Duration::from_millis(10)).await,
                 expect,
             );
+            assert_eq!(array.0.iter().count(), 0);
         }
 
         fn spawn_ok() -> JoinGuard<Result<(), ()>> {

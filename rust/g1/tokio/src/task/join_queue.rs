@@ -124,6 +124,7 @@ where
         loop {
             tokio::select! {
                 () = &mut sleep => {
+                    drop(self.guards.detach_all()); // `abort` is called by `JoinGuard::drop`.
                     result = join_guard::merge((result, Err(ShutdownError::JoinTimeout)));
                     break;
                 }
@@ -217,13 +218,12 @@ mod tests {
         async fn test(
             queue: &JoinQueue<Result<(), ()>>,
             expect: Result<Result<(), ()>, ShutdownError>,
-            expect_len: usize,
         ) {
             assert_eq!(
                 queue.shutdown_with_timeout(Duration::from_millis(10)).await,
                 expect,
             );
-            assert_eq!(queue.len(), expect_len);
+            assert!(queue.is_empty());
         }
 
         fn spawn_ok() -> JoinGuard<Result<(), ()>> {
@@ -240,30 +240,30 @@ mod tests {
 
         let queue = JoinQueue::new();
         assert_matches!(queue.push(spawn_ok()), Ok(()));
-        test(&queue, Ok(Ok(())), 0).await;
+        test(&queue, Ok(Ok(()))).await;
 
         let queue = JoinQueue::new();
         assert_matches!(queue.push(spawn_err()), Ok(()));
-        test(&queue, Ok(Err(())), 0).await;
+        test(&queue, Ok(Err(()))).await;
 
         let queue = JoinQueue::new();
         assert_matches!(queue.push(spawn_ok()), Ok(()));
         assert_matches!(queue.push(spawn_err()), Ok(()));
-        test(&queue, Ok(Err(())), 0).await;
+        test(&queue, Ok(Err(()))).await;
 
         let queue = JoinQueue::new();
         assert_matches!(queue.push(spawn_pending()), Ok(()));
-        test(&queue, Err(ShutdownError::JoinTimeout), 1).await;
+        test(&queue, Err(ShutdownError::JoinTimeout)).await;
 
         let queue = JoinQueue::new();
         assert_matches!(queue.push(spawn_ok()), Ok(()));
         assert_matches!(queue.push(spawn_pending()), Ok(()));
-        test(&queue, Err(ShutdownError::JoinTimeout), 1).await;
+        test(&queue, Err(ShutdownError::JoinTimeout)).await;
 
         let queue = JoinQueue::new();
         assert_matches!(queue.push(spawn_ok()), Ok(()));
         assert_matches!(queue.push(spawn_err()), Ok(()));
         assert_matches!(queue.push(spawn_pending()), Ok(()));
-        test(&queue, Ok(Err(())), 1).await;
+        test(&queue, Ok(Err(()))).await;
     }
 }
