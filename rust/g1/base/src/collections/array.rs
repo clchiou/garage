@@ -433,7 +433,13 @@ impl<T, const N: usize> Extend<T> for Array<T, N> {
 
 impl<T, const N: usize> Array<T, N> {
     pub fn clear(&mut self) {
-        drop_in_place(&mut self.array[0..mem::take(&mut self.len)]);
+        self.truncate(0);
+    }
+
+    pub fn truncate(&mut self, len: usize) {
+        if len < self.len {
+            drop_in_place(&mut self.array[len..mem::replace(&mut self.len, len)]);
+        }
     }
 
     pub fn insert(&mut self, index: usize, element: T) {
@@ -1062,6 +1068,35 @@ mod tests {
 
         drop(array);
         alloc.assert(2);
+    }
+
+    #[test]
+    fn truncate() {
+        let alloc = Alloc::new();
+        let mut array = alloc.alloc_array::<3>(&[1, 2, 3]);
+        array.assert(&[1, 2, 3]);
+        alloc.assert(0);
+
+        for _ in 0..3 {
+            array.truncate(4);
+            array.assert(&[1, 2, 3]);
+            alloc.assert(0);
+        }
+
+        for _ in 0..3 {
+            array.truncate(2);
+            array.assert(&[1, 2]);
+            alloc.assert(1);
+        }
+
+        for _ in 0..3 {
+            array.truncate(1);
+            array.assert(&[1]);
+            alloc.assert(2);
+        }
+
+        drop(array);
+        alloc.assert(3);
     }
 
     #[test]
