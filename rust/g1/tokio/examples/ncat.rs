@@ -148,7 +148,7 @@ impl NetCat {
             let (_, _, response_send) = recvs.request_recv.recv().await.unwrap();
             response_send.send(payload.into()).unwrap();
 
-            guard.join().await;
+            (&mut guard).await;
             let result = guard.shutdown().await?;
             if result
                 .as_ref()

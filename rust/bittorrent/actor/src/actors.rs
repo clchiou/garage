@@ -88,11 +88,11 @@ impl Actors {
             };
         }
         tokio::select! {
-            () = self.txrx_guard.join() => {}
-            () = self.manager_guard.join() => {}
+            () = &mut self.txrx_guard => {}
+            () = &mut self.manager_guard => {}
             Some(()) = call!(dht_guard_ipv4, joinable) => {}
             Some(()) = call!(dht_guard_ipv6, joinable) => {}
-            Some(()) = call!(tracker_guard, join) => {}
+            Some(()) = OptionFuture::from(self.tracker_guard.as_mut()) => {}
             Some(()) = call!(utp_socket_ipv4, join) => {}
             Some(()) = call!(utp_socket_ipv6, join) => {}
             () = self.tasks.joinable() => {}

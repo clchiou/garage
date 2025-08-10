@@ -117,7 +117,7 @@ impl UtpSocket {
     }
 
     pub async fn join(&mut self) {
-        self.guard.join().await
+        (&mut self.guard).await
     }
 
     pub async fn shutdown(&mut self) -> Result<(), Error> {

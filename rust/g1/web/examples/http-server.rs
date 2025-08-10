@@ -32,7 +32,7 @@ impl Program {
             self.bind()?,
             (move |request| handle(dir.clone(), request)).into_service(),
         );
-        guard.join().await;
+        (&mut guard).await;
         guard.take_result()?
     }
 

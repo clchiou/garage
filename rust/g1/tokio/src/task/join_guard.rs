@@ -145,13 +145,6 @@ impl<T> JoinGuard<T> {
         self.cancel.set();
     }
 
-    /// Joins the task.
-    ///
-    /// It can be called more than once before `shutdown` is called.
-    pub async fn join(&mut self) {
-        self.await
-    }
-
     /// Shuts down the task gracefully.
     ///
     /// NOTE: It can be called only once.
@@ -162,7 +155,7 @@ impl<T> JoinGuard<T> {
     pub async fn shutdown_with_timeout(&mut self, timeout: Duration) -> Result<T, ShutdownError> {
         self.cancel();
 
-        if time::timeout(timeout, self.join()).await.is_err() {
+        if time::timeout(timeout, &mut *self).await.is_err() {
             self.abort();
             return Err(ShutdownError::JoinTimeout);
         }
@@ -302,7 +295,7 @@ mod tests {
                     mock.must_lock().push("parent");
                 }
 
-                let mut child = {
+                let child = {
                     let mock = mock.clone();
                     JoinGuard::spawn(|cancel_child| async move {
                         scopeguard::defer! {
@@ -314,7 +307,7 @@ mod tests {
                 };
                 child.add_parent(cancel_parent.clone());
 
-                tokio::join!(cancel_parent.wait(), child.join());
+                tokio::join!(cancel_parent.wait(), child);
             })
         };
         (parent, mock)
@@ -325,7 +318,7 @@ mod tests {
         let (mut parent, mock) = spawn_tasks();
         parent.cancel();
         for _ in 0..3 {
-            parent.join().await;
+            (&mut parent).await;
             assert!(matches!(parent.stage, Stage::Finished(Ok(()))));
         }
         assert_eq!(*mock.must_lock(), ["child", "parent"]);
@@ -352,8 +345,8 @@ mod tests {
         }
 
         guards[0].cancel();
-        for (depth, guard) in guards.iter_mut().enumerate() {
-            guard.join().await;
+        for (depth, mut guard) in guards.iter_mut().enumerate() {
+            (&mut guard).await;
             assert_eq!(guard.take_result(), Ok(depth));
         }
     }
@@ -363,7 +356,7 @@ mod tests {
         let mut guard = JoinGuard::spawn(|cancel| async move { cancel.wait().await });
         guard.add_timeout(Duration::ZERO);
         for _ in 0..3 {
-            guard.join().await;
+            (&mut guard).await;
             assert!(matches!(guard.stage, Stage::Finished(Ok(()))));
         }
     }
@@ -373,24 +366,13 @@ mod tests {
         let mut guard = JoinGuard::spawn(|cancel| async move { cancel.wait().await });
         guard.add_deadline(Instant::now());
         for _ in 0..3 {
-            guard.join().await;
+            (&mut guard).await;
             assert!(matches!(guard.stage, Stage::Finished(Ok(()))));
         }
     }
 
     #[tokio::test]
     async fn join() {
-        let mut guard = JoinGuard::spawn(|_| async { 42 });
-        assert!(matches!(guard.stage, Stage::Running(_)));
-        assert_eq!(guard.join().await, ());
-        assert!(matches!(guard.stage, Stage::Finished(Ok(42))));
-        assert!(matches!(guard.take_result(), Ok(42)));
-        assert!(matches!(guard.stage, Stage::Consumed));
-        for _ in 0..3 {
-            assert_eq!(guard.join().await, ());
-            assert!(matches!(guard.stage, Stage::Consumed));
-        }
-
         let mut guard = JoinGuard::spawn(|_| async { 42 });
         assert!(matches!(guard.stage, Stage::Running(_)));
         assert_eq!((&mut guard).await, ());
@@ -434,7 +416,7 @@ mod tests {
     #[should_panic(expected = "task result was consumed")]
     async fn take_result_consumed() {
         let mut guard = JoinGuard::spawn(|_| async { 42 });
-        guard.join().await;
+        (&mut guard).await;
         assert!(matches!(guard.take_result(), Ok(42)));
         let _ = guard.take_result();
     }

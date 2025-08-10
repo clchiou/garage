@@ -29,7 +29,7 @@ impl Program {
                 Response::new(response::body::full(b"Hello, World!"))
             }),
         );
-        guard.join().await;
+        (&mut guard).await;
         guard.take_result()?
     }
 

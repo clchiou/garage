@@ -114,11 +114,11 @@ where
 
         tokio::try_join!(
             async {
-                i_guard.join().await;
+                (&mut i_guard).await;
                 i_guard.take_result().unwrap()
             },
             async {
-                o_guard.join().await;
+                (&mut o_guard).await;
                 o_guard.take_result().unwrap()
             },
         )

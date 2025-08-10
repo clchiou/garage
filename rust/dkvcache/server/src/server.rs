@@ -145,7 +145,7 @@ impl Actor {
                 }
 
                 Some(()) = {
-                    OptionFuture::from(self.evict_task.as_mut().map(|guard| guard.join()))
+                    OptionFuture::from(self.evict_task.as_mut())
                 } => {
                     let guard = self.evict_task.take().unwrap();
                     self.handle_cleanup_task(guard)?;
@@ -165,7 +165,7 @@ impl Actor {
                     self.spawn_expire();
                 }
                 Some(()) = {
-                    OptionFuture::from(self.expire_task.as_mut().map(|guard| guard.join()))
+                    OptionFuture::from(self.expire_task.as_mut())
                 } => {
                     let guard = self.expire_task.take().unwrap();
                     self.handle_cleanup_task(guard)?;
@@ -188,7 +188,7 @@ impl Actor {
             .chain(self.expire_task.take().into_iter())
         {
             guard.cancel();
-            guard.join().await;
+            (&mut guard).await;
             self.handle_cleanup_task(guard)?;
         }
 

@@ -653,7 +653,7 @@ mod tests {
         let response_recv = reqrep.request(("foo", "bar")).await.unwrap();
 
         mock_incoming.close_channel();
-        guard.join().await;
+        (&mut guard).await;
         assert_matches!(guard.take_result(), Ok(Ok(())));
 
         assert!(reqrep.accept().await.is_none());
@@ -676,7 +676,7 @@ mod tests {
         assert_eq!(request, ("foo", "bar"));
 
         response_send.send(("foo", "bar")).await;
-        guard.join().await;
+        (&mut guard).await;
         assert_matches!(guard.take_result(), Ok(Err(SendError { .. })));
     }
 }
