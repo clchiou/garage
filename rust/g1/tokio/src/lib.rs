@@ -1,5 +1,10 @@
 //! Extends the `tokio` crate.
 
+#![allow(incomplete_features)]
+#![feature(control_flow_into_value)]
+#![feature(lazy_type_alias)]
+#![feature(trait_alias)]
+#![feature(type_alias_impl_trait)]
 #![cfg_attr(feature = "icmp", feature(raw_os_error_ty))]
 #![cfg_attr(test, feature(assert_matches))]
 #![cfg_attr(test, feature(binary_heap_into_iter_sorted))]
