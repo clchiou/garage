@@ -56,6 +56,16 @@ where
         unsafe { values.assume_init_drop() };
     }
 
+    // NOTE: It returns the sum of pending and ready futures, unlike the other methods, which
+    // operate only on pending futures.
+    pub fn len(&self) -> usize {
+        self.futures.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.futures.is_empty()
+    }
+
     fn num_ready(&self) -> usize {
         self.futures.len() - self.num_pending
     }
@@ -77,7 +87,7 @@ where
     }
 
     pub fn is_ready(&self) -> bool {
-        self.num_ready() > 0 || self.num_pending == 0
+        self.num_ready() > 0 || self.is_empty()
     }
 
     pub fn try_pop_ready(&mut self) -> Option<Fut::Output> {
