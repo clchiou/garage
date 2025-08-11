@@ -157,6 +157,7 @@ impl<T> JoinGuard<T> {
 
         if time::timeout(timeout, &mut *self).await.is_err() {
             self.abort();
+            self.stage = Stage::Consumed;
             return Err(ShutdownError::JoinTimeout);
         }
 
@@ -396,9 +397,7 @@ mod tests {
             guard.shutdown_with_timeout(Duration::ZERO).await,
             Err(ShutdownError::JoinTimeout),
         );
-        // TODO: Can we write this test without using `time::sleep`?
-        time::sleep(Duration::from_millis(10)).await;
-        assert_eq!(guard.is_finished(), true);
+        assert!(matches!(guard.stage, Stage::Consumed));
 
         let mut guard = JoinGuard::spawn(|_| future::pending::<()>());
         guard.abort();
