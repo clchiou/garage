@@ -103,19 +103,10 @@ where
     }
 
     pub async fn ready(&mut self) {
-        future::poll_fn(|context| self.poll_futures(context)).await
+        future::poll_fn(|context| self.poll_ready(context)).await
     }
 
-    pub async fn pop_ready(&mut self) -> Option<Fut::Output> {
-        self.pop_ready_with_future().await.map(|(value, _)| value)
-    }
-
-    pub async fn pop_ready_with_future(&mut self) -> Option<(Fut::Output, Fut)> {
-        self.ready().await;
-        self.try_pop_ready_with_future()
-    }
-
-    fn poll_futures(&mut self, context: &mut Context<'_>) -> Poll<()> {
+    pub fn poll_ready(&mut self, context: &mut Context<'_>) -> Poll<()> {
         if self.num_pending == 0 {
             return Poll::Ready(());
         }
@@ -154,6 +145,15 @@ where
         } else {
             Poll::Pending
         }
+    }
+
+    pub async fn pop_ready(&mut self) -> Option<Fut::Output> {
+        self.pop_ready_with_future().await.map(|(value, _)| value)
+    }
+
+    pub async fn pop_ready_with_future(&mut self) -> Option<(Fut::Output, Fut)> {
+        self.ready().await;
+        self.try_pop_ready_with_future()
     }
 }
 
@@ -438,16 +438,16 @@ mod tests {
         array.assert_mocks(&[0, 1, 2]);
         assert_eq!(array.num_pending, 3);
 
-        assert_eq!(array.poll_futures(&mut context), Poll::Pending);
+        assert_eq!(array.poll_ready(&mut context), Poll::Pending);
         array.assert_mocks(&[1, 2, 0]);
         assert_eq!(array.num_pending, 3);
 
-        assert_eq!(array.poll_futures(&mut context), Poll::Pending);
+        assert_eq!(array.poll_ready(&mut context), Poll::Pending);
         array.assert_mocks(&[2, 0, 1]);
         assert_eq!(array.num_pending, 2);
 
         for _ in 0..3 {
-            assert_eq!(array.poll_futures(&mut context), Poll::Pending);
+            assert_eq!(array.poll_ready(&mut context), Poll::Pending);
             array.assert_mocks(&[0, 2, 1]);
             assert_eq!(array.num_pending, 1);
         }
@@ -457,20 +457,20 @@ mod tests {
         array.assert_mocks(&[-1, -2, 0, 0, 3, 4]);
         assert_eq!(array.num_pending, 6);
 
-        assert_eq!(array.poll_futures(&mut context), Poll::Pending);
+        assert_eq!(array.poll_ready(&mut context), Poll::Pending);
         array.assert_mocks(&[-1, -2, 0, 3, 4, 0]);
         assert_eq!(array.num_pending, 6);
 
-        assert_eq!(array.poll_futures(&mut context), Poll::Pending);
+        assert_eq!(array.poll_ready(&mut context), Poll::Pending);
         array.assert_mocks(&[-1, -2, 3, 4, 0, 0]);
         assert_eq!(array.num_pending, 6);
 
-        assert_eq!(array.poll_futures(&mut context), Poll::Pending);
+        assert_eq!(array.poll_ready(&mut context), Poll::Pending);
         array.assert_mocks(&[-1, -2, 4, 0, 0, 3]);
         assert_eq!(array.num_pending, 5);
 
         for _ in 0..3 {
-            assert_eq!(array.poll_futures(&mut context), Poll::Pending);
+            assert_eq!(array.poll_ready(&mut context), Poll::Pending);
             array.assert_mocks(&[-1, -2, 0, 0, 4, 3]);
             assert_eq!(array.num_pending, 4);
         }
