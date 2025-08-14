@@ -1,0 +1,8 @@
+[package]
+name = "bt_udp"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+bytes.workspace = true
+futures.workspace = true
