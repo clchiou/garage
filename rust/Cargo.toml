@@ -23,6 +23,7 @@ members = [
     "bt/bin/metainfo",
     "bt/dht/lookup",
     "bt/dht/proto",
+    "bt/dht/reqrep",
     "bt/dht/route",
     "bt/metainfo",
     "bt/serde",
@@ -172,6 +173,7 @@ bt_base = { path = "bt/base" }
 bt_bencode = { path = "bt/bencode" }
 bt_dht_lookup = { path = "bt/dht/lookup" }
 bt_dht_proto = { path = "bt/dht/proto" }
+bt_dht_reqrep = { path = "bt/dht/reqrep" }
 bt_dht_route = { path = "bt/dht/route" }
 bt_metainfo = { path = "bt/metainfo" }
 bt_serde = { path = "bt/serde" }

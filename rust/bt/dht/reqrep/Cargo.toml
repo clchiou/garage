@@ -1,0 +1,16 @@
+[package]
+name = "bt_dht_reqrep"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+futures.workspace = true
+snafu.workspace = true
+tracing.workspace = true
+
+g1_msg.workspace = true
+
+bt_base.workspace = true
+bt_bencode.workspace = true
+bt_dht_proto.workspace = true
+bt_udp.workspace = true
