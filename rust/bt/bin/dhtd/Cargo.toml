@@ -1,0 +1,19 @@
+[package]
+name = "dhtd"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+clap.workspace = true
+linkme.workspace = true # Required by g1_param.
+rand.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+g1_cli = { workspace = true, features = ["param", "tracing"] }
+g1_param.workspace = true
+g1_udp.workspace = true
+
+bt_base.workspace = true
+bt_dht_node.workspace = true
+bt_peer.workspace = true
