@@ -1,0 +1,21 @@
+[package]
+name = "bt_dht_node"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+rand.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+g1_actor.workspace = true
+g1_base.workspace = true
+g1_tokio.workspace = true
+
+bt_base.workspace = true
+bt_dht_lookup.workspace = true
+bt_dht_proto.workspace = true
+bt_dht_reqrep.workspace = true
+bt_dht_route.workspace = true
+bt_peer.workspace = true
+bt_udp.workspace = true

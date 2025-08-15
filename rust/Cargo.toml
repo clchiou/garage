@@ -22,6 +22,7 @@ members = [
     "bt/bin/dhtutl",
     "bt/bin/metainfo",
     "bt/dht/lookup",
+    "bt/dht/node",
     "bt/dht/proto",
     "bt/dht/reqrep",
     "bt/dht/route",
@@ -173,6 +174,7 @@ bittorrent_utp = { path = "bittorrent/utp" }
 bt_base = { path = "bt/base" }
 bt_bencode = { path = "bt/bencode" }
 bt_dht_lookup = { path = "bt/dht/lookup" }
+bt_dht_node = { path = "bt/dht/node" }
 bt_dht_proto = { path = "bt/dht/proto" }
 bt_dht_reqrep = { path = "bt/dht/reqrep" }
 bt_dht_route = { path = "bt/dht/route" }
