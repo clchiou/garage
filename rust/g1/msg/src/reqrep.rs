@@ -117,7 +117,7 @@ where
     fn on_incoming(&mut self, incoming: P::Incoming) {
         match self.requests.remove(&P::incoming_id(&incoming)) {
             Some((deadline, response_send)) => {
-                if deadline.elapsed() == Duration::ZERO {
+                if deadline.elapsed().is_zero() {
                     let _ = response_send.send(incoming);
                 } else {
                     tracing::warn!(?incoming, "recv response after timeout");
@@ -145,7 +145,7 @@ where
         let timeout_ids = self
             .requests
             .iter()
-            .take_while(|(_, entry)| entry.0.elapsed() != Duration::ZERO)
+            .take_while(|(_, entry)| !entry.0.elapsed().is_zero())
             .map(|(id, _)| id.clone())
             .collect::<Vec<_>>();
         for id in timeout_ids {
