@@ -86,9 +86,7 @@ impl Serialize for NodeId {
 
 impl Distribution<NodeId> for StandardUniform {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> NodeId {
-        let mut node_id = [0u8; NODE_ID_SIZE];
-        rng.fill(&mut node_id);
-        node_id.into()
+        rng.random::<[u8; NODE_ID_SIZE]>().into()
     }
 }
 
@@ -149,6 +147,24 @@ impl NodeId {
         let mut distance = NodeDistance::new(*self.0);
         distance ^= rhs.bits();
         distance
+    }
+
+    /// Returns a new id, where the bits `0..bit_index` are copied from the original, bit
+    /// `bit_index` is inverted, and the bits `bit_index + 1..` are random.
+    pub fn invert_then_random_suffix(&self, bit_index: usize) -> Self {
+        let mut id = *self.0;
+        if bit_index < NODE_ID_BIT_SIZE {
+            let id = NodeIdBitSlice::from_slice_mut(&mut id);
+
+            id.set(bit_index, !id[bit_index]);
+
+            if bit_index + 1 < NODE_ID_BIT_SIZE {
+                let random_id = rand::random::<[u8; NODE_ID_SIZE]>();
+                let random_id = NodeIdBitSlice::from_slice(&random_id);
+                id[bit_index + 1..].copy_from_bitslice(&random_id[bit_index + 1..]);
+            }
+        }
+        id.into()
     }
 }
 
@@ -231,5 +247,45 @@ mod tests {
             hex!("0123456789abcdef 0123456789abcdef deadbeef"),
             hex!("0123456789abcdef 0000000000000000 deadbeef"),
         );
+    }
+
+    #[test]
+    fn invert_then_random_suffix() {
+        const N: usize = 30;
+
+        fn test(id: NodeId, bit_index: usize) {
+            let mut suffix_eq_count = 0;
+            for _ in 0..N {
+                let actual = id.invert_then_random_suffix(bit_index);
+                let actual = NodeIdBitSlice::from_slice(&*actual.0);
+                let expect = NodeIdBitSlice::from_slice(&*id.0);
+
+                assert_eq!(&actual[..bit_index], &expect[..bit_index]);
+                assert_ne!(actual[bit_index], expect[bit_index]);
+
+                if &actual[bit_index + 1..] == &expect[bit_index + 1..] {
+                    suffix_eq_count += 1;
+                }
+            }
+            // When `bit_index + 1 == NODE_ID_BIT_SIZE - 1`, the probability that
+            // `suffix_eq_count == N` is `1 / 2**N`, which should be sufficiently low.
+            assert!(suffix_eq_count < N);
+        }
+
+        let x00 = NodeId::from([0x00; 20]);
+        let xff = NodeId::from([0xff; 20]);
+        for bit_index in [0, 1, 2, 3, 8, 11, 23, 63, 64, 65, 157, 158] {
+            test(x00.clone(), bit_index);
+            test(xff.clone(), bit_index);
+        }
+
+        let x00_inv = NodeId::from(hex!("0000000000000000 0000000000000000 00000001"));
+        let xff_inv = NodeId::from(hex!("ffffffffffffffff ffffffffffffffff fffffffe"));
+        for _ in 0..N {
+            assert_eq!(x00.invert_then_random_suffix(159), x00_inv);
+            assert_eq!(xff.invert_then_random_suffix(159), xff_inv);
+            assert_eq!(x00.invert_then_random_suffix(160), x00);
+            assert_eq!(xff.invert_then_random_suffix(160), xff);
+        }
     }
 }

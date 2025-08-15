@@ -234,6 +234,26 @@ mod tests {
     }
 
     #[test]
+    fn position_invert_then_random_suffix() {
+        let self_id = NodeId::from(msb(0x00));
+        let mut table = Table::new(self_id.clone());
+        while table.buckets.len() <= NODE_ID_BIT_SIZE {
+            table.buckets.push(Bucket::new());
+        }
+        assert_eq!(table.position(&self_id), NODE_ID_BIT_SIZE);
+
+        for _ in 0..10 {
+            for i in 0..=NODE_ID_BIT_SIZE {
+                assert_eq!(table.position(&self_id.invert_then_random_suffix(i)), i);
+            }
+            assert_eq!(
+                table.position(&self_id.invert_then_random_suffix(NODE_ID_BIT_SIZE + 1)),
+                NODE_ID_BIT_SIZE,
+            );
+        }
+    }
+
+    #[test]
     fn get_closest() {
         let msb_80 = ni(msb(0x80), 8000);
         let msb_40 = ni(msb(0x40), 8000);
