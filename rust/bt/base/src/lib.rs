@@ -3,6 +3,7 @@
 #![feature(ip_as_octets)]
 #![feature(ip_from)]
 #![feature(iterator_try_collect)]
+#![feature(step_trait)]
 #![feature(trait_alias)]
 #![feature(try_blocks)]
 
