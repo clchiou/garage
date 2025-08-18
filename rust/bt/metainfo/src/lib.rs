@@ -9,7 +9,8 @@ use serde::de::{Deserializer, Error as _};
 use serde::ser::Serializer;
 use serde::{Deserialize, Serialize};
 
-use bt_base::{InfoHash, Md5Hash, PieceHashes};
+use bt_base::layout;
+use bt_base::{InfoHash, Layout, Md5Hash, PieceHashes};
 use bt_bencode::{Value, WithRaw};
 use bt_serde::SerdeWith;
 
@@ -268,6 +269,14 @@ impl Info {
         private.unwrap_or(false) => bool,
         extra._ref() => &Value,
     );
+
+    pub fn layout(&self) -> Result<Layout, layout::Error> {
+        Layout::new(
+            self.length(),
+            self.pieces().len().try_into().expect("num_pieces"),
+            self.piece_length(),
+        )
+    }
 
     pub fn length(&self) -> u64 {
         self.mode().length()
