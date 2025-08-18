@@ -129,6 +129,14 @@ pub struct File {
     extra: Value,
 }
 
+/// Abstracts away the difference between `Mode::Single` and `Mode::Multiple`.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FileLike<'a> {
+    pub path: &'a [String],
+    pub length: u64,
+    pub md5sum: Option<Md5Hash>,
+}
+
 impl TryFrom<FlatInfo> for Info {
     type Error = &'static str;
 
@@ -281,6 +289,26 @@ impl Info {
     pub fn length(&self) -> u64 {
         self.mode().length()
     }
+
+    //
+    // Interface used to access the files in a torrent.
+    //
+
+    pub fn is_empty(&self) -> bool {
+        self.mode().is_empty()
+    }
+
+    pub fn len(&self) -> usize {
+        self.mode().len()
+    }
+
+    pub fn file(&self, i: usize) -> FileLike {
+        self.mode().file(i)
+    }
+
+    pub fn file_range(&self, i: usize) -> (u64, u64) {
+        self.mode().file_range(i)
+    }
 }
 
 impl Mode {
@@ -288,6 +316,58 @@ impl Mode {
         match self {
             Self::Single { length, .. } => *length,
             Self::Multiple { files } => files.iter().map(|file| file.length).sum(),
+        }
+    }
+
+    //
+    // Interface used to access the files in a torrent.
+    //
+
+    pub fn is_empty(&self) -> bool {
+        assert_ne!(self.len(), 0);
+        true
+    }
+
+    pub fn len(&self) -> usize {
+        match self {
+            Self::Single { .. } => 1,
+            Self::Multiple { files } => files.len(),
+        }
+    }
+
+    pub fn file(&self, i: usize) -> FileLike {
+        match self {
+            Self::Single { length, md5sum, .. } => {
+                assert_eq!(i, 0);
+                FileLike {
+                    path: &[],
+                    length: *length,
+                    md5sum: md5sum.clone(),
+                }
+            }
+            Self::Multiple { files } => {
+                let file = &files[i];
+                FileLike {
+                    path: &file.path,
+                    length: file.length,
+                    md5sum: file.md5sum.clone(),
+                }
+            }
+        }
+    }
+
+    /// Returns the file offset relative to the start of the torrent.
+    // TODO: This is not very efficient.  Would it be an issue?
+    pub fn file_range(&self, i: usize) -> (u64, u64) {
+        match self {
+            Self::Single { length, .. } => {
+                assert_eq!(i, 0);
+                (0, *length)
+            }
+            Self::Multiple { files, .. } => (
+                files.iter().take(i).map(|file| file.length()).sum(),
+                files[i].length(),
+            ),
         }
     }
 }
