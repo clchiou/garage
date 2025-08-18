@@ -5,6 +5,10 @@ use snafu::prelude::*;
 
 use super::{File, Info, Metainfo, Mode};
 
+pub trait SanityCheck {
+    fn sanity_check(&self) -> Result<(), Insane>;
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Insane(Vec<Symptom>);
 
@@ -74,8 +78,16 @@ impl Insane {
     }
 }
 
-impl Metainfo {
-    pub fn sanity_check(&self) -> Result<(), Insane> {
+impl SanityCheck for Metainfo {
+    fn sanity_check(&self) -> Result<(), Insane> {
+        let mut symptoms = Vec::new();
+        self.collect_into(&mut symptoms);
+        Insane::check(symptoms)
+    }
+}
+
+impl SanityCheck for Info {
+    fn sanity_check(&self) -> Result<(), Insane> {
         let mut symptoms = Vec::new();
         self.collect_into(&mut symptoms);
         Insane::check(symptoms)

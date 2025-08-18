@@ -4,6 +4,8 @@ use std::io::{self, Read, Write};
 use bytes::Bytes;
 use clap::{Parser, Subcommand};
 
+use bt_metainfo::SanityCheck;
+
 #[derive(Debug, Parser)]
 struct Metainfo {
     #[command(subcommand)]

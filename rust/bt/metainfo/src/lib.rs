@@ -16,7 +16,7 @@ use bt_serde::SerdeWith;
 
 pub use g1_chrono::{Timestamp, TimestampExt};
 
-pub use self::sanity::{Insane, Symptom};
+pub use self::sanity::{Insane, SanityCheck, Symptom};
 
 #[bt_serde::optional]
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
