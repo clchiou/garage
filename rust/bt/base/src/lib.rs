@@ -6,6 +6,7 @@
 #![feature(trait_alias)]
 #![feature(try_blocks)]
 
+pub mod bitfield;
 pub mod compact;
 pub mod info_hash;
 pub mod layout;
@@ -15,6 +16,7 @@ pub mod node_id;
 pub mod peer_id;
 pub mod piece_hash;
 
+pub use crate::bitfield::Bitfield;
 pub use crate::compact::Compact;
 pub use crate::info_hash::InfoHash;
 pub use crate::layout::{BlockRange, Layout, PieceIndex};
