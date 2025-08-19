@@ -1,0 +1,19 @@
+[package]
+name = "btutl"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+bytes.workspace = true
+clap.workspace = true
+nix.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+serde_yaml.workspace = true
+tracing.workspace = true
+
+g1_cli = { workspace = true, features = ["tracing"] }
+
+bt_base.workspace = true
+bt_metainfo.workspace = true
+bt_storage.workspace = true
