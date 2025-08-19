@@ -31,6 +31,7 @@ members = [
     "bt/peer",
     "bt/serde",
     "bt/serde/attribute",
+    "bt/storage",
     "bt/udp",
     "ddcache/bin/ddcached",
     "ddcache/client",
@@ -105,6 +106,8 @@ const_format = "0.2.34"
 # but rc4 0.1.0 has not yet migrated away from generic-array.
 # [1]: https://github.com/RustCrypto/crypto-bigint/pull/544
 crypto-bigint = { version = "0.5.5", features = ["generic-array", "zeroize"] }
+# md-5 and sha1 both depend on this version of digest.
+digest = "0.10.7"
 # The latest version of fasthash on crates.io is v0.4.0, but it is somewhat outdated.
 fasthash = { git = "https://github.com/flier/rust-fasthash.git", rev = "ef0c52b4157af9a1a7d19b2a37658b6c26a6bea6" }
 futures = "0.3.31"
@@ -119,6 +122,9 @@ hyper-util = "0.1.11"
 lazy-regex = "3.4.1"
 libc = "0.2.172"
 linkme = "0.3.32"
+# We stay on 0.10.x because we want the `asm` feature, which was [removed][1] in 0.11.x.
+# [1]: https://github.com/RustCrypto/hashes/pull/542
+md-5 = { version = "0.10.6", features = ["asm"] }
 nix = "0.30.1"
 paste = "1.0.15"
 percent-encoding = "2.3.1"
@@ -183,6 +189,7 @@ bt_metainfo = { path = "bt/metainfo" }
 bt_peer = { path = "bt/peer" }
 bt_serde = { path = "bt/serde" }
 bt_serde_attribute = { path = "bt/serde/attribute" }
+bt_storage = { path = "bt/storage" }
 bt_udp = { path = "bt/udp" }
 
 ddcache_client = { path = "ddcache/client" }

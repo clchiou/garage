@@ -1,0 +1,27 @@
+[package]
+name = "bt_storage"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+bytes.workspace = true
+const_format.workspace = true
+digest.workspace = true
+libc.workspace = true
+md-5.workspace = true
+rusqlite.workspace = true
+serde.workspace = true
+sha1.workspace = true
+snafu.workspace = true
+tracing.workspace = true
+
+g1_base.workspace = true
+g1_rusqlite.workspace = true
+
+bt_base.workspace = true
+bt_bencode.workspace = true
+bt_metainfo.workspace = true
+
+[dev-dependencies]
+bitvec.workspace = true
+tempfile.workspace = true
