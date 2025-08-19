@@ -9,6 +9,8 @@ use serde::de::{Deserializer, Error as _};
 use serde::ser::Serializer;
 use serde::{Deserialize, Serialize};
 
+use g1_base::cmp::PartialEqExt;
+
 use bt_base::layout;
 use bt_base::{InfoHash, Layout, Md5Hash, PieceHashes};
 use bt_bencode::{Value, WithRaw};
@@ -19,12 +21,13 @@ pub use g1_chrono::{Timestamp, TimestampExt};
 pub use self::sanity::{Insane, SanityCheck, Symptom};
 
 #[bt_serde::optional]
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEqExt, Serialize)]
 pub struct Metainfo {
     announce: Option<String>,
 
     info: WithRaw<Info>,
     #[serde(skip)]
+    #[partial_eq(skip)]
     info_hash: OnceLock<InfoHash>,
 
     // BEP 12 Multitracker Metadata Extension
@@ -593,6 +596,15 @@ mod tests {
                 bt_bencode::to_bytes(info_dict).unwrap(),
             );
         }
+    }
+
+    #[test]
+    fn metainfo_info_hash_once_lock() {
+        let [(m1, _), ..] = metainfo_testdata();
+        let [(m2, _), ..] = metainfo_testdata();
+        let _ = m1.info_hash();
+        assert_ne!(m1.info_hash, m2.info_hash);
+        assert_eq!(m1, m2);
     }
 
     #[test]
