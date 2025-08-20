@@ -18,7 +18,7 @@ use crate::net;
 #[derive(Args, Debug)]
 struct ReqRepCommand {
     node_endpoint: String,
-    #[arg(long, default_value_t = Format::Debug, value_enum)]
+    #[arg(long, default_value_t = Format::Debug, value_enum, help = "Output format")]
     format: Format,
 }
 
@@ -29,12 +29,14 @@ enum Format {
 }
 
 #[derive(Args, Debug)]
+#[command(about = "Ping a node", next_display_order = 10)]
 pub(crate) struct PingCommand {
     #[command(flatten)]
     command: ReqRepCommand,
 }
 
 #[derive(Args, Debug)]
+#[command(about = "Send a find_node query", next_display_order = 10)]
 pub(crate) struct FindNodeCommand {
     #[command(flatten)]
     command: ReqRepCommand,
@@ -43,6 +45,7 @@ pub(crate) struct FindNodeCommand {
 }
 
 #[derive(Args, Debug)]
+#[command(about = "Send a get_peers query", next_display_order = 10)]
 pub(crate) struct GetPeersCommand {
     #[command(flatten)]
     command: ReqRepCommand,
@@ -51,11 +54,12 @@ pub(crate) struct GetPeersCommand {
 }
 
 #[derive(Args, Debug)]
+#[command(about = "Send a announce_peer query", next_display_order = 10)]
 pub(crate) struct AnnouncePeerCommand {
     #[command(flatten)]
     command: ReqRepCommand,
 
-    #[arg(long)]
+    #[arg(long, value_name = "BOOL", help = "Set this field in the query")]
     implied_port: Option<bool>,
     info_hash: InfoHash,
     port: u16,

@@ -9,7 +9,7 @@ use std::io::Error;
 use std::net::SocketAddrV4;
 use std::time::Duration;
 
-use clap::{Parser, Subcommand};
+use clap::{Args, Parser, Subcommand};
 use tokio::net::UdpSocket;
 
 use g1_cli::tracing::TracingConfig;
@@ -27,19 +27,39 @@ use crate::reqrep::{AnnouncePeerCommand, FindNodeCommand, GetPeersCommand, PingC
 #[derive(Debug, Parser)]
 #[command(version = g1_cli::version!())]
 struct Dhtutl {
-    #[command(flatten)]
+    #[command(flatten, next_display_order = 100)]
     tracing: TracingConfig,
 
-    #[arg(long, global = true)]
-    self_id: Option<NodeId>,
+    #[command(flatten, next_display_order = 0)]
+    node: Node,
 
-    #[arg(long, global = true, default_value = "0.0.0.0:0")]
-    self_endpoint: SocketAddrV4,
-    #[arg(long, global = true, default_value_t = 8)]
-    recv_timeout: u64,
-
+    // TODO: I am not sure why, but setting `next_display_order` here does not work.
     #[command(subcommand)]
     command: Command,
+}
+
+#[derive(Args, Debug)]
+struct Node {
+    #[arg(long, global = true, value_name = "ID", help = "Node id")]
+    self_id: Option<NodeId>,
+
+    #[arg(
+        long,
+        global = true,
+        default_value = "0.0.0.0:0",
+        value_name = "ENDPOINT",
+        help = "Node endpoint"
+    )]
+    self_endpoint: SocketAddrV4,
+
+    #[arg(
+        long,
+        global = true,
+        default_value_t = 8,
+        value_name = "SECOND",
+        help = "Timeout for the response"
+    )]
+    recv_timeout: u64,
 }
 
 #[derive(Debug, Subcommand)]
@@ -54,12 +74,12 @@ enum Command {
 
 impl Dhtutl {
     async fn execute(self) -> Result<(), Error> {
-        let socket = UdpSocket::bind(self.self_endpoint).await?;
+        let socket = UdpSocket::bind(self.node.self_endpoint).await?;
         tracing::debug!(self_endpoint = %socket.local_addr()?);
         self.command
             .run(
-                self.self_id.clone().unwrap_or_else(rand::random),
-                Client::new(socket, Duration::from_secs(self.recv_timeout)),
+                self.node.self_id.clone().unwrap_or_else(rand::random),
+                Client::new(socket, Duration::from_secs(self.node.recv_timeout)),
             )
             .await
     }

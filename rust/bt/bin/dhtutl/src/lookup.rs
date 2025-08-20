@@ -13,11 +13,17 @@ use crate::net;
 
 #[derive(Args, Debug)]
 struct LookupCommand {
-    #[arg(short, long)]
+    #[arg(
+        short,
+        long,
+        value_name = "ENDPOINT",
+        help = "Bootstrap lookup from these DHT routers"
+    )]
     bootstrap: Vec<String>,
 }
 
 #[derive(Args, Debug)]
+#[command(about = "Look up nodes in DHT", next_display_order = 10)]
 pub(crate) struct LookupNodesCommand {
     #[command(flatten)]
     command: LookupCommand,
@@ -26,6 +32,7 @@ pub(crate) struct LookupNodesCommand {
 }
 
 #[derive(Args, Debug)]
+#[command(about = "Look up peers in DHT", next_display_order = 10)]
 pub(crate) struct LookupPeersCommand {
     #[command(flatten)]
     command: LookupCommand,
