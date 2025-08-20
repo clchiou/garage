@@ -18,6 +18,15 @@ impl From<super::Error> for Error {
     }
 }
 
+impl From<Error> for io::Error {
+    fn from(error: Error) -> Self {
+        match error {
+            Error::Bencode { source } => io::Error::other(source),
+            Error::Io { source } => source,
+        }
+    }
+}
+
 impl serde::de::Error for Error {
     fn custom<T>(message: T) -> Self
     where
