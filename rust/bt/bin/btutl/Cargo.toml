@@ -15,5 +15,6 @@ tracing.workspace = true
 g1_cli = { workspace = true, features = ["tracing"] }
 
 bt_base.workspace = true
+bt_bencode.workspace = true
 bt_metainfo.workspace = true
 bt_storage.workspace = true

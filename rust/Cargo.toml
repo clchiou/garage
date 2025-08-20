@@ -18,7 +18,6 @@ members = [
     "bittorrent/utp",
     "bt/base",
     "bt/bencode",
-    "bt/bin/bencode",
     "bt/bin/btutl",
     "bt/bin/dhtd",
     "bt/bin/dhtutl",

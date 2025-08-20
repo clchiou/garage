@@ -1,37 +1,38 @@
-use std::error;
-use std::io::{self, Read, Write};
+use std::io::{self, Error, Read, Write};
 
-use clap::{Parser, Subcommand};
+use clap::{Args, Subcommand};
 use serde_json::Deserializer;
 
 use bt_bencode::{Json, Value, Yaml};
 
-#[derive(Debug, Parser)]
-struct Bencode {
+#[derive(Args, Debug)]
+#[command(about = "Transcode Bencode data")]
+pub(crate) struct BencodeCommand {
     #[command(subcommand)]
     command: Command,
 }
 
 #[derive(Debug, Subcommand)]
 enum Command {
+    #[command(about = "Transcode data from Bencode to JSON")]
     Json {
-        #[arg(short, long)]
+        #[arg(short, long, help = "Reverses the direction of transcoding")]
         reverse: bool,
     },
+    #[command(about = "Transcode data from Bencode to YAML")]
     Yaml {
-        #[arg(short, long)]
+        #[arg(short, long, help = "Reverses the direction of transcoding")]
         reverse: bool,
     },
+    #[command(about = "Print Bencode data")]
     Debug,
 }
 
 type Reader = Box<dyn FnMut() -> Result<Option<Value>, Error>>;
 type Writer = Box<dyn FnMut(Value) -> Result<(), Error>>;
 
-type Error = Box<dyn error::Error>;
-
-impl Bencode {
-    fn execute(&self) -> Result<(), Error> {
+impl BencodeCommand {
+    pub(crate) fn run(&self) -> Result<(), Error> {
         let reader = io::stdin();
         let reader = match self.command {
             Command::Json { reverse: true } => json_reader(reader),
@@ -78,7 +79,7 @@ where
     R: Read,
 {
     // `serde_yaml` does not support the deserialization of multiple documents.
-    let mut stream = [serde_yaml::from_reader(reader)].into_iter();
+    let mut stream = [serde_yaml::from_reader(reader).map_err(Error::other)].into_iter();
     Box::new(move || Ok(stream.next().transpose()?.map(|Yaml(value)| value)))
 }
 
@@ -95,8 +96,7 @@ where
 {
     Box::new(move |value| {
         serde_json::to_writer(&mut writer, &Json(&value))?;
-        std::writeln!(writer)?;
-        Ok(())
+        writeln!(writer)
     })
 }
 
@@ -107,10 +107,10 @@ where
     let mut first = true;
     Box::new(move |value| {
         if !first {
-            std::writeln!(writer, "---")?;
+            writeln!(writer, "---")?;
         }
         first = false;
-        Ok(serde_yaml::to_writer(&mut writer, &Yaml(&value))?)
+        serde_yaml::to_writer(&mut writer, &Yaml(&value)).map_err(Error::other)
     })
 }
 
@@ -118,9 +118,5 @@ fn debug_writer<W>(mut writer: W) -> Writer
 where
     W: Write + 'static,
 {
-    Box::new(move |value| Ok(std::writeln!(writer, "{value:#?}")?))
-}
-
-fn main() -> Result<(), Error> {
-    Bencode::parse().execute()
+    Box::new(move |value| writeln!(writer, "{value:#?}"))
 }

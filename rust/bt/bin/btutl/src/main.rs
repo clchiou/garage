@@ -1,6 +1,7 @@
 #![feature(iter_intersperse)]
 #![feature(iterator_try_collect)]
 
+mod bencode;
 mod storage;
 
 use std::io::Error;
@@ -9,6 +10,7 @@ use clap::{Parser, Subcommand};
 
 use g1_cli::tracing::TracingConfig;
 
+use crate::bencode::BencodeCommand;
 use crate::storage::{ExportCommand, ImportCommand, LsCommand, RmCommand};
 
 #[derive(Debug, Parser)]
@@ -23,6 +25,7 @@ struct Btutl {
 
 #[derive(Debug, Subcommand)]
 enum Command {
+    Bencode(BencodeCommand),
     Ls(LsCommand),
     Import(ImportCommand),
     Export(ExportCommand),
@@ -38,6 +41,7 @@ impl Btutl {
 impl Command {
     fn run(&self) -> Result<(), Error> {
         match self {
+            Self::Bencode(command) => command.run(),
             Self::Ls(command) => command.run(),
             Self::Import(command) => command.run(),
             Self::Export(command) => command.run(),
