@@ -21,7 +21,6 @@ members = [
     "bt/bin/btutl",
     "bt/bin/dhtd",
     "bt/bin/dhtutl",
-    "bt/bin/metainfo",
     "bt/dht/lookup",
     "bt/dht/node",
     "bt/dht/proto",
