@@ -1,3 +1,8 @@
+#![cfg_attr(test, feature(assert_matches))]
+
+#[cfg(test)]
+extern crate self as g1_url;
+
 use std::borrow::{Borrow, Cow};
 use std::collections::BTreeMap;
 use std::collections::btree_map;
@@ -5,6 +10,8 @@ use std::mem;
 
 use form_urlencoded::Serializer;
 use url::Url;
+
+pub use g1_url_derive::{ParseQuery, UpdateQuery};
 
 pub trait UrlExt {
     // We need this due to the idiosyncrasy of `Url::join`.
@@ -168,6 +175,9 @@ impl<'a> QueryBuilder<'a> {
 
 #[cfg(test)]
 mod tests {
+    use std::assert_matches::assert_matches;
+    use std::collections::HashMap;
+
     use super::*;
 
     #[derive(Clone, Debug, Eq, PartialEq)]
@@ -352,5 +362,111 @@ mod tests {
                 "http://127.0.0.1/?spam+egg=Hello%2C+World%21&foo=bar&spam%20egg=Hello%2C%20World%21"
             ),
         );
+    }
+
+    #[test]
+    fn derive() {
+        #[derive(Debug, Eq, ParseQuery, PartialEq, UpdateQuery)]
+        struct Query {
+            x: u8,
+            y: Option<u8>,
+            z: HashMap<String, String>,
+        }
+
+        impl Default for Query {
+            fn default() -> Self {
+                Self {
+                    x: 42,
+                    y: None,
+                    z: HashMap::new(),
+                }
+            }
+        }
+
+        for (url, query) in [
+            (u("http://127.0.0.1/"), Query::default()),
+            (
+                u("http://127.0.0.1/?x=1"),
+                Query {
+                    x: 1,
+                    ..Default::default()
+                },
+            ),
+            (
+                u("http://127.0.0.1/?y=2"),
+                Query {
+                    y: Some(2),
+                    ..Default::default()
+                },
+            ),
+            (
+                u("http://127.0.0.1/?foo=bar"),
+                Query {
+                    z: HashMap::from([("foo".to_string(), "bar".to_string())]),
+                    ..Default::default()
+                },
+            ),
+        ] {
+            assert_matches!(url.parse_query::<Query>(), Ok(q) if q == query);
+            assert_eq!(u("http://127.0.0.1/").update_query(&[&query]), url);
+            assert_eq!(
+                u("http://127.0.0.1/?x=99&y=99").update_query(&[&query]),
+                url,
+            );
+        }
+
+        let url = u("http://127.0.0.1/?x=1&y=2&foo=bar&x=3&y=4&spam=egg");
+        let query = Query {
+            x: 3,
+            y: Some(4),
+            z: HashMap::from([
+                ("foo".to_string(), "bar".to_string()),
+                ("spam".to_string(), "egg".to_string()),
+            ]),
+        };
+        assert_matches!(url.parse_query::<Query>(), Ok(q) if q == query);
+        assert_eq!(
+            url.update_query(&[&Query::default()]),
+            u("http://127.0.0.1/?foo=bar&spam=egg"),
+        );
+    }
+
+    #[test]
+    fn derive_insert_default() {
+        #[derive(Debug, Eq, ParseQuery, PartialEq, UpdateQuery)]
+        #[g1_url(insert_default)]
+        struct Query {
+            x: u8,
+            y: Option<u8>,
+            z: HashMap<String, String>,
+        }
+
+        impl Default for Query {
+            fn default() -> Self {
+                Self {
+                    x: 42,
+                    y: None,
+                    z: HashMap::new(),
+                }
+            }
+        }
+
+        for (url, query) in [
+            (u("http://127.0.0.1/?x=42"), Query::default()),
+            (
+                u("http://127.0.0.1/?foo=bar&x=0&y=0"),
+                Query {
+                    x: 0,
+                    y: Some(0),
+                    z: HashMap::from([("foo".to_string(), "bar".to_string())]),
+                },
+            ),
+        ] {
+            assert_eq!(u("http://127.0.0.1/").update_query(&[&query]), url);
+            assert_eq!(
+                u("http://127.0.0.1/?x=99&y=99").update_query(&[&query]),
+                url,
+            );
+        }
     }
 }

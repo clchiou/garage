@@ -6,3 +6,5 @@ edition.workspace = true
 [dependencies]
 form_urlencoded.workspace = true
 url.workspace = true
+
+g1_url_derive.workspace = true
