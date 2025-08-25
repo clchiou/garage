@@ -116,6 +116,14 @@ impl From<[u8; PEER_ID_SIZE]> for PeerId {
     }
 }
 
+// I am not sure if this is a good idea, but adding a zero default value seems quite useful.
+impl Default for PeerId {
+    fn default() -> Self {
+        static ZERO: LazyLock<PeerId> = LazyLock::new(|| [0; PEER_ID_SIZE].into());
+        ZERO.clone()
+    }
+}
+
 impl AsRef<[u8; PEER_ID_SIZE]> for PeerId {
     fn as_ref(&self) -> &[u8; PEER_ID_SIZE] {
         self.0.as_ref()

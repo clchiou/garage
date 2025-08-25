@@ -57,6 +57,13 @@ where
     }
 }
 
+// I am not sure if this is a good idea, but adding a zero default value seems quite useful.
+impl<B> Default for Value<B> {
+    fn default() -> Self {
+        Value::Dictionary(Default::default())
+    }
+}
+
 //
 // Due to Rust's orphan rule, we cannot implement this:
 // ```

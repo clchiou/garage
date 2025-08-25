@@ -2,7 +2,7 @@ use std::array::TryFromSliceError;
 use std::borrow::{Borrow, Cow};
 use std::fmt;
 use std::str::FromStr;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 use sha1::{Digest, Sha1};
@@ -85,6 +85,14 @@ impl From<Arc<[u8; INFO_HASH_SIZE]>> for InfoHash {
 impl From<[u8; INFO_HASH_SIZE]> for InfoHash {
     fn from(info_hash: [u8; INFO_HASH_SIZE]) -> Self {
         Self(info_hash.into())
+    }
+}
+
+// I am not sure if this is a good idea, but adding a zero default value seems quite useful.
+impl Default for InfoHash {
+    fn default() -> Self {
+        static ZERO: LazyLock<InfoHash> = LazyLock::new(|| [0; INFO_HASH_SIZE].into());
+        ZERO.clone()
     }
 }
 

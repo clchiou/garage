@@ -2,7 +2,7 @@ use std::array::TryFromSliceError;
 use std::borrow::{Borrow, Cow};
 use std::fmt;
 use std::str::FromStr;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 use snafu::prelude::*;
@@ -85,6 +85,14 @@ impl From<Arc<[u8; MD5_HASH_SIZE]>> for Md5Hash {
 impl From<[u8; MD5_HASH_SIZE]> for Md5Hash {
     fn from(md5_hash: [u8; MD5_HASH_SIZE]) -> Self {
         Self(md5_hash.into())
+    }
+}
+
+// I am not sure if this is a good idea, but adding a zero default value seems quite useful.
+impl Default for Md5Hash {
+    fn default() -> Self {
+        static ZERO: LazyLock<Md5Hash> = LazyLock::new(|| [0; MD5_HASH_SIZE].into());
+        ZERO.clone()
     }
 }
 

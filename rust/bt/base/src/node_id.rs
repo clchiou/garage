@@ -2,7 +2,7 @@ use std::array::TryFromSliceError;
 use std::borrow::{Borrow, Cow};
 use std::fmt;
 use std::str::FromStr;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 
 use bitvec::prelude::*;
 use rand::distr::StandardUniform;
@@ -107,6 +107,14 @@ impl From<Arc<[u8; NODE_ID_SIZE]>> for NodeId {
 impl From<[u8; NODE_ID_SIZE]> for NodeId {
     fn from(node_id: [u8; NODE_ID_SIZE]) -> Self {
         Self(node_id.into())
+    }
+}
+
+// I am not sure if this is a good idea, but adding a zero default value seems quite useful.
+impl Default for NodeId {
+    fn default() -> Self {
+        static ZERO: LazyLock<NodeId> = LazyLock::new(|| [0; NODE_ID_SIZE].into());
+        ZERO.clone()
     }
 }
 
