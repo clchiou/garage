@@ -7,10 +7,13 @@ edition.workspace = true
 bytes.workspace = true
 clap.workspace = true
 nix.workspace = true
+rand.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 serde_yaml.workspace = true
+tokio.workspace = true
 tracing.workspace = true
+url.workspace = true
 
 g1_cli = { workspace = true, features = ["tracing"] }
 
@@ -18,3 +21,4 @@ bt_base.workspace = true
 bt_bencode.workspace = true
 bt_metainfo.workspace = true
 bt_storage.workspace = true
+bt_tracker.workspace = true

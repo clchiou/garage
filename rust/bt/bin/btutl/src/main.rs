@@ -5,6 +5,7 @@ mod bencode;
 mod metainfo;
 mod storage;
 mod text;
+mod tracker;
 
 use std::io::Error;
 
@@ -15,6 +16,7 @@ use g1_cli::tracing::TracingConfig;
 use crate::bencode::BencodeCommand;
 use crate::metainfo::MetainfoCommand;
 use crate::storage::{ExportCommand, ImportCommand, LsCommand, RmCommand};
+use crate::tracker::TrackerCommand;
 
 #[derive(Debug, Parser)]
 #[command(version = g1_cli::version!())]
@@ -30,6 +32,7 @@ struct Btutl {
 enum Command {
     Bencode(BencodeCommand),
     Metainfo(MetainfoCommand),
+    Tracker(TrackerCommand),
     Ls(LsCommand),
     Import(ImportCommand),
     Export(ExportCommand),
@@ -37,16 +40,17 @@ enum Command {
 }
 
 impl Btutl {
-    fn execute(&self) -> Result<(), Error> {
-        self.command.run()
+    async fn execute(&self) -> Result<(), Error> {
+        self.command.run().await
     }
 }
 
 impl Command {
-    fn run(&self) -> Result<(), Error> {
+    async fn run(&self) -> Result<(), Error> {
         match self {
             Self::Bencode(command) => command.run(),
             Self::Metainfo(command) => command.run(),
+            Self::Tracker(command) => command.run().await,
             Self::Ls(command) => command.run(),
             Self::Import(command) => command.run(),
             Self::Export(command) => command.run(),
@@ -55,8 +59,9 @@ impl Command {
     }
 }
 
-fn main() -> Result<(), Error> {
+#[tokio::main]
+async fn main() -> Result<(), Error> {
     let btutl = Btutl::parse();
     btutl.tracing.init();
-    btutl.execute()
+    btutl.execute().await
 }
