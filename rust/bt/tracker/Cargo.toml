@@ -1,0 +1,22 @@
+[package]
+name = "bt_tracker"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+bytes.workspace = true
+percent-encoding.workspace = true
+reqwest.workspace = true
+serde = { workspace = true, features = ["derive"] }
+snafu.workspace = true
+tracing.workspace = true
+url.workspace = true
+
+g1_url.workspace = true
+
+bt_base.workspace = true
+bt_bencode.workspace = true
+bt_serde.workspace = true
+
+[dev-dependencies]
+hex-literal.workspace = true

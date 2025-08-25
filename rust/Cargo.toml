@@ -31,6 +31,7 @@ members = [
     "bt/serde",
     "bt/serde/attribute",
     "bt/storage",
+    "bt/tracker",
     "bt/udp",
     "ddcache/bin/ddcached",
     "ddcache/client",
@@ -191,6 +192,7 @@ bt_peer = { path = "bt/peer" }
 bt_serde = { path = "bt/serde" }
 bt_serde_attribute = { path = "bt/serde/attribute" }
 bt_storage = { path = "bt/storage" }
+bt_tracker = { path = "bt/tracker" }
 bt_udp = { path = "bt/udp" }
 
 ddcache_client = { path = "ddcache/client" }
