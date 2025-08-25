@@ -1,12 +1,13 @@
-use std::fmt::Debug;
 use std::io::{self, Error, Write};
 
-use clap::{Args, ValueEnum};
+use clap::Args;
 use serde::Serialize;
 
 use bt_base::{InfoHash, Md5Hash};
 use bt_metainfo::Info;
 use bt_storage::{Storage, Torrent};
+
+use crate::text::Format;
 
 use super::StorageDir;
 
@@ -27,13 +28,6 @@ pub(crate) struct LsCommand {
 
     #[command(flatten)]
     entity_type: EntityType,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
-enum Format {
-    Debug,
-    Json,
-    Yaml,
 }
 
 // TODO: Switch this to an enum once [#2616] is fixed.
@@ -205,20 +199,6 @@ impl LsCommand {
             .map(|(hash, verify)| Piece { hash, verify })
             .collect::<Vec<_>>();
         self.format.write((file, pieces), output)
-    }
-}
-
-impl Format {
-    fn write<T, W>(&self, value: T, mut writer: W) -> Result<(), Error>
-    where
-        T: Debug + Serialize,
-        W: Write,
-    {
-        match self {
-            Self::Debug => writeln!(writer, "{value:#?}"),
-            Self::Json => Ok(serde_json::to_writer_pretty(writer, &value)?),
-            Self::Yaml => serde_yaml::to_writer(writer, &value).map_err(Error::other),
-        }
     }
 }
 

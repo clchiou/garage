@@ -4,6 +4,7 @@
 mod bencode;
 mod metainfo;
 mod storage;
+mod text;
 
 use std::io::Error;
 
