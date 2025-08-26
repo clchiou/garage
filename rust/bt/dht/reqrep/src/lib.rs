@@ -7,10 +7,10 @@ use std::net::SocketAddr;
 use snafu::prelude::*;
 
 use bt_base::node_id::NODE_ID_SIZE;
-use bt_base::{InfoHash, NodeId};
+use bt_base::{InfoHash, NodeId, PeerEndpoint};
 use bt_dht_proto::{
-    Error as ProtocolError, FindNodeResponse, GetPeersResponse, Message, NodeInfo, Payload,
-    PeerInfo, Query, Response, Token, Txid,
+    Error as ProtocolError, FindNodeResponse, GetPeersResponse, Message, NodeInfo, Payload, Query,
+    Response, Token, Txid,
 };
 use bt_udp::{Sink, Stream};
 
@@ -28,7 +28,7 @@ pub use crate::proto::ReqRepGuard;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct GetPeers {
-    pub peers: Option<Vec<PeerInfo>>,
+    pub peers: Option<Vec<PeerEndpoint>>,
     pub nodes: Option<Vec<NodeInfo>>,
     pub token: Option<Token>,
 }

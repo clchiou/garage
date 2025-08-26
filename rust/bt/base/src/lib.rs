@@ -14,6 +14,7 @@ pub mod layout;
 pub mod magnet_uri;
 pub mod md5_hash;
 pub mod node_id;
+pub mod peer_endpoint;
 pub mod peer_id;
 pub mod piece_hash;
 
@@ -24,6 +25,7 @@ pub use crate::layout::{BlockRange, Layout, PieceIndex};
 pub use crate::magnet_uri::MagnetUri;
 pub use crate::md5_hash::Md5Hash;
 pub use crate::node_id::{NodeDistance, NodeId};
+pub use crate::peer_endpoint::PeerEndpoint;
 pub use crate::peer_id::PeerId;
 pub use crate::piece_hash::{PieceHash, PieceHashes};
 

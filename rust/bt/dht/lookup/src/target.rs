@@ -2,10 +2,8 @@ use std::collections::HashSet;
 
 use g1_base::iter::IteratorExt;
 
-use bt_base::{InfoHash, NodeId};
-use bt_dht_proto::{
-    FindNodeResponse, GetPeersResponse, Message, NodeInfo, PeerInfo, Query, Response, Token,
-};
+use bt_base::{InfoHash, NodeId, PeerEndpoint};
+use bt_dht_proto::{FindNodeResponse, GetPeersResponse, Message, NodeInfo, Query, Response, Token};
 
 pub trait Target {
     type Acc: Acc<Output = Self::Output>;
@@ -40,12 +38,12 @@ pub struct LookupNodesAcc;
 
 #[derive(Debug)]
 pub struct LookupPeersAcc {
-    peers: HashSet<PeerInfo>,
+    peers: HashSet<PeerEndpoint>,
     closest: Option<(NodeInfo, Token)>,
 }
 
 pub type LookupPeers = (
-    Vec<PeerInfo>,
+    Vec<PeerEndpoint>,
     // Closest node to which we can send `announce_peer`.
     // TODO: Should we return multiple closest nodes?
     Option<(NodeInfo, Token)>,

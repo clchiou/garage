@@ -2,21 +2,21 @@ mod flat;
 mod info_hash;
 mod node_id;
 mod node_info;
-mod peer_info;
+mod peer_endpoint;
 mod reinsert;
 mod requestor;
 
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 
-use bt_base::{InfoHash, NodeId};
+use bt_base::{InfoHash, NodeId, PeerEndpoint};
 use bt_bencode::Value;
 use bt_serde::SerdeWith;
 
 use crate::flat::FlatMessage;
 use crate::node_id::NodeIdSerdeWith;
 use crate::node_info::CompactNodeInfoListSerdeWithV4;
-use crate::peer_info::CompactPeerInfoListSerdeWithV4;
+use crate::peer_endpoint::CompactPeerEndpointListSerdeWithV4;
 use crate::reinsert::reinsert;
 
 //
@@ -25,7 +25,6 @@ use crate::reinsert::reinsert;
 //
 
 pub use crate::node_info::NodeInfo;
-pub use crate::peer_info::PeerInfo;
 pub use crate::requestor::Requestor;
 
 pub type Txid = Bytes;
@@ -106,8 +105,8 @@ pub struct Response {
 
     // `get_peers`.
     pub token: Option<Token>,
-    #[optional(with = "CompactPeerInfoListSerdeWithV4")]
-    pub values: Option<Vec<PeerInfo>>,
+    #[optional(with = "CompactPeerEndpointListSerdeWithV4")]
+    pub values: Option<Vec<PeerEndpoint>>,
 
     #[serde(flatten)]
     pub extra: Value,
@@ -136,7 +135,7 @@ pub struct GetPeersResponse {
     pub token: Option<Token>,
     // BEP 5 appears to imply that values and nodes should be "either/or", but some DHT
     // implementations return both.
-    pub values: Option<Vec<PeerInfo>>,
+    pub values: Option<Vec<PeerEndpoint>>,
     pub nodes: Option<Vec<NodeInfo>>,
 
     pub extra: Value,
@@ -255,7 +254,7 @@ impl Response {
         txid: Txid,
         id: NodeId,
         token: Token,
-        values: Option<Vec<PeerInfo>>,
+        values: Option<Vec<PeerEndpoint>>,
         nodes: Option<Vec<NodeInfo>>,
     ) -> Message {
         Self::message(
