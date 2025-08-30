@@ -10,6 +10,7 @@
 #![cfg_attr(test, feature(binary_heap_into_iter_sorted))]
 
 pub mod bstream;
+pub mod frame;
 pub mod io;
 pub mod net;
 pub mod os;
