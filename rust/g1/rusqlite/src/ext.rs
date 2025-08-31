@@ -62,6 +62,7 @@ pub trait StatementExt {
 }
 
 impl StatementExt for Statement<'_> {
+    // TODO: Use `query_one` after upgrading `rusqlite` to version 0.36.0 or later.
     fn one_or_none<T, P, F>(&mut self, params: P, f: F) -> Result<Option<T>, Error>
     where
         P: Params,
