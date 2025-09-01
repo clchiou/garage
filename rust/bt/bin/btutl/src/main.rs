@@ -6,6 +6,7 @@ mod metainfo;
 mod storage;
 mod text;
 mod tracker;
+mod txrx;
 
 use std::io::Error;
 
@@ -17,6 +18,8 @@ use crate::bencode::BencodeCommand;
 use crate::metainfo::MetainfoCommand;
 use crate::storage::{ExportCommand, ImportCommand, LsCommand, RmCommand};
 use crate::tracker::TrackerCommand;
+use crate::txrx::DownloadCommand;
+use crate::txrx::UploadCommand;
 
 #[derive(Debug, Parser)]
 #[command(version = g1_cli::version!())]
@@ -33,6 +36,8 @@ enum Command {
     Bencode(BencodeCommand),
     Metainfo(MetainfoCommand),
     Tracker(TrackerCommand),
+    Upload(UploadCommand),
+    Download(DownloadCommand),
     Ls(LsCommand),
     Import(ImportCommand),
     Export(ExportCommand),
@@ -51,6 +56,8 @@ impl Command {
             Self::Bencode(command) => command.run(),
             Self::Metainfo(command) => command.run(),
             Self::Tracker(command) => command.run().await,
+            Self::Upload(command) => command.run().await,
+            Self::Download(command) => command.run().await,
             Self::Ls(command) => command.run(),
             Self::Import(command) => command.run(),
             Self::Export(command) => command.run(),

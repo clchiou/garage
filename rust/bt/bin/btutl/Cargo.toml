@@ -6,6 +6,7 @@ edition.workspace = true
 [dependencies]
 bytes.workspace = true
 clap.workspace = true
+futures.workspace = true
 nix.workspace = true
 rand.workspace = true
 serde = { workspace = true, features = ["derive"] }
@@ -20,5 +21,6 @@ g1_cli = { workspace = true, features = ["tracing"] }
 bt_base.workspace = true
 bt_bencode.workspace = true
 bt_metainfo.workspace = true
+bt_proto.workspace = true
 bt_storage.workspace = true
 bt_tracker.workspace = true

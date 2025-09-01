@@ -22,13 +22,13 @@ pub(crate) use self::rm::RmCommand;
 type PieceHash = InfoHash;
 
 #[derive(Args, Debug)]
-struct StorageDir {
+pub(crate) struct StorageDir {
     #[arg(help = "Torrent storage directory")]
     dir: PathBuf,
 }
 
 impl StorageDir {
-    fn open(&self, create: bool) -> Result<Storage, Error> {
+    pub(crate) fn open(&self, create: bool) -> Result<Storage, Error> {
         if create {
             fs::create_dir_all(&self.dir)?;
         }
