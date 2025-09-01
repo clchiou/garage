@@ -28,6 +28,7 @@ members = [
     "bt/dht/route",
     "bt/metainfo",
     "bt/peer",
+    "bt/proto",
     "bt/serde",
     "bt/serde/attribute",
     "bt/storage",
@@ -189,6 +190,7 @@ bt_dht_reqrep = { path = "bt/dht/reqrep" }
 bt_dht_route = { path = "bt/dht/route" }
 bt_metainfo = { path = "bt/metainfo" }
 bt_peer = { path = "bt/peer" }
+bt_proto = { path = "bt/proto" }
 bt_serde = { path = "bt/serde" }
 bt_serde_attribute = { path = "bt/serde/attribute" }
 bt_storage = { path = "bt/storage" }

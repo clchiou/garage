@@ -1,0 +1,20 @@
+[package]
+name = "bt_proto"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+bitvec.workspace = true
+bytes.workspace = true
+futures.workspace = true
+snafu.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+g1_bytes.workspace = true
+g1_tokio.workspace = true
+
+bt_base.workspace = true
+
+[dev-dependencies]
+hex-literal.workspace = true
