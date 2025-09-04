@@ -1,0 +1,14 @@
+[package]
+name = "bt_model"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+tokio.workspace = true
+
+g1_base.workspace = true
+
+bt_base.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
