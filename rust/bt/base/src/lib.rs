@@ -19,7 +19,7 @@ pub mod peer_endpoint;
 pub mod peer_id;
 pub mod piece_hash;
 
-pub use crate::bitfield::Bitfield;
+pub use crate::bitfield::{Bitfield, Bitslice};
 pub use crate::compact::Compact;
 pub use crate::conn_id::{ConnId, ConnPair};
 pub use crate::info_hash::InfoHash;

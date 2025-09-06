@@ -2,8 +2,11 @@ use bitvec::prelude::*;
 use bytes::Bytes;
 use snafu::prelude::*;
 
+use crate::layout::PieceIndex;
+
 // Use the BEP 3 wire format's bit layout for faster conversion.
 pub type Bitfield = BitVec<u8, Msb0>;
+// We avoid naming it `BitSlice` to prevent name conflicts.
 pub type Bitslice = BitSlice<u8, Msb0>;
 
 pub trait BitfieldExt: Sized {
@@ -13,6 +16,12 @@ pub trait BitfieldExt: Sized {
 
 pub trait BitsliceExt {
     fn check_spare_bits(&self, num_pieces: usize) -> bool;
+
+    // We avoid naming it `iter_ones` to prevent name conflicts.
+    fn iter_haves(&self) -> impl Iterator<Item = PieceIndex>;
+
+    // We avoid naming it `iter_zeros` to prevent name conflicts.
+    fn iter_have_nots(&self) -> impl Iterator<Item = PieceIndex>;
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Snafu)]
@@ -38,6 +47,16 @@ impl BitfieldExt for Bitfield {
 impl BitsliceExt for Bitslice {
     fn check_spare_bits(&self, num_pieces: usize) -> bool {
         self.len() >= num_pieces && self[num_pieces..].not_any()
+    }
+
+    fn iter_haves(&self) -> impl Iterator<Item = PieceIndex> {
+        self.iter_ones()
+            .map(|i| PieceIndex(i.try_into().expect("u32")))
+    }
+
+    fn iter_have_nots(&self) -> impl Iterator<Item = PieceIndex> {
+        self.iter_zeros()
+            .map(|i| PieceIndex(i.try_into().expect("u32")))
     }
 }
 
