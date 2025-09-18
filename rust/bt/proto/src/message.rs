@@ -302,9 +302,8 @@ impl Encode<Message> for Codec {
                 buffer.put_u32(to_u32(size));
             }
             Message::Piece(BlockRange(PieceIndex(index), offset, size), payload) => {
-                let len = to_u32(payload.len());
-                assert_eq!(to_u32(size), len);
-                buffer.put_u32(9 + len);
+                assert_eq!(to_usize(size), payload.len());
+                buffer.put_u32(9 + to_u32(payload.len()));
                 buffer.put_u8(PIECE);
                 buffer.put_u32(index);
                 buffer.put_u32(to_u32(offset));
@@ -365,7 +364,10 @@ where
     x.try_into().expect("to_u32")
 }
 
-fn to_usize(x: u32) -> usize {
+fn to_usize<T>(x: T) -> usize
+where
+    usize: TryFrom<T, Error = TryFromIntError>,
+{
     x.try_into().expect("to_usize")
 }
 
