@@ -9,6 +9,7 @@
 
 pub mod bitfield;
 pub mod compact;
+pub mod conn_id;
 pub mod info_hash;
 pub mod layout;
 pub mod magnet_uri;
@@ -20,6 +21,7 @@ pub mod piece_hash;
 
 pub use crate::bitfield::Bitfield;
 pub use crate::compact::Compact;
+pub use crate::conn_id::{ConnId, ConnPair};
 pub use crate::info_hash::InfoHash;
 pub use crate::layout::{BlockRange, Layout, PieceIndex};
 pub use crate::magnet_uri::MagnetUri;
