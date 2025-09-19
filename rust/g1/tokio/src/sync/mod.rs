@@ -1,3 +1,4 @@
+pub mod broadcast;
 pub mod bucket;
 pub mod mpmc;
 pub mod oneway;
