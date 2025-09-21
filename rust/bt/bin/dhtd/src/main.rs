@@ -1,6 +1,6 @@
 use std::io::Error;
 use std::net::SocketAddr;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use clap::Parser;
 use tokio::net::UdpSocket;
@@ -10,7 +10,7 @@ use g1_cli::{param::ParametersConfig, tracing::TracingConfig};
 
 use bt_base::NodeId;
 use bt_dht_node::Node;
-use bt_model::Peers;
+use bt_model::Model;
 
 #[derive(Debug, Parser)]
 #[command(version = g1_cli::version!(), after_help = ParametersConfig::render())]
@@ -40,7 +40,13 @@ impl Dhtd {
             tracing::warn!("empty bootstrap list");
         }
 
-        let (node, mut guard) = Node::spawn(self_id, Peers::new(), bootstrap.into(), stream, sink);
+        let (node, mut guard) = Node::spawn(
+            self_id,
+            Arc::new(Mutex::new(Model::new())),
+            bootstrap.into(),
+            stream,
+            sink,
+        );
 
         tokio::spawn(async move { node.bootstrap().await });
 

@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+snafu.workspace = true
 tokio.workspace = true
 
 g1_base.workspace = true

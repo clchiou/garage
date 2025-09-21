@@ -9,7 +9,7 @@ mod token;
 
 use std::io::Error;
 use std::net::SocketAddr;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use tokio::time::Instant;
 
@@ -19,7 +19,7 @@ use bt_base::{InfoHash, NodeId};
 use bt_dht_lookup::LookupPeers;
 use bt_dht_proto::{NodeInfo, Token};
 use bt_dht_reqrep::ReqRep;
-use bt_model::Peers;
+use bt_model::Model;
 use bt_udp::{Sink, Stream};
 
 use crate::insert::Insert;
@@ -40,7 +40,7 @@ pub type NodeGuard = BoxJoinable<Result<(), Error>>;
 impl Node {
     pub fn spawn<I, O>(
         self_id: NodeId,
-        peers: Peers,
+        model: Arc<Mutex<Model>>,
         bootstrap: Arc<[String]>,
         stream: I,
         sink: O,
@@ -59,7 +59,7 @@ impl Node {
 
         let (issuer, issuer_guard) = Issuer::spawn();
 
-        let router_guard = route::spawn(table.clone(), reqrep.clone(), peers, issuer);
+        let router_guard = route::spawn(table.clone(), reqrep.clone(), model, issuer);
 
         let refresher_guard =
             refresh::spawn(self_id.clone(), table, lookup.clone(), insert.clone());

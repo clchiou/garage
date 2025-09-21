@@ -1,11 +1,12 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
+use g1_base::sync::MutexExt;
 use g1_tokio::task::JoinGuard;
 
 use bt_base::NodeId;
-use bt_dht_proto::{AnnouncePeer, Error, NodeInfo, Query, Response};
+use bt_dht_proto::{AnnouncePeer, Error, GetPeers, NodeInfo, Query, Response};
 use bt_dht_reqrep::{ReqRep, ResponseSend};
-use bt_model::Peers;
+use bt_model::{Model, TorrentRemoved};
 
 use crate::table::Table;
 use crate::token::Issuer;
@@ -13,7 +14,7 @@ use crate::token::Issuer;
 struct Router {
     table: Arc<Table>,
     reqrep: ReqRep,
-    peers: Peers,
+    model: Arc<Mutex<Model>>,
     issuer: Issuer,
 }
 
@@ -22,7 +23,7 @@ pub(crate) type RouterGuard = JoinGuard<()>;
 pub(crate) fn spawn(
     table: Arc<Table>,
     reqrep: ReqRep,
-    peers: Peers,
+    model: Arc<Mutex<Model>>,
     issuer: Issuer,
 ) -> RouterGuard {
     RouterGuard::spawn(move |cancel| {
@@ -31,7 +32,7 @@ pub(crate) fn spawn(
             Router {
                 table,
                 reqrep,
-                peers,
+                model,
                 issuer,
             },
         );
@@ -78,14 +79,25 @@ impl Router {
             }
 
             Query::GetPeers(get_peers) => {
+                let GetPeers { info_hash, .. } = get_peers;
+
                 let token = self.issuer.issue(response_send.node_endpoint());
 
-                let peers = self.peers.get_peers(get_peers.info_hash.clone());
+                let peers = match self.model.must_lock().peers().peers(info_hash.clone()) {
+                    Ok(peers) => {
+                        let peers = peers
+                            .map(|(_, peer_endpoint)| peer_endpoint)
+                            .collect::<Vec<_>>();
+                        (!peers.is_empty()).then_some(peers)
+                    }
+                    Err(error @ TorrentRemoved) => {
+                        let peer_endpoint = response_send.node_endpoint();
+                        tracing::info!(?node, %info_hash, %peer_endpoint, %error, "get_peers");
+                        None
+                    }
+                };
 
-                let nodes = self
-                    .table
-                    .read()
-                    .get_closest(NodeId::pretend(get_peers.info_hash));
+                let nodes = self.table.read().get_closest(NodeId::pretend(info_hash));
                 let nodes = (!nodes.is_empty()).then(|| nodes.into());
 
                 response_send
@@ -111,8 +123,21 @@ impl Router {
                     if !implied_port.unwrap_or(false) {
                         peer_endpoint.set_port(port);
                     }
-                    tracing::info!(?node, %info_hash, %peer_endpoint, "announce_peer");
-                    self.peers.insert_peers(info_hash, [peer_endpoint]);
+                    match self
+                        .model
+                        .must_lock()
+                        .peers_mut()
+                        .insert(info_hash.clone(), peer_endpoint)
+                    {
+                        Ok(_) => {
+                            tracing::info!(?node, %info_hash, %peer_endpoint, "announce_peer");
+                        }
+                        Err(error @ TorrentRemoved) => {
+                            tracing::info!(
+                                ?node, %info_hash, %peer_endpoint, %error, "announce_peer",
+                            );
+                        }
+                    }
 
                     response_send.send(Response::announce_peer).await;
 
