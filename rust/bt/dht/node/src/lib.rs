@@ -19,7 +19,7 @@ use bt_base::{InfoHash, NodeId};
 use bt_dht_lookup::LookupPeers;
 use bt_dht_proto::{NodeInfo, Token};
 use bt_dht_reqrep::ReqRep;
-use bt_peer::Peers;
+use bt_model::Peers;
 use bt_udp::{Sink, Stream};
 
 use crate::insert::Insert;

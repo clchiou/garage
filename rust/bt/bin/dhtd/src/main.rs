@@ -10,7 +10,7 @@ use g1_cli::{param::ParametersConfig, tracing::TracingConfig};
 
 use bt_base::NodeId;
 use bt_dht_node::Node;
-use bt_peer::Peers;
+use bt_model::Peers;
 
 #[derive(Debug, Parser)]
 #[command(version = g1_cli::version!(), after_help = ParametersConfig::render())]

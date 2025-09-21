@@ -17,5 +17,5 @@ bt_dht_lookup.workspace = true
 bt_dht_proto.workspace = true
 bt_dht_reqrep.workspace = true
 bt_dht_route.workspace = true
-bt_peer.workspace = true
+bt_model.workspace = true
 bt_udp.workspace = true

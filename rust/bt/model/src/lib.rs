@@ -1,3 +1,4 @@
+mod peer;
 mod stat;
 
 use std::collections::hash_map::Entry;
@@ -6,6 +7,10 @@ use std::net::IpAddr;
 use std::sync::Arc;
 
 use bt_base::{Bitfield, Bitslice, InfoHash, PeerEndpoint, PieceIndex};
+
+// This is the routing table that we download from the trackers and the DHT.  For now, we keep it
+// separate from the peer stats in `Model`.
+pub use crate::peer::Peers;
 
 #[derive(Debug)]
 pub struct Model {

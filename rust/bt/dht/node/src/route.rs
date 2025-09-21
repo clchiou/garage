@@ -5,7 +5,7 @@ use g1_tokio::task::JoinGuard;
 use bt_base::NodeId;
 use bt_dht_proto::{AnnouncePeer, Error, NodeInfo, Query, Response};
 use bt_dht_reqrep::{ReqRep, ResponseSend};
-use bt_peer::Peers;
+use bt_model::Peers;
 
 use crate::table::Table;
 use crate::token::Issuer;

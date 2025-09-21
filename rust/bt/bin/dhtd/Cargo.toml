@@ -16,4 +16,4 @@ g1_udp.workspace = true
 
 bt_base.workspace = true
 bt_dht_node.workspace = true
-bt_peer.workspace = true
+bt_model.workspace = true
