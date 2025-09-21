@@ -16,5 +16,5 @@ pub use crate::message::Message;
 // Fix the lifetime to `'static` for now, since I cannot think of any non-`'static` use cases.
 // TODO: Should we use `Pin<Box<...>>` (`futures::stream::BoxStream`) instead?
 pub type BoxStream =
-    Box<dyn Stream<Item = Result<Message, message::Error>> + Send + Unpin + 'static>;
-pub type BoxSink = Box<dyn Sink<Message, Error = io::Error> + Send + Unpin + 'static>;
+    Box<dyn Stream<Item = Result<Message, message::Error>> + Send + Sync + Unpin + 'static>;
+pub type BoxSink = Box<dyn Sink<Message, Error = io::Error> + Send + Sync + Unpin + 'static>;
