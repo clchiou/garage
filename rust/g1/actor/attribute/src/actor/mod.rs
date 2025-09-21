@@ -55,6 +55,8 @@ struct Codegen {
     new_func_name: Ident,
     run_func_name: Ident,
 
+    cancel_func_name: Ident,
+
     actor: Actor,
     actor_type_name: Path,
     actor_type_simple_name: Path,
@@ -75,6 +77,8 @@ struct Stub {
 
     spawn: AssocFunc,
     new: AssocFunc,
+
+    cancel: OptionAssocFunc,
 }
 
 type Fields = Punctuated<Field, Token![,]>;
@@ -117,6 +121,10 @@ struct AssocFunc {
 
     name: Option<Ident>,
 }
+
+#[derive(Default)]
+#[cfg_attr(test, derive(Clone, Debug, PartialEq))]
+struct OptionAssocFunc(Option<AssocFunc>);
 
 #[cfg_attr(test, derive(Clone, Debug, PartialEq))]
 struct Actor {
@@ -189,6 +197,8 @@ impl Codegen {
             new_func_name: quote::format_ident!("new"),
             run_func_name: quote::format_ident!("run"),
 
+            cancel_func_name: quote::format_ident!("cancel"),
+
             actor,
             actor_type_name,
             actor_type_simple_name,
@@ -198,7 +208,7 @@ impl Codegen {
 
     /// True if `struct Stub` is a zero-sized type.
     fn is_stub_zero_sized(&self) -> bool {
-        self.actor.methods.is_empty() && self.stub.fields.is_empty()
+        self.actor.methods.is_empty() && !self.stub.define_cancel() && self.stub.fields.is_empty()
     }
 
     /// True if `enum Message` is an empty type.
@@ -219,6 +229,12 @@ impl Codegen {
     fn pat_replace_self_keyword(&self, pat: &mut Pat) {
         replace::simple_path_replacer("Self", || self.actor_type_simple_name.clone())
             .visit_pat_mut(pat);
+    }
+}
+
+impl Stub {
+    fn define_cancel(&self) -> bool {
+        self.cancel.0.as_ref().is_some_and(|cancel| !cancel.skip)
     }
 }
 
@@ -339,7 +355,9 @@ mod tests {
         }
 
         let input = syn::parse_quote! { impl Foo {} };
+
         test(quote::quote!(), &input, true, true, true);
+
         test(
             quote::quote!(stub(struct { x: u8 })),
             &input,
@@ -347,6 +365,9 @@ mod tests {
             true,
             true,
         );
+        test(quote::quote!(stub(cancel())), &input, false, true, true);
+        test(quote::quote!(stub(cancel(skip))), &input, true, true, true);
+
         test(
             quote::quote!(loop_(
                 react = {
@@ -365,7 +386,9 @@ mod tests {
                 fn f() {}
             }
         };
+
         test(quote::quote!(), &input, false, false, false);
+
         test(
             quote::quote!(stub(struct { x: u8 })),
             &input,
@@ -373,6 +396,8 @@ mod tests {
             false,
             false,
         );
+        test(quote::quote!(stub(cancel())), &input, false, false, false);
+
         test(
             quote::quote!(loop_(
                 react = {

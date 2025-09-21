@@ -37,12 +37,15 @@ impl Codegen {
 
         let message_queue_field_decl = self.generate_message_queue_send_field_decl();
 
+        let cancel_field_decl = self.generate_cancel_field_decl();
+
         let fields = &self.stub.fields;
 
         Some(quote::quote! {
             #derive
             #visibility struct #stub_type_name #impl_generics #where_clause {
                 #message_queue_field_decl
+                #cancel_field_decl
                 #fields
             }
         })
@@ -51,8 +54,13 @@ impl Codegen {
     fn generate_impl_stub(&self) -> Option<TokenStream> {
         let spawn_func = self.generate_stub_spawn_func();
         let new_func = self.generate_stub_new_func();
+        let cancel_func = self.generate_cancel_func();
 
-        if spawn_func.is_none() && new_func.is_none() && self.is_message_empty() {
+        if spawn_func.is_none()
+            && new_func.is_none()
+            && cancel_func.is_none()
+            && self.is_message_empty()
+        {
             return None;
         }
 
@@ -69,6 +77,7 @@ impl Codegen {
             impl #impl_generics #stub_type_name #type_generics #where_clause {
                 #spawn_func
                 #new_func
+                #cancel_func
                 #(#methods)*
             }
         })
@@ -92,6 +101,13 @@ impl Codegen {
             .as_ref()
             .unwrap_or(&self.spawn_func_name);
         let (impl_generics, _, where_clause) = self.actor.not_exposed.split_for_impl();
+
+        let init_cancel_arg = self.stub.define_cancel().then(|| {
+            quote::quote! {
+                let __cancel = __guard.cancel_handle();
+            }
+        });
+        let cancel_arg = self.generate_cancel_field();
 
         let new_func_arg_decls = self.generate_stub_new_func_arg_decls();
         let new_func_args = self.generate_stub_new_func_args();
@@ -127,16 +143,25 @@ impl Codegen {
             #where_clause
             {
                 #make_message_queue
+
+                let __guard = ::g1_actor::g1_tokio::task::JoinGuard::spawn(move |__cancel| {
+                    let mut __loop = #loop_type_name::#loop_new_func_name(
+                        __cancel,
+                        #message_queue_recv
+                        #actor_name,
+                    );
+                    async move { __loop.#loop_run_func_name().await }
+                });
+
+                #init_cancel_arg
+
                 (
-                    Self::#stub_new_func_name(#message_queue_send #(#new_func_args)*),
-                    ::g1_actor::g1_tokio::task::JoinGuard::spawn(move |__cancel| {
-                        let mut __loop = #loop_type_name::#loop_new_func_name(
-                            __cancel,
-                            #message_queue_recv
-                            #actor_name,
-                        );
-                        async move { __loop.#loop_run_func_name().await }
-                    }),
+                    Self::#stub_new_func_name(
+                        #message_queue_send
+                        #cancel_arg
+                        #(#new_func_args)*
+                    ),
+                    __guard,
                 )
             }
         })
@@ -158,15 +183,45 @@ impl Codegen {
         let message_queue_arg_decl = self.generate_message_queue_send_field_decl();
         let message_queue_arg = self.generate_message_queue_field();
 
+        let cancel_arg_decl = self.generate_cancel_field_decl();
+        let cancel_arg = self.generate_cancel_field();
+
         let new_func_arg_decls = self.generate_stub_new_func_arg_decls();
         let new_func_args = self.generate_stub_new_func_args();
 
         Some(quote::quote! {
-            #visibility fn #name(#message_queue_arg_decl #(#new_func_arg_decls)*) -> Self {
+            #visibility fn #name(
+                #message_queue_arg_decl
+                #cancel_arg_decl
+                #(#new_func_arg_decls)*
+            ) -> Self {
                 Self {
                     #message_queue_arg
+                    #cancel_arg
                     #(#new_func_args)*
                 }
+            }
+        })
+    }
+
+    fn generate_cancel_func(&self) -> Option<TokenStream> {
+        let cancel = self.stub.cancel.0.as_ref()?;
+
+        if cancel.skip {
+            return None;
+        }
+
+        if self.is_stub_zero_sized() {
+            return None;
+        }
+
+        let visibility = cancel.visibility();
+
+        let name = cancel.name.as_ref().unwrap_or(&self.cancel_func_name);
+
+        Some(quote::quote! {
+            #visibility fn #name(&self) {
+                self.__cancel.set();
             }
         })
     }
@@ -184,6 +239,16 @@ impl Codegen {
             let name = &field.ident;
             quote::quote!(#name,)
         })
+    }
+
+    fn generate_cancel_field_decl(&self) -> Option<TokenStream> {
+        self.stub
+            .define_cancel()
+            .then(|| quote::quote!(__cancel: ::g1_actor::g1_tokio::task::Cancel,))
+    }
+
+    fn generate_cancel_field(&self) -> Option<TokenStream> {
+        self.stub.define_cancel().then(|| quote::quote!(__cancel,))
     }
 }
 
@@ -282,6 +347,21 @@ mod tests {
                     T: Display
                 {
                     __message_queue: ::g1_actor::tokio::sync::mpsc::Sender<FooMessage<T, N> >,
+                }
+            },
+        );
+        assert_ts_eq(
+            Codegen::new_mock(quote::quote!(stub(cancel())), &input)
+                .generate_stub_type()
+                .unwrap(),
+            quote::quote! {
+                #[derive(Clone, Debug)]
+                struct FooStub<T, const N: usize>
+                where
+                    T: Display
+                {
+                    __message_queue: ::g1_actor::tokio::sync::mpsc::Sender<FooMessage<T, N> >,
+                    __cancel: ::g1_actor::g1_tokio::task::Cancel,
                 }
             },
         );
@@ -408,16 +488,17 @@ mod tests {
                        U: PartialEq
                     {
                         let (__message_queue_send, __message_queue_recv) = ::g1_actor::tokio::sync::mpsc::channel(16usize);
+                        let __guard = ::g1_actor::g1_tokio::task::JoinGuard::spawn(move |__cancel| {
+                            let mut __loop = FooLoop::new(
+                                __cancel,
+                                __message_queue_recv,
+                                __actor,
+                            );
+                            async move { __loop.run().await }
+                        });
                         (
                             Self::my_new(__message_queue_send, x,),
-                            ::g1_actor::g1_tokio::task::JoinGuard::spawn(move |__cancel| {
-                                let mut __loop = FooLoop::new(
-                                    __cancel,
-                                    __message_queue_recv,
-                                    __actor,
-                                );
-                                async move { __loop.run().await }
-                            }),
+                            __guard,
                         )
                     }
 
@@ -447,6 +528,43 @@ mod tests {
                                 _ => ::std::unreachable!(),
                             })?;
                         __ret_recv.await.map_err(|_| ::std::option::Option::None)
+                    }
+                }
+            },
+        );
+
+        assert_ts_eq(
+            Codegen::new_mock(
+                quote::quote!(stub(cancel(pub(crate), my_cancel))),
+                &syn::parse_quote! { impl Foo {} },
+            )
+            .generate_impl_stub()
+            .unwrap(),
+            quote::quote! {
+                impl FooStub {
+                    fn spawn(__actor: Foo,) -> (Self, ::g1_actor::g1_tokio::task::JoinGuard<()>) {
+                        let __guard = ::g1_actor::g1_tokio::task::JoinGuard::spawn(move |__cancel| {
+                            let mut __loop = FooLoop::new(
+                                __cancel,
+                                __actor,
+                            );
+                            async move { __loop.run().await }
+                        });
+
+                        let __cancel = __guard.cancel_handle();
+
+                        (
+                            Self::new(__cancel,),
+                            __guard,
+                        )
+                    }
+
+                    fn new(__cancel: ::g1_actor::g1_tokio::task::Cancel,) -> Self {
+                        Self { __cancel, }
+                    }
+
+                    pub(crate) fn my_cancel(&self) {
+                        self.__cancel.set();
                     }
                 }
             },

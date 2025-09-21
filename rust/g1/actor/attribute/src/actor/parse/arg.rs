@@ -5,7 +5,7 @@ use syn::{
     Visibility,
 };
 
-use crate::actor::{ActorArgs, AssocFunc, Fields, Loop, Message, Stub};
+use crate::actor::{ActorArgs, AssocFunc, Fields, Loop, Message, OptionAssocFunc, Stub};
 use crate::arg::{Arg, ArgValue, Args};
 use crate::arg_parse::{
     ArgUnwrap, func_arg, named_scalar_arg, named_vec_arg, parse_args, scalar_arg,
@@ -40,6 +40,7 @@ impl TryFrom<Args> for Stub {
                 fields,
                 spawn,
                 new,
+                cancel,
             } = args
         ))
     }
@@ -86,6 +87,8 @@ func_arg!(spawn: AssocFunc);
 func_arg!(new: AssocFunc);
 func_arg!(run: AssocFunc);
 
+func_arg!(cancel: OptionAssocFunc);
+
 impl TryFrom<Args> for AssocFunc {
     type Error = Error;
 
@@ -97,6 +100,14 @@ impl TryFrom<Args> for AssocFunc {
                 name,
             } = args
         ))
+    }
+}
+
+impl TryFrom<Args> for OptionAssocFunc {
+    type Error = Error;
+
+    fn try_from(args: Args) -> Result<Self, Self::Error> {
+        Ok(Self(Some(args.try_into()?)))
     }
 }
 
@@ -329,6 +340,35 @@ mod tests {
                 name: Some(i("skip")),
                 ..Default::default()
             },
+        );
+
+        assert_err(parse(syn::parse_quote!(struct {})), "unknown argument");
+    }
+
+    #[test]
+    fn option_assoc_func() {
+        fn parse(args: Args) -> Result<OptionAssocFunc, Error> {
+            args.try_into()
+        }
+
+        assert_ok(
+            parse(syn::parse_quote!()),
+            OptionAssocFunc(Some(Default::default())),
+        );
+        assert_ok(
+            parse(syn::parse_quote!(skip, pub, Foo)),
+            OptionAssocFunc(Some(AssocFunc {
+                skip: true,
+                visibility: Some(syn::parse_quote!(pub)),
+                name: Some(i("Foo")),
+            })),
+        );
+        assert_ok(
+            parse(syn::parse_quote!(name = skip)),
+            OptionAssocFunc(Some(AssocFunc {
+                name: Some(i("skip")),
+                ..Default::default()
+            })),
         );
 
         assert_err(parse(syn::parse_quote!(struct {})), "unknown argument");
