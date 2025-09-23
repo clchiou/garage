@@ -115,8 +115,10 @@ impl Codegen {
 
         let ret_type = self
             .loop_
+            .run
             .ret_type
             .as_ref()
+            .or(self.loop_.ret_type.as_ref())
             .map(|ret_type| quote::quote!(-> #ret_type));
 
         let mut ret_value = self.loop_.ret_value.clone();
@@ -391,7 +393,7 @@ mod tests {
                         x?
                     },
                     new(skip),
-                    run(pub(in super), run_inner),
+                    run(pub(in super), run_inner, type Result<(), Error>),
                 )),
                 &syn::parse_quote! { impl Foo {} },
             )
@@ -399,7 +401,7 @@ mod tests {
             .unwrap(),
             quote::quote! {
                 impl FooLoop {
-                    pub(in super) async fn run_inner(&mut self) {
+                    pub(in super) async fn run_inner(&mut self) -> Result<(), Error> {
                         let Self { __cancel, __actor, } = self;
                         loop {
                             ::g1_actor::tokio::select! {

@@ -460,7 +460,7 @@ mod tests {
                         spawn(pub, my_spawn),
                         new(pub, my_new),
                     ),
-                    loop_(run(run_inner)),
+                    loop_(run(run_inner, type Result<(), Error>)),
                 ),
                 &syn::parse_quote! {
                     impl<T, const N: usize, U: Debug> Foo<U, N, T>

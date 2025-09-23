@@ -104,7 +104,7 @@ struct Loop {
 
     new: AssocFunc,
     // This is intended for the user to rename `run` and create their own.
-    run: AssocFunc,
+    run: RunFunc,
 
     reacts: Vec<(Pat, Expr, Expr)>,
 
@@ -125,6 +125,18 @@ struct AssocFunc {
 #[derive(Default)]
 #[cfg_attr(test, derive(Clone, Debug, PartialEq))]
 struct OptionAssocFunc(Option<AssocFunc>);
+
+#[derive(Default)]
+#[cfg_attr(test, derive(Clone, Debug, PartialEq))]
+struct RunFunc {
+    skip: bool,
+
+    visibility: Option<Visibility>,
+
+    name: Option<Ident>,
+
+    ret_type: Option<Type>,
+}
 
 #[cfg_attr(test, derive(Clone, Debug, PartialEq))]
 struct Actor {
@@ -310,6 +322,12 @@ impl Loop {
 }
 
 impl AssocFunc {
+    fn visibility(&self) -> &Visibility {
+        self.visibility.as_ref().unwrap_or(&INHERITED)
+    }
+}
+
+impl RunFunc {
     fn visibility(&self) -> &Visibility {
         self.visibility.as_ref().unwrap_or(&INHERITED)
     }
