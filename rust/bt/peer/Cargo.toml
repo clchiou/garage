@@ -1,0 +1,19 @@
+[package]
+name = "bt_peer"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+bytes.workspace = true
+futures.workspace = true
+snafu.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+g1_actor.workspace = true
+g1_base = { workspace = true, features = ["collections_ext"] }
+g1_tokio.workspace = true
+
+bt_base.workspace = true
+bt_model.workspace = true
+bt_proto.workspace = true
