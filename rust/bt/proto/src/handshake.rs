@@ -92,6 +92,7 @@ where
 }
 
 impl<F> Handshaker<F> {
+    // TODO: BEP 3 specifies that the connection should be severed if the peer id does not match.
     pub async fn connect<T>(
         &self,
         stream: T,
