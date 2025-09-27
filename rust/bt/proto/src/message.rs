@@ -1,13 +1,15 @@
 use std::io;
 use std::num::TryFromIntError;
 
+use bitvec::prelude::*;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use snafu::prelude::*;
 
 use g1_bytes::BufPeekExt;
 use g1_tokio::frame::{Decode, Encode, FrameSink, FrameStream};
 
-use bt_base::{Bitfield, BlockRange, PieceIndex};
+use bt_base::bitfield::BitsliceExt;
+use bt_base::{Bitfield, BlockRange, Features, Layout, PieceIndex};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Message {
@@ -45,8 +47,18 @@ pub enum Message {
 #[derive(Clone, Copy, Debug)]
 pub struct Codec;
 
+#[derive(Clone, Debug)]
+pub struct Checker {
+    self_features: Features,
+    peer_features: Features,
+    layout: Layout,
+}
+
 #[derive(Debug, Snafu)]
 pub enum Error {
+    //
+    // `Codec` errors.
+    //
     #[snafu(display("io error: {source}"))]
     Io { source: io::Error },
 
@@ -59,6 +71,22 @@ pub enum Error {
 
     #[snafu(display("unknown id: {id}"))]
     UnknownId { id: u8 },
+
+    //
+    // `Checker` errors.
+    //
+    #[snafu(display("expect self enable: {feature}"))]
+    SelfFeature { feature: &'static str },
+    #[snafu(display("expect peer support: {feature}"))]
+    PeerFeature { feature: &'static str },
+
+    #[snafu(display("invalid piece index: {index:?}"))]
+    PieceIndex { index: PieceIndex },
+    #[snafu(display("invalid block range: {range:?}"))]
+    BlockRange { range: BlockRange },
+
+    #[snafu(display("bitfield spare bits: {bitfield:?}"))]
+    SpareBits { bitfield: Bytes },
 }
 
 // `g1_tokio::frame` requires this.
@@ -353,6 +381,93 @@ impl Encode<Message> for Codec {
                 buffer.put_slice(&payload);
             }
         }
+        Ok(())
+    }
+}
+
+impl Checker {
+    pub fn new(self_features: Features, peer_features: Features, layout: Layout) -> Self {
+        Self {
+            self_features,
+            peer_features,
+            layout,
+        }
+    }
+
+    pub fn check(&self, message: &Message) -> Result<(), Error> {
+        if matches!(message, Message::Port(_)) {
+            ensure!(self.self_features.dht, SelfFeatureSnafu { feature: "dht" });
+            ensure!(self.peer_features.dht, PeerFeatureSnafu { feature: "dht" });
+        }
+
+        if matches!(
+            message,
+            Message::Suggest(_)
+                | Message::HaveAll
+                | Message::HaveNone
+                | Message::Reject(_)
+                | Message::AllowedFast(_),
+        ) {
+            ensure!(
+                self.self_features.fast,
+                SelfFeatureSnafu { feature: "fast" },
+            );
+            ensure!(
+                self.peer_features.fast,
+                PeerFeatureSnafu { feature: "fast" },
+            );
+        }
+
+        if matches!(message, Message::Extended(_, _)) {
+            ensure!(
+                self.self_features.extension,
+                SelfFeatureSnafu {
+                    feature: "extension",
+                },
+            );
+            ensure!(
+                self.peer_features.extension,
+                PeerFeatureSnafu {
+                    feature: "extension",
+                },
+            );
+        }
+
+        match message {
+            Message::KeepAlive
+            | Message::Choke
+            | Message::Unchoke
+            | Message::Interested
+            | Message::NotInterested
+            | Message::Port(_)
+            | Message::HaveAll
+            | Message::HaveNone
+            | Message::Extended(_, _) => {}
+
+            Message::Have(index) | Message::Suggest(index) | Message::AllowedFast(index) => {
+                let index = *index;
+                ensure!(self.layout.check_index(index), PieceIndexSnafu { index });
+            }
+
+            Message::Request(range)
+            | Message::Piece(range, _)
+            | Message::Cancel(range)
+            | Message::Reject(range) => {
+                let range = *range;
+                ensure!(self.layout.check_range(range), BlockRangeSnafu { range });
+            }
+
+            Message::Bitfield(bitfield) => {
+                let bitslice = bitfield.view_bits();
+                ensure!(
+                    bitslice.check_spare_bits(self.layout.num_pieces()),
+                    SpareBitsSnafu {
+                        bitfield: bitfield.clone(),
+                    },
+                );
+            }
+        }
+
         Ok(())
     }
 }
