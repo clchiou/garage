@@ -123,4 +123,8 @@ impl<T> Joinable for BoxJoinable<T> {
     fn take_result(&mut self) -> Result<<Self as Joinable>::Output, ShutdownError> {
         (**self).take_result()
     }
+
+    fn boxed(self) -> BoxJoinable<<Self as Joinable>::Output> {
+        self
+    }
 }
