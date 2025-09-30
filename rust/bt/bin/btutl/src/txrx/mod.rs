@@ -81,10 +81,14 @@ impl Txrx {
             Some(_) => {
                 handshaker
                     .connect(&mut stream, self.info_hash.clone())
-                    .await
+                    .await?
             }
-            None => handshaker.accept(&mut stream).await,
-        }?;
+            None => {
+                let (info_hash, peer_id, peer_features) = handshaker.accept(&mut stream).await?;
+                assert_eq!(info_hash, self.info_hash);
+                (peer_id, peer_features)
+            }
+        };
         tracing::info!(%peer_id, ?peer_features);
 
         Ok(tcp::into_split(stream))

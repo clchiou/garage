@@ -68,7 +68,7 @@ impl<F> Handshaker<F>
 where
     F: Fn(InfoHash) -> bool,
 {
-    pub async fn accept<T>(&self, stream: T) -> Result<(PeerId, Features), Error>
+    pub async fn accept<T>(&self, stream: T) -> Result<(InfoHash, PeerId, Features), Error>
     where
         T: AsyncRead + AsyncWrite + Unpin,
     {
@@ -77,7 +77,10 @@ where
             .map_err(|_| Error::Timeout)?
     }
 
-    pub async fn accept_forever<T>(&self, mut stream: T) -> Result<(PeerId, Features), Error>
+    pub async fn accept_forever<T>(
+        &self,
+        mut stream: T,
+    ) -> Result<(InfoHash, PeerId, Features), Error>
     where
         T: AsyncRead + AsyncWrite + Unpin,
     {
@@ -87,7 +90,7 @@ where
         send_id(&mut stream, &self.self_id).await?;
         let peer_id = recv_id(&mut stream).await?;
 
-        Ok((peer_id, peer_features))
+        Ok((info_hash, peer_id, peer_features))
     }
 }
 
