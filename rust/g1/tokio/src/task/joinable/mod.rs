@@ -1,6 +1,7 @@
 pub mod fold;
 pub mod join;
 pub mod map;
+pub mod select;
 pub mod try_fold;
 pub mod try_join;
 

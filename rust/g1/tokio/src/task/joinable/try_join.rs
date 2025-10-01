@@ -57,13 +57,39 @@ mod tests {
 
     use super::*;
 
+    fn aborted() -> JoinGuard<Result<(), &'static str>> {
+        let handle = tokio::spawn(future::pending());
+        handle.abort();
+        JoinGuard::new(handle, Cancel::new())
+    }
+
     #[tokio::test]
     async fn test_try_join() {
-        fn aborted() -> JoinGuard<Result<(), &'static str>> {
-            let handle = tokio::spawn(future::pending());
-            handle.abort();
-            JoinGuard::new(handle, Cancel::new())
-        }
+        let mut j = try_join::<JoinGuard<Result<(), &'static str>>, 0, &'static str>([]);
+        (&mut j).await;
+        assert_eq!(j.take_result(), Ok(Ok(())));
+
+        let mut j = try_join::<_, 1, &'static str>([JoinGuard::spawn(|_| future::ready(Ok(())))]);
+        (&mut j).await;
+        assert_eq!(j.take_result(), Ok(Ok(())));
+
+        let mut j = try_join::<_, 2, &'static str>([
+            JoinGuard::spawn(|_| future::pending()),
+            JoinGuard::spawn(|_| future::ready(Err("foo"))),
+        ]);
+        (&mut j).await;
+        assert_eq!(j.take_result(), Ok(Err("foo")));
+
+        let mut j =
+            try_join::<_, 2, &'static str>([JoinGuard::spawn(|_| future::pending()), aborted()]);
+        (&mut j).await;
+        assert_eq!(j.take_result(), Err(ShutdownError::TaskAborted));
+    }
+
+    #[tokio::test]
+    async fn try_join_shutdown() {
+        let mut j = try_join::<JoinGuard<Result<(), &'static str>>, 0, &'static str>([]);
+        assert_eq!(j.shutdown_with_timeout(Duration::ZERO).await, Ok(Ok(())));
 
         let mut j = try_join::<_, 1, &'static str>([JoinGuard::spawn(|_| future::ready(Ok(())))]);
         assert_eq!(j.shutdown_with_timeout(Duration::ZERO).await, Ok(Ok(())));
