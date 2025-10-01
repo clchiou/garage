@@ -71,7 +71,7 @@ impl Node {
                 lookup,
                 insert,
             },
-            task::try_join([
+            task::select([
                 reqrep_guard.boxed(),
                 issuer_guard.map(Ok).boxed(),
                 router_guard.map(Ok).boxed(),
