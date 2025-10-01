@@ -2,7 +2,7 @@ use std::future::{self, Future};
 use std::mem;
 use std::ops::ControlFlow;
 use std::pin::Pin;
-use std::task::{Context, Poll};
+use std::task::{self, Context, Poll};
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -21,15 +21,17 @@ pub trait TryFoldFn<J: Joinable, B> =
     ) -> ControlFlow<Result<B, ShutdownError>, Result<B, ShutdownError>>;
 
 #[derive(Debug)]
-pub struct TryFold<J: Joinable + Unpin, const N: usize, B, F>(TryFoldInner<J, N, B, F>);
-
-#[derive(Debug)]
-enum TryFoldInner<J, const N: usize, B, F>
+pub struct TryFold<J, const N: usize, B, F>
 where
     J: Joinable + Unpin,
 {
+    joinables: ReadyArray<J, N>,
+    state: State<B, F>,
+}
+
+#[derive(Debug)]
+enum State<B, F> {
     Running {
-        joinables: ReadyArray<J, N>,
         acc: Option<Result<B, ShutdownError>>,
         f: F,
     },
@@ -50,7 +52,60 @@ where
     J: Joinable + Unpin,
 {
     pub fn new(joinables: [J; N], init: B, f: F) -> Self {
-        Self(TryFoldInner::new(joinables, init, f))
+        Self {
+            joinables: ReadyArray::new(joinables),
+            state: State::Running {
+                acc: Some(Ok(init)),
+                f,
+            },
+        }
+    }
+}
+
+impl<J, const N: usize, B, F> TryFold<J, N, B, F>
+where
+    J: Joinable + Unpin,
+    F: TryFoldFn<J, B>,
+{
+    fn poll_try_fold(&mut self, context: &mut Context<'_>) -> Poll<()> {
+        let State::Running { acc, f } = &mut self.state else {
+            return Poll::Ready(());
+        };
+
+        let mut a = acc.take().expect("acc");
+        'outer: while !self.joinables.is_empty() {
+            if self.joinables.poll_ready(context) == Poll::Pending {
+                *acc = Some(a);
+                return Poll::Pending;
+            }
+            while let Some(((), mut joinable)) = self.joinables.try_pop_ready_with_future() {
+                let flow = f(a, joinable.take_result());
+                let is_break = flow.is_break();
+                a = flow.into_value();
+                if is_break {
+                    break 'outer;
+                }
+            }
+        }
+
+        self.state = State::Finished(a);
+        Poll::Ready(())
+    }
+
+    fn poll_shutdown(&mut self, context: &mut Context<'_>) -> Poll<()> {
+        if matches!(self.state, State::Running { .. }) {
+            task::ready!(self.poll_try_fold(context));
+        }
+
+        // During shutdown, once the state is `Finished`, we continue polling tasks but ignore
+        // their results, allowing the tasks to gracefully shut down on their own.
+        while !self.joinables.is_empty() {
+            task::ready!(self.joinables.poll_ready(context));
+            while self.joinables.try_pop_ready().is_some() {
+                // Nothing to do here.
+            }
+        }
+        Poll::Ready(())
     }
 }
 
@@ -63,7 +118,7 @@ where
     type Output = ();
 
     fn poll(mut self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<Self::Output> {
-        self.0.poll(context)
+        self.poll_try_fold(context)
     }
 }
 
@@ -77,25 +132,25 @@ where
     type Output = B;
 
     fn add_parent(&self, parent: Cancel) {
-        self.0
+        self.joinables
             .iter()
             .for_each(|joinable| joinable.add_parent(parent.clone()))
     }
 
     fn add_timeout(&self, timeout: Duration) {
-        self.0
+        self.joinables
             .iter()
             .for_each(|joinable| joinable.add_timeout(timeout))
     }
 
     fn add_deadline(&self, deadline: Instant) {
-        self.0
+        self.joinables
             .iter()
             .for_each(|joinable| joinable.add_deadline(deadline))
     }
 
     fn cancel(&self) {
-        self.0.iter().for_each(|joinable| joinable.cancel())
+        self.joinables.iter().for_each(|joinable| joinable.cancel())
     }
 
     async fn shutdown_with_timeout(
@@ -104,91 +159,30 @@ where
     ) -> Result<<Self as Joinable>::Output, ShutdownError> {
         self.cancel();
 
-        if time::timeout(timeout, future::poll_fn(|cx| self.0.poll(cx)))
+        if time::timeout(timeout, future::poll_fn(|cx| self.poll_shutdown(cx)))
             .await
             .is_err()
         {
-            let (mut joinables, acc, mut f) = self.0.take_running();
-            drop(joinables.detach_all());
-            return f(acc, Err(ShutdownError::JoinTimeout)).into_value();
+            drop(self.joinables.detach_all());
+
+            return match mem::replace(&mut self.state, State::Consumed) {
+                State::Running { acc, mut f } => {
+                    f(acc.expect("acc"), Err(ShutdownError::JoinTimeout)).into_value()
+                }
+                State::Finished(acc) => acc,
+                State::Consumed => panic!("TryFold has been consumed already"),
+            };
         }
 
         self.take_result()
     }
 
     fn take_result(&mut self) -> Result<<Self as Joinable>::Output, ShutdownError> {
-        self.0.take_result()
-    }
-}
-
-impl<J, const N: usize, B, F> TryFoldInner<J, N, B, F>
-where
-    J: Joinable + Unpin,
-{
-    fn new(joinables: [J; N], init: B, f: F) -> Self {
-        Self::Running {
-            joinables: ReadyArray::new(joinables),
-            acc: Some(Ok(init)),
-            f,
+        match mem::replace(&mut self.state, State::Consumed) {
+            State::Running { .. } => panic!("TryFold is still running; abort"),
+            State::Finished(result) => result,
+            State::Consumed => panic!("TryFold result was consumed"),
         }
-    }
-
-    fn iter(&self) -> impl Iterator<Item = &J> {
-        match self {
-            Self::Running { joinables, .. } => Some(joinables.iter()),
-            _ => None,
-        }
-        .into_iter()
-        .flatten()
-    }
-
-    fn take_running(&mut self) -> (ReadyArray<J, N>, Result<B, ShutdownError>, F) {
-        match mem::replace(self, Self::Consumed) {
-            Self::Running { joinables, acc, f } => (joinables, acc.expect("acc"), f),
-            Self::Finished(_) => panic!("fold was finished"),
-            Self::Consumed => panic!("fold has been consumed already"),
-        }
-    }
-
-    fn take_result(&mut self) -> Result<B, ShutdownError> {
-        match mem::replace(self, Self::Consumed) {
-            Self::Running { mut joinables, .. } => {
-                drop(joinables.detach_all());
-                panic!("fold is still running; abort")
-            }
-            Self::Finished(result) => result,
-            Self::Consumed => panic!("fold result was consumed"),
-        }
-    }
-}
-
-impl<J, const N: usize, B, F> TryFoldInner<J, N, B, F>
-where
-    J: Joinable + Unpin,
-    F: TryFoldFn<J, B>,
-{
-    fn poll(&mut self, context: &mut Context<'_>) -> Poll<()> {
-        let Self::Running { joinables, acc, f } = self else {
-            return Poll::Ready(());
-        };
-
-        let mut a = acc.take().expect("acc");
-        while !joinables.is_empty() {
-            if joinables.poll_ready(context) == Poll::Pending {
-                *acc = Some(a);
-                return Poll::Pending;
-            }
-            while let Some(((), mut joinable)) = joinables.try_pop_ready_with_future() {
-                let flow = f(a, joinable.take_result());
-                if flow.is_break() {
-                    drop(joinables.detach_all());
-                }
-                a = flow.into_value();
-            }
-        }
-
-        *self = Self::Finished(a);
-        Poll::Ready(())
     }
 }
 
@@ -238,6 +232,19 @@ mod tests {
                         }
                         time::sleep(Duration::from_millis(5)).await;
                         num_joined.inc();
+                        "task-1"
+                    }
+                }),
+                JoinGuard::spawn(|_| {
+                    let num_joined = num_joined.clone();
+                    let num_dropped = num_dropped.clone();
+                    async move {
+                        scopeguard::defer! {
+                            num_dropped.inc();
+                        }
+                        future::pending::<()>().await;
+                        num_joined.inc();
+                        "task-2"
                     }
                 }),
                 JoinGuard::spawn(|_| {
@@ -248,25 +255,26 @@ mod tests {
                             num_dropped.inc();
                         }
                         num_joined.inc();
+                        "task-3"
                     }
                 }),
             ],
-            (),
+            "init",
             |_, result| ControlFlow::Break(result),
         );
 
-        assert!(matches!(j.0, TryFoldInner::Running { .. }));
+        assert!(matches!(j.state, State::Running { .. }));
         assert_eq!(num_joined.get(), 0);
         assert_eq!(num_dropped.get(), 0);
 
         assert_eq!(
             j.shutdown_with_timeout(Duration::from_millis(10)).await,
-            Ok(()),
+            Ok("task-3"),
         );
-        assert!(matches!(j.0, TryFoldInner::Consumed));
+        assert!(matches!(j.state, State::Consumed));
         time::sleep(Duration::from_millis(5)).await;
-        assert_eq!(num_joined.get(), 1);
-        assert_eq!(num_dropped.get(), 2);
+        assert_eq!(num_joined.get(), 2);
+        assert_eq!(num_dropped.get(), 3);
     }
 
     #[tokio::test]
@@ -280,6 +288,6 @@ mod tests {
             j.shutdown_with_timeout(Duration::ZERO).await,
             Err(ShutdownError::JoinTimeout),
         );
-        assert!(matches!(j.0, TryFoldInner::Consumed));
+        assert!(matches!(j.state, State::Consumed));
     }
 }
