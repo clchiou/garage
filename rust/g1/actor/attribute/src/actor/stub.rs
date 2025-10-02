@@ -1,4 +1,7 @@
 use proc_macro2::TokenStream;
+use syn::visit_mut::VisitMut;
+
+use crate::replace;
 
 use super::{Codegen, Method};
 
@@ -262,26 +265,53 @@ impl Method {
             .arg_pairs()
             .map(|(name, type_)| quote::quote!(#name: #type_));
 
-        // Result<ret_type, Option<arg_types>>
-        let ret_type = &self.ret_type;
-        let arg_types = &self.arg_types;
+        let ret = quote::format_ident!("__ret");
+        let (ret_type, ret_expr) = match self.stub.as_ref().and_then(|stub| stub.ret_expr.as_ref())
+        {
+            Some((ret_type, (var, ret_expr))) => {
+                let mut ret_expr = ret_expr.clone();
+                replace::ident_replacer(var, || ret.clone()).visit_expr_mut(&mut ret_expr);
+                (
+                    quote::quote!(#ret_type),
+                    Some(quote::quote!(let #ret = #ret_expr;)),
+                )
+            }
+            None => {
+                // Result<ret_type, Option<arg_types>>
+                let ret_type = &self.ret_type;
+                let arg_types = &self.arg_types;
+                (
+                    quote::quote! {
+                        ::std::result::Result<#ret_type, ::std::option::Option<(#(#arg_types,)*)>>
+                    },
+                    None,
+                )
+            }
+        };
 
         let message_type_name = &codegen.message_type_name;
         let arg_names = &self.arg_names;
 
         quote::quote! {
-            #visibility async fn #name(
-                &self, #(#arg_decls,)*
-            ) -> ::std::result::Result<#ret_type, ::std::option::Option<(#(#arg_types,)*)>> {
+            #visibility async fn #name(&self, #(#arg_decls,)*) -> #ret_type {
                 let (__ret_send, __ret_recv) = ::g1_actor::tokio::sync::oneshot::channel();
-                self.__message_queue
+                let #ret = match self
+                    .__message_queue
                     .send(#message_type_name::#name((#(#arg_names,)*), __ret_send))
                     .await
-                    .map_err(|::g1_actor::tokio::sync::mpsc::error::SendError(__message)| match __message {
-                        #message_type_name::#name(__args, _) => ::std::option::Option::Some(__args),
-                        _ => ::std::unreachable!(),
-                    })?;
-                __ret_recv.await.map_err(|_| ::std::option::Option::None)
+                {
+                    ::std::result::Result::Ok(()) => {
+                        __ret_recv.await.map_err(|_| ::std::option::Option::None)
+                    }
+                    ::std::result::Result::Err(::g1_actor::tokio::sync::mpsc::error::SendError(__message)) => {
+                        ::std::result::Result::Err(match __message {
+                            #message_type_name::#name(__args, _) => ::std::option::Option::Some(__args),
+                            _ => ::std::unreachable!(),
+                        })
+                    }
+                };
+                #ret_expr
+                #ret
             }
         }
     }
@@ -508,26 +538,42 @@ mod tests {
 
                     pub async fn f(&self, ) -> ::std::result::Result<(), ::std::option::Option<()>> {
                         let (__ret_send, __ret_recv) = ::g1_actor::tokio::sync::oneshot::channel();
-                        self.__message_queue
+                        let __ret = match self
+                            .__message_queue
                             .send(FooMessage::f((), __ret_send))
                             .await
-                            .map_err(|::g1_actor::tokio::sync::mpsc::error::SendError(__message)| match __message {
-                                FooMessage::f(__args, _) => ::std::option::Option::Some(__args),
-                                _ => ::std::unreachable!(),
-                            })?;
-                        __ret_recv.await.map_err(|_| ::std::option::Option::None)
+                        {
+                            ::std::result::Result::Ok(()) => {
+                                __ret_recv.await.map_err(|_| ::std::option::Option::None)
+                            }
+                            ::std::result::Result::Err(::g1_actor::tokio::sync::mpsc::error::SendError(__message)) => {
+                                ::std::result::Result::Err(match __message {
+                                    FooMessage::f(__args, _) => ::std::option::Option::Some(__args),
+                                    _ => ::std::unreachable!(),
+                                })
+                            }
+                        };
+                        __ret
                     }
 
                     async fn g(&self, __arg_0: [T; N],) -> ::std::result::Result<X, ::std::option::Option<([T; N],)>> {
                         let (__ret_send, __ret_recv) = ::g1_actor::tokio::sync::oneshot::channel();
-                        self.__message_queue
+                        let __ret = match self
+                            .__message_queue
                             .send(FooMessage::g((__arg_0,), __ret_send))
                             .await
-                            .map_err(|::g1_actor::tokio::sync::mpsc::error::SendError(__message)| match __message {
-                                FooMessage::g(__args, _) => ::std::option::Option::Some(__args),
-                                _ => ::std::unreachable!(),
-                            })?;
-                        __ret_recv.await.map_err(|_| ::std::option::Option::None)
+                        {
+                            ::std::result::Result::Ok(()) => {
+                                __ret_recv.await.map_err(|_| ::std::option::Option::None)
+                            }
+                            ::std::result::Result::Err(::g1_actor::tokio::sync::mpsc::error::SendError(__message)) => {
+                                ::std::result::Result::Err(match __message {
+                                    FooMessage::g(__args, _) => ::std::option::Option::Some(__args),
+                                    _ => ::std::unreachable!(),
+                                })
+                            }
+                        };
+                        __ret
                     }
                 }
             },
@@ -575,7 +621,7 @@ mod tests {
                 quote::quote!(stub(spawn(skip), new(skip))),
                 &syn::parse_quote! {
                     impl Foo {
-                        #[method()]
+                        #[method(stub(return { let x: bool = self.func(x.is_ok()); }))]
                         fn f(&self) {}
                     }
                 },
@@ -584,16 +630,26 @@ mod tests {
             .unwrap(),
             quote::quote! {
                 impl FooStub {
-                    async fn f(&self,) -> ::std::result::Result<(), ::std::option::Option<()>> {
+                    async fn f(&self,) -> bool {
                         let (__ret_send, __ret_recv) = ::g1_actor::tokio::sync::oneshot::channel();
-                        self.__message_queue
+                        let __ret = match self
+                            .__message_queue
                             .send(FooMessage::f((), __ret_send))
                             .await
-                            .map_err(|::g1_actor::tokio::sync::mpsc::error::SendError(__message)| match __message {
-                                FooMessage::f(__args, _) => ::std::option::Option::Some(__args),
-                                _ => ::std::unreachable!(),
-                            })?;
-                        __ret_recv.await.map_err(|_| ::std::option::Option::None)
+                        {
+                            ::std::result::Result::Ok(()) => {
+                                __ret_recv.await.map_err(|_| ::std::option::Option::None)
+                            }
+                            ::std::result::Result::Err(::g1_actor::tokio::sync::mpsc::error::SendError(__message)) => {
+                                ::std::result::Result::Err(match __message {
+                                    FooMessage::f(__args, _) => ::std::option::Option::Some(__args),
+                                    _ => ::std::unreachable!(),
+                                })
+                            }
+
+                        };
+                        let __ret = self.func(__ret.is_ok());
+                        __ret
                     }
                 }
             },

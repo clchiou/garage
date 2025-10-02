@@ -171,6 +171,14 @@ struct Method {
     ret_type: Type,
     // From attribute.
     ret_expr: Option<(Ident, Expr)>,
+
+    // From attribute.
+    stub: Option<StubMethod>,
+}
+
+#[cfg_attr(test, derive(Clone, Debug, PartialEq))]
+struct StubMethod {
+    ret_expr: Option<(Type, (Ident, Expr))>,
 }
 
 impl Codegen {

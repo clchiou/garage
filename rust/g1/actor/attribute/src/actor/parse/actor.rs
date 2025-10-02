@@ -7,9 +7,9 @@ use syn::{
     WhereClause, WherePredicate,
 };
 
-use crate::actor::{Actor, Method};
+use crate::actor::{Actor, Method, StubMethod};
 use crate::arg::{Arg, ArgValue, Args};
-use crate::arg_parse::{parse_args_from, scalar_arg};
+use crate::arg_parse::{func_arg, parse_args, parse_args_from, scalar_arg};
 use crate::attr;
 use crate::error::{ensure, ensure_none};
 use crate::generic;
@@ -194,6 +194,7 @@ impl Method {
         let MethodAttr {
             visibility,
             ret_expr,
+            stub,
         } = method_attr;
         let (ret_type, ret_expr) =
             ret_expr.map_or((None, None), |(type_, expr)| (Some(type_), Some(expr)));
@@ -251,6 +252,8 @@ impl Method {
                 ReturnType::Default => syn::parse_quote!(()),
             }),
             ret_expr,
+
+            stub,
         }))
     }
 
@@ -282,6 +285,7 @@ fn check_method_receiver(receiver: &Receiver) -> bool {
 struct MethodAttr {
     visibility: Option<Visibility>,
     ret_expr: Option<(Type, (Ident, Expr))>,
+    stub: Option<StubMethod>,
 }
 
 impl MethodAttr {
@@ -293,9 +297,20 @@ impl MethodAttr {
             {
                 visibility: self.visibility,
                 ret_expr: self.ret_expr,
+                stub: self.stub,
             } = attr.parse_args_with(Args::parse_terminated)?
         );
         Ok(true)
+    }
+}
+
+func_arg!(stub: StubMethod);
+
+impl TryFrom<Args> for StubMethod {
+    type Error = Error;
+
+    fn try_from(args: Args) -> Result<Self, Self::Error> {
+        Ok(parse_args!(Self { ret_expr } = args))
     }
 }
 
@@ -388,6 +403,7 @@ mod tests {
             arg_names: vec![],
             ret_type: syn::parse_quote!(()),
             ret_expr: None,
+            stub: None,
         };
         assert_ok(
             Actor::parse(&syn::parse_quote! {
@@ -670,6 +686,7 @@ mod tests {
             arg_names: vec![],
             ret_type: syn::parse_quote!(()),
             ret_expr: None,
+            stub: None,
         };
         assert_ok(
             Method::try_parse(&syn::parse_quote! {
@@ -681,7 +698,7 @@ mod tests {
 
         assert_ok(
             Method::try_parse(&syn::parse_quote! {
-                #[g1_actor::actor::method(pub)]
+                #[g1_actor::actor::method(pub, stub())]
                 async fn f(&self, _: String) -> usize {}
             }),
             Some(replace!(
@@ -692,12 +709,17 @@ mod tests {
                 .arg_types = vec![syn::parse_quote!(String)],
                 .arg_names = vec![i("__arg_0")],
                 .ret_type = syn::parse_quote!(usize),
+                .stub = Some(StubMethod { ret_expr: None }),
             )),
         );
 
         assert_ok(
             Method::try_parse(&syn::parse_quote! {
-                #[actor::method(pub(crate), return { let x: C = x?; })]
+                #[actor::method(
+                    pub(crate),
+                    return { let x: C = x?; },
+                    stub(return { let y: D = f(y); }),
+                )]
                 fn f(&mut self, x: A, y: B) -> Result<C, Error> {}
             }),
             Some(replace!(
@@ -708,6 +730,9 @@ mod tests {
                 .arg_names = vec![i("__arg_0"), i("__arg_1")],
                 .ret_type = syn::parse_quote!(C),
                 .ret_expr = Some((i("x"), syn::parse_quote!(x?))),
+                .stub = Some(StubMethod {
+                    ret_expr: Some((syn::parse_quote!(D), (i("y"), syn::parse_quote!(f(y))))),
+                }),
             )),
         );
 
@@ -730,6 +755,14 @@ mod tests {
             Method::try_parse(&syn::parse_quote! {
                 #[method(return { let x: T = x; })]
                 #[method(return { let x: T = x; })]
+                fn f() {}
+            }),
+            "duplicated argument",
+        );
+        assert_err(
+            Method::try_parse(&syn::parse_quote! {
+                #[method(stub())]
+                #[method(stub())]
                 fn f() {}
             }),
             "duplicated argument",
@@ -847,6 +880,39 @@ mod tests {
                 fn f() {}
             },
         );
+    }
+
+    #[test]
+    fn stub_method() {
+        fn parse(args: Args) -> Result<StubMethod, Error> {
+            args.try_into()
+        }
+
+        assert_ok(parse(syn::parse_quote!()), StubMethod { ret_expr: None });
+        assert_ok(
+            parse(syn::parse_quote!(
+                return {
+                    let x: T = x;
+                },
+            )),
+            StubMethod {
+                ret_expr: Some((syn::parse_quote!(T), (i("x"), syn::parse_quote!(x)))),
+            },
+        );
+
+        assert_err(
+            parse(syn::parse_quote!(
+                return {
+                    let x: T = x;
+                },
+                return {
+                    let y: U = y;
+                },
+            )),
+            "duplicated argument",
+        );
+
+        assert_err(parse(syn::parse_quote!(skip)), "unknown argument");
     }
 
     #[test]
