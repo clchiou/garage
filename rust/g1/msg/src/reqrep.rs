@@ -154,8 +154,13 @@ where
         }
     }
 
-    #[actor::method(return { let result: ResponseRecv<P> = result?; })]
-    async fn send_request(&mut self, outgoing: P::Outgoing) -> Result<ResponseRecv<P>, P::Error> {
+    #[actor::method(
+        pub,
+        return { let result: ResponseRecv<P> = result?; },
+        // TODO: Should we return `Result<ResponseRecv<P>, Option<(P::Outgoing,)>>` instead?
+        stub(return { let result: Option<ResponseRecv<P>> = result.ok(); }),
+    )]
+    async fn request(&mut self, outgoing: P::Outgoing) -> Result<ResponseRecv<P>, P::Error> {
         let id = P::outgoing_id(&outgoing);
         self.outgoing.send(outgoing).await?;
         Ok(self.create_request(id))
@@ -237,11 +242,6 @@ where
     pub async fn accept(&self) -> Option<(P::Incoming, ResponseSend<P>)> {
         let request = self.accept_recv.lock().await.recv().await?;
         Some((request, ResponseSend(self.clone())))
-    }
-
-    // TODO: Should we return `Result<ResponseRecv<P>, Option<(P::Outgoing,)>>` instead?
-    pub async fn request(&self, request: P::Outgoing) -> Option<ResponseRecv<P>> {
-        self.send_request(request).await.ok()
     }
 }
 
@@ -384,7 +384,7 @@ mod tests {
 
         let t0 = Instant::now();
         let d1 = t0 + Duration::from_secs(2);
-        let r1 = actor.send_request(("id-1", "a")).await.unwrap();
+        let r1 = actor.request(("id-1", "a")).await.unwrap();
         actor.assert_requests(&[("id-1", d1)]);
 
         actor.on_incoming(("id-2", "b"));
@@ -406,8 +406,8 @@ mod tests {
 
         let t0 = Instant::now();
         let d = t0 + Duration::from_secs(2);
-        let r2 = actor.send_request(("id-2", "a")).await.unwrap();
-        let r1 = actor.send_request(("id-1", "b")).await.unwrap();
+        let r2 = actor.request(("id-2", "a")).await.unwrap();
+        let r1 = actor.request(("id-1", "b")).await.unwrap();
         actor.assert_requests(&[("id-2", d), ("id-1", d)]);
 
         time::advance(Duration::from_millis(2000)).await;
@@ -436,7 +436,7 @@ mod tests {
         actor.assert_requests(&[]);
         assert_eq!(TestActor::timeout(&actor.requests).await, None);
 
-        assert_matches!(actor.send_request(("id-1", "a")).await, Ok(_));
+        assert_matches!(actor.request(("id-1", "a")).await, Ok(_));
         actor.assert_requests(&[("id-1", d1)]);
         assert_eq!(TestActor::timeout(&actor.requests).await, Some(()));
 
@@ -455,11 +455,11 @@ mod tests {
         let d2 = t0 + Duration::from_millis(100) + Duration::from_secs(2);
         let d3 = t0 + Duration::from_millis(200) + Duration::from_secs(2);
 
-        let r1 = actor.send_request(("id-1", "a")).await.unwrap();
+        let r1 = actor.request(("id-1", "a")).await.unwrap();
         time::advance(Duration::from_millis(100)).await;
-        let r2 = actor.send_request(("id-2", "b")).await.unwrap();
+        let r2 = actor.request(("id-2", "b")).await.unwrap();
         time::advance(Duration::from_millis(100)).await;
-        assert_matches!(actor.send_request(("id-3", "c")).await, Ok(_));
+        assert_matches!(actor.request(("id-3", "c")).await, Ok(_));
         actor.assert_requests(&[("id-1", d1), ("id-2", d2), ("id-3", d3)]);
 
         for _ in 0..3 {
@@ -516,7 +516,7 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn send_request() {
+    async fn actor_request() {
         let (mut actor, mut mock_outgoing, _) = mock_actor();
         actor.assert_requests(&[]);
 
@@ -525,15 +525,15 @@ mod tests {
         let d1 = t0 + Duration::from_secs(10 + 2);
         let d3 = t0 + Duration::from_secs(20 + 2);
 
-        assert_matches!(actor.send_request(("id-2", "a")).await, Ok(_));
+        assert_matches!(actor.request(("id-2", "a")).await, Ok(_));
         actor.assert_requests(&[("id-2", d2)]);
 
         time::advance(Duration::from_secs(10)).await;
-        assert_matches!(actor.send_request(("id-1", "b")).await, Ok(_));
+        assert_matches!(actor.request(("id-1", "b")).await, Ok(_));
         actor.assert_requests(&[("id-2", d2), ("id-1", d1)]);
 
         time::advance(Duration::from_secs(10)).await;
-        assert_matches!(actor.send_request(("id-3", "c")).await, Ok(_));
+        assert_matches!(actor.request(("id-3", "c")).await, Ok(_));
         actor.assert_requests(&[("id-2", d2), ("id-1", d1), ("id-3", d3)]);
 
         drop(actor);
@@ -544,12 +544,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn send_request_error() {
+    async fn actor_request_error() {
         let (mut actor, _, _) = mock_actor();
-        assert_matches!(
-            actor.send_request(("id-1", "a")).await,
-            Err(SendError { .. }),
-        );
+        assert_matches!(actor.request(("id-1", "a")).await, Err(SendError { .. }));
     }
 
     #[tokio::test]
