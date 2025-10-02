@@ -1,0 +1,18 @@
+[package]
+name = "bt_net"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+futures.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+g1_actor.workspace = true
+g1_base.workspace = true
+g1_tokio.workspace = true
+
+bt_base.workspace = true
+bt_model = { workspace = true, features = ["fold"] }
+bt_peer.workspace = true
+bt_proto.workspace = true
