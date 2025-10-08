@@ -130,6 +130,18 @@ impl Layout {
     }
 }
 
+impl From<PieceIndex> for usize {
+    fn from(index: PieceIndex) -> Self {
+        index.0.try_into().expect("piece index to usize")
+    }
+}
+
+impl From<usize> for PieceIndex {
+    fn from(index: usize) -> Self {
+        Self(index.try_into().expect("usize to piece index"))
+    }
+}
+
 impl Step for PieceIndex {
     fn steps_between(start: &Self, end: &Self) -> (usize, Option<usize>) {
         Step::steps_between(&start.0, &end.0)
@@ -157,6 +169,20 @@ impl Step for PieceIndex {
 
     unsafe fn backward_unchecked(start: Self, count: usize) -> Self {
         Self(unsafe { Step::backward_unchecked(start.0, count) })
+    }
+}
+
+impl BlockRange {
+    pub fn index(self) -> usize {
+        self.0.into()
+    }
+
+    pub fn offset(self) -> usize {
+        self.1.try_into().expect("block offset to usize")
+    }
+
+    pub fn size(self) -> usize {
+        self.2.try_into().expect("block size to usize")
     }
 }
 
