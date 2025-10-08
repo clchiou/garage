@@ -6,8 +6,8 @@ use futures::sink::SinkExt;
 use futures::stream::TryStreamExt;
 use tokio::signal;
 
-use bt_base::bitfield::BitfieldExt;
-use bt_base::{Bitfield, Layout, PieceIndex};
+use bt_base::bitfield::{BitfieldExt, BitsliceExt};
+use bt_base::{Bitfield, Layout};
 use bt_proto::Message;
 use bt_proto::tcp::{OwnedSink, OwnedStream};
 use bt_storage::Torrent;
@@ -108,9 +108,8 @@ impl DownloadCommand {
             }
         }
 
-        for index in want_pieces.iter_ones() {
-            tracing::debug!(index, "download piece");
-            let index = PieceIndex(index.try_into().expect("u32"));
+        for index in want_pieces.iter_haves() {
+            tracing::debug!(?index, "download piece");
 
             for range in layout.blocks(index, 16384) {
                 sink.feed(Message::Request(range)).await?;
