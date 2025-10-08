@@ -50,13 +50,11 @@ impl BitsliceExt for Bitslice {
     }
 
     fn iter_haves(&self) -> impl Iterator<Item = PieceIndex> {
-        self.iter_ones()
-            .map(|i| PieceIndex(i.try_into().expect("u32")))
+        self.iter_ones().map(PieceIndex::from)
     }
 
     fn iter_have_nots(&self) -> impl Iterator<Item = PieceIndex> {
-        self.iter_zeros()
-            .map(|i| PieceIndex(i.try_into().expect("u32")))
+        self.iter_zeros().map(PieceIndex::from)
     }
 }
 

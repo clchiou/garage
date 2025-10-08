@@ -70,11 +70,11 @@ impl UploadCommand {
                     break;
                 }
                 Message::Request(range) => {
-                    if !bitfield[usize::try_from(range.0.0).expect("usize")] {
+                    if !bitfield[range.index()] {
                         tracing::warn!(?range, "ignore request for piece that we do not have");
                         continue;
                     }
-                    let mut payload = BytesMut::zeroed(usize::try_from(range.2).expect("usize"));
+                    let mut payload = BytesMut::zeroed(range.size());
                     torrent.read(range, &mut payload)?;
                     sink.send(Message::Piece(range, payload.freeze())).await?;
                 }

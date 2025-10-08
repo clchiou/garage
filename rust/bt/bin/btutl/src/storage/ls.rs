@@ -189,12 +189,7 @@ impl LsCommand {
         let bitfield = torrent_file.scan()?;
         let piece_hashes = info.pieces();
         let pieces = index_range
-            .map(|index| {
-                piece_hashes
-                    .get(index.0.try_into().expect("usize"))
-                    .expect("piece")
-                    .to_string()
-            })
+            .map(|index| piece_hashes.get(index.into()).expect("piece").to_string())
             .zip(bitfield.iter().by_vals())
             .map(|(hash, verify)| Piece { hash, verify })
             .collect::<Vec<_>>();

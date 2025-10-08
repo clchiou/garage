@@ -77,9 +77,7 @@ impl Torrent {
         let pieces = self.info.pieces();
         for index in index_range {
             let actual = self.compute_piece_hash(self.layout.piece_size(index))?;
-            let expect = pieces
-                .get(usize::try_from(index.0).expect("index"))
-                .expect("piece_hash");
+            let expect = pieces.get(index.into()).expect("piece_hash");
             bitfield.push(actual == expect.as_ref());
         }
         Ok(bitfield)
@@ -95,9 +93,7 @@ impl Torrent {
         let actual = self.compute_piece_hash(self.layout.piece_size(index))?;
 
         let pieces = self.info.pieces();
-        let expect = pieces
-            .get(usize::try_from(index.0).expect("index"))
-            .expect("piece_hash");
+        let expect = pieces.get(index.into()).expect("piece_hash");
 
         Ok(actual == expect.as_ref())
     }
@@ -122,7 +118,7 @@ impl Torrent {
             InvalidBlockRangeSnafu { range }
         );
 
-        let size = usize::try_from(range.2).expect("size");
+        let size = range.size();
         ensure!(len >= size, BufferOverflowSnafu { len, size });
 
         Ok(size)
@@ -167,7 +163,7 @@ impl Torrent {
     pub fn prepare_splice(&mut self, i: usize) -> Result<usize, Error> {
         let (offset, size) = self.info.file_range(i);
         self.seek(offset)?;
-        Ok(size.try_into().expect("usize"))
+        Ok(size.try_into().expect("file size to usize"))
     }
 
     fn compute_file_hash(&mut self, size: u64) -> Result<[u8; MD5_HASH_SIZE], Error> {

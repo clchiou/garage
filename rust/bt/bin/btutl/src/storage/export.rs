@@ -115,9 +115,10 @@ impl ExportCommand {
             .expect("torrent");
 
         let (index, size) = super::piece_index_and_size(&info, piece_hash.clone())?;
+        let range = BlockRange(index, 0, size);
 
-        let mut buffer = vec![0u8; size.try_into().expect("usize")];
-        torrent.read(BlockRange(index, 0, size), &mut buffer)?;
+        let mut buffer = vec![0u8; range.size()];
+        torrent.read(range, &mut buffer)?;
 
         output.write_all(&buffer)
     }
