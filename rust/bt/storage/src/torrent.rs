@@ -68,7 +68,7 @@ impl Torrent {
     //
 
     pub fn scan(&mut self) -> Result<Bitfield, Error> {
-        self.scan_consecutive(PieceIndex(0)..PieceIndex(self.layout.num_pieces()))
+        self.scan_consecutive(PieceIndex(0)..PieceIndex(self.layout.num_pieces_u32()))
     }
 
     fn scan_consecutive(&mut self, index_range: Range<PieceIndex>) -> Result<Bitfield, Error> {

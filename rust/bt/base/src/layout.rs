@@ -78,7 +78,12 @@ impl Layout {
         self.size
     }
 
-    pub fn num_pieces(&self) -> u32 {
+    // Returning `usize` feels more natural than returning `u32`.
+    pub fn num_pieces(&self) -> usize {
+        self.num_pieces.try_into().expect("num_pieces to usize")
+    }
+
+    pub fn num_pieces_u32(&self) -> u32 {
         self.num_pieces
     }
 
