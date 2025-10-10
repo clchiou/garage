@@ -102,8 +102,9 @@ where
     }
 }
 
-impl<E> JoinQueue<Result<(), E>>
+impl<T, E> JoinQueue<Result<T, E>>
 where
+    T: Send + Unpin + 'static,
     E: Send + Unpin + 'static,
 {
     /// Shuts down the remaining tasks gracefully.
@@ -125,7 +126,7 @@ where
             tokio::select! {
                 () = &mut sleep => {
                     drop(self.guards.detach_all()); // `abort` is called by `JoinGuard::drop`.
-                    result = join_guard::merge((result, Err(ShutdownError::JoinTimeout)));
+                    result = join_guard::merge::<T, E>((result, Err(ShutdownError::JoinTimeout)));
                     break;
                 }
                 guard = self.join_next() => {

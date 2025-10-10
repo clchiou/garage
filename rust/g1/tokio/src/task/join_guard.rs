@@ -54,23 +54,26 @@ pub(super) const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(1);
 /// TODO: I need a better idea here, but for now, if both `JoinGuard::shutdown` return an error,
 /// one of them is silently dropped.
 #[allow(clippy::type_complexity)]
-pub(super) fn merge<E>(
+pub(super) fn merge<T, E>(
     join_results: (
         Result<Result<(), E>, ShutdownError>,
-        Result<Result<(), E>, ShutdownError>,
+        Result<Result<T, E>, ShutdownError>,
     ),
 ) -> Result<Result<(), E>, ShutdownError> {
     match join_results {
+        // The first error takes precedence over the later ones.
         (result @ Ok(Err(_)), _) => result,
-        (_, result @ Ok(Err(_))) => result,
+        (_, Ok(Err(error))) => Ok(Err(error)),
 
-        (result @ Err(ShutdownError::TaskAborted), _) => result,
-        (_, result @ Err(ShutdownError::TaskAborted)) => result,
+        (Err(ShutdownError::TaskAborted), _) | (_, Err(ShutdownError::TaskAborted)) => {
+            Err(ShutdownError::TaskAborted)
+        }
 
-        (result @ Err(ShutdownError::JoinTimeout), _) => result,
-        (_, result @ Err(ShutdownError::JoinTimeout)) => result,
+        (Err(ShutdownError::JoinTimeout), _) | (_, Err(ShutdownError::JoinTimeout)) => {
+            Err(ShutdownError::JoinTimeout)
+        }
 
-        (Ok(Ok(())), Ok(Ok(()))) => Ok(Ok(())),
+        (Ok(Ok(())), Ok(Ok(_))) => Ok(Ok(())),
     }
 }
 
@@ -461,7 +464,10 @@ mod tests {
             assert_eq!(merge((r1, r0)), expect);
         }
 
-        assert_eq!(merge((Ok(Err("foo")), Ok(Err("bar")))), Ok(Err("foo")));
+        assert_eq!(
+            merge::<(), &str>((Ok(Err("foo")), Ok(Err("bar")))),
+            Ok(Err("foo")),
+        );
         test(
             Ok(Err("foo")),
             Err(ShutdownError::TaskAborted),

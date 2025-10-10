@@ -59,8 +59,9 @@ where
     }
 }
 
-impl<E, const N: usize> JoinArray<Result<(), E>, N>
+impl<T, E, const N: usize> JoinArray<Result<T, E>, N>
 where
+    T: Unpin,
     E: Unpin,
 {
     /// Shuts down the remaining tasks gracefully.
@@ -82,7 +83,7 @@ where
             tokio::select! {
                 () = &mut sleep => {
                     drop(self.0.detach_all()); // `abort` is called by `JoinGuard::drop`.
-                    result = join_guard::merge((result, Err(ShutdownError::JoinTimeout)));
+                    result = join_guard::merge::<T, E>((result, Err(ShutdownError::JoinTimeout)));
                     break;
                 }
                 guard = self.join_next() => {
