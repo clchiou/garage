@@ -110,6 +110,15 @@ impl ConnActor {
         }
     }
 
+    //
+    // TODO: The actor does not execute `recv` and `send` concurrently.  Hypothetically, this could
+    // lead to a deadlock: the actor may be executing `recv` and become blocked while broadcasting
+    // incoming messages, while the broadcast receivers are blocked while sending outgoing messages
+    // to `send`.  Since both the actor and the receivers are blocked, they cannot handle any
+    // messages sent to them, resulting in a deadlock.  If this scenario occurs, we will need to
+    // make the actor execute `recv` and `send` concurrently.
+    //
+
     // TODO: This design is flawed, as the caller cannot determine whether an extension message has
     // been replayed from the backlog.  A redesign is required.
     #[actor::loop_(react = {
