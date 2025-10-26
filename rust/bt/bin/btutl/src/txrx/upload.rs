@@ -7,8 +7,8 @@ use futures::stream::TryStreamExt;
 use tokio::signal;
 
 use bt_base::Bitfield;
-use bt_proto::Message;
-use bt_proto::tcp::{OwnedSink, OwnedStream};
+use bt_peer::ConnArgs;
+use bt_proto::{BoxSink, BoxStream, Message};
 use bt_storage::Torrent;
 
 use crate::storage::StorageDir;
@@ -40,7 +40,8 @@ impl UploadCommand {
             tracing::warn!(num_completed, num_pieces, "partial upload");
         }
 
-        let (stream, sink) = self.txrx.handshake(self.txrx.make_stream().await?).await?;
+        let ConnArgs { stream, sink, .. } =
+            self.txrx.handshake(self.txrx.make_stream().await?).await?;
 
         tokio::select! {
             result = signal::ctrl_c() => {
@@ -55,8 +56,8 @@ impl UploadCommand {
     async fn upload(
         mut torrent: Torrent,
         bitfield: Bitfield,
-        mut stream: OwnedStream,
-        mut sink: OwnedSink,
+        mut stream: BoxStream,
+        mut sink: BoxSink,
     ) -> Result<(), Error> {
         sink.send(Message::bitfield(&bitfield)).await?;
 

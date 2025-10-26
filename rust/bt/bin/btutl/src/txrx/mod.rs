@@ -7,8 +7,9 @@ use clap::Args;
 use tokio::net::{TcpSocket, TcpStream};
 
 use bt_base::{Bitfield, Features, InfoHash, PeerEndpoint, PeerId};
+use bt_peer::ConnArgs;
 use bt_proto::Handshaker;
-use bt_proto::tcp::{self, OwnedSink, OwnedStream};
+use bt_proto::tcp;
 use bt_storage::{Storage, Torrent};
 
 pub(crate) use self::download::DownloadCommand;
@@ -63,19 +64,22 @@ impl Txrx {
         }
     }
 
-    async fn handshake(&self, mut stream: TcpStream) -> Result<(OwnedStream, OwnedSink), Error> {
+    async fn handshake(&self, mut stream: TcpStream) -> Result<ConnArgs, Error> {
+        let self_endpoint = stream.local_addr()?;
+        let peer_endpoint = stream.peer_addr()?;
+
         let self_id = self.self_id.clone().unwrap_or_else(rand::random);
         tracing::info!(%self_id);
 
-        let handshaker = Handshaker::new(
-            self_id,
-            Features {
-                dht: false,
-                fast: false,
-                extension: false,
-            },
-            |info_hash| info_hash == self.info_hash,
-        );
+        let self_features = Features {
+            dht: false,
+            fast: false,
+            extension: false,
+        };
+
+        let handshaker = Handshaker::new(self_id, self_features, |info_hash| {
+            info_hash == self.info_hash
+        });
 
         let (peer_id, peer_features) = match self.peer_endpoint {
             Some(_) => {
@@ -91,6 +95,13 @@ impl Txrx {
         };
         tracing::info!(%peer_id, ?peer_features);
 
-        Ok(tcp::into_split(stream))
+        let (stream, sink) = tcp::into_split(stream);
+        Ok(ConnArgs {
+            conn_id: (self.info_hash.clone(), self_endpoint, peer_endpoint).into(),
+            self_features,
+            peer_features,
+            stream: Box::new(stream),
+            sink: Box::new(sink),
+        })
     }
 }

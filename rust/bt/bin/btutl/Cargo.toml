@@ -17,10 +17,13 @@ tracing.workspace = true
 url.workspace = true
 
 g1_cli = { workspace = true, features = ["tracing"] }
+g1_tokio.workspace = true
 
 bt_base.workspace = true
 bt_bencode.workspace = true
 bt_metainfo.workspace = true
+bt_model.workspace = true
+bt_peer.workspace = true
 bt_proto.workspace = true
 bt_storage.workspace = true
 bt_tracker.workspace = true
