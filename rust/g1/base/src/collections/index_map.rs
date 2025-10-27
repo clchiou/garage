@@ -15,7 +15,7 @@ use hashbrown::HashTable;
 use super::DefaultHashBuilder;
 
 // Reexport these from hashbrown.
-pub use hashbrown::hash_table::{Entry, OccupiedEntry, VacantEntry};
+pub use hashbrown::hash_table::{Entry, ExtractIf, OccupiedEntry, VacantEntry};
 
 #[derive(Clone, Debug)]
 pub struct HashIndexMap<I, F, T, H, S = DefaultHashBuilder> {
@@ -88,6 +88,20 @@ impl<I, F, T, H, S> HashIndexMap<I, F, T, H, S> {
 
     pub fn len(&self) -> usize {
         self.indexes.len()
+    }
+
+    pub fn extract_if<Predicate>(&mut self, f: Predicate) -> ExtractIf<'_, I, Predicate>
+    where
+        Predicate: FnMut(&mut I) -> bool,
+    {
+        self.indexes.extract_if(f)
+    }
+
+    pub fn retain<Predicate>(&mut self, f: Predicate)
+    where
+        Predicate: FnMut(&mut I) -> bool,
+    {
+        self.indexes.retain(f);
     }
 
     pub fn clear(&mut self) {
