@@ -1,8 +1,8 @@
 //! Index Map
 //!
 //! For an indexable collection type, such as `Vec`, an index map maps values back to their index.
-//! It should be noted that maintaining synchronization between a index map and its collection is
-//! your responsibility, and now, collection values must be unique.
+//! It should be noted that maintaining synchronization between an index map and its collection is
+//! your responsibility, and for now, collection values must be unique.
 
 use std::borrow::Borrow;
 use std::hash::{BuildHasher, Hash};
