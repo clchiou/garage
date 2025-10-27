@@ -102,6 +102,54 @@ where
     }
 }
 
+impl JoinQueue<()> {
+    /// Shuts down the remaining tasks gracefully.
+    ///
+    /// I am not sure about the details yet; for example, how do we merge errors?
+    pub async fn shutdown(&self) -> Result<(), ShutdownError> {
+        self.shutdown_with_timeout(SHUTDOWN_TIMEOUT).await
+    }
+
+    pub async fn shutdown_with_timeout(&self, timeout: Duration) -> Result<(), ShutdownError> {
+        fn merge(
+            r1: Result<(), ShutdownError>,
+            r2: Result<(), ShutdownError>,
+        ) -> Result<(), ShutdownError> {
+            match (r1, r2) {
+                (Err(ShutdownError::TaskAborted), _) | (_, Err(ShutdownError::TaskAborted)) => {
+                    Err(ShutdownError::TaskAborted)
+                }
+
+                (Err(ShutdownError::JoinTimeout), _) | (_, Err(ShutdownError::JoinTimeout)) => {
+                    Err(ShutdownError::JoinTimeout)
+                }
+
+                (Ok(()), Ok(())) => Ok(()),
+            }
+        }
+
+        self.cancel();
+
+        let mut result = Ok(());
+        tokio::pin! { let sleep = time::sleep(timeout); }
+        loop {
+            tokio::select! {
+                () = &mut sleep => {
+                    drop(self.guards.detach_all()); // `abort` is called by `JoinGuard::drop`.
+                    result = merge(result, Err(ShutdownError::JoinTimeout));
+                    break;
+                }
+                guard = self.join_next() => {
+                    let Some(mut guard) = guard else { break };
+                    result = merge(result, guard.take_result());
+                }
+            }
+        }
+
+        result
+    }
+}
+
 impl<T, E> JoinQueue<Result<T, E>>
 where
     T: Send + Unpin + 'static,
@@ -212,6 +260,38 @@ mod tests {
 
         drop(queue);
         assert_eq!(cancel.is_set(), true);
+    }
+
+    #[tokio::test]
+    async fn shutdown_unit_guard() {
+        async fn test(queue: &JoinQueue<()>, expect: Result<(), ShutdownError>) {
+            assert_eq!(
+                queue.shutdown_with_timeout(Duration::from_millis(10)).await,
+                expect,
+            );
+            assert!(queue.is_empty());
+        }
+
+        fn spawn() -> JoinGuard<()> {
+            JoinGuard::spawn(|cancel| async move { cancel.wait().await })
+        }
+
+        fn spawn_pending() -> JoinGuard<()> {
+            JoinGuard::spawn(|_| future::pending())
+        }
+
+        let queue = JoinQueue::new();
+        assert_matches!(queue.push(spawn()), Ok(()));
+        test(&queue, Ok(())).await;
+
+        let queue = JoinQueue::new();
+        assert_matches!(queue.push(spawn_pending()), Ok(()));
+        test(&queue, Err(ShutdownError::JoinTimeout)).await;
+
+        let queue = JoinQueue::new();
+        assert_matches!(queue.push(spawn()), Ok(()));
+        assert_matches!(queue.push(spawn_pending()), Ok(()));
+        test(&queue, Err(ShutdownError::JoinTimeout)).await;
     }
 
     #[tokio::test]
