@@ -1,9 +1,12 @@
 //! Collection modeled after `OrderedDict` in Python.
 
 use std::borrow::Borrow;
+use std::cell::RefCell;
 use std::fmt::{self, Debug};
 use std::hash::{BuildHasher, Hash};
+use std::iter::FusedIterator;
 use std::mem;
+use std::rc::Rc;
 
 use super::{
     DefaultHashBuilder,
@@ -65,6 +68,13 @@ pub type IterMut<'a, K, V, S>
 where
     K: 'a,
     V: 'a;
+
+pub type ExtractIf<'a, K, V, S, F>
+    = impl FusedIterator<Item = (K, V)>
+where
+    K: 'a,
+    V: 'a,
+    F: FnMut(&K, &mut V) -> bool;
 
 impl<K, V, S> HashOrderedMap<K, V, S> {
     pub fn with_hasher(hash_builder: S) -> Self {
@@ -201,6 +211,39 @@ impl<K, V, S> HashOrderedMap<K, V, S> {
 
     pub fn len(&self) -> usize {
         self.map.len()
+    }
+
+    #[define_opaque(ExtractIf)]
+    pub fn extract_if<F>(&mut self, mut f: F) -> ExtractIf<'_, K, V, S, F>
+    where
+        F: FnMut(&K, &mut V) -> bool,
+    {
+        let entries = Rc::new(RefCell::new(&mut self.entries));
+        let predicate = {
+            let entries = entries.clone();
+            move |p: &mut Cursor| {
+                let mut entries = entries.borrow_mut();
+                let (k, v) = &mut entries[*p];
+                f(k, v)
+            }
+        };
+        self.map
+            .extract_if(predicate)
+            .map(move |p| entries.borrow_mut().remove(p))
+    }
+
+    pub fn retain<F>(&mut self, mut f: F)
+    where
+        F: FnMut(&K, &mut V) -> bool,
+    {
+        self.map.retain(|p| {
+            let (k, v) = &mut self.entries[*p];
+            let retain = f(k, v);
+            if !retain {
+                self.entries.remove(*p);
+            }
+            retain
+        })
     }
 
     pub fn clear(&mut self) {
@@ -660,6 +703,44 @@ mod tests {
 
         assert_ne!(map1, HashOrderedMap::from([('a', 100)]));
         assert_ne!(map1, HashOrderedMap::from([('a', 101), ('b', 100)]));
+    }
+
+    #[test]
+    fn extract_if() {
+        let mut map = HashOrderedMap::from([('a', 100), ('b', 101), ('c', 102)]);
+        map.assert_map(&[('a', 100), ('b', 101), ('c', 102)]);
+
+        assert_eq!(
+            map.extract_if(|k, v| match k {
+                'a' => true,
+                'b' => false,
+                'c' => {
+                    *v += 1000;
+                    false
+                }
+                _ => panic!(),
+            })
+            .collect::<Vec<_>>(),
+            &[('a', 100)]
+        );
+        map.assert_map(&[('b', 101), ('c', 1102)]);
+    }
+
+    #[test]
+    fn retain() {
+        let mut map = HashOrderedMap::from([('a', 100), ('b', 101), ('c', 102)]);
+        map.assert_map(&[('a', 100), ('b', 101), ('c', 102)]);
+
+        map.retain(|k, v| match k {
+            'a' => false,
+            'b' => true,
+            'c' => {
+                *v += 1000;
+                true
+            }
+            _ => panic!(),
+        });
+        map.assert_map(&[('b', 101), ('c', 1102)]);
     }
 
     #[test]
