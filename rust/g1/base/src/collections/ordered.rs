@@ -7,7 +7,7 @@ use std::mem;
 
 use super::{
     DefaultHashBuilder,
-    index_map::{Entry, HashIndexMap, KeyAsHash},
+    index_map::{self, HashIndexMap, KeyAsHash},
     vec_list::{Cursor, VecList},
 };
 
@@ -15,6 +15,25 @@ use super::{
 pub struct HashOrderedMap<K, V, S = DefaultHashBuilder> {
     map: HashIndexMap<Cursor, KeyAsHash, (K, V), K, S>,
     entries: VecList<(K, V)>,
+}
+
+#[derive(Debug)]
+pub enum Entry<'a, K, V> {
+    Occupied(OccupiedEntry<'a, K, V>),
+    Vacant(VacantEntry<'a, K, V>),
+}
+
+#[derive(Debug)]
+pub struct OccupiedEntry<'a, K, V> {
+    entries: &'a mut VecList<(K, V)>,
+    cursor_entry: index_map::OccupiedEntry<'a, Cursor>,
+}
+
+#[derive(Debug)]
+pub struct VacantEntry<'a, K, V> {
+    entries: &'a mut VecList<(K, V)>,
+    key: K,
+    cursor_entry: index_map::VacantEntry<'a, Cursor>,
 }
 
 pub type Keys<'a, K, V, S>
@@ -188,6 +207,22 @@ impl<K, V, S> HashOrderedMap<K, V, S> {
         self.map.clear();
         self.entries.clear();
     }
+
+    pub fn front(&self) -> Option<(&K, &V)> {
+        self.entries.front().map(|(k, v)| (k, v))
+    }
+
+    pub fn front_mut(&mut self) -> Option<(&K, &mut V)> {
+        self.entries.front_mut().map(|(k, v)| (&*k, v))
+    }
+
+    pub fn back(&self) -> Option<(&K, &V)> {
+        self.entries.back().map(|(k, v)| (k, v))
+    }
+
+    pub fn back_mut(&mut self) -> Option<(&K, &mut V)> {
+        self.entries.back_mut().map(|(k, v)| (&*k, v))
+    }
 }
 
 impl<K, V, S> HashOrderedMap<K, V, S> {
@@ -230,6 +265,56 @@ where
         self.map.get(&self.entries, key).is_some()
     }
 
+    pub fn entry(&mut self, key: K) -> Entry<'_, K, V> {
+        match self.map.entry(&self.entries, &key) {
+            index_map::Entry::Occupied(cursor_entry) => Entry::Occupied(OccupiedEntry {
+                entries: &mut self.entries,
+                cursor_entry,
+            }),
+            index_map::Entry::Vacant(cursor_entry) => Entry::Vacant(VacantEntry {
+                entries: &mut self.entries,
+                key,
+                cursor_entry,
+            }),
+        }
+    }
+
+    pub fn find_entry<Q>(&mut self, key: &Q) -> Option<OccupiedEntry<'_, K, V>>
+    where
+        K: Borrow<Q>,
+        Q: Eq + Hash + ?Sized,
+    {
+        self.map
+            .find_entry(&self.entries, key)
+            .map(|cursor_entry| OccupiedEntry {
+                entries: &mut self.entries,
+                cursor_entry,
+            })
+    }
+
+    pub fn front_entry(&mut self) -> Option<OccupiedEntry<'_, K, V>> {
+        self.occupied_entry(VecList::front)
+    }
+
+    pub fn back_entry(&mut self) -> Option<OccupiedEntry<'_, K, V>> {
+        self.occupied_entry(VecList::back)
+    }
+
+    #[allow(clippy::type_complexity)]
+    fn occupied_entry(
+        &mut self,
+        f: fn(&VecList<(K, V)>) -> Option<&(K, V)>,
+    ) -> Option<OccupiedEntry<'_, K, V>> {
+        let cursor_entry = self
+            .map
+            .find_entry(&self.entries, &f(&self.entries)?.0)
+            .expect("HashOrderedMap index_map invariant");
+        Some(OccupiedEntry {
+            entries: &mut self.entries,
+            cursor_entry,
+        })
+    }
+
     pub fn get<Q>(&self, key: &Q) -> Option<&V>
     where
         K: Borrow<Q>,
@@ -260,53 +345,22 @@ where
         })
     }
 
-    // TODO: Provide an `entry` method equivalent to `HashMap::entry`.
-    pub fn get_or_insert_with<F>(&mut self, key: K, default: F) -> &mut V
-    where
-        F: FnOnce() -> V,
-    {
-        let p = *self
-            .map
-            .entry(&self.entries, &key)
-            .or_insert_with(|| self.entries.push_back((key, default())))
-            .get();
-        &mut self.entries[p].1
-    }
-
-    /// Similar to `get_or_insert_with`, but moves the entry to the back.
-    pub fn get_or_insert_with_back<F>(&mut self, key: K, default: F) -> &mut V
-    where
-        F: FnOnce() -> V,
-    {
-        let p = *self
-            .map
-            .entry(&self.entries, &key)
-            .and_modify(|&mut p| self.entries.move_back(p))
-            .or_insert_with(|| self.entries.push_back((key, default())))
-            .get();
-        &mut self.entries[p].1
-    }
-
     pub fn insert(&mut self, key: K, value: V) -> Option<V> {
-        self.insert_then_move(key, value, false)
+        match self.entry(key) {
+            Entry::Occupied(mut entry) => Some(entry.insert(value)),
+            Entry::Vacant(entry) => {
+                entry.insert(value);
+                None
+            }
+        }
     }
 
     /// Similar to `insert`, but moves the entry (existing or otherwise) to the back.
     pub fn insert_back(&mut self, key: K, value: V) -> Option<V> {
-        self.insert_then_move(key, value, true)
-    }
-
-    fn insert_then_move(&mut self, key: K, value: V, move_entry: bool) -> Option<V> {
-        match self.map.entry(&self.entries, &key) {
-            Entry::Occupied(entry) => {
-                let p = *entry.get();
-                if move_entry {
-                    self.entries.move_back(p);
-                }
-                Some(mem::replace(&mut self.entries[p].1, value))
-            }
+        match self.entry(key) {
+            Entry::Occupied(entry) => Some(entry.move_back().insert(value)),
             Entry::Vacant(entry) => {
-                entry.insert(self.entries.push_back((key, value)));
+                entry.insert(value);
                 None
             }
         }
@@ -317,8 +371,7 @@ where
         K: Borrow<Q>,
         Q: Eq + Hash + ?Sized,
     {
-        let p = self.map.remove(&self.entries, key)?;
-        Some(self.entries.remove(p).1)
+        Some(self.find_entry(key)?.remove())
     }
 
     pub fn move_front<Q>(&mut self, key: &Q) -> bool
@@ -346,15 +399,167 @@ where
     }
 
     pub fn pop_front(&mut self) -> Option<(K, V)> {
-        let key = &self.entries.front()?.0;
-        assert!(self.map.remove(&self.entries, key).is_some());
-        self.entries.pop_front()
+        Some(self.front_entry()?.remove_entry())
     }
 
     pub fn pop_back(&mut self) -> Option<(K, V)> {
-        let key = &self.entries.back()?.0;
-        assert!(self.map.remove(&self.entries, key).is_some());
-        self.entries.pop_back()
+        Some(self.back_entry()?.remove_entry())
+    }
+}
+
+impl<'a, K, V> Entry<'a, K, V> {
+    pub fn key(&self) -> &K {
+        match self {
+            Self::Occupied(entry) => entry.key(),
+            Self::Vacant(entry) => entry.key(),
+        }
+    }
+
+    pub fn and_modify<F>(mut self, f: F) -> Self
+    where
+        F: FnOnce(&mut V),
+    {
+        match self {
+            Self::Occupied(ref mut entry) => {
+                f(entry.get_mut());
+                self
+            }
+            Self::Vacant(_) => self,
+        }
+    }
+
+    // NOTE: Like `and_modify`, this is a no-op when the entry is vacant.
+    pub fn and_move_front(self) -> Self {
+        match self {
+            Self::Occupied(entry) => Self::Occupied(entry.move_front()),
+            Self::Vacant(_) => self,
+        }
+    }
+
+    // NOTE: Like `and_modify`, this is a no-op when the entry is vacant.
+    pub fn and_move_back(self) -> Self {
+        match self {
+            Self::Occupied(entry) => Self::Occupied(entry.move_back()),
+            Self::Vacant(_) => self,
+        }
+    }
+
+    pub fn or_default(self) -> &'a mut V
+    where
+        V: Default,
+    {
+        match self {
+            Self::Occupied(entry) => entry.into_mut(),
+            Self::Vacant(entry) => entry.insert(Default::default()),
+        }
+    }
+
+    pub fn or_insert(self, default: V) -> &'a mut V {
+        match self {
+            Self::Occupied(entry) => entry.into_mut(),
+            Self::Vacant(entry) => entry.insert(default),
+        }
+    }
+
+    pub fn or_insert_with<F>(self, default: F) -> &'a mut V
+    where
+        F: FnOnce() -> V,
+    {
+        match self {
+            Self::Occupied(entry) => entry.into_mut(),
+            Self::Vacant(entry) => entry.insert(default()),
+        }
+    }
+
+    pub fn or_insert_with_key<F>(self, default: F) -> &'a mut V
+    where
+        F: FnOnce(&K) -> V,
+    {
+        match self {
+            Self::Occupied(entry) => entry.into_mut(),
+            Self::Vacant(entry) => {
+                let value = default(entry.key());
+                entry.insert(value)
+            }
+        }
+    }
+
+    pub fn insert_entry(self, value: V) -> OccupiedEntry<'a, K, V> {
+        match self {
+            Self::Occupied(mut entry) => {
+                entry.insert(value);
+                entry
+            }
+            Self::Vacant(entry) => entry.insert_entry(value),
+        }
+    }
+}
+
+impl<'a, K, V> OccupiedEntry<'a, K, V> {
+    pub fn key(&self) -> &K {
+        &self.entries[*self.cursor_entry.get()].0
+    }
+
+    pub fn get(&self) -> &V {
+        &self.entries[*self.cursor_entry.get()].1
+    }
+
+    pub fn get_mut(&mut self) -> &mut V {
+        &mut self.entries[*self.cursor_entry.get()].1
+    }
+
+    pub fn move_front(self) -> Self {
+        self.entries.move_front(*self.cursor_entry.get());
+        self
+    }
+
+    pub fn move_back(self) -> Self {
+        self.entries.move_back(*self.cursor_entry.get());
+        self
+    }
+
+    pub fn into_mut(self) -> &'a mut V {
+        &mut self.entries[*self.cursor_entry.get()].1
+    }
+
+    pub fn insert(&mut self, value: V) -> V {
+        mem::replace(&mut self.entries[*self.cursor_entry.get()].1, value)
+    }
+
+    pub fn remove(self) -> V {
+        self.remove_entry().1
+    }
+
+    pub fn remove_entry(self) -> (K, V) {
+        self.entries.remove(self.cursor_entry.remove().0)
+    }
+}
+
+impl<'a, K, V> VacantEntry<'a, K, V> {
+    pub fn key(&self) -> &K {
+        &self.key
+    }
+
+    pub fn into_key(self) -> K {
+        self.key
+    }
+
+    pub fn insert(self, value: V) -> &'a mut V {
+        let p = *self
+            .cursor_entry
+            .insert(self.entries.push_back((self.key, value)))
+            .get();
+        &mut self.entries[p].1
+    }
+
+    pub fn insert_entry(self, value: V) -> OccupiedEntry<'a, K, V> {
+        let cursor_entry = self
+            .cursor_entry
+            .insert(self.entries.push_back((self.key, value)));
+        OccupiedEntry {
+            entries: self.entries,
+            cursor_entry,
+        }
     }
 }
 
@@ -415,6 +620,8 @@ mod test_harness {
 
 #[cfg(test)]
 mod tests {
+    use std::assert_matches::assert_matches;
+
     use super::*;
 
     #[test]
@@ -492,31 +699,24 @@ mod tests {
     }
 
     #[test]
-    fn get_or_insert_with() {
+    fn entry_new() {
         let mut map = HashOrderedMap::new();
         map.assert_map(&[]);
-
-        assert_eq!(map.get_or_insert_with('a', || 100), &mut 100);
-        map.assert_map(&[('a', 100)]);
-        assert_eq!(map.get_or_insert_with('b', || 101), &mut 101);
-        map.assert_map(&[('a', 100), ('b', 101)]);
-
-        assert_eq!(map.get_or_insert_with('a', || 102), &mut 100);
-        map.assert_map(&[('a', 100), ('b', 101)]);
-    }
-
-    #[test]
-    fn get_or_insert_with_back() {
-        let mut map = HashOrderedMap::new();
+        assert_matches!(map.entry('a'), Entry::Vacant(_));
+        assert_matches!(map.find_entry(&'a'), None);
+        assert_matches!(map.front_entry(), None);
+        assert_matches!(map.back_entry(), None);
         map.assert_map(&[]);
 
-        assert_eq!(map.get_or_insert_with_back('a', || 100), &mut 100);
-        map.assert_map(&[('a', 100)]);
-        assert_eq!(map.get_or_insert_with_back('b', || 101), &mut 101);
+        let mut map = HashOrderedMap::from([('a', 100), ('b', 101)]);
         map.assert_map(&[('a', 100), ('b', 101)]);
-
-        assert_eq!(map.get_or_insert_with_back('a', || 102), &mut 100);
-        map.assert_map(&[('b', 101), ('a', 100)]);
+        assert_matches!(map.entry('a'), Entry::Occupied(entry) if entry.key() == &'a');
+        assert_matches!(map.entry('c'), Entry::Vacant(entry) if entry.key() == &'c');
+        assert_matches!(map.find_entry(&'a'), Some(entry) if entry.key() == &'a');
+        assert_matches!(map.find_entry(&'c'), None);
+        assert_matches!(map.front_entry(), Some(entry) if entry.key() == &'a');
+        assert_matches!(map.back_entry(), Some(entry) if entry.key() == &'b');
+        map.assert_map(&[('a', 100), ('b', 101)]);
     }
 
     #[test]
@@ -556,6 +756,33 @@ mod tests {
         map.assert_map(&[('a', 100), ('c', 102)]);
         assert_eq!(map.remove(&'b'), None);
         map.assert_map(&[('a', 100), ('c', 102)]);
+    }
+
+    #[test]
+    fn front_and_back() {
+        let mut map = HashOrderedMap::from([]);
+        map.assert_map(&[]);
+        assert_eq!(map.front(), None);
+        assert_eq!(map.front_mut(), None);
+        assert_eq!(map.back(), None);
+        assert_eq!(map.back_mut(), None);
+        map.assert_map(&[]);
+
+        let mut map = HashOrderedMap::from([('a', 100)]);
+        map.assert_map(&[('a', 100)]);
+        assert_eq!(map.front(), Some((&'a', &100)));
+        assert_eq!(map.front_mut(), Some((&'a', &mut 100)));
+        assert_eq!(map.back(), Some((&'a', &100)));
+        assert_eq!(map.back_mut(), Some((&'a', &mut 100)));
+        map.assert_map(&[('a', 100)]);
+
+        let mut map = HashOrderedMap::from([('a', 100), ('b', 101), ('c', 102)]);
+        map.assert_map(&[('a', 100), ('b', 101), ('c', 102)]);
+        assert_eq!(map.front(), Some((&'a', &100)));
+        assert_eq!(map.front_mut(), Some((&'a', &mut 100)));
+        assert_eq!(map.back(), Some((&'c', &102)));
+        assert_eq!(map.back_mut(), Some((&'c', &mut 102)));
+        map.assert_map(&[('a', 100), ('b', 101), ('c', 102)]);
     }
 
     #[test]
@@ -616,5 +843,94 @@ mod tests {
 
         assert_eq!(map.pop_back(), None);
         map.assert_map(&[]);
+    }
+
+    #[test]
+    fn entry_key() {
+        let mut map = HashOrderedMap::from([('a', 100)]);
+        map.assert_map(&[('a', 100)]);
+        assert_eq!(map.entry('a').key(), &'a');
+        assert_eq!(map.entry('b').key(), &'b');
+        map.assert_map(&[('a', 100)]);
+    }
+
+    #[test]
+    fn entry_and_func() {
+        {
+            let mut map = HashOrderedMap::from([('a', 100), ('b', 101)]);
+            map.assert_map(&[('a', 100), ('b', 101)]);
+            map.entry('a').and_modify(|x| *x += 1000);
+            map.assert_map(&[('a', 1100), ('b', 101)]);
+
+            let mut map = HashOrderedMap::from([('a', 100), ('b', 101)]);
+            map.assert_map(&[('a', 100), ('b', 101)]);
+            map.entry('c').and_modify(|x| *x += 1000);
+            map.assert_map(&[('a', 100), ('b', 101)]);
+        }
+
+        {
+            let mut map = HashOrderedMap::from([('a', 100), ('b', 101), ('c', 102)]);
+            map.assert_map(&[('a', 100), ('b', 101), ('c', 102)]);
+            map.entry('b').and_move_front();
+            map.assert_map(&[('b', 101), ('a', 100), ('c', 102)]);
+
+            let mut map = HashOrderedMap::from([('a', 100), ('b', 101), ('c', 102)]);
+            map.assert_map(&[('a', 100), ('b', 101), ('c', 102)]);
+            map.entry('d').and_move_front();
+            map.assert_map(&[('a', 100), ('b', 101), ('c', 102)]);
+        }
+
+        {
+            let mut map = HashOrderedMap::from([('a', 100), ('b', 101), ('c', 102)]);
+            map.assert_map(&[('a', 100), ('b', 101), ('c', 102)]);
+            map.entry('b').and_move_back();
+            map.assert_map(&[('a', 100), ('c', 102), ('b', 101)]);
+
+            let mut map = HashOrderedMap::from([('a', 100), ('b', 101), ('c', 102)]);
+            map.assert_map(&[('a', 100), ('b', 101), ('c', 102)]);
+            map.entry('d').and_move_back();
+            map.assert_map(&[('a', 100), ('b', 101), ('c', 102)]);
+        }
+    }
+
+    #[test]
+    fn entry_or_func() {
+        let mut map = HashOrderedMap::from([]);
+        map.assert_map(&[]);
+
+        assert_eq!(map.entry('a').or_default(), &0);
+        map.assert_map(&[('a', 0)]);
+        assert_eq!(map.entry('a').or_default(), &0);
+        map.assert_map(&[('a', 0)]);
+
+        assert_eq!(map.entry('b').or_insert(101), &101);
+        map.assert_map(&[('a', 0), ('b', 101)]);
+        assert_eq!(map.entry('b').or_insert(1000), &101);
+        map.assert_map(&[('a', 0), ('b', 101)]);
+
+        assert_eq!(map.entry('c').or_insert_with(|| 102), &102);
+        map.assert_map(&[('a', 0), ('b', 101), ('c', 102)]);
+        assert_eq!(map.entry('c').or_insert_with(|| panic!()), &102);
+        map.assert_map(&[('a', 0), ('b', 101), ('c', 102)]);
+
+        let f = |key: &char| {
+            assert_eq!(key, &'d');
+            103
+        };
+        assert_eq!(map.entry('d').or_insert_with_key(f), &103);
+        map.assert_map(&[('a', 0), ('b', 101), ('c', 102), ('d', 103)]);
+        assert_eq!(map.entry('d').or_insert_with_key(|_| panic!()), &103);
+        map.assert_map(&[('a', 0), ('b', 101), ('c', 102), ('d', 103)]);
+    }
+
+    #[test]
+    fn entry_insert_entry() {
+        let mut map = HashOrderedMap::from([('a', 100), ('b', 101)]);
+        map.assert_map(&[('a', 100), ('b', 101)]);
+
+        map.entry('c').insert_entry(102);
+        map.assert_map(&[('a', 100), ('b', 101), ('c', 102)]);
+        map.entry('b').insert_entry(1101);
+        map.assert_map(&[('a', 100), ('b', 1101), ('c', 102)]); // Position is not moved.
     }
 }

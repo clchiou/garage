@@ -5,14 +5,14 @@ pub mod cursor_set;
 #[cfg(feature = "collections_ext")]
 pub mod index_map;
 pub mod lil_vec;
+#[cfg(feature = "collections_ext")]
+pub mod ordered;
 pub mod vec_list;
 
 #[cfg(feature = "collections_ext")]
 mod bimap;
 #[cfg(feature = "collections_ext")]
 mod bitable;
-#[cfg(feature = "collections_ext")]
-mod ordered;
 mod table;
 
 use std::iter::FusedIterator;
