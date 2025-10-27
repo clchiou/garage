@@ -51,6 +51,7 @@ required-features = ["icmp"]
 icmp = ["dep:libc", "dep:nix", "dep:g1_nix"]
 param = ["dep:serde"]
 test_harness = []
+time_ext = ["g1_base/collections_ext"]
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tokio_unstable)'] }
