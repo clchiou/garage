@@ -1,3 +1,6 @@
+#[cfg(feature = "fold")]
+pub mod fold;
+
 mod conn;
 mod stat;
 

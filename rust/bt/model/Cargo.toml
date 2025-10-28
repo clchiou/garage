@@ -11,5 +11,11 @@ g1_base.workspace = true
 
 bt_base.workspace = true
 
+# feature: fold
+g1_tokio = { workspace = true, optional = true }
+
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util"] }
+
+[features]
+fold = ["dep:g1_tokio"]
