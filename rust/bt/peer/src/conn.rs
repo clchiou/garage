@@ -6,7 +6,6 @@ use std::time::Duration;
 use futures::sink::SinkExt;
 use futures::stream::TryStreamExt;
 use snafu::prelude::*;
-use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::mpsc::{self, Receiver};
 use tokio::time::{self, Interval};
 
@@ -15,12 +14,13 @@ use g1_tokio::task::{Cancel, JoinGuard};
 
 use bt_base::bitfield::BitfieldExt;
 use bt_base::{Bitfield, BlockRange, ConnId};
-use bt_model::{ConnState, Model, ModelUpdate, ModelUpdateRecv, PeerStat, TorrentStat};
+use bt_model::{ConnState, Model, PeerStat, TorrentStat};
 use bt_proto::message::Checker;
 use bt_proto::{BoxSink, BoxStream, Message};
 
 use crate::error::{ConnActorError, Error, IoSnafu, MessageSnafu};
 use crate::half_open::Backlog;
+use crate::model::{self, Closed, TorrentChangeConsumer, TorrentChangeGuard};
 use crate::{ConnArgs, PeerMessage, PeerMessageSend};
 
 //
@@ -40,7 +40,9 @@ struct ConnActor {
     conn_id: ConnId,
 
     model: Arc<Mutex<Model>>,
-    model_update_recv: ModelUpdateRecv,
+
+    torrent_change: TorrentChangeConsumer,
+    torrent_change_guard: TorrentChangeGuard,
 
     peer_message_send: PeerMessageSend,
 }
@@ -85,16 +87,19 @@ impl Conn {
         model: Arc<Mutex<Model>>,
         peer_message_send: PeerMessageSend,
     ) -> Result<(Self, ConnGuard), ConnArgs> {
+        let torrent_change;
+        let torrent_change_guard;
         let conn_state;
         let layout;
         let torrent_stat;
         let peer_stat;
-        let model_update_recv;
         {
             let mut model = model.must_lock();
             if !model.torrents().contains(args.conn_id.info_hash()) {
                 return Err(args);
             }
+
+            (torrent_change, torrent_change_guard) = model::spawn(&model, args.conn_id.info_hash());
 
             model.connect_peer(args.conn_id.clone(), args.peer_features);
 
@@ -110,8 +115,6 @@ impl Conn {
             peer_stat = torrent
                 .peer_stats_mut()
                 .get_or_insert_default(args.conn_id.conn_pair);
-
-            model_update_recv = model.subscribe();
         }
 
         let ConnArgs {
@@ -131,7 +134,9 @@ impl Conn {
             conn_id: conn_id.clone(),
 
             model: model.clone(),
-            model_update_recv,
+
+            torrent_change,
+            torrent_change_guard,
 
             peer_message_send: peer_message_send.clone(),
         };
@@ -198,17 +203,19 @@ impl ConnActor {
         mut sender: ConnSender,
         sender_recv: Receiver<ConnSenderMessage>,
     ) -> Result<(), Error> {
-        let result = match self.startup().await {
-            Ok(true) => {
+        let mut result = self.startup().await;
+        match result {
+            Ok(()) => {
                 let recv_guard = receiver.spawn(cancel.clone());
                 let send_guard = sender.spawn(cancel, sender_recv);
-                self.run_concurrent(recv_guard, send_guard).await
+                result = self.run_concurrent(recv_guard, send_guard).await;
             }
-            // Ok(false) | Err(error)
-            result => result
-                .map(|_| ())
-                .and(sender.sink.close().await.context(IoSnafu)),
-        };
+            Err(_) => {
+                if let Err(error) = sender.sink.close().await {
+                    tracing::warn!(conn_id = %self.conn_id, %error, "sink close");
+                }
+            }
+        }
         self.shutdown(result).await
     }
 
@@ -218,7 +225,11 @@ impl ConnActor {
         mut send_guard: JoinGuard<Result<(), io::Error>>,
     ) -> Result<(), ConnActorError> {
         tokio::select! {
-            () = self.torrent_removed() => {}
+            change = self.torrent_change.consume() => {
+                // When we started, the torrent had been initialized, so the only possible change
+                // is its removal.
+                assert!(matches!(change, Ok(false) | Err(Closed)));
+            }
             () = &mut recv_guard => {}
             () = &mut send_guard => {}
         }
@@ -246,69 +257,14 @@ impl ConnActor {
         recv_result.and(send_result.context(IoSnafu))
     }
 
-    // True if torrent is initialized.
-    async fn startup(&self) -> Result<bool, ConnActorError> {
+    async fn startup(&self) -> Result<(), ConnActorError> {
         tracing::info!(conn_id = %self.conn_id, "peer connected");
-
         self.peer_message_send
             .actor_send(PeerMessage::Connect(self.conn_id.clone()))
-            .await?;
-
-        Ok(self
-            .model
-            .must_lock()
-            .torrents()
-            .contains(self.conn_id.info_hash()))
+            .await
     }
 
-    async fn torrent_removed(&mut self) {
-        loop {
-            let update = self.model_update_recv.recv().await;
-            if self.is_torrent_removed(update) {
-                break;
-            }
-        }
-    }
-
-    fn is_torrent_removed(&self, update: Result<ModelUpdate, RecvError>) -> bool {
-        match update {
-            Ok(ModelUpdate::InitTorrent(info_hash)) => {
-                if info_hash == self.conn_id.info_hash {
-                    // This should not happen because we have subscribed to model changes and
-                    // verified the model state.  Should we crash in this case?
-                    tracing::error!(conn_id = %self.conn_id, "unexpected torrent init");
-
-                    // Treat this as if the torrent were removed.
-                    true
-                } else {
-                    false
-                }
-            }
-
-            Ok(ModelUpdate::RemoveTorrent(info_hash)) => info_hash == self.conn_id.info_hash,
-
-            // Other updates are irrelevant to us.
-            Ok(_) => false,
-
-            Err(RecvError::Lagged(lag)) => {
-                // If we are lagging behind multiple updates, we may have missed a torrent's
-                // removal and re-initialization.  In that case, the `Torrent` value is empty and
-                // we should reconnect to receive the peer's bitfield again.
-                tracing::error!(conn_id = %self.conn_id, lag, "lagging behind");
-
-                !self
-                    .model
-                    .must_lock()
-                    .torrents()
-                    .contains(self.conn_id.info_hash())
-            }
-
-            // Treat this as if the torrent were removed.
-            Err(RecvError::Closed) => true,
-        }
-    }
-
-    async fn shutdown(&self, result: Result<(), ConnActorError>) -> Result<(), Error> {
+    async fn shutdown(&mut self, result: Result<(), ConnActorError>) -> Result<(), Error> {
         let conn_id = &self.conn_id;
         match &result {
             Ok(()) => tracing::info!(%conn_id, "peer disconnected"),
@@ -328,7 +284,13 @@ impl ConnActor {
         };
         self.peer_message_send
             .send(PeerMessage::Disconnect(self.conn_id.clone(), result))
-            .await
+            .await?;
+
+        if let Err(error) = self.torrent_change_guard.shutdown().await {
+            tracing::warn!(%conn_id, %error, "torrent change shutdown");
+        }
+
+        Ok(())
     }
 }
 

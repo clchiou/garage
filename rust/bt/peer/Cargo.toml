@@ -15,5 +15,5 @@ g1_base = { workspace = true, features = ["collections_ext"] }
 g1_tokio.workspace = true
 
 bt_base.workspace = true
-bt_model.workspace = true
+bt_model = { workspace = true, features = ["fold"] }
 bt_proto.workspace = true

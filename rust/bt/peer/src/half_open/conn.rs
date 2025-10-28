@@ -4,26 +4,26 @@ use bytes::Bytes;
 use futures::sink::SinkExt;
 use futures::stream::TryStreamExt;
 use snafu::prelude::*;
-use tokio::sync::broadcast::error::RecvError;
 
 use g1_base::sync::MutexExt;
 use g1_tokio::task::JoinGuard;
 
 use bt_base::Features;
-use bt_model::{Model, ModelUpdate, ModelUpdateRecv};
+use bt_model::Model;
 use bt_proto::Message;
 use bt_proto::message;
 
 use crate::ConnArgs;
 use crate::error::{BacklogSnafu, ConnActorError, Error, IoSnafu, MessageSnafu};
+use crate::model::{self, TorrentChangeConsumer, TorrentChangeGuard};
 
 use super::{Backlog, HalfOpenMessage, HalfOpenMessageSend};
 
 struct ConnActor {
     args: ConnArgs,
 
-    model: Arc<Mutex<Model>>,
-    model_update_recv: ModelUpdateRecv,
+    torrent_change: TorrentChangeConsumer,
+    torrent_change_guard: TorrentChangeGuard,
 
     half_open_message_send: HalfOpenMessageSend,
     // We temporarily store messages in a backlog until the torrent is initialized.
@@ -49,65 +49,21 @@ const BACKLOG_LIMIT: usize = 64;
     loop_(
         type HalfOpenResult,
         run(run_impl, type Result<(), ConnActorError>),
+        // We exit whether the torrent is initialized or removed.  (In the latter case, the
+        // initialization was missed.)
+        react = {
+            let _ = self.torrent_change.consume();
+            break;
+        },
         return Ok(()),
     ),
 )]
 impl ConnActor {
-    // True if torrent is initialized.
-    async fn startup(&self) -> Result<bool, ConnActorError> {
+    async fn startup(&self) -> Result<(), ConnActorError> {
         tracing::info!(conn_id = %self.args.conn_id, "half-open peer connected");
-
         self.half_open_message_send
             .actor_send(HalfOpenMessage::Connect(self.args.conn_id.clone()))
-            .await?;
-
-        Ok(self
-            .model
-            .must_lock()
-            .torrents()
-            .contains(self.args.conn_id.info_hash()))
-    }
-
-    #[actor::loop_(react = {
-        let update = self.model_update_recv.recv();
-        if self.is_torrent_inited(update) {
-            break;
-        }
-    })]
-    fn is_torrent_inited(&self, update: Result<ModelUpdate, RecvError>) -> bool {
-        match update {
-            Ok(ModelUpdate::InitTorrent(info_hash)) => info_hash == self.args.conn_id.info_hash,
-
-            Ok(ModelUpdate::RemoveTorrent(info_hash)) => {
-                if info_hash == self.args.conn_id.info_hash {
-                    // This should not happen because we have subscribed to model changes and
-                    // verified the model state.  Should we crash in this case?
-                    tracing::error!(conn_id = %self.args.conn_id, "unexpected torrent removal");
-
-                    // Treat this as if the torrent were initialized.
-                    true
-                } else {
-                    false
-                }
-            }
-
-            // Other updates are irrelevant to us.
-            Ok(_) => false,
-
-            Err(RecvError::Lagged(lag)) => {
-                // If we are lagging behind multiple updates, we may have missed a torrent's
-                // initialization and removal.  In that case, we could become trapped indefinitely.
-                tracing::error!(conn_id = %self.args.conn_id, lag, "lagging behind");
-
-                self.model
-                    .must_lock()
-                    .torrents()
-                    .contains(self.args.conn_id.info_hash())
-            }
-
-            // Treat this as if the torrent were initialized.
-            Err(RecvError::Closed) => true,
-        }
+            .await
     }
 
     //
@@ -199,17 +155,20 @@ impl ConnActor {
         let message = HalfOpenMessage::Disconnect(self.args.conn_id.clone(), result);
         self.half_open_message_send.send(message).await?;
 
+        if let Err(error) = self.torrent_change_guard.shutdown().await {
+            tracing::warn!(%conn_id, %error, "torrent change shutdown");
+        }
+
         Ok((!disconnected).then_some((self.args, self.backlog)))
     }
 }
 
 impl ConnActorLoop {
     async fn run(mut self) -> HalfOpenResult {
-        let result = match self.__actor.startup().await {
-            Ok(true) => Ok(()),
-            Ok(false) => self.run_impl().await,
-            Err(error) => Err(error),
-        };
+        let mut result = self.__actor.startup().await;
+        if matches!(result, Ok(())) {
+            result = self.run_impl().await;
+        }
         self.__actor.shutdown(self.__cancel.is_set(), result).await
     }
 }
@@ -220,21 +179,24 @@ impl HalfOpenConn {
         model: Arc<Mutex<Model>>,
         half_open_message_send: HalfOpenMessageSend,
     ) -> Result<(Self, HalfOpenConnGuard), ConnArgs> {
-        let model_update_recv;
+        let torrent_change;
+        let torrent_change_guard;
         {
             let model = model.must_lock();
             if model.torrents().contains(args.conn_id.info_hash()) {
                 return Err(args);
             }
-            model_update_recv = model.subscribe();
+            (torrent_change, torrent_change_guard) = model::spawn(&model, args.conn_id.info_hash());
         }
         Ok(Self::spawn_impl(
             args.self_features,
             args.peer_features,
             ConnActor {
                 args,
-                model,
-                model_update_recv,
+
+                torrent_change,
+                torrent_change_guard,
+
                 half_open_message_send,
                 backlog: Backlog::new(),
             },

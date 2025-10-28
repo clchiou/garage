@@ -11,6 +11,7 @@ mod broadcast;
 mod conn;
 mod error;
 mod manifold;
+mod model;
 
 use std::io;
 use std::sync::Arc;
