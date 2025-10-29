@@ -2,6 +2,7 @@
 #![feature(iterator_try_collect)]
 
 mod bencode;
+mod extension;
 mod metainfo;
 mod storage;
 mod text;
@@ -15,6 +16,7 @@ use clap::{Parser, Subcommand};
 use g1_cli::tracing::TracingConfig;
 
 use crate::bencode::BencodeCommand;
+use crate::extension::DownloadMetadataCommand;
 use crate::metainfo::MetainfoCommand;
 use crate::storage::{ExportCommand, ImportCommand, LsCommand, RmCommand};
 use crate::tracker::TrackerCommand;
@@ -36,6 +38,7 @@ enum Command {
     Bencode(BencodeCommand),
     Metainfo(MetainfoCommand),
     Tracker(TrackerCommand),
+    DownloadMetadata(DownloadMetadataCommand),
     Upload(UploadCommand),
     Download(DownloadCommand),
     Ls(LsCommand),
@@ -56,6 +59,7 @@ impl Command {
             Self::Bencode(command) => command.run(),
             Self::Metainfo(command) => command.run(),
             Self::Tracker(command) => command.run().await,
+            Self::DownloadMetadata(command) => command.run().await,
             Self::Upload(command) => command.run().await,
             Self::Download(command) => command.run().await,
             Self::Ls(command) => command.run(),
