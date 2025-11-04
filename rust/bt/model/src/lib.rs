@@ -106,6 +106,9 @@ pub enum ModelUpdate {
     //
     // `ConnState` changes.
     //
+    ConnectPeer(ConnId),
+    DisconnectPeer(ConnId),
+
     SelfChoking(ConnId, bool),
     SelfInterested(ConnId, bool),
 
@@ -382,10 +385,12 @@ impl ConnStates {
             }
             Entry::Vacant(entry) => {
                 entry.insert(Arc::new(conn::ConnState::new(
-                    conn_id,
+                    conn_id.clone(),
                     peer_features,
                     self.model_update_send.clone(),
                 )));
+                self.model_update_send
+                    .send(|| ModelUpdate::ConnectPeer(conn_id));
                 true
             }
         }
@@ -398,6 +403,10 @@ impl ConnStates {
                 let removed = conn_states.remove(&conn_id.conn_pair).is_some();
                 if conn_states.is_empty() {
                     entry.remove();
+                }
+                if removed {
+                    self.model_update_send
+                        .send(|| ModelUpdate::DisconnectPeer(conn_id.clone()));
                 }
                 removed
             }
