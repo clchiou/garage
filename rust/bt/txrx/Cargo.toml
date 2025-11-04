@@ -1,0 +1,19 @@
+[package]
+name = "bt_txrx"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+bytes.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+g1_actor.workspace = true
+g1_base.workspace = true
+g1_tokio = { workspace = true, features = ["time_ext"] }
+
+bt_base.workspace = true
+bt_model = { workspace = true, features = ["fold"] }
+bt_peer.workspace = true
+bt_proto.workspace = true
+bt_storage.workspace = true
