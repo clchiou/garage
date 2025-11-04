@@ -1,23 +1,23 @@
-use std::collections::hash_map::Entry;
-use std::collections::{HashMap, HashSet};
 use std::io::Error;
 use std::sync::{Arc, Mutex};
 
 use clap::Args;
 use tokio::signal;
+use tokio::sync::Mutex as AsyncMutex;
 
-use g1_tokio::task::{Cancel, JoinGuard};
+use g1_base::sync::MutexExt;
+use g1_tokio::task::{self, Joinable};
 
-use bt_base::bitfield::{BitfieldExt, BitsliceExt};
-use bt_base::{Bitfield, ConnId, Layout};
-use bt_model::Model;
-use bt_peer::{Conn, Manifold, PeerMessage, PeerMessageRecv};
-use bt_proto::Message;
-use bt_storage::Torrent;
+use bt_base::ConnId;
+use bt_base::bitfield::BitsliceExt;
+use bt_model::{Model, ModelUpdate};
+use bt_peer::Manifold;
+use bt_txrx::download::{Download, DownloadUpdate, Schedule};
+use bt_txrx::push;
 
 use crate::storage::StorageDir;
 
-use super::Txrx;
+use super::{SELF_FEATURES, Txrx};
 
 #[derive(Args, Debug)]
 #[command(about = "Download a torrent from a peer")]
@@ -29,218 +29,128 @@ pub(crate) struct DownloadCommand {
     txrx: Txrx,
 }
 
-struct Download {
-    bitfield: Bitfield,
-    layout: Layout,
-
-    conn_id: ConnId,
-
-    manifold: Manifold,
-    peer_message_recv: PeerMessageRecv,
-
-    torrent: Torrent,
-}
-
-struct Requester {
-    want_pieces: Bitfield,
-    layout: Layout,
-
-    conn: Conn,
-}
-
-const BLOCK_SIZE: u64 = 16384;
-
 impl DownloadCommand {
     pub(crate) async fn run(&self) -> Result<(), Error> {
         let storage = self.storage_dir.open(false)?;
-        let (torrent, bitfield) = self.txrx.open(&storage)?;
-        if bitfield.all() {
-            tracing::info!("complete torrent");
-            return Ok(());
+
+        let model = self.txrx.make_model(&storage)?;
+        {
+            let model = model.must_lock();
+            if model
+                .torrents()
+                .get(self.txrx.info_hash.clone())
+                .expect("torrent")
+                .self_pieces()
+                .all()
+            {
+                tracing::info!("complete torrent");
+                return Ok(());
+            }
         }
 
-        let layout = storage
-            .get_info(self.txrx.info_hash.clone())?
-            .expect("info")
-            .layout()
-            .map_err(Error::other)?;
+        let (manifold, manifold_guard) = Manifold::spawn(model.clone());
 
-        let mut model = Model::new();
-        assert!(model.new_torrent(self.txrx.info_hash.clone()));
-        assert!(model.init_torrent(
-            self.txrx.info_hash.clone(),
-            layout.clone(),
-            bitfield.clone(),
-        ));
+        let push_guard = push::spawn(SELF_FEATURES, model.clone(), manifold.clone());
 
-        let (manifold, mut manifold_guard) = Manifold::spawn(Arc::new(Mutex::new(model)));
-        let peer_message_recv = manifold.subscribe();
+        let (download, download_guard) = Download::spawn(
+            model.clone(),
+            manifold.clone(),
+            Arc::new(AsyncMutex::new(storage)),
+        );
 
-        let args = self.txrx.handshake(self.txrx.make_stream().await?).await?;
-        let conn_id = args.conn_id.clone();
-        assert!(manifold.connect(args).await);
-
-        let mut download = Download {
-            bitfield,
-            layout,
-
-            conn_id,
-
-            manifold,
-            peer_message_recv,
-
-            torrent,
-        };
+        let mut guard = task::select([
+            download_guard,
+            push_guard.map(Ok).boxed(),
+            manifold_guard
+                .map(|result| result.map_err(Error::from))
+                .boxed(),
+        ]);
 
         tokio::select! {
             result = signal::ctrl_c() => {
                 result?;
                 tracing::info!("ctrl-c received!");
             }
-            result = download.run() => {
+            result = self.download(model, download, manifold) => {
                 result?;
             }
-            () = &mut manifold_guard => {
+            () = &mut guard => {
                 tracing::warn!("unexpected manifold exit");
             }
         }
-
-        Ok(manifold_guard.shutdown().await??)
+        guard.shutdown().await?
     }
-}
 
-impl Download {
-    // TODO: This is not very reliable.
-    async fn run(&mut self) -> Result<(), Error> {
-        let mut connected = false;
-        let mut want_pieces = None;
-        let mut requester_guard = None;
-        let mut requests = HashMap::new();
-        while let Ok(message) = self.peer_message_recv.recv().await {
-            if message.conn_id() != &self.conn_id {
-                continue;
-            }
+    async fn download(
+        &self,
+        model: Arc<Mutex<Model>>,
+        download: Download,
+        manifold: Manifold,
+    ) -> Result<(), Error> {
+        let mut download_update_recv = download.subscribe().expect("download");
+        let mut model_update_recv = model.must_lock().subscribe();
 
-            match message {
-                PeerMessage::Connect(_) => {
-                    assert!(!connected);
-                    connected = true;
-                    self.manifold
-                        .send(&self.conn_id, Message::bitfield(&self.bitfield))
-                        .await;
+        let args = self.txrx.handshake(self.txrx.make_stream().await?).await?;
+        let conn_id = args.conn_id.clone();
+        assert!(manifold.connect(args).await);
+
+        let mut unchoke = false;
+        let mut schedule = None;
+        while !unchoke || schedule.is_none() {
+            match model_update_recv.recv().await.map_err(Error::other)? {
+                ModelUpdate::InitPeer(id) if id == conn_id => {
+                    assert!(schedule.is_none());
+                    schedule = Some(compute_schedule(&conn_id, &model.must_lock()));
                 }
-
-                PeerMessage::Disconnect(_, result) => {
-                    assert!(connected);
-                    match result {
-                        Ok(()) => tracing::warn!("unexpected disconnect"),
-                        Err(error) => tracing::warn!(%error, "conn"),
+                ModelUpdate::PeerChoking(id, choking) if id == conn_id => {
+                    if choking {
+                        return Err(Error::other("peer choke"));
+                    } else {
+                        unchoke = true;
                     }
-                    break;
                 }
-
-                PeerMessage::Message(_, message) => match message {
-                    Message::Bitfield(payload) => {
-                        assert!(want_pieces.is_none());
-
-                        let mut want = Bitfield::try_from_bytes(&payload, self.bitfield.len())
-                            .map_err(Error::other)?;
-                        want &= !self.bitfield.clone();
-                        if want.not_any() {
-                            tracing::info!("do not want any piece from peer");
-                            break;
-                        }
-                        want_pieces = Some(want);
-
-                        self.manifold.send(&self.conn_id, Message::Interested).await;
-                    }
-
-                    Message::Choke => {
-                        tracing::info!("peer choke");
-                        break;
-                    }
-
-                    Message::Unchoke => {
-                        if requester_guard.is_some() {
-                            continue;
-                        }
-
-                        let want_pieces = want_pieces.take().expect("want_pieces");
-
-                        requests.extend(want_pieces.iter_haves().map(|index| {
-                            (
-                                index,
-                                self.layout
-                                    .blocks(index, BLOCK_SIZE)
-                                    .collect::<HashSet<_>>(),
-                            )
-                        }));
-
-                        let Some(conn) = self.manifold.get(&self.conn_id) else {
-                            tracing::warn!("unexpected conn exit");
-                            break;
-                        };
-                        let actor = Requester {
-                            want_pieces,
-                            layout: self.layout.clone(),
-                            conn,
-                        };
-                        requester_guard = Some(JoinGuard::spawn(move |cancel| actor.run(cancel)));
-                    }
-
-                    Message::Piece(range, payload) => {
-                        let index = range.0;
-                        let Entry::Occupied(mut entry) = requests.entry(index) else {
-                            tracing::warn!(?range, "unexpected block");
-                            continue;
-                        };
-                        if !entry.get_mut().remove(&range) {
-                            tracing::warn!(?range, "unexpected block");
-                            continue;
-                        }
-
-                        self.torrent.write(range, &payload)?;
-
-                        if !entry.get().is_empty() {
-                            continue;
-                        }
-                        entry.remove();
-
-                        if !self.torrent.verify(index)? {
-                            return Err(Error::other(format!("piece verify failed: {index:?}")));
-                        }
-
-                        if requests.is_empty() {
-                            tracing::info!("all pieces downloaded");
-                            break;
-                        }
-                    }
-
-                    _ => {}
-                },
+                ModelUpdate::DisconnectPeer(id) if id == conn_id => {
+                    return Err(Error::other("unexpected peer disconnect"));
+                }
+                _ => {}
             }
         }
-        if let Some(mut requester_guard) = requester_guard {
-            requester_guard.shutdown().await?;
-        }
-        Ok(())
-    }
-}
+        download.assign(schedule.expect("schedule")).await;
 
-impl Requester {
-    async fn run(self, cancel: Cancel) {
         tokio::select! {
-            () = cancel.wait() => {}
-            () = self.request() => {}
-        }
-    }
+            result = async {
+                loop {
+                    match model_update_recv.recv().await.map_err(Error::other)? {
+                        ModelUpdate::PeerChoking(id, true) if id == conn_id => {
+                            return Err(Error::other("peer choke"));
+                        }
+                        ModelUpdate::DisconnectPeer(id) if id == conn_id => {
+                            return Err(Error::other("unexpected peer disconnect"));
+                        }
+                        _ => {}
+                    }
+                }
+            } => result,
 
-    async fn request(&self) {
-        for index in self.want_pieces.iter_haves() {
-            tracing::debug!(?index, "request");
-            for range in self.layout.blocks(index, BLOCK_SIZE) {
-                self.conn.send(Message::Request(range)).await;
-            }
+            result = async {
+                while download_update_recv.recv().await.map_err(Error::other)?
+                    != DownloadUpdate::ScheduleLen(0)
+                {
+                    // Nothing here.
+                }
+                Ok(())
+            } => result,
         }
     }
+}
+
+fn compute_schedule(conn_id: &ConnId, model: &Model) -> Schedule {
+    let torrent = model.torrents().get(conn_id.info_hash()).expect("torrent");
+    let peer_pieces = torrent.get(&conn_id.conn_pair).expect("peer pieces");
+    torrent
+        .self_pieces()
+        .iter_have_nots()
+        .filter(|index| peer_pieces[usize::from(*index)])
+        .map(|index| (conn_id.info_hash(), index, vec![conn_id.conn_pair]))
+        .collect()
 }
