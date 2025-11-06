@@ -107,14 +107,14 @@ impl Conn {
 
             let torrent = model
                 .torrents_mut()
-                .get_mut(args.conn_id.info_hash())
+                .get(args.conn_id.info_hash())
                 .expect("torrent");
             layout = torrent.layout().clone();
             torrent_stat = torrent.stat();
-
             peer_stat = torrent
-                .peer_stats_mut()
-                .get_or_insert_default(args.conn_id.conn_pair);
+                .peer_stats()
+                .get(&args.conn_id.conn_pair)
+                .expect("peer stat");
         }
 
         let ConnArgs {
@@ -271,12 +271,7 @@ impl ConnActor {
             Err(error) => tracing::warn!(%conn_id, %error, "peer disconnected"),
         }
 
-        {
-            self.model.must_lock().disconnect_peer(&self.conn_id);
-
-            // We do not remove `peer_stat` from `model` because we attempt to reconnect to the
-            // peer and want to preserve it.  It will be removed if the reconnection fails.
-        }
+        self.model.must_lock().disconnect_peer(&self.conn_id);
 
         let result = match result {
             Ok(()) => Ok(()),

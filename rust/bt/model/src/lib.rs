@@ -203,9 +203,10 @@ impl Model {
     }
 
     pub fn connect_peer(&mut self, conn_id: ConnId, peer_features: Features) {
-        if let Some(torrent) = self.torrents.get(conn_id.info_hash()) {
+        if let Some(torrent) = self.torrents.get_mut(conn_id.info_hash()) {
             // The peer should not be initialized yet at this point.
             assert!(!torrent.contains(&conn_id.conn_pair));
+            assert!(torrent.peer_stats.insert(conn_id.conn_pair));
         }
         // We disallow duplicate insertion, as it likely means the caller is managing the
         // connection lifetime incorrectly.
@@ -214,10 +215,9 @@ impl Model {
 
     pub fn disconnect_peer(&mut self, conn_id: &ConnId) {
         if let Some(torrent) = self.torrents.get_mut(conn_id.info_hash()) {
+            // The peer might not have initialized yet, but the peer stats must have been inserted.
             torrent.remove(&conn_id.conn_pair);
-
-            // We do not remove `peer_stat` here because we attempt to reconnect to the peer and
-            // want to preserve it.  It will be removed if the reconnection fails.
+            assert!(torrent.peer_stats.remove(&conn_id.conn_pair));
         }
         // We disallow duplicate removal, as it likely means the caller is managing the connection
         // lifetime incorrectly.
@@ -559,10 +559,6 @@ impl Torrent {
     pub fn peer_stats(&self) -> &PeerStats {
         &self.peer_stats
     }
-
-    pub fn peer_stats_mut(&mut self) -> &mut PeerStats {
-        &mut self.peer_stats
-    }
 }
 
 impl PeerStats {
@@ -574,14 +570,17 @@ impl PeerStats {
         self.0.get(conn_pair).cloned()
     }
 
-    pub fn get_or_insert_default(&mut self, conn_pair: ConnPair) -> PeerStat {
-        self.0
-            .entry(conn_pair)
-            .or_insert_with(|| Arc::new(stat::PeerStat::new()))
-            .clone()
+    fn insert(&mut self, conn_pair: ConnPair) -> bool {
+        match self.0.entry(conn_pair) {
+            Entry::Occupied(_) => false,
+            Entry::Vacant(entry) => {
+                entry.insert(Arc::new(stat::PeerStat::new()));
+                true
+            }
+        }
     }
 
-    pub fn remove(&mut self, conn_pair: &ConnPair) -> bool {
+    fn remove(&mut self, conn_pair: &ConnPair) -> bool {
         self.0.remove(conn_pair).is_some()
     }
 }
