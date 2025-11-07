@@ -23,6 +23,7 @@ bt_base.workspace = true
 bt_bencode.workspace = true
 bt_metainfo.workspace = true
 bt_model.workspace = true
+bt_net.workspace = true
 bt_peer.workspace = true
 bt_proto.workspace = true
 bt_storage.workspace = true

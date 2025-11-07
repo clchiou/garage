@@ -1,5 +1,5 @@
 use std::io::Error;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use clap::Args;
 use tokio::signal;
@@ -8,22 +8,27 @@ use tokio::sync::Mutex as AsyncMutex;
 use g1_base::sync::MutexExt;
 use g1_tokio::task::{self, Joinable};
 
-use bt_peer::{Manifold, PeerMessage};
+use bt_model::Model;
+use bt_net::Net;
+use bt_peer::Manifold;
 use bt_txrx::push;
 use bt_txrx::upload::Upload;
 
 use crate::storage::StorageDir;
 
-use super::{SELF_FEATURES, Txrx};
+use super::{Endpoints, SELF_FEATURES, Txrx};
 
 #[derive(Args, Debug)]
-#[command(about = "Upload a torrent to a peer")]
+#[command(about = "Upload a torrent to peers")]
 pub(crate) struct UploadCommand {
     #[command(flatten)]
     storage_dir: StorageDir,
 
     #[command(flatten)]
     txrx: Txrx,
+
+    #[command(flatten)]
+    endpoints: Endpoints,
 
     #[arg(
         long,
@@ -61,12 +66,14 @@ impl UploadCommand {
 
         let (manifold, manifold_guard) = Manifold::spawn(model.clone());
 
+        let (net, net_guard) = self.txrx.spawn_net(model.clone(), manifold.clone());
+
         let push_guard = push::spawn(SELF_FEATURES, model.clone(), manifold.clone());
 
         let (upload, upload_guard) = Upload::spawn(
             SELF_FEATURES,
-            model,
-            manifold.clone(),
+            model.clone(),
+            manifold,
             Arc::new(AsyncMutex::new(storage)),
         );
 
@@ -76,6 +83,7 @@ impl UploadCommand {
             manifold_guard
                 .map(|result| result.map_err(Error::from))
                 .boxed(),
+            net_guard.boxed(),
         ]);
 
         tokio::select! {
@@ -83,8 +91,8 @@ impl UploadCommand {
                 result?;
                 tracing::info!("ctrl-c received!");
             }
-            result = self.upload(upload, manifold) => {
-                result?;
+            Err(error) = self.upload(model, upload, net) => {
+                return Err(error);
             }
             () = &mut guard => {
                 tracing::warn!("unexpected actor exit");
@@ -93,22 +101,17 @@ impl UploadCommand {
         guard.shutdown().await?
     }
 
-    async fn upload(&self, upload: Upload, manifold: Manifold) -> Result<(), Error> {
+    async fn upload(
+        &self,
+        model: Arc<Mutex<Model>>,
+        upload: Upload,
+        net: Net,
+    ) -> Result<(), Error> {
         if self.seed == Some(true) {
             upload.seed(self.txrx.info_hash.clone()).await;
         }
-
-        let mut peer_message_recv = manifold.subscribe();
-
-        let args = self.txrx.handshake(self.txrx.make_stream().await?).await?;
-        let conn_id = args.conn_id.clone();
-        assert!(manifold.connect(args).await);
-
-        while let Ok(message) = peer_message_recv.recv().await {
-            if matches!(message, PeerMessage::Disconnect(id, _) if id == conn_id) {
-                return Ok(());
-            }
-        }
-        Err(Error::other("unexpected manifold exit"))
+        self.endpoints
+            .init(self.txrx.info_hash.clone(), model, net)
+            .await
     }
 }
