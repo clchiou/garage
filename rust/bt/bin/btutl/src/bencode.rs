@@ -16,12 +16,12 @@ pub(crate) struct BencodeCommand {
 enum Command {
     #[command(about = "Transcode data from Bencode to JSON")]
     Json {
-        #[arg(short, long, help = "Reverses the direction of transcoding")]
+        #[arg(short, long, help = "Reverse the direction of transcoding")]
         reverse: bool,
     },
     #[command(about = "Transcode data from Bencode to YAML")]
     Yaml {
-        #[arg(short, long, help = "Reverses the direction of transcoding")]
+        #[arg(short, long, help = "Reverse the direction of transcoding")]
         reverse: bool,
     },
     #[command(about = "Print Bencode data")]
