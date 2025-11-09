@@ -31,6 +31,7 @@ members = [
     "bt/net",
     "bt/peer",
     "bt/proto",
+    "bt/schedule",
     "bt/serde",
     "bt/serde/attribute",
     "bt/storage",
@@ -196,6 +197,7 @@ bt_model = { path = "bt/model" }
 bt_net = { path = "bt/net" }
 bt_peer = { path = "bt/peer" }
 bt_proto = { path = "bt/proto" }
+bt_schedule = { path = "bt/schedule" }
 bt_serde = { path = "bt/serde" }
 bt_serde_attribute = { path = "bt/serde/attribute" }
 bt_storage = { path = "bt/storage" }

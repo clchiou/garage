@@ -1,0 +1,15 @@
+[package]
+name = "bt_schedule"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+rand.workspace = true
+
+g1_actor.workspace = true
+g1_base.workspace = true
+g1_tokio.workspace = true
+
+bt_base.workspace = true
+bt_model = { workspace = true, features = ["fold"] }
+bt_txrx.workspace = true
