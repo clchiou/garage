@@ -26,6 +26,7 @@ bt_model.workspace = true
 bt_net.workspace = true
 bt_peer.workspace = true
 bt_proto.workspace = true
+bt_schedule.workspace = true
 bt_storage.workspace = true
 bt_tracker.workspace = true
 bt_txrx.workspace = true

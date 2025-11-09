@@ -9,7 +9,7 @@ use clap::Args;
 use g1_base::sync::MutexExt;
 
 use bt_base::{Features, InfoHash, PeerEndpoint, PeerId};
-use bt_model::Model;
+use bt_model::{Model, ModelUpdate};
 use bt_net::{Net, NetGuard};
 use bt_peer::Manifold;
 use bt_storage::Storage;
@@ -63,6 +63,27 @@ impl Txrx {
         let self_id = self.self_id.clone().unwrap_or_else(rand::random);
         tracing::info!(%self_id);
         Net::spawn(self_id, SELF_FEATURES, model, manifold, None)
+    }
+
+    async fn wait_completion(&self, model: Arc<Mutex<Model>>) -> Result<(), Error> {
+        let mut model_update_recv = model.must_lock().subscribe();
+        while model
+            .must_lock()
+            .torrents()
+            .get(self.info_hash.clone())
+            .expect("torrent")
+            .self_pieces()
+            .not_all()
+        {
+            while !matches!(
+                model_update_recv.recv().await.map_err(Error::other)?,
+                ModelUpdate::SetSelfPiece { .. },
+            ) {
+                // Nothing here.
+            }
+        }
+        tracing::info!("download complete");
+        Ok(())
     }
 }
 
