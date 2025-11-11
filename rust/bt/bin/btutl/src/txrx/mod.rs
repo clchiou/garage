@@ -1,3 +1,4 @@
+mod client;
 mod download;
 mod upload;
 
@@ -14,6 +15,7 @@ use bt_net::{Net, NetGuard};
 use bt_peer::Manifold;
 use bt_storage::Storage;
 
+pub(crate) use self::client::ClientCommand;
 pub(crate) use self::download::DownloadCommand;
 pub(crate) use self::upload::UploadCommand;
 
@@ -41,6 +43,14 @@ const SELF_FEATURES: Features = Features {
 };
 
 impl Txrx {
+    fn make_self_id(&self) -> PeerId {
+        self.self_id.clone().unwrap_or_else(|| {
+            let self_id = rand::random();
+            tracing::info!(%self_id);
+            self_id
+        })
+    }
+
     fn make_model(&self, storage: &Storage) -> Result<Arc<Mutex<Model>>, Error> {
         let mut torrent = storage
             .open_torrent(self.info_hash.clone())?
@@ -57,12 +67,6 @@ impl Txrx {
         assert!(model.new_torrent(self.info_hash.clone()));
         assert!(model.init_torrent(self.info_hash.clone(), layout, bitfield));
         Ok(Arc::new(Mutex::new(model)))
-    }
-
-    fn spawn_net(&self, model: Arc<Mutex<Model>>, manifold: Manifold) -> (Net, NetGuard) {
-        let self_id = self.self_id.clone().unwrap_or_else(rand::random);
-        tracing::info!(%self_id);
-        Net::spawn(self_id, SELF_FEATURES, model, manifold, None)
     }
 
     async fn wait_completion(&self, model: Arc<Mutex<Model>>) -> Result<(), Error> {
@@ -85,6 +89,10 @@ impl Txrx {
         tracing::info!("download complete");
         Ok(())
     }
+}
+
+fn spawn_net(self_id: PeerId, model: Arc<Mutex<Model>>, manifold: Manifold) -> (Net, NetGuard) {
+    Net::spawn(self_id, SELF_FEATURES, model, manifold, None)
 }
 
 impl Endpoints {

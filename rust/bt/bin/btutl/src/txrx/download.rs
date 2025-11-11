@@ -34,6 +34,8 @@ pub(crate) struct DownloadCommand {
 
 impl DownloadCommand {
     pub(crate) async fn run(&self) -> Result<(), Error> {
+        let self_id = self.txrx.make_self_id();
+
         let storage = self.storage_dir.open(false)?;
 
         let model = self.txrx.make_model(&storage)?;
@@ -53,7 +55,7 @@ impl DownloadCommand {
 
         let (manifold, manifold_guard) = Manifold::spawn(model.clone());
 
-        let (net, net_guard) = self.txrx.spawn_net(model.clone(), manifold.clone());
+        let (net, net_guard) = super::spawn_net(self_id, model.clone(), manifold.clone());
 
         let push_guard = push::spawn(SELF_FEATURES, model.clone(), manifold.clone());
 
