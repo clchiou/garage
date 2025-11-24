@@ -1,5 +1,7 @@
+use std::fs;
 use std::marker::Unpin;
 use std::ops::Bound;
+use std::path::PathBuf;
 use std::time::Duration;
 
 use base64::DecodeError;
@@ -34,6 +36,7 @@ enum Command {
     Delete(Range),
     DeletePrefix(Key),
     DeleteKey(Key),
+    Txn(Txn),
     Watch(Range),
     WatchPrefix(Key),
     WatchKey(Key),
@@ -82,6 +85,12 @@ struct Put {
 
     key: String,
     value: String,
+}
+
+#[derive(Args, Debug)]
+struct Txn {
+    #[arg(help = "Txn request JSON file path")]
+    path: PathBuf,
 }
 
 #[derive(Args, Debug)]
@@ -143,6 +152,11 @@ impl Program {
                 let client = Client::new();
                 let key = etcd_client::Key::try_from(key).unwrap();
                 show_kvs(client.delete_key(key).await?.as_ref());
+            }
+            Command::Txn(Txn { path }) => {
+                let client = Client::new();
+                let txn = serde_json::from_slice::<request::Txn>(&fs::read(path).unwrap()).unwrap();
+                eprintln!("txn: {:#?}", client.request(&txn).await?);
             }
             Command::Watch(range) => {
                 let client = Client::new();

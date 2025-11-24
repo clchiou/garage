@@ -91,6 +91,34 @@ pub struct Range {
 }
 
 //
+// Txn
+//
+
+#[serde_as]
+#[skip_serializing_none]
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(default)]
+pub struct Txn {
+    pub header: Header,
+    pub succeeded: bool,
+    pub responses: Vec<ResponseOp>,
+}
+
+#[serde_as]
+#[skip_serializing_none]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum ResponseOp {
+    #[serde(rename = "response_range")]
+    Range(Range),
+    #[serde(rename = "response_put")]
+    Put(Put),
+    #[serde(rename = "response_delete_range")]
+    DeleteRange(DeleteRange),
+    #[serde(rename = "response_txn")]
+    Txn(Txn),
+}
+
+//
 // Watch
 //
 

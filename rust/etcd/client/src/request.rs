@@ -114,6 +114,93 @@ pub enum SortTarget {
 }
 
 //
+// Txn
+//
+
+#[serde_as]
+#[skip_serializing_none]
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(default)]
+pub struct Txn {
+    pub compare: Vec<Compare>,
+    pub success: Vec<RequestOp>,
+    pub failure: Vec<RequestOp>,
+}
+
+impl_request!(Txn, "v3/kv/txn");
+
+#[serde_as]
+#[skip_serializing_none]
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(default)]
+pub struct Compare {
+    pub result: CompareResult,
+    pub target: CompareTarget,
+    #[serde_as(as = "Base64")]
+    pub key: Key,
+    #[serde(flatten)]
+    pub target_union: TargetUnion,
+    #[serde_as(as = "Base64")]
+    pub range_end: Key,
+}
+
+#[serde_as]
+#[skip_serializing_none]
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub enum CompareResult {
+    #[default]
+    EQUAL,
+    GREATER,
+    LESS,
+    #[allow(non_camel_case_types)]
+    NOT_EQUAL,
+}
+
+#[serde_as]
+#[skip_serializing_none]
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub enum CompareTarget {
+    #[default]
+    VERSION,
+    CREATE,
+    MOD,
+    VALUE,
+    LEASE,
+}
+
+#[allow(non_camel_case_types)]
+#[serde_as]
+#[skip_serializing_none]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum TargetUnion {
+    version(#[serde_as(as = "DisplayFromStr")] i64),
+    create_revision(#[serde_as(as = "DisplayFromStr")] i64),
+    mod_revision(#[serde_as(as = "DisplayFromStr")] i64),
+    value(#[serde_as(as = "Base64")] Value),
+    lease(#[serde_as(as = "DisplayFromStr")] i64),
+}
+
+impl Default for TargetUnion {
+    fn default() -> Self {
+        Self::version(0)
+    }
+}
+
+#[serde_as]
+#[skip_serializing_none]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum RequestOp {
+    #[serde(rename = "request_range")]
+    Range(Range),
+    #[serde(rename = "request_put")]
+    Put(Put),
+    #[serde(rename = "request_delete_range")]
+    DeleteRange(DeleteRange),
+    #[serde(rename = "request_txn")]
+    Txn(Txn),
+}
+
+//
 // Watch
 //
 
