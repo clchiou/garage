@@ -1,4 +1,5 @@
 pub mod dynamic;
+pub mod message;
 pub mod owner;
 pub mod strict;
 
