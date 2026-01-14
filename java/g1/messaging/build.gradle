@@ -9,7 +9,9 @@ dependencies {
 
     // MessageBuilder and MessageReader are exposed in Server,
     // Subscriber, and Wiredata interface.
-    api "org.capnproto:runtime:${project.ext.capnprotoVersion}"
+    // TODO: Restore this after the jitpack workaround is removed.
+    //api "org.capnproto:runtime:${project.ext.capnprotoVersion}"
+    api project.ext.capnprotoJitpackDep
 
     annotationProcessor "com.google.dagger:dagger-compiler:${project.ext.daggerVersion}"
     implementation "com.google.dagger:dagger:${project.ext.daggerVersion}"

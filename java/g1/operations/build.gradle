@@ -4,5 +4,7 @@ apply from: "${rootProject.projectDir}/scripts/base.gradle"
 apply from: "${rootProject.projectDir}/scripts/capnproto.gradle"
 
 dependencies {
-    api "org.capnproto:runtime:${project.ext.capnprotoVersion}"
+    // TODO: Restore this after the jitpack workaround is removed.
+    //api "org.capnproto:runtime:${project.ext.capnprotoVersion}"
+    api project.ext.capnprotoJitpackDep
 }

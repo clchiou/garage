@@ -20,6 +20,8 @@ ext {
     snakeyamlVersion = '1.29'  // org.yaml:snakeyaml
 
     capnprotoVersion = '0.1.11'  // org.capnproto:runtime
+    // TODO: Remove this after the jitpack workaround is removed.
+    capnprotoJitpackDep = 'com.github.clchiou.capnproto-java:runtime:jitpack-SNAPSHOT'
 
     daggerVersion = '2.39.1'  // com.google.dagger:dagger and dagger-compiler
 
@@ -54,4 +56,13 @@ targetCompatibility = JavaVersion.VERSION_17
 
 repositories {
     mavenCentral()
+
+    // TODO: It appears that capnproto-java will not release version 0.1.17, which includes the bug
+    // fix [1], anytime soon.  We are using JitPack to work around this issue.
+    //
+    // [1]: https://github.com/capnproto/capnproto-java/pull/151
+    maven {
+        url 'https://jitpack.io'
+        content { includeGroup 'com.github.clchiou.capnproto-java' }
+    }
 }

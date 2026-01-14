@@ -8,7 +8,9 @@ dependencies {
     implementation "org.slf4j:slf4j-api:${project.ext.slf4jVersion}"
 
     // `Handler` exposes `MessageBuilder` and `MessageReader`.
-    api "org.capnproto:runtime:${project.ext.capnprotoVersion}"
+    // TODO: Restore this after the jitpack workaround is removed.
+    //api "org.capnproto:runtime:${project.ext.capnprotoVersion}"
+    api project.ext.capnprotoJitpackDep
 
     annotationProcessor "com.google.dagger:dagger-compiler:${project.ext.daggerVersion}"
     implementation "com.google.dagger:dagger:${project.ext.daggerVersion}"

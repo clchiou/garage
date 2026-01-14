@@ -3,7 +3,9 @@
 //
 
 dependencies {
-    implementation "org.capnproto:runtime:${project.ext.capnprotoVersion}"
+    // TODO: Restore this after the jitpack workaround is removed.
+    //implementation "org.capnproto:runtime:${project.ext.capnprotoVersion}"
+    implementation project.ext.capnprotoJitpackDep
 }
 
 def capnprotoSourceDir = "${projectDir}/src/main/capnproto"
