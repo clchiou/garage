@@ -1,6 +1,5 @@
 use capnp::Error;
 use capnp::message::{Builder, HeapAllocator, Reader, ReaderSegments, TypedBuilder};
-use capnp::private::units::BYTES_PER_WORD;
 use capnp::traits::Owned;
 
 pub trait BuilderExt: Sized {
@@ -38,10 +37,7 @@ impl BuilderExt for Builder<HeapAllocator> {
         S: ReaderSegments,
         T: Owned,
     {
-        // TODO: Work around [bug] where `Reader::size_in_words` returns size in bytes instead of
-        // words.  Remove after upgrading capnp to v0.23.1.
-        // [bug]: https://github.com/capnproto/capnproto-rust/issues/603
-        let size = u32::try_from(reader.size_in_words() / BYTES_PER_WORD).expect("u32");
+        let size = u32::try_from(reader.size_in_words()).expect("u32");
         let mut builder = Self::new(HeapAllocator::new().first_segment_words(size + 1));
         builder.set_root_canonical(reader.get_root::<T::Reader<'_>>()?)?;
         assert_eq!(builder.get_segments_for_output().len(), 1);
@@ -69,23 +65,5 @@ where
 
     fn into_canonical(self) -> Result<Self, Error> {
         Self::new_canonical(&self.into_reader().into_inner())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use capnp::data;
-
-    use super::*;
-
-    // TODO: Currently, our code relies on this [bug].  Remove this after upgrading to v0.23.1.
-    // [bug]: https://github.com/capnproto/capnproto-rust/issues/603
-    #[test]
-    fn reader_size_in_words() {
-        let mut builder = Builder::new_default();
-        builder
-            .set_root::<data::Owned>(b"foobar".as_slice())
-            .unwrap();
-        assert_eq!(builder.into_reader().size_in_words(), 16);
     }
 }
