@@ -52,7 +52,7 @@ impl<T> Eq for Item<T> {}
 
 impl<T> PartialOrd for Item<T> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.1.cmp(&other.1))
+        Some(self.cmp(other))
     }
 }
 

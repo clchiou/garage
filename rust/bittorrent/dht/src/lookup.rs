@@ -141,7 +141,6 @@ impl Lookup {
     {
         let queries: Vec<_> = crate::bootstrap()
             .iter()
-            .cloned()
             .map(|bootstrap| {
                 let state = self.state.clone();
                 let id = id.clone();

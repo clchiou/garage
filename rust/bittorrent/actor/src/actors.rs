@@ -118,10 +118,10 @@ impl Actors {
         ));
         let mut first_error_result = Ok(());
         for result in results {
-            if result.is_err() {
+            if let Err(error) = &result {
                 match first_error_result {
                     Ok(()) => first_error_result = result,
-                    Err(_) => tracing::warn!(error = %result.unwrap_err(), "actor error"),
+                    Err(_) => tracing::warn!(%error, "actor error"),
                 }
             }
         }

@@ -1,4 +1,3 @@
-#![feature(duration_constructors_lite)]
 #![cfg_attr(test, feature(assert_matches))]
 #![cfg_attr(test, feature(duration_constants))]
 

@@ -37,7 +37,7 @@ impl Enabled {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Debug)]
 pub(crate) struct Extension {
     name: &'static str,
     is_enabled: fn() -> bool,
@@ -202,6 +202,7 @@ impl<'a> TryFrom<&'a [u8]> for Handshake<'a> {
     }
 }
 
+#[allow(clippy::infallible_try_from)]
 impl<'a> TryFrom<Handshake<'a>> for Message<'a> {
     type Error = Infallible;
 
@@ -218,6 +219,7 @@ impl<'a> TryFrom<&'a [u8]> for Metadata<'a> {
     }
 }
 
+#[allow(clippy::infallible_try_from)]
 impl<'a> TryFrom<Metadata<'a>> for Message<'a> {
     type Error = Infallible;
 
@@ -236,6 +238,7 @@ impl<'a> TryFrom<&'a [u8]> for PeerExchange<'a> {
     }
 }
 
+#[allow(clippy::infallible_try_from)]
 impl<'a> TryFrom<PeerExchange<'a>> for Message<'a> {
     type Error = Infallible;
 

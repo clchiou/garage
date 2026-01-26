@@ -63,7 +63,7 @@ enum ErrorDetail {
     UnexpectedNodeId { id: NodeId },
 
     #[snafu(display("invalid find_node response: {response:?}"))]
-    InvalidFindNodeResponse { response: Response },
+    InvalidFindNodeResponse { response: Box<Response> },
 }
 
 impl ReqRep {
@@ -146,11 +146,12 @@ impl ReqRep {
         .and_then(|response| Self::to_nodes(response).context(self.placeholder(node_endpoint)))
     }
 
-    #[allow(clippy::result_large_err)]
     fn to_nodes(response: Response) -> Result<Vec<NodeInfo>, ErrorDetail> {
         match FindNodeResponse::try_from(response) {
             Ok(response) => Ok(response.nodes),
-            Err(response) => Err(ErrorDetail::InvalidFindNodeResponse { response }),
+            Err(response) => Err(ErrorDetail::InvalidFindNodeResponse {
+                response: Box::new(response),
+            }),
         }
     }
 

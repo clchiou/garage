@@ -20,6 +20,7 @@ impl<'a> TryFrom<&'a [u8]> for Info<'a> {
     }
 }
 
+#[allow(clippy::infallible_try_from)]
 impl<'a> TryFrom<Metainfo<'a>> for Info<'a> {
     type Error = Infallible;
 

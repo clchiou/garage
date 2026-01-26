@@ -1,7 +1,5 @@
 #![feature(debug_closure_helpers)]
-#![feature(generic_arg_infer)]
 #![feature(ip_as_octets)]
-#![feature(ip_from)]
 #![feature(iterator_try_collect)]
 #![feature(step_trait)]
 #![feature(trait_alias)]

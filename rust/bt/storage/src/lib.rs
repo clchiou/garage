@@ -1,4 +1,3 @@
-#![feature(file_lock)]
 #![feature(try_blocks)]
 #![cfg_attr(test, feature(assert_matches))]
 #![cfg_attr(test, feature(iterator_try_collect))]
