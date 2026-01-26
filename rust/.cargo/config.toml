@@ -3,5 +3,5 @@ rustflags = [
     "--cfg", "tokio_unstable",
     # TODO: Disable rust-lld for now.
     # https://github.com/dtolnay/linkme/pull/88
-    "-Zlinker-features=-lld",
+    "-Clinker-features=-lld",
 ]

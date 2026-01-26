@@ -6,6 +6,7 @@ use capnp::message;
 use capnp::serialize;
 use xattr::{self, SUPPORTED_PLATFORM};
 
+use g1_base::tryx;
 use g1_chrono::{Timestamp, TimestampExt};
 
 use crate::storage_capnp::blob_metadata;
@@ -33,7 +34,7 @@ impl BlobMetadata {
         let blob_metadata = xattr::get(blob, XATTR_NAME_METADATA)?
             .ok_or_else(|| Error::other(format!("expect ddcache metadata: {}", blob.display())))?;
 
-        let blob_metadata: Result<_, capnp::Error> = try {
+        tryx!(-> Result<_, capnp::Error> {
             let blob_metadata = serialize::read_message_from_flat_slice(
                 &mut blob_metadata.as_slice(),
                 Default::default(),
@@ -62,8 +63,8 @@ impl BlobMetadata {
                 size,
                 expire_at,
             }
-        };
-        blob_metadata.map_err(Error::other)
+        })
+        .map_err(Error::other)
     }
 
     pub(crate) fn new(key: Bytes) -> Self {

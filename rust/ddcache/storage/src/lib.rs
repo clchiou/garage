@@ -1,5 +1,6 @@
 #![feature(assert_matches)]
 #![feature(try_blocks)]
+#![feature(try_blocks_heterogeneous)]
 
 mod blob;
 mod hash;

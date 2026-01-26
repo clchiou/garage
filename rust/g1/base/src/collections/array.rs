@@ -55,11 +55,11 @@ impl<T, const N: usize> Array<T, N> {
 }
 
 fn as_ptr<T, const N: usize>(array: &[MaybeUninit<T>; N]) -> *const T {
-    MaybeUninit::slice_as_ptr(array.as_slice())
+    array.as_slice().as_ptr() as *const T
 }
 
 fn as_mut_ptr<T, const N: usize>(array: &mut [MaybeUninit<T>; N]) -> *mut T {
-    MaybeUninit::slice_as_mut_ptr(array.as_mut_slice())
+    array.as_mut_slice().as_mut_ptr() as *mut T
 }
 
 fn drop_in_place<T>(slice: &mut [MaybeUninit<T>]) {

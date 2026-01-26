@@ -39,3 +39,5 @@ pub mod task;
 pub mod cmp {
     pub use g1_base_derive::PartialEqExt;
 }
+
+mod macros;
