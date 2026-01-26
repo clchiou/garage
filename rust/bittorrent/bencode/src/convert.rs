@@ -25,7 +25,7 @@ pub enum Error {
     InvalidUtf8String { string: String },
 }
 
-pub fn to_bytes<E>(value: borrow::Value) -> Result<&[u8], E>
+pub fn to_bytes<E>(value: borrow::Value<'_>) -> Result<&[u8], E>
 where
     E: From<Error>,
 {
@@ -40,7 +40,7 @@ pub fn from_bytes(bytes: &[u8]) -> own::Value {
     own::ByteString::from(bytes).into()
 }
 
-pub fn to_str<E>(value: borrow::Value) -> Result<&str, E>
+pub fn to_str<E>(value: borrow::Value<'_>) -> Result<&str, E>
 where
     E: From<Error>,
 {
@@ -92,8 +92,8 @@ where
 
 #[allow(clippy::type_complexity)]
 pub fn to_dict<E>(
-    value: borrow::Value,
-) -> Result<(BTreeMap<&[u8], borrow::Value>, Option<&[u8]>), E>
+    value: borrow::Value<'_>,
+) -> Result<(BTreeMap<&[u8], borrow::Value<'_>>, Option<&[u8]>), E>
 where
     E: From<Error>,
 {

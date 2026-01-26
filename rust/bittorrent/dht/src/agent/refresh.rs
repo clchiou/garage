@@ -96,13 +96,13 @@ impl NodeRefresher {
             }
         }
 
-        if have_removed_nodes {
-            if let Err((_, candidate)) = state.routing.must_lock().insert(candidate) {
-                tracing::warn!(
-                    candidate = ?candidate.contact_info,
-                    "discard candidate because kbucket is still full after removing nodes",
-                );
-            }
+        if have_removed_nodes
+            && let Err((_, candidate)) = state.routing.must_lock().insert(candidate)
+        {
+            tracing::warn!(
+                candidate = ?candidate.contact_info,
+                "discard candidate because kbucket is still full after removing nodes",
+            );
         }
 
         Ok(())

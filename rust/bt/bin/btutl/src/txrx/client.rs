@@ -100,7 +100,7 @@ impl ClientCommand {
         guard.shutdown().await?
     }
 
-    fn make_tracker(&self, self_id: PeerId, storage: &Storage) -> Result<Tracker, Error> {
+    fn make_tracker(&self, self_id: PeerId, storage: &Storage) -> Result<Tracker<'_>, Error> {
         let metainfo = storage
             .get_metainfo(self.txrx.info_hash.clone())?
             .ok_or_else(|| Error::other("missing metainfo"))?;

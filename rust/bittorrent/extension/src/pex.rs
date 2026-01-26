@@ -369,7 +369,7 @@ mod tests {
             );
         }
 
-        fn bs(bytes: &[u8]) -> borrow::Value {
+        fn bs(bytes: &[u8]) -> borrow::Value<'_> {
             borrow::Value::new_byte_string(bytes)
         }
 

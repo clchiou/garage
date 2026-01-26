@@ -94,10 +94,10 @@ impl ExtensionIdMap {
 
     pub fn update(&mut self, peer_handshake: &Handshake) {
         for (id, extension) in EXTENSIONS.iter().enumerate() {
-            if id != 0 {
-                if let Some(peer_extension_id) = peer_handshake.extension_ids.get(extension.name) {
-                    self.map[id - 1] = *peer_extension_id;
-                }
+            if id != 0
+                && let Some(peer_extension_id) = peer_handshake.extension_ids.get(extension.name)
+            {
+                self.map[id - 1] = *peer_extension_id;
             }
         }
     }

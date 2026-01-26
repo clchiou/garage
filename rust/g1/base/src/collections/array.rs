@@ -524,11 +524,11 @@ pub(super) mod test_harness {
         pub(in super::super) fn alloc_array<const N: usize>(
             &self,
             testdata: &[u8],
-        ) -> Array<Scoped, N> {
+        ) -> Array<Scoped<'_>, N> {
             Array::from_iter(testdata.iter().copied().map(|x| self.alloc(x)))
         }
 
-        pub(in super::super) fn alloc(&self, n: u8) -> Scoped {
+        pub(in super::super) fn alloc(&self, n: u8) -> Scoped<'_> {
             Scoped {
                 n,
                 num_dropped: &self.num_dropped,

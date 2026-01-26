@@ -156,7 +156,7 @@ pub(crate) mod test_harness {
             }
         }
 
-        pub(crate) fn context(&self) -> Context {
+        pub(crate) fn context(&self) -> Context<'_> {
             Context::from_waker(&self.waker)
         }
     }

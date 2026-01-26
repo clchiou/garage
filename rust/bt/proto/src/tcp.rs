@@ -16,7 +16,7 @@ pub fn into_split(stream: TcpStream) -> (OwnedStream, OwnedSink) {
     (Codec::stream(r), Codec::sink(w))
 }
 
-pub fn split(stream: &mut TcpStream) -> (Stream, Sink) {
+pub fn split(stream: &mut TcpStream) -> (Stream<'_>, Sink<'_>) {
     let (r, w) = stream.split();
     (Codec::stream(r), Codec::sink(w))
 }

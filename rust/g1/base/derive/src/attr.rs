@@ -62,17 +62,16 @@ fn parse_attr_assign_path(
     attr_arg_name: &str,
     attr_arg_value: &mut Option<AttrArgValue>,
 ) -> Result<bool, Error> {
-    if let Expr::Assign(assign) = attr_arg {
-        if let Expr::Path(path) = assign.left.as_ref() {
-            if path.path.is_ident(attr_arg_name) {
-                if attr_arg_value.is_some() {
-                    return Err(error::duplicated(attr_name, attr_arg_name));
-                }
-                if let Expr::Path(path) = assign.right.as_ref() {
-                    *attr_arg_value = Some(AttrArgValue::AssignPath(path.path.clone()));
-                    return Ok(true);
-                }
-            }
+    if let Expr::Assign(assign) = attr_arg
+        && let Expr::Path(path) = assign.left.as_ref()
+        && path.path.is_ident(attr_arg_name)
+    {
+        if attr_arg_value.is_some() {
+            return Err(error::duplicated(attr_name, attr_arg_name));
+        }
+        if let Expr::Path(path) = assign.right.as_ref() {
+            *attr_arg_value = Some(AttrArgValue::AssignPath(path.path.clone()));
+            return Ok(true);
         }
     }
     Ok(false)
@@ -84,14 +83,14 @@ fn parse_attr_flag(
     attr_arg_name: &str,
     attr_arg_value: &mut Option<AttrArgValue>,
 ) -> Result<bool, Error> {
-    if let Expr::Path(path) = attr_arg {
-        if path.path.is_ident(attr_arg_name) {
-            if attr_arg_value.is_some() {
-                return Err(error::duplicated(attr_name, attr_arg_name));
-            }
-            *attr_arg_value = Some(AttrArgValue::Flag);
-            return Ok(true);
+    if let Expr::Path(path) = attr_arg
+        && path.path.is_ident(attr_arg_name)
+    {
+        if attr_arg_value.is_some() {
+            return Err(error::duplicated(attr_name, attr_arg_name));
         }
+        *attr_arg_value = Some(AttrArgValue::Flag);
+        return Ok(true);
     }
     Ok(false)
 }

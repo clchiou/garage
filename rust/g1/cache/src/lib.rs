@@ -66,7 +66,7 @@ pub trait Schema {
     fn encode_key(key: &Self::Key) -> [&dyn ToSql; Self::KEY_LEN];
 
     fn decode_value(raw: &[u8]) -> Result<Self::Value, FromSqlError>;
-    fn encode_value(value: &Self::Value) -> Result<Cow<[u8]>, Error>;
+    fn encode_value(value: &Self::Value) -> Result<Cow<'_, [u8]>, Error>;
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -546,7 +546,7 @@ mod tests {
             Ok(raw.to_vec())
         }
 
-        fn encode_value(value: &Self::Value) -> Result<Cow<[u8]>, Error> {
+        fn encode_value(value: &Self::Value) -> Result<Cow<'_, [u8]>, Error> {
             Ok(value.into())
         }
     }

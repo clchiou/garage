@@ -99,7 +99,7 @@ impl<'a> From<Handshake<'a>> for BTreeMap<&'a Bytes, own::Value> {
     }
 }
 
-fn to_extension_ids(value: borrow::Value) -> Result<BTreeMap<&str, u8>, Error> {
+fn to_extension_ids(value: borrow::Value<'_>) -> Result<BTreeMap<&str, u8>, Error> {
     let (dict, _) = to_dict::<Error>(value)?;
     dict.into_iter()
         .map(|(name, id)| {

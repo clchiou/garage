@@ -1004,10 +1004,10 @@ pub(crate) mod attr {
 
     /// Returns the string value of a string literal expression.
     fn try_get_string_literal(expr: &Expr) -> Option<String> {
-        if let Expr::Lit(lit) = expr {
-            if let Lit::Str(lit) = &lit.lit {
-                return Some(lit.value());
-            }
+        if let Expr::Lit(lit) = expr
+            && let Lit::Str(lit) = &lit.lit
+        {
+            return Some(lit.value());
         }
         None
     }

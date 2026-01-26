@@ -48,7 +48,7 @@ pub trait UpdateQuery {
     fn update_query<'a: 'b, 'b>(&'a self, builder: &mut QueryBuilder<'b>);
 
     // NOTE: It skips raw query pairs.
-    fn query_pairs(&self) -> QueryPairs
+    fn query_pairs(&self) -> QueryPairs<'_>
     where
         Self: Sized,
     {

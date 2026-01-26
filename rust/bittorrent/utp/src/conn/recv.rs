@@ -148,11 +148,11 @@ impl Actor<Mutex<State>> {
             }
             PacketType::Reset | PacketType::Synchronize => std::unreachable!(),
         }
-        if !recv_state.fin_ack_sent {
-            if let Some(packet) = state.new_fin_ack_packet() {
-                packets.push(packet);
-                recv_state.fin_ack_sent = true;
-            }
+        if !recv_state.fin_ack_sent
+            && let Some(packet) = state.new_fin_ack_packet()
+        {
+            packets.push(packet);
+            recv_state.fin_ack_sent = true;
         }
 
         if state

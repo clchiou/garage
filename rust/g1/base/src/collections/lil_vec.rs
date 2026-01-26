@@ -426,7 +426,7 @@ mod tests {
     use super::*;
 
     impl Alloc {
-        fn alloc_lil_vec<const N: usize>(&self, testdata: &[u8]) -> LilVec<Scoped, N> {
+        fn alloc_lil_vec<const N: usize>(&self, testdata: &[u8]) -> LilVec<Scoped<'_>, N> {
             LilVec::from_iter(testdata.iter().copied().map(|x| self.alloc(x)))
         }
     }

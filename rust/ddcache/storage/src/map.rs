@@ -354,10 +354,10 @@ impl WriteGuard {
 
 impl Drop for WriteGuard {
     fn drop(&mut self) {
-        if let Some(mut guard) = self.guard.take() {
-            if guard.is_new() {
-                map_remove!(self, guard);
-            }
+        if let Some(mut guard) = self.guard.take()
+            && guard.is_new()
+        {
+            map_remove!(self, guard);
         }
     }
 }

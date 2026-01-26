@@ -67,7 +67,7 @@ pub(super) fn from_private(private: bool) -> own::Value {
     i64::from(private).into()
 }
 
-pub(super) fn to_announce_list(value: borrow::Value) -> Result<Vec<Vec<&str>>, Error> {
+pub(super) fn to_announce_list(value: borrow::Value<'_>) -> Result<Vec<Vec<&str>>, Error> {
     to_vec(value, |list| to_vec(list, to_str))
 }
 
@@ -75,7 +75,7 @@ pub(super) fn from_announce_list(announce_list: Vec<Vec<&str>>) -> own::Value {
     from_vec(announce_list, |list| from_vec(list, from_str))
 }
 
-pub(super) fn to_nodes(value: borrow::Value) -> Result<Vec<(&str, u16)>, Error> {
+pub(super) fn to_nodes(value: borrow::Value<'_>) -> Result<Vec<(&str, u16)>, Error> {
     to_vec(value, to_node)
 }
 
@@ -83,7 +83,7 @@ pub(super) fn from_nodes(nodes: Vec<(&str, u16)>) -> own::Value {
     from_vec(nodes, from_node)
 }
 
-pub(super) fn to_node(value: borrow::Value) -> Result<(&str, u16), Error> {
+pub(super) fn to_node(value: borrow::Value<'_>) -> Result<(&str, u16), Error> {
     let (mut node, _) = value.into_list().map_err(|value| Error::ExpectList {
         value: value.to_owned(),
     })?;
@@ -106,7 +106,7 @@ pub(super) fn from_node((host, port): (&str, u16)) -> own::Value {
     vec![from_str(host), i64::from(port).into()].into()
 }
 
-pub(super) fn to_url_list(value: borrow::Value) -> Result<Vec<&str>, Error> {
+pub(super) fn to_url_list(value: borrow::Value<'_>) -> Result<Vec<&str>, Error> {
     match value.into_list() {
         Ok((list, _)) => list.into_iter().map(to_str).try_collect(),
         Err(value) => Ok(vec![to_str::<Error>(value)?]),
@@ -121,7 +121,7 @@ pub(super) fn from_url_list(url_list: Vec<&str>) -> own::Value {
     }
 }
 
-pub(super) fn to_pieces(value: borrow::Value) -> Result<Vec<&[u8]>, Error> {
+pub(super) fn to_pieces(value: borrow::Value<'_>) -> Result<Vec<&[u8]>, Error> {
     let bytes = value
         .as_byte_string()
         .ok_or_else(|| Error::ExpectByteString {

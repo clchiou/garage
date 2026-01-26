@@ -375,7 +375,7 @@ impl StorageImpl {
     }
 }
 
-fn to_bytes(bytes: ValueRef) -> &[u8] {
+fn to_bytes(bytes: ValueRef<'_>) -> &[u8] {
     match bytes {
         ValueRef::Blob(bytes) => bytes,
         _ => std::panic!("expect blob value"),

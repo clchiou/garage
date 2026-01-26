@@ -29,7 +29,7 @@ impl<B> Value<B>
 where
     B: AsRef<[u8]>,
 {
-    pub(crate) fn to_unexpected(&self) -> Unexpected {
+    pub(crate) fn to_unexpected(&self) -> Unexpected<'_> {
         match self {
             Self::ByteString(bytes) => Unexpected::Bytes(bytes.as_ref()),
             Self::Integer(integer) => Unexpected::Signed(*integer),

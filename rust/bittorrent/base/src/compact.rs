@@ -27,7 +27,7 @@ pub trait Compact: Sized {
 
     fn ensure_array_size(size: usize) -> Result<usize, Error> {
         ensure!(
-            size % Self::SIZE == 0,
+            size.is_multiple_of(Self::SIZE),
             ExpectArraySizeSnafu {
                 size,
                 unit_size: Self::SIZE,

@@ -97,10 +97,10 @@ fn check_actor_type_lifetime(type_: &Type) -> bool {
         return false;
     };
     for segment in &path.segments {
-        if let PathArguments::AngleBracketed(angle) = &segment.arguments {
-            if angle.args.iter().any(is_non_static_lifetime) {
-                return false;
-            }
+        if let PathArguments::AngleBracketed(angle) = &segment.arguments
+            && angle.args.iter().any(is_non_static_lifetime)
+        {
+            return false;
         }
     }
     true

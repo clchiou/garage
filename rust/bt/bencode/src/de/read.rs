@@ -436,7 +436,7 @@ impl Token {
         }
     }
 
-    pub(super) fn to_unexpected(&self) -> Unexpected {
+    pub(super) fn to_unexpected(&self) -> Unexpected<'_> {
         match self {
             Self::ByteString(_) => Unexpected::Other("byte string"),
             Self::Integer => Unexpected::Other("integer"),

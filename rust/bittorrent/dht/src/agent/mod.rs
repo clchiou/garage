@@ -158,10 +158,10 @@ impl Actor {
         let mut ids = Vec::new();
         let should_refresh = now - self.kbucket_refresh_period;
         for (kbucket, prefix) in self.state.routing.must_lock().iter() {
-            if let Some(recently_seen) = kbucket.recently_seen() {
-                if recently_seen <= should_refresh {
-                    ids.push(random_id(prefix));
-                }
+            if let Some(recently_seen) = kbucket.recently_seen()
+                && recently_seen <= should_refresh
+            {
+                ids.push(random_id(prefix));
             }
         }
         self.push_task(JoinGuard::spawn(move |cancel| {

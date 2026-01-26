@@ -49,27 +49,26 @@ impl Metainfo<'_> {
     }
 
     fn check_empty_announce_url(&self) -> Option<Insanity> {
-        if let Some(url) = &self.announce {
-            if url.is_empty() {
-                return Some(Insanity::EmptyAnnounceUrl);
-            }
+        if let Some(url) = &self.announce
+            && url.is_empty()
+        {
+            return Some(Insanity::EmptyAnnounceUrl);
         }
-        if let Some(list_of_list) = &self.announce_list {
-            if list_of_list
+        if let Some(list_of_list) = &self.announce_list
+            && list_of_list
                 .iter()
                 .any(|list| list.iter().any(|url| url.is_empty()))
-            {
-                return Some(Insanity::EmptyAnnounceUrl);
-            }
+        {
+            return Some(Insanity::EmptyAnnounceUrl);
         }
         None
     }
 
     fn check_empty_announce_list(&self) -> Option<Insanity> {
-        if let Some(list_of_list) = &self.announce_list {
-            if list_of_list.is_empty() || list_of_list.iter().any(|list| list.is_empty()) {
-                return Some(Insanity::EmptyAnnounceList);
-            }
+        if let Some(list_of_list) = &self.announce_list
+            && (list_of_list.is_empty() || list_of_list.iter().any(|list| list.is_empty()))
+        {
+            return Some(Insanity::EmptyAnnounceList);
         }
         None
     }

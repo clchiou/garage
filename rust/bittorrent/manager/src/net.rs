@@ -110,11 +110,11 @@ impl Connector {
                         Ok(socket) => {
                             let peer_id = socket.peer_id();
                             tracing::debug!(?peer_id);
-                            if let Some(expect) = self.peer_id.as_ref() {
-                                if &peer_id != expect {
-                                    // TODO: Should we close the connection as specified in BEP 3?
-                                    tracing::warn!(?peer_id, ?expect, "unexpected peer_id");
-                                }
+                            if let Some(expect) = self.peer_id.as_ref()
+                                && &peer_id != expect
+                            {
+                                // TODO: Should we close the connection as specified in BEP 3?
+                                tracing::warn!(?peer_id, ?expect, "unexpected peer_id");
                             }
                         }
                         Err(error) => match error.kind() {

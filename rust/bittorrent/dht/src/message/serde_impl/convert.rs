@@ -29,7 +29,7 @@ impl From<dict::Error> for Error {
     }
 }
 
-pub(super) fn to_id(value: borrow::Value) -> Result<&'_ [u8], Error> {
+pub(super) fn to_id(value: borrow::Value<'_>) -> Result<&'_ [u8], Error> {
     to_bytes(value).and_then(|id| {
         ensure!(
             id.len() == NODE_ID_SIZE,
@@ -39,7 +39,7 @@ pub(super) fn to_id(value: borrow::Value) -> Result<&'_ [u8], Error> {
     })
 }
 
-pub(super) fn to_info_hash(value: borrow::Value) -> Result<&'_ [u8], Error> {
+pub(super) fn to_info_hash(value: borrow::Value<'_>) -> Result<&'_ [u8], Error> {
     to_bytes(value).and_then(|info_hash| {
         ensure!(
             info_hash.len() == INFO_HASH_SIZE,

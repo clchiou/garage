@@ -22,7 +22,11 @@ impl Every {
     }
 
     pub fn tick<F: FnOnce()>(&self, action: F) {
-        if self.count.fetch_add(1, Ordering::SeqCst) % self.times == 0 {
+        if self
+            .count
+            .fetch_add(1, Ordering::SeqCst)
+            .is_multiple_of(self.times)
+        {
             action();
         }
     }

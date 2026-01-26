@@ -305,7 +305,7 @@ impl Info {
         self.mode().len()
     }
 
-    pub fn file(&self, i: usize) -> FileLike {
+    pub fn file(&self, i: usize) -> FileLike<'_> {
         self.mode().file(i)
     }
 
@@ -338,7 +338,7 @@ impl Mode {
         }
     }
 
-    pub fn file(&self, i: usize) -> FileLike {
+    pub fn file(&self, i: usize) -> FileLike<'_> {
         match self {
             Self::Single { length, md5sum, .. } => {
                 assert_eq!(i, 0);

@@ -62,7 +62,10 @@ impl Serialize for PieceHashes {
 impl PieceHashes {
     pub fn new(piece_hashes: Arc<[u8]>) -> Result<Self, PieceHashesError> {
         let size = piece_hashes.len();
-        ensure!(size % PIECE_HASH_SIZE == 0, PieceHashesSnafu { size });
+        ensure!(
+            size.is_multiple_of(PIECE_HASH_SIZE),
+            PieceHashesSnafu { size },
+        );
         Ok(Self(piece_hashes))
     }
 

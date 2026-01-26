@@ -246,10 +246,10 @@ impl SendWindow {
     }
 
     pub(super) fn set_size(&mut self, seq: u16, size: usize) -> bool {
-        if let Some(size_seq) = self.size_seq {
-            if measure(size_seq, seq) < 0 {
-                return false;
-            }
+        if let Some(size_seq) = self.size_seq
+            && measure(size_seq, seq) < 0
+        {
+            return false;
         }
         self.size_seq = Some(seq);
         self.size = size;
@@ -411,13 +411,13 @@ impl SendWindow {
     }
 
     pub(super) fn remove(&mut self) -> bool {
-        if let Some(front) = self.inflights.front() {
-            if front.num_acks > 0 {
-                self.used -= front.payload.len();
-                self.last_num_acks = Some((front.seq, front.num_acks));
-                self.inflights.pop_front();
-                return true;
-            }
+        if let Some(front) = self.inflights.front()
+            && front.num_acks > 0
+        {
+            self.used -= front.payload.len();
+            self.last_num_acks = Some((front.seq, front.num_acks));
+            self.inflights.pop_front();
+            return true;
         }
         false
     }

@@ -94,10 +94,10 @@ impl Parse for ArgValue {
             Ok(Self::Named(name, input.parse()?))
         } else {
             let expr = input.parse()?;
-            if let Expr::Path(path) = &expr {
-                if let Some(name) = path.path.get_ident() {
-                    return Ok(Self::Named(name.clone(), expr));
-                }
+            if let Expr::Path(path) = &expr
+                && let Some(name) = path.path.get_ident()
+            {
+                return Ok(Self::Named(name.clone(), expr));
             }
             Ok(Self::Positional(expr))
         }
@@ -121,7 +121,7 @@ impl ArgValue {
 
 // This accepts an extended format [syntax] that supports limited field access expressions.
 // [syntax]: https://doc.rust-lang.org/std/fmt/#syntax
-fn parse_format(mut format: &str) -> Result<(Vec<String>, Vec<Arg>), &str> {
+fn parse_format(mut format: &str) -> Result<(Vec<String>, Vec<Arg<'_>>), &str> {
     let mut literals = Vec::new();
     let mut args = Vec::new();
     let mut index = iter::successors(Some(0), |i| Some(i + 1));

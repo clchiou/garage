@@ -382,10 +382,10 @@ impl WriteGuard {
         let is_new = self.guard.as_ref().unwrap().is_new();
         if is_new {
             // TODO: Is there an atomic `create_dir_if_not_exist`?
-            if let Err(error) = fs::create_dir(self.path.parent().unwrap()) {
-                if error.kind() != ErrorKind::AlreadyExists {
-                    return Err(error);
-                }
+            if let Err(error) = fs::create_dir(self.path.parent().unwrap())
+                && error.kind() != ErrorKind::AlreadyExists
+            {
+                return Err(error);
             }
         }
         self.file = Some(

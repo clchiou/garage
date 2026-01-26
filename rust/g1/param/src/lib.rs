@@ -256,11 +256,11 @@ impl Parameter {
 }
 
 impl Parameter {
-    pub fn format_def_full(&self) -> FormatDefFull {
+    pub fn format_def_full(&self) -> FormatDefFull<'_> {
         FormatDefFull(self)
     }
 
-    pub fn format_def(&self) -> FormatDef {
+    pub fn format_def(&self) -> FormatDef<'_> {
         FormatDef(self)
     }
 }

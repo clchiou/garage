@@ -129,13 +129,13 @@ impl Acc for LookupPeersAcc {
             self.peers.extend(peers);
         }
 
-        if let Some(token) = token {
-            if self.closest.as_ref().is_none_or(|(closest, _)| {
+        if let Some(token) = token
+            && self.closest.as_ref().is_none_or(|(closest, _)| {
                 let t = target.to_id();
                 info.id.distance(&t) < closest.id.distance(&t)
-            }) {
-                self.closest = Some((info, token));
-            }
+            })
+        {
+            self.closest = Some((info, token));
         }
 
         Ok(nodes.unwrap_or_default())

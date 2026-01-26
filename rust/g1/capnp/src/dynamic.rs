@@ -16,7 +16,7 @@ use capnp::{Error, Word};
 pub fn get_struct<S>(
     message: &message::Reader<S>,
     type_: Type,
-) -> Result<dynamic_struct::Reader, Error>
+) -> Result<dynamic_struct::Reader<'_>, Error>
 where
     S: ReaderSegments,
 {

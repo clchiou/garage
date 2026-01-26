@@ -62,7 +62,7 @@ fn bool_to_str(b: &bool) -> &'static str {
     if *b { "1" } else { "0" }
 }
 
-fn bytes_to_str<T>(bytes: &T) -> Cow<str>
+fn bytes_to_str<T>(bytes: &T) -> Cow<'_, str>
 where
     T: AsRef<[u8]>,
 {

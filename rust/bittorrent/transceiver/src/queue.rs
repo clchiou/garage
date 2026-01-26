@@ -41,7 +41,7 @@ impl Queues {
         self.queues.get_mut(&piece)
     }
 
-    pub(crate) fn get_or_default(&mut self, piece: PieceIndex) -> QueueStub {
+    pub(crate) fn get_or_default(&mut self, piece: PieceIndex) -> QueueStub<'_> {
         QueueStub(match self.queues.entry(piece) {
             Entry::Occupied(entry) => entry,
             Entry::Vacant(entry) => entry.insert_entry(Queue::new(&self.dim, piece)),

@@ -44,13 +44,13 @@ impl Actor {
         });
         peer.possess(possession).unwrap();
 
-        if self.self_features.dht && peer_features.dht {
-            if let Some(self_endpoint) = self
+        if self.self_features.dht
+            && peer_features.dht
+            && let Some(self_endpoint) = self
                 .dht(peer.peer_endpoint())
                 .map(|dht| dht.self_endpoint())
-            {
-                peer.send_port(self_endpoint.port()).unwrap();
-            }
+        {
+            peer.send_port(self_endpoint.port()).unwrap();
         }
 
         if self.self_features.extension && peer_features.extension {

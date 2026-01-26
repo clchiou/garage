@@ -128,7 +128,7 @@ impl Distance {
     }
 }
 
-fn format_node_id_bit_arr(node_id: &NodeIdBitArr) -> Hex {
+fn format_node_id_bit_arr(node_id: &NodeIdBitArr) -> Hex<'_> {
     Hex(node_id.as_raw_slice())
 }
 
