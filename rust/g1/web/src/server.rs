@@ -114,7 +114,8 @@ where
     }
 }
 
-// TODO: Unfortunately, `hyper` does not provide `Error::is_io` or `Error::is_shutdown` somehow.
+// TODO: `hyper` now provides `Error::is_shutdown`.  Should we switch to it, and how do we test
+// that it works for our use case?
 fn is_probably_connection_close(error: &hyper::Error) -> bool {
     const KINDS: &[ErrorKind] = &[ErrorKind::ConnectionReset, ErrorKind::NotConnected];
     error

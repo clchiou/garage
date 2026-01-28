@@ -1,7 +1,7 @@
 #![feature(iterator_try_collect)]
 
 fn nested_object<'s>(
-    scope: &mut v8::HandleScope<'s>,
+    scope: &v8::PinScope<'s, '_>,
     object: v8::Local<'s, v8::Object>,
 ) -> Option<Vec<(String, Vec<(String, String)>)>> {
     g1_v8::object_map_own_property(scope, object, |scope, value| {

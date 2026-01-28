@@ -124,10 +124,8 @@ macro_rules! deserialize_for_each {
         $macro_func!(u16);
         $macro_func!(u32);
         $macro_func!(u64);
-        ::serde::serde_if_integer128! {
-            $macro_func!(i128);
-            $macro_func!(u128);
-        }
+        $macro_func!(i128);
+        $macro_func!(u128);
         $macro_func!(f32);
         $macro_func!(f64);
         $macro_func!(char);

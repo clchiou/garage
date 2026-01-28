@@ -52,7 +52,7 @@ impl BlobMetadata {
             let metadata = blob_metadata.get_metadata()?;
             let metadata = (!metadata.is_empty()).then(|| Bytes::copy_from_slice(metadata));
 
-            let expire_at = <Option<Timestamp>>::from_timestamp_secs(blob_metadata.get_expire_at())
+            let expire_at = <Option<Timestamp>>::from_timestamp_secs_u64(blob_metadata.get_expire_at())
                 .map_err(|expire_at| {
                     Error::other(std::format!("invalid timestamp: {expire_at}"))
                 })?;

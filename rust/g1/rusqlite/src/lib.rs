@@ -2,7 +2,6 @@
 #![feature(iterator_try_collect)]
 #![feature(lazy_type_alias)]
 #![feature(type_alias_impl_trait)]
-#![cfg_attr(test, feature(assert_matches))]
 
 mod ext;
 

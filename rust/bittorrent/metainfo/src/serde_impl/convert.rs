@@ -41,7 +41,7 @@ impl From<dict::Error> for Error {
 //
 
 pub(super) fn to_timestamp(timestamp: i64) -> Result<Timestamp, Error> {
-    Timestamp::from_timestamp(timestamp, 0).ok_or(Error::InvalidTimestamp { timestamp })
+    Timestamp::from_timestamp_secs(timestamp).ok_or(Error::InvalidTimestamp { timestamp })
 }
 
 pub(super) fn from_timestamp(timestamp: Timestamp) -> own::Value {
@@ -184,7 +184,7 @@ mod tests {
         // timestamp
         ok(
             100.into(),
-            Timestamp::from_timestamp(100, 0).unwrap(),
+            Timestamp::from_timestamp_secs(100).unwrap(),
             |value| to_int(value).and_then(to_timestamp),
             from_timestamp,
         );

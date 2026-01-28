@@ -7,7 +7,7 @@ edition.workspace = true
 bytes.workspace = true
 const_format.workspace = true
 linkme.workspace = true # Required by g1_param.
-rusqlite.workspace = true
+rusqlite = { workspace = true, features = ["fallible_uint"] }
 scopeguard.workspace = true
 tracing.workspace = true
 

@@ -322,10 +322,8 @@ impl<'de, const STRICT: bool> de::Deserializer<'de> for &Value<'de, STRICT> {
     deserialize_int!(u32);
     deserialize_int!(u64);
 
-    serde::serde_if_integer128! {
-        deserialize_int!(i128);
-        deserialize_int!(u128);
-    }
+    deserialize_int!(i128);
+    deserialize_int!(u128);
 
     deserialize_from_bytes!(f32(value) {
         Ok(f32::from_be_bytes(*<&[u8; 4]>::try_from(*value).map_err(

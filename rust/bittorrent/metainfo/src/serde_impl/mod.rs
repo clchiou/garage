@@ -188,7 +188,7 @@ impl<'a> From<File<'a>> for own::Value {
 
 #[cfg(test)]
 mod tests {
-    use g1_chrono::{Timestamp, TimestampExt};
+    use g1_chrono::Timestamp;
 
     use bittorrent_bencode::serde as serde_bencode;
 

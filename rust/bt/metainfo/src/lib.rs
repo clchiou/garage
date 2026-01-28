@@ -207,7 +207,7 @@ impl SerdeWith for TimestampSerdeWith {
         D: Deserializer<'de>,
     {
         let secs = i64::deserialize(deserializer)?;
-        Timestamp::from_timestamp(secs, 0).ok_or_else(|| {
+        Timestamp::from_timestamp_secs(secs).ok_or_else(|| {
             D::Error::custom(fmt::from_fn(|f| {
                 std::write!(f, "invalid timestamp: {secs}")
             }))

@@ -1,16 +1,15 @@
-use rusqlite::types::FromSqlError;
 use rusqlite::{Connection, Error, OptionalExtension, Params, Row, Statement};
 
 pub trait ConnectionExt {
     fn one_or_none<T, P, F>(&self, sql: &str, params: P, f: F) -> Result<Option<T>, Error>
     where
         P: Params,
-        F: FnMut(&Row<'_>) -> Result<T, Error>;
+        F: FnOnce(&Row<'_>) -> Result<T, Error>;
 
     fn optional<T, P, F>(&self, sql: &str, params: P, f: F) -> Result<Option<T>, Error>
     where
         P: Params,
-        F: FnMut(&Row<'_>) -> Result<T, Error>;
+        F: FnOnce(&Row<'_>) -> Result<T, Error>;
 
     fn vector<T, P, F>(&self, sql: &str, params: P, f: F) -> Result<Vec<T>, Error>
     where
@@ -22,7 +21,7 @@ impl ConnectionExt for Connection {
     fn one_or_none<T, P, F>(&self, sql: &str, params: P, f: F) -> Result<Option<T>, Error>
     where
         P: Params,
-        F: FnMut(&Row<'_>) -> Result<T, Error>,
+        F: FnOnce(&Row<'_>) -> Result<T, Error>,
     {
         self.prepare_cached(sql)?.one_or_none(params, f)
     }
@@ -30,7 +29,7 @@ impl ConnectionExt for Connection {
     fn optional<T, P, F>(&self, sql: &str, params: P, f: F) -> Result<Option<T>, Error>
     where
         P: Params,
-        F: FnMut(&Row<'_>) -> Result<T, Error>,
+        F: FnOnce(&Row<'_>) -> Result<T, Error>,
     {
         self.prepare_cached(sql)?.optional(params, f)
     }
@@ -48,12 +47,12 @@ pub trait StatementExt {
     fn one_or_none<T, P, F>(&mut self, params: P, f: F) -> Result<Option<T>, Error>
     where
         P: Params,
-        F: FnMut(&Row<'_>) -> Result<T, Error>;
+        F: FnOnce(&Row<'_>) -> Result<T, Error>;
 
     fn optional<T, P, F>(&mut self, params: P, f: F) -> Result<Option<T>, Error>
     where
         P: Params,
-        F: FnMut(&Row<'_>) -> Result<T, Error>;
+        F: FnOnce(&Row<'_>) -> Result<T, Error>;
 
     fn vector<T, P, F>(&mut self, params: P, f: F) -> Result<Vec<T>, Error>
     where
@@ -62,25 +61,18 @@ pub trait StatementExt {
 }
 
 impl StatementExt for Statement<'_> {
-    // TODO: Use `query_one` after upgrading `rusqlite` to version 0.36.0 or later.
     fn one_or_none<T, P, F>(&mut self, params: P, f: F) -> Result<Option<T>, Error>
     where
         P: Params,
-        F: FnMut(&Row<'_>) -> Result<T, Error>,
+        F: FnOnce(&Row<'_>) -> Result<T, Error>,
     {
-        let mut rows = self.query(params)?;
-        let one = rows.next()?.map(f).transpose()?;
-        match rows.next()? {
-            // TODO: Could we not abuse `FromSqlError`?
-            Some(_) => Err(FromSqlError::Other("Query returned multiple rows".into()).into()),
-            None => Ok(one),
-        }
+        self.query_one(params, f).optional()
     }
 
     fn optional<T, P, F>(&mut self, params: P, f: F) -> Result<Option<T>, Error>
     where
         P: Params,
-        F: FnMut(&Row<'_>) -> Result<T, Error>,
+        F: FnOnce(&Row<'_>) -> Result<T, Error>,
     {
         self.query_row(params, f).optional()
     }
@@ -96,8 +88,6 @@ impl StatementExt for Statement<'_> {
 
 #[cfg(test)]
 mod tests {
-    use std::assert_matches::assert_matches;
-
     use super::*;
 
     fn new_mock() -> Result<Connection, Error> {
@@ -132,10 +122,9 @@ mod tests {
             Ok(None),
         );
 
-        assert_matches!(
+        assert_eq!(
             conn.one_or_none("SELECT y FROM testdata", [], y),
-            Err(Error::FromSqlConversionFailure(_, _, error))
-            if error.to_string() == "Query returned multiple rows",
+            Err(Error::QueryReturnedMoreThanOneRow),
         );
     }
 

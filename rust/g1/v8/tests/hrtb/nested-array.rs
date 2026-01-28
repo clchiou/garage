@@ -1,7 +1,7 @@
 #![feature(iterator_try_collect)]
 
 fn nested_array<'s>(
-    scope: &mut v8::HandleScope<'s>,
+    scope: &v8::PinScope<'s, '_>,
     array: v8::Local<'s, v8::Array>,
 ) -> Option<Vec<Vec<String>>> {
     g1_v8::array_map(scope, array, |scope, value| {

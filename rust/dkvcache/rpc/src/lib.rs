@@ -332,7 +332,7 @@ fn to_value(value: &[u8]) -> Result<Bytes, capnp::Error> {
 }
 
 fn to_expire_at(expire_at: u64) -> Result<Option<Timestamp>, capnp::Error> {
-    <Option<Timestamp>>::from_timestamp_secs(expire_at).map_err(|expire_at| capnp::Error {
+    <Option<Timestamp>>::from_timestamp_secs_u64(expire_at).map_err(|expire_at| capnp::Error {
         kind: capnp::ErrorKind::Failed,
         extra: format!("invalid expire_at: {expire_at}"),
     })

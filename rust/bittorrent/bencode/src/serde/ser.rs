@@ -106,10 +106,8 @@ impl ser::Serializer for Serializer {
     serialize_int!(u32);
     serialize_int!(u64);
 
-    serde::serde_if_integer128! {
-        serialize_int!(i128);
-        serialize_int!(u128);
-    }
+    serialize_int!(i128);
+    serialize_int!(u128);
 
     serialize_to_bytes!(f32(value) value.to_bits().to_be_bytes().as_slice());
     serialize_to_bytes!(f64(value) value.to_bits().to_be_bytes().as_slice());
