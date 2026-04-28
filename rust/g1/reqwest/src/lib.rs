@@ -132,6 +132,35 @@ impl ClientBuilder {
 
         Ok(builder)
     }
+
+    pub fn merge_from(&mut self, mut builder: Self) {
+        macro_rules! set {
+            ($name:ident $(,)?) => {
+                if builder.$name.is_some() {
+                    self.$name = builder.$name;
+                }
+            };
+        }
+
+        set!(pool_idle_timeout);
+        set!(pool_max_idle_per_host);
+
+        set!(connect_timeout);
+        set!(read_timeout);
+        set!(timeout);
+
+        self.proxy.append(&mut builder.proxy);
+
+        set!(danger_accept_invalid_certs);
+
+        set!(brotli);
+        set!(deflate);
+        set!(gzip);
+        set!(zstd);
+
+        set!(default_headers);
+        set!(user_agent);
+    }
 }
 
 impl ProxyBuilder {
