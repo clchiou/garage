@@ -3,6 +3,7 @@
 #![feature(iterator_try_collect)]
 
 pub mod parse;
+pub mod unparse;
 
 use std::any::Any;
 use std::borrow::Cow;
