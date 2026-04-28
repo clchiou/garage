@@ -1,11 +1,15 @@
-mod de;
+#![feature(iterator_try_collect)]
 
+mod serde_impl;
+
+use std::sync::Arc;
 use std::time::Duration;
 
 use regex::Regex;
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{Client, Error, Proxy, Url};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use serde_with::skip_serializing_none;
 
 //
 // Implementer's Notes:
@@ -17,20 +21,22 @@ use serde::Deserialize;
 //   does not provide an interface for element removal, so neither can we.
 //
 
-#[derive(Clone, Debug, Default, Deserialize)]
+#[skip_serializing_none]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct ClientBuilder {
-    #[serde(deserialize_with = "de::opt_duration")]
+    #[serde(with = "serde_impl::opt_duration")]
     pub pool_idle_timeout: Option<Duration>,
     pub pool_max_idle_per_host: Option<usize>,
 
-    #[serde(deserialize_with = "de::opt_duration")]
+    #[serde(with = "serde_impl::opt_duration")]
     pub connect_timeout: Option<Duration>,
-    #[serde(deserialize_with = "de::opt_duration")]
+    #[serde(with = "serde_impl::opt_duration")]
     pub read_timeout: Option<Duration>,
-    #[serde(deserialize_with = "de::opt_duration")]
+    #[serde(with = "serde_impl::opt_duration")]
     pub timeout: Option<Duration>,
 
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub proxy: Vec<ProxyBuilder>,
 
     pub danger_accept_invalid_certs: Option<bool>,
@@ -41,13 +47,13 @@ pub struct ClientBuilder {
     pub zstd: Option<bool>,
 
     // `default_headers` can be overridden by more specific fields, such as `user_agent`.
-    #[serde(deserialize_with = "de::opt_header_map")]
+    #[serde(with = "serde_impl::opt_header_map")]
     pub default_headers: Option<HeaderMap>,
-    #[serde(deserialize_with = "de::opt_header_value")]
+    #[serde(with = "serde_impl::opt_header_value")]
     pub user_agent: Option<HeaderValue>,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ProxyBuilder {
     #[serde(flatten)]
@@ -55,14 +61,14 @@ pub struct ProxyBuilder {
     pub proxy: Url,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields, rename_all = "snake_case")]
 pub enum ProxyMatch {
     Scheme(Scheme),
-    Host(#[serde(deserialize_with = "de::regex")] Regex),
+    Host(#[serde(with = "serde_impl::regex")] (Arc<str>, Regex)),
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields, rename_all = "snake_case")]
 pub enum Scheme {
     All,
@@ -123,7 +129,7 @@ impl ProxyBuilder {
             ProxyMatch::Scheme(Scheme::All) => Proxy::all(proxy),
             ProxyMatch::Scheme(Scheme::Http) => Proxy::http(proxy),
             ProxyMatch::Scheme(Scheme::Https) => Proxy::https(proxy),
-            ProxyMatch::Host(host) => Ok(Proxy::custom(move |url| {
+            ProxyMatch::Host((_, host)) => Ok(Proxy::custom(move |url| {
                 host.is_match(url.host_str()?).then(|| proxy.clone())
             })),
         }
