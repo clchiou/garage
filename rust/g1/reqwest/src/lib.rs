@@ -22,7 +22,7 @@ use serde_with::skip_serializing_none;
 //
 
 #[skip_serializing_none]
-#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct ClientBuilder {
     #[serde(with = "serde_impl::opt_duration")]
@@ -53,7 +53,7 @@ pub struct ClientBuilder {
     pub user_agent: Option<HeaderValue>,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ProxyBuilder {
     #[serde(flatten)]
@@ -68,7 +68,19 @@ pub enum ProxyMatch {
     Host(#[serde(with = "serde_impl::regex")] (Arc<str>, Regex)),
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+impl PartialEq for ProxyMatch {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Scheme(this), Self::Scheme(that)) => this == that,
+            (Self::Host((this, _)), Self::Host((that, _))) => this == that,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for ProxyMatch {}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields, rename_all = "snake_case")]
 pub enum Scheme {
     All,
