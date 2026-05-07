@@ -5,7 +5,7 @@ edition.workspace = true
 
 [dependencies]
 const_format.workspace = true
-rusqlite.workspace = true
+rusqlite = { workspace = true, features = ["fallible_uint"] }
 
 g1_base.workspace = true
 g1_chrono.workspace = true
