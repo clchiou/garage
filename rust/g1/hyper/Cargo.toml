@@ -12,5 +12,7 @@ hyper.workspace = true
 lazy-regex.workspace = true
 url.workspace = true
 
+g1_http.workspace = true
+
 [dev-dependencies]
 tokio.workspace = true

@@ -1,5 +1,6 @@
 #![feature(iterator_try_collect)]
 
+mod response;
 mod serde_impl;
 
 use std::sync::Arc;
@@ -10,6 +11,8 @@ use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{Client, Error, Proxy, Url};
 use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
+
+pub use crate::response::ResponseExt;
 
 //
 // Implementer's Notes:

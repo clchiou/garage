@@ -71,6 +71,7 @@ members = [
     "g1/futures",
     "g1/html",
     "g1/html/macro",
+    "g1/http",
     "g1/hyper",
     "g1/msg",
     "g1/nix",
@@ -258,6 +259,7 @@ g1_cli = { path = "g1/cli" }
 g1_futures = { path = "g1/futures" }
 g1_html = { path = "g1/html" }
 g1_html_macro = { path = "g1/html/macro" }
+g1_http = { path = "g1/http" }
 g1_hyper = { path = "g1/hyper" }
 g1_msg = { path = "g1/msg" }
 g1_nix = { path = "g1/nix" }

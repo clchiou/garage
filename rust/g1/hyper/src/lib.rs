@@ -10,6 +10,8 @@ use hyper::header::{ACCEPT_LANGUAGE, CONTENT_LENGTH, HeaderValue};
 use hyper::{Error, Request};
 use url::Url;
 
+pub use g1_http::ResponseExt;
+
 pub trait RequestExt {
     /// Parses request URI and returns a `url::Url`.
     ///
