@@ -102,8 +102,6 @@ where
             Ok(Ok(())) => {}
             Ok(Err(error)) => {
                 if is_probably_connection_close(&error) {
-                    // It seems that HAProxy frequently closes connections, triggering false alarms
-                    // that can be safely ignored.
                     tracing::debug!(%error, "connection close");
                 } else {
                     tracing::warn!(%error, "service");
@@ -114,12 +112,23 @@ where
     }
 }
 
-// TODO: `hyper` now provides `Error::is_shutdown`.  Should we switch to it, and how do we test
-// that it works for our use case?
 fn is_probably_connection_close(error: &hyper::Error) -> bool {
+    // It seems that HAProxy frequently closes connections, triggering false alarms that can be
+    // safely ignored.
     const KINDS: &[ErrorKind] = &[ErrorKind::ConnectionReset, ErrorKind::NotConnected];
-    error
+    if error
         .source()
         .and_then(|source| source.downcast_ref::<Error>())
         .is_some_and(|error| KINDS.contains(&error.kind()))
+    {
+        return true;
+    }
+
+    // It appears that `hyper` returns this error when a client sends a request but closes the
+    // connection before we send the response.
+    if error.is_incomplete_message() {
+        return true;
+    }
+
+    false
 }
