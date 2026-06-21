@@ -20,6 +20,18 @@ pub struct ParametersConfig {
 }
 
 impl ParametersConfig {
+    // I am not sure whether this is a good design, but you could use this to prepend "built-in"
+    // parameters to the list (unlike a "default" parameter, which can be overridden).
+    pub fn with_prepend<I, T>(&self, parameters: I) -> Self
+    where
+        I: IntoIterator<Item = T>,
+        T: Into<String>,
+    {
+        let mut parameter = parameters.into_iter().map(Into::into).collect::<Vec<_>>();
+        parameter.extend(self.parameter.iter().cloned());
+        Self { parameter }
+    }
+
     pub fn render() -> String {
         Self::try_render().expect("parameter render error")
     }
