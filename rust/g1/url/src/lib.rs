@@ -14,6 +14,10 @@ use url::Url;
 pub use g1_url_derive::{ParseQuery, UpdateQuery};
 
 pub trait UrlExt {
+    fn must_parse(input: &str) -> Self;
+
+    fn must_join(&self, input: &str) -> Self;
+
     // We need this due to the idiosyncrasy of `Url::join`.
     fn ensure_trailing_slash(self) -> Self;
 
@@ -70,6 +74,14 @@ pub struct QueryBuilder<'a> {
 pub type QueryPairs<'a> = btree_map::IntoIter<Cow<'a, str>, Cow<'a, str>>;
 
 impl UrlExt for Url {
+    fn must_parse(input: &str) -> Self {
+        Self::parse(input).expect("parse")
+    }
+
+    fn must_join(&self, input: &str) -> Self {
+        self.join(input).expect("join")
+    }
+
     fn ensure_trailing_slash(mut self) -> Self {
         let path = self.path();
         if !path.ends_with('/') {
