@@ -12,7 +12,7 @@ use reqwest::{Client, Error, Proxy, Url};
 use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
 
-pub use crate::response::ResponseExt;
+pub use crate::response::{Encoding, ResponseExt};
 
 //
 // Implementer's Notes:

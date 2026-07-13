@@ -118,6 +118,8 @@ crypto-bigint = { version = "0.5.5", features = ["generic-array", "zeroize"] }
 # md-5 and sha1 both depend on this version of digest.
 digest = "0.10.7"
 
+encoding_rs = "0.8.35"
+
 # The latest version of fasthash on crates.io is v0.4.0, but it is somewhat outdated.
 fasthash = { git = "https://github.com/flier/rust-fasthash.git", rev = "ef0c52b4157af9a1a7d19b2a37658b6c26a6bea6" }
 
@@ -149,6 +151,7 @@ linkme = "0.3.35"
 # [1]: https://github.com/RustCrypto/hashes/pull/542
 md-5 = { version = "0.10.6", features = ["asm"] }
 
+mime = "0.3.17"
 nix = "0.31.1"
 paste = "1.0.15"
 percent-encoding = "2.3.2"
