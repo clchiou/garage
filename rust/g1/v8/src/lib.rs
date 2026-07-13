@@ -2,7 +2,11 @@
 
 pub mod thread;
 
+mod exception;
+
 use std::sync::OnceLock;
+
+pub use crate::exception::Exception;
 
 static INIT: OnceLock<()> = OnceLock::new();
 
