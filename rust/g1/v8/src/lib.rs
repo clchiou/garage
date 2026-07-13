@@ -88,6 +88,13 @@ pub fn new_string_g(scope: &v8::PinScope, string: &str) -> Option<v8::Global<v8:
     Some(v8::Global::new(scope, string))
 }
 
+pub fn new_key_path<'s, const N: usize>(
+    scope: &v8::PinScope<'s, '_>,
+    key_path: [&str; N],
+) -> [v8::Local<'s, v8::Value>; N] {
+    key_path.map(|k| new_string(scope, k).expect("v8::String"))
+}
+
 pub fn global_get<'s>(
     scope: &v8::PinScope<'s, '_>,
     key_path: &[v8::Local<v8::Value>],
