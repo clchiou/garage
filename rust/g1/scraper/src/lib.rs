@@ -4,6 +4,22 @@ use std::borrow::Cow;
 
 use scraper::{CaseSensitivity, ElementRef};
 
+#[macro_export]
+macro_rules! lazy_selector {
+    ($selectors:literal $(,)?) => {{
+        static SELECTOR: $crate::private::LazyLock<$crate::private::Selector> =
+            $crate::private::LazyLock::new(|| {
+                $crate::private::Selector::parse($selectors).expect("selector")
+            });
+        &SELECTOR
+    }};
+}
+
+pub mod private {
+    pub use scraper::Selector;
+    pub use std::sync::LazyLock;
+}
+
 pub trait ElementRefExt<'a> {
     fn has_class(&self, class: &str) -> bool;
 
