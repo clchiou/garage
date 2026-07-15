@@ -1,6 +1,6 @@
 #![feature(try_blocks)]
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Utc};
 
 pub type Timestamp = DateTime<Utc>;
 
@@ -58,6 +58,16 @@ impl TimestampExt for Option<Timestamp> {
     }
 }
 
+pub trait NaiveDateExt {
+    fn and_midnight(&self) -> NaiveDateTime;
+}
+
+impl NaiveDateExt for NaiveDate {
+    fn and_midnight(&self) -> NaiveDateTime {
+        self.and_time(NaiveTime::MIN)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::fmt::Debug;
@@ -90,5 +100,11 @@ mod tests {
 
         test(Timestamp::MAX_UTC, None);
         test(Some(Timestamp::MAX_UTC), None);
+    }
+
+    #[test]
+    fn and_midnight() {
+        let date = NaiveDate::from_ymd_opt(2001, 2, 3).unwrap();
+        assert_eq!(date.and_midnight(), date.and_hms_opt(0, 0, 0).unwrap());
     }
 }
