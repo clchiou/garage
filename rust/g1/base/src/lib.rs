@@ -23,6 +23,7 @@
 #[cfg(feature = "collections_ext")]
 pub mod cache;
 pub mod collections;
+pub mod convert;
 pub mod every;
 pub mod fmt;
 pub mod future;
