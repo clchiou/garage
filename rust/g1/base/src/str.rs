@@ -1,4 +1,6 @@
+use std::any;
 use std::cmp;
+use std::fmt::Debug;
 use std::num::ParseIntError;
 use std::str::{self, FromStr};
 
@@ -8,6 +10,11 @@ pub trait StrExt {
 
     // Unlike Python, our `is_whitespace` returns true on empty strings.
     fn is_whitespace(&self) -> bool;
+
+    fn must_parse<F>(&self) -> F
+    where
+        F: FromStr,
+        <F as FromStr>::Err: Debug;
 
     // Helper function for using `str::make_ascii_lowercase`.
     fn transform<'a, F>(&self, buffer: &'a mut [u8], f: F) -> Option<&'a str>
@@ -25,6 +32,15 @@ impl StrExt for str {
 
     fn is_whitespace(&self) -> bool {
         self.chars().all(char::is_whitespace)
+    }
+
+    fn must_parse<F>(&self) -> F
+    where
+        F: FromStr,
+        <F as FromStr>::Err: Debug,
+    {
+        #[allow(clippy::expect_fun_call)]
+        self.parse().expect(any::type_name::<F>())
     }
 
     fn transform<'a, F>(&self, buffer: &'a mut [u8], f: F) -> Option<&'a str>
