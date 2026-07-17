@@ -10,6 +10,8 @@ use hyper::header::{ACCEPT_LANGUAGE, CONTENT_LENGTH, HeaderValue};
 use hyper::{Error, Request};
 use url::Url;
 
+use g1_base::str::StrExt;
+
 pub use g1_http::ResponseExt;
 
 pub trait RequestExt {
@@ -141,7 +143,7 @@ fn parse_quality_value(value: &str) -> Result<f64, &str> {
         r"(?x-u) ^ (?: 0 (?: \. [0-9]+ )? | 1 (?: \. 0+ )? ) $",
         value,
     ) {
-        Ok(value.parse().expect("parse_quality_value"))
+        Ok(value.must_parse())
     } else {
         Err(value)
     }

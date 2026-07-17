@@ -13,6 +13,7 @@ linkme.workspace = true # Required by g1_param.
 tokio.workspace = true
 tracing.workspace = true
 
+g1_base.workspace = true
 g1_cli = { workspace = true, features = ["param", "tracing"] }
 g1_param.workspace = true
 g1_tokio = { workspace = true, features = ["param"] }

@@ -6,6 +6,7 @@ use clap::Parser;
 use tokio::net::UdpSocket;
 use tokio::signal;
 
+use g1_base::str::StrExt;
 use g1_cli::{param::ParametersConfig, tracing::TracingConfig};
 
 use bt_base::NodeId;
@@ -22,7 +23,7 @@ struct Dhtd {
 }
 
 g1_param::define!(self_id: NodeId = rand::random());
-g1_param::define!(self_endpoint: SocketAddr = "0.0.0.0:6881".parse().expect("self_endpoint"));
+g1_param::define!(self_endpoint: SocketAddr = "0.0.0.0:6881".must_parse());
 
 g1_param::define!(bootstrap: Vec<String> = Default::default());
 

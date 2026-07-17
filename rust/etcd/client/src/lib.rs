@@ -20,13 +20,14 @@ use serde::Deserialize;
 use snafu::prelude::*;
 
 use g1_base::convert::MustInto;
+use g1_base::str::StrExt;
 use g1_base::sync::MutexExt;
 use g1_url::UrlExt;
 
 use crate::private::{Request, StreamRequest};
 use crate::response::Status;
 
-g1_param::define!(endpoint: Url = "http://127.0.0.1:2379".parse().unwrap());
+g1_param::define!(endpoint: Url = "http://127.0.0.1:2379".must_parse());
 g1_param::define!(auth: Option<Auth> = None);
 
 #[derive(Debug, Snafu)]

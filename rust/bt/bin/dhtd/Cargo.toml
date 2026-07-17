@@ -10,6 +10,7 @@ rand.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 
+g1_base.workspace = true
 g1_cli = { workspace = true, features = ["param", "tracing"] }
 g1_param.workspace = true
 g1_udp.workspace = true

@@ -15,6 +15,7 @@ use tokio::net::{TcpSocket, TcpStream};
 use tokio::signal;
 use tracing::Instrument;
 
+use g1_base::str::StrExt;
 use g1_cli::{param::ParametersConfig, tracing::TracingConfig};
 use g1_tokio::net;
 use g1_tokio::net::tcp::TcpListenerBuilder;
@@ -25,7 +26,7 @@ use g1_web::{Request, Response, Server};
 
 g1_param::define!(incoming: Vec<TcpListenerBuilder> = vec![
     TcpListenerBuilder {
-        endpoint: "127.0.0.1:8080".parse().expect("endpoint"),
+        endpoint: "127.0.0.1:8080".must_parse(),
         ..Default::default()
     },
 ]);

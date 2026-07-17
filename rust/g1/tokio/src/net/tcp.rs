@@ -74,6 +74,8 @@ mod param {
     use serde::Deserialize;
     use tokio::net::{TcpListener, TcpSocket};
 
+    use g1_base::str::StrExt;
+
     #[derive(Clone, Debug, Deserialize)]
     #[serde(default, deny_unknown_fields)]
     pub struct TcpListenerBuilder {
@@ -86,7 +88,7 @@ mod param {
     impl Default for TcpListenerBuilder {
         fn default() -> Self {
             Self {
-                endpoint: "0.0.0.0:0".parse().expect("endpoint"),
+                endpoint: "0.0.0.0:0".must_parse(),
                 reuseaddr: None,
                 reuseport: Some(true),
                 backlog: 1024,

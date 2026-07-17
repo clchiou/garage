@@ -9,6 +9,7 @@ use url::Url;
 
 use g1_base::collections::LilVec;
 use g1_base::iter::IteratorExt;
+use g1_base::str::StrExt;
 
 use crate::info_hash::InfoHash;
 
@@ -94,7 +95,7 @@ fn parse_xt_urn(urn: &str) -> Option<InfoHash> {
     )?;
 
     Some(if !info_hash.is_empty() {
-        info_hash.parse().expect("info hash")
+        info_hash.must_parse()
     } else {
         // Support Base32 for backwards compatibility.
         decode_base32(info_hash_base32.as_bytes()).into()

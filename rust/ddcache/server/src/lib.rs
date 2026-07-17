@@ -14,6 +14,7 @@ use std::time::Duration;
 use uuid::Uuid;
 use zmq::{Context, ROUTER};
 
+use g1_base::str::StrExt;
 use g1_tokio::net::tcp::TcpListenerBuilder;
 use g1_tokio::task::{JoinArray, JoinGuard};
 use g1_zmq::Socket;
@@ -31,7 +32,7 @@ g1_param::define!(self_id: Uuid = Uuid::new_v4());
 g1_param::define!(endpoints: Vec<String> = vec!["tcp://127.0.0.1:0".into()]);
 g1_param::define!(blob_servers: Vec<TcpListenerBuilder> = vec![
     TcpListenerBuilder {
-        endpoint: "127.0.0.1:0".parse().expect("endpoint"),
+        endpoint: "127.0.0.1:0".must_parse(),
         ..Default::default()
     },
 ]);
