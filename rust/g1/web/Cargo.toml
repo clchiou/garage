@@ -13,6 +13,7 @@ hyper-util = { workspace = true, features = ["tokio"] }
 tokio.workspace = true
 tracing.workspace = true
 
+g1_base.workspace = true
 g1_tokio.workspace = true
 
 [dev-dependencies]

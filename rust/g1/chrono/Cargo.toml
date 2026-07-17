@@ -5,3 +5,5 @@ edition.workspace = true
 
 [dependencies]
 chrono.workspace = true
+
+g1_base.workspace = true

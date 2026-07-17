@@ -19,6 +19,7 @@ use reqwest::{Response, StatusCode, Url};
 use serde::Deserialize;
 use snafu::prelude::*;
 
+use g1_base::convert::MustInto;
 use g1_base::sync::MutexExt;
 use g1_url::UrlExt;
 
@@ -462,7 +463,7 @@ impl Client {
     pub async fn lease_grant(&self, ttl: Duration, id: Option<i64>) -> Result<i64, Error> {
         let response = self
             .request(&request::LeaseGrant {
-                ttl: i64::try_from(ttl.as_secs()).unwrap(),
+                ttl: ttl.as_secs().must_into(),
                 id: id.unwrap_or(0),
             })
             .await?;

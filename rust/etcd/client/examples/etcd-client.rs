@@ -9,6 +9,7 @@ use base64::prelude::*;
 use clap::{Args, Parser, Subcommand};
 use futures::stream::{Stream, TryStreamExt};
 
+use g1_base::convert::{MustFrom, MustInto};
 use g1_cli::{param::ParametersConfig, tracing::TracingConfig};
 
 use etcd_client::request;
@@ -119,38 +120,38 @@ impl Program {
             }
             Command::Range(range) => {
                 let client = Client::new();
-                let range = RangeBounds::try_from(range).unwrap();
+                let range = RangeBounds::must_from(range);
                 show_kvs(&client.range(range, None).await?)
             }
             Command::RangePrefix(key) => {
                 let client = Client::new();
-                let key = etcd_client::Key::try_from(key).unwrap();
+                let key = etcd_client::Key::must_from(key);
                 show_kvs(&client.range_prefix(key, None).await?);
             }
             Command::Get(key) => {
                 let client = Client::new();
-                let key = etcd_client::Key::try_from(key).unwrap();
+                let key = etcd_client::Key::must_from(key);
                 show_vs(client.get(key).await?.as_ref());
             }
             Command::Put(put) => {
                 let client = Client::new();
                 let lease = put.lease;
-                let (key, value) = put.try_into().unwrap();
+                let (key, value) = put.must_into();
                 show_kvs(client.put(key, value, lease).await?.as_ref());
             }
             Command::Delete(range) => {
                 let client = Client::new();
-                let range = RangeBounds::try_from(range).unwrap();
+                let range = RangeBounds::must_from(range);
                 eprintln!("delete: {}", client.delete(range).await?);
             }
             Command::DeletePrefix(key) => {
                 let client = Client::new();
-                let key = etcd_client::Key::try_from(key).unwrap();
+                let key = etcd_client::Key::must_from(key);
                 eprintln!("delete: {}", client.delete_prefix(key).await?);
             }
             Command::DeleteKey(key) => {
                 let client = Client::new();
-                let key = etcd_client::Key::try_from(key).unwrap();
+                let key = etcd_client::Key::must_from(key);
                 show_kvs(client.delete_key(key).await?.as_ref());
             }
             Command::Txn(Txn { path }) => {
@@ -160,17 +161,17 @@ impl Program {
             }
             Command::Watch(range) => {
                 let client = Client::new();
-                let range = RangeBounds::try_from(range).unwrap();
+                let range = RangeBounds::must_from(range);
                 show_events(client.watch(range).await?).await?;
             }
             Command::WatchPrefix(key) => {
                 let client = Client::new();
-                let key = etcd_client::Key::try_from(key).unwrap();
+                let key = etcd_client::Key::must_from(key);
                 show_events(client.watch_prefix(key).await?).await?;
             }
             Command::WatchKey(key) => {
                 let client = Client::new();
-                let key = etcd_client::Key::try_from(key).unwrap();
+                let key = etcd_client::Key::must_from(key);
                 show_events(client.watch_key(key).await?).await?;
             }
             Command::LeaseGrant(grant) => {

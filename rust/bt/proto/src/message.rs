@@ -1,10 +1,10 @@
 use std::io;
-use std::num::TryFromIntError;
 
 use bitvec::prelude::*;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use snafu::prelude::*;
 
+use g1_base::convert::{MustFrom, MustInto};
 use g1_bytes::BufPeekExt;
 use g1_tokio::frame::{Decode, Encode, FrameSink, FrameStream};
 
@@ -187,7 +187,7 @@ impl Decode for Codec {
             },
         );
 
-        if buffer.len() < 4 + to_usize(size) {
+        if buffer.len() < 4 + usize::must_from(size) {
             return Ok(None);
         }
 
@@ -221,7 +221,7 @@ impl Decode for Codec {
             }
             BITFIELD => {
                 ensure_size_ge!(id, size, 1);
-                Message::Bitfield(buffer.copy_to_bytes(to_usize(size) - 1))
+                Message::Bitfield(buffer.copy_to_bytes(usize::must_from(size) - 1))
             }
             REQUEST => {
                 ensure_size!(id, size, 13);
@@ -239,7 +239,7 @@ impl Decode for Codec {
                         u64::from(buffer.get_u32()),
                         u64::from(size - 9),
                     ),
-                    buffer.copy_to_bytes(to_usize(size) - 9),
+                    buffer.copy_to_bytes(usize::must_from(size) - 9),
                 )
             }
             CANCEL => {
@@ -280,7 +280,10 @@ impl Decode for Codec {
             }
             EXTENDED => {
                 ensure_size_ge!(id, size, 2);
-                Message::Extended(buffer.get_u8(), buffer.copy_to_bytes(to_usize(size) - 2))
+                Message::Extended(
+                    buffer.get_u8(),
+                    buffer.copy_to_bytes(usize::must_from(size) - 2),
+                )
             }
             _ => return Err(Error::UnknownId { id }),
         }))
@@ -318,7 +321,7 @@ impl Encode<Message> for Codec {
                 buffer.put_u32(index);
             }
             Message::Bitfield(payload) => {
-                buffer.put_u32(1 + to_u32(payload.len()));
+                buffer.put_u32(1 + u32::must_from(payload.len()));
                 buffer.put_u8(BITFIELD);
                 buffer.put_slice(&payload);
             }
@@ -326,23 +329,23 @@ impl Encode<Message> for Codec {
                 buffer.put_u32(13);
                 buffer.put_u8(REQUEST);
                 buffer.put_u32(index);
-                buffer.put_u32(to_u32(offset));
-                buffer.put_u32(to_u32(size));
+                buffer.put_u32(offset.must_into());
+                buffer.put_u32(size.must_into());
             }
             Message::Piece(BlockRange(PieceIndex(index), offset, size), payload) => {
-                assert_eq!(to_usize(size), payload.len());
-                buffer.put_u32(9 + to_u32(payload.len()));
+                assert_eq!(usize::must_from(size), payload.len());
+                buffer.put_u32(9 + u32::must_from(payload.len()));
                 buffer.put_u8(PIECE);
                 buffer.put_u32(index);
-                buffer.put_u32(to_u32(offset));
+                buffer.put_u32(offset.must_into());
                 buffer.put_slice(&payload);
             }
             Message::Cancel(BlockRange(PieceIndex(index), offset, size)) => {
                 buffer.put_u32(13);
                 buffer.put_u8(CANCEL);
                 buffer.put_u32(index);
-                buffer.put_u32(to_u32(offset));
-                buffer.put_u32(to_u32(size));
+                buffer.put_u32(offset.must_into());
+                buffer.put_u32(size.must_into());
             }
             Message::Port(port) => {
                 buffer.put_u32(3);
@@ -366,8 +369,8 @@ impl Encode<Message> for Codec {
                 buffer.put_u32(13);
                 buffer.put_u8(REJECT);
                 buffer.put_u32(index);
-                buffer.put_u32(to_u32(offset));
-                buffer.put_u32(to_u32(size));
+                buffer.put_u32(offset.must_into());
+                buffer.put_u32(size.must_into());
             }
             Message::AllowedFast(PieceIndex(index)) => {
                 buffer.put_u32(5);
@@ -375,7 +378,7 @@ impl Encode<Message> for Codec {
                 buffer.put_u32(index);
             }
             Message::Extended(id, payload) => {
-                buffer.put_u32(2 + to_u32(payload.len()));
+                buffer.put_u32(2 + u32::must_from(payload.len()));
                 buffer.put_u8(EXTENDED);
                 buffer.put_u8(id);
                 buffer.put_slice(&payload);
@@ -470,20 +473,6 @@ impl Checker {
 
         Ok(())
     }
-}
-
-fn to_u32<T>(x: T) -> u32
-where
-    u32: TryFrom<T, Error = TryFromIntError>,
-{
-    x.try_into().expect("to_u32")
-}
-
-fn to_usize<T>(x: T) -> usize
-where
-    usize: TryFrom<T, Error = TryFromIntError>,
-{
-    x.try_into().expect("to_usize")
 }
 
 #[cfg(test)]

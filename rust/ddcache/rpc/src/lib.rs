@@ -15,6 +15,7 @@ use bytes::Bytes;
 use capnp::message;
 use capnp::serialize;
 
+use g1_base::convert::MustInto;
 use g1_capnp::{owner::Owner, result_capnp::result};
 use g1_zmq::envelope::Frame;
 
@@ -164,7 +165,7 @@ impl<'a> TryFrom<request::Reader<'a>> for Request {
                 Self::Write {
                     key: to_key(request.get_key()?)?,
                     metadata: to_metadata(request.get_metadata()?),
-                    size: to_size(request.get_size()),
+                    size: request.get_size().must_into(),
                     expire_at: to_expire_at(request.get_expire_at())?,
                 }
             }
@@ -201,7 +202,7 @@ impl<'a> TryFrom<request::Reader<'a>> for Request {
                 Self::Push {
                     key: to_key(request.get_key()?)?,
                     metadata: to_metadata(request.get_metadata()?),
-                    size: to_size(request.get_size()),
+                    size: request.get_size().must_into(),
                     expire_at: to_expire_at(request.get_expire_at())?,
                 }
             }
@@ -243,7 +244,7 @@ impl request::Builder<'_> {
                 let mut this = this.init_write();
                 this.set_key(key);
                 this.set_metadata(metadata.as_deref().unwrap_or(&[]));
-                this.set_size((*size).try_into().unwrap());
+                this.set_size((*size).must_into());
                 this.set_expire_at(expire_at.timestamp_u64());
             }
 
@@ -287,7 +288,7 @@ impl request::Builder<'_> {
                 let mut this = this.init_push();
                 this.set_key(key);
                 this.set_metadata(metadata.as_deref().unwrap_or(&[]));
-                this.set_size((*size).try_into().unwrap());
+                this.set_size((*size).must_into());
                 this.set_expire_at(expire_at.timestamp_u64());
             }
         }
@@ -393,7 +394,7 @@ impl<'a> TryFrom<response::metadata::Reader<'a>> for BlobMetadata {
     fn try_from(metadata: response::metadata::Reader<'a>) -> Result<Self, Self::Error> {
         Ok(Self {
             metadata: to_metadata(metadata.get_metadata()?),
-            size: to_size(metadata.get_size()),
+            size: metadata.get_size().must_into(),
             expire_at: to_expire_at(metadata.get_expire_at())?,
         })
     }
@@ -402,7 +403,7 @@ impl<'a> TryFrom<response::metadata::Reader<'a>> for BlobMetadata {
 impl response::metadata::Builder<'_> {
     pub fn set(&mut self, metadata: &BlobMetadata) {
         self.set_metadata(metadata.metadata.as_deref().unwrap_or(&[]));
-        self.set_size(metadata.size.try_into().unwrap());
+        self.set_size(metadata.size.must_into());
         self.set_expire_at(metadata.expire_at.timestamp_u64());
     }
 }
@@ -438,10 +439,6 @@ fn to_key(key: &[u8]) -> Result<Bytes, capnp::Error> {
 
 fn to_metadata(metadata: &[u8]) -> Option<Bytes> {
     (!metadata.is_empty()).then(|| Bytes::copy_from_slice(metadata))
-}
-
-fn to_size(size: u32) -> usize {
-    size.try_into().unwrap()
 }
 
 fn to_expire_at(expire_at: u64) -> Result<Option<Timestamp>, capnp::Error> {

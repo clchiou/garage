@@ -5,6 +5,8 @@ use bytes::{Bytes, BytesMut};
 use serde::de::{Deserialize, Deserializer, Error as _};
 use serde::ser::{Serialize, Serializer};
 
+use g1_base::convert::MustFrom;
+
 use bt_base::NodeId;
 use bt_base::compact::{CompactDecode, CompactEncode};
 use bt_bencode::Value;
@@ -85,7 +87,7 @@ fn encode_list_v4(node_info_list: &[NodeInfo]) -> BytesMut {
         node_info_list
             .iter()
             .cloned()
-            .map(|info| CompactNodeInfoV4::try_from(info).expect("ipv4")),
+            .map(CompactNodeInfoV4::must_from),
         &mut buffer,
     );
     buffer

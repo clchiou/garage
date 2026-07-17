@@ -14,6 +14,7 @@ use futures::stream::StreamExt;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 
+use g1_base::convert::MustInto;
 use g1_tokio::task::{Cancel, JoinGuard};
 use g1_tokio::time::queue::naive::FixedDelayQueue;
 
@@ -252,7 +253,7 @@ impl Actor {
             tracing::warn!(?envelope, "invalid routing id");
             return;
         }
-        let routing_id = RoutingId::from_be_bytes((*routing_id[0]).try_into().expect("routing_id"));
+        let routing_id = RoutingId::from_be_bytes((*routing_id[0]).must_into());
 
         let (_, response) = envelope.unwrap();
         tracing::trace!(routing_id, ?response);

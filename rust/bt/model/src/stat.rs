@@ -4,6 +4,7 @@ use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 
 use tokio::time::Instant;
 
+use g1_base::convert::{MustFrom, MustInto};
 use g1_base::sync::MutexExt;
 
 //
@@ -65,10 +66,7 @@ fn decay(dt: u32) -> f64 {
 }
 
 fn dt(now: Instant, earlier: Instant) -> u32 {
-    now.saturating_duration_since(earlier)
-        .as_secs()
-        .try_into()
-        .expect("u32")
+    now.saturating_duration_since(earlier).as_secs().must_into()
 }
 
 impl TorrentStat {
@@ -172,7 +170,7 @@ impl ExpMovAvg {
     fn add(&mut self, n: u64) {
         let now = Instant::now();
 
-        let x = f64::from(u32::try_from(n).expect("u32"));
+        let x = f64::from(u32::must_from(n));
 
         // Check whether `t(0)` has been initialized.
         //

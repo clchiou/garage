@@ -2,6 +2,8 @@ use capnp::Error;
 use capnp::message::{Builder, HeapAllocator, Reader, ReaderSegments, TypedBuilder};
 use capnp::traits::Owned;
 
+use g1_base::convert::MustFrom;
+
 pub trait BuilderExt: Sized {
     /// Allocates and builds the canonical form of the message.
     ///
@@ -37,7 +39,7 @@ impl BuilderExt for Builder<HeapAllocator> {
         S: ReaderSegments,
         T: Owned,
     {
-        let size = u32::try_from(reader.size_in_words()).expect("u32");
+        let size = u32::must_from(reader.size_in_words());
         let mut builder = Self::new(HeapAllocator::new().first_segment_words(size + 1));
         builder.set_root_canonical(reader.get_root::<T::Reader<'_>>()?)?;
         assert_eq!(builder.get_segments_for_output().len(), 1);

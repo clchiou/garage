@@ -12,6 +12,7 @@ use clap::{Args, Parser, Subcommand};
 use tokio::time;
 use zmq::{Context, REP};
 
+use g1_base::convert::MustFrom;
 use g1_cli::{param::ParametersConfig, tracing::TracingConfig};
 use g1_zmq::Socket;
 
@@ -170,7 +171,7 @@ impl Program {
 
     async fn write(&self, write: &Write) -> Result<(), Error> {
         let mut input = OpenOptions::new().read(true).open(&write.file).unwrap();
-        let size = usize::try_from(input.metadata().unwrap().len()).unwrap();
+        let size = usize::must_from(input.metadata().unwrap().len());
 
         let response = RawNaiveClient::connect(self.endpoint.clone())
             .unwrap()
@@ -243,7 +244,7 @@ impl Program {
 
     async fn push(&self, push: &Push) -> Result<(), Error> {
         let mut input = OpenOptions::new().read(true).open(&push.file).unwrap();
-        let size = usize::try_from(input.metadata().unwrap().len()).unwrap();
+        let size = usize::must_from(input.metadata().unwrap().len());
 
         let response = RawNaiveClient::connect(self.endpoint.clone())
             .unwrap()

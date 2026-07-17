@@ -9,6 +9,7 @@ use clap::Parser;
 use tokio::task;
 use tokio::time;
 
+use g1_base::convert::MustFrom;
 use g1_cli::{param::ParametersConfig, tracing::TracingConfig};
 use g1_tokio::os::{SendFile, Splice};
 
@@ -47,7 +48,7 @@ impl Program {
                     "size={} elapsed={:?} rate={} B/s",
                     size,
                     elapsed,
-                    f64::from(u32::try_from(size).unwrap()) / elapsed.as_secs_f64(),
+                    f64::from(u32::must_from(size)) / elapsed.as_secs_f64(),
                 );
             }
             // Verify that and `sendfile` and `splice` do not accidentally block the main loop.

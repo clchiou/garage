@@ -9,6 +9,8 @@ use http_body::{Frame, SizeHint};
 use http_body_util::combinators::BoxBody;
 use http_body_util::{BodyExt, Empty, Full};
 
+use g1_base::convert::{MustFrom, MustInto};
+
 // At the moment, for simplicity, we assume that a response body is either a memory buffer or a
 // file; thus, the error type is set to `std::io::Error`.
 pub type Body = BoxBody<Bytes, Error>;
@@ -62,15 +64,12 @@ impl FileBody {
         // yet optimized `read_buf_exact` for `File`, instead falling back to the normal `read`.
         // Therefore, at present, it offers no performance advantage over `read_exact`.
         let mut buffer = BytesMut::zeroed(self.buffer_size);
-        let n = cmp::min(
-            buffer.len(),
-            usize::try_from(self.remaining).expect("remaining"),
-        );
+        let n = cmp::min(buffer.len(), self.remaining.must_into());
         self.file
             .read_exact(&mut buffer[..n])
             .inspect_err(|_| self.remaining = 0)?;
         buffer.truncate(n);
-        self.remaining -= u64::try_from(n).expect("remaining");
+        self.remaining -= u64::must_from(n);
 
         Ok(Some(buffer.into()))
     }
@@ -107,7 +106,7 @@ mod test_harness {
 
     impl FileBody {
         pub(crate) fn remaining_usize(&self) -> usize {
-            self.remaining.try_into().expect("remaining")
+            self.remaining.must_into()
         }
 
         pub(crate) fn into_file(self) -> File {
@@ -133,7 +132,7 @@ mod tests {
 
         for offset in 0..TESTDATA.len() {
             for buffer_size in 1..=TESTDATA.len() {
-                file.seek(SeekFrom::Start(offset.try_into().expect("offset")))?;
+                file.seek(SeekFrom::Start(offset.must_into()))?;
                 let mut remaining = TESTDATA.len() - offset;
 
                 let mut body = FileBody::new(file, buffer_size)?;

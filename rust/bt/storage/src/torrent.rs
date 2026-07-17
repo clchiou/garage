@@ -7,6 +7,8 @@ use md5::Md5;
 use sha1::Sha1;
 use snafu::prelude::*;
 
+use g1_base::convert::{MustFrom, MustInto};
+
 use bt_base::md5_hash::MD5_HASH_SIZE;
 use bt_base::piece_hash::PIECE_HASH_SIZE;
 use bt_base::{Bitfield, BlockRange, Layout, PieceIndex};
@@ -52,7 +54,7 @@ impl Torrent {
         H: Digest,
     {
         let mut buffer = [0u8; 4096]; // TODO: What buffer size should we use?
-        let mut size = usize::try_from(size).expect("size");
+        let mut size = usize::must_from(size);
         while size > 0 {
             let buf_size = buffer.len().min(size);
             let buf = &mut buffer[0..buf_size];
@@ -163,7 +165,7 @@ impl Torrent {
     pub fn prepare_splice(&mut self, i: usize) -> Result<usize, Error> {
         let (offset, size) = self.info.file_range(i);
         self.seek(offset)?;
-        Ok(size.try_into().expect("file size to usize"))
+        Ok(size.must_into())
     }
 
     fn compute_file_hash(&mut self, size: u64) -> Result<[u8; MD5_HASH_SIZE], Error> {

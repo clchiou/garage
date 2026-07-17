@@ -3,6 +3,8 @@ use std::iter::Step;
 
 use snafu::prelude::*;
 
+use g1_base::convert::MustInto;
+
 //
 // A torrent is divided into pieces, and each piece is further divided into blocks.
 //
@@ -80,7 +82,7 @@ impl Layout {
 
     // Returning `usize` feels more natural than returning `u32`.
     pub fn num_pieces(&self) -> usize {
-        self.num_pieces.try_into().expect("num_pieces to usize")
+        self.num_pieces.must_into()
     }
 
     pub fn num_pieces_u32(&self) -> u32 {
@@ -107,7 +109,7 @@ impl Layout {
     pub fn to_piece_index(&self, offset: u64) -> (PieceIndex, u64) {
         assert!(offset <= self.size, "torrent offset out of range: {offset}");
         (
-            PieceIndex((offset / self.piece_size).try_into().expect("piece index")),
+            PieceIndex((offset / self.piece_size).must_into()),
             offset % self.piece_size,
         )
     }
@@ -137,13 +139,13 @@ impl Layout {
 
 impl From<PieceIndex> for usize {
     fn from(index: PieceIndex) -> Self {
-        index.0.try_into().expect("piece index to usize")
+        index.0.must_into()
     }
 }
 
 impl From<usize> for PieceIndex {
     fn from(index: usize) -> Self {
-        Self(index.try_into().expect("usize to piece index"))
+        Self(index.must_into())
     }
 }
 
@@ -183,11 +185,11 @@ impl BlockRange {
     }
 
     pub fn offset(self) -> usize {
-        self.1.try_into().expect("block offset to usize")
+        self.1.must_into()
     }
 
     pub fn size(self) -> usize {
-        self.2.try_into().expect("block size to usize")
+        self.2.must_into()
     }
 }
 

@@ -8,6 +8,8 @@ use clap::Args;
 use nix::fcntl::{OFlag, SpliceFFlags, splice};
 use nix::unistd::pipe2;
 
+use g1_base::convert::MustFrom;
+
 use bt_base::{BlockRange, InfoHash};
 use bt_metainfo::Info;
 use bt_storage::{Storage, Torrent};
@@ -204,7 +206,7 @@ fn read_exact<R>(mut reader: R, size: u64) -> Result<Bytes, Error>
 where
     R: Read,
 {
-    let mut data = vec![0u8; usize::try_from(size).expect("usize")];
+    let mut data = vec![0u8; usize::must_from(size)];
     reader.read_exact(&mut data)?;
     Ok(data.into())
 }

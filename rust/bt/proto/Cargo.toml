@@ -11,6 +11,7 @@ snafu.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 
+g1_base.workspace = true
 g1_bytes.workspace = true
 g1_tokio.workspace = true
 

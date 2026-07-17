@@ -9,6 +9,7 @@ use tokio::sync::mpsc::{self, Receiver, Sender};
 use tokio::time::{self, Instant};
 use tracing::Instrument;
 
+use g1_base::convert::MustFrom;
 use g1_tokio::os::{SendFile, Splice};
 use g1_tokio::task::{Cancel, JoinQueue};
 
@@ -170,7 +171,7 @@ async fn txrx_blob(
     match io {
         Io::Reader((reader, _permit)) => {
             let mut file = reader.open()?;
-            let expect = usize::try_from(reader.size()).unwrap();
+            let expect = usize::must_from(reader.size());
 
             let start = Instant::now();
             let size = time::timeout(timeout, stream.sendfile(&mut file, None, expect))

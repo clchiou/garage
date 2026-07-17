@@ -14,6 +14,7 @@ use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tokio::time::{self, Instant};
 use tracing::Instrument;
 
+use g1_base::convert::MustInto;
 use g1_tokio::task::{Cancel, JoinGuard, JoinQueue};
 use g1_zmq::Socket;
 use g1_zmq::duplex::Duplex;
@@ -520,7 +521,7 @@ impl Handler {
         tracing::debug!(token);
         self.send_response(rep::read_response(
             metadata,
-            size.try_into().unwrap(),
+            size.must_into(),
             expire_at,
             endpoint,
             token,
@@ -536,7 +537,7 @@ impl Handler {
 
         self.send_response(rep::read_metadata_response(
             reader.metadata(),
-            reader.size().try_into().unwrap(),
+            reader.size().must_into(),
             reader.expire_at(),
         ));
     }
@@ -611,7 +612,7 @@ impl Handler {
         }
 
         self.send_response(match writer.commit() {
-            Ok(()) => rep::write_metadata_response(metadata, size.try_into().unwrap(), expire_at),
+            Ok(()) => rep::write_metadata_response(metadata, size.must_into(), expire_at),
             Err(error) => {
                 tracing::warn!(key = %key.escape_ascii(), %error, "writer commit error");
                 rep::server_error()
@@ -636,7 +637,7 @@ impl Handler {
     async fn remove(self, key: Bytes) {
         let response = match self.storage.remove(key.clone()).await {
             Ok(Some((metadata, size, expire_at))) => {
-                rep::remove_response(metadata, size.try_into().unwrap(), expire_at)
+                rep::remove_response(metadata, size.must_into(), expire_at)
             }
             Ok(None) => rep::ok_none_response(),
             Err(error) => {
@@ -673,7 +674,7 @@ impl Handler {
         tracing::debug!(token);
         self.send_response(rep::pull_response(
             metadata,
-            size.try_into().unwrap(),
+            size.must_into(),
             expire_at,
             endpoint,
             token,

@@ -14,6 +14,7 @@ uuid.workspace = true
 
 etcd_client.workspace = true
 etcd_pubsub.workspace = true
+g1_base.workspace = true
 g1_capnp.workspace = true
 g1_chrono.workspace = true
 g1_param.workspace = true

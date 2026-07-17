@@ -6,6 +6,7 @@ use bytes::Bytes;
 use clap::{Args, Parser, Subcommand};
 use tokio::time::Instant;
 
+use g1_base::convert::MustFrom;
 use g1_cli::{param::ParametersConfig, tracing::TracingConfig};
 use g1_tokio::os::Splice;
 
@@ -106,7 +107,7 @@ impl Program {
                 };
                 eprintln!("read: metadata={:?}", reader.metadata());
                 eprintln!("read: expire_at={:?}", reader.expire_at());
-                let size = usize::try_from(reader.size()).unwrap();
+                let size = usize::must_from(reader.size());
                 reader.open()?.splice(&mut file, size).await?;
             }
             Command::Write(Write {
@@ -116,7 +117,7 @@ impl Program {
                 expire_at,
             }) => {
                 let mut file = OpenOptions::new().read(true).open(file)?;
-                let size = usize::try_from(file.metadata()?.len()).unwrap();
+                let size = usize::must_from(file.metadata()?.len());
                 let mut writer = storage.write(key.clone(), /* truncate */ true).await?;
                 writer.set_metadata(metadata.clone());
                 writer.set_expire_at(*expire_at);

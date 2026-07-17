@@ -15,6 +15,7 @@ use tokio::task;
 use tokio::time::{self, Instant};
 use tracing::Instrument;
 
+use g1_base::convert::MustInto;
 use g1_tokio::task::{Cancel, JoinGuard, JoinQueue};
 use g1_zmq::Socket;
 use g1_zmq::duplex::Duplex;
@@ -360,7 +361,7 @@ impl<'a> HandlerSpawner<'a> {
                 "max size exceeded",
             );
             Err(Err(Error::MaxKeySizeExceeded {
-                max: self.server.max_key_size.try_into().unwrap(),
+                max: self.server.max_key_size.must_into(),
             }))
         }
     }
@@ -375,7 +376,7 @@ impl<'a> HandlerSpawner<'a> {
                 "max size exceeded",
             );
             Err(Err(Error::MaxValueSizeExceeded {
-                max: self.server.max_value_size.try_into().unwrap(),
+                max: self.server.max_value_size.must_into(),
             }))
         }
     }

@@ -10,6 +10,7 @@ use tracing::Instrument;
 use uuid::Uuid;
 
 use etcd_pubsub::SubscriberError;
+use g1_base::convert::MustFrom;
 use g1_base::future::ReadyQueue;
 use g1_tokio::task::{Cancel, JoinArray, JoinGuard, JoinQueue};
 
@@ -357,7 +358,7 @@ impl Handler {
         let Some(reader) = self.storage.peek(key.clone()).await else {
             return Ok(false);
         };
-        let size = usize::try_from(reader.size()).unwrap();
+        let size = usize::must_from(reader.size());
 
         tracing::debug!(key = %key.escape_ascii());
         let result: Result<bool, Error> = try {

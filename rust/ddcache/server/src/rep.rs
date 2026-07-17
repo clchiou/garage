@@ -4,6 +4,7 @@ use bytes::Bytes;
 use capnp::message;
 use capnp::serialize;
 
+use g1_base::convert::MustInto;
 use g1_zmq::envelope::Frame;
 
 use ddcache_rpc::{
@@ -126,20 +127,16 @@ make_const_response!(unavailable_error => .init_err().set_unavailable(()));
 make_const_response!(invalid_request_error => .init_err().set_invalid_request(()));
 make_const_response!(
     max_key_size_exceeded_error =>
-    .init_err().set_max_key_size_exceeded(to_u32(crate::max_key_size()))
+    .init_err().set_max_key_size_exceeded((*crate::max_key_size()).must_into())
 );
 make_const_response!(
     max_metadata_size_exceeded_error =>
-    .init_err().set_max_metadata_size_exceeded(to_u32(crate::max_metadata_size()))
+    .init_err().set_max_metadata_size_exceeded((*crate::max_metadata_size()).must_into())
 );
 make_const_response!(
     max_blob_size_exceeded_error =>
-    .init_err().set_max_blob_size_exceeded(to_u32(crate::max_blob_size()))
+    .init_err().set_max_blob_size_exceeded((*crate::max_blob_size()).must_into())
 );
-
-fn to_u32(x: &usize) -> u32 {
-    (*x).try_into().unwrap()
-}
 
 #[cfg(test)]
 mod tests {

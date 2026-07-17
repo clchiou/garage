@@ -8,6 +8,7 @@ use clap::{Args, Parser, Subcommand};
 
 use tokio::time;
 
+use g1_base::convert::MustFrom;
 use g1_cli::{param::ParametersConfig, tracing::TracingConfig};
 
 use ddcache_client::Client;
@@ -126,7 +127,7 @@ impl Program {
 
     async fn write(client: Client, write: &Write) -> Result<(), Error> {
         let mut file = OpenOptions::new().read(true).open(&write.file)?;
-        let size = usize::try_from(file.metadata()?.len()).unwrap();
+        let size = usize::must_from(file.metadata()?.len());
         let written = if write.write_any {
             client
                 .write_any(

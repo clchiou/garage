@@ -5,6 +5,7 @@ use bytes::{Bytes, BytesMut};
 use clap::{Args, ValueEnum};
 use tokio::signal;
 
+use g1_base::convert::MustFrom;
 use g1_tokio::task::Joinable;
 
 use bt_bencode::own::bytes::Integer;
@@ -167,7 +168,7 @@ impl DownloadMetadata {
 
     async fn download(&mut self) -> Result<Bytes, Error> {
         let mut pieces = (0..self.num_pieces).collect::<HashSet<_>>();
-        for piece in 0..Integer::try_from(self.num_pieces).expect("Integer") {
+        for piece in 0..Integer::must_from(self.num_pieces) {
             self.send(bencode!({
                 MESSAGE_TYPE: REQUEST,
                 PIECE: piece,
@@ -196,7 +197,7 @@ impl DownloadMetadata {
                 REQUEST => {
                     self.send(bencode!({
                         MESSAGE_TYPE: REQUEST,
-                        PIECE: Integer::try_from(piece).expect("Integer"),
+                        PIECE: Integer::must_from(piece),
                     }))
                     .await;
                 }

@@ -6,6 +6,8 @@ use std::net::{Ipv4Addr, Ipv6Addr, SocketAddrV4, SocketAddrV6};
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use snafu::prelude::*;
 
+use g1_base::convert::MustInto;
+
 use crate::node_id::{NODE_ID_SIZE, NodeId};
 
 #[derive(Clone, Debug, Eq, PartialEq, Snafu)]
@@ -168,7 +170,7 @@ impl CompactSize for NodeId {
 
 impl CompactDecode for NodeId {
     fn decode_unchecked(compact: &[u8]) -> Self {
-        compact.try_into().expect("compact node id")
+        compact.must_into()
     }
 }
 

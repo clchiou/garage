@@ -4,6 +4,7 @@ use std::net::Ipv4Addr;
 use clap::Parser;
 use rand::prelude::*;
 
+use g1_base::convert::{MustFrom, MustInto};
 use g1_cli::{param::ParametersConfig, tracing::TracingConfig};
 use g1_tokio::net::icmp::{IcmpEchoHeader, IcmpSocket, IpPmtudisc};
 
@@ -72,8 +73,8 @@ impl PathMtu {
                         ee_type: 3,
                         ee_code: 4,
                         ..
-                    } if error.ee_errno == u32::try_from(libc::EMSGSIZE).unwrap() => {
-                        path_mtu = error.ee_info.try_into().unwrap();
+                    } if error.ee_errno == u32::must_from(libc::EMSGSIZE) => {
+                        path_mtu = error.ee_info.must_into();
                         have_recv_icmp_mtu_reply = true;
                     }
                     _ => std::panic!("unexpected sock_extended_err: {:?}", error),

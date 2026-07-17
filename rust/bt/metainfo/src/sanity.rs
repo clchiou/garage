@@ -3,6 +3,8 @@ use std::fmt;
 
 use snafu::prelude::*;
 
+use g1_base::convert::MustFrom;
+
 use super::{File, Info, Metainfo, Mode};
 
 pub trait SanityCheck {
@@ -170,7 +172,7 @@ impl Info {
 
     fn check_length_invalid(&self) -> Option<Symptom> {
         let length = self.length();
-        let n = u64::try_from(self.pieces().len()).expect("u64");
+        let n = u64::must_from(self.pieces().len());
         let p = self.piece_length();
         (!match n * p {
             0 => length == 0,

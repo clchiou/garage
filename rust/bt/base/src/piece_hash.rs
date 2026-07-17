@@ -6,6 +6,7 @@ use serde::de::{Deserialize, Deserializer, Error as _};
 use serde::ser::{Serialize, Serializer};
 use snafu::prelude::*;
 
+use g1_base::convert::MustInto;
 use g1_base::fmt::{DebugExt, Hex};
 
 #[derive(Clone, DebugExt, Eq, PartialEq)]
@@ -87,7 +88,7 @@ impl PieceHashes {
         let index = index * PIECE_HASH_SIZE;
         self.0
             .get(index..index + PIECE_HASH_SIZE)
-            .map(|slice| PieceHash(slice.try_into().expect("piece hash")))
+            .map(|slice| PieceHash(slice.must_into()))
     }
 }
 

@@ -9,6 +9,8 @@ use std::path::PathBuf;
 
 use clap::Args;
 
+use g1_base::convert::MustInto;
+
 use bt_base::{InfoHash, PieceIndex};
 use bt_metainfo::Info;
 use bt_storage::Storage;
@@ -42,7 +44,7 @@ fn piece_index_and_size(info: &Info, piece_hash: PieceHash) -> Result<(PieceInde
         .iter()
         .position(|hash| hash.as_ref() as &[u8] == piece_hash.as_ref() as &[u8])
     {
-        Some(index) => PieceIndex(index.try_into().expect("piece index")),
+        Some(index) => PieceIndex(index.must_into()),
         None => return Err(Error::other(format!("piece hash not found: {piece_hash}"))),
     };
     let size = info.layout().map_err(Error::other)?.piece_size(index);

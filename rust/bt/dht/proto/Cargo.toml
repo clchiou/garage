@@ -9,6 +9,8 @@ rand.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_bytes.workspace = true
 
+g1_base.workspace = true
+
 bt_base.workspace = true
 bt_bencode.workspace = true
 bt_serde.workspace = true

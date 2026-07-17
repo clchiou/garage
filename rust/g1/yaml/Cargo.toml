@@ -5,3 +5,6 @@ edition.workspace = true
 
 [dependencies]
 serde_yaml.workspace = true
+
+[dev-dependencies]
+g1_base.workspace = true

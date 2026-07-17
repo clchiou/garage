@@ -9,6 +9,7 @@ use tokio::sync::{mpsc, oneshot, watch};
 use tokio::time::{self, Instant};
 use zmq::{Context, DEALER};
 
+use g1_base::convert::MustInto;
 use g1_base::fmt::{DebugExt, InsertPlaceholder};
 use g1_tokio::task::Cancel;
 use g1_zmq::Socket;
@@ -175,7 +176,7 @@ impl Actor {
             routing_id.len() == 1 && routing_id[0].len() == 8,
             InvalidRoutingIdSnafu { response },
         );
-        let routing_id = RoutingId::from_be_bytes((*routing_id[0]).try_into().unwrap());
+        let routing_id = RoutingId::from_be_bytes((*routing_id[0]).must_into());
 
         let response = Self::decode(response);
         tracing::debug!(?response);

@@ -10,6 +10,7 @@ tracing.workspace = true
 uuid.workspace = true
 
 etcd_pubsub.workspace = true
+g1_base.workspace = true
 
 ddcache_client_raw.workspace = true
 ddcache_client_service.workspace = true

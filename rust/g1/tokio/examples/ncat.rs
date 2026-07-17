@@ -11,6 +11,7 @@ use tokio::{
     net::{TcpListener, TcpSocket, UdpSocket},
 };
 
+use g1_base::convert::{MustFrom, MustInto};
 use g1_base::str::Hex;
 use g1_cli::{param::ParametersConfig, tracing::TracingConfig};
 use g1_tokio::{
@@ -104,7 +105,7 @@ impl NetCat {
             io::stdin().read_to_end(&mut payload).await?;
             socket
                 .send(Message::Piece(
-                    (0, 0, payload.len().try_into().unwrap()).into(),
+                    (0, 0, payload.len().must_into()).into(),
                     payload.into(),
                 ))
                 .await?;
@@ -140,7 +141,7 @@ impl NetCat {
         } else {
             let mut payload = Vec::new();
             io::stdin().read_to_end(&mut payload).await?;
-            let size = Bytes::copy_from_slice(&u32::try_from(payload.len()).unwrap().to_be_bytes());
+            let size = Bytes::copy_from_slice(&u32::must_from(payload.len()).to_be_bytes());
 
             peer.set_self_choking(false);
             let (_, _, response_send) = recvs.request_recv.recv().await.unwrap();

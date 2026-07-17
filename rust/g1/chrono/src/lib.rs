@@ -2,6 +2,8 @@
 
 use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Utc};
 
+use g1_base::convert::MustInto;
+
 pub type Timestamp = DateTime<Utc>;
 
 pub trait TimestampExt: Sized {
@@ -25,7 +27,7 @@ impl TimestampExt for Timestamp {
     }
 
     fn timestamp_u64(&self) -> u64 {
-        self.timestamp().try_into().expect("u64")
+        self.timestamp().must_into()
     }
 
     fn tomorrow(&self) -> Option<Self> {

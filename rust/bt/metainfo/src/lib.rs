@@ -10,6 +10,7 @@ use serde::ser::Serializer;
 use serde::{Deserialize, Serialize};
 
 use g1_base::cmp::PartialEqExt;
+use g1_base::convert::MustInto;
 
 use bt_base::layout;
 use bt_base::{InfoHash, Layout, Md5Hash, PieceHashes};
@@ -284,7 +285,7 @@ impl Info {
     pub fn layout(&self) -> Result<Layout, layout::Error> {
         Layout::new(
             self.length(),
-            self.pieces().len().try_into().expect("num_pieces"),
+            self.pieces().len().must_into(),
             self.piece_length(),
         )
     }

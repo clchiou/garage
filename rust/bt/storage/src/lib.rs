@@ -16,6 +16,8 @@ use std::sync::Arc;
 use bytes::Bytes;
 use snafu::prelude::*;
 
+use g1_base::convert::MustInto;
+
 use bt_base::InfoHash;
 use bt_metainfo::{Info, Metainfo};
 
@@ -153,7 +155,7 @@ where
     F: AsRawFd,
 {
     // TODO: `fallocate` is Linux-specific.  Should we use `posix_fallocate` instead?
-    if unsafe { libc::fallocate64(file.as_raw_fd(), 0, 0, size.try_into().expect("size")) } < 0 {
+    if unsafe { libc::fallocate64(file.as_raw_fd(), 0, 0, size.must_into()) } < 0 {
         return Err(io::Error::last_os_error());
     }
     Ok(())
