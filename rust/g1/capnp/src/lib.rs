@@ -1,4 +1,11 @@
+#![feature(iterator_try_collect)]
+#![feature(min_specialization)]
+#![feature(trusted_len)]
+#![feature(try_trait_v2)]
+#![feature(try_trait_v2_residual)]
+
 pub mod dynamic;
+pub mod iter;
 pub mod message;
 pub mod owner;
 pub mod strict;
