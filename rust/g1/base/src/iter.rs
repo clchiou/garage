@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::error;
 use std::fmt;
-use std::iter::Peekable;
+use std::iter::{Peekable, TrustedLen};
 
 /// Extends the `std::iter::Iterator` trait.
 pub trait IteratorExt: Iterator {
@@ -35,6 +35,16 @@ pub trait IteratorExt: Iterator {
         let mut items: Vec<_> = self.collect();
         items.sort_by_key(to_key);
         items
+    }
+
+    // `TrustedLen` does not provide a `len`-like method, likely because it is a marker trait.
+    fn trusted_len(&self) -> usize
+    where
+        Self: TrustedLen,
+    {
+        let (lower, upper) = self.size_hint();
+        assert_eq!(Some(lower), upper);
+        lower
     }
 }
 
