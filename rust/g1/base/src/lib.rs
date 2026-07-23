@@ -17,10 +17,14 @@
 #![feature(specialization)]
 #![feature(trait_alias)]
 #![feature(trusted_len)]
+#![feature(try_trait_v2)]
+#![feature(try_trait_v2_residual)]
+#![feature(unboxed_closures)]
 #![cfg_attr(feature = "collections_ext", feature(try_blocks))]
 #![cfg_attr(feature = "collections_ext", feature(type_alias_impl_trait))]
 #![cfg_attr(test, feature(assert_matches))]
 
+pub mod borrow;
 #[cfg(feature = "collections_ext")]
 pub mod cache;
 pub mod collections;
