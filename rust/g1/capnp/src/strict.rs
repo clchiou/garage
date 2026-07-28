@@ -1,8 +1,10 @@
 //! Provide a "strict" version of getters that crashes on `capnp::Error`.
 
+use capnp::message::{Allocator, ReaderSegments, TypedBuilder, TypedReader};
+use capnp::struct_list;
 use capnp::text;
 use capnp::text_list;
-use capnp::traits::ListIter;
+use capnp::traits::{IntoInternalStructReader, ListIter, Owned, OwnedStruct};
 
 pub trait TextExt<'a> {
     fn must_to_str(self) -> &'a str;
@@ -71,5 +73,73 @@ impl<'a> Iterator for TextListIter<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         self.0.next().map(|text| text.expect("next").must_to_str())
+    }
+}
+
+pub trait StructListBuilderExt<T>
+where
+    T: OwnedStruct,
+{
+    fn must_set_with_caveats<'b>(&mut self, index: u32, value: T::Reader<'b>)
+    where
+        T::Reader<'b>: IntoInternalStructReader<'b>;
+}
+
+impl<'a, T> StructListBuilderExt<T> for struct_list::Builder<'a, T>
+where
+    T: OwnedStruct,
+{
+    fn must_set_with_caveats<'b>(&mut self, index: u32, value: T::Reader<'b>)
+    where
+        T::Reader<'b>: IntoInternalStructReader<'b>,
+    {
+        self.set_with_caveats(index, value)
+            .expect("set_with_caveats")
+    }
+}
+
+pub trait TypedReaderExt<T>
+where
+    T: Owned,
+{
+    fn root(&self) -> T::Reader<'_>;
+}
+
+impl<S, T> TypedReaderExt<T> for TypedReader<S, T>
+where
+    S: ReaderSegments,
+    T: Owned,
+{
+    fn root(&self) -> T::Reader<'_> {
+        self.get().expect("root")
+    }
+}
+
+pub trait TypedBuilderExt<T>
+where
+    T: Owned,
+{
+    fn root(&mut self) -> T::Builder<'_>;
+
+    fn root_as_reader(&self) -> T::Reader<'_>;
+
+    fn must_set_root(&mut self, value: T::Reader<'_>);
+}
+
+impl<T, A> TypedBuilderExt<T> for TypedBuilder<T, A>
+where
+    T: Owned,
+    A: Allocator,
+{
+    fn root(&mut self) -> T::Builder<'_> {
+        self.get_root().expect("root")
+    }
+
+    fn root_as_reader(&self) -> T::Reader<'_> {
+        self.get_root_as_reader().expect("root")
+    }
+
+    fn must_set_root(&mut self, value: T::Reader<'_>) {
+        self.set_root(value).expect("root")
     }
 }
