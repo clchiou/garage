@@ -1,5 +1,8 @@
 #![feature(try_blocks)]
 
+#[cfg(feature = "serde")]
+pub mod serde;
+
 use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Utc};
 
 use g1_base::convert::MustInto;
