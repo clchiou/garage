@@ -2,6 +2,14 @@ use std::borrow::Borrow;
 
 pub use g1_base_derive::{Deref, DerefMut};
 
+// Sometimes we need to work around `Deref` not being reflexive.
+#[derive(Clone, Debug, Deref)]
+pub struct AsDeref<T>(pub T);
+
+// Ditto.
+#[derive(Clone, Debug, Deref, DerefMut)]
+pub struct AsDerefMut<T>(pub T);
+
 /// Implements compound assignment operators for slice types.
 pub struct SliceCompoundAssignOp<'a, T>(pub &'a mut [T]);
 
