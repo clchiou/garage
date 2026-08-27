@@ -1,8 +1,12 @@
 use std::io::Error;
 use std::net::SocketAddr;
+use std::time::Duration;
 
+use bytes::Bytes;
 use clap::Parser;
+use futures::stream::{self, StreamExt};
 use tokio::net::{TcpListener, TcpSocket};
+use tokio::time;
 
 use g1_cli::{param::ParametersConfig, tracing::TracingConfig};
 use g1_web::response;
@@ -25,8 +29,17 @@ impl Program {
     async fn execute(&self) -> Result<(), Error> {
         let (_, mut guard) = Server::spawn(
             self.bind()?,
-            service::service_fn(|_| async {
-                Response::new(response::body::full(b"Hello, World!"))
+            service::service_fn(|request| async move {
+                if request.uri().path() == "/stream" {
+                    Response::new(response::body::stream(
+                        stream::iter(b"Hello, World!".windows(1)).then(|bytes| async move {
+                            time::sleep(Duration::from_secs(1)).await;
+                            Ok(Bytes::from_static(bytes))
+                        }),
+                    ))
+                } else {
+                    Response::new(response::body::full(b"Hello, World!"))
+                }
             }),
         );
         (&mut guard).await;

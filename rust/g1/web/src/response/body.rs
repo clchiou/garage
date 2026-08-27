@@ -5,14 +5,15 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use bytes::{Bytes, BytesMut};
+use futures::stream::{Stream, TryStreamExt};
 use http_body::{Frame, SizeHint};
 use http_body_util::combinators::BoxBody;
-use http_body_util::{BodyExt, Empty, Full};
+use http_body_util::{BodyExt, Empty, Full, StreamBody};
 
 use g1_base::convert::{MustFrom, MustInto};
 
-// At the moment, for simplicity, we assume that a response body is either a memory buffer or a
-// file; thus, the error type is set to `std::io::Error`.
+// At the moment, for simplicity, we assume that a response body is most likely to be a memory
+// buffer or a file; thus, the error type is set to `std::io::Error`.
 pub type Body = BoxBody<Bytes, Error>;
 
 const BUFFER_SIZE: usize = 8192; // TODO: What size should we use?
@@ -31,6 +32,13 @@ pub fn bytes(data: Bytes) -> Body {
 
 pub fn file(file: File) -> Result<Body, Error> {
     Ok(FileBody::new(file, BUFFER_SIZE)?.boxed())
+}
+
+pub fn stream<S>(stream: S) -> Body
+where
+    S: Stream<Item = Result<Bytes, Error>> + Send + Sync + 'static,
+{
+    StreamBody::new(stream.map_ok(Frame::data)).boxed()
 }
 
 /// Response body that consists of a `File`.
