@@ -1,7 +1,10 @@
 #![feature(iterator_try_collect)]
+#![cfg_attr(feature = "tokio", feature(box_into_inner))]
 
 mod response;
 mod serde_impl;
+#[cfg(feature = "tokio")]
+mod tokio_impl;
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -13,6 +16,8 @@ use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
 
 pub use crate::response::{Encoding, ResponseExt};
+#[cfg(feature = "tokio")]
+pub use crate::tokio_impl::Reader;
 
 //
 // Implementer's Notes:

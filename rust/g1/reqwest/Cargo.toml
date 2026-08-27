@@ -16,8 +16,20 @@ url = { workspace = true, features = ["serde"] } # Enable additional features fo
 # dependencies.
 g1_param.workspace = true
 
+# feature: tokio
+bytes = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true }
+g1_base = { workspace = true, optional = true }
+
 [dev-dependencies]
 clap.workspace = true
 linkme.workspace = true # Required by g1_param.
 tokio.workspace = true
 g1_cli = { workspace = true, features = ["param", "tracing"] }
+
+[[example]]
+name = "http-get"
+required-features = ["tokio"]
+
+[features]
+tokio = ["dep:bytes", "dep:tokio", "dep:g1_base"]

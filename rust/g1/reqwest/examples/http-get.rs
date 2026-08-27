@@ -1,12 +1,13 @@
-use std::fs::OpenOptions;
-use std::io::{self, Error, Write};
+use std::io::Error;
 use std::path::PathBuf;
 
 use clap::Parser;
 use reqwest::Url;
+use tokio::fs::OpenOptions;
+use tokio::io::{self, AsyncWrite};
 
 use g1_cli::{param::ParametersConfig, tracing::TracingConfig};
-use g1_reqwest::ClientBuilder;
+use g1_reqwest::{ClientBuilder, ResponseExt};
 
 g1_param::define!(client: ClientBuilder = Default::default());
 
@@ -26,7 +27,7 @@ impl Program {
     async fn execute(&self) -> Result<(), Error> {
         let client = client().clone().build().map_err(Error::other)?;
 
-        let mut response = client
+        let response = client
             .get(self.url.clone())
             .send()
             .await
@@ -37,22 +38,20 @@ impl Program {
             eprintln!("{}: {}", n, v.as_bytes().escape_ascii());
         }
 
-        let mut output = self.open()?;
-        while let Some(chunk) = response.chunk().await.map_err(Error::other)? {
-            output.write_all(&chunk)?;
-        }
+        io::copy(&mut response.reader(), &mut self.open().await?).await?;
 
         Ok(())
     }
 
-    fn open(&self) -> Result<Box<dyn Write>, Error> {
+    async fn open(&self) -> Result<Box<dyn AsyncWrite + Unpin>, Error> {
         Ok(match self.output.as_ref() {
             Some(output) => Box::new(
                 OpenOptions::new()
                     .create(true)
                     .write(true)
                     .truncate(true)
-                    .open(output)?,
+                    .open(output)
+                    .await?,
             ),
             None => Box::new(io::stdout()),
         })

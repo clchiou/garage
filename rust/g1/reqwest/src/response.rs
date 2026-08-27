@@ -5,12 +5,18 @@ use mime::Mime;
 use reqwest::Response;
 use reqwest::header::CONTENT_TYPE;
 
+#[cfg(feature = "tokio")]
+use crate::tokio_impl::Reader;
+
 pub trait ResponseExt {
     fn is_cloudflare_challenge_page(&self) -> bool;
 
     // `Response::text` is copied here because it consumes the `Response` value and performs a
     // lossy conversion, making it sometimes unwieldy.
     fn encoding(&self) -> Encoding;
+
+    #[cfg(feature = "tokio")]
+    fn reader(self) -> Reader;
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -37,6 +43,11 @@ impl ResponseExt for Response {
             .and_then(|mime| mime.get_param("charset").map(|charset| charset.as_str()))
             .unwrap_or("utf-8");
         Encoding(encoding_rs::Encoding::for_label(encoding_name.as_bytes()).unwrap_or(UTF_8))
+    }
+
+    #[cfg(feature = "tokio")]
+    fn reader(self) -> Reader {
+        Reader::new(self)
     }
 }
 
