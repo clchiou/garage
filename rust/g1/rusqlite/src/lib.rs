@@ -38,6 +38,11 @@ pub struct ReadOnly;
 #[derive(Clone, Debug)]
 pub struct ReadWrite;
 
+// Opens the database file for reading and writing, but does not create the file if it does not
+// already exist.
+#[derive(Clone, Debug)]
+pub struct ReadWriteStrict;
+
 #[derive(Clone, Debug)]
 pub struct Apply<O, I>(PhantomData<O>, PhantomData<I>);
 
@@ -57,6 +62,8 @@ pub trait Init {
     fn init(conn: &Connection) -> Result<(), Error>;
 }
 
+// It is a bit confusing, but this is intended for creating tables, indices, etc., rather than the
+// database file.
 pub trait Create {
     fn create(conn: &Connection) -> Result<(), Error>;
 }
@@ -150,6 +157,32 @@ impl Open for ReadWrite {
         //
         // [rusqlite]: https://github.com/rusqlite/rusqlite/blob/master/libsqlite3-sys/build.rs#L123
         // [SQLite]: https://sqlite.org/pragma.html#pragma_foreign_keys
+        conn.pragma_update(None, "foreign_keys", true)?;
+
+        Ok(conn)
+    }
+
+    fn create<C>(conn: &Connection) -> Result<(), Error>
+    where
+        C: Create,
+    {
+        C::create(conn)
+    }
+}
+
+impl Open for ReadWriteStrict {
+    fn open<P>(path: P) -> Result<Connection, Error>
+    where
+        P: AsRef<Path>,
+    {
+        let conn = Connection::open_with_flags(
+            path,
+            OpenFlags::SQLITE_OPEN_READ_WRITE
+                | OpenFlags::SQLITE_OPEN_URI
+                | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+        )?;
+
+        // Ditto.
         conn.pragma_update(None, "foreign_keys", true)?;
 
         Ok(conn)
