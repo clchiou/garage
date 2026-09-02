@@ -16,6 +16,7 @@ url = { workspace = true, features = ["serde"] } # Enable additional features fo
 
 g1_base.workspace = true
 g1_param.workspace = true
+g1_reqwest.workspace = true
 g1_url.workspace = true
 
 [dev-dependencies]

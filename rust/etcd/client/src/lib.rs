@@ -22,6 +22,7 @@ use snafu::prelude::*;
 use g1_base::convert::MustInto;
 use g1_base::str::StrExt;
 use g1_base::sync::MutexExt;
+use g1_reqwest::RequestBuilderExt;
 use g1_url::UrlExt;
 
 use crate::private::{Request, StreamRequest};
@@ -268,12 +269,14 @@ impl Client {
         let request = request.encode();
         tracing::debug!(%endpoint, request = %unsafe { str::from_utf8_unchecked(&request) });
 
-        let mut request = self.client.post(endpoint).body(request);
-        for (name, value) in headers {
-            request = request.header(name, value);
-        }
-
-        let response = request.send().await.context(HttpSnafu)?;
+        let response = self
+            .client
+            .post(endpoint)
+            .headers_extend(headers)
+            .body(request)
+            .send()
+            .await
+            .context(HttpSnafu)?;
 
         // We currently treat all non-200 status codes as errors.
         let status = response.status();
