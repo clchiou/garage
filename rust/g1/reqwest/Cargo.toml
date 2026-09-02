@@ -5,6 +5,7 @@ edition.workspace = true
 
 [dependencies]
 encoding_rs.workspace = true
+http.workspace = true
 mime.workspace = true
 regex.workspace = true
 reqwest = { workspace = true, features = ["brotli", "deflate", "gzip", "socks", "zstd"] }

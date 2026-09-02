@@ -1,6 +1,7 @@
 #![feature(iterator_try_collect)]
 #![cfg_attr(feature = "tokio", feature(box_into_inner))]
 
+mod request;
 mod response;
 mod serde_impl;
 #[cfg(feature = "tokio")]
@@ -15,6 +16,7 @@ use reqwest::{Client, Error, Proxy, Url};
 use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
 
+pub use crate::request::RequestBuilderExt;
 pub use crate::response::{Encoding, ResponseExt};
 #[cfg(feature = "tokio")]
 pub use crate::tokio_impl::Reader;
