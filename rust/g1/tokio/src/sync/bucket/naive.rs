@@ -6,7 +6,7 @@ use tokio::time::{self, Instant};
 #[derive(Debug)]
 pub struct TokenBucket {
     n: f64,
-    last_fill: Instant,
+    last_filled: Instant,
     rate: f64,
     size: f64,
 }
@@ -17,13 +17,29 @@ impl TokenBucket {
         assert!(size > 0.0);
         Self {
             n: size, // Or should we start with an empty bucket?
-            last_fill: Instant::now(),
+            last_filled: Instant::now(),
             rate,
             size,
         }
     }
 
     pub async fn acquire(&mut self, n: f64) {
+        // Typically, a token bucket does not allow a caller to request more tokens than its
+        // capacity.  I am not sure whether this is a good idea, but here we allow it to accumulate
+        // excess tokens as if it were large enough to hold them.
+        if n > self.size {
+            // This is somewhat arbitrary, but we first fill (and cap!) the bucket normally and
+            // then accumulate the excess tokens.  This prevents an over-capacity request after an
+            // idle period from being satisfied immediately.
+            self.fill();
+            // If `acquire` is cancelled, the caller loses the imaginary excess tokens and must
+            // start over.  (This is a bit weird, but we are already in a strange place.)
+            time::sleep(Duration::from_secs_f64((n - self.n) / self.rate)).await;
+            self.n = 0.0;
+            self.last_filled = Instant::now();
+            return;
+        }
+
         loop {
             match self.try_acquire(n) {
                 Ok(()) => break,
@@ -45,9 +61,9 @@ impl TokenBucket {
 
     fn fill(&mut self) {
         let now = Instant::now();
-        let t = now.duration_since(self.last_fill).as_secs_f64();
+        let t = now.duration_since(self.last_filled).as_secs_f64();
         self.n = (self.n + self.rate * t).min(self.size);
-        self.last_fill = now;
+        self.last_filled = now;
     }
 }
 
@@ -55,14 +71,14 @@ impl TokenBucket {
 mod tests {
     use super::*;
 
-    fn assert_bucket(bucket: &TokenBucket, n: f64, last_fill: Instant) {
+    fn assert_bucket(bucket: &TokenBucket, n: f64, last_filled: Instant) {
         assert!(
             (bucket.n - n).abs() < 1e-3,
             "assert_bucket: expect bucket.n == {}: {}",
             n,
             bucket.n
         );
-        assert_eq!(bucket.last_fill, last_fill);
+        assert_eq!(bucket.last_filled, last_filled);
     }
 
     fn ms(millis: u64) -> Duration {
@@ -101,6 +117,26 @@ mod tests {
             assert_eq!(Instant::now(), t0 + ms(2000));
 
             assert_bucket(&bucket, 0.0, t0 + ms(2000));
+        }
+
+        {
+            let t0 = Instant::now();
+            let mut bucket = TokenBucket::new(1.0, 1.0);
+            assert_bucket(&bucket, 1.0, t0);
+
+            bucket.acquire(3.0).await;
+            assert_bucket(&bucket, 0.0, t0 + ms(2000));
+            assert_eq!(Instant::now(), t0 + ms(2000));
+
+            bucket.acquire(3.0).await;
+            assert_bucket(&bucket, 0.0, t0 + ms(5000));
+            assert_eq!(Instant::now(), t0 + ms(5000));
+
+            time::advance(ms(500)).await;
+
+            bucket.acquire(3.0).await;
+            assert_bucket(&bucket, 0.0, t0 + ms(8000));
+            assert_eq!(Instant::now(), t0 + ms(8000));
         }
     }
 
