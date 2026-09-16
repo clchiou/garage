@@ -253,7 +253,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::assert_matches::assert_matches;
+    use std::assert_matches;
 
     use bytes::Bytes;
     use serde::de::Deserialize;

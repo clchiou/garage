@@ -27,7 +27,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::assert_matches::assert_matches;
+    use std::assert_matches;
     use std::io::{Error, ErrorKind};
     use std::time::Duration;
 

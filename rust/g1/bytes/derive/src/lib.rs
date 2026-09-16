@@ -387,7 +387,7 @@ impl Generator<'_, '_, BufMutExt> {
 
 #[cfg(test)]
 mod tests {
-    use std::assert_matches::assert_matches;
+    use std::assert_matches;
 
     use syn::FieldsNamed;
 
@@ -692,7 +692,7 @@ pub(crate) mod fields {
 
     #[cfg(test)]
     mod tests {
-        use std::assert_matches::assert_matches;
+        use std::assert_matches;
 
         use syn::FieldsNamed;
 
@@ -873,7 +873,7 @@ pub(crate) mod field {
 
     #[cfg(test)]
     mod tests {
-        use std::assert_matches::assert_matches;
+        use std::assert_matches;
 
         use syn::FieldsNamed;
 
@@ -1014,7 +1014,7 @@ pub(crate) mod attr {
 
     #[cfg(test)]
     mod tests {
-        use std::assert_matches::assert_matches;
+        use std::assert_matches;
 
         use crate::error;
 

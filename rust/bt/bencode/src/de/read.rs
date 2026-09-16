@@ -457,7 +457,7 @@ impl Token {
 
 #[cfg(test)]
 mod tests {
-    use std::assert_matches::assert_matches;
+    use std::assert_matches;
 
     use super::super::strict::Strict;
 

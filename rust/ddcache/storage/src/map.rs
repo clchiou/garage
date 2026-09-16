@@ -1,4 +1,4 @@
-use std::assert_matches::assert_matches;
+use std::assert_matches;
 use std::cmp::Reverse;
 use std::io::Error;
 use std::path::Path;

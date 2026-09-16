@@ -420,7 +420,7 @@ impl<T, const N: usize> LilVec<T, N> {
 
 #[cfg(test)]
 mod tests {
-    use std::assert_matches::assert_matches;
+    use std::assert_matches;
 
     use super::super::array::test_harness::*;
     use super::*;

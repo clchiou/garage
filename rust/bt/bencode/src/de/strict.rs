@@ -1,5 +1,5 @@
 use std::any;
-use std::assert_matches::assert_matches;
+use std::assert_matches;
 use std::num::IntErrorKind;
 
 use bytes::Bytes;
@@ -80,7 +80,7 @@ impl Strictness for NonStrict {
 
 #[cfg(test)]
 mod tests {
-    use std::assert_matches::assert_matches;
+    use std::assert_matches;
 
     use super::*;
 

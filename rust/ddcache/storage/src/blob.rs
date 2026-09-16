@@ -123,7 +123,7 @@ mod test_harness {
 
 #[cfg(test)]
 mod tests {
-    use std::assert_matches::assert_matches;
+    use std::assert_matches;
     use std::fs;
     use std::io::ErrorKind;
 
