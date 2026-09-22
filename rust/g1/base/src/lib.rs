@@ -13,6 +13,8 @@
 #![feature(iterator_try_collect)]
 #![feature(lazy_type_alias)]
 #![feature(maybe_uninit_uninit_array_transpose)]
+#![feature(new_range_api)]
+#![feature(range_into_bounds)]
 #![feature(rustc_attrs)]
 #![feature(specialization)]
 #![feature(trait_alias)]
@@ -35,6 +37,7 @@ pub mod future;
 pub mod iter;
 pub mod ops;
 pub mod owner;
+pub mod range;
 pub mod slice;
 pub mod str;
 pub mod sync;
