@@ -21,6 +21,12 @@ pub trait UrlExt {
     // We need this due to the idiosyncrasy of `Url::join`.
     fn ensure_trailing_slash(self) -> Self;
 
+    // This does not scale well, but it should be fine for limited use.
+    fn get_param(&self, key: &str) -> Option<Cow<'_, str>>;
+
+    // This does not scale well, but it should be fine for limited use.
+    fn set_param(&mut self, key: &str, value: &str);
+
     fn parse_query<T>(&self) -> Result<T, T::Error>
     where
         T: ParseQuery;
@@ -88,6 +94,18 @@ impl UrlExt for Url {
             self.set_path(&std::format!("{path}/"));
         }
         self
+    }
+
+    fn get_param(&self, key: &str) -> Option<Cow<'_, str>> {
+        self.query_pairs()
+            .find_map(|(k, v)| (k == key).then_some(v))
+    }
+
+    fn set_param(&mut self, key: &str, value: &str) {
+        let mut serializer = Serializer::new(String::new());
+        serializer.extend_pairs(self.query_pairs().filter(|(k, _)| k != key));
+        serializer.append_pair(key, value);
+        self.set_query(Some(&serializer.finish()));
     }
 
     fn parse_query<T>(&self) -> Result<T, T::Error>
@@ -270,6 +288,28 @@ mod tests {
         test("http://127.0.0.1:8000/a/", "/a/");
         test("http://127.0.0.1:8000/foo/bar", "/foo/bar/");
         test("http://127.0.0.1:8000/foo/bar/", "/foo/bar/");
+    }
+
+    #[test]
+    fn get_param() {
+        assert_eq!(u("http://127.0.0.1/").get_param("x"), None);
+        assert_eq!(
+            u("http://127.0.0.1/?x=1&x=2").get_param("x"),
+            Some("1".into()),
+        );
+    }
+
+    #[test]
+    fn set_param() {
+        let mut url = u("http://127.0.0.1/");
+        url.set_param("x", "1");
+        assert_eq!(url, u("http://127.0.0.1/?x=1"));
+        url.set_param("x", "2");
+        assert_eq!(url, u("http://127.0.0.1/?x=2"));
+
+        let mut url = u("http://127.0.0.1/?x=1&y=2&x=3");
+        url.set_param("x", "4");
+        assert_eq!(url, u("http://127.0.0.1/?y=2&x=4"));
     }
 
     #[test]
