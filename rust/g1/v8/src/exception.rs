@@ -71,8 +71,8 @@ impl Exception {
 
 fn extract_snippet(line: String, start: usize, end: usize) -> String {
     const MARGIN: usize = 20;
-    let start = start.saturating_sub(MARGIN);
-    let end = cmp::min(end + MARGIN, line.len());
+    let start = line.floor_char_boundary(start.saturating_sub(MARGIN));
+    let end = line.ceil_char_boundary(cmp::min(end + MARGIN, line.len()));
     format!(
         "{}{}{}",
         if start == 0 { "" } else { "... " },
