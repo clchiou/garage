@@ -1,8 +1,12 @@
+mod ext;
+
 use std::io::{self, Write};
 
 use serde::Serialize;
 use serde_json::ser::Formatter;
 use serde_json::{Error, Serializer};
+
+pub use crate::ext::ValueExt;
 
 /// Escapes non-ASCII characters.
 ///
